@@ -248,8 +248,8 @@ export class ConnectionError extends AdapterError {
  * Query error
  */
 export class QueryError extends AdapterError {
-  readonly query?: QueryObject;
-  readonly sql?: string;
+  readonly query: QueryObject | undefined;
+  readonly sql: string | undefined;
 
   constructor(
     message: string,

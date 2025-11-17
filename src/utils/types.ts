@@ -233,7 +233,7 @@ export function combineResults<T extends readonly unknown[], E>(
     data.push(result.data);
   }
 
-  return { success: true, data: data as T };
+  return { success: true, data: data as unknown as T };
 }
 
 /**

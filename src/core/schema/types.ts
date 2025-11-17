@@ -233,7 +233,7 @@ export interface TypedSchema<T> extends SchemaDefinition {
 export function defineSchema<
   const T extends SchemaDefinition
 >(schema: T): TypedSchema<InferSchemaType<T>> {
-  return schema as TypedSchema<InferSchemaType<T>>;
+  return { ...schema, __type: {} as InferSchemaType<T> };
 }
 
 /**

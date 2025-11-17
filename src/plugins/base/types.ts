@@ -71,8 +71,8 @@ export interface ForjaPlugin<TOptions = Record<string, unknown>> {
  */
 export class PluginError extends Error {
   readonly code: string;
-  readonly pluginName?: string;
-  readonly details?: unknown;
+  readonly pluginName: string | undefined;
+  readonly details: unknown | undefined;
 
   constructor(
     message: string,
@@ -219,7 +219,7 @@ export interface UploadFile {
   readonly originalName: string;
   readonly mimetype: string;
   readonly size: number;
-  readonly buffer: Buffer;
+  readonly buffer: Uint8Array;
 }
 
 /**
