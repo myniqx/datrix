@@ -1,0 +1,70 @@
+{
+  "name": "forja",
+  "version": "0.1.0",
+  "description": "TypeScript-first database management framework with Strapi-like API flexibility",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "bin": {
+    "forja": "./dist/cli/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts --clean",
+    "build:cli": "tsup src/cli/index.ts --format cjs --dts --clean",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint src --ext .ts",
+    "test": "vitest run",
+    "test:watch": "vitest watch",
+    "test:coverage": "vitest run --coverage",
+    "prepublishOnly": "pnpm run build"
+  },
+  "keywords": [
+    "database",
+    "orm",
+    "typescript",
+    "strapi",
+    "cms",
+    "rest-api",
+    "query-builder",
+    "postgresql",
+    "mysql",
+    "mongodb"
+  ],
+  "author": "",
+  "license": "MIT",
+  "packageManager": "pnpm@10.18.2",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "pg": "^8.11.3",
+    "mysql2": "^3.9.1",
+    "mongodb": "^6.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.17",
+    "@types/pg": "^8.11.0",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
+    "eslint": "^8.56.0",
+    "tsup": "^8.0.2",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.2",
+    "@vitest/coverage-v8": "^1.2.2"
+  },
+  "peerDependencies": {
+    "typescript": ">=5.0.0"
+  }
+}
