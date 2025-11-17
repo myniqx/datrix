@@ -19,6 +19,11 @@ import type {
 import { QueryError } from '../base/types';
 
 /**
+ * Maximum nesting depth for WHERE clauses to prevent stack overflow
+ */
+const MAX_WHERE_DEPTH = 10;
+
+/**
  * PostgreSQL query translator implementation
  */
 export class PostgresQueryTranslator implements QueryTranslator {
@@ -53,6 +58,23 @@ export class PostgresQueryTranslator implements QueryTranslator {
    * Escape identifier (table/column name)
    */
   escapeIdentifier(identifier: string): string {
+    // Validate identifier format (PostgreSQL naming rules)
+    // Must start with letter or underscore, followed by letters, digits, or underscores
+    // Maximum length is 63 characters
+    const validIdentifierPattern = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+
+    if (!validIdentifierPattern.test(identifier)) {
+      throw new QueryError(
+        `Invalid identifier '${identifier}': must start with letter or underscore, contain only alphanumeric characters and underscores`
+      );
+    }
+
+    if (identifier.length > 63) {
+      throw new QueryError(
+        `Invalid identifier '${identifier}': exceeds PostgreSQL maximum length of 63 characters`
+      );
+    }
+
     // Escape double quotes and wrap in double quotes
     return `"${identifier.replace(/"/g, '""')}"`;
   }
@@ -348,14 +370,21 @@ export class PostgresQueryTranslator implements QueryTranslator {
   /**
    * Translate WHERE conditions recursively
    */
-  private translateWhereConditions(where: WhereClause): string {
+  private translateWhereConditions(where: WhereClause, depth = 0): string {
+    // Check depth limit to prevent stack overflow
+    if (depth > MAX_WHERE_DEPTH) {
+      throw new QueryError(
+        `WHERE clause exceeds maximum nesting depth of ${MAX_WHERE_DEPTH}`
+      );
+    }
+
     const conditions: string[] = [];
 
     for (const [key, value] of Object.entries(where)) {
       // Handle logical operators
       if (key === '$and') {
         const andConditions = (value as readonly WhereClause[])
-          .map((condition) => `(${this.translateWhereConditions(condition)})`)
+          .map((condition) => `(${this.translateWhereConditions(condition, depth + 1)})`)
           .join(' AND ');
         conditions.push(`(${andConditions})`);
         continue;
@@ -363,14 +392,14 @@ export class PostgresQueryTranslator implements QueryTranslator {
 
       if (key === '$or') {
         const orConditions = (value as readonly WhereClause[])
-          .map((condition) => `(${this.translateWhereConditions(condition)})`)
+          .map((condition) => `(${this.translateWhereConditions(condition, depth + 1)})`)
           .join(' OR ');
         conditions.push(`(${orConditions})`);
         continue;
       }
 
       if (key === '$not') {
-        const notCondition = this.translateWhereConditions(value as WhereClause);
+        const notCondition = this.translateWhereConditions(value as WhereClause, depth + 1);
         conditions.push(`NOT (${notCondition})`);
         continue;
       }

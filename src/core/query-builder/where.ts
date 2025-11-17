@@ -10,6 +10,11 @@ import type { SchemaDefinition, FieldType } from '@core/schema/types';
 import type { Result } from '@utils/types';
 
 /**
+ * Maximum nesting depth for WHERE clauses to prevent stack overflow
+ */
+const MAX_WHERE_DEPTH = 10;
+
+/**
  * Where builder error
  */
 export class WhereBuilderError extends Error {
@@ -181,8 +186,19 @@ export function validateComparisonOperator(
  */
 export function validateWhereClause(
   where: WhereClause,
-  schema: SchemaDefinition
+  schema: SchemaDefinition,
+  depth = 0
 ): Result<void, WhereBuilderError> {
+  // Check depth limit
+  if (depth > MAX_WHERE_DEPTH) {
+    return {
+      success: false,
+      error: new WhereBuilderError(
+        `WHERE clause exceeds maximum nesting depth of ${MAX_WHERE_DEPTH}`
+      )
+    };
+  }
+
   const availableFields = Object.keys(schema.fields);
 
   for (const [key, value] of Object.entries(where)) {
@@ -201,14 +217,14 @@ export function validateWhereClause(
 
         // Recursively validate each condition
         for (const condition of value as readonly WhereClause[]) {
-          const result = validateWhereClause(condition, schema);
+          const result = validateWhereClause(condition, schema, depth + 1);
           if (!result.success) {
             return result;
           }
         }
       } else if (key === '$not') {
         // Recursively validate nested condition
-        const result = validateWhereClause(value as WhereClause, schema);
+        const result = validateWhereClause(value as WhereClause, schema, depth + 1);
         if (!result.success) {
           return result;
         }

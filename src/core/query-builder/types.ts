@@ -194,8 +194,9 @@ export interface QueryBuilder<TSchema = Record<string, unknown>> {
 
   /**
    * Build final query object
+   * Returns Result to avoid throwing exceptions
    */
-  build(): QueryObject;
+  build(): Result<QueryObject, Error>;
 
   /**
    * Clone the builder

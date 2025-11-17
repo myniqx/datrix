@@ -16,9 +16,56 @@ import type {
   OrderDirection
 } from './types';
 import type { SchemaDefinition } from '@core/schema/types';
+import type { Result } from '@utils/types';
 import { mergeWhereClauses } from './where';
 import { mergePopulateClauses } from './populate';
 import { normalizeSelectClause } from './select';
+
+/**
+ * Query builder error
+ */
+export class QueryBuilderError extends Error {
+  constructor(
+    message: string,
+    public readonly details?: {
+      field?: string;
+      value?: unknown;
+    }
+  ) {
+    super(message);
+    this.name = 'QueryBuilderError';
+  }
+}
+
+/**
+ * Deep clone an object (safe for JSON-serializable data)
+ */
+function deepClone<T>(obj: T): T {
+  if (obj === null || typeof obj !== 'object') {
+    return obj;
+  }
+
+  if (obj instanceof Date) {
+    return new Date(obj.getTime()) as T;
+  }
+
+  if (obj instanceof RegExp) {
+    return new RegExp(obj.source, obj.flags) as T;
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map((item) => deepClone(item)) as T;
+  }
+
+  const cloned: Record<string, unknown> = {};
+  for (const key in obj) {
+    if (Object.prototype.hasOwnProperty.call(obj, key)) {
+      cloned[key] = deepClone(obj[key]);
+    }
+  }
+
+  return cloned as T;
+}
 
 /**
  * Mutable query state for building
@@ -182,14 +229,20 @@ export class ForjaQueryBuilder<TSchema = Record<string, unknown>>
   /**
    * Build final QueryObject
    */
-  build(): QueryObject {
+  build(): Result<QueryObject, QueryBuilderError> {
     // Validate required fields
     if (!this.query.type) {
-      throw new Error('Query type is required');
+      return {
+        success: false,
+        error: new QueryBuilderError('Query type is required')
+      };
     }
 
     if (!this.query.table) {
-      throw new Error('Table name is required');
+      return {
+        success: false,
+        error: new QueryBuilderError('Table name is required')
+      };
     }
 
     const result: QueryObject = {
@@ -208,7 +261,7 @@ export class ForjaQueryBuilder<TSchema = Record<string, unknown>>
       ...(this.query.having !== undefined && { having: this.query.having })
     };
 
-    return result;
+    return { success: true, data: result };
   }
 
   /**
@@ -216,7 +269,19 @@ export class ForjaQueryBuilder<TSchema = Record<string, unknown>>
    */
   clone(): QueryBuilder<TSchema> {
     const cloned = new ForjaQueryBuilder<TSchema>(this._schema);
-    cloned.query = { ...this.query };
+
+    // Deep clone the query state to avoid shared references
+    cloned.query = {
+      ...this.query,
+      // Deep clone nested objects
+      ...(this.query.where !== undefined && { where: deepClone(this.query.where) }),
+      ...(this.query.populate !== undefined && { populate: deepClone(this.query.populate) }),
+      ...(this.query.data !== undefined && { data: deepClone(this.query.data) }),
+      ...(this.query.orderBy !== undefined && { orderBy: deepClone(this.query.orderBy) }),
+      ...(this.query.groupBy !== undefined && { groupBy: deepClone(this.query.groupBy) }),
+      ...(this.query.having !== undefined && { having: deepClone(this.query.having) })
+    };
+
     return cloned;
   }
 

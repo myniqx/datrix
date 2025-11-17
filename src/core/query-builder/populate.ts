@@ -10,6 +10,11 @@ import type { SchemaDefinition, RelationField } from '@core/schema/types';
 import type { Result } from '@utils/types';
 
 /**
+ * Maximum nesting depth for populate clauses to prevent stack overflow
+ */
+const MAX_POPULATE_DEPTH = 5;
+
+/**
  * Populate builder error
  */
 export class PopulateBuilderError extends Error {
@@ -144,7 +149,9 @@ export function validatePopulateOptions(
   relationName: string,
   options: PopulateOptions | '*',
   _relationField: RelationField,
-  targetSchema: SchemaDefinition
+  targetSchema: SchemaDefinition,
+  getSchema: (name: string) => SchemaDefinition | undefined,
+  depth: number
 ): Result<void, PopulateBuilderError> {
   // '*' is always valid
   if (options === '*') {
@@ -167,22 +174,34 @@ export function validatePopulateOptions(
     }
   }
 
-  // Validate nested populate if present
+  // Validate nested populate if present with depth check
   if (options.populate) {
-    for (const [nestedRelation] of Object.entries(options.populate)) {
-      const relationResult = getRelationField(targetSchema, nestedRelation);
-      if (!relationResult.success) {
-        return {
-          success: false,
-          error: new PopulateBuilderError(
-            `Nested populate error in '${relationName}.${nestedRelation}': ${relationResult.error.message}`,
-            { relation: relationName }
-          )
-        };
-      }
+    // Check if we would exceed depth limit
+    if (depth >= MAX_POPULATE_DEPTH) {
+      return {
+        success: false,
+        error: new PopulateBuilderError(
+          `Populate clause exceeds maximum nesting depth of ${MAX_POPULATE_DEPTH}`,
+          { relation: relationName }
+        )
+      };
+    }
 
-      // Note: We don't recursively validate nested populates here to avoid infinite loops
-      // The adapter will handle further validation during query execution
+    // Recursively validate nested populates with depth tracking
+    const nestedResult = validatePopulateClause(
+      options.populate,
+      targetSchema,
+      getSchema,
+      depth + 1
+    );
+    if (!nestedResult.success) {
+      return {
+        success: false,
+        error: new PopulateBuilderError(
+          `Nested populate error in '${relationName}': ${nestedResult.error.message}`,
+          { relation: relationName }
+        )
+      };
     }
   }
 
@@ -195,8 +214,19 @@ export function validatePopulateOptions(
 export function validatePopulateClause(
   populate: PopulateClause,
   schema: SchemaDefinition,
-  getSchema: (name: string) => SchemaDefinition | undefined
+  getSchema: (name: string) => SchemaDefinition | undefined,
+  depth = 0
 ): Result<void, PopulateBuilderError> {
+  // Check depth limit
+  if (depth > MAX_POPULATE_DEPTH) {
+    return {
+      success: false,
+      error: new PopulateBuilderError(
+        `Populate clause exceeds maximum nesting depth of ${MAX_POPULATE_DEPTH}`
+      )
+    };
+  }
+
   for (const [relationName, options] of Object.entries(populate)) {
     // Get relation field
     const relationResult = getRelationField(schema, relationName);
@@ -218,12 +248,14 @@ export function validatePopulateClause(
       };
     }
 
-    // Validate populate options
+    // Validate populate options with depth tracking
     const optionsResult = validatePopulateOptions(
       relationName,
       options,
       relationField,
-      targetSchema
+      targetSchema,
+      getSchema,
+      depth
     );
     if (!optionsResult.success) {
       return { success: false, error: optionsResult.error };
@@ -337,14 +369,25 @@ export function isEmptyPopulateClause(
 /**
  * Get populate depth (for nested populates)
  */
-export function getPopulateDepth(populate: PopulateClause): number {
+export function getPopulateDepth(
+  populate: PopulateClause,
+  currentDepth = 0
+): number {
+  // Prevent unbounded recursion
+  if (currentDepth > MAX_POPULATE_DEPTH) {
+    return MAX_POPULATE_DEPTH;
+  }
+
   let maxDepth = 0;
 
   for (const options of Object.values(populate)) {
     if (options === '*') {
       maxDepth = Math.max(maxDepth, 1);
     } else if (options.populate) {
-      maxDepth = Math.max(maxDepth, 1 + getPopulateDepth(options.populate));
+      maxDepth = Math.max(
+        maxDepth,
+        1 + getPopulateDepth(options.populate, currentDepth + 1)
+      );
     } else {
       maxDepth = Math.max(maxDepth, 1);
     }
