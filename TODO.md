@@ -282,11 +282,12 @@ interface ForjaPlugin<TOptions = Record<string, unknown>> {
   - [x] WHERE clause builder (`src/core/query-builder/where.ts`)
   - [x] JOIN/populate builder (`src/core/query-builder/populate.ts`)
   - [x] Base QueryBuilder class (`src/core/query-builder/builder.ts`)
-- [ ] PostgreSQL adapter
-  - [ ] Connection management
-  - [ ] Query translator (QueryObject → SQL)
-  - [ ] Transaction support
-  - [ ] Type mapping (TS types ↔ PG types)
+- [x] PostgreSQL adapter
+  - [x] Connection management (`src/adapters/postgres/adapter.ts`)
+  - [x] Query translator (QueryObject → SQL) (`src/adapters/postgres/query-translator.ts`)
+  - [x] Transaction support (`src/adapters/postgres/adapter.ts`)
+  - [x] Type mapping (TS types ↔ PG types) (`src/adapters/postgres/types.ts`)
+  - [x] Schema operations (CREATE/DROP/ALTER TABLE, indexes)
 
 ### Phase 3: Migration System
 
