@@ -227,30 +227,34 @@ export function errorsToPlainObject(
 }
 
 /**
- * Validation error collection class
+ * Validation error collection class (immutable)
  */
 export class ValidationErrorCollection {
-  private readonly errors: ValidationError[] = [];
+  private readonly errors: readonly ValidationError[];
 
-  /**
-   * Add an error
-   */
-  add(error: ValidationError): void {
-    this.errors.push(error);
+  constructor(errors: readonly ValidationError[] = []) {
+    this.errors = Object.freeze([...errors]);
   }
 
   /**
-   * Add multiple errors
+   * Add an error (returns new instance)
    */
-  addMany(errors: readonly ValidationError[]): void {
-    this.errors.push(...errors);
+  add(error: ValidationError): ValidationErrorCollection {
+    return new ValidationErrorCollection([...this.errors, error]);
+  }
+
+  /**
+   * Add multiple errors (returns new instance)
+   */
+  addMany(errors: readonly ValidationError[]): ValidationErrorCollection {
+    return new ValidationErrorCollection([...this.errors, ...errors]);
   }
 
   /**
    * Get all errors
    */
   getAll(): readonly ValidationError[] {
-    return [...this.errors];
+    return this.errors;
   }
 
   /**
@@ -282,13 +286,6 @@ export class ValidationErrorCollection {
   }
 
   /**
-   * Clear all errors
-   */
-  clear(): void {
-    this.errors.length = 0;
-  }
-
-  /**
    * Format as string
    */
   toString(): string {
@@ -299,7 +296,7 @@ export class ValidationErrorCollection {
    * Format as JSON
    */
   toJSON(): readonly ValidationError[] {
-    return this.getAll();
+    return this.errors;
   }
 
   /**

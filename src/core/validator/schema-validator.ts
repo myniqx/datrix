@@ -5,13 +5,25 @@
  * Orchestrates field-level validation for all fields.
  */
 
-import type { SchemaDefinition } from '@core/schema/types';
+import type { SchemaDefinition, FieldDefinition } from '@core/schema/types';
 import type { SchemaValidationResult, ValidatorOptions } from './types';
 import { validateField } from './field-validator';
 import {
   createValidationError,
   ValidationErrorCollection
 } from './errors';
+
+/**
+ * Create a non-required version of a field definition for partial validation
+ */
+function makeFieldOptional(field: FieldDefinition): FieldDefinition {
+  // Create a properly typed partial field that maintains all properties
+  // except required which is explicitly set to false
+  return {
+    ...field,
+    required: false
+  } as FieldDefinition;
+}
 
 /**
  * Default validator options
@@ -32,7 +44,7 @@ export function validateSchema<T = Record<string, unknown>>(
   options?: ValidatorOptions
 ): SchemaValidationResult<T> {
   const opts = { ...DEFAULT_OPTIONS, ...options };
-  const errors = new ValidationErrorCollection();
+  let errors = new ValidationErrorCollection();
 
   // Check if data is an object
   if (typeof data !== 'object' || data === null || Array.isArray(data)) {
@@ -59,7 +71,7 @@ export function validateSchema<T = Record<string, unknown>>(
     const result = validateField(value, fieldDef, fieldName);
 
     if (!result.success) {
-      errors.addMany(result.error);
+      errors = errors.addMany(result.error);
 
       // Abort early if option is set
       if (opts.abortEarly) {
@@ -74,7 +86,7 @@ export function validateSchema<T = Record<string, unknown>>(
   if (opts.strict) {
     for (const key of Object.keys(inputData)) {
       if (!(key in schema.fields)) {
-        errors.add(
+        errors = errors.add(
           createValidationError(
             key,
             'UNKNOWN',
@@ -116,7 +128,7 @@ export function validatePartial<T = Record<string, unknown>>(
   options?: ValidatorOptions
 ): SchemaValidationResult<Partial<T>> {
   const opts = { ...DEFAULT_OPTIONS, ...options };
-  const errors = new ValidationErrorCollection();
+  let errors = new ValidationErrorCollection();
 
   // Check if data is an object
   if (typeof data !== 'object' || data === null || Array.isArray(data)) {
@@ -142,7 +154,7 @@ export function validatePartial<T = Record<string, unknown>>(
     // Check if field exists in schema
     if (!fieldDef) {
       if (opts.strict) {
-        errors.add(
+        errors = errors.add(
           createValidationError(
             fieldName,
             'UNKNOWN',
@@ -160,16 +172,13 @@ export function validatePartial<T = Record<string, unknown>>(
     }
 
     // Create non-required version of field for partial validation
-    const partialFieldDef = {
-      ...fieldDef,
-      required: false as const
-    };
+    const partialFieldDef = makeFieldOptional(fieldDef);
 
     // Validate field
     const result = validateField(value, partialFieldDef, fieldName);
 
     if (!result.success) {
-      errors.addMany(result.error);
+      errors = errors.addMany(result.error);
 
       if (opts.abortEarly) {
         return { success: false, error: [...errors.getAll()] };
@@ -196,7 +205,7 @@ export function validateMany<T = Record<string, unknown>>(
   options?: ValidatorOptions
 ): SchemaValidationResult<readonly T[]> {
   const opts = { ...DEFAULT_OPTIONS, ...options };
-  const errors = new ValidationErrorCollection();
+  let errors = new ValidationErrorCollection();
 
   // Check if data is an array
   if (!Array.isArray(dataArray)) {
@@ -229,7 +238,7 @@ export function validateMany<T = Record<string, unknown>>(
           { value: err.value, expected: err.expected }
         )
       );
-      errors.addMany(itemErrors);
+      errors = errors.addMany(itemErrors);
 
       if (opts.abortEarly) {
         return { success: false, error: [...errors.getAll()] };

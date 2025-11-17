@@ -61,6 +61,15 @@ export interface SchemaMetadata {
 }
 
 /**
+ * Performance cache for expensive operations
+ */
+interface RegistryCache {
+  relatedSchemas: Map<string, readonly string[]>;
+  referencingSchemas: Map<string, readonly string[]>;
+  fieldTypeIndex: Map<string, readonly SchemaDefinition[]>;
+}
+
+/**
  * Schema registry implementation
  */
 export class SchemaRegistry {
@@ -68,6 +77,11 @@ export class SchemaRegistry {
   private readonly metadata: Map<string, SchemaMetadata> = new Map();
   private readonly config: Required<SchemaRegistryConfig>;
   private locked = false;
+  private cache: RegistryCache = {
+    relatedSchemas: new Map(),
+    referencingSchemas: new Map(),
+    fieldTypeIndex: new Map()
+  };
 
   constructor(config?: SchemaRegistryConfig) {
     this.config = {
@@ -75,6 +89,15 @@ export class SchemaRegistry {
       allowOverwrite: config?.allowOverwrite ?? false,
       validateRelations: config?.validateRelations ?? true
     };
+  }
+
+  /**
+   * Invalidate performance cache
+   */
+  private invalidateCache(): void {
+    this.cache.relatedSchemas.clear();
+    this.cache.referencingSchemas.clear();
+    this.cache.fieldTypeIndex.clear();
   }
 
   /**
@@ -138,6 +161,9 @@ export class SchemaRegistry {
     // Store metadata
     const metadata = this.createMetadata(schema);
     this.metadata.set(schema.name, metadata);
+
+    // Invalidate cache
+    this.invalidateCache();
 
     return { success: true, data: undefined };
   }
@@ -225,9 +251,15 @@ export class SchemaRegistry {
   }
 
   /**
-   * Get related schemas for a given schema
+   * Get related schemas for a given schema (cached)
    */
   getRelatedSchemas(schemaName: string): readonly string[] {
+    // Check cache first
+    const cached = this.cache.relatedSchemas.get(schemaName);
+    if (cached) {
+      return cached;
+    }
+
     const schema = this.get(schemaName);
     if (!schema) return [];
 
@@ -242,13 +274,22 @@ export class SchemaRegistry {
       }
     }
 
+    // Cache the result
+    this.cache.relatedSchemas.set(schemaName, related);
+
     return related;
   }
 
   /**
-   * Get schemas that reference a given schema
+   * Get schemas that reference a given schema (cached)
    */
   getReferencingSchemas(schemaName: string): readonly string[] {
+    // Check cache first
+    const cached = this.cache.referencingSchemas.get(schemaName);
+    if (cached) {
+      return cached;
+    }
+
     const referencing: string[] = [];
 
     for (const [name, schema] of this.schemas.entries()) {
@@ -263,16 +304,30 @@ export class SchemaRegistry {
       }
     }
 
+    // Cache the result
+    this.cache.referencingSchemas.set(schemaName, referencing);
+
     return referencing;
   }
 
   /**
-   * Find schemas by field type
+   * Find schemas by field type (cached)
    */
   findByFieldType(fieldType: string): readonly SchemaDefinition[] {
-    return this.getAll().filter((schema) =>
+    // Check cache first
+    const cached = this.cache.fieldTypeIndex.get(fieldType);
+    if (cached) {
+      return cached;
+    }
+
+    const result = this.getAll().filter((schema) =>
       Object.values(schema.fields).some((field) => field.type === fieldType)
     );
+
+    // Cache the result
+    this.cache.fieldTypeIndex.set(fieldType, result);
+
+    return result;
   }
 
   /**
@@ -322,6 +377,7 @@ export class SchemaRegistry {
     }
     this.schemas.clear();
     this.metadata.clear();
+    this.invalidateCache();
   }
 
   /**
@@ -337,6 +393,7 @@ export class SchemaRegistry {
     const removed = this.schemas.delete(name);
     if (removed) {
       this.metadata.delete(name);
+      this.invalidateCache();
     }
     return removed;
   }
@@ -382,14 +439,86 @@ export class SchemaRegistry {
   }
 
   /**
-   * Simple pluralization (can be enhanced)
+   * Enhanced pluralization with common English rules
    */
   private pluralize(word: string): string {
-    if (word.endsWith('s')) return word;
-    if (word.endsWith('y')) return word.slice(0, -1) + 'ies';
-    if (word.endsWith('ch') || word.endsWith('sh') || word.endsWith('x')) {
+    // Irregular plurals (common cases)
+    const irregulars: Record<string, string> = {
+      person: 'people',
+      child: 'children',
+      man: 'men',
+      woman: 'women',
+      tooth: 'teeth',
+      foot: 'feet',
+      mouse: 'mice',
+      goose: 'geese',
+      ox: 'oxen',
+      datum: 'data',
+      index: 'indices',
+      vertex: 'vertices',
+      matrix: 'matrices',
+      status: 'statuses',
+      quiz: 'quizzes'
+    };
+
+    const lower = word.toLowerCase();
+    const irregular = irregulars[lower];
+    if (irregular) {
+      // Preserve original casing pattern
+      const firstChar = word.charAt(0);
+      return firstChar === firstChar.toUpperCase()
+        ? irregular.charAt(0).toUpperCase() + irregular.slice(1)
+        : irregular;
+    }
+
+    // Already plural or uncountable
+    if (
+      word.endsWith('s') ||
+      word.endsWith('ss') ||
+      word.endsWith('us') ||
+      lower === 'data' ||
+      lower === 'information' ||
+      lower === 'equipment'
+    ) {
+      return word;
+    }
+
+    // Words ending in consonant + y -> ies
+    if (word.endsWith('y') && word.length > 1) {
+      const beforeY = word[word.length - 2];
+      if (beforeY && !'aeiou'.includes(beforeY.toLowerCase())) {
+        return word.slice(0, -1) + 'ies';
+      }
+    }
+
+    // Words ending in f or fe -> ves
+    if (word.endsWith('f')) {
+      return word.slice(0, -1) + 'ves';
+    }
+    if (word.endsWith('fe')) {
+      return word.slice(0, -2) + 'ves';
+    }
+
+    // Words ending in o (preceded by consonant) -> oes
+    if (word.endsWith('o') && word.length > 1) {
+      const beforeO = word[word.length - 2];
+      if (beforeO && !'aeiou'.includes(beforeO.toLowerCase())) {
+        return word + 'es';
+      }
+    }
+
+    // Words ending in ch, sh, s, ss, x, z -> es
+    if (
+      word.endsWith('ch') ||
+      word.endsWith('sh') ||
+      word.endsWith('ss') ||
+      word.endsWith('x') ||
+      word.endsWith('z')
+    ) {
       return word + 'es';
     }
+
+    // Default: just add s
     return word + 's';
   }
 

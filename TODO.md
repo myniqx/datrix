@@ -261,18 +261,18 @@ interface ForjaPlugin<TOptions = Record<string, unknown>> {
 
 - [x] Project setup (package.json, tsconfig, etc.)
 - [x] Create folder structure
-- [ ] Write CLAUDE.md files for each module
-- [ ] Define core type system
-  - [ ] Schema types (`src/core/schema/types.ts`)
-  - [ ] Validation types (`src/core/validator/types.ts`)
-  - [ ] Query builder types (`src/core/query-builder/types.ts`)
-- [ ] Implement schema system
-  - [ ] Schema registry (`src/core/schema/registry.ts`)
-  - [ ] Type inference utilities (`src/core/schema/inference.ts`)
-- [ ] Implement custom validation engine
-  - [ ] Field validator (~150 LOC)
-  - [ ] Schema validator (~150 LOC)
-  - [ ] Error handling
+- [x] Write CLAUDE.md files for each module
+- [x] Define core type system
+  - [x] Schema types (`src/core/schema/types.ts`)
+  - [x] Validation types (`src/core/validator/types.ts`)
+  - [x] Query builder types (`src/core/query-builder/types.ts`)
+- [x] Implement schema system
+  - [x] Schema registry (`src/core/schema/registry.ts`)
+  - [x] Type inference utilities (`src/core/schema/inference.ts`)
+- [x] Implement custom validation engine
+  - [x] Field validator (~150 LOC)
+  - [x] Schema validator (~150 LOC)
+  - [x] Error handling
 
 ### Phase 2: Query Builder & PostgreSQL Adapter
 

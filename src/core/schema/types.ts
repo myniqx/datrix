@@ -221,10 +221,15 @@ export type InferSchemaType<S extends SchemaDefinition> = {
 };
 
 /**
- * Schema with inferred type
+ * Type brand symbol (compile-time only, no runtime overhead)
+ */
+declare const __typeBrand: unique symbol;
+
+/**
+ * Schema with inferred type (branded for type safety)
  */
 export interface TypedSchema<T> extends SchemaDefinition {
-  readonly __type: T;
+  readonly [__typeBrand]?: T; // Optional phantom type, no runtime cost
 }
 
 /**
@@ -233,7 +238,8 @@ export interface TypedSchema<T> extends SchemaDefinition {
 export function defineSchema<
   const T extends SchemaDefinition
 >(schema: T): TypedSchema<InferSchemaType<T>> {
-  return { ...schema, __type: {} as InferSchemaType<T> };
+  // No runtime transformation needed - type brand is compile-time only
+  return schema as TypedSchema<InferSchemaType<T>>;
 }
 
 /**

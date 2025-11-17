@@ -32,13 +32,33 @@ const isNullOrUndefined = (value: unknown): value is null | undefined =>
   value === null || value === undefined;
 
 /**
+ * Maximum nesting depth for array/object validation
+ */
+const MAX_VALIDATION_DEPTH = 10;
+
+/**
  * Main field validator function
  */
 export function validateField<T = unknown>(
   value: unknown,
   field: FieldDefinition,
-  fieldName: string
+  fieldName: string,
+  depth = 0
 ): FieldValidationResult<T> {
+  // Check depth limit to prevent infinite recursion
+  if (depth > MAX_VALIDATION_DEPTH) {
+    return {
+      success: false,
+      error: [
+        createValidationError(
+          fieldName,
+          'CUSTOM',
+          `Maximum validation depth (${MAX_VALIDATION_DEPTH}) exceeded`,
+          { value: depth }
+        )
+      ]
+    };
+  }
   // Check required
   if (field.required && isNullOrUndefined(value)) {
     return {
@@ -71,7 +91,7 @@ export function validateField<T = unknown>(
     case 'enum':
       return validateEnum(value, field as EnumField, fieldName) as FieldValidationResult<T>;
     case 'array':
-      return validateArray(value, field as ArrayField, fieldName) as FieldValidationResult<T>;
+      return validateArray(value, field as ArrayField, fieldName, depth) as FieldValidationResult<T>;
     case 'json':
       return validateJSON(value, fieldName) as FieldValidationResult<T>;
     default:
@@ -366,7 +386,8 @@ function validateEnum(
 function validateArray(
   value: unknown,
   field: ArrayField,
-  fieldName: string
+  fieldName: string,
+  depth: number
 ): FieldValidationResult<readonly unknown[]> {
   if (!isArray(value)) {
     return {
@@ -413,7 +434,7 @@ function validateArray(
   // Validate each item
   for (let i = 0; i < value.length; i++) {
     const item = value[i];
-    const itemResult = validateField(item, field.items, `${fieldName}[${i}]`);
+    const itemResult = validateField(item, field.items, `${fieldName}[${i}]`, depth + 1);
     if (!itemResult.success) {
       errors.push(...itemResult.error);
     }
