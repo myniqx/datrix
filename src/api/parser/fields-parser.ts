@@ -7,8 +7,6 @@
  *   ?fields=name,email
  */
 
-// SelectClause is used by FieldsParserResult type
-import type { SelectClause } from '@core/query-builder/types';
 import type { RawQueryParams, FieldsParserResult } from './types';
 import { ParserError } from './types';
 

@@ -311,11 +311,11 @@ interface ForjaPlugin<TOptions = Record<string, unknown>> {
 
 ### Phase 5: Authentication Plugin
 
-- [ ] Plugin base interface
-- [ ] JWT strategy
-- [ ] Session strategy
-- [ ] RBAC (Role-Based Access Control)
-- [ ] Permission checking middleware
+- [x] Plugin base interface
+- [x] JWT strategy
+- [x] Session strategy
+- [x] RBAC (Role-Based Access Control)
+- [x] Permission checking middleware
 
 ### Phase 6: Additional Plugins
 
