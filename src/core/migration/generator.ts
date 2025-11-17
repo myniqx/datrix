@@ -19,6 +19,21 @@ import { MigrationSystemError } from './types';
  */
 export class ForgeMigrationGenerator implements MigrationGenerator {
   /**
+   * Escape string for use in template literals
+   */
+  private escapeString(str: string): string {
+    return str
+      .replace(/\\/g, '\\\\')
+      .replace(/'/g, "\\'")
+      .replace(/"/g, '\\"')
+      .replace(/`/g, '\\`')
+      .replace(/\$/g, '\\$')
+      .replace(/\n/g, '\\n')
+      .replace(/\r/g, '\\r')
+      .replace(/\t/g, '\\t');
+  }
+
+  /**
    * Generate complete migration from differences
    */
   generate(
@@ -278,23 +293,29 @@ export class ForgeMigrationGenerator implements MigrationGenerator {
     const upCode = this.generateOperationsCode(up, 2);
     const downCode = this.generateOperationsCode(down, 2);
 
+    // Escape metadata strings to prevent injection
+    const escapedName = this.escapeString(metadata.name);
+    const escapedVersion = this.escapeString(metadata.version);
+    const escapedDescription = metadata.description ? this.escapeString(metadata.description) : undefined;
+    const escapedAuthor = metadata.author ? this.escapeString(metadata.author) : undefined;
+
     return `/**
- * Migration: ${metadata.name}
- * Version: ${metadata.version}
+ * Migration: ${escapedName}
+ * Version: ${escapedVersion}
  * Created: ${new Date(metadata.timestamp).toISOString()}
- ${metadata.description ? `* Description: ${metadata.description}` : ''}
- ${metadata.author ? `* Author: ${metadata.author}` : ''}
+ ${escapedDescription ? `* Description: ${escapedDescription}` : ''}
+ ${escapedAuthor ? `* Author: ${escapedAuthor}` : ''}
  */
 
 import type { Migration, MigrationOperation } from '@core/migration/types';
 
 export const migration: Migration = {
   metadata: {
-    name: '${metadata.name}',
-    version: '${metadata.version}',
+    name: '${escapedName}',
+    version: '${escapedVersion}',
     timestamp: ${metadata.timestamp},
-    ${metadata.description ? `description: '${metadata.description}',` : ''}
-    ${metadata.author ? `author: '${metadata.author}',` : ''}
+    ${escapedDescription ? `description: '${escapedDescription}',` : ''}
+    ${escapedAuthor ? `author: '${escapedAuthor}',` : ''}
   },
 
   up: [

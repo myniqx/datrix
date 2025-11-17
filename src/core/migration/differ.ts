@@ -41,6 +41,13 @@ function isFieldDefinition(value: unknown): value is FieldDefinition {
 }
 
 /**
+ * Type guard for valid index types
+ */
+function isValidIndexType(type: string): type is 'btree' | 'hash' | 'gist' | 'gin' {
+  return ['btree', 'hash', 'gist', 'gin'].includes(type);
+}
+
+/**
  * Schema differ implementation
  */
 export class ForgeSchemaDiffer implements SchemaDiffer {
@@ -351,7 +358,7 @@ export class ForgeSchemaDiffer implements SchemaDiffer {
             ...(index.name !== undefined && { name: index.name }),
             fields: index.fields,
             ...(index.unique !== undefined && { unique: index.unique }),
-            ...(index.type !== undefined && { type: index.type as 'btree' | 'hash' | 'gist' | 'gin' })
+            ...(index.type !== undefined && isValidIndexType(index.type) && { type: index.type })
           }
         });
       }

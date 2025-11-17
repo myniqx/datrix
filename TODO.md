@@ -291,11 +291,11 @@ interface ForjaPlugin<TOptions = Record<string, unknown>> {
 
 ### Phase 3: Migration System
 
-- [ ] Migration types and interfaces
-- [ ] Schema differ (detect changes)
-- [ ] Migration generator (auto-generate from schemas)
-- [ ] Migration runner
-- [ ] Migration history tracking (migrations table)
+- [x] Migration types and interfaces
+- [x] Schema differ (detect changes)
+- [x] Migration generator (auto-generate from schemas)
+- [x] Migration runner
+- [x] Migration history tracking (migrations table)
 
 ### Phase 4: API Layer
 

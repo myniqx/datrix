@@ -287,6 +287,7 @@ export interface MigrationExecutionResult {
   readonly status: MigrationStatus;
   readonly executionTime: number;
   readonly error?: Error;
+  readonly warnings?: readonly string[];
 }
 
 /**

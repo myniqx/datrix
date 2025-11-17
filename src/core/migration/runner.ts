@@ -151,6 +151,18 @@ export class ForgeMigrationRunner implements MigrationRunner {
         migrationsToRun = migrationsToRun.slice(0, targetIndex + 1);
       }
 
+      // Handle dry run - simulate migrations without executing
+      if (options?.dryRun) {
+        const simulatedResults: MigrationExecutionResult[] = migrationsToRun.map(
+          (migration): MigrationExecutionResult => ({
+            migration,
+            status: 'pending',
+            executionTime: 0
+          })
+        );
+        return { success: true, data: simulatedResults };
+      }
+
       const results: MigrationExecutionResult[] = [];
 
       for (const migration of migrationsToRun) {
@@ -261,9 +273,10 @@ export class ForgeMigrationRunner implements MigrationRunner {
         const recordStatus = direction === 'up' ? 'completed' : 'rolled_back';
         const recordResult = await this.history.record(migration, executionTime, recordStatus);
 
-        // Log warning if recording fails, but don't fail the migration
+        // Collect warning if recording fails, but don't fail the migration
+        const warnings: string[] = [];
         if (!recordResult.success) {
-          console.warn('Failed to record migration history:', recordResult.error.message);
+          warnings.push(`Failed to record migration history: ${recordResult.error.message}`);
         }
 
         return {
@@ -271,7 +284,8 @@ export class ForgeMigrationRunner implements MigrationRunner {
           data: {
             migration,
             status: recordStatus,
-            executionTime
+            executionTime,
+            ...(warnings.length > 0 && { warnings })
           }
         };
       } catch (error) {
@@ -281,9 +295,10 @@ export class ForgeMigrationRunner implements MigrationRunner {
         const executionTime = Date.now() - startTime;
         const err = error instanceof Error ? error : new Error(String(error));
 
+        const warnings: string[] = [];
         const recordResult = await this.history.record(migration, executionTime, 'failed', err);
         if (!recordResult.success) {
-          console.warn('Failed to record migration failure:', recordResult.error.message);
+          warnings.push(`Failed to record migration failure: ${recordResult.error.message}`);
         }
 
         return {
@@ -292,7 +307,8 @@ export class ForgeMigrationRunner implements MigrationRunner {
             migration,
             status: 'failed',
             executionTime,
-            error: err
+            error: err,
+            ...(warnings.length > 0 && { warnings })
           }
         };
       }
@@ -357,7 +373,15 @@ export class ForgeMigrationRunner implements MigrationRunner {
       if (result.data.status !== 'failed') {
         const removeResult = await this.history.remove(migration.metadata.version);
         if (!removeResult.success) {
-          console.warn('Failed to remove migration from history:', removeResult.error.message);
+          // Add warning to result
+          const warnings = [...(result.data.warnings ?? []), `Failed to remove migration from history: ${removeResult.error.message}`];
+          return {
+            success: true,
+            data: {
+              ...result.data,
+              warnings
+            }
+          };
         }
       }
 
@@ -429,17 +453,24 @@ export class ForgeMigrationRunner implements MigrationRunner {
           return { success: false, error: result.error };
         }
 
-        results.push(result.data);
+        let executionResult = result.data;
 
         // Remove from history if successful
         if (result.data.status !== 'failed') {
           const removeResult = await this.history.remove(migration.metadata.version);
           if (!removeResult.success) {
-            console.warn('Failed to remove migration from history:', removeResult.error.message);
+            // Add warning to result
+            const warnings = [...(result.data.warnings ?? []), `Failed to remove migration from history: ${removeResult.error.message}`];
+            executionResult = {
+              ...result.data,
+              warnings
+            };
           }
         } else {
           break; // Stop on failure
         }
+
+        results.push(executionResult);
       }
 
       return { success: true, data: results };
