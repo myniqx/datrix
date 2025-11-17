@@ -276,11 +276,12 @@ interface ForjaPlugin<TOptions = Record<string, unknown>> {
 
 ### Phase 2: Query Builder & PostgreSQL Adapter
 
-- [ ] Query builder base implementation
-  - [ ] WHERE clause builder
-  - [ ] SELECT/fields builder
-  - [ ] JOIN/populate builder
-  - [ ] Pagination builder
+- [x] Query builder base implementation
+  - [x] SELECT/fields builder (`src/core/query-builder/select.ts`)
+  - [x] Pagination builder (`src/core/query-builder/pagination.ts`)
+  - [x] WHERE clause builder (`src/core/query-builder/where.ts`)
+  - [x] JOIN/populate builder (`src/core/query-builder/populate.ts`)
+  - [x] Base QueryBuilder class (`src/core/query-builder/builder.ts`)
 - [ ] PostgreSQL adapter
   - [ ] Connection management
   - [ ] Query translator (QueryObject → SQL)
