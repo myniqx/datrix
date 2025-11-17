@@ -11,7 +11,7 @@ import type { SchemaDefinition, FieldDefinition } from '@core/schema/types';
 /**
  * Query object types
  */
-export type QueryType = 'select' | 'insert' | 'update' | 'delete';
+export type QueryType = 'select' | 'insert' | 'update' | 'delete' | 'count';
 
 /**
  * Comparison operators
@@ -63,7 +63,7 @@ export type SelectClause = readonly string[] | '*';
  * Populate clause (relations to include)
  */
 export type PopulateClause = {
-  readonly [relation: string]: {
+  readonly [relation: string]: '*' | {
     readonly select?: SelectClause;
     readonly where?: WhereClause;
     readonly populate?: PopulateClause; // Nested populate

@@ -2,553 +2,459 @@
 
 ## 📖 Module Overview
 
-The API module provides HTTP request handling, query string parsing, and response serialization. It's designed to be framework-agnostic and work with Next.js, Express, Fastify, and other frameworks.
+The API module provides HTTP request handling, query string parsing, and response serialization for the Forja framework. It's completely framework-agnostic and works seamlessly with Next.js, Express, Fastify, and other HTTP frameworks.
 
 **Components:**
-- **Handler**: Route handler factory (`createHandler`)
-- **Parser**: Query string parsing (populate, fields, where, pagination)
-- **Serializer**: JSON response formatting
+- **Parser**: Query string parsing (populate, fields, where, pagination, sorting)
+- **Handler**: CRUD operation handlers and factory functions
+- **Serializer**: JSON response formatting and relation serialization
+
+**Critical Rule:** This module MUST be framework-agnostic. All implementations use generic interfaces that can adapt to any framework.
 
 ---
 
 ## 🎯 Module Responsibilities
 
-### Handler Factory (`src/api/handler/`)
+### Parser Module (`src/api/parser/`)
 
-**Purpose:** Generate CRUD route handlers for any framework
-
-**Files:**
-- `types.ts` - Handler type definitions
-- `factory.ts` - `createHandler` function
-- `crud.ts` - CRUD operation implementations
-- `context.ts` - Request context builder
-
-**Usage Pattern:**
-```typescript
-// Next.js App Router
-// app/api/users/[...forja]/route.ts
-import { createHandler } from 'forja';
-
-export const { GET, POST, PUT, DELETE } = createHandler('User');
-
-// Express
-// routes/users.ts
-import { createHandler } from 'forja';
-
-const handler = createHandler('User');
-router.get('/users', handler.GET);
-router.post('/users', handler.POST);
-router.put('/users/:id', handler.PUT);
-router.delete('/users/:id', handler.DELETE);
-```
-
-**Handler Type Definition:**
-```typescript
-type RouteHandler<TRequest = unknown, TResponse = unknown> = (
-  request: TRequest
-) => Promise<TResponse>;
-
-type HandlerConfig = {
-  readonly model: string;
-  readonly middleware?: readonly Middleware[];
-  readonly permissions?: PermissionConfig;
-  readonly hooks?: LifecycleHooks;
-};
-
-type PermissionConfig = {
-  readonly create?: readonly string[] | PermissionFunction;
-  readonly read?: readonly string[] | PermissionFunction;
-  readonly update?: readonly string[] | PermissionFunction;
-  readonly delete?: readonly string[] | PermissionFunction;
-};
-
-type PermissionFunction = (context: RequestContext) => boolean | Promise<boolean>;
-```
-
-**Create Handler Implementation:**
-```typescript
-export function createHandler(
-  model: string,
-  config?: Partial<HandlerConfig>
-): {
-  GET: RouteHandler;
-  POST: RouteHandler;
-  PUT: RouteHandler;
-  DELETE: RouteHandler;
-} {
-  const fullConfig: HandlerConfig = {
-    model,
-    middleware: config?.middleware ?? [],
-    permissions: config?.permissions ?? {},
-    hooks: config?.hooks ?? {}
-  };
-
-  return {
-    GET: async (request) => handleGet(request, fullConfig),
-    POST: async (request) => handlePost(request, fullConfig),
-    PUT: async (request) => handlePut(request, fullConfig),
-    DELETE: async (request) => handleDelete(request, fullConfig)
-  };
-}
-
-// Framework-specific adapters
-export function createNextHandler(model: string, config?: Partial<HandlerConfig>) {
-  const handlers = createHandler(model, config);
-
-  return {
-    GET: async (req: NextRequest) => {
-      const result = await handlers.GET(adaptNextRequest(req));
-      return NextResponse.json(result);
-    },
-    POST: async (req: NextRequest) => {
-      const result = await handlers.POST(adaptNextRequest(req));
-      return NextResponse.json(result);
-    },
-    PUT: async (req: NextRequest) => {
-      const result = await handlers.PUT(adaptNextRequest(req));
-      return NextResponse.json(result);
-    },
-    DELETE: async (req: NextRequest) => {
-      const result = await handlers.DELETE(adaptNextRequest(req));
-      return NextResponse.json(result);
-    }
-  };
-}
-```
-
-**CRUD Operations:**
-```typescript
-// GET /api/users?populate[posts][fields][0]=title&fields[0]=email
-async function handleGet(
-  request: NormalizedRequest,
-  config: HandlerConfig
-): Promise<ApiResponse> {
-  // 1. Parse query string
-  const parsedQuery = parseQueryString(request.query);
-
-  // 2. Check permissions
-  const hasPermission = await checkPermission(
-    request.context,
-    config.permissions.read
-  );
-  if (!hasPermission) {
-    return errorResponse(403, 'Forbidden');
-  }
-
-  // 3. Build query
-  const query: QueryObject = {
-    type: 'select',
-    table: config.model,
-    select: parsedQuery.fields ?? '*',
-    where: parsedQuery.where,
-    populate: parsedQuery.populate,
-    limit: parsedQuery.pagination.limit,
-    offset: parsedQuery.pagination.offset
-  };
-
-  // 4. Execute before hook
-  if (config.hooks?.beforeFind) {
-    await config.hooks.beforeFind(query, request.context);
-  }
-
-  // 5. Execute query
-  const result = await adapter.executeQuery(query);
-  if (!result.success) {
-    return errorResponse(500, 'Query failed', result.error);
-  }
-
-  // 6. Execute after hook
-  let data = result.data;
-  if (config.hooks?.afterFind) {
-    data = await config.hooks.afterFind(data, request.context);
-  }
-
-  // 7. Serialize response
-  return successResponse(data);
-}
-
-// POST /api/users
-async function handlePost(
-  request: NormalizedRequest,
-  config: HandlerConfig
-): Promise<ApiResponse> {
-  // 1. Parse body
-  const body = await parseBody(request);
-
-  // 2. Validate
-  const validation = await validateSchema(config.model, body);
-  if (!validation.success) {
-    return errorResponse(400, 'Validation failed', validation.errors);
-  }
-
-  // 3. Check permissions
-  const hasPermission = await checkPermission(
-    request.context,
-    config.permissions.create
-  );
-  if (!hasPermission) {
-    return errorResponse(403, 'Forbidden');
-  }
-
-  // 4. Execute before hook
-  let data = validation.data;
-  if (config.hooks?.beforeCreate) {
-    data = await config.hooks.beforeCreate(data, request.context);
-  }
-
-  // 5. Execute query
-  const result = await adapter.executeQuery({
-    type: 'insert',
-    table: config.model,
-    data
-  });
-  if (!result.success) {
-    return errorResponse(500, 'Create failed', result.error);
-  }
-
-  // 6. Execute after hook
-  let created = result.data;
-  if (config.hooks?.afterCreate) {
-    created = await config.hooks.afterCreate(created, request.context);
-  }
-
-  // 7. Serialize response
-  return successResponse(created, 201);
-}
-
-// PUT /api/users/:id
-async function handlePut(
-  request: NormalizedRequest,
-  config: HandlerConfig
-): Promise<ApiResponse> {
-  // Similar to POST but for updates
-}
-
-// DELETE /api/users/:id
-async function handleDelete(
-  request: NormalizedRequest,
-  config: HandlerConfig
-): Promise<ApiResponse> {
-  // Similar pattern for deletes
-}
-```
-
----
-
-### Query Parser (`src/api/parser/`)
-
-**Purpose:** Parse Strapi-style query strings into QueryObject
+**Purpose:** Parse Strapi-style query strings into QueryObject format
 
 **Files:**
 - `types.ts` - Parser type definitions
-- `query-parser.ts` - Main query parser
-- `populate-parser.ts` - Populate syntax parser
-- `fields-parser.ts` - Fields syntax parser
-- `where-parser.ts` - Where clause parser
+- `query-parser.ts` - Main query parser (combines all parsers)
+- `fields-parser.ts` - Field selection parser (`?fields[0]=name`)
+- `where-parser.ts` - WHERE clause parser (`?where[status]=active`)
+- `populate-parser.ts` - Relation populate parser (`?populate[profile][fields][0]=name`)
 
 **Supported Query Syntax:**
 
 ```typescript
-// Fields selection
-// ?fields[0]=email&fields[1]=name
-// Result: select: ['email', 'name']
+// Field Selection
+?fields[0]=email&fields[1]=name
+?fields=email,name
 
-// Populate (relations)
-// ?populate=*
-// Result: populate all relations
-
-// ?populate[posts][fields][0]=title&populate[posts][fields][1]=createdAt
-// Result: populate: { posts: { select: ['title', 'createdAt'] } }
-
-// ?populate[profile]=*&populate[posts][populate][author]=*
-// Result: nested populate
-
-// Where conditions
-// ?where[role]=admin
-// Result: where: { role: 'admin' }
-
-// ?where[age][$gte]=18&where[age][$lt]=65
-// Result: where: { age: { $gte: 18, $lt: 65 } }
-
-// ?where[$or][0][role]=admin&where[$or][1][role]=moderator
-// Result: where: { $or: [{ role: 'admin' }, { role: 'moderator' }] }
+// Where Conditions
+?where[status]=active
+?where[price][$gt]=100&where[price][$lt]=1000
+?where[name][$contains]=john
 
 // Pagination
-// ?page=2&pageSize=25
-// Result: limit: 25, offset: 25
+?page=2&pageSize=25
+?limit=50&offset=100
 
 // Sorting
-// ?sort[0]=createdAt:desc&sort[1]=name:asc
-// Result: orderBy: [{ field: 'createdAt', direction: 'desc' }, { field: 'name', direction: 'asc' }]
+?sort=createdAt
+?sort=-createdAt  // Descending
+?sort=name,-createdAt  // Multiple sorts
+
+// Populate (Relations)
+?populate=*  // All relations
+?populate[profile]=*  // Profile with all fields
+?populate[profile][fields][0]=name  // Profile with specific fields
+?populate[posts][populate][author]=*  // Nested populate
 ```
 
-**Parser Implementation:**
+**Supported WHERE Operators:**
+- `$eq`, `$ne` - Equality/inequality
+- `$gt`, `$gte`, `$lt`, `$lte` - Comparison
+- `$in`, `$nin` - Array membership
+- `$contains`, `$notContains` - String contains
+- `$startsWith`, `$endsWith` - String prefix/suffix
+- `$null`, `$notNull` - Null checks
+- `$like`, `$ilike` - Pattern matching
+- `$and`, `$or`, `$not` - Logical operators
+
+**Parser Implementation Pattern:**
 
 ```typescript
-interface ParsedQuery {
-  readonly fields?: readonly string[];
-  readonly where?: WhereClause;
-  readonly populate?: PopulateClause;
-  readonly pagination: {
-    readonly page: number;
-    readonly limit: number;
-    readonly offset: number;
+import { parseQuery } from '@api/parser/query-parser';
+
+// Parse query string
+const result = parseQuery(request.query, {
+  maxPageSize: 100,
+  defaultPageSize: 25,
+  maxPopulateDepth: 5
+});
+
+if (!result.success) {
+  // Handle parser error
+  console.error(result.error.message);
+  return;
+}
+
+// Use parsed query
+const { select, where, populate, limit, offset, orderBy } = result.data;
+```
+
+**Result Pattern:**
+All parsers return `Result<T, ParserError>`:
+```typescript
+type Result<T, E> =
+  | { success: true; data: T }
+  | { success: false; error: E };
+```
+
+---
+
+### Handler Module (`src/api/handler/`)
+
+**Purpose:** Create HTTP request handlers for CRUD operations
+
+**Files:**
+- `types.ts` - Handler type definitions
+- `context.ts` - Request context builder (framework adapters)
+- `crud.ts` - CRUD operations (findMany, findOne, create, update, delete, count)
+- `factory.ts` - Handler factory functions
+
+**Request Context (Framework-Agnostic):**
+
+```typescript
+interface RequestContext<TUser = unknown> {
+  readonly method: HttpMethod;
+  readonly params: Record<string, string>;
+  readonly query: Record<string, string | readonly string[] | undefined>;
+  readonly body: unknown;
+  readonly headers: Record<string, string | undefined>;
+  readonly user: TUser | undefined;
+  readonly metadata: Record<string, unknown>;
+}
+```
+
+**Handler Configuration:**
+
+```typescript
+interface HandlerConfig<TUser = unknown> {
+  readonly schema: SchemaDefinition;
+  readonly adapter: DatabaseAdapter;
+  readonly middleware?: readonly Middleware<TUser>[];
+  readonly permissions?: {
+    readonly read?: PermissionCheck<TUser>;
+    readonly create?: PermissionCheck<TUser>;
+    readonly update?: PermissionCheck<TUser>;
+    readonly delete?: PermissionCheck<TUser>;
   };
-  readonly orderBy?: readonly OrderByItem[];
-}
-
-export function parseQueryString(
-  queryString: Record<string, string | string[]>
-): ParsedQuery {
-  return {
-    fields: parseFields(queryString.fields),
-    where: parseWhere(queryString.where),
-    populate: parsePopulate(queryString.populate),
-    pagination: parsePagination(queryString.page, queryString.pageSize),
-    orderBy: parseOrderBy(queryString.sort)
+  readonly hooks?: {
+    readonly beforeFind?: (context, query) => Promise<ParsedQuery> | ParsedQuery;
+    readonly afterFind?: (context, data) => Promise<T> | T;
+    readonly beforeCreate?: (context, data) => Promise<Record<string, unknown>>;
+    readonly afterCreate?: (context, data) => Promise<T> | T;
+    readonly beforeUpdate?: (context, id, data) => Promise<Record<string, unknown>>;
+    readonly afterUpdate?: (context, data) => Promise<T> | T;
+    readonly beforeDelete?: (context, id) => Promise<void> | void;
+    readonly afterDelete?: (context, id) => Promise<void> | void;
   };
-}
-
-// Fields parser
-function parseFields(
-  fields: unknown
-): readonly string[] | undefined {
-  if (!fields) return undefined;
-  if (typeof fields === 'string') return [fields];
-  if (Array.isArray(fields)) return fields.filter(f => typeof f === 'string');
-
-  // Handle ?fields[0]=email&fields[1]=name format
-  if (typeof fields === 'object' && fields !== null) {
-    return Object.values(fields).filter(f => typeof f === 'string');
-  }
-
-  return undefined;
-}
-
-// Populate parser
-function parsePopulate(populate: unknown): PopulateClause | undefined {
-  if (!populate) return undefined;
-
-  // Handle ?populate=*
-  if (populate === '*') {
-    // Return all relations (need schema info)
-    return {}; // Will be filled by handler
-  }
-
-  // Handle ?populate[posts][fields][0]=title
-  if (typeof populate === 'object' && populate !== null) {
-    const result: Record<string, {
-      select?: readonly string[];
-      where?: WhereClause;
-      populate?: PopulateClause;
-    }> = {};
-
-    for (const [relation, value] of Object.entries(populate)) {
-      if (value === '*') {
-        result[relation] = {};
-      } else if (typeof value === 'object' && value !== null) {
-        const relationValue = value as Record<string, unknown>;
-        result[relation] = {
-          select: parseFields(relationValue.fields),
-          where: parseWhere(relationValue.where),
-          populate: parsePopulate(relationValue.populate)
-        };
-      }
-    }
-
-    return result;
-  }
-
-  return undefined;
-}
-
-// Where parser
-function parseWhere(where: unknown): WhereClause | undefined {
-  if (!where || typeof where !== 'object') return undefined;
-
-  const result: WhereClause = {};
-
-  for (const [key, value] of Object.entries(where as Record<string, unknown>)) {
-    // Handle logical operators
-    if (key === '$or' || key === '$and') {
-      if (Array.isArray(value)) {
-        result[key] = value.map(v => parseWhere(v)).filter(Boolean) as WhereClause[];
-      }
-      continue;
-    }
-
-    // Handle comparison operators
-    if (typeof value === 'object' && value !== null) {
-      const operators: Record<string, unknown> = {};
-      for (const [op, opValue] of Object.entries(value as Record<string, unknown>)) {
-        if (op.startsWith('$')) {
-          operators[op] = opValue;
-        }
-      }
-      if (Object.keys(operators).length > 0) {
-        result[key] = operators;
-        continue;
-      }
-    }
-
-    // Simple equality
-    result[key] = value;
-  }
-
-  return result;
-}
-
-// Pagination parser
-function parsePagination(
-  page: unknown,
-  pageSize: unknown
-): { page: number; limit: number; offset: number } {
-  const parsedPage = typeof page === 'string' ? parseInt(page, 10) : 1;
-  const parsedPageSize = typeof pageSize === 'string' ? parseInt(pageSize, 10) : 25;
-
-  const safePage = Math.max(1, parsedPage);
-  const safePageSize = Math.min(100, Math.max(1, parsedPageSize)); // Max 100 per page
-
-  return {
-    page: safePage,
-    limit: safePageSize,
-    offset: (safePage - 1) * safePageSize
+  readonly options?: {
+    readonly maxPageSize?: number;
+    readonly defaultPageSize?: number;
+    readonly maxPopulateDepth?: number;
   };
 }
+```
 
-// Order by parser
-function parseOrderBy(sort: unknown): readonly OrderByItem[] | undefined {
-  if (!sort) return undefined;
+**Usage Patterns:**
 
-  const items: OrderByItem[] = [];
+```typescript
+// Next.js App Router
+// app/api/users/[...forja]/route.ts
+import { createHandlers } from '@api/handler/factory';
+import { buildContextFromNextApp } from '@api/handler/context';
 
-  if (typeof sort === 'string') {
-    const [field, direction] = sort.split(':');
-    if (field) {
-      items.push({
-        field,
-        direction: direction === 'desc' ? 'desc' : 'asc'
-      });
-    }
-  } else if (Array.isArray(sort)) {
-    for (const item of sort) {
-      if (typeof item === 'string') {
-        const [field, direction] = item.split(':');
-        if (field) {
-          items.push({
-            field,
-            direction: direction === 'desc' ? 'desc' : 'asc'
-          });
-        }
-      }
-    }
-  } else if (typeof sort === 'object' && sort !== null) {
-    // Handle ?sort[0]=createdAt:desc format
-    for (const value of Object.values(sort)) {
-      if (typeof value === 'string') {
-        const [field, direction] = value.split(':');
-        if (field) {
-          items.push({
-            field,
-            direction: direction === 'desc' ? 'desc' : 'asc'
-          });
-        }
-      }
-    }
+const handlers = createHandlers({
+  schema: userSchema,
+  adapter: postgresAdapter,
+  permissions: {
+    read: ['user', 'admin'],
+    create: ['admin'],
+    update: (context) => context.user?.id === context.params.id,
+    delete: ['admin']
+  }
+});
+
+export async function GET(request: Request) {
+  const context = await buildContextFromNextApp(request);
+  const response = await handlers.GET(context);
+  return new Response(JSON.stringify(response.body), {
+    status: response.status,
+    headers: { 'Content-Type': 'application/json' }
+  });
+}
+
+export async function POST(request: Request) {
+  const context = await buildContextFromNextApp(request);
+  const response = await handlers.POST(context);
+  return new Response(JSON.stringify(response.body), {
+    status: response.status,
+    headers: { 'Content-Type': 'application/json' }
+  });
+}
+
+// Express
+import { createUnifiedHandler } from '@api/handler/factory';
+import { buildContextFromExpress } from '@api/handler/context';
+
+const handler = createUnifiedHandler({
+  schema: userSchema,
+  adapter: postgresAdapter
+});
+
+app.all('/api/users/:id?', async (req, res) => {
+  const context = buildContextFromExpress(req);
+  const response = await handler(context);
+  res.status(response.status).json(response.body);
+});
+```
+
+**CRUD Operations:**
+
+Each CRUD operation follows this pattern:
+1. Parse request (query/body)
+2. Run beforeHook (if defined)
+3. Check permissions
+4. Build query using QueryBuilder
+5. Execute query through adapter
+6. Run afterHook (if defined)
+7. Return formatted response
+
+```typescript
+// GET /api/users?where[status]=active&populate[profile]=*
+await findMany(context, config);
+// Returns: { status: 200, body: { data: [...], meta: { pagination } } }
+
+// GET /api/users/123?populate[posts][fields][0]=title
+await findOne(context, config);
+// Returns: { status: 200, body: { data: {...} } }
+
+// POST /api/users
+await create(context, config);
+// Returns: { status: 201, body: { data: {...} } }
+
+// PUT /api/users/123
+await update(context, config);
+// Returns: { status: 200, body: { data: {...} } }
+
+// DELETE /api/users/123
+await deleteRecord(context, config);
+// Returns: { status: 200, body: { data: {...} } }
+
+// GET /api/users/count?where[status]=active
+await count(context, config);
+// Returns: { status: 200, body: { data: { count: 42 } } }
+```
+
+**Middleware Pattern:**
+
+```typescript
+type Middleware<TUser> = (
+  context: RequestContext<TUser>,
+  next: () => Promise<HandlerResponse>
+) => Promise<HandlerResponse>;
+
+// Example: Logging middleware
+const loggingMiddleware: Middleware = async (context, next) => {
+  console.log(`${context.method} ${context.params.id || 'collection'}`);
+  const response = await next();
+  console.log(`Response: ${response.status}`);
+  return response;
+};
+
+// Example: Auth middleware
+const authMiddleware: Middleware<User> = async (context, next) => {
+  const token = context.headers.authorization?.replace('Bearer ', '');
+  if (!token) {
+    return {
+      status: 401,
+      body: { error: { message: 'Unauthorized', code: 'UNAUTHORIZED' } }
+    };
   }
 
-  return items.length > 0 ? items : undefined;
+  const user = await verifyToken(token);
+  context.user = user;
+  return await next();
+};
+```
+
+**Permission Checks:**
+
+```typescript
+// Array of roles
+permissions: {
+  read: ['user', 'admin', 'moderator'],
+  create: ['admin'],
+  update: ['admin'],
+  delete: ['admin']
+}
+
+// Custom function
+permissions: {
+  update: (context) => {
+    // User can only update their own record
+    return context.user?.id === context.params.id || context.user?.role === 'admin';
+  }
 }
 ```
 
 ---
 
-### Response Serializer (`src/api/serializer/`)
+### Serializer Module (`src/api/serializer/`)
 
-**Purpose:** Format query results as JSON responses
+**Purpose:** Serialize database results to JSON responses
 
 **Files:**
 - `types.ts` - Serializer type definitions
-- `json.ts` - JSON response serializer
-- `relations.ts` - Relation data serializer
+- `json.ts` - JSON serializer (field selection, data transformation)
+- `relations.ts` - Relation serializer (handles populate, circular refs)
 
-**Response Format:**
+**Serialization Options:**
+
 ```typescript
-type ApiResponse<T = unknown> =
-  | SuccessResponse<T>
-  | ErrorResponse;
-
-interface SuccessResponse<T> {
-  readonly success: true;
-  readonly data: T;
-  readonly meta?: {
-    readonly pagination?: {
-      readonly page: number;
-      readonly pageSize: number;
-      readonly total: number;
-      readonly pageCount: number;
-    };
-  };
-}
-
-interface ErrorResponse {
-  readonly success: false;
-  readonly error: {
-    readonly message: string;
-    readonly code?: string;
-    readonly details?: unknown;
-  };
+interface SerializerOptions {
+  readonly schema: SchemaDefinition;
+  readonly select?: SelectClause;
+  readonly populate?: PopulateClause;
+  readonly includeTimestamps?: boolean;
+  readonly includeMeta?: boolean;
 }
 ```
 
-**Serializer Implementation:**
+**Response Format:**
+
 ```typescript
-export function successResponse<T>(
-  data: T,
-  status: number = 200,
-  meta?: SuccessResponse<T>['meta']
-): ApiResponse<T> {
-  return {
-    success: true,
-    data,
-    ...(meta && { meta })
-  };
-}
-
-export function errorResponse(
-  status: number,
-  message: string,
-  details?: unknown
-): ErrorResponse {
-  return {
-    success: false,
-    error: {
-      message,
-      ...(details && { details })
+// Success response
+{
+  "data": { ... },
+  "meta": {
+    "pagination": {
+      "page": 1,
+      "pageSize": 25,
+      "total": 100,
+      "pageCount": 4
     }
-  };
+  }
 }
 
-// Serialize relations
-export function serializeWithRelations<T extends Record<string, unknown>>(
-  data: T,
-  populate: PopulateClause | undefined,
-  schema: SchemaDefinition
-): T {
-  if (!populate) return data;
-
-  const result = { ...data };
-
-  for (const [relation, options] of Object.entries(populate)) {
-    const relationField = schema.fields[relation];
-    if (!relationField || relationField.type !== 'relation') continue;
-
-    // Fetch related data
-    // Apply populate options (select, where, nested populate)
-    // Add to result
+// Error response
+{
+  "error": {
+    "message": "Validation failed",
+    "code": "VALIDATION_ERROR",
+    "details": { ... }
   }
+}
+```
 
-  return result;
+**Serialization Features:**
+
+1. **Field Selection**: Only includes selected fields
+2. **Date Formatting**: Converts dates to ISO strings
+3. **JSON Parsing**: Parses JSON fields
+4. **Array Handling**: Serializes array fields
+5. **Relation Population**: Handles nested relations
+6. **Circular Reference Detection**: Prevents infinite loops
+7. **Depth Limiting**: Configurable max populate depth
+
+**Usage:**
+
+```typescript
+import { serializeRecord, serializeCollection } from '@api/serializer/json';
+
+// Serialize single record
+const result = serializeRecord(dbRecord, {
+  schema: userSchema,
+  select: ['id', 'email', 'name'],
+  populate: { profile: { select: ['bio', 'avatar'] } }
+});
+
+if (result.success) {
+  console.log(result.data); // { id, email, name, profile: { bio, avatar } }
+}
+
+// Serialize collection
+const collectionResult = serializeCollection(dbRecords, {
+  schema: userSchema
+}, {
+  pagination: { page: 1, pageSize: 25, total: 100, pageCount: 4 }
+});
+
+if (collectionResult.success) {
+  console.log(collectionResult.data);
+  // { data: [...], meta: { pagination: {...} } }
+}
+```
+
+**Relation Serialization:**
+
+Handles complex relation scenarios:
+- **hasOne**: Single record
+- **hasMany**: Array of records
+- **belongsTo**: Single record (inverse of hasOne)
+- **manyToMany**: Array of records
+
+Supports:
+- Nested populates (configurable depth)
+- Field selection on relations
+- Circular reference detection
+- Wildcard populates (`populate=*`)
+
+---
+
+## 🎨 Code Patterns
+
+### Result Pattern (REQUIRED)
+
+All functions return `Result<T, E>`:
+
+```typescript
+type Result<T, E = Error> =
+  | { success: true; data: T }
+  | { success: false; error: E };
+
+// Usage
+const result = parseQuery(params);
+if (!result.success) {
+  return errorResponse(400, result.error.message);
+}
+
+const query = result.data;
+```
+
+### Type Safety
+
+```typescript
+// NO any types
+❌ function parse(data: any): any
+
+// Use generics
+✅ function parse<T>(data: unknown): Result<T, ParserError>
+
+// NO type assertions
+❌ const user = response as User;
+
+// Use type guards
+✅ if (isUser(response)) {
+    const user = response;
+  }
+```
+
+### Error Handling
+
+```typescript
+// Create specific error types
+class ParserError extends Error {
+  code: ParserErrorCode;
+  field?: string;
+  details?: unknown;
+}
+
+class HandlerError extends Error {
+  status: number;
+  code: string;
+  details?: unknown;
+}
+
+class SerializerError extends Error {
+  code: SerializerErrorCode;
+  field?: string;
+  details?: unknown;
 }
 ```
 
@@ -556,32 +462,132 @@ export function serializeWithRelations<T extends Record<string, unknown>>(
 
 ## ✅ Testing Requirements
 
-### Tests Required:
-1. Query string parsing (all formats)
-2. Handler creation
-3. CRUD operations
-4. Permission checking
-5. Response serialization
-6. Framework adapters (Next.js, Express)
+### Parser Tests
+- ✅ Field parsing (array, comma-separated)
+- ✅ Where parsing (operators, nested conditions)
+- ✅ Populate parsing (nested, wildcard)
+- ✅ Pagination parsing (page/pageSize, limit/offset)
+- ✅ Sort parsing (single, multiple, descending)
+- ✅ Edge cases (invalid input, malformed params)
+
+### Handler Tests
+- ✅ Context building (Next.js, Express, generic)
+- ✅ CRUD operations (success, error cases)
+- ✅ Permission checks (roles, custom functions)
+- ✅ Middleware execution (order, error handling)
+- ✅ Lifecycle hooks (before/after)
+
+### Serializer Tests
+- ✅ Field selection
+- ✅ Date formatting
+- ✅ JSON parsing
+- ✅ Relation serialization
+- ✅ Circular reference detection
+- ✅ Depth limiting
+
+**Coverage Goals:**
+- Parser: 90%+
+- Handler: 85%+
+- Serializer: 85%+
 
 ---
 
-## 🎯 Implementation Priority
+## 🚀 Implementation Guidelines
 
-1. **Query Parser** (Foundation)
-2. **Handler Factory** (Core functionality)
-3. **CRUD Operations**
-4. **Response Serializer**
-5. **Framework Adapters**
+### Adding New Query Operators
+
+1. Add operator to `WHERE_OPERATORS` in `parser/types.ts`
+2. Update `parseWhere` in `where-parser.ts`
+3. Ensure adapter supports operator
+4. Add tests
+
+### Adding New Framework Support
+
+1. Create context builder in `handler/context.ts`
+2. Add type guard for framework detection
+3. Update `buildContext` auto-detect
+4. Add tests
+
+### Adding Custom Serializers
+
+```typescript
+const customSerializers: CustomSerializers = {
+  date: (value) => new Date(value).toLocaleDateString(),
+  file: (value) => ({ url: value, cdn: addCdnPrefix(value) })
+};
+
+serializeRecord(data, {
+  schema,
+  customSerializers
+});
+```
+
+---
+
+## 📚 Common Patterns
+
+### Handler with Auth
+
+```typescript
+const handlers = createHandlers({
+  schema: userSchema,
+  adapter: postgresAdapter,
+  middleware: [authMiddleware],
+  permissions: {
+    read: ['user', 'admin'],
+    create: ['admin'],
+    update: (context) => context.user?.id === context.params.id,
+    delete: ['admin']
+  },
+  hooks: {
+    beforeCreate: async (context, data) => {
+      // Hash password before storing
+      return {
+        ...data,
+        password: await hash(data.password)
+      };
+    },
+    afterFind: async (context, data) => {
+      // Remove password from response
+      const { password, ...safe } = data;
+      return safe;
+    }
+  }
+});
+```
+
+### Custom Query Parsing
+
+```typescript
+const parseResult = parseQuery(request.query, {
+  maxPageSize: 50,
+  defaultPageSize: 10,
+  maxPopulateDepth: 3
+});
+
+if (!parseResult.success) {
+  return {
+    status: 400,
+    body: {
+      error: {
+        message: parseResult.error.message,
+        code: parseResult.error.code,
+        field: parseResult.error.field
+      }
+    }
+  };
+}
+```
 
 ---
 
 ## 🔑 Key Principles
 
-1. **Framework Agnostic** - Core works with any framework
-2. **Type Safe** - Infer types from schemas
-3. **Strapi Compatible** - Similar query syntax
-4. **Extensible** - Easy to add middleware
-5. **Result Pattern** - Consistent error handling
+1. **Framework Agnostic**: Core logic works with any framework
+2. **Type Safe**: Zero `any` types, explicit return types
+3. **Result Pattern**: Consistent error handling
+4. **Strapi Compatible**: Similar query syntax
+5. **Extensible**: Easy to add middleware, hooks, custom serializers
+6. **Performance**: Minimal overhead, efficient parsing
 
-**Remember:** The API module bridges HTTP requests to database queries with type safety and flexibility.
+**Remember:** The API module bridges HTTP requests to database queries with complete type safety and framework flexibility.

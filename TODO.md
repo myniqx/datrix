@@ -299,15 +299,15 @@ interface ForjaPlugin<TOptions = Record<string, unknown>> {
 
 ### Phase 4: API Layer
 
-- [ ] Query string parser
-  - [ ] Parse `populate` syntax
-  - [ ] Parse `fields` syntax
-  - [ ] Parse `where` syntax
-  - [ ] Parse pagination params
-- [ ] Handler factory (`createHandler`)
-- [ ] CRUD operations implementation
-- [ ] JSON response serializer
-- [ ] Relation data serialization
+- [x] Query string parser
+  - [x] Parse `populate` syntax
+  - [x] Parse `fields` syntax
+  - [x] Parse `where` syntax
+  - [x] Parse pagination params
+- [x] Handler factory (`createHandler`)
+- [x] CRUD operations implementation
+- [x] JSON response serializer
+- [x] Relation data serialization
 
 ### Phase 5: Authentication Plugin
 
