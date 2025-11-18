@@ -334,11 +334,11 @@ interface ForjaPlugin<TOptions = Record<string, unknown>> {
 
 ### Phase 7: CLI Tools
 
-- [ ] CLI framework setup
-- [ ] `forja migrate` command
-- [ ] `forja generate schema` command
-- [ ] `forja generate migration` command
-- [ ] `forja dev` command
+- [x] CLI framework setup
+- [x] `forja migrate` command
+- [x] `forja generate schema` command
+- [x] `forja generate migration` command
+- [x] `forja dev` command
 
 ### Phase 8: Additional Adapters
 
