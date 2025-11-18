@@ -11,7 +11,7 @@ import type { SchemaDefinition, FieldDefinition } from '@core/schema/types';
 /**
  * Query object types
  */
-export type QueryType = 'select' | 'insert' | 'update' | 'delete';
+export type QueryType = 'select' | 'insert' | 'update' | 'delete' | 'count';
 
 /**
  * Comparison operators
@@ -63,7 +63,7 @@ export type SelectClause = readonly string[] | '*';
  * Populate clause (relations to include)
  */
 export type PopulateClause = {
-  readonly [relation: string]: {
+  readonly [relation: string]: '*' | {
     readonly select?: SelectClause;
     readonly where?: WhereClause;
     readonly populate?: PopulateClause; // Nested populate
@@ -248,8 +248,8 @@ export class ConnectionError extends AdapterError {
  * Query error
  */
 export class QueryError extends AdapterError {
-  readonly query?: QueryObject;
-  readonly sql?: string;
+  readonly query: QueryObject | undefined;
+  readonly sql: string | undefined;
 
   constructor(
     message: string,

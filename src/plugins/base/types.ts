@@ -71,8 +71,8 @@ export interface ForjaPlugin<TOptions = Record<string, unknown>> {
  */
 export class PluginError extends Error {
   readonly code: string;
-  readonly pluginName?: string;
-  readonly details?: unknown;
+  readonly pluginName: string | undefined;
+  readonly details: unknown | undefined;
 
   constructor(
     message: string,
@@ -90,15 +90,21 @@ export class PluginError extends Error {
  * Type guard for ForjaPlugin
  */
 export function isForjaPlugin(value: unknown): value is ForjaPlugin {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const obj = value as Record<string, unknown>;
+
   return (
-    typeof value === 'object' &&
-    value !== null &&
-    'name' in value &&
-    'version' in value &&
-    'init' in value &&
-    'destroy' in value &&
-    typeof (value as ForjaPlugin).init === 'function' &&
-    typeof (value as ForjaPlugin).destroy === 'function'
+    'name' in obj &&
+    'version' in obj &&
+    'init' in obj &&
+    'destroy' in obj &&
+    typeof obj['name'] === 'string' &&
+    typeof obj['version'] === 'string' &&
+    typeof obj['init'] === 'function' &&
+    typeof obj['destroy'] === 'function'
   );
 }
 
@@ -219,7 +225,7 @@ export interface UploadFile {
   readonly originalName: string;
   readonly mimetype: string;
   readonly size: number;
-  readonly buffer: Buffer;
+  readonly buffer: Uint8Array;
 }
 
 /**
@@ -347,13 +353,17 @@ export interface ValidationErrorDetail {
 export class PluginRegistry {
   private readonly plugins: Map<string, ForjaPlugin> = new Map();
 
-  register(plugin: ForjaPlugin): void {
+  register(plugin: ForjaPlugin): Result<void, PluginError> {
     if (this.plugins.has(plugin.name)) {
-      throw new PluginError(`Plugin already registered: ${plugin.name}`, {
-        code: 'DUPLICATE_PLUGIN'
-      });
+      return {
+        success: false,
+        error: new PluginError(`Plugin already registered: ${plugin.name}`, {
+          code: 'DUPLICATE_PLUGIN',
+        }),
+      };
     }
     this.plugins.set(plugin.name, plugin);
+    return { success: true, data: undefined };
   }
 
   get(name: string): ForjaPlugin | undefined {

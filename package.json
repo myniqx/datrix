@@ -2,33 +2,15 @@
   "name": "forja",
   "version": "0.1.0",
   "description": "TypeScript-first database management framework with Strapi-like API flexibility",
-  "main": "./dist/index.js",
-  "module": "./dist/index.mjs",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.js",
-      "types": "./dist/index.d.ts"
-    }
+  "author": "Forja Contributors",
+  "license": "MIT",
+  "homepage": "https://github.com/myniqx/forja#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/myniqx/forja.git"
   },
-  "bin": {
-    "forja": "./dist/cli/index.js"
-  },
-  "files": [
-    "dist",
-    "README.md"
-  ],
-  "scripts": {
-    "build": "tsup src/index.ts --format cjs,esm --dts --clean",
-    "build:cli": "tsup src/cli/index.ts --format cjs --dts --clean",
-    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
-    "type-check": "tsc --noEmit",
-    "lint": "eslint src --ext .ts",
-    "test": "vitest run",
-    "test:watch": "vitest watch",
-    "test:coverage": "vitest run --coverage",
-    "prepublishOnly": "pnpm run build"
+  "bugs": {
+    "url": "https://github.com/myniqx/forja/issues"
   },
   "keywords": [
     "database",
@@ -40,14 +22,58 @@
     "query-builder",
     "postgresql",
     "mysql",
-    "mongodb"
+    "mongodb",
+    "type-safe",
+    "plugin-architecture"
   ],
-  "author": "",
-  "license": "MIT",
-  "packageManager": "pnpm@10.18.2",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "forja": "./dist/cli/index.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./adapters": {
+      "types": "./dist/adapters/index.d.ts",
+      "import": "./dist/adapters/index.mjs",
+      "require": "./dist/adapters/index.js"
+    },
+    "./plugins": {
+      "types": "./dist/plugins/index.d.ts",
+      "import": "./dist/plugins/index.mjs",
+      "require": "./dist/plugins/index.js"
+    },
+    "./cli": {
+      "types": "./dist/cli/index.d.ts",
+      "import": "./dist/cli/index.mjs",
+      "require": "./dist/cli/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint src --ext .ts",
+    "test": "vitest run",
+    "test:watch": "vitest watch",
+    "test:coverage": "vitest run --coverage",
+    "prepublishOnly": "pnpm run type-check && pnpm run build"
+  },
   "engines": {
     "node": ">=18.0.0"
   },
+  "packageManager": "pnpm@10.18.2",
   "dependencies": {
     "pg": "^8.11.3",
     "mysql2": "^3.9.1",
