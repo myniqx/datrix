@@ -319,18 +319,18 @@ interface ForjaPlugin<TOptions = Record<string, unknown>> {
 
 ### Phase 6: Additional Plugins
 
-- [ ] File upload plugin
-  - [ ] Base provider interface
-  - [ ] Local filesystem provider
-  - [ ] S3 provider
-- [ ] Lifecycle hooks plugin
-  - [ ] Hook manager
-  - [ ] beforeCreate, afterCreate
-  - [ ] beforeUpdate, afterUpdate
-  - [ ] beforeDelete, afterDelete
-- [ ] Soft delete plugin
-  - [ ] Query interceptor
-  - [ ] Auto-add deletedAt filter
+- [x] File upload plugin
+  - [x] Base provider interface
+  - [x] Local filesystem provider
+  - [x] S3 provider
+- [x] Lifecycle hooks plugin
+  - [x] Hook manager
+  - [x] beforeCreate, afterCreate
+  - [x] beforeUpdate, afterUpdate
+  - [x] beforeDelete, afterDelete
+- [x] Soft delete plugin
+  - [x] Query interceptor
+  - [x] Auto-add deletedAt filter
 
 ### Phase 7: CLI Tools
 

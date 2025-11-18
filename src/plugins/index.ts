@@ -50,3 +50,63 @@ export type {
   RbacConfig,
   PermissionCheckResult,
 } from './auth';
+
+// Hooks plugin
+export {
+  HooksPlugin,
+  createHooksPlugin,
+  HooksManager,
+  createHooksManager,
+  HookError,
+  HookRegistrationError,
+} from './hooks';
+
+export type {
+  HooksPluginOptions,
+  HookName,
+  HookRegistration,
+} from './hooks';
+
+// Soft delete plugin
+export {
+  SoftDeletePlugin,
+  createSoftDeletePlugin,
+  SoftDeleteInterceptor,
+  createSoftDeleteInterceptor,
+  SoftDeleteError,
+} from './soft-delete';
+
+export type {
+  SoftDeleteOptions,
+  SoftDeleteQueryOptions,
+  SoftDeleteMode,
+  SoftDeleteInterceptorInterface,
+} from './soft-delete';
+
+// Upload plugin
+export {
+  UploadPlugin,
+  createUploadPlugin,
+  LocalStorageProvider,
+  createLocalStorageProvider,
+  S3StorageProvider,
+  createS3StorageProvider,
+  UploadError,
+  FileValidationError,
+  isStorageProvider,
+  isUploadFile,
+  validateUploadFile,
+  generateUniqueFilename,
+  sanitizeFilename,
+  getFileExtension,
+} from './upload';
+
+export type {
+  UploadPluginOptions,
+  UploadFile,
+  UploadResult,
+  StorageProvider,
+  FileValidationOptions,
+  LocalProviderOptions,
+  S3ProviderOptions,
+} from './upload';
