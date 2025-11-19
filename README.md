@@ -1,13 +1,13 @@
 # Forja
 
-**TypeScript-first database management framework with Strapi-like API flexibility**
+**TypeScript-first database management framework** (under development)
 
 [![npm version](https://img.shields.io/npm/v/forja.svg)](https://www.npmjs.com/package/forja)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0%2B-blue.svg)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/Node.js-18%2B-green.svg)](https://nodejs.org/)
 
-Forja is a minimal, type-safe database management framework that provides Strapi-like REST API flexibility without being a standalone application. It's designed to be integrated into your existing Node.js/Next.js projects with zero runtime `any` types and full TypeScript inference.
+Forja is a minimal, type-safe database management framework that provides REST API flexibility without being a standalone application. It's designed to be integrated into your existing Node.js/Next.js projects with zero runtime `any` types and full TypeScript inference.
 
 ## ✨ Features
 
@@ -18,7 +18,6 @@ Forja is a minimal, type-safe database management framework that provides Strapi
 - **Compile-time validation** - Catch errors before runtime
 
 ### 🚀 Developer Experience
-- **Strapi-style query syntax** - Familiar and powerful
 - **Framework agnostic** - Works with Next.js, Express, Fastify
 - **Plugin architecture** - Extend with auth, upload, hooks
 - **Built-in CLI** - Migrations, generators, dev mode
@@ -322,7 +321,7 @@ defineSchema({ name: 'User', fields: {...} })
 ```
 
 **Validator** - Built-in validation engine (~300 LOC)
-- No Zod, No Yup - Custom implementation
+- Custom implementation
 - String, Number, Date, Enum, Array, Relation validation
 - Custom validators and error messages
 
@@ -382,7 +381,7 @@ defineSchema({ name: 'User', fields: {...} })
 
 ## 🔍 Query Syntax
 
-Forja supports Strapi-style query syntax:
+Forja query syntax:
 
 ### Filtering
 
@@ -559,9 +558,7 @@ Inspired by:
 
 ## 💬 Support
 
-- [GitHub Issues](https://github.com/myniqx/forja/issues) - Bug reports and feature requests
-- [Discussions](https://github.com/myniqx/forja/discussions) - Questions and community support
-- [Twitter](https://twitter.com/forja) - Updates and announcements
+- [GitHub Issues](https://github.com/myniqx/forja/issues) - Bug reports and feature request
 
 ---
 
