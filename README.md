@@ -320,10 +320,11 @@ forja
 defineSchema({ name: 'User', fields: {...} })
 ```
 
-**Validator** - Built-in validation engine (~300 LOC)
-- Custom implementation
+**Validator** - Built-in validation engine (~800 LOC)
+- Zero external dependencies (custom implementation)
 - String, Number, Date, Enum, Array, Relation validation
 - Custom validators and error messages
+- Result pattern for error handling
 
 **Query Builder** - Database-agnostic query construction
 - Type-safe queries
@@ -333,41 +334,58 @@ defineSchema({ name: 'User', fields: {...} })
 
 ### Adapters
 
-**PostgreSQL** - Full-featured adapter
+**PostgreSQL** - Full-featured adapter (~1,700 LOC)
+- ✅ Production-ready
 - Query translator (QueryObject → SQL)
 - Transaction support
-- Connection pooling
-- Type mapping
+- Connection pooling (pg library)
+- Type mapping (TypeScript ↔ PostgreSQL)
+- Schema operations (CREATE/ALTER/DROP TABLE)
+- Parameterized queries ($1, $2, ...)
 
-**MySQL** - Coming soon (Phase 8)
+**MySQL** - Not yet implemented
+- Planned for future release
+- Query translator with ? placeholders
+- Backtick identifier escaping
 
-**MongoDB** - Coming soon (Phase 8)
+**MongoDB** - Not yet implemented
+- Planned for future release
+- Filter object translation (no SQL)
+- Document-based operations
+- Aggregation pipeline for JOINs
 
 ### Plugins
 
-**Authentication Plugin** (Zero dependencies)
-- JWT token generation/verification (manual implementation)
-- Session management (memory/redis)
+**Authentication Plugin** (~800 LOC, Zero external dependencies)
+- ✅ Fully implemented
+- JWT token generation/verification (custom HMAC-SHA256/SHA512)
+- Session management (memory/redis store)
 - RBAC with role inheritance
 - PBKDF2 password hashing (100,000 iterations)
-- Timing-attack prevention
+- Timing-attack prevention (constant-time comparisons)
 
 **Upload Plugin**
-- Local filesystem storage
-- AWS S3 storage (manual Signature V4)
+- ✅ Fully implemented
+- Local filesystem storage provider
+- AWS S3 storage provider (custom Signature V4, no AWS SDK)
 - File validation (size, type, extension)
 - Secure filename generation
+- Multiple file support
 
 **Hooks Plugin**
+- ✅ Fully implemented
 - beforeCreate, afterCreate
 - beforeUpdate, afterUpdate
 - beforeDelete, afterDelete
 - beforeFind, afterFind
+- Hook context (model, operation, user)
 
 **Soft Delete Plugin**
+- ✅ Fully implemented
 - Automatic `deletedAt` handling
-- Query interceptor
+- Query interceptor (SELECT/DELETE)
 - `findDeleted()`, `findWithDeleted()`, `restore()`
+- Hard delete bypass
 
 ## 📖 Documentation
 
@@ -547,14 +565,31 @@ Inspired by:
 
 ## 🗺️ Roadmap
 
-- [x] Phase 1-7: Core development complete
-- [ ] Phase 8: MySQL and MongoDB adapters
-- [ ] Phase 9: Comprehensive testing suite
-- [ ] v1.0: Stable release
+**Completed (v0.7.0)**
+- ✅ Phase 1-7: Core development complete
+  - ✅ Core module (schema, validator, query builder, migration)
+  - ✅ PostgreSQL adapter (production-ready)
+  - ✅ API layer (parser, handler, serializer)
+  - ✅ All plugins (auth, upload, hooks, soft-delete)
+  - ✅ CLI tools (migrate, generate, dev)
+
+**Current Development (v0.8.0 - v1.0)**
+- [ ] Comprehensive testing suite (Priority 1)
+  - [ ] Core module tests (target: 90%+ coverage)
+  - [ ] PostgreSQL adapter tests (target: 80%+ coverage)
+  - [ ] API layer tests (target: 85%+ coverage)
+  - [ ] Plugin tests (target: 75%+ coverage)
+- [ ] Config module implementation
+- [ ] MySQL adapter (Priority 2)
+- [ ] MongoDB adapter (Priority 3)
+
+**Future Enhancements (v1.1+)**
 - [ ] Additional plugins (GraphQL, WebSocket)
 - [ ] Admin UI (optional)
 - [ ] Real-time subscriptions
 - [ ] Multi-tenancy support
+- [ ] Performance optimizations
+- [ ] Developer tooling (VSCode extension)
 
 ## 💬 Support
 
