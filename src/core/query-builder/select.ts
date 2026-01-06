@@ -68,16 +68,15 @@ export function parseSelectClause(input: unknown): Result<SelectClause, SelectBu
 }
 
 /**
- * Normalize select clause (remove duplicates, sort)
+ * Normalize select clause (remove duplicates, preserve order)
  */
 export function normalizeSelectClause(select: SelectClause): SelectClause {
   if (select === '*') {
     return '*';
   }
 
-  // Remove duplicates and sort
-  const unique = Array.from(new Set(select));
-  return unique.sort();
+  // Remove duplicates using Set (preserves insertion order per ES6+)
+  return Array.from(new Set(select));
 }
 
 /**
@@ -135,14 +134,14 @@ export function mergeSelectClauses(
 
 /**
  * Convert select clause to field list
- * If '*', return all schema fields
+ * If '*', return all schema fields (preserves schema definition order)
  */
 export function expandSelectClause(
   select: SelectClause,
   schema: SchemaDefinition
 ): readonly string[] {
   if (select === '*') {
-    return Object.keys(schema.fields).sort();
+    return Object.keys(schema.fields);
   }
   return select;
 }
@@ -178,11 +177,11 @@ export function excludeFields(
   excludeList: readonly string[]
 ): SelectClause {
   if (select === '*') {
-    // Get all fields except excluded ones
+    // Get all fields except excluded ones (preserves schema definition order)
     const allFields = Object.keys(schema.fields);
-    return allFields.filter((f) => !excludeList.includes(f)).sort();
+    return allFields.filter((f) => !excludeList.includes(f));
   }
 
-  // Filter out excluded fields
+  // Filter out excluded fields (preserves original order)
   return select.filter((f) => !excludeList.includes(f));
 }

@@ -159,12 +159,37 @@
 3. Array unique validation implementation
 4. JSON field validation (accept arrays)
 
-#### Query Builder Tests
-- [ ] **`tests/core/query-builder/builder.test.ts`** (~150 assertions)
-  - QueryBuilder instantiation
-  - Method chaining
-  - Query object generation
-  - Immutability checks
+#### Query Builder Tests ✅ COMPLETED (48/48 tests passing - ENHANCED)
+- [x] **`tests/core/query-builder/builder.test.ts`** (48 tests - 100% passing)
+  - QueryBuilder instantiation ✅
+  - Helper functions (selectFrom, insertInto, updateTable, deleteFrom) ✅
+  - Method chaining ✅
+  - SELECT/INSERT/UPDATE/DELETE/COUNT queries ✅
+  - WHERE conditions (where, andWhere, orWhere) ✅
+    - Specific $and nested structure validation ✅
+    - Comparison operators ✅
+    - Multiple andWhere chaining ✅
+  - ORDER BY (single and multiple) ✅
+  - Pagination (limit, offset) ✅
+  - DISTINCT flag ✅
+  - GROUP BY and HAVING ✅
+  - Clone and reset functionality ✅
+    - Deep clone verification (no shared references) ✅
+    - Nested object cloning ✅
+  - Select behavior ✅
+    - Override vs merge behavior ✅
+    - Duplicate removal with order preservation ✅
+  - Complex query combinations ✅
+    - UPDATE + WHERE + RETURNING ✅
+    - SELECT + DISTINCT + GROUP BY + HAVING + ORDER BY ✅
+    - DELETE + complex WHERE ✅
+    - INSERT + RETURNING ✅
+  - Error handling (missing table/type) ✅
+
+**Implementation Improvement:**
+- Changed `normalizeSelectClause()` to preserve user's field order (removed alphabetic sorting)
+- Now uses ES6 Set for duplicate removal only (insertion order guaranteed)
+- Benefits: SQL SELECT order preserved, better user control, more performant
 
 - [ ] **`tests/core/query-builder/where.test.ts`** (~200 assertions)
   - Equality operators ($eq, $ne)

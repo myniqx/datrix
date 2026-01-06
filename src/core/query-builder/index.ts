@@ -20,7 +20,14 @@ export type {
 } from './types';
 
 // Export query builder
-export { createQueryBuilder } from './builder';
+export {
+  createQueryBuilder,
+  selectFrom,
+  insertInto,
+  updateTable,
+  deleteFrom,
+  countFrom,
+} from './builder';
 
 // Export where clause utilities
 export { mergeWhereClauses } from './where';
