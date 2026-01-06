@@ -228,6 +228,11 @@ export class ForgeSchemaDiffer implements SchemaDiffer {
       return true;
     }
 
+    // Check unique constraint change
+    if (oldField.unique !== newField.unique) {
+      return true;
+    }
+
     // Check default value change
     if (oldField.default !== newField.default) {
       return true;
