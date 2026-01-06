@@ -209,7 +209,7 @@ function validateNumber(
     errors.push(
       createValidationError(
         fieldName,
-        'TYPE_MISMATCH',
+        'INVALID_FORMAT',
         `Field '${fieldName}' must be an integer`,
         { value }
       )
@@ -291,6 +291,24 @@ function validateDate(
   field: DateField,
   fieldName: string
 ): FieldValidationResult<Date> {
+  // First check if it's a Date object at all (not string, not number)
+  if (!(value instanceof Date)) {
+    return {
+      success: false,
+      error: [
+        createValidationError(
+          fieldName,
+          'TYPE_MISMATCH',
+          formatErrorMessage('TYPE_MISMATCH', fieldName, {
+            expected: 'Date',
+            actual: typeof value
+          })
+        )
+      ]
+    };
+  }
+
+  // Then check if it's a valid Date (not NaN)
   if (!isDate(value)) {
     return {
       success: false,
@@ -431,6 +449,36 @@ function validateArray(
     );
   }
 
+  // Unique items check
+  if (field.unique) {
+    const seen = new Set<unknown>();
+    const duplicates = new Set<unknown>();
+
+    for (const item of value) {
+      // Use JSON.stringify for deep comparison of objects/arrays
+      const itemKey = typeof item === 'object' && item !== null
+        ? JSON.stringify(item)
+        : item;
+
+      if (seen.has(itemKey)) {
+        duplicates.add(item);
+      } else {
+        seen.add(itemKey);
+      }
+    }
+
+    if (duplicates.size > 0) {
+      errors.push(
+        createValidationError(
+          fieldName,
+          'UNIQUE',
+          formatErrorMessage('UNIQUE', fieldName),
+          { value: Array.from(duplicates) }
+        )
+      );
+    }
+  }
+
   // Validate each item
   for (let i = 0; i < value.length; i++) {
     const item = value[i];
@@ -449,17 +497,15 @@ function validateArray(
 
 /**
  * Validate JSON field
+ * JSON fields can be objects, arrays, or any valid JSON type
  */
 function validateJSON(
   value: unknown,
   fieldName: string
-): FieldValidationResult<Record<string, unknown>> {
-  if (
-    typeof value !== 'object' ||
-    value === null ||
-    isArray(value) ||
-    isDate(value)
-  ) {
+): FieldValidationResult<unknown> {
+  // JSON field accepts: objects, arrays, strings, numbers, booleans, null
+  // Reject: undefined, Date objects (should be serialized to string first)
+  if (value === undefined || isDate(value)) {
     return {
       success: false,
       error: [
@@ -467,13 +513,13 @@ function validateJSON(
           fieldName,
           'TYPE_MISMATCH',
           formatErrorMessage('TYPE_MISMATCH', fieldName, {
-            expected: 'object',
-            actual: typeof value
+            expected: 'valid JSON type (object, array, string, number, boolean, null)',
+            actual: value === undefined ? 'undefined' : 'Date'
           })
         )
       ]
     };
   }
 
-  return { success: true, data: value as Record<string, unknown> };
+  return { success: true, data: value };
 }
