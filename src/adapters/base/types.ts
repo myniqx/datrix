@@ -259,9 +259,9 @@ export class QueryError extends AdapterError {
 
   constructor(
     message: string,
-    options?: { query?: QueryObject; sql?: string; details?: unknown }
+    options?: { code?: string; query?: QueryObject | undefined; sql?: string | undefined; details?: unknown }
   ) {
-    super(message, { code: 'QUERY_ERROR', details: options?.details });
+    super(message, { code: options?.code ?? 'QUERY_ERROR', details: options?.details });
     this.name = 'QueryError';
     this.query = options?.query;
     this.sql = options?.sql;

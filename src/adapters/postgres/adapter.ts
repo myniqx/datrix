@@ -156,22 +156,16 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
     if (!this.pool) {
       return {
         success: false,
-        error: new (class extends Error {
-          readonly code = 'QUERY_ERROR';
-          readonly query = query;
-          readonly sql = undefined;
-          readonly details = undefined;
-          constructor() {
-            super('Not connected to database');
-            this.name = 'QueryError';
-          }
-        })()
+        error: new QueryError('Not connected to database', { query })
       };
     }
+
+    let lastSql: string | undefined;
 
     try {
       // Translate query to SQL
       const { sql, params } = this.translator.translate(query);
+      lastSql = sql;
 
       // Execute query
       const result = await this.pool.query(sql, params as unknown[]);
@@ -199,21 +193,48 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
         }
       };
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
       return {
         success: false,
-        error: new (class extends Error {
-          readonly code = 'QUERY_ERROR';
-          readonly query = query;
-          readonly sql = undefined;
-          readonly details = error;
-          constructor() {
-            super(`Query execution failed: ${message}`);
-            this.name = 'QueryError';
-          }
-        })()
+        error: this.mapPostgresError(error, query, lastSql)
       };
     }
+  }
+
+  /**
+   * Map Postgres errors to standardized QueryError
+   */
+  private mapPostgresError(error: unknown, query?: QueryObject, sql?: string): QueryError {
+    const message = error instanceof Error ? error.message : String(error);
+    const details = error as any;
+    let code = 'QUERY_ERROR';
+
+    // Postgres error codes (https://www.postgresql.org/docs/current/errcodes-appendix.html)
+    if (details && typeof details.code === 'string') {
+      switch (details.code) {
+        case '23505': // unique_violation
+          code = 'UNIQUE_VIOLATION';
+          break;
+        case '23503': // foreign_key_violation
+          code = 'FOREIGN_KEY_VIOLATION';
+          break;
+        case '23502': // not_null_violation
+          code = 'NOT_NULL_VIOLATION';
+          break;
+        case '42P01': // undefined_table
+          code = 'TABLE_NOT_FOUND';
+          break;
+        case '42703': // undefined_column
+          code = 'COLUMN_NOT_FOUND';
+          break;
+      }
+    }
+
+    return new QueryError(`Query execution failed: ${message}`, {
+      code,
+      query,
+      sql,
+      details: error
+    });
   }
 
   /**
@@ -255,19 +276,9 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
         }
       };
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
       return {
         success: false,
-        error: new (class extends Error {
-          readonly code = 'QUERY_ERROR';
-          readonly query = undefined;
-          readonly sql = sql;
-          readonly details = error;
-          constructor() {
-            super(`Raw query execution failed: ${message}`);
-            this.name = 'QueryError';
-          }
-        })()
+        error: this.mapPostgresError(error, undefined, sql)
       };
     }
   }
@@ -297,6 +308,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
       const transaction = new PostgresTransaction(
         client,
         this.translator,
+        this.mapPostgresError.bind(this),
         `tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
       );
 
@@ -830,6 +842,7 @@ class PostgresTransaction implements Transaction {
   readonly id: string;
   private client: PoolClient;
   private translator: PostgresQueryTranslator;
+  private errorMapper: (error: unknown, query?: QueryObject, sql?: string) => QueryError;
   private committed = false;
   private rolledBack = false;
   private aborted = false;
@@ -837,10 +850,12 @@ class PostgresTransaction implements Transaction {
   constructor(
     client: PoolClient,
     translator: PostgresQueryTranslator,
+    errorMapper: (error: unknown, query?: QueryObject, sql?: string) => QueryError,
     id: string
   ) {
     this.client = client;
     this.translator = translator;
+    this.errorMapper = errorMapper;
     this.id = id;
   }
 
@@ -882,8 +897,11 @@ class PostgresTransaction implements Transaction {
       };
     }
 
+    let lastSql: string | undefined;
+
     try {
       const { sql, params } = this.translator.translate(query);
+      lastSql = sql;
       const result = await this.client.query(sql, params as unknown[]);
 
       const metadata: QueryMetadata = {
@@ -900,19 +918,9 @@ class PostgresTransaction implements Transaction {
       };
     } catch (error) {
       this.aborted = true;
-      const message = error instanceof Error ? error.message : String(error);
       return {
         success: false,
-        error: new (class extends Error {
-          readonly code = 'QUERY_ERROR';
-          readonly query = query;
-          readonly sql = undefined;
-          readonly details = error;
-          constructor() {
-            super(`Transaction query failed: ${message}`);
-            this.name = 'QueryError';
-          }
-        })()
+        error: this.errorMapper(error, query, lastSql)
       };
     }
   }
@@ -973,19 +981,9 @@ class PostgresTransaction implements Transaction {
       };
     } catch (error) {
       this.aborted = true;
-      const message = error instanceof Error ? error.message : String(error);
       return {
         success: false,
-        error: new (class extends Error {
-          readonly code = 'QUERY_ERROR';
-          readonly query = undefined;
-          readonly sql = sql;
-          readonly details = error;
-          constructor() {
-            super(`Transaction raw query failed: ${message}`);
-            this.name = 'QueryError';
-          }
-        })()
+        error: this.errorMapper(error, undefined, sql)
       };
     }
   }

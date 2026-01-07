@@ -58,6 +58,11 @@ export class PostgresQueryTranslator implements QueryTranslator {
    * Escape identifier (table/column name)
    */
   escapeIdentifier(identifier: string): string {
+    // Handle wildcard
+    if (identifier === '*') {
+      return '*';
+    }
+
     // Validate identifier format (PostgreSQL naming rules)
     // Must start with letter or underscore, followed by letters, digits, or underscores
     // Maximum length is 63 characters
@@ -138,7 +143,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
           sql = this.translateDelete(query);
           break;
         default:
-          throw new QueryError(`Unsupported query type: ${String((query as {type: string}).type)}`);
+          throw new QueryError(`Unsupported query type: ${String((query as { type: string }).type)}`);
       }
 
       return {

@@ -20,7 +20,7 @@ import type { Result } from '@utils/types';
  * @returns Result with WhereClause or ParserError
  */
 export function parseWhere(params: RawQueryParams): Result<WhereClause | undefined, ParserError> {
-  const whereClause: Record<string, any> = {};
+  const whereClause: Record<string, unknown> = {};
 
   // Find all where[...] parameters
   for (const [key, value] of Object.entries(params)) {
@@ -33,10 +33,11 @@ export function parseWhere(params: RawQueryParams): Result<WhereClause | undefin
     if (parts.length === 0) continue;
 
     // Build the nested structure
-    let current: any = whereClause;
+    let current = whereClause;
     const pathParts = [...parts];
-    for (const part of pathParts) {
-      const isLast = pathParts.indexOf(part) === pathParts.length - 1;
+    for (let i = 0; i < pathParts.length; i++) {
+      const part = pathParts[i]!;
+      const isLast = i === pathParts.length - 1;
 
       if (isLast) {
         current[part] = parseValue(value);
@@ -44,38 +45,40 @@ export function parseWhere(params: RawQueryParams): Result<WhereClause | undefin
         if (current[part] === undefined) {
           current[part] = {};
         }
-        current = current[part];
+        current = current[part] as Record<string, unknown>;
       }
     }
   }
 
   // Transform into Final WhereClause
-  const finalClause = transformToFinalWhere(whereClause);
+  const finalClause = transformToFinalWhere(whereClause) as WhereClause;
 
   // If no where parameters found, return undefined
   if (Object.keys(finalClause).length === 0) {
     return { success: true, data: undefined };
   }
 
-  return { success: true, data: finalClause as WhereClause };
+  return { success: true, data: finalClause };
 }
 
 /**
  * Post-process the object to handle logical operators which should be arrays
  */
-function transformToFinalWhere(obj: any): any {
+function transformToFinalWhere(obj: unknown): unknown {
   if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) {
     return obj;
   }
 
-  const result: Record<string, any> = {};
+  const typedObj = obj as Record<string, unknown>;
+  const result: Record<string, unknown> = {};
 
-  for (const [key, value] of Object.entries(obj)) {
+  for (const [key, value] of Object.entries(typedObj)) {
     if (['$or', '$and'].includes(key)) {
       // Transform object with numeric keys into array
       if (typeof value === 'object' && value !== null) {
-        const keys = Object.keys(value).sort((a, b) => Number(a) - Number(b));
-        result[key] = keys.map(k => transformToFinalWhere((value as any)[k]));
+        const valueObj = value as Record<string, unknown>;
+        const keys = Object.keys(valueObj).sort((a, b) => Number(a) - Number(b));
+        result[key] = keys.map(k => transformToFinalWhere(valueObj[k]));
       } else {
         result[key] = transformToFinalWhere(value);
       }
