@@ -466,11 +466,14 @@ export class ForgeMigrationRunner implements MigrationRunner {
               warnings
             };
           }
-        } else {
-          break; // Stop on failure
         }
 
         results.push(executionResult);
+
+        // Stop on failure
+        if (result.data.status === 'failed') {
+          break;
+        }
       }
 
       return { success: true, data: results };

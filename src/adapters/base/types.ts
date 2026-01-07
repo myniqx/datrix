@@ -143,7 +143,7 @@ export interface Transaction {
 export type AlterOperation =
   | { readonly type: 'addColumn'; readonly column: string; readonly definition: FieldDefinition }
   | { readonly type: 'dropColumn'; readonly column: string }
-  | { readonly type: 'modifyColumn'; readonly column: string; readonly definition: FieldDefinition }
+  | { readonly type: 'modifyColumn'; readonly column: string; readonly newDefinition: FieldDefinition }
   | { readonly type: 'renameColumn'; readonly from: string; readonly to: string };
 
 /**

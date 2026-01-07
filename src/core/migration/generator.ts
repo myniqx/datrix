@@ -210,7 +210,7 @@ export class ForgeMigrationGenerator implements MigrationGenerator {
               {
                 type: 'modifyColumn',
                 column: diff.fieldName,
-                definition: diff.newDefinition
+                newDefinition: diff.newDefinition
               }
             ]
           },
@@ -221,7 +221,7 @@ export class ForgeMigrationGenerator implements MigrationGenerator {
               {
                 type: 'modifyColumn',
                 column: diff.fieldName,
-                definition: diff.oldDefinition
+                newDefinition: diff.oldDefinition
               }
             ]
           }
