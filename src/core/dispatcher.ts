@@ -5,9 +5,10 @@
  * Ensures hooks are called in the correct order and provides error isolation.
  */
 
-import type { ForjaPlugin, PluginRegistry } from '@plugins/base/types';
+import type { PluginRegistry } from '@plugins/base/types';
 import type { QueryObject } from '@adapters/base/types';
 import type { SchemaRegistry } from '@core/schema/types';
+import { validateQueryObject } from '@utils/query';
 
 /**
  * Dispatcher for plugin hooks
@@ -36,16 +37,32 @@ export class Dispatcher {
    * Plugins can modify the query object.
    */
   async dispatchBeforeQuery(query: QueryObject): Promise<QueryObject> {
+    // 1. Validate entrance query (catch errors even without plugins)
+    const entranceValidation = validateQueryObject(query);
+    if (!entranceValidation.success) {
+      throw new Error(`[Dispatcher] Entrance QueryObject is invalid: ${entranceValidation.error.message}`);
+    }
+
     let currentQuery = { ...query };
 
     for (const plugin of this.registry.getAll()) {
       try {
         if (plugin.onBeforeQuery) {
-          currentQuery = await plugin.onBeforeQuery(currentQuery);
+          const modifiedQuery = await plugin.onBeforeQuery(currentQuery);
+
+          // 2. Validate modified query (strict check for each plugin)
+          const validation = validateQueryObject(modifiedQuery);
+          if (validation.success) {
+            currentQuery = validation.data;
+          } else {
+            const errorMsg = `[Dispatcher] Plugin '${plugin.name}' returned an invalid query: ${validation.error.message}`;
+            console.error(errorMsg);
+            throw new Error(errorMsg);
+          }
         }
       } catch (error) {
         console.error(`[Dispatcher] Error in plugin '${plugin.name}' onBeforeQuery:`, error);
-        // We continue with the current state of the query
+        throw error; // Rethrow to stop the query pipeline on invalid state
       }
     }
 

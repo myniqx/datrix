@@ -25,7 +25,7 @@ describe('Soft Delete Plugin - Interceptor', () => {
       const query: QueryObject = {
         type: 'select',
         table: 'users',
-        fields: ['*']
+        select: ['*']
       };
 
       const result = interceptor.interceptQuery(query);
@@ -36,7 +36,7 @@ describe('Soft Delete Plugin - Interceptor', () => {
       const query: QueryObject = {
         type: 'select',
         table: 'users',
-        fields: ['*'],
+        select: ['*'],
         where: { id: 1 }
       };
 
@@ -50,7 +50,7 @@ describe('Soft Delete Plugin - Interceptor', () => {
       const query: QueryObject = {
         type: 'select',
         table: 'users',
-        fields: ['*'],
+        select: ['*'],
         where: { deletedAt: { $ne: null } }
       };
 
@@ -62,7 +62,7 @@ describe('Soft Delete Plugin - Interceptor', () => {
       const query: QueryObject = {
         type: 'select',
         table: 'users',
-        fields: ['*']
+        select: ['*']
       };
 
       const result = interceptor.interceptQuery(query, { mode: 'only-deleted' });
@@ -73,7 +73,7 @@ describe('Soft Delete Plugin - Interceptor', () => {
       const query: QueryObject = {
         type: 'select',
         table: 'users',
-        fields: ['*']
+        select: ['*']
       };
 
       const result = interceptor.interceptQuery(query, { mode: 'include-deleted' });
@@ -85,12 +85,54 @@ describe('Soft Delete Plugin - Interceptor', () => {
       const query: QueryObject = {
         type: 'select',
         table: 'logs',
-        fields: ['*']
+        select: ['*']
       };
 
       const result = interceptor.interceptQuery(query);
       expect(result.where).toBeUndefined();
       interceptor.removeExcludedModel('logs');
+    });
+
+    it('should preserve select fields exactly as provided', () => {
+      const query: QueryObject = {
+        type: 'select',
+        table: 'users',
+        select: ['id', 'name']
+      };
+
+      const result = interceptor.interceptQuery(query);
+      expect(result.select).toEqual(['id', 'name']);
+      expect(result.where).toEqual({ deletedAt: null });
+    });
+
+    it('should NOT merge filter if deletedAt is present at top level', () => {
+      const query: QueryObject = {
+        type: 'select',
+        table: 'users',
+        select: ['*'],
+        where: { deletedAt: '2023-01-01' }
+      };
+
+      const result = interceptor.interceptQuery(query);
+      expect(result.where).toEqual({ deletedAt: '2023-01-01' });
+    });
+
+    it('should merge filter if deletedAt is ONLY present in nested logic', () => {
+      const query: QueryObject = {
+        type: 'select',
+        table: 'users',
+        select: ['*'],
+        where: { $or: [{ deletedAt: { $ne: null } }, { id: 1 }] }
+      };
+
+      const result = interceptor.interceptQuery(query);
+      // Current behavior: only top-level check
+      expect(result.where).toEqual({
+        $and: [
+          { $or: [{ deletedAt: { $ne: null } }, { id: 1 }] },
+          { deletedAt: null }
+        ]
+      });
     });
   });
 
@@ -116,7 +158,7 @@ describe('Soft Delete Plugin - Interceptor', () => {
     });
 
     it('should use true/false instead of null', () => {
-      const query: QueryObject = { type: 'select', table: 'users', fields: ['*'] };
+      const query: QueryObject = { type: 'select', table: 'users', select: ['*'] };
 
       const r_default = boolInterceptor.interceptQuery(query);
       expect(r_default.where).toEqual({ isDeleted: false });

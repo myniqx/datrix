@@ -7,25 +7,26 @@
 
 import type { Pool, PoolClient } from 'pg';
 import { Pool as PgPool } from 'pg';
-import type {
-  DatabaseAdapter,
-  QueryObject,
-  QueryResult,
-  QueryMetadata,
-  Transaction,
-  ConnectionState,
-  AlterOperation,
-  IndexDefinition,
-  ConnectionError,
+import {
   QueryError,
+  ConnectionError,
   TransactionError,
-  MigrationError
+  MigrationError,
+  type DatabaseAdapter,
+  type QueryObject,
+  type QueryResult,
+  type QueryMetadata,
+  type Transaction,
+  type ConnectionState,
+  type AlterOperation,
+  type IndexDefinition
 } from '../base/types';
 import type { SchemaDefinition, FieldDefinition } from '@core/schema/types';
 import type { Result } from '@utils/types';
 import { PostgresQueryTranslator } from './query-translator';
 import type { PostgresConfig } from './types';
 import { getPostgresTypeWithModifiers } from './types';
+import { validateQueryObject } from '@utils/query';
 
 /**
  * PostgreSQL adapter implementation
@@ -143,6 +144,15 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
   async executeQuery<TResult>(
     query: QueryObject
   ): Promise<Result<QueryResult<TResult>, QueryError>> {
+    // Runtime validation of QueryObject structure
+    const validation = validateQueryObject(query);
+    if (!validation.success) {
+      return {
+        success: false,
+        error: new QueryError(`Invalid QueryObject: ${validation.error.message}`, { query })
+      };
+    }
+
     if (!this.pool) {
       return {
         success: false,

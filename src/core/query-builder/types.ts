@@ -51,9 +51,9 @@ export interface LogicalOperators {
  */
 export type WhereClause = {
   readonly [field: string]:
-    | Primitive
-    | ComparisonOperators
-    | readonly WhereClause[];
+  | Primitive
+  | ComparisonOperators
+  | readonly WhereClause[];
 } & Partial<LogicalOperators>;
 
 /**
@@ -111,6 +111,7 @@ export interface QueryObject {
   readonly distinct?: boolean; // SELECT DISTINCT
   readonly groupBy?: readonly string[]; // GROUP BY fields
   readonly having?: WhereClause; // HAVING clause
+  readonly meta?: Record<string, unknown>; // For internal plugin communication
 }
 
 /**
@@ -388,7 +389,7 @@ export type TypedQueryBuilder<T> = {
  */
 export type WhereConditions<T> = {
   readonly [K in keyof T]?:
-    | T[K]
-    | (T[K] extends number | Date ? ComparisonOperators : never)
-    | (T[K] extends string ? { readonly $like?: string } : never);
+  | T[K]
+  | (T[K] extends number | Date ? ComparisonOperators : never)
+  | (T[K] extends string ? { readonly $like?: string } : never);
 };

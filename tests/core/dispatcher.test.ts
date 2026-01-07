@@ -6,6 +6,8 @@
  * - Query manipulation by plugins
  * - Result manipulation by plugins
  * - Error isolation (one plugin failing shouldn't stop others)
+ * - Strict QueryObject validation (entrance and per-plugin)
+ * - Cross-plugin communication via 'meta' field
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -68,38 +70,13 @@ describe('Core - Dispatcher', () => {
     expect(finalQuery.table).toBe('users_p1_p2');
   });
 
-  it('should isolate errors in plugins', async () => {
-    const registry = new PluginRegistry();
-    const plugin1: ForjaPlugin = {
-      name: 'failing', version: '1', options: {},
-      init: async () => ({ success: true, data: undefined }),
-      destroy: async () => ({ success: true, data: undefined }),
-      onBeforeQuery: async () => { throw new Error('Boom'); }
-    };
-    const plugin2: ForjaPlugin = {
-      name: 'working', version: '1', options: {},
-      init: async () => ({ success: true, data: undefined }),
-      destroy: async () => ({ success: true, data: undefined }),
-      onBeforeQuery: async (q) => ({ ...q, table: 'fixed' })
-    };
-
-    registry.register(plugin1);
-    registry.register(plugin2);
-
-    const dispatcher = new Dispatcher(registry);
-
-    // Should not throw
-    const result = await dispatcher.dispatchBeforeQuery({ type: 'select', table: 'initial' });
-    expect(result.table).toBe('fixed');
-  });
-
   it('should allow modifying results in sequence', async () => {
     const registry = new PluginRegistry();
     const plugin1: ForjaPlugin = {
       name: 'p1', version: '1', options: {},
       init: async () => ({ success: true, data: undefined }),
       destroy: async () => ({ success: true, data: undefined }),
-      onAfterQuery: async (r: any) => ({ ...r, count: r.count + 1 })
+      onAfterQuery: async (r: any) => ({ ...r, count: (r.count || 0) + 1 })
     };
 
     registry.register(plugin1);
@@ -108,5 +85,63 @@ describe('Core - Dispatcher', () => {
     const result = await dispatcher.dispatchAfterQuery({ count: 10 });
 
     expect(result.count).toBe(11);
+  });
+
+  it('should throw if entrance query is invalid', async () => {
+    const registry = new PluginRegistry();
+    const dispatcher = new Dispatcher(registry);
+
+    // Invalid entrance query (missing type)
+    const badQuery = { table: 'users' } as any;
+
+    await expect(dispatcher.dispatchBeforeQuery(badQuery)).rejects.toThrow(
+      'Entrance QueryObject is invalid'
+    );
+  });
+
+  it('should throw if plugin returns an invalid query (now strict)', async () => {
+    const registry = new PluginRegistry();
+    const plugin: ForjaPlugin = {
+      name: 'bad-plugin', version: '1', options: {},
+      init: async () => ({ success: true, data: undefined }),
+      destroy: async () => ({ success: true, data: undefined }),
+      onBeforeQuery: async (q) => ({ ...q, ghostKey: 'I should not be here' } as any)
+    };
+    registry.register(plugin);
+
+    const dispatcher = new Dispatcher(registry);
+    const validQuery: QueryObject = { type: 'select', table: 'users' };
+
+    await expect(dispatcher.dispatchBeforeQuery(validQuery)).rejects.toThrow(
+      "Plugin 'bad-plugin' returned an invalid query"
+    );
+  });
+
+  it('should allow plugins to communicate via meta field', async () => {
+    const registry = new PluginRegistry();
+    const p1: ForjaPlugin = {
+      name: 'p1', version: '1', options: {},
+      init: async () => ({ success: true, data: undefined }),
+      destroy: async () => ({ success: true, data: undefined }),
+      onBeforeQuery: async (q) => ({ ...q, meta: { ...q.meta, p1_data: 'hello' } })
+    };
+    const p2: ForjaPlugin = {
+      name: 'p2', version: '1', options: {},
+      init: async () => ({ success: true, data: undefined }),
+      destroy: async () => ({ success: true, data: undefined }),
+      onBeforeQuery: async (q) => {
+        const p1Data = q.meta?.p1_data;
+        return { ...q, table: q.table + '_' + p1Data };
+      }
+    };
+
+    registry.register(p1);
+    registry.register(p2);
+
+    const dispatcher = new Dispatcher(registry);
+    const result = await dispatcher.dispatchBeforeQuery({ type: 'select', table: 'users' });
+
+    expect(result.table).toBe('users_hello');
+    expect(result.meta?.p1_data).toBe('hello');
   });
 });

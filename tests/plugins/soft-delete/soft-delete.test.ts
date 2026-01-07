@@ -66,7 +66,7 @@ describe('Soft Delete Plugin - Integration', () => {
       const query: QueryObject = {
         type: 'select',
         table: 'posts',
-        fields: ['*']
+        select: ['*']
       };
 
       const result = await plugin.onBeforeQuery(query);

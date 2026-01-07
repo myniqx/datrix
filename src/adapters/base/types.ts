@@ -99,6 +99,7 @@ export interface QueryObject {
   readonly offset?: number;
   readonly data?: Record<string, unknown>; // For INSERT/UPDATE
   readonly returning?: SelectClause; // Fields to return after INSERT/UPDATE
+  readonly meta?: Record<string, unknown>; // For internal plugin communication
 }
 
 /**

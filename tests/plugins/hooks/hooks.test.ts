@@ -41,7 +41,7 @@ describe('Hooks Plugin - Integration', () => {
       const query: QueryObject = {
         type: 'select',
         table: 'users',
-        fields: ['id', 'name'],
+        select: ['id', 'name'],
         where: { id: 1 }
       };
 
@@ -53,7 +53,7 @@ describe('Hooks Plugin - Integration', () => {
       const query: QueryObject = {
         type: 'select',
         table: 'other',
-        fields: ['*']
+        select: ['*']
       };
 
       const result = await plugin.onBeforeQuery(query);
