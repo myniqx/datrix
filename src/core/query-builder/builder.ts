@@ -19,7 +19,8 @@ import type { SchemaDefinition } from '@core/schema/types';
 import type { Result } from '@utils/types';
 import { mergeWhereClauses } from './where';
 import { mergePopulateClauses } from './populate';
-import { normalizeSelectClause } from './select';
+import { normalizeSelectClause, validateSelectFields } from './select';
+import { validateWhereClause } from './where';
 
 /**
  * Query builder error
@@ -27,6 +28,7 @@ import { normalizeSelectClause } from './select';
 export class QueryBuilderError extends Error {
   constructor(
     message: string,
+    public readonly code: string = 'QUERY_BUILD_ERROR',
     public readonly details?: {
       field?: string;
       value?: unknown;
@@ -90,8 +92,7 @@ interface MutableQueryState {
  * Query builder implementation
  */
 export class ForjaQueryBuilder<TSchema = Record<string, unknown>>
-  implements QueryBuilder<TSchema>
-{
+  implements QueryBuilder<TSchema> {
   private query: MutableQueryState = {};
   private readonly _schema: SchemaDefinition | undefined;
 
@@ -260,6 +261,81 @@ export class ForjaQueryBuilder<TSchema = Record<string, unknown>>
       ...(this.query.groupBy !== undefined && { groupBy: this.query.groupBy as readonly string[] }),
       ...(this.query.having !== undefined && { having: this.query.having })
     };
+
+    // Validate select fields
+    if (this._schema && this.query.select) {
+      const validation = validateSelectFields(this.query.select, this._schema);
+      if (!validation.success) {
+        return {
+          success: false,
+          error: new QueryBuilderError(
+            validation.error.message,
+            validation.error.code,
+            validation.error.details
+          )
+        };
+      }
+    }
+
+    // Validate where clause
+    if (this._schema && this.query.where) {
+      const validation = validateWhereClause(this.query.where, this._schema);
+      if (!validation.success) {
+        return {
+          success: false,
+          error: new QueryBuilderError(
+            validation.error.message,
+            validation.error.code,
+            validation.error.details
+          )
+        };
+      }
+    }
+
+    // Inject relation metadata if schema and populate are present
+    if (this._schema && this.query.populate) {
+      const relations: Record<string, unknown> = {};
+
+      for (const relationName of Object.keys(this.query.populate)) {
+        const field = this._schema.fields[relationName];
+
+        if (!field) {
+          return {
+            success: false,
+            error: new QueryBuilderError(
+              `Relation '${relationName}' not found in schema '${this._schema.name}'`,
+              'INVALID_RELATION',
+              { field: relationName }
+            )
+          };
+        }
+
+        if (field.type !== 'relation') {
+          return {
+            success: false,
+            error: new QueryBuilderError(
+              `Field '${relationName}' is not a relation`,
+              'INVALID_RELATION',
+              { field: relationName }
+            )
+          };
+        }
+
+        relations[relationName] = {
+          model: field.model,
+          foreignKey: field.foreignKey,
+          kind: field.kind,
+          targetTable: field.model.toLowerCase() // Simple convention for now
+        };
+      }
+
+      if (Object.keys(relations).length > 0) {
+        result.meta = {
+          ...result.meta,
+          relations
+        };
+      }
+    }
 
     return { success: true, data: result };
   }

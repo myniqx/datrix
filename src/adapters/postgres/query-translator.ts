@@ -171,7 +171,8 @@ export class PostgresQueryTranslator implements QueryTranslator {
     if (query.type === 'count') {
       parts.push('SELECT COUNT(*)');
     } else {
-      parts.push(`SELECT ${this.translateSelectClause(query.select)}`);
+      // Use table name as alias to resolve ambiguity with joins
+      parts.push(`SELECT ${this.translateSelectClause(query.select, query.table)}`);
     }
 
     // DISTINCT
@@ -182,9 +183,17 @@ export class PostgresQueryTranslator implements QueryTranslator {
     // FROM clause
     parts.push(`FROM ${this.escapeIdentifier(query.table)}`);
 
+    // KEY CHANGE: Add JOINs
+    const joins = this.generateJoins(query);
+    if (joins) {
+      parts.push(joins);
+    }
+
     // WHERE clause
     if (query.where) {
       const whereResult = this.translateWhere(query.where, this.paramIndex);
+      // Ensure we qualify table names in WHERE if joins are present
+      // For now, simpler implementation:
       parts.push(`WHERE ${whereResult.sql}`);
       this.paramIndex += whereResult.params.length;
       this.params.push(...whereResult.params);
@@ -219,6 +228,47 @@ export class PostgresQueryTranslator implements QueryTranslator {
     // OFFSET
     if (query.offset !== undefined) {
       parts.push(`OFFSET ${this.addParam(query.offset)}`);
+    }
+
+    return parts.join(' ');
+  }
+
+  /**
+   * Translate SELECT fields with aliases
+   */
+  private translateSelectClause(select: SelectClause | undefined, tableAlias?: string): string {
+    if (!select || select === '*') {
+      return tableAlias ? `${this.escapeIdentifier(tableAlias)}.*` : '*';
+    }
+
+    return select.map((field) => {
+      const escaped = this.escapeIdentifier(field);
+      return tableAlias ? `${this.escapeIdentifier(tableAlias)}.${escaped}` : escaped;
+    }).join(', ');
+  }
+
+  /**
+   * Generate JOIN clauses from populate and meta
+   */
+  private generateJoins(query: QueryObject | BuilderQueryObject): string {
+    if (!query.populate || !query.meta || !query.meta['relations']) {
+      return '';
+    }
+
+    const relations = query.meta['relations'] as Record<string, { foreignKey: string; targetTable: string }>;
+    const parts: string[] = [];
+
+    for (const [relation, _options] of Object.entries(query.populate)) {
+      const meta = relations[relation];
+      if (!meta) continue;
+
+      const targetTable = this.escapeIdentifier(meta.targetTable);
+      const sourceTable = this.escapeIdentifier(query.table);
+      // Assume belongsTo for now based on test case (post has authorId)
+      // TODO: Handle other relation kinds
+      const fk = this.escapeIdentifier(meta.foreignKey || `${relation}Id`);
+
+      parts.push(`LEFT JOIN ${targetTable} ON ${sourceTable}.${fk} = ${targetTable}."id"`);
     }
 
     return parts.join(' ');
@@ -315,13 +365,6 @@ export class PostgresQueryTranslator implements QueryTranslator {
   /**
    * Translate SELECT clause
    */
-  private translateSelectClause(select: SelectClause | undefined): string {
-    if (!select || select === '*') {
-      return '*';
-    }
-
-    return select.map((field) => this.escapeIdentifier(field)).join(', ');
-  }
 
   /**
    * Translate ORDER BY clause
@@ -485,6 +528,15 @@ export class PostgresQueryTranslator implements QueryTranslator {
 
       case '$ilike':
         return `${fieldName} ILIKE ${this.addParam(value)}`;
+
+      case '$contains':
+        return `${fieldName} ILIKE ${this.addParam(`%${String(value)}%`)}`;
+
+      case '$startsWith':
+        return `${fieldName} ILIKE ${this.addParam(`${String(value)}%`)}`;
+
+      case '$endsWith':
+        return `${fieldName} ILIKE ${this.addParam(`%${String(value)}`)}`;
 
       case '$regex':
         if (value instanceof RegExp) {

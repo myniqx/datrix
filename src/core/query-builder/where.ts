@@ -20,6 +20,7 @@ const MAX_WHERE_DEPTH = 10;
 export class WhereBuilderError extends Error {
   constructor(
     message: string,
+    public readonly code: string = 'WHERE_BUILD_ERROR',
     public readonly details?: {
       field?: string;
       operator?: string;
@@ -52,6 +53,8 @@ export function isComparisonOperators(
     '$nin',
     '$like',
     '$ilike',
+    '$contains',
+    '$icontains',
     '$regex',
     '$exists',
     '$null'
@@ -91,6 +94,7 @@ export function validateComparisonOperator(
           success: false,
           error: new WhereBuilderError(
             `Invalid value for ${operator}: expected primitive value`,
+            'INVALID_VALUE',
             { field, operator, value }
           )
         };
@@ -107,6 +111,7 @@ export function validateComparisonOperator(
           success: false,
           error: new WhereBuilderError(
             `Invalid value for ${operator}: expected number or Date`,
+            'INVALID_VALUE',
             { field, operator, value }
           )
         };
@@ -121,6 +126,7 @@ export function validateComparisonOperator(
           success: false,
           error: new WhereBuilderError(
             `Invalid value for ${operator}: expected array`,
+            'INVALID_VALUE',
             { field, operator, value }
           )
         };
@@ -129,12 +135,15 @@ export function validateComparisonOperator(
 
     case '$like':
     case '$ilike':
+    case '$contains':
+    case '$icontains':
       // String only
       if (typeof value !== 'string') {
         return {
           success: false,
           error: new WhereBuilderError(
             `Invalid value for ${operator}: expected string`,
+            'INVALID_VALUE',
             { field, operator, value }
           )
         };
@@ -148,6 +157,7 @@ export function validateComparisonOperator(
           success: false,
           error: new WhereBuilderError(
             `Invalid value for ${operator}: expected RegExp or string`,
+            'INVALID_VALUE',
             { field, operator, value }
           )
         };
@@ -162,6 +172,7 @@ export function validateComparisonOperator(
           success: false,
           error: new WhereBuilderError(
             `Invalid value for ${operator}: expected boolean`,
+            'INVALID_VALUE',
             { field, operator, value }
           )
         };
@@ -171,7 +182,7 @@ export function validateComparisonOperator(
     default:
       return {
         success: false,
-        error: new WhereBuilderError(`Unknown operator: ${operator}`, {
+        error: new WhereBuilderError(`Unknown operator: ${operator}`, 'INVALID_OPERATOR', {
           field,
           operator
         })
@@ -194,7 +205,8 @@ export function validateWhereClause(
     return {
       success: false,
       error: new WhereBuilderError(
-        `WHERE clause exceeds maximum nesting depth of ${MAX_WHERE_DEPTH}`
+        `WHERE clause exceeds maximum nesting depth of ${MAX_WHERE_DEPTH}`,
+        'MAX_DEPTH_EXCEEDED'
       )
     };
   }
@@ -210,6 +222,7 @@ export function validateWhereClause(
             success: false,
             error: new WhereBuilderError(
               `${key} operator requires an array of conditions`,
+              'INVALID_VALUE',
               { operator: key, value }
             )
           };
@@ -238,6 +251,7 @@ export function validateWhereClause(
         success: false,
         error: new WhereBuilderError(
           `Field '${key}' does not exist in schema '${schema.name}'`,
+          'INVALID_FIELD',
           { field: key }
         )
       };
@@ -275,6 +289,7 @@ export function validateWhereClause(
           success: false,
           error: new WhereBuilderError(
             `Invalid value for field '${key}': expected primitive value`,
+            'INVALID_VALUE',
             { field: key, value }
           )
         };

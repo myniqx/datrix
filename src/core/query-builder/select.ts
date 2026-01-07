@@ -15,6 +15,7 @@ import type { Result } from '@utils/types';
 export class SelectBuilderError extends Error {
   constructor(
     message: string,
+    public readonly code: string = 'SELECT_BUILD_ERROR',
     public readonly details?: {
       field?: string;
       availableFields?: readonly string[];
@@ -100,6 +101,7 @@ export function validateSelectFields(
         success: false,
         error: new SelectBuilderError(
           `Field '${field}' does not exist in schema '${schema.name}'`,
+          'INVALID_FIELD',
           { field, availableFields }
         )
       };

@@ -216,8 +216,8 @@ export type InferFieldType<F extends FieldDefinition> = F extends {
  */
 export type InferSchemaType<S extends SchemaDefinition> = {
   [K in keyof S['fields']]: S['fields'][K] extends { required: true }
-    ? InferFieldType<S['fields'][K]>
-    : InferFieldType<S['fields'][K]> | undefined;
+  ? InferFieldType<S['fields'][K]>
+  : InferFieldType<S['fields'][K]> | undefined;
 };
 
 /**
@@ -249,6 +249,10 @@ export class SchemaRegistry {
   private readonly schemas: Map<string, SchemaDefinition> = new Map();
 
   register(schema: SchemaDefinition): void {
+    const validation = validateSchemaDefinition(schema);
+    if (!validation.valid) {
+      throw new Error(`Invalid schema '${schema.name}': ${validation.errors.map(e => e.message).join(', ')}`);
+    }
     this.schemas.set(schema.name, schema);
   }
 
@@ -362,6 +366,15 @@ export function validateSchemaDefinition(
           field: fieldName,
           message: 'Relation field must specify a model',
           code: 'MISSING_RELATION_MODEL'
+        });
+      }
+
+      // Check foreignKey for belongsTo
+      if (fieldDef.kind === 'belongsTo' && (!fieldDef.foreignKey || fieldDef.foreignKey.trim() === '')) {
+        errors.push({
+          field: fieldName,
+          message: 'Relation with kind "belongsTo" must specify a foreignKey',
+          code: 'MISSING_FOREIGN_KEY'
         });
       }
     }

@@ -257,102 +257,26 @@ interface ForjaPlugin<TOptions = Record<string, unknown>> {
 
 ## ✅ Implementation Checklist
 
-### Phase 1: Core Foundation
-
-- [x] Project setup (package.json, tsconfig, etc.)
-- [x] Create folder structure
-- [x] Write CLAUDE.md files for each module
-- [x] Define core type system
-  - [x] Schema types (`src/core/schema/types.ts`)
-  - [x] Validation types (`src/core/validator/types.ts`)
-  - [x] Query builder types (`src/core/query-builder/types.ts`)
-- [x] Implement schema system
-  - [x] Schema registry (`src/core/schema/registry.ts`)
-  - [x] Type inference utilities (`src/core/schema/inference.ts`)
-- [x] Implement custom validation engine
-  - [x] Field validator (~150 LOC)
-  - [x] Schema validator (~150 LOC)
-  - [x] Error handling
-
-### Phase 2: Query Builder & PostgreSQL Adapter
-
-- [x] Query builder base implementation
-  - [x] SELECT/fields builder (`src/core/query-builder/select.ts`)
-  - [x] Pagination builder (`src/core/query-builder/pagination.ts`)
-  - [x] WHERE clause builder (`src/core/query-builder/where.ts`)
-  - [x] JOIN/populate builder (`src/core/query-builder/populate.ts`)
-  - [x] Base QueryBuilder class (`src/core/query-builder/builder.ts`)
-- [x] PostgreSQL adapter
-  - [x] Connection management (`src/adapters/postgres/adapter.ts`)
-  - [x] Query translator (QueryObject → SQL) (`src/adapters/postgres/query-translator.ts`)
-  - [x] Transaction support (`src/adapters/postgres/adapter.ts`)
-  - [x] Type mapping (TS types ↔ PG types) (`src/adapters/postgres/types.ts`)
-  - [x] Schema operations (CREATE/DROP/ALTER TABLE, indexes)
-
-### Phase 3: Migration System
-
-- [x] Migration types and interfaces
-- [x] Schema differ (detect changes)
-- [x] Migration generator (auto-generate from schemas)
-- [x] Migration runner
-- [x] Migration history tracking (migrations table)
-
-### Phase 4: API Layer
-
-- [x] Query string parser
-  - [x] Parse `populate` syntax
-  - [x] Parse `fields` syntax
-  - [x] Parse `where` syntax
-  - [x] Parse pagination params
-- [x] Handler factory (`createHandler`)
-- [x] CRUD operations implementation
-- [x] JSON response serializer
-- [x] Relation data serialization
-
-### Phase 5: Authentication Plugin
-
-- [x] Plugin base interface
-- [x] JWT strategy
-- [x] Session strategy
-- [x] RBAC (Role-Based Access Control)
-- [x] Permission checking middleware
-
-### Phase 6: Additional Plugins
-
-- [x] File upload plugin
-  - [x] Base provider interface
-  - [x] Local filesystem provider
-  - [x] S3 provider
-- [x] Lifecycle hooks plugin
-  - [x] Hook manager
-  - [x] beforeCreate, afterCreate
-  - [x] beforeUpdate, afterUpdate
-  - [x] beforeDelete, afterDelete
-- [x] Soft delete plugin
-  - [x] Query interceptor
-  - [x] Auto-add deletedAt filter
-
-### Phase 7: CLI Tools
-
-- [x] CLI framework setup
-- [x] `forja migrate` command
-- [x] `forja generate schema` command
-- [x] `forja generate migration` command
-- [x] `forja dev` command
-
 ### Phase 8: Additional Adapters
 
 - [ ] MySQL adapter
 - [ ] MongoDB adapter
 
-### Phase 9: Testing & Documentation
+### Phase 9: Testing & Quality Assurance
+- [x] Unit tests for core modules (Schema, Dispatcher, Validator)
+- [x] Integration tests for Postgres adapter (Transaction, Schema, Index)
+- [x] API Layer tests (Parser, Handler, Serializer)
+- [x] Plugin System tests (Dispatcher, Hooks, Soft-Delete)
+- [x] Full-stack Integration Test (Migration -> API -> DB)
+- [ ] Relation/Populate Integration Tests
+- [ ] Error Handling Refactor (Result monad adoption)
+- [ ] Type Safety Cleanup (no-any)
 
-- [ ] Unit tests for core modules
-- [ ] Integration tests for adapters
-- [ ] E2E tests for API layer
-- [ ] README documentation
-- [ ] API documentation
-- [ ] Usage examples
+### Phase 10: Documentation & Config
+- [ ] Config Module (loader, validator, environment support)
+- [ ] API Documentation
+- [ ] Usage Examples
+- [ ] E2E Tests
 
 ---
 

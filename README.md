@@ -414,8 +414,8 @@ GET /api/users?where[email][$contains]=@example.com
 
 # Supported operators:
 # $eq, $ne, $lt, $lte, $gt, $gte
-# $in, $nin, $contains, $notContains
-# $startsWith, $endsWith, $null, $notNull
+# $in, $nin, $contains, $startsWith, $endsWith
+# $like, $ilike, $regex, $exists, $null
 ```
 
 ### Pagination
