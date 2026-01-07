@@ -229,8 +229,8 @@ export class ForgeSchemaDiffer implements SchemaDiffer {
     }
 
     // Check unique constraint change
-    const oldUnique = 'unique' in oldField ? (oldField as any).unique : undefined;
-    const newUnique = 'unique' in newField ? (newField as any).unique : undefined;
+    const oldUnique = 'unique' in oldField ? (oldField as { unique?: boolean }).unique : undefined;
+    const newUnique = 'unique' in newField ? (newField as { unique?: boolean }).unique : undefined;
     if (oldUnique !== newUnique) {
       return true;
     }

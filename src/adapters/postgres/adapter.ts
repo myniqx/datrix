@@ -21,7 +21,7 @@ import {
   type AlterOperation,
   type IndexDefinition
 } from '../base/types';
-import type { SchemaDefinition, FieldDefinition } from '@core/schema/types';
+import type { SchemaDefinition, FieldDefinition, FieldType } from '@core/schema/types';
 import type { Result } from '@utils/types';
 import { PostgresQueryTranslator } from './query-translator';
 import type { PostgresConfig } from './types';
@@ -205,7 +205,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
    */
   private mapPostgresError(error: unknown, query?: QueryObject, sql?: string): QueryError {
     const message = error instanceof Error ? error.message : String(error);
-    const details = error as any;
+    const details = error as { code?: string; severity?: string; detail?: string; hint?: string };
     let code = 'QUERY_ERROR';
 
     // Postgres error codes (https://www.postgresql.org/docs/current/errcodes-appendix.html)
@@ -702,13 +702,15 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
       for (const row of columnResult.rows) {
         const fieldType = this.mapPostgresTypeToFieldType(row.data_type, row.udt_name);
 
-        fields[row.column_name] = {
-          type: fieldType as any,
+        const fieldDef = {
+          type: fieldType,
           required: row.is_nullable === 'NO',
           ...(row.column_default !== null && {
             default: this.parsePostgresDefault(row.column_default)
           })
-        };
+        } as FieldDefinition;
+
+        fields[row.column_name] = fieldDef;
       }
 
       return {
@@ -739,7 +741,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
   /**
    * Map Postgres data type to Forja FieldType
    */
-  private mapPostgresTypeToFieldType(_dataType: string, udtName: string): string {
+  private mapPostgresTypeToFieldType(_dataType: string, udtName: string): FieldType {
     const type = udtName.toLowerCase();
 
     if (type.includes('int') || type.includes('float') || type.includes('double') || type.includes('numeric') || type.includes('decimal') || type.includes('real')) {
