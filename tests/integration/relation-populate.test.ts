@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { PostgresAdapter } from '../../src/adapters/postgres/adapter';
-import { SchemaRegistry, defineSchema } from '../../src/core/schema/types';
-import { createUnifiedHandler as createHandler } from '../../src/api/handler/factory';
+import { PostgresAdapter } from 'forja-adapter-postgres';
+import { SchemaRegistry, defineSchema } from 'forja-types/core/schema';
+import { createUnifiedHandler as createHandler } from 'forja-api/handler/factory';
 import { Pool } from 'pg';
 
 // Mock pg

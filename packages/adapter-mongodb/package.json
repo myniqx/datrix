@@ -1,0 +1,27 @@
+{
+	"name": "forja-adapter-mongodb",
+	"version": "0.1.0",
+	"description": "MongoDB adapter for Forja framework (coming soon)",
+	"author": "Forja Contributors",
+	"license": "MIT",
+	"main": "./dist/index.js",
+	"module": "./dist/index.mjs",
+	"types": "./dist/index.d.ts",
+	"files": [
+		"dist"
+	],
+	"sideEffects": false,
+	"scripts": {
+		"build": "echo 'MongoDB adapter not implemented yet'",
+		"dev": "echo 'MongoDB adapter not implemented yet'",
+		"type-check": "echo 'MongoDB adapter not implemented yet'",
+		"clean": "rm -rf dist"
+	},
+	"dependencies": {
+		"forja-core": "workspace:*",
+		"forja-types": "workspace:*"
+	},
+	"peerDependencies": {
+		"mongodb": "^6.3.0"
+	}
+}

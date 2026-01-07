@@ -10,6 +10,17 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "allowImportingTsExtensions": false,
+    "baseUrl": ".",
+    "paths": {
+      "forja-types": ["./packages/types/src/index.ts"],
+      "forja-types/*": ["./packages/types/src/*"],
+      "forja-core": ["./packages/core/src/index.ts"],
+      "forja-core/*": ["./packages/core/src/*"],
+      "forja-adapter-postgres": ["./packages/adapter-postgres/src/index.ts"],
+      "forja-adapter-postgres/*": ["./packages/adapter-postgres/src/*"],
+      "forja-api": ["./packages/api/src/index.ts"],
+      "forja-api/*": ["./packages/api/src/*"]
+    },
     /* Emit */
     "declaration": true,
     "declarationMap": true,
@@ -43,40 +54,18 @@
     "allowUnreachableCode": false,
     "exactOptionalPropertyTypes": true,
     /* Completeness */
-    "skipLibCheck": true,
-    /* Path Mapping */
-    "baseUrl": ".",
-    "paths": {
-      "@/*": [
-        "./src/*"
-      ],
-      "@core/*": [
-        "./src/core/*"
-      ],
-      "@adapters/*": [
-        "./src/adapters/*"
-      ],
-      "@plugins/*": [
-        "./src/plugins/*"
-      ],
-      "@api/*": [
-        "./src/api/*"
-      ],
-      "@cli/*": [
-        "./src/cli/*"
-      ],
-      "@utils/*": [
-        "./src/utils/*"
-      ]
-    }
+    "skipLibCheck": true
   },
   "include": [
-    "src/**/*",
-    "tests/**/*"
+    "packages/*/src/**/*",
+    "packages/*/tests/**/*",
+    "tests/**/*",
+    "examples/**/*"
   ],
   "exclude": [
     "node_modules",
     "dist",
-    "build"
+    "build",
+    "examples"
   ]
 }

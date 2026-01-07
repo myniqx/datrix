@@ -25,18 +25,30 @@ export default defineConfig({
         statements: 80,
       },
     },
-    include: ['tests/**/*.test.ts'],
+    include: ['tests/**/*.test.ts', 'packages/**/tests/**/*.test.ts'],
     exclude: ['node_modules/', 'dist/', 'examples/'],
   },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
-      '@core': path.resolve(__dirname, './src/core'),
-      '@adapters': path.resolve(__dirname, './src/adapters'),
-      '@plugins': path.resolve(__dirname, './src/plugins'),
-      '@api': path.resolve(__dirname, './src/api'),
-      '@cli': path.resolve(__dirname, './src/cli'),
-      '@utils': path.resolve(__dirname, './src/utils'),
+      // Monorepo package aliases
+      'forja-types': path.resolve(__dirname, './packages/types/src'),
+      'forja-types/core/schema': path.resolve(__dirname, './packages/types/src/core/schema.ts'),
+      'forja-types/core/query-builder': path.resolve(__dirname, './packages/types/src/core/query-builder.ts'),
+      'forja-types/adapter': path.resolve(__dirname, './packages/types/src/adapter.ts'),
+      'forja-types/utils': path.resolve(__dirname, './packages/types/src/utils.ts'),
+
+      'forja-core': path.resolve(__dirname, './packages/core/src'),
+      'forja-core/query-builder': path.resolve(__dirname, './packages/core/src/query-builder'),
+      'forja-core/schema': path.resolve(__dirname, './packages/core/src/schema'),
+
+      'forja-adapter-postgres': path.resolve(__dirname, './packages/adapter-postgres/src'),
+      'forja-api': path.resolve(__dirname, './packages/api/src'),
+
+      // Legacy aliases for backward compatibility with old tests
+      '@': path.resolve(__dirname, './packages'),
+      '@core': path.resolve(__dirname, './packages/core/src'),
+      '@adapters': path.resolve(__dirname, './packages/adapter-postgres/src'),
+      '@api': path.resolve(__dirname, './packages/api/src'),
     },
   },
 });

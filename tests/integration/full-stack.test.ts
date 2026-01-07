@@ -1,9 +1,27 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { PostgresAdapter } from '../../src/adapters/postgres/adapter';
-import { SchemaRegistry, defineSchema } from '../../src/core/schema/types';
-import { PluginRegistry } from '../../src/plugins/base/types';
-import { createUnifiedHandler as createHandler } from '../../src/api/handler/factory';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { PostgresAdapter } from 'forja-adapter-postgres';
+import { SchemaRegistry, defineSchema } from 'forja-types/core/schema';
+import { createUnifiedHandler as createHandler } from 'forja-api/handler/factory';
 import { Pool } from 'pg';
+
+// Mock types
+interface MockPool {
+  connect: ReturnType<typeof vi.fn>;
+  query: ReturnType<typeof vi.fn>;
+  end: ReturnType<typeof vi.fn>;
+  on: ReturnType<typeof vi.fn>;
+}
+
+// Test constants
+const DEFAULT_PAGE_SIZE = 25;
+const DEFAULT_OFFSET = 0;
+
+const TEST_USER = {
+  id: 1,
+  username: 'johndoe',
+  email: 'john@example.com',
+  age: 30
+} as const;
 
 // Mock pg
 vi.mock('pg', () => {
@@ -19,8 +37,7 @@ vi.mock('pg', () => {
 describe('Full Stack Integration', () => {
   let adapter: PostgresAdapter;
   let registry: SchemaRegistry;
-  let pluginRegistry: PluginRegistry;
-  let mockPool: any;
+  let mockPool: MockPool;
 
   const userSchema = defineSchema({
     name: 'user',
@@ -42,116 +59,289 @@ describe('Full Stack Integration', () => {
       user: 'admin',
       password: 'password'
     });
-    mockPool = new Pool();
+    mockPool = new Pool() as unknown as MockPool;
     (adapter as any).pool = mockPool;
     (adapter as any).state = 'connected';
 
     // Setup Core
     registry = new SchemaRegistry();
     registry.register(userSchema);
-
-    pluginRegistry = new PluginRegistry();
   });
 
-  it('should handle lifecycle: Migration -> API Create -> API Find', async () => {
-    // 1. Simulate Migration (Table Creation)
-    mockPool.query.mockResolvedValueOnce({ rowCount: 0, rows: [] }); // CREATE TABLE
+  afterEach(async () => {
+    // Cleanup
+    vi.clearAllMocks();
+  });
 
-    const migrationResult = await adapter.createTable(userSchema);
-    expect(migrationResult.success).toBe(true);
-    expect(mockPool.query).toHaveBeenCalledWith(expect.stringContaining('CREATE TABLE "user"'));
+  describe('Complete Lifecycle: Migration → Create → Read', () => {
+    it('should handle full workflow from table creation to data retrieval', async () => {
+      // STEP 1: Migration - Table Creation
+      mockPool.query.mockResolvedValueOnce({ rowCount: 0, rows: [] });
 
-    // 2. API Create (Dispatcher -> Adapter)
-    mockPool.query.mockResolvedValueOnce({
-      rowCount: 1,
-      rows: [{ id: 1, username: 'johndoe', email: 'john@example.com', age: 30 }]
-    });
+      const migrationResult = await adapter.createTable(userSchema);
 
-    const handler = createHandler({
-      adapter,
-      schema: userSchema
-    });
+      expect(migrationResult.success).toBe(true);
+      expect(mockPool.query).toHaveBeenNthCalledWith(
+        1,
+        expect.stringContaining('CREATE TABLE "user"'),
+        expect.any(Array)
+      );
 
-    const createResult = await handler({
-      method: 'POST',
-      body: { username: 'johndoe', email: 'john@example.com', age: 30 },
-      query: {},
-      params: {},
-      headers: {},
-      user: undefined,
-      metadata: {}
-    });
-
-    if (createResult.status !== 200 && createResult.status !== 201) {
-      console.error('Create failed:', JSON.stringify(createResult.body, null, 2));
-    }
-    expect(createResult.status).toBe(201);
-    if ('data' in createResult.body) {
-      expect(createResult.body.data).toMatchObject({
-        username: 'johndoe',
-        email: 'john@example.com'
+      // STEP 2: Create Operation
+      mockPool.query.mockResolvedValueOnce({
+        rowCount: 1,
+        rows: [TEST_USER]
       });
-    } else {
-      throw new Error('Expected success response: ' + JSON.stringify(createResult.body));
-    }
 
-    // 3. API Find (Dispatcher -> Adapter)
-    mockPool.query.mockResolvedValueOnce({
-      rowCount: 1,
-      rows: [{ id: 1, username: 'johndoe', email: 'john@example.com', age: 30 }]
+      const handler = createHandler({
+        adapter,
+        schema: userSchema
+      });
+
+      const createResult = await handler({
+        method: 'POST',
+        body: {
+          username: TEST_USER.username,
+          email: TEST_USER.email,
+          age: TEST_USER.age
+        },
+        query: {},
+        params: {},
+        headers: {},
+        user: undefined,
+        metadata: {}
+      });
+
+      expect(createResult.status).toBe(201);
+      expect(createResult.body).toHaveProperty('data');
+
+      if ('data' in createResult.body) {
+        expect(createResult.body.data).toMatchObject({
+          username: TEST_USER.username,
+          email: TEST_USER.email,
+          age: TEST_USER.age
+        });
+      }
+
+      // STEP 3: Read Operation
+      mockPool.query.mockResolvedValueOnce({
+        rowCount: 1,
+        rows: [TEST_USER]
+      });
+
+      const findResult = await handler({
+        method: 'GET',
+        body: {},
+        query: { 'where[username]': TEST_USER.username },
+        params: {},
+        headers: {},
+        user: undefined,
+        metadata: {}
+      });
+
+      expect(findResult.status).toBe(200);
+      expect(findResult.body).toHaveProperty('data');
+
+      if ('data' in findResult.body) {
+        expect(Array.isArray(findResult.body.data)).toBe(true);
+        const users = findResult.body.data as any[];
+        expect(users[0]).toMatchObject({
+          username: TEST_USER.username,
+          email: TEST_USER.email
+        });
+      }
+
+      // Verify SQL query structure
+      const selectCalls = mockPool.query.mock.calls.filter(
+        (call: any[]) => call[0].includes('SELECT')
+      );
+      expect(selectCalls).toHaveLength(1);
+      expect(selectCalls[0][0]).toContain('WHERE "username" = $1');
+      expect(selectCalls[0][1]).toEqual([
+        TEST_USER.username,
+        DEFAULT_PAGE_SIZE,
+        DEFAULT_OFFSET
+      ]);
     });
-
-    const findResult = await handler({
-      method: 'GET',
-      body: {},
-      query: { 'where[username]': 'johndoe' },
-      params: {},
-      headers: {},
-      user: undefined,
-      metadata: {}
-    });
-
-    if (findResult.status !== 200) {
-      console.error('Find failed:', JSON.stringify(findResult.body, null, 2));
-    }
-    expect(findResult.status).toBe(200);
-    if ('data' in findResult.body) {
-      expect(Array.isArray(findResult.body.data)).toBe(true);
-      expect((findResult.body.data as any[])[0]).toMatchObject({ username: 'johndoe' });
-    } else {
-      throw new Error('Expected success response: ' + JSON.stringify(findResult.body));
-    }
-
-    // Verify SQL generated for Find
-    const findCall = mockPool.query.mock.calls.find((call: any[]) => call[0].includes('SELECT'));
-    expect(findCall[0]).toContain('WHERE "username" = $1');
-    expect(findCall[1]).toEqual(['johndoe', 25, 0]);
   });
 
-  it('should handle validation errors correctly through the stack', async () => {
-    // Attempt to create user without required field
-    const handler = createHandler({
-      adapter,
-      schema: userSchema
+  describe('Validation Error Handling', () => {
+    it('should reject invalid data before reaching database', async () => {
+      const handler = createHandler({
+        adapter,
+        schema: userSchema
+      });
+
+      const result = await handler({
+        method: 'POST',
+        body: { age: 25 }, // Missing required: username, email
+        query: {},
+        params: {},
+        headers: {},
+        user: undefined,
+        metadata: {}
+      });
+
+      // Debug: Log the actual response
+      if (result.status !== 400) {
+        console.log('❌ Validation test failed');
+        console.log('Status:', result.status);
+        console.log('Body:', JSON.stringify(result.body, null, 2));
+      }
+
+      // Should fail validation
+      expect(result.status).toBe(400);
+      expect(result.body).toHaveProperty('error');
+
+      if ('error' in result.body) {
+        expect(result.body.error).toBeDefined();
+        expect(result.body.error.message).toBeDefined();
+      }
+
+      // Database should NOT be called
+      expect(mockPool.query).not.toHaveBeenCalled();
     });
 
-    const result = await handler({
-      method: 'POST',
-      body: { age: 25 }, // Missing username/email
-      query: {},
-      params: {},
-      headers: {},
-      user: undefined,
-      metadata: {}
+    it('should validate email field when provided', async () => {
+      const handler = createHandler({
+        adapter,
+        schema: userSchema
+      });
+
+      const result = await handler({
+        method: 'POST',
+        body: {
+          username: 'test',
+          email: '', // Invalid: empty email
+          age: 25
+        },
+        query: {},
+        params: {},
+        headers: {},
+        user: undefined,
+        metadata: {}
+      });
+
+      expect(result.status).toBe(400);
+      expect(mockPool.query).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Update Operations', () => {
+    it('should handle UPDATE requests', async () => {
+      mockPool.query.mockResolvedValueOnce({
+        rowCount: 1,
+        rows: [{ ...TEST_USER, age: 31 }]
+      });
+
+      const handler = createHandler({
+        adapter,
+        schema: userSchema
+      });
+
+      const result = await handler({
+        method: 'PUT',
+        body: { age: 31 },
+        query: {},
+        params: { id: '1' },
+        headers: {},
+        user: undefined,
+        metadata: {}
+      });
+
+      expect(result.status).toBe(200);
+      if ('data' in result.body) {
+        expect(result.body.data).toMatchObject({ age: 31 });
+      }
+
+      // Verify UPDATE SQL was called
+      expect(mockPool.query).toHaveBeenCalledWith(
+        expect.stringContaining('UPDATE'),
+        expect.any(Array)
+      );
+    });
+  });
+
+  describe('Delete Operations', () => {
+    it('should handle DELETE requests', async () => {
+      mockPool.query.mockResolvedValueOnce({
+        rowCount: 1,
+        rows: [TEST_USER]
+      });
+
+      const handler = createHandler({
+        adapter,
+        schema: userSchema
+      });
+
+      const result = await handler({
+        method: 'DELETE',
+        body: {},
+        query: {},
+        params: { id: '1' },
+        headers: {},
+        user: undefined,
+        metadata: {}
+      });
+
+      expect(result.status).toBe(200);
+
+      // Verify DELETE SQL was called
+      expect(mockPool.query).toHaveBeenCalledWith(
+        expect.stringContaining('DELETE FROM'),
+        expect.any(Array)
+      );
+    });
+  });
+
+  describe('Database Error Handling', () => {
+    it('should handle database connection errors gracefully', async () => {
+      mockPool.query.mockRejectedValueOnce(
+        new Error('Connection timeout')
+      );
+
+      const handler = createHandler({
+        adapter,
+        schema: userSchema
+      });
+
+      const result = await handler({
+        method: 'GET',
+        body: {},
+        query: {},
+        params: {},
+        headers: {},
+        user: undefined,
+        metadata: {}
+      });
+
+      expect(result.status).toBe(500);
+      expect(result.body).toHaveProperty('error');
     });
 
-    expect(result.status).toBe(400);
-    if ('error' in result.body) {
-      expect(result.body.error).toBeDefined();
-    } else {
-      throw new Error('Expected error response');
-    }
-    // mockPool.query should NOT have been called due to validation failure
-    expect(mockPool.query).not.toHaveBeenCalled();
+    it('should handle unique constraint violations', async () => {
+      const constraintError = new Error('duplicate key value');
+      (constraintError as any).code = '23505'; // PostgreSQL unique violation
+
+      mockPool.query.mockRejectedValueOnce(constraintError);
+
+      const handler = createHandler({
+        adapter,
+        schema: userSchema
+      });
+
+      const result = await handler({
+        method: 'POST',
+        body: TEST_USER,
+        query: {},
+        params: {},
+        headers: {},
+        user: undefined,
+        metadata: {}
+      });
+
+      expect(result.status).toBeGreaterThanOrEqual(400);
+      expect(result.body).toHaveProperty('error');
+    });
   });
 });
