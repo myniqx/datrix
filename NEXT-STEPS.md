@@ -1,42 +1,51 @@
 # Forja - Next Steps & Implementation Roadmap
 
-**Last Updated:** 2026-01-06
-**Project Status:** v0.7.0 (~75% complete, ~20,000 LOC)
-**Critical Gap:** Test suite (0% coverage)
+**Last Updated:** 2026-01-07
+**Project Status:** v0.75.0 (~78% complete, ~20,500 LOC)
+**Test Coverage:** 418 tests written (Core + Adapter types/translator)
 
 ---
 
 ## 📊 Current State Summary
 
-### ✅ Completed Modules (100%)
-- **Core Module** (~3,600 LOC)
-  - Schema system (397 LOC)
-  - Validator (800 LOC) - zero dependencies
-  - Query Builder (1,600 LOC)
-  - Migration system (1,200 LOC)
-- **PostgreSQL Adapter** (~1,700 LOC) - production-ready
-- **API Layer** (~2,500 LOC) - parser, handler, serializer
-- **All Plugins** (~1,500 LOC) - auth, upload, hooks, soft-delete
-- **CLI Tools** - migrate, generate, dev commands
+### ✅ Implementation Complete
+- **Core Module** (~3,600 LOC) - Schema, Validator, Query Builder, Migration
+- **PostgreSQL Adapter** (~1,700 LOC) - Connection, query translation, type mapping
+- **API Layer** (~2,500 LOC) - Parser, handler, serializer
+- **All Plugins** (~1,500 LOC) - Auth, upload, hooks, soft-delete
+- **CLI Tools** - Migrate, generate, dev commands
+
+### ✅ Tests Completed (418 tests)
+- **Core Validator** - 145 tests (field + schema validation)
+- **Core Query Builder** - 48 tests (SELECT/INSERT/UPDATE/DELETE, WHERE, operators)
+- **Core Migration** - 83 tests (differ: 33, generator: 18, runner: 32)
+- **PostgreSQL Types** - 79 tests (type mapping, value conversion)
+- **PostgreSQL Query Translator** - 63 tests (SQL generation, SQL injection prevention)
+
+### 🔄 In Progress
+- **PostgreSQL Adapter Tests** - Connection, transactions, schema operations
 
 ### ❌ Critical Gaps
-1. **Test Suite** - 0% coverage (CRITICAL)
-2. **Config Module** - Not implemented
-3. **MySQL Adapter** - Not started
-4. **MongoDB Adapter** - Not started
+1. **Config Module** - Not implemented
+2. **Adapter Tests (incomplete)** - PostgreSQL adapter.ts tests pending
+3. **API Layer Tests** - Not started (~840 tests)
+4. **Plugin Tests** - Not started (~850 tests)
+5. **Integration Tests** - Not started
+6. **MySQL Adapter** - Not started
+7. **MongoDB Adapter** - Not started
 
 ---
 
 ## 🎯 Version Milestones
 
-### v0.8.0 - Testing Foundation (1-2 Weeks)
-**Goal:** Establish test infrastructure and achieve 80%+ coverage for critical modules
+### v0.8.0 - Testing Foundation (2-3 Weeks)
+**Goal:** 80%+ test coverage for core modules, PostgreSQL adapter, and API layer
 
 ### v0.9.0 - Production Readiness (1 Month)
-**Goal:** Complete MySQL adapter, enhance testing, optimize performance
+**Goal:** Complete MySQL adapter, plugin tests, config module
 
 ### v1.0.0 - Stable Release (2-3 Months)
-**Goal:** Full test coverage, all core features stable, production-ready
+**Goal:** MongoDB adapter, 90%+ coverage, performance optimized
 
 ---
 
@@ -44,365 +53,218 @@
 
 ---
 
-## 🔴 PHASE 1: Test Infrastructure (Week 1)
-**Priority:** CRITICAL
-**Timeline:** 3-5 days
-**Goal:** Setup test framework and write core module tests
-
-### 1.1 Test Framework Setup ✅ COMPLETED
-- [x] **Configure Vitest** (vitest.config.ts)
-  - Coverage reporter (v8)
-  - Test environment (node)
-  - Global test utilities
-  - Mock configuration
-
-- [x] **Setup test directory structure**
-  ```
-  tests/
-  ├── core/
-  │   ├── schema/
-  │   ├── validator/ ✅
-  │   ├── query-builder/
-  │   └── migration/
-  ├── adapters/
-  │   └── postgres/
-  ├── api/
-  │   ├── parser/
-  │   ├── handler/
-  │   └── serializer/
-  ├── plugins/
-  │   ├── auth/
-  │   ├── upload/
-  │   ├── hooks/
-  │   └── soft-delete/
-  └── utils/ ✅
-      ├── fixtures.ts ✅
-      ├── mocks.ts
-      └── helpers.ts ✅
-  ```
-
-- [x] **Create test utilities**
-  - Test fixtures (sample schemas, data) ✅
-  - Mock database adapter
-  - Helper functions for assertions ✅
-
-### 1.2 Core Module Tests (Target: 90%+ coverage)
-
-#### Schema System Tests
-- [ ] **`tests/core/schema/types.test.ts`**
-  - Schema definition validation
-  - Field type validation
-  - Required/optional field handling
-  - Default values
-  - Index definitions
-
-- [ ] **`tests/core/schema/inference.test.ts`**
-  - Type inference correctness
-  - InferSchemaType utility
-  - Complex nested types
-  - Relation type inference
-
-- [ ] **`tests/core/schema/registry.test.ts`**
-  - Schema registration
-  - Schema retrieval
-  - Duplicate schema handling
-  - Schema validation
-
-#### Validator Tests ✅ COMPLETED (145/145 tests passing)
-- [x] **`tests/core/validator/field-validator.test.ts`** (88 tests - 100% passing)
-  - String validation ✅
-    - minLength, maxLength
-    - pattern (regex)
-    - unique constraint
-    - edge cases (unicode, special chars)
-  - Number validation ✅
-    - min, max
-    - integer constraint
-    - positive/negative
-  - Boolean validation ✅
-  - Date validation ✅
-    - min, max dates
-    - invalid Date handling
-    - type checking (reject strings/numbers)
-  - Enum validation ✅
-    - Valid values
-    - Invalid values
-  - Array validation ✅
-    - minItems, maxItems
-    - unique items ✅ (FIXED)
-    - Item type validation
-  - JSON validation ✅ (FIXED - accepts arrays)
-  - Depth limit protection ✅
-
-- [x] **`tests/core/validator/schema-validator.test.ts`** (57 tests - 100% passing)
-  - Full schema validation ✅
-  - Required field enforcement ✅
-  - Multiple field validation ✅
-  - Unknown field handling (strict mode) ✅
-  - Error aggregation ✅
-  - Partial validation (validatePartial) ✅
-  - Array validation (validateMany) ✅
-  - Boolean check (isValid) ✅
-  - Throw on error (validateOrThrow) ✅
-  - Type assertion (assertSchema) ✅
-  - Options (strict, stripUnknown, abortEarly) ✅
-
-- [ ] **`tests/core/validator/errors.test.ts`**
-  - ValidationError class
-  - Error message formatting
-  - Error code handling
-  - Error serialization
-
-**Bugs Fixed:**
-1. Integer validation error code (TYPE_MISMATCH → INVALID_FORMAT)
-2. Date validation type checking (reject strings/numbers)
-3. Array unique validation implementation
-4. JSON field validation (accept arrays)
-
-#### Query Builder Tests ✅ COMPLETED (48/48 tests passing - ENHANCED)
-- [x] **`tests/core/query-builder/builder.test.ts`** (48 tests - 100% passing)
-  - QueryBuilder instantiation ✅
-  - Helper functions (selectFrom, insertInto, updateTable, deleteFrom) ✅
-  - Method chaining ✅
-  - SELECT/INSERT/UPDATE/DELETE/COUNT queries ✅
-  - WHERE conditions (where, andWhere, orWhere) ✅
-    - Specific $and nested structure validation ✅
-    - Comparison operators ✅
-    - Multiple andWhere chaining ✅
-  - ORDER BY (single and multiple) ✅
-  - Pagination (limit, offset) ✅
-  - DISTINCT flag ✅
-  - GROUP BY and HAVING ✅
-  - Clone and reset functionality ✅
-    - Deep clone verification (no shared references) ✅
-    - Nested object cloning ✅
-  - Select behavior ✅
-    - Override vs merge behavior ✅
-    - Duplicate removal with order preservation ✅
-  - Complex query combinations ✅
-    - UPDATE + WHERE + RETURNING ✅
-    - SELECT + DISTINCT + GROUP BY + HAVING + ORDER BY ✅
-    - DELETE + complex WHERE ✅
-    - INSERT + RETURNING ✅
-  - Error handling (missing table/type) ✅
-
-**Implementation Improvement:**
-- Changed `normalizeSelectClause()` to preserve user's field order (removed alphabetic sorting)
-- Now uses ES6 Set for duplicate removal only (insertion order guaranteed)
-- Benefits: SQL SELECT order preserved, better user control, more performant
-
-- [ ] **`tests/core/query-builder/where.test.ts`** (~200 assertions)
-  - Equality operators ($eq, $ne)
-  - Comparison operators ($gt, $gte, $lt, $lte)
-  - Array operators ($in, $nin)
-  - String operators ($like, $ilike, $regex)
-  - Logical operators ($and, $or, $not)
-  - Nested where clauses
-  - Complex combinations
-
-- [ ] **`tests/core/query-builder/select.test.ts`** (~50 assertions)
-  - Field selection
-  - Wildcard selection
-  - Field exclusion
-  - Nested field selection
-
-- [ ] **`tests/core/query-builder/populate.test.ts`** (~100 assertions)
-  - Single relation populate
-  - Multiple relation populate
-  - Nested populate
-  - Populate with field selection
-  - Circular relation detection
-
-- [ ] **`tests/core/query-builder/pagination.test.ts`** (~50 assertions)
-  - Offset/limit pagination
-  - Page/pageSize pagination
-  - Default values
-  - Max limit enforcement
-
-#### Migration System Tests
-- [ ] **`tests/core/migration/differ.test.ts`** (~100 assertions)
-  - Table addition detection
-  - Table removal detection
-  - Field addition detection
-  - Field removal detection
-  - Field modification detection
-  - Index changes detection
-  - Relation changes detection
-
-- [ ] **`tests/core/migration/generator.test.ts`** (~80 assertions)
-  - CREATE TABLE generation
-  - DROP TABLE generation
-  - ALTER TABLE generation
-  - ADD COLUMN generation
-  - DROP COLUMN generation
-  - CREATE INDEX generation
-  - DROP INDEX generation
-
-- [ ] **`tests/core/migration/runner.test.ts`** (~60 assertions)
-  - Migration execution (up)
-  - Migration rollback (down)
-  - Migration history tracking
-  - Failed migration handling
-  - Checksum verification
-
-**Estimated Total Tests:** ~1,100 assertions
-**Estimated Time:** 3-5 days
-
----
-
-## 🟡 PHASE 2: Adapter & API Tests (Week 1-2)
+## 🟡 PHASE 2: Adapter & API Tests (CURRENT)
 **Priority:** HIGH
-**Timeline:** 4-6 days
-**Goal:** Test PostgreSQL adapter and API layer
+**Timeline:** 4-6 days remaining
+**Goal:** Complete PostgreSQL adapter tests and API layer tests
 
-### 2.1 PostgreSQL Adapter Tests (Target: 80%+ coverage)
+### 2.1 PostgreSQL Adapter Tests (~150 assertions remaining)
 
+#### ✅ Completed
+- [x] **`tests/adapters/postgres/types.test.ts`** (79 tests)
+  - Type mappings (FieldType → PostgreSQL)
+  - Value conversions (to/from PostgreSQL)
+  - Type modifiers (VARCHAR, NUMERIC with precision/scale)
+  - Edge cases (NULL, empty strings, Unicode)
+
+- [x] **`tests/adapters/postgres/query-translator.test.ts`** (63 tests)
+  - SQL generation (SELECT/INSERT/UPDATE/DELETE)
+  - WHERE clause translation (all operators: $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin)
+  - Logical operators ($and, $or)
+  - Parameter binding and SQL injection prevention
+  - Identifier escaping and validation
+  - NULL handling
+  - Edge cases (Unicode, long values, deep nesting)
+
+#### 🔄 In Progress
 - [ ] **`tests/adapters/postgres/adapter.test.ts`** (~150 assertions)
   - Connection/disconnection
+  - Connection pooling
   - Query execution
   - Transaction management
     - Begin transaction
     - Commit
     - Rollback
+    - Transaction isolation
+  - Schema operations
+    - createTable
+    - dropTable
+    - alterTable (addColumn, dropColumn, modifyColumn, renameColumn)
+    - addIndex
+    - dropIndex
   - Error handling
     - Connection errors
     - Query errors
     - Transaction errors
+    - Timeout handling
+  - Resource cleanup
 
-- [ ] **`tests/adapters/postgres/query-translator.test.ts`** (~200 assertions)
-  - SELECT query translation
-  - INSERT query translation
-  - UPDATE query translation
-  - DELETE query translation
-  - WHERE clause translation
-  - JOIN translation
-  - Pagination translation
-  - Parameter binding ($1, $2, ...)
-  - SQL injection prevention
+**Implementation Notes:**
+- Requires Docker/PostgreSQL for integration tests OR mock client
+- Consider using `pg-mem` for in-memory PostgreSQL testing
+- Test connection pool exhaustion scenarios
+- Test concurrent transaction handling
 
-- [ ] **`tests/adapters/postgres/types.test.ts`** (~50 assertions)
-  - Type mapping (TS → PostgreSQL)
-  - Type mapping (PostgreSQL → TS)
-  - Custom type handling
-  - NULL handling
+### 2.2 API Layer Tests (~840 assertions)
 
-**PostgreSQL Adapter Total:** ~400 assertions
-
-### 2.2 API Layer Tests (Target: 85%+ coverage)
-
-#### Parser Tests
+#### Parser Tests (~300 assertions)
 - [ ] **`tests/api/parser/query-parser.test.ts`** (~100 assertions)
-  - Query string parsing
+  - Query string parsing (`?filter[email]=test&sort=-createdAt`)
   - Multiple parameters
-  - Encoded characters
+  - Array syntax (`filter[role][]=admin&filter[role][]=user`)
+  - Encoded characters (`%20`, `%40`, etc.)
   - Malformed query handling
+  - URL decode edge cases
 
 - [ ] **`tests/api/parser/fields-parser.test.ts`** (~50 assertions)
-  - Array syntax (`fields[0]=name`)
-  - Comma-separated syntax (`fields=name,email`)
-  - Wildcard selection
+  - Comma-separated syntax (`fields=id,email,name`)
+  - Array syntax (`fields[]=id&fields[]=email`)
+  - Wildcard selection (`fields=*`)
+  - Nested field selection (`fields=user.email,user.name`)
   - Invalid field handling
 
 - [ ] **`tests/api/parser/where-parser.test.ts`** (~150 assertions)
-  - Simple equality
-  - Operator parsing ($eq, $ne, $gt, etc.)
-  - Nested where clauses
-  - Logical operators
-  - Type coercion
+  - Simple equality (`filter[email]=test@example.com`)
+  - Operator parsing (`filter[age][$gte]=18`)
+  - All operators ($eq, $ne, $gt, $gte, $lt, $lte, $in, $nin, $like, $regex)
+  - Nested where clauses (`filter[$and][0][age][$gte]=18`)
+  - Logical operators ($and, $or, $not)
+  - Type coercion (string "true" → boolean, "123" → number)
   - Invalid syntax handling
+  - Deep object nesting limits
 
 - [ ] **`tests/api/parser/populate-parser.test.ts`** (~100 assertions)
-  - Simple populate
-  - Populate with fields
-  - Nested populate
+  - Simple populate (`populate=author`)
+  - Multiple populates (`populate=author,comments`)
+  - Populate with fields (`populate[author][fields]=name,email`)
+  - Nested populate (`populate[author][populate]=profile`)
   - Circular populate detection
   - Invalid relation handling
+  - Depth limit enforcement
 
-#### Handler Tests
+#### Handler Tests (~300 assertions)
 - [ ] **`tests/api/handler/crud.test.ts`** (~200 assertions)
-  - findMany operation
-    - No filters
-    - With filters
-    - With pagination
+  - **findMany operation**
+    - No filters (all records)
+    - With filters (WHERE clause)
+    - With pagination (limit/offset)
+    - With populate (JOINs)
+    - With sorting (ORDER BY)
+    - With field selection (SELECT specific fields)
+    - Empty result handling
+  - **findOne operation**
+    - By ID (primary key lookup)
+    - Not found handling (404)
     - With populate
-  - findOne operation
-    - By ID
-    - Not found handling
-  - create operation
-    - Valid data
+    - With field selection
+  - **create operation**
+    - Valid data (201 Created)
+    - Validation errors (400 Bad Request)
+    - Duplicate key errors (409 Conflict)
+    - Required field validation
+    - Default value handling
+    - RETURNING clause
+  - **update operation**
+    - Full update (all fields)
+    - Partial update (PATCH semantics)
+    - Not found handling (404)
     - Validation errors
-    - Duplicate key errors
-  - update operation
-    - Full update
-    - Partial update
-    - Not found handling
-  - delete operation
-    - Successful deletion
-    - Not found handling
-  - count operation
+    - Optimistic locking (if implemented)
+    - RETURNING clause
+  - **delete operation**
+    - Successful deletion (204 No Content)
+    - Not found handling (404)
+    - Soft delete vs hard delete
+    - CASCADE behavior
+  - **count operation**
+    - Total count
+    - With filters
+    - Performance considerations
 
 - [ ] **`tests/api/handler/factory.test.ts`** (~50 assertions)
-  - Handler creation
+  - Handler creation from schema
   - Permission configuration
   - Middleware integration
   - Context building
+  - Route registration
+  - Custom handler overrides
 
 - [ ] **`tests/api/handler/context.test.ts`** (~50 assertions)
-  - Next.js context builder
-  - Express context builder
+  - Next.js context builder (NextRequest/NextResponse)
+  - Express context builder (req/res)
   - Generic context builder
+  - Request parsing
+  - Response formatting
+  - Error handling
 
-#### Serializer Tests
-- [ ] **`tests/api/serializer/json.test.ts`** (~80 assertions)
-  - Basic serialization
-  - Date formatting
-  - Null handling
-  - Field selection
-  - Meta information
+#### Serializer Tests (~240 assertions)
+- [ ] **`tests/api/serializer/json.test.ts`** (~120 assertions)
+  - Basic serialization (objects → JSON)
+  - Date formatting (ISO 8601)
+  - NULL handling
+  - Undefined field handling
+  - Field selection (only serialize selected fields)
+  - Meta information (pagination, total count)
+  - Nested object serialization
+  - Array serialization
+  - Custom serializers per field type
+  - Performance (large datasets)
 
-- [ ] **`tests/api/serializer/relations.test.ts`** (~60 assertions)
-  - Single relation serialization
-  - Multiple relations
-  - Nested relations
+- [ ] **`tests/api/serializer/relations.test.ts`** (~120 assertions)
+  - Single relation serialization (belongsTo, hasOne)
+  - Multiple relations (hasMany, manyToMany)
+  - Nested relations (3+ levels deep)
   - Circular reference detection
-  - Depth limiting
+  - Circular reference handling (depth limit)
+  - Lazy loading vs eager loading
+  - Populate depth limiting
+  - Partial relation serialization (field selection)
+  - NULL relations
+  - Empty array relations
 
 **API Layer Total:** ~840 assertions
 
-**Phase 2 Total:** ~1,240 assertions
-**Estimated Time:** 4-6 days
-
 ---
 
-## 🟡 PHASE 3: Plugin Tests (Week 2)
+## 🟢 PHASE 3: Plugin Tests
 **Priority:** MEDIUM-HIGH
 **Timeline:** 3-5 days
 **Goal:** Test all plugins (Target: 75%+ coverage)
 
-### 3.1 Auth Plugin Tests
+### 3.1 Auth Plugin Tests (~450 assertions)
 
 - [ ] **`tests/plugins/auth/jwt.test.ts`** (~150 assertions)
-  - Token generation
-  - Token verification
-  - Token expiration
+  - Token generation (sign)
+  - Token verification (verify)
+  - Token expiration (exp claim)
+  - Token refresh
   - Invalid token handling
+  - Expired token handling
+  - Malformed token handling
   - Custom claims
-  - Algorithm support (HS256, HS512)
+  - Algorithm support (HS256, HS512, RS256)
+  - Secret key validation
 
 - [ ] **`tests/plugins/auth/session.test.ts`** (~100 assertions)
   - Session creation
   - Session retrieval
   - Session deletion
   - Session expiration
+  - Session refresh
   - Memory store
   - Redis store (if implemented)
+  - Concurrent session handling
+  - Session hijacking prevention
 
 - [ ] **`tests/plugins/auth/rbac.test.ts`** (~120 assertions)
   - Role definition
   - Permission checking
   - Role inheritance
   - Resource-based permissions
+  - Action-based permissions (create, read, update, delete)
   - Custom permission functions
+  - Permission caching
+  - Wildcard permissions
 
 - [ ] **`tests/plugins/auth/index.test.ts`** (~80 assertions)
   - Plugin initialization
@@ -411,35 +273,40 @@
   - Password hashing (PBKDF2)
   - Password verification
   - Timing attack prevention
+  - Rate limiting
+  - Account lockout
 
-**Auth Plugin Total:** ~450 assertions
-
-### 3.2 Upload Plugin Tests
+### 3.2 Upload Plugin Tests (~220 assertions)
 
 - [ ] **`tests/plugins/upload/index.test.ts`** (~80 assertions)
-  - File upload
+  - Single file upload
   - Multiple file upload
   - File validation
-    - Size limits
+    - Size limits (max file size)
     - MIME type validation
-    - Extension validation
+    - Extension validation (whitelist/blacklist)
   - Invalid file rejection
+  - Upload progress (if implemented)
 
 - [ ] **`tests/plugins/upload/providers/local.test.ts`** (~60 assertions)
   - Local file saving
   - File URL generation
   - File deletion
   - Directory creation
+  - Path traversal prevention
+  - Filename sanitization
+  - Disk space handling
 
 - [ ] **`tests/plugins/upload/providers/s3.test.ts`** (~80 assertions)
-  - S3 upload (mocked)
+  - S3 upload (mocked with AWS SDK mock)
   - Signature V4 generation
+  - Presigned URL generation
   - File URL generation
-  - Error handling
+  - Error handling (network, permissions)
+  - Multipart upload (large files)
+  - Bucket configuration
 
-**Upload Plugin Total:** ~220 assertions
-
-### 3.3 Hooks Plugin Tests
+### 3.3 Hooks Plugin Tests (~100 assertions)
 
 - [ ] **`tests/plugins/hooks/manager.test.ts`** (~100 assertions)
   - Hook registration
@@ -452,75 +319,74 @@
   - afterDelete hooks
   - Hook error handling
   - Data transformation
+  - Hook chaining
+  - Async hook handling
 
-**Hooks Plugin Total:** ~100 assertions
-
-### 3.4 Soft Delete Plugin Tests
+### 3.4 Soft Delete Plugin Tests (~80 assertions)
 
 - [ ] **`tests/plugins/soft-delete/interceptor.test.ts`** (~80 assertions)
   - Query interception
-  - Auto-add deletedAt filter
-  - Soft delete operation
+  - Auto-add deletedAt filter (WHERE deletedAt IS NULL)
+  - Soft delete operation (UPDATE set deletedAt)
   - findDeleted() method
-  - findWithDeleted() method
-  - restore() method
+  - findWithDeleted() method (include soft-deleted)
+  - restore() method (set deletedAt = NULL)
   - Hard delete bypass
-
-**Soft Delete Plugin Total:** ~80 assertions
+  - Cascade soft delete
 
 **Phase 3 Total:** ~850 assertions
-**Estimated Time:** 3-5 days
 
 ---
 
-## 🟢 PHASE 4: Integration & E2E Tests (Week 3)
+## 🔵 PHASE 4: Integration & E2E Tests
 **Priority:** MEDIUM
 **Timeline:** 3-4 days
 **Goal:** Test complete workflows
 
-### 4.1 Integration Tests
+### 4.1 Integration Tests (~200 assertions)
 
 - [ ] **`tests/integration/full-stack.test.ts`**
   - Complete CRUD workflow
   - Schema → Migration → API → Database
   - Multiple schemas with relations
   - Transaction handling
+  - Rollback scenarios
 
 - [ ] **`tests/integration/auth-flow.test.ts`**
   - User registration
-  - Login
+  - Login (JWT generation)
   - Protected endpoint access
-  - Permission-based access
+  - Permission-based access (RBAC)
   - Session management
+  - Logout
 
 - [ ] **`tests/integration/upload-flow.test.ts`**
   - File upload via API
   - File retrieval
   - File deletion
+  - Image thumbnail generation (if implemented)
 
 - [ ] **`tests/integration/migration-flow.test.ts`**
   - Schema changes
   - Auto-migration generation
-  - Migration execution
-  - Rollback
+  - Migration execution (up)
+  - Rollback (down)
+  - Migration history tracking
 
-### 4.2 E2E Tests (Optional but recommended)
+### 4.2 E2E Tests (Optional)
 
 - [ ] **`tests/e2e/nextjs.test.ts`**
   - Test with actual Next.js app
   - Route handler testing
-  - API calls
+  - API calls from frontend
 
 - [ ] **`tests/e2e/express.test.ts`**
   - Test with Express server
   - Middleware integration
 
-**Phase 4 Total:** ~200 assertions
-**Estimated Time:** 3-4 days
-
 ---
 
-## 🔵 PHASE 5: Config Module Implementation (Week 3-4)
+## 🟣 PHASE 5: Config Module Implementation
 **Priority:** MEDIUM
 **Timeline:** 2-3 days
 **Goal:** Implement missing config module
@@ -532,137 +398,54 @@
   - Database config types
   - Plugin config types
   - API config types
+  - Migration config types
 
 - [ ] **`src/core/config/loader.ts`**
   - Load forja.config.ts file
-  - Environment variable substitution
+  - Environment variable substitution (`process.env.DATABASE_URL`)
   - Default values
   - Validation
+  - ESM/CJS support
 
 - [ ] **`src/core/config/validator.ts`**
   - Config validation
   - Required field checking
   - Type checking
+  - Database connection string parsing
 
 - [ ] **`src/core/config/index.ts`**
-  - Export defineConfig utility
-  - Export loadConfig function
+  - Export `defineConfig` utility
+  - Export `loadConfig` function
 
-### 5.2 Config Module Tests
+### 5.2 Config Module Tests (~130 assertions)
 
 - [ ] **`tests/core/config/loader.test.ts`** (~50 assertions)
   - Config file loading
   - Environment variable substitution
   - Default values
+  - File not found handling
+  - Malformed config handling
 
 - [ ] **`tests/core/config/validator.test.ts`** (~80 assertions)
   - Valid config
-  - Invalid config
-  - Missing required fields
-
-**Config Module:** ~130 assertions
-**Estimated Time:** 2-3 days
-
----
-
-## 🟣 PHASE 6: Build & Bundle Verification (Week 4)
-**Priority:** MEDIUM
-**Timeline:** 1-2 days
-**Goal:** Verify build output and bundle size
-
-### 6.1 Build Verification
-
-- [ ] **Run production build**
-  ```bash
-  pnpm build
-  ```
-
-- [ ] **Verify dist/ output**
-  - Check file structure
-  - Verify type declarations (.d.ts)
-  - Check source maps
-
-- [ ] **Measure bundle size**
-  - Core package size
-  - Individual plugin sizes
-  - Compare against target (<50KB gzipped)
-
-- [ ] **Test tree-shaking**
-  - Create minimal import test
-  - Verify unused code is eliminated
-
-### 6.2 Build Configuration
-
-- [ ] **Update tsup.config.ts if needed**
-  - Entry points
-  - Formats (ESM, CJS)
-  - Splitting strategy
-
-- [ ] **Update package.json exports**
-  - Main entry point
-  - Plugin exports
-  - Type exports
-
-**Estimated Time:** 1-2 days
+  - Invalid config (missing required fields)
+  - Invalid types
+  - Invalid database URLs
+  - Invalid plugin configurations
 
 ---
 
-## 🟡 PHASE 7: Documentation Updates (Week 4)
-**Priority:** MEDIUM
-**Timeline:** 1-2 days
-
-### 7.1 Documentation Files
-
-- [x] ~~Update README.md~~ ✅ COMPLETED
-  - ✅ Updated validator LOC count (300 → 800)
-  - ✅ Updated adapter status
-  - ✅ Updated plugin descriptions
-  - ✅ Updated roadmap section
-
-- [x] ~~Update CLAUDE.md~~ ✅ COMPLETED
-  - ✅ Added implementation status to each module
-  - ✅ Updated password hashing info (bcrypt → PBKDF2)
-  - ✅ Added test coverage requirements
-
-- [ ] **Update SETUP_GUIDE.md**
-  - Add test running instructions
-  - Add config module documentation
-  - Update examples
-
-- [ ] **Create CONTRIBUTING.md**
-  - Development setup
-  - Testing guidelines
-  - Pull request process
-  - Code style guide
-
-- [ ] **Create CHANGELOG.md**
-  - v0.7.0 - Current state
-  - v0.8.0 - Planned (tests)
-  - v0.9.0 - Planned (MySQL)
-  - v1.0.0 - Planned (stable)
-
-### 7.2 Code Documentation
-
-- [ ] **Add JSDoc comments where missing**
-  - Public API methods
-  - Complex algorithms
-  - Type definitions
-
-**Estimated Time:** 1-2 days
-
----
-
-## 🔴 PHASE 8: MySQL Adapter (Post v0.8.0)
+## 🔴 PHASE 6: MySQL Adapter (Post v0.8.0)
 **Priority:** HIGH (for v0.9.0)
 **Timeline:** 1 week
-**Goal:** Implement MySQL adapter
+**Goal:** Implement MySQL adapter with tests
 
-### 8.1 MySQL Adapter Implementation
+### 6.1 MySQL Adapter Implementation
 
 - [ ] **`src/adapters/mysql/types.ts`**
   - MySQL-specific types
   - Connection config
-  - Type mappings
+  - Type mappings (FieldType → MySQL types)
 
 - [ ] **`src/adapters/mysql/adapter.ts`**
   - Implement DatabaseAdapter interface
@@ -674,247 +457,103 @@
 - [ ] **`src/adapters/mysql/query-translator.ts`**
   - QueryObject → MySQL SQL
   - Backtick identifier escaping
-  - ? placeholder parameters
-  - Type mapping
+  - `?` placeholder parameters (not `$1`, `$2`)
+  - Type mapping differences
 
 - [ ] **`src/adapters/mysql/index.ts`**
   - Export MySQLAdapter
 
-### 8.2 MySQL Adapter Tests
+### 6.2 MySQL Adapter Tests (~400 assertions)
 
-- [ ] **`tests/adapters/mysql/adapter.test.ts`** (~150 assertions)
+- [ ] **`tests/adapters/mysql/types.test.ts`** (~80 assertions)
 - [ ] **`tests/adapters/mysql/query-translator.test.ts`** (~200 assertions)
-- [ ] **`tests/adapters/mysql/types.test.ts`** (~50 assertions)
-
-**MySQL Adapter:** ~400 test assertions
-**Estimated Time:** 5-7 days
+- [ ] **`tests/adapters/mysql/adapter.test.ts`** (~120 assertions)
 
 ---
 
-## 🔵 PHASE 9: MongoDB Adapter (Post v0.9.0)
+## 🟠 PHASE 7: MongoDB Adapter (Post v0.9.0)
 **Priority:** MEDIUM (for v1.0.0)
 **Timeline:** 1 week
 **Goal:** Implement MongoDB adapter
 
-### 9.1 MongoDB Adapter Implementation
+### 7.1 MongoDB Adapter Implementation
 
 - [ ] **`src/adapters/mongodb/types.ts`**
-  - MongoDB-specific types
-  - Connection config
-  - Document types
-
 - [ ] **`src/adapters/mongodb/adapter.ts`**
-  - Implement DatabaseAdapter interface
-  - Connection handling
-  - Document operations (no SQL)
-  - Transaction support (if applicable)
-
 - [ ] **`src/adapters/mongodb/query-translator.ts`**
-  - QueryObject → MongoDB filter
+  - QueryObject → MongoDB filter objects
   - Aggregation pipeline for JOINs
   - Projection handling
-
 - [ ] **`src/adapters/mongodb/index.ts`**
-  - Export MongoDBAdapter
 
-### 9.2 MongoDB Adapter Tests
+### 7.2 MongoDB Adapter Tests (~350 assertions)
 
 - [ ] **`tests/adapters/mongodb/adapter.test.ts`** (~150 assertions)
 - [ ] **`tests/adapters/mongodb/query-translator.test.ts`** (~200 assertions)
 
-**MongoDB Adapter:** ~350 test assertions
-**Estimated Time:** 5-7 days
+---
+
+## 📊 Test Coverage Goals
+
+| Module | Current | Target | Tests Written | Tests Remaining |
+|--------|---------|--------|---------------|-----------------|
+| Core Validator | ✅ 100% | 90%+ | 145 | 0 |
+| Core Query Builder | ✅ 100% | 90%+ | 48 | 0 |
+| Core Migration | ✅ 100% | 90%+ | 83 | 0 |
+| PostgreSQL Types | ✅ 100% | 80%+ | 79 | 0 |
+| PostgreSQL Query Translator | ✅ 100% | 80%+ | 63 | 0 |
+| PostgreSQL Adapter | 🔄 30% | 80%+ | 0 | ~150 |
+| API Layer | 0% | 85%+ | 0 | ~840 |
+| Plugins | 0% | 75%+ | 0 | ~850 |
+| Integration | 0% | - | 0 | ~200 |
+| Config Module | 0% | 90%+ | 0 | ~130 |
+| **Total** | **~25%** | **80%+** | **418** | **~2,170** |
 
 ---
 
-## 🟢 PHASE 10: Performance Optimization (Post v1.0.0)
-**Priority:** LOW (nice to have)
-**Timeline:** Ongoing
+## 🚀 Immediate Next Steps
 
-### 10.1 Performance Benchmarks
+### This Week (Phase 2 - In Progress)
+1. ✅ Complete PostgreSQL types tests (79 tests)
+2. ✅ Complete PostgreSQL query translator tests (63 tests)
+3. 🔄 Write PostgreSQL adapter tests (~150 tests)
+4. ⏳ Start API parser tests (~300 tests)
+5. ⏳ Start API handler tests (~300 tests)
+6. ⏳ Start API serializer tests (~240 tests)
 
-- [ ] **Create benchmark suite**
-  - Query building performance
-  - Validation performance
-  - JWT sign/verify performance
-  - Serialization performance
-
-- [ ] **Performance targets**
-  - Query building: <1ms
-  - Validation: <5ms
-  - JWT operations: <1ms
-  - Bundle size: <50KB gzipped
-
-### 10.2 Optimizations
-
-- [ ] **Query builder optimization**
-  - Object pooling
-  - Memoization
-
-- [ ] **Validator optimization**
-  - Schema compilation
-  - Cached validators
-
-- [ ] **Bundle size optimization**
-  - Code splitting
-  - Dead code elimination
-  - Minification improvements
-
----
-
-## 🟣 PHASE 11: Advanced Features (v1.1+)
-**Priority:** LOW (future enhancements)
-**Timeline:** TBD
-
-### 11.1 GraphQL Support
-
-- [ ] Schema → GraphQL type generation
-- [ ] Resolver generation
-- [ ] GraphQL query parsing
-
-### 11.2 Real-time Features
-
-- [ ] WebSocket plugin
-- [ ] Subscription support
-- [ ] Real-time query updates
-
-### 11.3 Admin UI (Optional)
-
-- [ ] Schema visualization
-- [ ] Data browser
-- [ ] Migration management UI
-
-### 11.4 Multi-tenancy
-
-- [ ] Tenant isolation
-- [ ] Schema per tenant
-- [ ] Shared schema with tenant field
-
-### 11.5 Developer Tooling
-
-- [ ] VSCode extension
-  - Schema autocomplete
-  - Migration preview
-  - API endpoint generation
-
-- [ ] CLI improvements
-  - Interactive mode
-  - Schema visualization
-  - Performance profiling
-
----
-
-## 📊 Summary & Metrics
-
-### Test Coverage Goals
-
-| Module | Current | Target | Assertions Planned |
-|--------|---------|--------|-------------------|
-| Core (schema, validator, query, migration) | 0% | 90%+ | ~1,100 |
-| PostgreSQL Adapter | 0% | 80%+ | ~400 |
-| API Layer (parser, handler, serializer) | 0% | 85%+ | ~840 |
-| Plugins (auth, upload, hooks, soft-delete) | 0% | 75%+ | ~850 |
-| Integration & E2E | 0% | - | ~200 |
-| Config Module | 0% | 90%+ | ~130 |
-| **Total** | **0%** | **80%+** | **~3,520** |
-
-### Timeline Summary
-
-| Phase | Description | Duration | Priority |
-|-------|-------------|----------|----------|
-| Phase 1 | Test Infrastructure + Core Tests | 3-5 days | 🔴 CRITICAL |
-| Phase 2 | Adapter & API Tests | 4-6 days | 🟡 HIGH |
-| Phase 3 | Plugin Tests | 3-5 days | 🟡 MEDIUM-HIGH |
-| Phase 4 | Integration & E2E Tests | 3-4 days | 🟢 MEDIUM |
-| Phase 5 | Config Module Implementation | 2-3 days | 🔵 MEDIUM |
-| Phase 6 | Build & Bundle Verification | 1-2 days | 🟣 MEDIUM |
-| Phase 7 | Documentation Updates | 1-2 days | 🟡 MEDIUM |
-| **v0.8.0** | **First Milestone** | **~2-3 weeks** | - |
-| Phase 8 | MySQL Adapter | 5-7 days | 🟡 HIGH |
-| **v0.9.0** | **Second Milestone** | **~1 month** | - |
-| Phase 9 | MongoDB Adapter | 5-7 days | 🔵 MEDIUM |
-| **v1.0.0** | **Stable Release** | **~2-3 months** | - |
-| Phase 10 | Performance Optimization | Ongoing | 🟢 LOW |
-| Phase 11 | Advanced Features | TBD | 🟢 LOW |
-
----
-
-## 🚀 Getting Started
-
-### Immediate Next Steps (This Week)
-
-1. **Setup Vitest Configuration**
-   ```bash
-   # Already installed, just configure
-   touch vitest.config.ts
-   ```
-
-2. **Create Test Directory Structure**
-   ```bash
-   mkdir -p tests/{core,adapters,api,plugins,integration,e2e,utils}
-   ```
-
-3. **Write First Tests**
-   - Start with `tests/core/validator/field-validator.test.ts`
-   - Most critical and well-defined module
-
-4. **Setup CI/CD for Tests**
-   - GitHub Actions
-   - Run tests on every PR
-   - Coverage reporting
-
----
-
-## 📝 Notes & Considerations
-
-### Testing Strategy
-- **Unit Tests First:** Focus on isolated functionality
-- **Integration Tests Second:** Test module interactions
-- **E2E Tests Last:** Test complete workflows
-
-### Test-Driven Development
-- Write tests before fixing bugs
-- Use tests to define expected behavior
-- Refactor with confidence
-
-### Continuous Improvement
-- Add tests for every bug found
-- Improve coverage incrementally
-- Monitor performance metrics
-
-### Community Involvement
-- Open source contribution guide
-- Test writing as good first issues
-- Community plugin testing
+### Next Week (Phase 3)
+1. Plugin tests (auth, upload, hooks, soft-delete)
+2. Integration tests
+3. Config module implementation
 
 ---
 
 ## 🎯 Success Criteria
 
-### v0.8.0 (Testing Foundation)
+### v0.8.0 (Current Goal - 2 weeks)
 - ✅ 80%+ overall test coverage
-- ✅ All core modules tested
-- ✅ PostgreSQL adapter tested
-- ✅ Config module implemented
-- ✅ CI/CD pipeline running
+- ✅ All core modules tested (DONE)
+- ✅ PostgreSQL types + translator tested (DONE)
+- ⏳ PostgreSQL adapter fully tested
+- ⏳ API layer fully tested
+- ⏳ Config module implemented
 
-### v0.9.0 (Production Readiness)
-- ✅ MySQL adapter complete
+### v0.9.0 (1 month)
+- ✅ MySQL adapter complete with tests
+- ✅ All plugins tested
 - ✅ 85%+ overall test coverage
 - ✅ Performance benchmarks established
-- ✅ Documentation complete
 
-### v1.0.0 (Stable Release)
+### v1.0.0 (2-3 months)
 - ✅ MongoDB adapter complete (optional)
 - ✅ 90%+ test coverage
 - ✅ All documentation updated
-- ✅ Example projects tested
 - ✅ Security audit passed
 - ✅ Performance targets met
 - ✅ Public npm release
 
 ---
 
-**Remember:** Quality over speed. Each phase should be completed thoroughly before moving to the next. Test coverage is not negotiable for production deployment.
+**Current Focus:** PostgreSQL adapter connection/transaction tests, then API layer tests
 
-**Current Focus:** Phase 1 - Test Infrastructure & Core Module Tests
+**Test Philosophy:** Strict tests with exact value verification, comprehensive edge cases, security-focused (SQL injection, input validation)
