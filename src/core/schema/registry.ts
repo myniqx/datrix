@@ -473,9 +473,7 @@ export class SchemaRegistry {
 
     // Already plural or uncountable
     if (
-      word.endsWith('s') ||
       word.endsWith('ss') ||
-      word.endsWith('us') ||
       lower === 'data' ||
       lower === 'information' ||
       lower === 'equipment'
@@ -511,6 +509,7 @@ export class SchemaRegistry {
     if (
       word.endsWith('ch') ||
       word.endsWith('sh') ||
+      word.endsWith('s') ||
       word.endsWith('ss') ||
       word.endsWith('x') ||
       word.endsWith('z')

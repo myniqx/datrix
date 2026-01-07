@@ -717,7 +717,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
   /**
    * Map Postgres data type to Forja FieldType
    */
-  private mapPostgresTypeToFieldType(dataType: string, udtName: string): string {
+  private mapPostgresTypeToFieldType(_dataType: string, udtName: string): string {
     const type = udtName.toLowerCase();
 
     if (type.includes('int') || type.includes('float') || type.includes('double') || type.includes('numeric') || type.includes('decimal') || type.includes('real')) {

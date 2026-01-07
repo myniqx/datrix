@@ -229,7 +229,9 @@ export class ForgeSchemaDiffer implements SchemaDiffer {
     }
 
     // Check unique constraint change
-    if (oldField.unique !== newField.unique) {
+    const oldUnique = 'unique' in oldField ? (oldField as any).unique : undefined;
+    const newUnique = 'unique' in newField ? (newField as any).unique : undefined;
+    if (oldUnique !== newUnique) {
       return true;
     }
 
@@ -276,7 +278,7 @@ export class ForgeSchemaDiffer implements SchemaDiffer {
           oldField.items !== newField.items ||
           oldField.minItems !== newField.minItems ||
           oldField.maxItems !== newField.maxItems ||
-          oldField.unique !== newField.unique
+          ('unique' in oldField && 'unique' in newField && oldField.unique !== newField.unique)
         ) {
           return true;
         }

@@ -2,14 +2,14 @@
   "compilerOptions": {
     /* Language and Environment */
     "target": "ES2022",
-    "lib": ["ES2022"],
-
+    "lib": [
+      "ES2022"
+    ],
     /* Modules */
     "module": "ESNext",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "allowImportingTsExtensions": false,
-
     /* Emit */
     "declaration": true,
     "declarationMap": true,
@@ -18,13 +18,11 @@
     "removeComments": true,
     "importHelpers": true,
     "downlevelIteration": true,
-
     /* Interop Constraints */
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
     "isolatedModules": true,
-
     /* Type Checking - STRICT MODE */
     "strict": true,
     "noImplicitAny": true,
@@ -44,30 +42,41 @@
     "allowUnusedLabels": false,
     "allowUnreachableCode": false,
     "exactOptionalPropertyTypes": true,
-
     /* Completeness */
     "skipLibCheck": true,
-
     /* Path Mapping */
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"],
-      "@core/*": ["./src/core/*"],
-      "@adapters/*": ["./src/adapters/*"],
-      "@plugins/*": ["./src/plugins/*"],
-      "@api/*": ["./src/api/*"],
-      "@cli/*": ["./src/cli/*"],
-      "@utils/*": ["./src/utils/*"]
+      "@/*": [
+        "./src/*"
+      ],
+      "@core/*": [
+        "./src/core/*"
+      ],
+      "@adapters/*": [
+        "./src/adapters/*"
+      ],
+      "@plugins/*": [
+        "./src/plugins/*"
+      ],
+      "@api/*": [
+        "./src/api/*"
+      ],
+      "@cli/*": [
+        "./src/cli/*"
+      ],
+      "@utils/*": [
+        "./src/utils/*"
+      ]
     }
   },
   "include": [
-    "src/**/*"
+    "src/**/*",
+    "tests/**/*"
   ],
   "exclude": [
     "node_modules",
     "dist",
-    "build",
-    "**/*.spec.ts",
-    "**/*.test.ts"
+    "build"
   ]
 }
