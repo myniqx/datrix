@@ -33,6 +33,12 @@ export function serializeRelations(
     const result: Record<string, unknown> = {};
     const visited = new Set<string>();
 
+    // Add root record to visited to detect circularity back to root
+    const rootId = (typeof data['id'] === 'string' || typeof data['id'] === 'number') ? String(data['id']) : undefined;
+    if (rootId) {
+      visited.add(rootId);
+    }
+
     // Process each populate clause
     for (const [relationName, populateOptions] of Object.entries(options.populate)) {
       const fieldDef = options.schema.fields[relationName];
@@ -109,19 +115,19 @@ function serializeRelation(data: unknown, fieldDef: FieldDefinition, populateOpt
 /**
  * Serialize relation with wildcard populate
  */
-function serializeRelationWildcard(data: unknown, _fieldDef: FieldDefinition, _visited: Set<string>, _depth: number, _maxDepth: number): { success: true; data: unknown } | { success: false; error: SerializerError } {
+function serializeRelationWildcard(data: unknown, _fieldDef: FieldDefinition, visited: Set<string>, _depth: number, _maxDepth: number): { success: true; data: unknown } | { success: false; error: SerializerError } {
   // For wildcard, include all fields
   if (Array.isArray(data)) {
     return {
       success: true,
-      data: data.map((item) => sanitizeRecord(item))
+      data: data.map((item) => sanitizeRecord(item, visited))
     };
   }
 
   if (isRecord(data)) {
     return {
       success: true,
-      data: sanitizeRecord(data)
+      data: sanitizeRecord(data, visited)
     };
   }
 
@@ -179,9 +185,9 @@ function serializeRelationRecord(data: unknown, populateOptions: PopulateOptions
   }
 
   // Check for circular reference
-  const recordId = typeof data['id'] === 'string' ? data['id'] : undefined;
+  const recordId = (typeof data['id'] === 'string' || typeof data['id'] === 'number') ? String(data['id']) : undefined;
   if (recordId) {
-    const visitKey = `${depth}:${recordId}`;
+    const visitKey = recordId;
     if (visited.has(visitKey)) {
       // Return just the ID to break circular reference
       return { success: true, data: { id: recordId } };
@@ -246,9 +252,18 @@ function getFieldsToInclude(select: SelectClause | undefined): readonly string[]
 /**
  * Sanitize a record (remove sensitive fields, format dates, etc.)
  */
-function sanitizeRecord(data: unknown): unknown {
+function sanitizeRecord(data: unknown, visited: Set<string>): unknown {
   if (!isRecord(data)) {
     return data;
+  }
+
+  // Check for circular reference
+  const recordId = (typeof data['id'] === 'string' || typeof data['id'] === 'number') ? String(data['id']) : undefined;
+  if (recordId) {
+    if (visited.has(recordId)) {
+      return { id: data['id'] };
+    }
+    visited.add(recordId);
   }
 
   const result: Record<string, unknown> = {};
@@ -267,13 +282,13 @@ function sanitizeRecord(data: unknown): unknown {
 
     // Recursively sanitize nested objects
     if (isRecord(value)) {
-      result[key] = sanitizeRecord(value);
+      result[key] = sanitizeRecord(value, visited);
       continue;
     }
 
     // Sanitize arrays
     if (Array.isArray(value)) {
-      result[key] = value.map((item) => sanitizeRecord(item));
+      result[key] = value.map((item) => sanitizeRecord(item, visited));
       continue;
     }
 

@@ -9,8 +9,8 @@
  */
 
 import type { WhereClause } from '@core/query-builder/types';
-import type { RawQueryParams, WhereOperator } from './types';
-import { ParserError, isWhereOperator } from './types';
+import type { RawQueryParams } from './types';
+import { ParserError } from './types';
 import type { Result } from '@utils/types';
 
 /**
@@ -20,7 +20,7 @@ import type { Result } from '@utils/types';
  * @returns Result with WhereClause or ParserError
  */
 export function parseWhere(params: RawQueryParams): Result<WhereClause | undefined, ParserError> {
-  const whereClause: WhereClause = {};
+  const whereClause: Record<string, any> = {};
 
   // Find all where[...] parameters
   for (const [key, value] of Object.entries(params)) {
@@ -28,141 +28,63 @@ export function parseWhere(params: RawQueryParams): Result<WhereClause | undefin
       continue;
     }
 
-    // Parse the where parameter
-    const parseResult = parseWhereParameter(key, value);
-    if (!parseResult.success) {
-      return parseResult;
-    }
+    // Extract path: where[a][b][c] -> ["a", "b", "c"]
+    const parts = key.slice(5).split(']').filter(p => p.startsWith('[')).map(p => p.slice(1));
+    if (parts.length === 0) continue;
 
-    // Merge into where clause
-    mergeIntoWhereClause(whereClause, parseResult.data);
+    // Build the nested structure
+    let current: any = whereClause;
+    const pathParts = [...parts];
+    for (const part of pathParts) {
+      const isLast = pathParts.indexOf(part) === pathParts.length - 1;
+
+      if (isLast) {
+        current[part] = parseValue(value);
+      } else {
+        if (current[part] === undefined) {
+          current[part] = {};
+        }
+        current = current[part];
+      }
+    }
   }
 
+  // Transform into Final WhereClause
+  const finalClause = transformToFinalWhere(whereClause);
+
   // If no where parameters found, return undefined
-  if (Object.keys(whereClause).length === 0) {
+  if (Object.keys(finalClause).length === 0) {
     return { success: true, data: undefined };
   }
 
-  return { success: true, data: whereClause };
+  return { success: true, data: finalClause as WhereClause };
 }
 
 /**
- * Parse result for a single where parameter
+ * Post-process the object to handle logical operators which should be arrays
  */
-interface WhereParseResult {
-  readonly field: string;
-  readonly operator?: WhereOperator;
-  readonly value: unknown;
-}
-
-/**
- * Parse a single where parameter
- * Examples:
- *   where[status] -> { field: 'status', value: 'active' }
- *   where[price][$gt] -> { field: 'price', operator: '$gt', value: 100 }
- */
-function parseWhereParameter(
-  key: string,
-  value: string | readonly string[] | undefined
-): Result<WhereParseResult, ParserError> {
-  // Extract field and operator from key
-  // Examples:
-  //   "where[status]" -> field: "status", operator: undefined
-  //   "where[price][$gt]" -> field: "price", operator: "$gt"
-  //   "where[$or][0][status]" -> complex, handle separately
-
-  const match = key.match(/^where\[([^\]]+)\](?:\[([^\]]+)\])?$/);
-  if (!match) {
-    return {
-      success: false,
-      error: new ParserError(`Invalid where parameter format: ${key}`, {
-        code: 'INVALID_SYNTAX',
-        field: key
-      })
-    };
+function transformToFinalWhere(obj: any): any {
+  if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) {
+    return obj;
   }
 
-  const field = match[1];
-  const operatorOrValue = match[2];
+  const result: Record<string, any> = {};
 
-  if (!field) {
-    return {
-      success: false,
-      error: new ParserError('Missing field name in where parameter', {
-        code: 'INVALID_SYNTAX',
-        field: key
-      })
-    };
-  }
-
-  // Check if this is an operator
-  if (operatorOrValue && isWhereOperator(operatorOrValue)) {
-    // This is an operator: where[field][$op]
-    const parsedValue = parseValue(value);
-    return {
-      success: true,
-      data: {
-        field,
-        operator: operatorOrValue,
-        value: parsedValue
+  for (const [key, value] of Object.entries(obj)) {
+    if (['$or', '$and'].includes(key)) {
+      // Transform object with numeric keys into array
+      if (typeof value === 'object' && value !== null) {
+        const keys = Object.keys(value).sort((a, b) => Number(a) - Number(b));
+        result[key] = keys.map(k => transformToFinalWhere((value as any)[k]));
+      } else {
+        result[key] = transformToFinalWhere(value);
       }
-    };
-  }
-
-  // This is a simple equality: where[field]
-  const parsedValue = parseValue(value);
-  return {
-    success: true,
-    data: {
-      field,
-      value: parsedValue
-    }
-  };
-}
-
-/**
- * Merge parsed where data into where clause
- */
-function mergeIntoWhereClause(
-  whereClause: WhereClause,
-  data: WhereParseResult
-): void {
-  const { field, operator, value } = data;
-
-  if (operator === undefined) {
-    // Simple equality - value should be a primitive
-    if (isPrimitive(value)) {
-      (whereClause as Record<string, unknown>)[field] = value;
-    }
-  } else {
-    // Operator-based condition
-    const existing = whereClause[field];
-
-    if (existing !== undefined && typeof existing === 'object' && !Array.isArray(existing)) {
-      // Merge with existing operators
-      (whereClause as Record<string, unknown>)[field] = {
-        ...existing,
-        [operator]: value
-      };
     } else {
-      // Create new operator object
-      (whereClause as Record<string, unknown>)[field] = {
-        [operator]: value
-      };
+      result[key] = transformToFinalWhere(value);
     }
   }
-}
 
-/**
- * Type guard for primitive values
- */
-function isPrimitive(value: unknown): value is string | number | boolean | null {
-  return (
-    typeof value === 'string' ||
-    typeof value === 'number' ||
-    typeof value === 'boolean' ||
-    value === null
-  );
+  return result;
 }
 
 /**

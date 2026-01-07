@@ -13,7 +13,7 @@ import type {
 } from './types';
 import { parseQuery } from '@api/parser/query-parser';
 import { createQueryBuilder } from '@core/query-builder/builder';
-import { validateSchema } from '@core/validator/schema-validator';
+import { validateSchema, validatePartial } from '@core/validator/schema-validator';
 
 /**
  * Find many records
@@ -350,7 +350,7 @@ export async function update<TUser = unknown>(
     }
 
     // Validate against schema (partial validation for update)
-    const validationResult = validateSchema(data, config.schema);
+    const validationResult = validatePartial(data, config.schema);
     if (!validationResult.success) {
       return createErrorResponse(
         400,

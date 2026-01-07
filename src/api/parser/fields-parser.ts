@@ -17,6 +17,12 @@ import { ParserError } from './types';
  * @returns Result with SelectClause or ParserError
  */
 export function parseFields(params: RawQueryParams): FieldsParserResult {
+  // Handle array format: fields[0]=name&fields[1]=email
+  const arrayFields = extractArrayFields(params);
+  if (arrayFields.length > 0) {
+    return validateAndReturn(arrayFields);
+  }
+
   // Check for fields parameter
   const fieldsParam = params['fields'];
 
@@ -28,12 +34,6 @@ export function parseFields(params: RawQueryParams): FieldsParserResult {
   // Handle wildcard
   if (fieldsParam === '*') {
     return { success: true, data: '*' };
-  }
-
-  // Handle array format: fields[0]=name&fields[1]=email
-  const arrayFields = extractArrayFields(params);
-  if (arrayFields.length > 0) {
-    return validateAndReturn(arrayFields);
   }
 
   // Handle comma-separated format: fields=name,email

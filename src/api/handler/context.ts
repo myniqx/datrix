@@ -132,13 +132,14 @@ export function buildContextFromExpress<TUser = unknown>(
 ): RequestContext<TUser> {
   const method = (request.method?.toUpperCase() ?? 'GET') as HttpMethod;
 
-  // Normalize headers
+  // Normalize headers to lowercase
   const headers: Record<string, string | undefined> = {};
   for (const [key, value] of Object.entries(request.headers)) {
+    const lowerKey = key.toLowerCase();
     if (typeof value === 'string') {
-      headers[key] = value;
+      headers[lowerKey] = value;
     } else if (Array.isArray(value)) {
-      headers[key] = value[0];
+      headers[lowerKey] = value[0];
     }
   }
 
@@ -172,7 +173,9 @@ export function buildContextFromGeneric<TUser = unknown>(
       headers[key] = value;
     });
   } else {
-    Object.assign(headers, request.headers);
+    for (const [key, value] of Object.entries(request.headers)) {
+      headers[key.toLowerCase()] = value;
+    }
   }
 
   // Extract query from URL if available

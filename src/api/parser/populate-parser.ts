@@ -29,14 +29,32 @@ export function parsePopulate(
   params: RawQueryParams,
   maxDepth: number = DEFAULT_MAX_DEPTH
 ): PopulateParserResult {
-  // Check for simple populate=* (populate all)
-  if (params['populate'] === '*') {
-    // Return wildcard - handler will populate all relations
-    return { success: true, data: { '*': '*' } };
-  }
-
-  // Build populate clause from populate[...] parameters
+  // Build populate clause
   const populateClause: Record<string, PopulateOptions | '*'> = {};
+
+  // Check for simple populate parameter (string)
+  const mainPopulate = params['populate'];
+  if (mainPopulate !== undefined) {
+    if (mainPopulate === '*') {
+      // Return wildcard - handler will populate all relations
+      return { success: true, data: { '*': '*' } };
+    }
+
+    if (typeof mainPopulate === 'string') {
+      // Handle comma-separated: populate=author,comments
+      const relations = mainPopulate.split(',').map((r) => r.trim()).filter(Boolean);
+      for (const rel of relations) {
+        populateClause[rel] = '*';
+      }
+    } else if (Array.isArray(mainPopulate)) {
+      // Handle array: populate[]=author&populate[]=comments
+      for (const rel of mainPopulate) {
+        if (rel && typeof rel === 'string') {
+          populateClause[rel.trim()] = '*';
+        }
+      }
+    }
+  }
 
   // Extract all populate parameters
   const populateParams = extractPopulateParams(params);
@@ -51,7 +69,7 @@ export function parsePopulate(
     populateClause[relation] = parseResult.data;
   }
 
-  // If no populate parameters found, return undefined
+  // If no populate parameters found at all, return undefined
   if (Object.keys(populateClause).length === 0) {
     return { success: true, data: undefined };
   }
@@ -164,8 +182,26 @@ function parseRelationPath(relationData: Record<string, unknown>, path: string, 
       ? relationData['populate'] as Record<string, Record<string, unknown>>
       : {};
 
-    // Extract nested relation name
-    if (rest !== undefined) {
+    relationData['populate'] = populateObj;
+
+    // Handle instructions for the current relation's populates
+    if (rest === '') {
+      if (value === '*') {
+        // populate[relation][populate]=*
+        relationData['isWildcard'] = true;
+      } else if (typeof value === 'string') {
+        // populate[relation][populate]=profile,comments
+        const relations = value.split(',').map((r) => r.trim()).filter(Boolean);
+        for (const rel of relations) {
+          if (rel === '*') {
+            relationData['isWildcard'] = true;
+          } else if (populateObj[rel] === undefined) {
+            populateObj[rel] = { isWildcard: true };
+          }
+        }
+      }
+    } else if (rest !== undefined) {
+      // populate[relation][populate][nestedRelation]...
       const nestedMatch = rest.match(/^\[([^\]]+)\](.*)$/);
       if (nestedMatch) {
         const nestedRelation = nestedMatch[1];

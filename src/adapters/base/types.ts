@@ -49,9 +49,9 @@ export type Primitive = string | number | boolean | null | Date;
  */
 export type WhereClause = {
   readonly [field: string]:
-    | Primitive
-    | ComparisonOperators
-    | readonly WhereClause[];
+  | Primitive
+  | ComparisonOperators
+  | readonly WhereClause[];
 } & Partial<LogicalOperators>;
 
 /**
@@ -135,6 +135,11 @@ export interface Transaction {
 
   commit(): Promise<Result<void, TransactionError>>;
   rollback(): Promise<Result<void, TransactionError>>;
+
+  // Savepoints
+  savepoint(name: string): Promise<Result<void, TransactionError>>;
+  rollbackTo(name: string): Promise<Result<void, TransactionError>>;
+  release(name: string): Promise<Result<void, TransactionError>>;
 }
 
 /**

@@ -194,7 +194,15 @@ export function toPostgresValue(value: unknown, fieldType: FieldType): unknown {
         return value;
       }
       if (typeof value === 'string') {
-        return value.toLowerCase() === 'true' || value === '1';
+        const lower = value.toLowerCase();
+        if (lower === 'true' || value === '1') {
+          return true;
+        }
+        if (lower === 'false' || value === '0') {
+          return false;
+        }
+        // Other strings: use Boolean() conversion (truthy/falsy)
+        return Boolean(value);
       }
       if (typeof value === 'number') {
         return value !== 0;
@@ -206,6 +214,10 @@ export function toPostgresValue(value: unknown, fieldType: FieldType): unknown {
         return value;
       }
       if (typeof value === 'string') {
+        // Empty string or whitespace-only should be null
+        if (value.trim() === '') {
+          return null;
+        }
         const parsed = Number(value);
         return isNaN(parsed) ? null : parsed;
       }

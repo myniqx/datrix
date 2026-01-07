@@ -444,7 +444,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
           case 'modifyColumn': {
             // PostgreSQL uses ALTER COLUMN for modifications
             const columnName = this.translator.escapeIdentifier(op.column);
-            const pgType = getPostgresTypeWithModifiers(op.definition.type);
+            const pgType = getPostgresTypeWithModifiers(op.newDefinition.type);
             sql = `ALTER TABLE ${escapedTable} ALTER COLUMN ${columnName} TYPE ${pgType}`;
             break;
           }
@@ -624,22 +624,151 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
    * Get table schema (introspection)
    */
   async getTableSchema(
-    _tableName: string
+    tableName: string
   ): Promise<Result<SchemaDefinition, QueryError>> {
-    // TODO: Implement introspection
-    return {
-      success: false,
-      error: new (class extends Error {
-        readonly code = 'QUERY_ERROR';
-        readonly query = undefined;
-        readonly sql = undefined;
-        readonly details = undefined;
-        constructor() {
-          super('Schema introspection not yet implemented');
-          this.name = 'QueryError';
+    if (!this.pool) {
+      return {
+        success: false,
+        error: new (class extends Error {
+          readonly code = 'QUERY_ERROR';
+          readonly query = undefined;
+          readonly sql = undefined;
+          readonly details = undefined;
+          constructor() {
+            super('Not connected to database');
+            this.name = 'QueryError';
+          }
+        })()
+      };
+    }
+
+    try {
+      // Query information_schema for column details
+      const columnResult = await this.pool.query<{
+        column_name: string;
+        data_type: string;
+        udt_name: string;
+        is_nullable: string;
+        column_default: string | null;
+      }>(
+        `SELECT column_name, data_type, udt_name, is_nullable, column_default
+         FROM information_schema.columns
+         WHERE table_schema = 'public'
+         AND table_name = $1
+         ORDER BY ordinal_position`,
+        [tableName]
+      );
+
+      if (columnResult.rows.length === 0) {
+        return {
+          success: false,
+          error: new (class extends Error {
+            readonly code = 'QUERY_ERROR';
+            readonly query = undefined;
+            readonly sql = undefined;
+            readonly details = undefined;
+            constructor() {
+              super(`Table '${tableName}' not found`);
+              this.name = 'QueryError';
+            }
+          })()
+        };
+      }
+
+      const fields: Record<string, FieldDefinition> = {};
+
+      for (const row of columnResult.rows) {
+        const fieldType = this.mapPostgresTypeToFieldType(row.data_type, row.udt_name);
+
+        fields[row.column_name] = {
+          type: fieldType as any,
+          required: row.is_nullable === 'NO',
+          ...(row.column_default !== null && {
+            default: this.parsePostgresDefault(row.column_default)
+          })
+        };
+      }
+
+      return {
+        success: true,
+        data: {
+          name: tableName,
+          fields
         }
-      })()
-    };
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return {
+        success: false,
+        error: new (class extends Error {
+          readonly code = 'QUERY_ERROR';
+          readonly query = undefined;
+          readonly sql = undefined;
+          readonly details = error;
+          constructor() {
+            super(`Failed to get table schema for '${tableName}': ${message}`);
+            this.name = 'QueryError';
+          }
+        })()
+      };
+    }
+  }
+
+  /**
+   * Map Postgres data type to Forja FieldType
+   */
+  private mapPostgresTypeToFieldType(dataType: string, udtName: string): string {
+    const type = udtName.toLowerCase();
+
+    if (type.includes('int') || type.includes('float') || type.includes('double') || type.includes('numeric') || type.includes('decimal') || type.includes('real')) {
+      return 'number';
+    }
+    if (type.includes('bool')) {
+      return 'boolean';
+    }
+    if (type.includes('timestamp') || type.includes('date') || type.includes('time')) {
+      return 'date';
+    }
+    if (type.includes('json')) {
+      return 'json';
+    }
+    if (type.startsWith('_')) {
+      return 'array';
+    }
+    if (type === 'uuid' || type === 'text' || type === 'varchar' || type === 'char' || type === 'bpchar') {
+      return 'string';
+    }
+
+    return 'string'; // Default to string
+  }
+
+  /**
+   * Parse Postgres default value string
+   */
+  private parsePostgresDefault(defaultValue: string): unknown {
+    if (defaultValue === null) return undefined;
+
+    // Remove type cast (e.g., 'active'::character varying -> 'active')
+    let cleaned = defaultValue.split('::')[0];
+
+    // Remove single quotes for strings
+    if (cleaned && cleaned.startsWith("'") && cleaned.endsWith("'")) {
+      cleaned = cleaned.substring(1, cleaned.length - 1);
+    }
+
+    // Common function defaults
+    if (cleaned && (cleaned.toUpperCase().includes('NOW()') || cleaned.toUpperCase().includes('CURRENT_TIMESTAMP'))) {
+      return 'NOW()';
+    }
+
+    // Numeric and boolean defaults
+    if (cleaned === 'true') return true;
+    if (cleaned === 'false') return false;
+
+    const num = Number(cleaned);
+    if (!isNaN(num) && cleaned !== '') return num;
+
+    return cleaned;
   }
 
   /**
@@ -693,6 +822,7 @@ class PostgresTransaction implements Transaction {
   private translator: PostgresQueryTranslator;
   private committed = false;
   private rolledBack = false;
+  private aborted = false;
 
   constructor(
     client: PoolClient,
@@ -726,6 +856,22 @@ class PostgresTransaction implements Transaction {
       };
     }
 
+    if (this.aborted) {
+      return {
+        success: false,
+        error: new (class extends Error {
+          readonly code = 'QUERY_ERROR';
+          readonly query = query;
+          readonly sql = undefined;
+          readonly details = undefined;
+          constructor() {
+            super('current transaction is aborted, commands ignored until end of transaction block');
+            this.name = 'QueryError';
+          }
+        })()
+      };
+    }
+
     try {
       const { sql, params } = this.translator.translate(query);
       const result = await this.client.query(sql, params as unknown[]);
@@ -743,6 +889,7 @@ class PostgresTransaction implements Transaction {
         }
       };
     } catch (error) {
+      this.aborted = true;
       const message = error instanceof Error ? error.message : String(error);
       return {
         success: false,
@@ -783,6 +930,22 @@ class PostgresTransaction implements Transaction {
       };
     }
 
+    if (this.aborted) {
+      return {
+        success: false,
+        error: new (class extends Error {
+          readonly code = 'QUERY_ERROR';
+          readonly query = undefined;
+          readonly sql = sql;
+          readonly details = undefined;
+          constructor() {
+            super('current transaction is aborted, commands ignored until end of transaction block');
+            this.name = 'QueryError';
+          }
+        })()
+      };
+    }
+
     try {
       const result = await this.client.query(sql, params as unknown[]);
 
@@ -799,6 +962,7 @@ class PostgresTransaction implements Transaction {
         }
       };
     } catch (error) {
+      this.aborted = true;
       const message = error instanceof Error ? error.message : String(error);
       return {
         success: false,
@@ -917,6 +1081,79 @@ class PostgresTransaction implements Transaction {
           readonly details = error;
           constructor() {
             super(`Failed to rollback transaction: ${message}`);
+            this.name = 'TransactionError';
+          }
+        })()
+      };
+    }
+  }
+
+  /**
+   * Create savepoint
+   */
+  async savepoint(name: string): Promise<Result<void, TransactionError>> {
+    try {
+      const escapedName = this.translator.escapeIdentifier(name);
+      await this.client.query(`SAVEPOINT ${escapedName}`);
+      return { success: true, data: undefined };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return {
+        success: false,
+        error: new (class extends Error {
+          readonly code = 'TRANSACTION_ERROR';
+          readonly details = error;
+          constructor() {
+            super(`Failed to create savepoint '${name}': ${message}`);
+            this.name = 'TransactionError';
+          }
+        })()
+      };
+    }
+  }
+
+  /**
+   * Rollback to savepoint
+   */
+  async rollbackTo(name: string): Promise<Result<void, TransactionError>> {
+    try {
+      const escapedName = this.translator.escapeIdentifier(name);
+      await this.client.query(`ROLLBACK TO SAVEPOINT ${escapedName}`);
+      this.aborted = false; // Rolling back to a savepoint clears the aborted state for that savepoint
+      return { success: true, data: undefined };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return {
+        success: false,
+        error: new (class extends Error {
+          readonly code = 'TRANSACTION_ERROR';
+          readonly details = error;
+          constructor() {
+            super(`Failed to rollback to savepoint '${name}': ${message}`);
+            this.name = 'TransactionError';
+          }
+        })()
+      };
+    }
+  }
+
+  /**
+   * Release savepoint
+   */
+  async release(name: string): Promise<Result<void, TransactionError>> {
+    try {
+      const escapedName = this.translator.escapeIdentifier(name);
+      await this.client.query(`RELEASE SAVEPOINT ${escapedName}`);
+      return { success: true, data: undefined };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return {
+        success: false,
+        error: new (class extends Error {
+          readonly code = 'TRANSACTION_ERROR';
+          readonly details = error;
+          constructor() {
+            super(`Failed to release savepoint '${name}': ${message}`);
             this.name = 'TransactionError';
           }
         })()
