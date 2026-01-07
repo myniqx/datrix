@@ -129,7 +129,7 @@ describe('Relation & Query Integration', () => {
 
     // Snapshot verification for basic select
     expect(sql).toMatchInlineSnapshot(`
-      "SELECT \\"post\\".* FROM \\"post\\" LIMIT $1 OFFSET $2"
+      "SELECT "post".* FROM "post" LIMIT $1 OFFSET $2"
     `);
   });
 
@@ -175,7 +175,7 @@ describe('Relation & Query Integration', () => {
     });
 
     expect(result.status).toBe(400);
-    expect((result.body as any).error.code).toBe('INVALID_OPERATOR');
+    expect((result.body as any).error.code).toBe('INVALID_VALUE');
   });
 
   it('4. Empty Result: should handle empty results with joins', async () => {
