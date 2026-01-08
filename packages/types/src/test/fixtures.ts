@@ -383,7 +383,12 @@ export const crudTestData = {
     tableName: 'users',
     fields: {
       id: { type: 'number' as const, primary: true },
-      email: { type: 'string' as const, required: true, unique: true },
+      email: {
+        type: 'string' as const,
+        required: true,
+        unique: true,
+        pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      },
       name: { type: 'string' as const, required: true, minLength: 2 },
       age: { type: 'number' as const, min: 18 },
       role: { type: 'enum' as const, values: ['user', 'admin'] as const, default: 'user' },

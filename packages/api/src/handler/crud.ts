@@ -79,7 +79,8 @@ export async function findMany<TUser = unknown>(
       ].includes(queryResult.error.code);
 
       const status = isValidationError ? 400 : 500;
-      return createErrorResponse(status, queryResult.error.message, queryResult.error.code);
+      const errorCode = isValidationError ? 'INVALID_QUERY' : queryResult.error.code;
+      return createErrorResponse(status, queryResult.error.message, errorCode);
     }
 
     // Execute query
@@ -205,7 +206,17 @@ export async function findOne<TUser = unknown>(
 
     const queryResult = queryBuilder.build();
     if (!queryResult.success) {
-      return createErrorResponse(500, queryResult.error.message, 'QUERY_BUILD_ERROR');
+      const isValidationError = [
+        'INVALID_RELATION',
+        'INVALID_FIELD',
+        'INVALID_OPERATOR',
+        'INVALID_VALUE',
+        'MAX_DEPTH_EXCEEDED'
+      ].includes(queryResult.error.code);
+
+      const status = isValidationError ? 400 : 500;
+      const errorCode = isValidationError ? 'INVALID_QUERY' : 'QUERY_BUILD_ERROR';
+      return createErrorResponse(status, queryResult.error.message, errorCode);
     }
 
     // Execute query
@@ -512,7 +523,17 @@ export async function count<TUser = unknown>(
 
     const queryResult = queryBuilder.build();
     if (!queryResult.success) {
-      return createErrorResponse(500, queryResult.error.message, 'QUERY_BUILD_ERROR');
+      const isValidationError = [
+        'INVALID_RELATION',
+        'INVALID_FIELD',
+        'INVALID_OPERATOR',
+        'INVALID_VALUE',
+        'MAX_DEPTH_EXCEEDED'
+      ].includes(queryResult.error.code);
+
+      const status = isValidationError ? 400 : 500;
+      const errorCode = isValidationError ? 'INVALID_QUERY' : 'QUERY_BUILD_ERROR';
+      return createErrorResponse(status, queryResult.error.message, errorCode);
     }
 
     // Execute query

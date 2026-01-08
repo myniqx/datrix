@@ -9,6 +9,11 @@
 
 import type { RawQueryParams, FieldsParserResult } from 'forja-types/api/parser';
 import { ParserError } from 'forja-types/api/parser';
+import {
+  MAX_FIELD_NAME_LENGTH,
+  MAX_ARRAY_INDEX,
+  isValidFieldName,
+} from 'forja-types/core/constants';
 
 /**
  * Parse fields parameter
@@ -17,7 +22,26 @@ import { ParserError } from 'forja-types/api/parser';
  * @returns Result with SelectClause or ParserError
  */
 export function parseFields(params: RawQueryParams): FieldsParserResult {
-  // Handle array format: fields[0]=name&fields[1]=email
+  // Check for suspicious parameters (fields[extra], fields_injection, etc.)
+  const suspiciousParams = Object.keys(params).filter(
+    (key) =>
+      key.startsWith('fields') &&
+      key !== 'fields' &&
+      !key.match(/^fields\[\d+\]$/) // Allow fields[0], fields[1], etc.
+  );
+
+  if (suspiciousParams.length > 0) {
+    return {
+      success: false,
+      error: new ParserError(`Unknown fields parameters: ${suspiciousParams.join(', ')}`, {
+        code: 'INVALID_SYNTAX',
+        field: 'fields',
+        details: { suspiciousParams }
+      })
+    };
+  }
+
+  // Handle array format: fields[0]=name&fields[2]=email (sparse arrays allowed)
   const arrayFields = extractArrayFields(params);
   if (arrayFields.length > 0) {
     return validateAndReturn(arrayFields);
@@ -39,12 +63,36 @@ export function parseFields(params: RawQueryParams): FieldsParserResult {
   // Handle comma-separated format: fields=name,email
   if (typeof fieldsParam === 'string') {
     const fields = fieldsParam.split(',').map((f) => f.trim()).filter(Boolean);
+
+    // Reject if all fields are empty after trimming
+    if (fields.length === 0) {
+      return {
+        success: false,
+        error: new ParserError('Fields parameter is empty or contains only whitespace', {
+          code: 'INVALID_SYNTAX',
+          field: 'fields'
+        })
+      };
+    }
+
     return validateAndReturn(fields);
   }
 
   // Handle array (from frameworks that parse query strings into arrays)
   if (Array.isArray(fieldsParam)) {
     const fields = fieldsParam.map((f) => String(f).trim()).filter(Boolean);
+
+    // Reject if all fields are empty after trimming
+    if (fields.length === 0) {
+      return {
+        success: false,
+        error: new ParserError('Fields parameter is empty or contains only whitespace', {
+          code: 'INVALID_SYNTAX',
+          field: 'fields'
+        })
+      };
+    }
+
     return validateAndReturn(fields);
   }
 
@@ -60,28 +108,33 @@ export function parseFields(params: RawQueryParams): FieldsParserResult {
 
 /**
  * Extract fields from array-style parameters
- * Handles: fields[0]=name&fields[1]=email
+ * Handles sparse arrays: fields[0]=name&fields[2]=email (fields[1] can be missing)
+ *
+ * This allows UI checkboxes where users select specific fields,
+ * resulting in non-sequential indices.
  */
 function extractArrayFields(params: RawQueryParams): string[] {
   const fields: string[] = [];
-  let index = 0;
 
-  while (true) {
-    const key = `fields[${index}]`;
-    const value = params[key];
+  // Find all fields[N] parameters
+  for (const key in params) {
+    const match = key.match(/^fields\[(\d+)\]$/);
+    if (!match) continue;
 
-    if (value === undefined) {
-      break;
+    const index = parseInt(match[1], 10);
+
+    // Prevent DoS attacks with extremely large indices
+    if (index >= MAX_ARRAY_INDEX) {
+      continue; // Skip invalid indices
     }
 
+    const value = params[key];
     if (typeof value === 'string') {
       fields.push(value.trim());
     } else if (Array.isArray(value)) {
-      // Should not happen, but handle it
+      // Framework might parse duplicate params as array
       fields.push(...value.map((v) => String(v).trim()));
     }
-
-    index++;
   }
 
   return fields;
@@ -112,18 +165,6 @@ function validateAndReturn(fields: readonly string[]): FieldsParserResult {
   return { success: true, data: fields };
 }
 
-/**
- * Check if field name is valid
- * Allows: alphanumeric, underscores, dots (for nested fields)
- */
-function isValidFieldName(field: string): boolean {
-  if (!field || field.trim() === '') {
-    return false;
-  }
-
-  // Allow alphanumeric, underscores, and dots
-  // Must start with letter or underscore
-  const pattern = /^[a-zA-Z_][a-zA-Z0-9_.]*$/;
-  return pattern.test(field);
-}
+// Field validation is now centralized in forja-types/core/constants
+// isValidFieldName() is imported from there
 

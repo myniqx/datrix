@@ -326,6 +326,33 @@ describe('API Handler - CRUD (Error Path)', () => {
       expect(response.body.error?.code).toBe('VALIDATION_ERROR');
     });
 
+    it('should return 400 when hook adds unknown field to schema', async () => {
+      const beforeCreateHook = vi.fn().mockImplementation((ctx, data) => ({
+        ...data,
+        unknownField: 'should not be allowed',
+      }));
+
+      const context: RequestContext = {
+        ...baseContext,
+        method: 'POST',
+        body: crudTestData.validUserInput,
+      };
+
+      const config: HandlerConfig = {
+        ...baseConfig,
+        hooks: { beforeCreate: beforeCreateHook },
+      };
+
+      const response = await create(context, config);
+
+      expect(response.status).toBe(400);
+      expect(response.body.error?.code).toBe('VALIDATION_ERROR');
+      expect(response.body.error?.details).toBeDefined();
+      if (Array.isArray(response.body.error?.details)) {
+        expect(response.body.error.details.some((err: any) => err.field === 'unknownField')).toBe(true);
+      }
+    });
+
     it('should return 400 for invalid email format', async () => {
       const context: RequestContext = {
         ...baseContext,

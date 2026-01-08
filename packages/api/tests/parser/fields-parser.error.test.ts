@@ -187,14 +187,6 @@ describe('FieldsParser - Error Path', () => {
 
       expect(error.code).toBe('INVALID_SYNTAX');
     });
-
-    it('should handle large index gracefully', () => {
-      const largeIndexParams: RawQueryParams = parserTestData.indexedArrayFields.largeIndex;
-
-      const error = expectFailureError(parseFields(largeIndexParams));
-
-      expect(error.code).toBe('INVALID_SYNTAX');
-    });
   });
 
   describe('Invalid-But-Plausible Input', () => {

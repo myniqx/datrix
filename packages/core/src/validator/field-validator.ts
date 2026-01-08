@@ -3,6 +3,11 @@
  *
  * Validates individual field values against their field definitions.
  * Zero external dependencies - all validation is custom.
+ *
+ * TODO: Add native 'email' field type for automatic email validation
+ * Currently, email validation requires explicit pattern in schema:
+ * { type: 'string', pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/ }
+ * Future: { type: 'email', required: true }
  */
 
 import type {

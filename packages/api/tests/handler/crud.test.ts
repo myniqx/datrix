@@ -63,7 +63,8 @@ describe('API Handler - CRUD (Happy Path)', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.data).toEqual(mockRecords);
-      expect(mockAdapter.executeQuery).toHaveBeenCalledTimes(1);
+      // Parser sets default limit (25), so count query is also executed
+      expect(mockAdapter.executeQuery).toHaveBeenCalledTimes(2);
     });
 
     it('should return empty array when no records found', async () => {
@@ -339,7 +340,7 @@ describe('API Handler - CRUD (Happy Path)', () => {
 
     it('should execute beforeCreate hook', async () => {
       const inputData = crudTestData.validUserInput;
-      const transformedData = { ...inputData, transformed: true };
+      const transformedData = { ...inputData, name: inputData.name.toUpperCase() };
       const createdRecord = { id: 10, ...transformedData };
 
       vi.mocked(mockAdapter.executeQuery).mockResolvedValue({
@@ -349,7 +350,7 @@ describe('API Handler - CRUD (Happy Path)', () => {
 
       const beforeCreateHook = vi.fn().mockImplementation((ctx, data) => ({
         ...data,
-        transformed: true,
+        name: data.name.toUpperCase(),
       }));
 
       const context: RequestContext = {
@@ -458,7 +459,7 @@ describe('API Handler - CRUD (Happy Path)', () => {
 
       const beforeUpdateHook = vi.fn().mockImplementation((ctx, id, data) => ({
         ...data,
-        modifiedAt: new Date().toISOString(),
+        name: data.name.toUpperCase(),
       }));
 
       const context: RequestContext = {

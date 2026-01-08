@@ -633,6 +633,64 @@ describe('PostgreSQL Query Translator', () => {
           translator.translateWhere(deep, 0);
         }).toThrow();
       });
+
+      it('should safely handle SQL comment injection in values', () => {
+        const result = translator.translateWhere({
+          name: '-- DROP TABLE users;'
+        }, 0);
+
+        expect(result.sql).not.toContain('DROP TABLE');
+        expect(result.sql).toContain('$1');
+        expect(result.params).toEqual(['-- DROP TABLE users;']);
+      });
+
+      it('should safely handle UNION-based SQL injection in values', () => {
+        const result = translator.translateWhere({
+          email: "test@example.com' UNION SELECT * FROM passwords --"
+        }, 0);
+
+        expect(result.sql).not.toContain('UNION');
+        expect(result.sql).not.toContain('passwords');
+        expect(result.sql).toContain('$1');
+        expect(result.params[0]).toBe("test@example.com' UNION SELECT * FROM passwords --");
+      });
+
+      it('should safely handle stacked query injection in values', () => {
+        const result = translator.translateWhere({
+          username: "admin'; DELETE FROM users; --"
+        }, 0);
+
+        expect(result.sql).not.toContain('DELETE FROM');
+        expect(result.sql).toContain('$1');
+        expect(result.params).toEqual(["admin'; DELETE FROM users; --"]);
+      });
+
+      it('should safely handle null byte injection in values', () => {
+        const result = translator.translateWhere({
+          filename: 'file.txt\0.jpg'
+        }, 0);
+
+        expect(result.sql).toContain('$1');
+        expect(result.params).toEqual(['file.txt\0.jpg']);
+      });
+
+      it('should safely handle control characters in values', () => {
+        const result = translator.translateWhere({
+          data: 'test\r\n\t\0value'
+        }, 0);
+
+        expect(result.sql).toContain('$1');
+        expect(result.params).toEqual(['test\r\n\t\0value']);
+      });
+
+      it('should safely handle bidirectional text override in values', () => {
+        const result = translator.translateWhere({
+          name: 'user\u202Eadmin'
+        }, 0);
+
+        expect(result.sql).toContain('$1');
+        expect(result.params).toEqual(['user\u202Eadmin']);
+      });
     });
   });
 

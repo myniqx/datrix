@@ -97,12 +97,16 @@ describe('FieldsParser - Happy Path', () => {
       expect(parsedFields).toEqual(['id', 'name']);
     });
 
-    it('should stop parsing at first missing index', () => {
+    it('should handle sparse arrays (non-sequential indices)', () => {
+      // withGaps = { 'fields[0]': 'id', 'fields[2]': 'email' }
+      // Sparse arrays are valid - allows UI checkbox selections
+      // where users select specific fields, resulting in gaps
       const arrayWithGaps: RawQueryParams = parserTestData.indexedArrayFields.withGaps;
 
       const parsedFields = expectSuccessData(parseFields(arrayWithGaps));
 
-      expect(parsedFields).toEqual(['id']);
+      // Should collect all present fields regardless of gaps
+      expect(parsedFields).toEqual(['id', 'email']);
     });
 
     it('should parse single indexed field', () => {
