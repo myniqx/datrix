@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { PostgresAdapter } from '../../../src/adapters/postgres/adapter';
-import { PostgresConfig } from '../../../src/adapters/postgres/types';
 import { Pool } from 'pg';
+import { PostgresAdapter, PostgresConfig } from '../src';
 
 // Mock pg Pool
 vi.mock('pg', () => {

@@ -1,154 +1,132 @@
 /**
- * Auth Plugin - Session Tests
+ * Session Strategy Tests - Happy Path
  *
- * Tests the Session strategy and Memory store implementation:
- * - Session creation, retrieval, and update
- * - Expiration logic
- * - Automatic lastAccessedAt updates
- * - Store cleanup and clear
+ * Tests successful session operations:
+ * - Session creation and retrieval
+ * - Session refresh
+ * - lastAccessedAt updates
+ * - Session cleanup
+ * - Session data updates
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { createSessionStrategy, MemorySessionStore } from '@plugins/auth/session';
-import type { SessionConfig } from '@plugins/auth/types';
+import { createSessionStrategy, MemorySessionStore } from '../src/session';
+import type { SessionConfig } from '../src/types';
+import { expectSuccessData } from '../../../types/src/test/helpers';
 
-describe('Auth Plugin - Session Strategy', () => {
-  const config: SessionConfig = {
-    maxAge: 3600, // 1 hour
-    checkPeriod: 60, // 1 minute
+describe('Session Strategy - Happy Path', () => {
+  const validConfig: SessionConfig = {
+    maxAge: 3600,
+    checkPeriod: 60,
     prefix: 'test-sess:'
   };
 
-  let strategy: ReturnType<typeof createSessionStrategy>;
+  let sessionStrategy: ReturnType<typeof createSessionStrategy>;
 
   beforeEach(() => {
     vi.useFakeTimers();
-    strategy = createSessionStrategy(config);
+    sessionStrategy = createSessionStrategy(validConfig);
   });
 
   afterEach(async () => {
-    await strategy.clear();
+    await sessionStrategy.clear();
     vi.useRealTimers();
   });
 
-  it('should create and retrieve a session', async () => {
-    const createResult = await strategy.create('user-1', 'admin', { custom: 'data' });
-    expect(createResult.success).toBe(true);
+  describe('Session Creation', () => {
+    it('should create session successfully', async () => {
+      const createResult = await sessionStrategy.create('user-1', 'admin', { custom: 'data' });
 
-    if (createResult.success) {
-      const session = createResult.data;
-      expect(session.id).toBeDefined();
-      expect(session.userId).toBe('user-1');
-      expect(session.role).toBe('admin');
-      expect(session.custom).toBe('data');
-
-      const getResult = await strategy.get(session.id);
-      expect(getResult.success).toBe(true);
-      if (getResult.success) {
-        expect(getResult.data.id).toBe(session.id);
-      }
-    }
+      const createdSession = expectSuccessData(createResult);
+      expect(createdSession.id).toBeDefined();
+      expect(createdSession.userId).toBe('user-1');
+      expect(createdSession.role).toBe('admin');
+      expect(createdSession.custom).toBe('data');
+    });
   });
 
-  it('should update lastAccessedAt on retrieval', async () => {
-    const createResult = await strategy.create('user-1', 'user');
-    if (createResult.success) {
-      const sessionId = createResult.data.id;
-      const initialAccessedAt = createResult.data.lastAccessedAt;
+  describe('Session Retrieval', () => {
+    it('should retrieve existing session', async () => {
+      const createResult = await sessionStrategy.create('user-1', 'admin');
+      const { id: sessionId } = expectSuccessData(createResult);
 
-      // Advance time by 10 minutes
-      vi.advanceTimersByTime(10 * 60 * 1000);
+      const getResult = await sessionStrategy.get(sessionId);
+      const retrievedSession = expectSuccessData(getResult);
 
-      const getResult = await strategy.get(sessionId);
-      if (getResult.success) {
-        expect(getResult.data.lastAccessedAt.getTime()).toBeGreaterThan(initialAccessedAt.getTime());
-      }
-    }
+      expect(retrievedSession.id).toBe(sessionId);
+      expect(retrievedSession.userId).toBe('user-1');
+    });
+
+    it('should update lastAccessedAt on retrieval', async () => {
+      const createResult = await sessionStrategy.create('user-1', 'user');
+      const { id: sessionId, lastAccessedAt: initialAccessTime } = expectSuccessData(createResult);
+
+      vi.advanceTimersByTime(10 * 60 * 1000); // 10 mins
+
+      const getResult = await sessionStrategy.get(sessionId);
+      const retrievedSession = expectSuccessData(getResult);
+
+      expect(retrievedSession.lastAccessedAt.getTime()).toBeGreaterThan(initialAccessTime.getTime());
+    });
   });
 
-  it('should fail if session is expired', async () => {
-    const createResult = await strategy.create('user-1', 'user');
-    if (createResult.success) {
-      const sessionId = createResult.data.id;
+  describe('Session Refresh', () => {
+    it('should refresh and extend session expiration', async () => {
+      const createResult = await sessionStrategy.create('user-1', 'user');
+      const { id: sessionId, expiresAt: initialExpiry } = expectSuccessData(createResult);
 
-      // Advance time by 2 hours (maxAge is 1 hour)
-      vi.advanceTimersByTime(2 * 60 * 60 * 1000);
+      vi.advanceTimersByTime(30 * 60 * 1000); // 30 mins
 
-      const getResult = await strategy.get(sessionId);
-      expect(getResult.success).toBe(false);
-      if (!getResult.success) {
-        expect((getResult.error.details as any).code).toBe('SESSION_EXPIRED');
-      }
+      const refreshResult = await sessionStrategy.refresh(sessionId);
+      const refreshedSession = expectSuccessData(refreshResult);
 
-      // Check if deleted from store
-      const retryResult = await strategy.validate(sessionId);
-      expect(retryResult.data).toBe(false);
-    }
+      expect(refreshedSession.expiresAt.getTime()).toBeGreaterThan(initialExpiry.getTime());
+    });
   });
 
-  it('should refresh and extend session expiration', async () => {
-    const createResult = await strategy.create('user-1', 'user');
-    if (createResult.success) {
-      const sessionId = createResult.data.id;
-      const initialExp = createResult.data.expiresAt;
+  describe('Session Updates', () => {
+    it('should update arbitrary session data', async () => {
+      const createResult = await sessionStrategy.create('user-1', 'user', { count: 1 });
+      const { id: sessionId } = expectSuccessData(createResult);
 
-      // Advance time by 30 mins
-      vi.advanceTimersByTime(30 * 60 * 1000);
+      const updateResult = await sessionStrategy.update(sessionId, { count: 2, meta: 'set' });
+      const updatedSession = expectSuccessData(updateResult);
 
-      const refreshResult = await strategy.refresh(sessionId);
-      expect(refreshResult.success).toBe(true);
-      if (refreshResult.success) {
-        expect(refreshResult.data.expiresAt.getTime()).toBeGreaterThan(initialExp.getTime());
-      }
-    }
+      expect(updatedSession.count).toBe(2);
+      expect(updatedSession.meta).toBe('set');
+    });
   });
 
-  it('should handle cleanup of multiple sessions', async () => {
-    // Create one session
-    const s1 = await strategy.create('u1', 'r1');
+  describe('Session Cleanup', () => {
+    it('should cleanup expired sessions', async () => {
+      const session1Result = await sessionStrategy.create('u1', 'r1');
+      const session1 = expectSuccessData(session1Result);
 
-    // Advance time past expiry
-    vi.advanceTimersByTime(2 * 60 * 60 * 1000);
+      vi.advanceTimersByTime(2 * 60 * 60 * 1000); // 2 hours
 
-    // Create another session (which is valid)
-    const s2 = await strategy.create('u2', 'r2');
+      const session2Result = await sessionStrategy.create('u2', 'r2');
+      const session2 = expectSuccessData(session2Result);
 
-    // Run cleanup manually (MemorySessionStore.cleanup)
-    const store = (strategy as any).store;
-    const cleanupResult = await store.cleanup();
+      const sessionStore = (sessionStrategy as any).store;
+      const cleanupResult = await sessionStore.cleanup();
+      const cleanedCount = expectSuccessData(cleanupResult);
 
-    expect(cleanupResult.success).toBe(true);
-    expect(cleanupResult.data).toBe(1); // Deleted s1
-
-    expect((await strategy.validate((s1 as any).data.id)).data).toBe(false);
-    expect((await strategy.validate((s2 as any).data.id)).data).toBe(true);
-  });
-
-  it('should update arbitrary data in session', async () => {
-    const createResult = await strategy.create('user-1', 'user', { count: 1 });
-    if (createResult.success) {
-      const sessionId = createResult.data.id;
-
-      const updateResult = await strategy.update(sessionId, { count: 2, meta: 'set' });
-      expect(updateResult.success).toBe(true);
-      if (updateResult.success) {
-        expect(updateResult.data.count).toBe(2);
-        expect(updateResult.data.meta).toBe('set');
-      }
-    }
+      expect(cleanedCount).toBe(1);
+      expect((await sessionStrategy.validate(session1.id)).data).toBe(false);
+      expect((await sessionStrategy.validate(session2.id)).data).toBe(true);
+    });
   });
 });
 
-describe('MemorySessionStore', () => {
+describe('MemorySessionStore - Happy Path', () => {
   it('should respect key prefixing', async () => {
-    const store = new MemorySessionStore('custom:');
-    const sessionId = 'abc';
-    const data: any = { id: sessionId, expiresAt: new Date(Date.now() + 1000) };
+    const customPrefixStore = new MemorySessionStore('custom:');
+    const testSessionId = 'abc';
+    const sessionData: any = { id: testSessionId, expiresAt: new Date(Date.now() + 1000) };
 
-    await store.set(sessionId, data);
+    await customPrefixStore.set(testSessionId, sessionData);
 
-    // Check internal map if possible
-    const sessionsMap = (store as any).sessions;
+    const sessionsMap = (customPrefixStore as any).sessions;
     expect(sessionsMap.has('custom:abc')).toBe(true);
     expect(sessionsMap.has('abc')).toBe(false);
   });

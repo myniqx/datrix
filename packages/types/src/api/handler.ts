@@ -44,6 +44,7 @@ export interface ExpressLikeRequest {
   readonly body: unknown;
   readonly headers: Record<string, string | readonly string[] | undefined>;
   readonly user?: unknown;
+  readonly url?: string;
 }
 
 /**
@@ -78,12 +79,12 @@ export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
  */
 export interface RequestContext<TUser = unknown> {
   readonly method: HttpMethod;
-  readonly params: Record<string, string>; // Path parameters (e.g., { id: "123" })
-  readonly query: Record<string, string | readonly string[] | undefined>; // Query string
-  readonly body: unknown; // Request body (already parsed as JSON)
-  readonly headers: Record<string, string | undefined>; // Request headers
-  readonly user: TUser | undefined; // Authenticated user (if any)
-  readonly metadata: Record<string, unknown>; // Additional metadata
+  readonly params?: Record<string, string>; // Path parameters (e.g., { id: "123" })
+  readonly query?: Record<string, string | readonly string[] | undefined>; // Query string
+  readonly body?: unknown; // Request body (already parsed as JSON)
+  readonly headers?: Record<string, string | undefined>; // Request headers
+  readonly user?: TUser | undefined; // Authenticated user (if any)
+  readonly metadata?: Record<string, unknown>; // Additional metadata
 }
 
 /**

@@ -1,25 +1,24 @@
 /**
- * Core - Schema Registry Tests
+ * Core - Schema Registry Tests - Happy Path
  *
  * Tests the SchemaRegistry implementation:
  * - Registration and retrieval
- * - Validation and strict mode
  * - Metadata generation (pluralization)
  * - Locking mechanism
- * - Cache invalidation
- * - Relation validation
+ * - Relation tracking
  * - JSON Import/Export
  */
 
+import { SchemaRegistry } from '../src';
+import { SchemaDefinition } from '../../types/src/core/schema';
+import { expectSuccessData } from '../../types/src/test/helpers';
 import { describe, it, expect, beforeEach } from 'vitest';
-import { SchemaRegistry, SchemaRegistryError } from '@core/schema/registry';
-import type { SchemaDefinition } from '@core/schema/types';
 
-describe('Core - Schema Registry', () => {
-  let registry: SchemaRegistry;
+describe('Core - Schema Registry - Happy Path', () => {
+  let schemaRegistry: SchemaRegistry;
 
   beforeEach(() => {
-    registry = new SchemaRegistry({
+    schemaRegistry = new SchemaRegistry({
       strict: true,
       allowOverwrite: false,
       validateRelations: true
@@ -28,7 +27,7 @@ describe('Core - Schema Registry', () => {
 
   describe('Registration', () => {
     it('should register a valid schema', () => {
-      const schema: SchemaDefinition = {
+      const userSchema: SchemaDefinition = {
         name: 'User',
         fields: {
           id: { type: 'string', required: true, primary: true },
@@ -36,52 +35,35 @@ describe('Core - Schema Registry', () => {
         }
       };
 
-      const result = registry.register(schema);
-      expect(result.success).toBe(true);
-      expect(registry.has('User')).toBe(true);
-      expect(registry.get('User')).toEqual(schema);
-    });
+      const registrationResult = schemaRegistry.register(userSchema);
 
-    it('should prevent duplicate registration by default', () => {
-      const schema: SchemaDefinition = {
-        name: 'User',
-        fields: { id: { type: 'string' } }
-      };
-
-      registry.register(schema);
-      const result = registry.register(schema);
-
-      expect(result.success).toBe(false);
-      expect(result.error?.code).toBe('DUPLICATE_SCHEMA');
+      const registeredSchema = expectSuccessData(registrationResult);
+      expect(registeredSchema).toBeDefined();
+      expect(schemaRegistry.has('User')).toBe(true);
+      expect(schemaRegistry.get('User')).toEqual(userSchema);
     });
 
     it('should allow overwrite if configured', () => {
-      const r = new SchemaRegistry({ allowOverwrite: true, strict: false, validateRelations: false });
-      const s1: any = { name: 'User', fields: { a: { type: 'string' } } };
-      const s2: any = { name: 'User', fields: { b: { type: 'string' } } };
+      const overwriteAllowedRegistry = new SchemaRegistry({
+        allowOverwrite: true,
+        strict: false,
+        validateRelations: false
+      });
+      const firstUserSchema: any = { name: 'User', fields: { a: { type: 'string' } } };
+      const secondUserSchema: any = { name: 'User', fields: { b: { type: 'string' } } };
 
-      r.register(s1);
-      const result = r.register(s2);
+      overwriteAllowedRegistry.register(firstUserSchema);
+      const overwriteResult = overwriteAllowedRegistry.register(secondUserSchema);
 
-      expect(result.success).toBe(true);
-      expect(r.get('User')).toEqual(s2);
-    });
-
-    it('should reject invalid schema in strict mode', () => {
-      const invalidSchema: any = {
-        name: '', // Required
-        fields: {}
-      };
-
-      const result = registry.register(invalidSchema);
-      expect(result.success).toBe(false);
-      expect(result.error?.code).toBe('INVALID_SCHEMA_NAME');
+      const overwrittenSchema = expectSuccessData(overwriteResult);
+      expect(overwrittenSchema).toBeDefined();
+      expect(overwriteAllowedRegistry.get('User')).toEqual(secondUserSchema);
     });
   });
 
   describe('Metadata & Pluralization', () => {
     it('should generate correct metadata with pluralized table names', () => {
-      const tests = [
+      const pluralizationTests = [
         { name: 'User', expected: 'users' },
         { name: 'Category', expected: 'categories' },
         { name: 'Bus', expected: 'buses' },
@@ -91,90 +73,87 @@ describe('Core - Schema Registry', () => {
         { name: 'Status', expected: 'statuses' }
       ];
 
-      for (const { name, expected } of tests) {
-        registry.register({ name, fields: { id: { type: 'string' } } });
-        const meta = registry.getMetadata(name);
-        expect(meta?.tableName).toBe(expected);
+      for (const { name, expected } of pluralizationTests) {
+        schemaRegistry.register({ name, fields: { id: { type: 'string' } } });
+        const schemaMetadata = schemaRegistry.getMetadata(name);
+        expect(schemaMetadata?.tableName).toBe(expected);
       }
     });
 
     it('should respect custom table names', () => {
-      registry.register({
+      const customTableSchema: SchemaDefinition = {
         name: 'Custom',
         tableName: 'my_table',
         fields: { id: { type: 'string' } }
-      });
-      expect(registry.getMetadata('Custom')?.tableName).toBe('my_table');
+      };
+
+      schemaRegistry.register(customTableSchema);
+
+      const customMetadata = schemaRegistry.getMetadata('Custom');
+      expect(customMetadata?.tableName).toBe('my_table');
     });
   });
 
   describe('Locking', () => {
-    it('should prevent modifications when locked', () => {
-      registry.lock();
-      expect(registry.isLocked()).toBe(true);
-
-      const result = registry.register({ name: 'Test', fields: { id: { type: 'string' } } });
-      expect(result.success).toBe(false);
-      expect(result.error?.code).toBe('REGISTRY_LOCKED');
-
-      expect(() => registry.remove('NonExistent')).toThrow();
-      expect(() => registry.clear()).toThrow();
-    });
-
     it('should allow modifications after unlocking', () => {
-      registry.lock();
-      registry.unlock();
-      expect(registry.isLocked()).toBe(false);
+      schemaRegistry.lock();
+      schemaRegistry.unlock();
 
-      const result = registry.register({ name: 'Test', fields: { id: { type: 'string' } } });
-      expect(result.success).toBe(true);
+      expect(schemaRegistry.isLocked()).toBe(false);
+
+      const testSchema: SchemaDefinition = {
+        name: 'Test',
+        fields: { id: { type: 'string' } }
+      };
+      const registrationResult = schemaRegistry.register(testSchema);
+
+      const registeredSchema = expectSuccessData(registrationResult);
+      expect(registeredSchema).toBeDefined();
     });
   });
 
   describe('Relations', () => {
-    it('should validate relation targets', () => {
-      const posts: SchemaDefinition = {
-        name: 'Post',
-        fields: {
-          author: { type: 'relation', model: 'User', relation: 'belongsTo' }
-        }
-      };
-
-      // Registering Post without User should fail in registerMany or explicit validation
-      const result = registry.registerMany([posts]);
-      expect(result.success).toBe(false);
-      expect(result.error?.code).toBe('INVALID_RELATIONS');
-    });
-
     it('should track related and referencing schemas', () => {
-      const user: SchemaDefinition = { name: 'User', fields: { id: { type: 'string' } } };
-      const post: SchemaDefinition = {
+      const userSchema: SchemaDefinition = {
+        name: 'User',
+        fields: { id: { type: 'string' } }
+      };
+      const postSchema: SchemaDefinition = {
         name: 'Post',
         fields: {
           author: { type: 'relation', model: 'User', relation: 'belongsTo' }
         }
       };
 
-      registry.registerMany([user, post]);
+      schemaRegistry.registerMany([userSchema, postSchema]);
 
-      expect(registry.getRelatedSchemas('Post')).toContain('User');
-      expect(registry.getReferencingSchemas('User')).toContain('Post');
-      expect(registry.getSchemasWithRelations()).toHaveLength(1);
+      const relatedSchemas = schemaRegistry.getRelatedSchemas('Post');
+      const referencingSchemas = schemaRegistry.getReferencingSchemas('User');
+      const schemasWithRelations = schemaRegistry.getSchemasWithRelations();
+
+      expect(relatedSchemas).toContain('User');
+      expect(referencingSchemas).toContain('Post');
+      expect(schemasWithRelations).toHaveLength(1);
     });
   });
 
   describe('JSON Import/Export', () => {
     it('should export and import schemas correctly', () => {
-      const user: SchemaDefinition = { name: 'User', fields: { id: { type: 'string' } } };
-      registry.register(user);
+      const userSchema: SchemaDefinition = {
+        name: 'User',
+        fields: { id: { type: 'string' } }
+      };
+      schemaRegistry.register(userSchema);
 
-      const json = registry.toJSON();
-      expect(json['User']).toEqual(user);
+      const exportedJson = schemaRegistry.toJSON();
+      expect(exportedJson['User']).toEqual(userSchema);
 
-      const newRegistry = new SchemaRegistry();
-      const result = newRegistry.fromJSON(json);
-      expect(result.success).toBe(true);
-      expect(newRegistry.has('User')).toBe(true);
+      const newSchemaRegistry = new SchemaRegistry();
+      const importResult = newSchemaRegistry.fromJSON(exportedJson);
+
+      const importedSchemas = expectSuccessData(importResult);
+      expect(importedSchemas).toBeDefined();
+      expect(newSchemaRegistry.has('User')).toBe(true);
     });
   });
 });

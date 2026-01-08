@@ -6,7 +6,7 @@
  */
 
 import { QueryObject, WhereClause } from "./core/query-builder";
-import { FieldDefinition, SchemaDefinition } from "./core/schema";
+import { FieldDefinition, IndexDefinition, SchemaDefinition } from "./core/schema";
 import { Result } from "./utils";
 
 /**
@@ -58,16 +58,6 @@ export type AlterOperation =
   | { readonly type: 'dropColumn'; readonly column: string }
   | { readonly type: 'modifyColumn'; readonly column: string; readonly newDefinition: FieldDefinition }
   | { readonly type: 'renameColumn'; readonly from: string; readonly to: string };
-
-/**
- * Index definition
- */
-export interface IndexDefinition {
-  readonly name?: string;
-  readonly fields: readonly string[];
-  readonly unique?: boolean;
-  readonly type?: 'btree' | 'hash' | 'gist' | 'gin';
-}
 
 /**
  * Connection state

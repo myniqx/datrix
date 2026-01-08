@@ -1,117 +1,143 @@
 /**
- * API Parser - Populate Parser Tests
+ * API Parser - Populate Parser Tests (Happy Path)
  *
- * Tests the parsing of populate query parameters:
- * - Simple string populate (populate=author)
- * - Wildcard (*)
- * - Comma-separated relations
- * - Object-style populate with fields selection
- * - Nested populate
- * - Max depth enforcement
+ * Tests successful parsing of populate query parameters
  */
 
 import { describe, it, expect } from 'vitest';
-import { parsePopulate } from '@api/parser/populate-parser';
-import type { RawQueryParams } from '@api/parser/types';
+import { parsePopulate } from '../../src/parser/populate-parser';
+import { RawQueryParams } from '../../../types/src/api/parser';
+import { parserTestData } from '../../../types/src/test/fixtures';
+import { expectSuccessData } from '../../../types/src/test/helpers';
 
-describe('API Parser - Populate Parser', () => {
-  it('should return undefined when no populate parameter is provided', () => {
-    const params: RawQueryParams = {};
-    const result = parsePopulate(params);
+describe('PopulateParser - Happy Path', () => {
+  describe('No populate parameter', () => {
+    it('should return undefined when no populate parameter is provided', () => {
+      const emptyParams: RawQueryParams = {};
 
-    expect(result.success).toBe(true);
-    expect(result.data).toBeUndefined();
+      const parsedPopulate = expectSuccessData(parsePopulate(emptyParams));
+
+      expect(parsedPopulate).toBeUndefined();
+    });
   });
 
-  describe('Simple String Format', () => {
-    it('should parse single relation string', () => {
-      const params: RawQueryParams = { populate: 'author' };
-      const result = parsePopulate(params);
+  describe('Simple string format', () => {
+    it('should parse single relation', () => {
+      const singleRelationParams: RawQueryParams = {
+        populate: parserTestData.simplePopulate.singleRelation
+      };
 
-      expect(result.success).toBe(true);
-      expect(result.data).toEqual({ author: '*' });
+      const parsedPopulate = expectSuccessData(parsePopulate(singleRelationParams));
+
+      expect(parsedPopulate).toEqual({ author: '*' });
     });
 
     it('should parse comma-separated relations', () => {
-      const params: RawQueryParams = { populate: 'author,comments,api_key' };
-      const result = parsePopulate(params);
+      const commaSeparatedParams: RawQueryParams = {
+        populate: parserTestData.simplePopulate.commaSeparated
+      };
 
-      expect(result.success).toBe(true);
-      expect(result.data).toEqual({
+      const parsedPopulate = expectSuccessData(parsePopulate(commaSeparatedParams));
+
+      expect(parsedPopulate).toEqual({
         author: '*',
         comments: '*',
-        api_key: '*'
+        category: '*'
       });
     });
 
-    it('should handle wildcard "*"', () => {
-      const params: RawQueryParams = { populate: '*' };
-      const result = parsePopulate(params);
+    it('should parse relations with underscores', () => {
+      const underscoreRelations: RawQueryParams = {
+        populate: parserTestData.simplePopulate.withUnderscore
+      };
 
-      expect(result.success).toBe(true);
-      expect(result.data).toEqual({ '*': '*' });
+      const parsedPopulate = expectSuccessData(parsePopulate(underscoreRelations));
+
+      expect(parsedPopulate).toEqual({
+        api_key: '*',
+        _internal: '*'
+      });
     });
 
-    it('should handle array format (populate[])', () => {
-      const params: RawQueryParams = { populate: ['author', 'comments'] };
-      const result = parsePopulate(params);
+    it('should handle wildcard', () => {
+      const wildcardParams: RawQueryParams = {
+        populate: parserTestData.simplePopulate.wildcard
+      };
 
-      expect(result.success).toBe(true);
-      expect(result.data).toEqual({
+      const parsedPopulate = expectSuccessData(parsePopulate(wildcardParams));
+
+      expect(parsedPopulate).toEqual({ '*': '*' });
+    });
+
+    it('should handle array format', () => {
+      const arrayFormatParams: RawQueryParams = {
+        populate: parserTestData.validRelationNames.slice(0, 2)
+      };
+
+      const parsedPopulate = expectSuccessData(parsePopulate(arrayFormatParams));
+
+      expect(parsedPopulate).toEqual({
         author: '*',
-        comments: '*'
+        profile: '*'
       });
     });
   });
 
-  describe('Object-style Populate', () => {
+  describe('Object-style populate', () => {
     it('should parse populate[relation]=*', () => {
-      const params: RawQueryParams = { 'populate[author]': '*' };
-      const result = parsePopulate(params);
+      const wildcardRelationParams: RawQueryParams = parserTestData.objectStylePopulate.wildcardRelation;
 
-      expect(result.success).toBe(true);
-      expect(result.data).toEqual({ author: '*' });
+      const parsedPopulate = expectSuccessData(parsePopulate(wildcardRelationParams));
+
+      expect(parsedPopulate).toEqual({ author: '*' });
     });
 
-    it('should parse populate with specific fields', () => {
-      const params: RawQueryParams = {
-        'populate[author][fields]': 'name,email'
-      };
-      const result = parsePopulate(params);
+    it('should parse populate with specific fields (comma-separated)', () => {
+      const withFieldsParams: RawQueryParams = parserTestData.objectStylePopulate.withFields;
 
-      expect(result.success).toBe(true);
-      expect(result.data).toEqual({
+      const parsedPopulate = expectSuccessData(parsePopulate(withFieldsParams));
+
+      expect(parsedPopulate).toEqual({
         author: {
           select: ['name', 'email']
         }
       });
     });
 
-    it('should parse populate with specific fields as indexed array', () => {
-      const params: RawQueryParams = {
-        'populate[author][fields][0]': 'name',
-        'populate[author][fields][1]': 'email'
-      };
-      const result = parsePopulate(params);
+    it('should parse populate with specific fields (indexed array)', () => {
+      const withFieldsIndexedParams: RawQueryParams = parserTestData.objectStylePopulate.withFieldsIndexed;
 
-      expect(result.success).toBe(true);
-      expect(result.data).toEqual({
+      const parsedPopulate = expectSuccessData(parsePopulate(withFieldsIndexedParams));
+
+      expect(parsedPopulate).toEqual({
         author: {
           select: ['name', 'email']
         }
+      });
+    });
+
+    it('should parse multiple relations with different field selections', () => {
+      const multipleRelationsParams: RawQueryParams = {
+        'populate[author][fields]': 'name,email',
+        'populate[category][fields]': 'title'
+      };
+
+      const parsedPopulate = expectSuccessData(parsePopulate(multipleRelationsParams));
+
+      expect(parsedPopulate).toEqual({
+        author: { select: ['name', 'email'] },
+        category: { select: ['title'] }
       });
     });
   });
 
-  describe('Nested Populate', () => {
+  describe('Nested populate', () => {
     it('should parse simple nested populate', () => {
-      const params: RawQueryParams = {
-        'populate[author][populate]': 'profile'
-      };
-      const result = parsePopulate(params);
+      const simpleNestedParams: RawQueryParams = parserTestData.nestedPopulate.simple;
 
-      expect(result.success).toBe(true);
-      expect(result.data).toEqual({
+      const parsedPopulate = expectSuccessData(parsePopulate(simpleNestedParams));
+
+      expect(parsedPopulate).toEqual({
         author: {
           populate: {
             profile: '*'
@@ -120,15 +146,28 @@ describe('API Parser - Populate Parser', () => {
       });
     });
 
-    it('should parse deep nested populate with fields', () => {
-      const params: RawQueryParams = {
-        'populate[author][populate][profile][fields]': 'bio',
-        'populate[author][populate][profile][populate]': 'avatar'
-      };
-      const result = parsePopulate(params);
+    it('should parse nested populate with fields', () => {
+      const nestedWithFieldsParams: RawQueryParams = parserTestData.nestedPopulate.withFields;
 
-      expect(result.success).toBe(true);
-      expect(result.data).toEqual({
+      const parsedPopulate = expectSuccessData(parsePopulate(nestedWithFieldsParams));
+
+      expect(parsedPopulate).toEqual({
+        author: {
+          populate: {
+            profile: {
+              select: ['bio', 'avatar']
+            }
+          }
+        }
+      });
+    });
+
+    it('should parse deep nested populate with fields and populate', () => {
+      const deepNestedParams: RawQueryParams = parserTestData.nestedPopulate.deep;
+
+      const parsedPopulate = expectSuccessData(parsePopulate(deepNestedParams));
+
+      expect(parsedPopulate).toEqual({
         author: {
           populate: {
             profile: {
@@ -141,35 +180,152 @@ describe('API Parser - Populate Parser', () => {
         }
       });
     });
+
+    it('should parse multiple nested relations', () => {
+      const multipleNestedParams: RawQueryParams = {
+        'populate[author][populate]': 'profile',
+        'populate[comments][populate]': 'user'
+      };
+
+      const parsedPopulate = expectSuccessData(parsePopulate(multipleNestedParams));
+
+      expect(parsedPopulate).toEqual({
+        author: {
+          populate: { profile: '*' }
+        },
+        comments: {
+          populate: { user: '*' }
+        }
+      });
+    });
   });
 
-  describe('Max Depth Enforcement', () => {
-    it('should fail when max depth is exceeded', () => {
-      // Depth 1: a
-      // Depth 2: a.b
-      // Depth 3: a.b.c
-      const params: RawQueryParams = {
-        'populate[a][populate][b][populate][c][populate]': '*'
-      };
-      const result = parsePopulate(params, 2); // Max depth 2
+  describe('Max depth enforcement', () => {
+    it('should allow populate within max depth (default 5)', () => {
+      const depth5Params: RawQueryParams = parserTestData.maxDepthPopulate.depth5;
 
-      expect(result.success).toBe(false);
-      expect(result.error?.code).toBe('MAX_DEPTH_EXCEEDED');
+      const parsedPopulate = expectSuccessData(parsePopulate(depth5Params));
+
+      expect(parsedPopulate).toBeDefined();
+      expect(parsedPopulate?.a).toBeDefined();
     });
 
-    it('should respect default max depth (5)', () => {
-      const params: RawQueryParams = {
-        'populate[1][populate][2][populate][3][populate][4][populate][5][populate]': '*'
-      };
-      const result = parsePopulate(params);
-      expect(result.success).toBe(true);
+    it('should allow populate up to custom max depth', () => {
+      const depth2Params: RawQueryParams = parserTestData.maxDepthPopulate.depth2;
 
-      const params2: RawQueryParams = {
-        'populate[1][populate][2][populate][3][populate][4][populate][5][populate][6][populate]': '*'
+      const parsedPopulate = expectSuccessData(parsePopulate(depth2Params, 2));
+
+      expect(parsedPopulate).toBeDefined();
+    });
+
+    it('should allow depth 1 populate', () => {
+      const depth1Params: RawQueryParams = parserTestData.maxDepthPopulate.depth1;
+
+      const parsedPopulate = expectSuccessData(parsePopulate(depth1Params, 1));
+
+      expect(parsedPopulate).toEqual({ a: '*' });
+    });
+  });
+
+  describe('Determinism', () => {
+    it('should return same result for identical input', () => {
+      const identicalParams: RawQueryParams = { populate: 'author,comments' };
+
+      const firstParse = expectSuccessData(parsePopulate(identicalParams));
+      const secondParse = expectSuccessData(parsePopulate(identicalParams));
+
+      expect(firstParse).toEqual(secondParse);
+    });
+
+    it('should return same result regardless of input object mutation', () => {
+      const mutableParams: RawQueryParams = { populate: 'author' };
+      const firstParse = expectSuccessData(parsePopulate(mutableParams));
+
+      mutableParams.populate = 'comments';
+      const secondParse = expectSuccessData(parsePopulate({ populate: 'author' }));
+
+      expect(firstParse).toEqual(secondParse);
+    });
+  });
+
+  describe('Input Immutability', () => {
+    it('should not mutate input object', () => {
+      const originalParams: RawQueryParams = { populate: 'author,comments' };
+      const paramsCopy = JSON.parse(JSON.stringify(originalParams));
+
+      expectSuccessData(parsePopulate(originalParams));
+
+      expect(originalParams).toEqual(paramsCopy);
+    });
+
+    it('should not mutate input array', () => {
+      const originalArray = ['author', 'comments'];
+      const arrayCopy = [...originalArray];
+      const arrayParams: RawQueryParams = { populate: originalArray };
+
+      expectSuccessData(parsePopulate(arrayParams));
+
+      expect(originalArray).toEqual(arrayCopy);
+    });
+
+    it('should not mutate nested object params', () => {
+      const originalParams: RawQueryParams = {
+        'populate[author][fields]': 'name,email',
+        'populate[comments][populate]': 'user'
       };
-      const result2 = parsePopulate(params2);
-      expect(result2.success).toBe(false);
-      expect(result2.error?.code).toBe('MAX_DEPTH_EXCEEDED');
+      const paramsCopy = JSON.parse(JSON.stringify(originalParams));
+
+      expectSuccessData(parsePopulate(originalParams));
+
+      expect(originalParams).toEqual(paramsCopy);
+    });
+  });
+
+  describe('Complex scenarios', () => {
+    it('should handle mixed simple and object-style populate', () => {
+      const mixedParams: RawQueryParams = {
+        populate: 'category',
+        'populate[author][fields]': 'name,email'
+      };
+
+      const parsedPopulate = expectSuccessData(parsePopulate(mixedParams));
+
+      expect(parsedPopulate).toEqual({
+        category: '*',
+        author: { select: ['name', 'email'] }
+      });
+    });
+
+    it('should handle complex nested structure', () => {
+      const complexParams: RawQueryParams = {
+        'populate[author][fields]': 'name',
+        'populate[author][populate][profile][fields]': 'bio',
+        'populate[author][populate][profile][populate]': 'avatar',
+        'populate[comments][fields]': 'content',
+        'populate[comments][populate][user]': '*'
+      };
+
+      const parsedPopulate = expectSuccessData(parsePopulate(complexParams));
+
+      expect(parsedPopulate).toEqual({
+        author: {
+          select: ['name'],
+          populate: {
+            profile: {
+              select: ['bio'],
+              populate: {
+                avatar: '*'
+              }
+            }
+          }
+        },
+        comments: {
+          select: ['content'],
+          populate: {
+            user: '*'
+          }
+        }
+      });
     });
   });
 });

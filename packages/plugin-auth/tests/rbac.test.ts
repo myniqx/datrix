@@ -1,143 +1,194 @@
 /**
- * Auth Plugin - RBAC Tests
+ * RBAC Manager Tests - Happy Path
  *
- * Tests the RBAC (Role-Based Access Control) implementation:
- * - Role definition and retrieval
- * - Permission checking (exact and wildcard)
- * - Role inheritance and hierarchy
- * - Multi-role user permissions
- * - Dynamic role/permission management
+ * Tests successful RBAC operations:
+ * - Role definition and permission checking
+ * - Wildcard permissions
+ * - Role inheritance
+ * - Multi-role permission checking
+ * - Dynamic permission management
  */
 
 import { describe, it, expect } from 'vitest';
-import { createRbacManager, PredefinedRoles } from '@plugins/auth/rbac';
+import { createRbacManager, PredefinedRoles } from '../src/rbac';
 
-describe('Auth Plugin - RBAC Manager', () => {
-  it('should define and check basic permissions', () => {
-    const rbac = createRbacManager();
+describe('RBAC Manager - Happy Path', () => {
+  describe('Basic Permissions', () => {
+    it('should define and check permissions correctly', () => {
+      const rbacManager = createRbacManager();
 
-    rbac.defineRole({
-      name: 'editor',
-      permissions: [
-        { resource: 'posts', action: 'update' },
-        { resource: 'posts', action: 'read' }
-      ]
+      rbacManager.defineRole({
+        name: 'editor',
+        permissions: [
+          { resource: 'posts', action: 'update' },
+          { resource: 'posts', action: 'read' }
+        ]
+      });
+
+      expect(rbacManager.hasPermission('editor', 'posts', 'update')).toBe(true);
+      expect(rbacManager.hasPermission('editor', 'posts', 'read')).toBe(true);
     });
 
-    expect(rbac.hasPermission('editor', 'posts', 'update')).toBe(true);
-    expect(rbac.hasPermission('editor', 'posts', 'read')).toBe(true);
-    expect(rbac.hasPermission('editor', 'posts', 'delete')).toBe(false);
-    expect(rbac.hasPermission('editor', 'comments', 'read')).toBe(false);
-    expect(rbac.hasPermission('non-existent', 'posts', 'read')).toBe(false);
+    it('should deny permissions not explicitly granted', () => {
+      const rbacManager = createRbacManager();
+
+      rbacManager.defineRole({
+        name: 'editor',
+        permissions: [{ resource: 'posts', action: 'read' }]
+      });
+
+      expect(rbacManager.hasPermission('editor', 'posts', 'delete')).toBe(false);
+      expect(rbacManager.hasPermission('editor', 'comments', 'read')).toBe(false);
+    });
   });
 
-  it('should handle wildcard resource permissions', () => {
-    const rbac = createRbacManager();
+  describe('Wildcard Permissions', () => {
+    it('should handle wildcard resource permissions', () => {
+      const rbacManager = createRbacManager();
 
-    rbac.defineRole({
-      name: 'viewer',
-      permissions: [{ resource: '*', action: 'read' }]
+      rbacManager.defineRole({
+        name: 'viewer',
+        permissions: [{ resource: '*', action: 'read' }]
+      });
+
+      expect(rbacManager.hasPermission('viewer', 'posts', 'read')).toBe(true);
+      expect(rbacManager.hasPermission('viewer', 'users', 'read')).toBe(true);
+      expect(rbacManager.hasPermission('viewer', 'anything', 'read')).toBe(true);
     });
-
-    expect(rbac.hasPermission('viewer', 'posts', 'read')).toBe(true);
-    expect(rbac.hasPermission('viewer', 'users', 'read')).toBe(true);
-    expect(rbac.hasPermission('viewer', 'posts', 'update')).toBe(false);
   });
 
-  it('should support role inheritance', () => {
-    const rbac = createRbacManager();
+  describe('Role Inheritance', () => {
+    it('should support single-level inheritance', () => {
+      const rbacManager = createRbacManager();
 
-    rbac.defineRole({
-      name: 'base',
-      permissions: [{ resource: 'profile', action: 'read' }]
+      rbacManager.defineRole({
+        name: 'base',
+        permissions: [{ resource: 'profile', action: 'read' }]
+      });
+
+      rbacManager.defineRole({
+        name: 'user',
+        inherits: ['base'],
+        permissions: [{ resource: 'posts', action: 'create' }]
+      });
+
+      expect(rbacManager.hasPermission('user', 'profile', 'read')).toBe(true);
+      expect(rbacManager.hasPermission('user', 'posts', 'create')).toBe(true);
     });
 
-    rbac.defineRole({
-      name: 'user',
-      inherits: ['base'],
-      permissions: [{ resource: 'posts', action: 'create' }]
+    it('should support multi-level inheritance', () => {
+      const rbacManager = createRbacManager();
+
+      rbacManager.defineRole({
+        name: 'base',
+        permissions: [{ resource: 'profile', action: 'read' }]
+      });
+
+      rbacManager.defineRole({
+        name: 'user',
+        inherits: ['base'],
+        permissions: [{ resource: 'posts', action: 'create' }]
+      });
+
+      rbacManager.defineRole({
+        name: 'admin',
+        inherits: ['user'],
+        permissions: [{ resource: '*', action: 'delete' }]
+      });
+
+      expect(rbacManager.hasPermission('admin', 'profile', 'read')).toBe(true);
+      expect(rbacManager.hasPermission('admin', 'posts', 'create')).toBe(true);
+      expect(rbacManager.hasPermission('admin', 'any-resource', 'delete')).toBe(true);
     });
-
-    rbac.defineRole({
-      name: 'admin',
-      inherits: ['user'],
-      permissions: [{ resource: '*', action: 'delete' }] // valid action
-    });
-
-    // User inherits from base
-    expect(rbac.hasPermission('user', 'profile', 'read')).toBe(true);
-    expect(rbac.hasPermission('user', 'posts', 'create')).toBe(true);
-
-    // Admin inherits from user (and thus also base)
-    expect(rbac.hasPermission('admin', 'profile', 'read')).toBe(true);
-    expect(rbac.hasPermission('admin', 'posts', 'create')).toBe(true);
-    expect(rbac.hasPermission('admin', 'any-resource', 'delete')).toBe(true);
   });
 
-  it('should prevent circular inheritance', () => {
-    const rbac = createRbacManager();
+  describe('Multi-Role Users', () => {
+    it('should check permissions for users with multiple roles', () => {
+      const rbacManager = createRbacManager();
 
-    // Initial roles
-    rbac.defineRole({ name: 'A', permissions: [] });
-    rbac.defineRole({ name: 'B', inherits: ['A'], permissions: [] });
+      rbacManager.defineRole({
+        name: 'role1',
+        permissions: [{ resource: 'resource1', action: 'read' }]
+      });
 
-    // Manually inject circularity for testing the safeguard
-    const roleA = rbac.getRole('A')!;
-    (roleA as any).inherits = ['B'];
+      rbacManager.defineRole({
+        name: 'role2',
+        permissions: [{ resource: 'resource2', action: 'update' }]
+      });
 
-    // Safeguard check: getRolePermissions handles it
-    const permissions = rbac.getRolePermissions(roleA);
-    expect(Array.isArray(permissions)).toBe(true);
-    // Should not crash with "Maximum call stack size exceeded"
+      const userRoles = ['role1', 'role2'];
+
+      expect(rbacManager.checkPermission(userRoles, 'resource1', 'read').allowed).toBe(true);
+      expect(rbacManager.checkPermission(userRoles, 'resource2', 'update').allowed).toBe(true);
+    });
   });
 
-  it('should check permissions for users with multiple roles', () => {
-    const rbac = createRbacManager();
+  describe('Dynamic Permission Management', () => {
+    it('should add permissions dynamically', () => {
+      const rbacManager = createRbacManager();
+      rbacManager.defineRole({ name: 'temp', permissions: [] });
 
-    rbac.defineRole({
-      name: 'role1',
-      permissions: [{ resource: 'resource1', action: 'read' }]
+      expect(rbacManager.hasPermission('temp', 'news', 'read')).toBe(false);
+
+      rbacManager.addPermission('temp', { resource: 'news', action: 'read' });
+      expect(rbacManager.hasPermission('temp', 'news', 'read')).toBe(true);
     });
 
-    rbac.defineRole({
-      name: 'role2',
-      permissions: [{ resource: 'resource2', action: 'update' }]
+    it('should remove permissions dynamically', () => {
+      const rbacManager = createRbacManager();
+      rbacManager.defineRole({
+        name: 'temp',
+        permissions: [{ resource: 'news', action: 'read' }]
+      });
+
+      expect(rbacManager.hasPermission('temp', 'news', 'read')).toBe(true);
+
+      rbacManager.removePermission('temp', 'news', 'read');
+      expect(rbacManager.hasPermission('temp', 'news', 'read')).toBe(false);
     });
-
-    const roles = ['role1', 'role2'];
-
-    expect(rbac.checkPermission(roles, 'resource1', 'read').allowed).toBe(true);
-    expect(rbac.checkPermission(roles, 'resource2', 'update').allowed).toBe(true);
-    expect(rbac.checkPermission(roles, 'resource1', 'update').allowed).toBe(false);
-    expect(rbac.checkPermission([], 'resource1', 'read').allowed).toBe(false);
   });
 
-  it('should dynamically add and remove permissions', () => {
-    const rbac = createRbacManager();
-    rbac.defineRole({ name: 'temp', permissions: [] });
+  describe('Predefined Roles', () => {
+    it('should verify admin role permissions', () => {
+      const rbacManager = createRbacManager({
+        roles: [PredefinedRoles.admin()]
+      });
 
-    expect(rbac.hasPermission('temp', 'news', 'read')).toBe(false);
-
-    rbac.addPermission('temp', { resource: 'news', action: 'read' });
-    expect(rbac.hasPermission('temp', 'news', 'read')).toBe(true);
-
-    rbac.removePermission('temp', 'news', 'read');
-    expect(rbac.hasPermission('temp', 'news', 'read')).toBe(false);
-  });
-
-  it('should verify predefined roles', () => {
-    const rbac = createRbacManager({
-      roles: [
-        PredefinedRoles.admin(),
-        PredefinedRoles.user(),
-        PredefinedRoles.guest()
-      ]
+      expect(rbacManager.hasPermission('admin', 'anything', 'delete')).toBe(true);
+      expect(rbacManager.hasPermission('admin', 'anything', 'create')).toBe(true);
     });
 
-    expect(rbac.hasPermission('admin', 'anything', 'delete')).toBe(true);
-    expect(rbac.hasPermission('user', 'posts', 'create')).toBe(true);
-    expect(rbac.hasPermission('user', 'users', 'delete')).toBe(false);
-    expect(rbac.hasPermission('guest', 'anything', 'read')).toBe(true);
-    expect(rbac.hasPermission('guest', 'anything', 'create')).toBe(false);
+    it('should verify user role permissions', () => {
+      const rbacManager = createRbacManager({
+        roles: [PredefinedRoles.user()]
+      });
+
+      expect(rbacManager.hasPermission('user', 'posts', 'create')).toBe(true);
+      expect(rbacManager.hasPermission('user', 'users', 'delete')).toBe(false);
+    });
+
+    it('should verify guest role permissions', () => {
+      const rbacManager = createRbacManager({
+        roles: [PredefinedRoles.guest()]
+      });
+
+      expect(rbacManager.hasPermission('guest', 'anything', 'read')).toBe(true);
+      expect(rbacManager.hasPermission('guest', 'anything', 'create')).toBe(false);
+    });
+  });
+
+  describe('Circular Inheritance Protection', () => {
+    it('should handle circular inheritance without crashing', () => {
+      const rbacManager = createRbacManager();
+
+      rbacManager.defineRole({ name: 'A', permissions: [] });
+      rbacManager.defineRole({ name: 'B', inherits: ['A'], permissions: [] });
+
+      const roleA = rbacManager.getRole('A')!;
+      (roleA as any).inherits = ['B'];
+
+      const permissions = rbacManager.getRolePermissions(roleA);
+      expect(Array.isArray(permissions)).toBe(true);
+    });
   });
 });

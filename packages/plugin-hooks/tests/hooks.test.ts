@@ -1,35 +1,37 @@
 /**
- * Hooks Plugin - Integration Tests
+ * Hooks Plugin Tests - Happy Path
  *
- * Tests the HooksPlugin class:
- * - Initialization and cleanup
- * - Automatic beforeFind hook execution during onBeforeQuery
- * - Manual hook execution via plugin API
- * - Error handling and logging
+ * Tests successful hook operations:
+ * - Plugin initialization and cleanup
+ * - Automatic beforeFind hook execution
+ * - Manual hook execution
+ * - Query modification
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createHooksPlugin } from '@plugins/hooks';
-import type { PluginContext } from '@plugins/base/types';
-import type { QueryObject } from '@adapters/base/types';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { createHooksPlugin } from '../src';
+import type { PluginContext } from '../../../types/src/plugin';
+import type { QueryObject } from '../../../types/src/core/query-builder';
+import { expectSuccessData } from '../../../types/src/test/helpers';
 
-describe('Hooks Plugin - Integration', () => {
+describe('Hooks Plugin - Happy Path', () => {
   const mockContext: PluginContext = {
     adapter: {} as any,
     schemas: {} as any,
     config: {} as any,
   };
 
-  let plugin: ReturnType<typeof createHooksPlugin>;
+  let hooksPlugin: ReturnType<typeof createHooksPlugin>;
 
   beforeEach(async () => {
-    plugin = createHooksPlugin({ enableLogging: false });
-    await plugin.init(mockContext);
+    hooksPlugin = createHooksPlugin({ enableLogging: false });
+    const initResult = await hooksPlugin.init(mockContext);
+    expectSuccessData(initResult);
   });
 
-  describe('onBeforeQuery', () => {
+  describe('Automatic Hook Execution', () => {
     it('should trigger beforeFind hook for select queries', async () => {
-      plugin.registerHooks('users', {
+      hooksPlugin.registerHooks('users', {
         beforeFind: (query: any) => {
           return {
             ...query,
@@ -38,67 +40,74 @@ describe('Hooks Plugin - Integration', () => {
         }
       });
 
-      const query: QueryObject = {
+      const selectQuery: QueryObject = {
         type: 'select',
         table: 'users',
         select: ['id', 'name'],
         where: { id: 1 }
       };
 
-      const result = await plugin.onBeforeQuery(query);
-      expect(result.where).toEqual({ id: 1, active: true });
+      const modifiedQuery = await hooksPlugin.onBeforeQuery(selectQuery);
+      expect(modifiedQuery.where).toEqual({ id: 1, active: true });
     });
 
     it('should not modify query if no hook is registered', async () => {
-      const query: QueryObject = {
+      const queryWithoutHook: QueryObject = {
         type: 'select',
         table: 'other',
         select: ['*']
       };
 
-      const result = await plugin.onBeforeQuery(query);
-      expect(result).toBe(query);
+      const unmodifiedQuery = await hooksPlugin.onBeforeQuery(queryWithoutHook);
+      expect(unmodifiedQuery).toBe(queryWithoutHook);
     });
 
-    it('should only trigger beforeFind for "select" type queries', async () => {
-      let hookTriggered = false;
-      plugin.registerHooks('users', {
+    it('should only trigger beforeFind for select type queries', async () => {
+      let hookWasTriggered = false;
+      hooksPlugin.registerHooks('users', {
         beforeFind: (q: any) => {
-          hookTriggered = true;
+          hookWasTriggered = true;
           return q;
         }
       });
 
-      const query: QueryObject = {
+      const insertQuery: QueryObject = {
         type: 'insert',
         table: 'users',
         data: { name: 'Test' }
       } as any;
 
-      await plugin.onBeforeQuery(query);
-      expect(hookTriggered).toBe(false);
+      await hooksPlugin.onBeforeQuery(insertQuery);
+      expect(hookWasTriggered).toBe(false);
     });
   });
 
-  describe('Manual Execution', () => {
+  describe('Manual Hook Execution', () => {
     it('should allow manual hook execution via executeHook', async () => {
-      plugin.registerHooks('posts', {
+      hooksPlugin.registerHooks('posts', {
         beforeCreate: (data: any) => ({ ...data, ok: true })
       });
 
-      const result = await plugin.executeHook('posts', 'beforeCreate', { val: 1 }, { modelName: 'posts', operation: 'create' });
-      expect(result.success).toBe(true);
-      expect((result.data as any).ok).toBe(true);
+      const hookResult = await hooksPlugin.executeHook(
+        'posts',
+        'beforeCreate',
+        { val: 1 },
+        { modelName: 'posts', operation: 'create' }
+      );
+
+      const executedData = expectSuccessData(hookResult);
+      expect((executedData as any).ok).toBe(true);
+      expect((executedData as any).val).toBe(1);
     });
   });
 
-  describe('Lifecycle', () => {
+  describe('Lifecycle Management', () => {
     it('should clear hooks on destroy', async () => {
-      plugin.registerHooks('test', { beforeFind: (q: any) => q });
-      expect(plugin.getRegisteredModels()).toContain('test');
+      hooksPlugin.registerHooks('test', { beforeFind: (q: any) => q });
+      expect(hooksPlugin.getRegisteredModels()).toContain('test');
 
-      await plugin.destroy();
-      expect(plugin.getRegisteredModels()).toEqual([]);
+      await hooksPlugin.destroy();
+      expect(hooksPlugin.getRegisteredModels()).toEqual([]);
     });
   });
 });

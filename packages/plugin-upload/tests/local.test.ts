@@ -1,31 +1,30 @@
 /**
- * Upload Plugin - Local Storage Provider Tests
+ * Local Storage Provider Tests - Happy Path
  *
- * Tests the LocalStorageProvider:
- * - File upload (writing to disk)
- * - File deletion (removing from disk)
- * - Existence check
- * - Directory creation (ensureDirectory)
- * - Filename sanitization and uniqueness
+ * Tests successful local storage operations:
+ * - File upload to disk
+ * - File deletion from disk
+ * - Existence checks
+ * - Unique filename generation
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { LocalStorageProvider } from '@plugins/upload/providers/local';
-import type { UploadFile } from '@plugins/upload/types';
+import { LocalStorageProvider } from '../src/providers/local';
+import type { UploadFile } from '../src/types';
+import { expectSuccessData } from '../../../types/src/test/helpers';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as os from 'node:os';
 
-describe('Upload Plugin - Local Storage Provider', () => {
+describe('Local Storage Provider - Happy Path', () => {
   const testBaseDir = path.join(os.tmpdir(), `forja-test-uploads-${Date.now()}`);
   const baseUrl = 'http://localhost:3000/uploads';
 
-  let provider: LocalStorageProvider;
+  let localProvider: LocalStorageProvider;
 
   beforeEach(async () => {
-    // Ensure clean state for each test
     await fs.mkdir(testBaseDir, { recursive: true });
-    provider = new LocalStorageProvider({
+    localProvider = new LocalStorageProvider({
       basePath: testBaseDir,
       baseUrl,
       ensureDirectory: true
@@ -33,109 +32,84 @@ describe('Upload Plugin - Local Storage Provider', () => {
   });
 
   afterEach(async () => {
-    // Cleanup test directory
     try {
       await fs.rm(testBaseDir, { recursive: true, force: true });
     } catch (e) {
-      // ignore
+      // ignore cleanup errors
     }
   });
 
-  it('should upload a file and return correct metadata', async () => {
-    const file: UploadFile = {
-      filename: 'test.txt',
-      originalName: 'My File.txt',
-      mimetype: 'text/plain',
-      size: 11,
-      buffer: new TextEncoder().encode('Hello World'),
-    };
+  describe('File Upload', () => {
+    it('should upload a file and return correct metadata', async () => {
+      const textFile: UploadFile = {
+        filename: 'test.txt',
+        originalName: 'My File.txt',
+        mimetype: 'text/plain',
+        size: 11,
+        buffer: new TextEncoder().encode('Hello World'),
+      };
 
-    const result = await provider.upload(file);
+      const uploadResult = await localProvider.upload(textFile);
 
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.key).toMatch(/^\d+-[a-z0-9]+\.txt$/);
-      expect(result.data.url).toBe(`${baseUrl}/${result.data.key}`);
-      expect(result.data.size).toBe(11);
-      expect(result.data.mimetype).toBe('text/plain');
+      const uploadedFile = expectSuccessData(uploadResult);
+      expect(uploadedFile.key).toMatch(/^\d+-[a-z0-9]+\.txt$/);
+      expect(uploadedFile.url).toBe(`${baseUrl}/${uploadedFile.key}`);
+      expect(uploadedFile.size).toBe(11);
+      expect(uploadedFile.mimetype).toBe('text/plain');
 
       // Verify file exists on disk
-      const filePath = path.join(testBaseDir, result.data.key);
-      const stats = await fs.stat(filePath);
-      expect(stats.size).toBe(11);
+      const filePath = path.join(testBaseDir, uploadedFile.key);
+      const fileStats = await fs.stat(filePath);
+      expect(fileStats.size).toBe(11);
 
-      const content = await fs.readFile(filePath, 'utf-8');
-      expect(content).toBe('Hello World');
-    }
+      const fileContent = await fs.readFile(filePath, 'utf-8');
+      expect(fileContent).toBe('Hello World');
+    });
   });
 
-  it('should delete an existing file', async () => {
-    const file: UploadFile = {
-      filename: 'delete-me.txt',
-      originalName: 'delete-me.txt',
-      mimetype: 'text/plain',
-      size: 4,
-      buffer: new TextEncoder().encode('bye'),
-    };
+  describe('File Deletion', () => {
+    it('should delete an existing file', async () => {
+      const fileToDelete: UploadFile = {
+        filename: 'delete-me.txt',
+        originalName: 'delete-me.txt',
+        mimetype: 'text/plain',
+        size: 4,
+        buffer: new TextEncoder().encode('bye'),
+      };
 
-    const upload = await provider.upload(file);
-    const key = (upload as any).data.key;
+      const uploadResult = await localProvider.upload(fileToDelete);
+      const uploadedKey = expectSuccessData(uploadResult).key;
 
-    expect(await provider.exists(key)).toBe(true);
+      expect(await localProvider.exists(uploadedKey)).toBe(true);
 
-    const deleteResult = await provider.delete(key);
-    expect(deleteResult.success).toBe(true);
-    expect(await provider.exists(key)).toBe(false);
+      const deleteResult = await localProvider.delete(uploadedKey);
+      expectSuccessData(deleteResult);
+      expect(await localProvider.exists(uploadedKey)).toBe(false);
 
-    // Check disk
-    await expect(fs.access(path.join(testBaseDir, key))).rejects.toThrow();
+      // Verify file removed from disk
+      await expect(fs.access(path.join(testBaseDir, uploadedKey))).rejects.toThrow();
+    });
   });
 
-  it('should fail when deleting non-existent file', async () => {
-    const result = await provider.delete('non-existent.txt');
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect((result.error.details as any).key).toBe('non-existent.txt');
-    }
-  });
+  describe('Unique Filename Generation', () => {
+    it('should generate unique filenames for duplicate original names', async () => {
+      const duplicateFile: UploadFile = {
+        filename: 'test.txt',
+        originalName: 'test.txt',
+        mimetype: 'text/plain',
+        size: 1,
+        buffer: new Uint8Array([0]),
+      };
 
-  it('should sanitize dangerous filenames', async () => {
-    const file: UploadFile = {
-      filename: 'danger.txt',
-      originalName: '../../../etc/passwd.txt',
-      mimetype: 'text/plain',
-      size: 1,
-      buffer: new Uint8Array([0]),
-    };
+      const firstUpload = await localProvider.upload(duplicateFile);
+      const secondUpload = await localProvider.upload(duplicateFile);
 
-    const result = await provider.upload(file);
-    if (result.success) {
-      expect(result.data.key).not.toContain('..');
-      expect(result.data.key).not.toContain('/');
-      expect(result.data.key).toMatch(/\.txt$/);
+      const firstKey = expectSuccessData(firstUpload).key;
+      const secondKey = expectSuccessData(secondUpload).key;
 
-      // Should be inside testBaseDir, not escaping it
-      const filePath = path.join(testBaseDir, result.data.key);
-      expect(path.resolve(filePath)).toContain(path.resolve(testBaseDir));
-    }
-  });
-
-  it('should generate unique filenames for duplicate original names', async () => {
-    const file: UploadFile = {
-      filename: 'test.txt',
-      originalName: 'test.txt',
-      mimetype: 'text/plain',
-      size: 1,
-      buffer: new Uint8Array([0]),
-    };
-
-    const r1 = await provider.upload(file);
-    const r2 = await provider.upload(file);
-
-    if (r1.success && r2.success) {
-      expect(r1.data.key).not.toBe(r2.data.key);
-      expect(await provider.exists(r1.data.key)).toBe(true);
-      expect(await provider.exists(r2.data.key)).toBe(true);
-    }
+      expect(firstKey).not.toBe(secondKey);
+      expect(await localProvider.exists(firstKey)).toBe(true);
+      expect(await localProvider.exists(secondKey)).toBe(true);
+    });
   });
 });

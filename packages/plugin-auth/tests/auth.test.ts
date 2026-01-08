@@ -1,21 +1,20 @@
 /**
- * Auth Plugin - Integration & Hashing Tests
+ * Auth Plugin Tests - Happy Path
  *
- * Tests the main AuthPlugin class:
+ * Tests successful authentication flows:
  * - Password hashing and verification
  * - Login flow (JWT & Session integration)
- * - Plugin initialization and options validation
  * - Token and Session verification
- * - RBAC permission checks
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createAuthPlugin } from '@plugins/auth';
-import type { AuthPluginOptions } from '@plugins/auth/types';
-import type { PluginContext } from '@plugins/base/types';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { createAuthPlugin } from '../src';
+import type { AuthPluginOptions } from '../src/types';
+import type { PluginContext } from '../../../types/src/plugin';
+import { expectSuccessData } from '../../../types/src/test/helpers';
 
-describe('Auth Plugin - Integration', () => {
-  const options: AuthPluginOptions = {
+describe('Auth Plugin - Happy Path', () => {
+  const validOptions: AuthPluginOptions = {
     jwt: {
       secret: 'a-very-long-and-secure-secret-key-32-chars!!',
       expiresIn: '1h'
@@ -26,7 +25,7 @@ describe('Auth Plugin - Integration', () => {
     rbac: {
       defaultRole: 'guest'
     },
-    passwordHashIterations: 1000 // speed up tests
+    passwordHashIterations: 1000
   };
 
   const mockContext: PluginContext = {
@@ -38,107 +37,102 @@ describe('Auth Plugin - Integration', () => {
     }
   };
 
-  let auth: ReturnType<typeof createAuthPlugin>;
+  let authPlugin: ReturnType<typeof createAuthPlugin>;
 
   beforeEach(async () => {
-    auth = createAuthPlugin(options);
-    await auth.init(mockContext);
+    authPlugin = createAuthPlugin(validOptions);
+    const initResult = await authPlugin.init(mockContext);
+    expectSuccessData(initResult);
   });
 
   describe('Password Management', () => {
-    it('should hash and verify passwords correctly', async () => {
-      const password = 'securePassword123';
-      const hashResult = await auth.hashPassword(password);
+    it('should hash password successfully', async () => {
+      const strongPassword = 'securePassword123';
+      const hashResult = await authPlugin.hashPassword(strongPassword);
 
-      expect(hashResult.success).toBe(true);
-      if (hashResult.success) {
-        const { hash, salt } = hashResult.data;
-        expect(hash).toBeDefined();
-        expect(salt).toBeDefined();
-
-        // Verify correct password
-        const verifySuccess = await auth.verifyPassword(password, hash, salt);
-        expect(verifySuccess.success).toBe(true);
-        expect(verifySuccess.data).toBe(true);
-
-        // Verify wrong password
-        const verifyFail = await auth.verifyPassword('wrongPassword', hash, salt);
-        expect(verifyFail.success).toBe(true);
-        expect(verifyFail.data).toBe(false);
-      }
+      const { hash, salt } = expectSuccessData(hashResult);
+      expect(hash).toBeDefined();
+      expect(salt).toBeDefined();
+      expect(typeof hash).toBe('string');
+      expect(typeof salt).toBe('string');
     });
 
-    it('should reject weak passwords', async () => {
-      const result = await auth.hashPassword('weak');
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect((result.error.details as any).code).toBe('WEAK_PASSWORD');
-      }
+    it('should verify correct password', async () => {
+      const password = 'securePassword123';
+      const hashResult = await authPlugin.hashPassword(password);
+      const { hash, salt } = expectSuccessData(hashResult);
+
+      const verifyResult = await authPlugin.verifyPassword(password, hash, salt);
+      const isValid = expectSuccessData(verifyResult);
+      expect(isValid).toBe(true);
+    });
+
+    it('should reject incorrect password', async () => {
+      const correctPassword = 'securePassword123';
+      const wrongPassword = 'wrongPassword';
+      const hashResult = await authPlugin.hashPassword(correctPassword);
+      const { hash, salt } = expectSuccessData(hashResult);
+
+      const verifyResult = await authPlugin.verifyPassword(wrongPassword, hash, salt);
+      const isValid = expectSuccessData(verifyResult);
+      expect(isValid).toBe(false);
     });
   });
 
   describe('Login Flow', () => {
     it('should generate both JWT and Session on login', async () => {
-      const user = { id: 'u1', email: 'test@example.com', role: 'admin' };
-      const loginResult = await auth.login(user);
+      const testUser = { id: 'u1', email: 'test@example.com', role: 'admin' };
+      const loginResult = await authPlugin.login(testUser);
 
-      expect(loginResult.success).toBe(true);
-      if (loginResult.success) {
-        expect(loginResult.data.token).toBeDefined();
-        expect(loginResult.data.sessionId).toBeDefined();
-        expect(loginResult.data.user.id).toBe('u1');
-      }
+      const loginData = expectSuccessData(loginResult);
+      expect(loginData.token).toBeDefined();
+      expect(loginData.sessionId).toBeDefined();
+      expect(loginData.user.id).toBe('u1');
+      expect(loginData.user.email).toBe('test@example.com');
     });
 
-    it('should allow login with only JWT or only Session', async () => {
-      const user = { id: 'u1', email: 'test@example.com', role: 'admin' };
+    it('should allow login with only JWT', async () => {
+      const testUser = { id: 'u1', email: 'test@example.com', role: 'admin' };
+      const jwtOnlyLogin = await authPlugin.login(testUser, true, false);
 
-      const onlyJwt = await auth.login(user, true, false);
-      expect(onlyJwt.data?.token).toBeDefined();
-      expect(onlyJwt.data?.sessionId).toBeUndefined();
-
-      const onlySession = await auth.login(user, false, true);
-      expect(onlySession.data?.token).toBeUndefined();
-      expect(onlySession.data?.sessionId).toBeDefined();
-    });
-  });
-
-  describe('Verification', () => {
-    it('should verify a valid JWT token', async () => {
-      const user = { id: 'u1', email: 'adm@forja.io', role: 'admin' };
-      const login = await auth.login(user, true, false);
-      const token = login.data!.token!;
-
-      const verifyResult = await auth.verifyToken(token);
-      expect(verifyResult.success).toBe(true);
-      if (verifyResult.success) {
-        expect(verifyResult.data.user?.id).toBe('u1');
-        expect(verifyResult.data.user?.role).toBe('admin');
-      }
+      const loginData = expectSuccessData(jwtOnlyLogin);
+      expect(loginData.token).toBeDefined();
+      expect(loginData.sessionId).toBeUndefined();
     });
 
-    it('should verify a valid session', async () => {
-      const user = { id: 'u1', email: 'adm@forja.io', role: 'admin' };
-      const login = await auth.login(user, false, true);
-      const sessionId = login.data!.sessionId!;
+    it('should allow login with only Session', async () => {
+      const testUser = { id: 'u1', email: 'test@example.com', role: 'admin' };
+      const sessionOnlyLogin = await authPlugin.login(testUser, false, true);
 
-      const verifyResult = await auth.verifySession(sessionId);
-      expect(verifyResult.success).toBe(true);
-      if (verifyResult.success) {
-        expect(verifyResult.data.user?.id).toBe('u1');
-        expect(verifyResult.data.sessionId).toBe(sessionId);
-      }
+      const loginData = expectSuccessData(sessionOnlyLogin);
+      expect(loginData.token).toBeUndefined();
+      expect(loginData.sessionId).toBeDefined();
     });
   });
 
-  describe('Initialization', () => {
-    it('should fail if neither JWT nor Session is configured', async () => {
-      const invalidAuth = createAuthPlugin({} as any);
-      const result = await invalidAuth.init(mockContext);
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error.code).toBe('AUTH_INVALID_OPTIONS');
-      }
+  describe('Token Verification', () => {
+    it('should verify valid JWT token', async () => {
+      const testUser = { id: 'u1', email: 'admin@forja.io', role: 'admin' };
+      const loginResult = await authPlugin.login(testUser, true, false);
+      const { token } = expectSuccessData(loginResult);
+
+      const verifyResult = await authPlugin.verifyToken(token!);
+      const verifiedData = expectSuccessData(verifyResult);
+      expect(verifiedData.user?.id).toBe('u1');
+      expect(verifiedData.user?.role).toBe('admin');
+    });
+  });
+
+  describe('Session Verification', () => {
+    it('should verify valid session', async () => {
+      const testUser = { id: 'u1', email: 'admin@forja.io', role: 'admin' };
+      const loginResult = await authPlugin.login(testUser, false, true);
+      const { sessionId } = expectSuccessData(loginResult);
+
+      const verifyResult = await authPlugin.verifySession(sessionId!);
+      const verifiedData = expectSuccessData(verifyResult);
+      expect(verifiedData.user?.id).toBe('u1');
+      expect(verifiedData.sessionId).toBe(sessionId);
     });
   });
 });

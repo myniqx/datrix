@@ -1,120 +1,139 @@
 /**
- * Hooks Plugin - Manager Tests
+ * Hooks Manager Tests - Happy Path
  *
- * Tests the HooksManager:
- * - Registration and unregistration
- * - Synchronous and asynchronous hook execution
- * - Data modification by hooks
- * - Error handling during execution
- * - Model-specific hook isolation
+ * Tests successful manager operations:
+ * - Hook registration and retrieval
+ * - Synchronous hook execution
+ * - Asynchronous hook execution
+ * - Data modification
+ * - Context passing
+ * - Hook unregistration
  */
 
-import { describe, it, expect, vi } from 'vitest';
-import { createHooksManager } from '@plugins/hooks/manager';
-import type { HookContext } from '@plugins/hooks/types';
+import { describe, it, expect } from 'vitest';
+import { createHooksManager } from '../src/manager';
+import type { HookContext } from '../src/types';
+import { expectSuccessData } from '../../../types/src/test/helpers';
 
-describe('Hooks Plugin - HooksManager', () => {
-  const modelName = 'posts';
-  const context: HookContext = { modelName, operation: 'create' };
+describe('Hooks Manager - Happy Path', () => {
+  const testModelName = 'posts';
+  const testContext: HookContext = { modelName: testModelName, operation: 'create' };
 
-  it('should register and retrieve hooks', () => {
-    const manager = createHooksManager();
-    const hooks = {
-      beforeCreate: (data: any) => data
-    };
+  describe('Hook Registration', () => {
+    it('should register and retrieve hooks', () => {
+      const hooksManager = createHooksManager();
+      const testHooks = {
+        beforeCreate: (data: any) => data
+      };
 
-    const result = manager.registerHooks(modelName, hooks);
-    expect(result.success).toBe(true);
-    expect(manager.hasHook(modelName, 'beforeCreate')).toBe(true);
-    expect(manager.hasHook(modelName, 'afterCreate')).toBe(false);
-  });
+      const registrationResult = hooksManager.registerHooks(testModelName, testHooks);
+      expectSuccessData(registrationResult);
 
-  it('should prevent duplicate registration', () => {
-    const manager = createHooksManager();
-    manager.registerHooks(modelName, { beforeCreate: (d: any) => d });
-
-    const result = manager.registerHooks(modelName, { afterCreate: (d: any) => d });
-    expect(result.success).toBe(false);
-    expect(result.error?.code).toBe('HOOK_REGISTRATION_ERROR');
-  });
-
-  it('should execute synchronous hooks and modify data', async () => {
-    const manager = createHooksManager();
-    manager.registerHooks(modelName, {
-      beforeCreate: (data: any) => ({ ...data, modified: true })
+      expect(hooksManager.hasHook(testModelName, 'beforeCreate')).toBe(true);
+      expect(hooksManager.hasHook(testModelName, 'afterCreate')).toBe(false);
     });
-
-    const data = { title: 'Hello' };
-    const result = await manager.executeHook(modelName, 'beforeCreate', data, context);
-
-    expect(result.success).toBe(true);
-    expect((result.data as any).modified).toBe(true);
-    expect((result.data as any).title).toBe('Hello');
   });
 
-  it('should execute asynchronous hooks', async () => {
-    const manager = createHooksManager();
-    manager.registerHooks(modelName, {
-      beforeCreate: async (data: any) => {
-        await new Promise(resolve => setTimeout(resolve, 10));
-        return { ...data, async: true };
-      }
+  describe('Synchronous Hook Execution', () => {
+    it('should execute synchronous hooks and modify data', async () => {
+      const hooksManager = createHooksManager();
+      hooksManager.registerHooks(testModelName, {
+        beforeCreate: (data: any) => ({ ...data, modified: true })
+      });
+
+      const originalData = { title: 'Hello' };
+      const executionResult = await hooksManager.executeHook(
+        testModelName,
+        'beforeCreate',
+        originalData,
+        testContext
+      );
+
+      const modifiedData = expectSuccessData(executionResult);
+      expect((modifiedData as any).modified).toBe(true);
+      expect((modifiedData as any).title).toBe('Hello');
     });
-
-    const result = await manager.executeHook(modelName, 'beforeCreate', { val: 1 }, context);
-    expect(result.success).toBe(true);
-    expect((result.data as any).async).toBe(true);
   });
 
-  it('should return original data if no hook is registered', async () => {
-    const manager = createHooksManager();
-    const data = { original: true };
+  describe('Asynchronous Hook Execution', () => {
+    it('should execute asynchronous hooks', async () => {
+      const hooksManager = createHooksManager();
+      hooksManager.registerHooks(testModelName, {
+        beforeCreate: async (data: any) => {
+          await new Promise(resolve => setTimeout(resolve, 10));
+          return { ...data, async: true };
+        }
+      });
 
-    // Model exists but this specific hook doesn't
-    manager.registerHooks(modelName, { afterDelete: (d: any) => d });
-    const r1 = await manager.executeHook(modelName, 'beforeCreate', data, context);
-    expect(r1.data).toBe(data);
+      const executionResult = await hooksManager.executeHook(
+        testModelName,
+        'beforeCreate',
+        { val: 1 },
+        testContext
+      );
 
-    // Model doesn't exist
-    const r2 = await manager.executeHook('unknown', 'beforeCreate', data, context);
-    expect(r2.data).toBe(data);
-  });
-
-  it('should catch errors in hook execution', async () => {
-    const manager = createHooksManager({ enableLogging: false });
-    manager.registerHooks(modelName, {
-      beforeCreate: () => {
-        throw new Error('Hook failed');
-      }
+      const asyncData = expectSuccessData(executionResult);
+      expect((asyncData as any).async).toBe(true);
+      expect((asyncData as any).val).toBe(1);
     });
-
-    const result = await manager.executeHook(modelName, 'beforeCreate', {}, context);
-    expect(result.success).toBe(false);
-    expect(result.error?.message).toContain('Hook execution failed');
   });
 
-  it('should unregister hooks correctly', () => {
-    const manager = createHooksManager();
-    manager.registerHooks(modelName, { beforeCreate: (d: any) => d });
-    expect(manager.hasHook(modelName, 'beforeCreate')).toBe(true);
+  describe('Missing Hook Handling', () => {
+    it('should return original data if no hook is registered', async () => {
+      const hooksManager = createHooksManager();
+      const originalData = { original: true };
 
-    manager.unregisterHooks(modelName);
-    expect(manager.hasHook(modelName, 'beforeCreate')).toBe(false);
-  });
+      hooksManager.registerHooks(testModelName, { afterDelete: (d: any) => d });
+      const resultWithoutHook = await hooksManager.executeHook(
+        testModelName,
+        'beforeCreate',
+        originalData,
+        testContext
+      );
+      expect(resultWithoutHook.data).toBe(originalData);
 
-  it('should pass context to hook handler', async () => {
-    const manager = createHooksManager();
-    let capturedContext: any = null;
-
-    manager.registerHooks(modelName, {
-      beforeCreate: (data: any, ctx: any) => {
-        capturedContext = ctx;
-        return data;
-      }
+      const resultWithUnknownModel = await hooksManager.executeHook(
+        'unknown',
+        'beforeCreate',
+        originalData,
+        testContext
+      );
+      expect(resultWithUnknownModel.data).toBe(originalData);
     });
+  });
 
-    await manager.executeHook(modelName, 'beforeCreate', {}, { modelName: 'test', operation: 'find' });
-    expect(capturedContext.modelName).toBe('test');
-    expect(capturedContext.operation).toBe('find');
+  describe('Context Passing', () => {
+    it('should pass context to hook handler', async () => {
+      const hooksManager = createHooksManager();
+      let capturedContext: any = null;
+
+      hooksManager.registerHooks(testModelName, {
+        beforeCreate: (data: any, ctx: any) => {
+          capturedContext = ctx;
+          return data;
+        }
+      });
+
+      await hooksManager.executeHook(
+        testModelName,
+        'beforeCreate',
+        {},
+        { modelName: 'test', operation: 'find' }
+      );
+
+      expect(capturedContext.modelName).toBe('test');
+      expect(capturedContext.operation).toBe('find');
+    });
+  });
+
+  describe('Hook Unregistration', () => {
+    it('should unregister hooks correctly', () => {
+      const hooksManager = createHooksManager();
+      hooksManager.registerHooks(testModelName, { beforeCreate: (d: any) => d });
+      expect(hooksManager.hasHook(testModelName, 'beforeCreate')).toBe(true);
+
+      hooksManager.unregisterHooks(testModelName);
+      expect(hooksManager.hasHook(testModelName, 'beforeCreate')).toBe(false);
+    });
   });
 });

@@ -5,52 +5,7 @@
  * Provides adapters for popular frameworks (Next.js, Express, etc.)
  */
 
-import { HttpMethod, RequestContext } from "forja-types/api/handler";
-
-
-/**
- * Next.js App Router request
- */
-export interface NextAppRequest {
-  readonly method?: string;
-  readonly url?: string;
-  readonly headers: Headers;
-  readonly nextUrl?: {
-    readonly searchParams: URLSearchParams;
-  };
-}
-
-/**
- * Next.js Pages Router request
- */
-export interface NextPagesRequest {
-  readonly method?: string;
-  readonly query: Record<string, string | readonly string[]>;
-  readonly body?: unknown;
-  readonly headers: Record<string, string | readonly string[] | undefined>;
-}
-
-/**
- * Express-like request
- */
-export interface ExpressLikeRequest {
-  readonly method: string;
-  readonly params: Record<string, string>;
-  readonly query: Record<string, string | readonly string[] | undefined>;
-  readonly body: unknown;
-  readonly headers: Record<string, string | readonly string[] | undefined>;
-  readonly user?: unknown;
-}
-
-/**
- * Generic HTTP request (minimum interface)
- */
-export interface GenericHttpRequest {
-  readonly method: string;
-  readonly url?: string;
-  readonly headers: Record<string, string | undefined> | Headers;
-  readonly body?: unknown;
-}
+import { ExpressLikeRequest, GenericHttpRequest, HttpMethod, RequestContext } from "forja-types/api/handler";
 
 /**
  * Context builder options

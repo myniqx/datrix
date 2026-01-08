@@ -145,9 +145,10 @@ export type FieldDefinition =
  * Index definition
  */
 export interface IndexDefinition {
+  readonly name?: string;
   readonly fields: readonly string[];
   readonly unique?: boolean;
-  readonly name?: string;
+  readonly type?: 'btree' | 'hash' | 'gist' | 'gin';
 }
 
 /**

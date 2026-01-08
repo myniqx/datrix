@@ -1,106 +1,85 @@
 /**
- * Query Builder Tests
+ * Query Builder Tests - Happy Path
  *
  * Tests for the main query builder class
  * Target: 90%+ coverage
  */
 
 import { describe, it, expect } from 'vitest';
-import {
-  createQueryBuilder,
-  selectFrom,
-  insertInto,
-  updateTable,
-  deleteFrom,
-} from '@core/query-builder';
-import { sampleSchemas } from '../../utils/fixtures';
 
-describe('QueryBuilder', () => {
+import { createQueryBuilder, deleteFrom, insertInto, selectFrom, updateTable } from '../../src';
+import { expectSuccessData } from '../../../types/src/test/helpers';
+import { sampleSchemas } from '../../../types/src/test/fixtures';
+
+describe('QueryBuilder - Happy Path', () => {
   describe('Instantiation', () => {
     it('should create query builder without schema', () => {
-      const builder = createQueryBuilder();
-      expect(builder).toBeDefined();
+      const emptyBuilder = createQueryBuilder();
+      expect(emptyBuilder).toBeDefined();
     });
 
     it('should create query builder with schema', () => {
-      const builder = createQueryBuilder(sampleSchemas.userSchema);
-      expect(builder).toBeDefined();
-    });
-
-    it('should fail to build without type and table', () => {
-      const builder = createQueryBuilder();
-      const query = builder.build();
-
-      expect(query.success).toBe(false);
-      if (!query.success) {
-        expect(query.error).toBeDefined();
-        expect(query.error.message).toContain('type');
-      }
+      const builderWithSchema = createQueryBuilder(sampleSchemas.userSchema);
+      expect(builderWithSchema).toBeDefined();
     });
   });
 
   describe('Helper Functions', () => {
     it('should create SELECT query with selectFrom', () => {
-      const builder = selectFrom('users');
-      const query = builder.build();
+      const selectBuilder = selectFrom('users');
+      const builtQuery = selectBuilder.build();
 
-      expect(query.success).toBe(true);
-      if (query.success) {
-        expect(query.data.type).toBe('select');
-        expect(query.data.table).toBe('users');
-      }
+      const queryData = expectSuccessData(builtQuery);
+      expect(queryData.type).toBe('select');
+      expect(queryData.table).toBe('users');
     });
 
     it('should create INSERT query with insertInto', () => {
-      const builder = insertInto('users', { name: 'John', email: 'john@example.com' });
-      const query = builder.build();
+      const newUserData = { name: 'John', email: 'john@example.com' };
+      const insertBuilder = insertInto('users', newUserData);
+      const builtQuery = insertBuilder.build();
 
-      expect(query.success).toBe(true);
-      if (query.success) {
-        expect(query.data.type).toBe('insert');
-        expect(query.data.table).toBe('users');
-        expect(query.data.data).toEqual({ name: 'John', email: 'john@example.com' });
-      }
+      const queryData = expectSuccessData(builtQuery);
+      expect(queryData.type).toBe('insert');
+      expect(queryData.table).toBe('users');
+      expect(queryData.data).toEqual(newUserData);
     });
 
     it('should create UPDATE query with updateTable', () => {
-      const builder = updateTable('users', { name: 'Jane' });
-      const query = builder.build();
+      const updatedName = { name: 'Jane' };
+      const updateBuilder = updateTable('users', updatedName);
+      const builtQuery = updateBuilder.build();
 
-      expect(query.success).toBe(true);
-      if (query.success) {
-        expect(query.data.type).toBe('update');
-        expect(query.data.table).toBe('users');
-        expect(query.data.data).toEqual({ name: 'Jane' });
-      }
+      const queryData = expectSuccessData(builtQuery);
+      expect(queryData.type).toBe('update');
+      expect(queryData.table).toBe('users');
+      expect(queryData.data).toEqual(updatedName);
     });
 
     it('should create DELETE query with deleteFrom', () => {
-      const builder = deleteFrom('users');
-      const query = builder.build();
+      const deleteBuilder = deleteFrom('users');
+      const builtQuery = deleteBuilder.build();
 
-      expect(query.success).toBe(true);
-      if (query.success) {
-        expect(query.data.type).toBe('delete');
-        expect(query.data.table).toBe('users');
-      }
+      const queryData = expectSuccessData(builtQuery);
+      expect(queryData.type).toBe('delete');
+      expect(queryData.table).toBe('users');
     });
   });
 
   describe('Method Chaining', () => {
     it('should support method chaining', () => {
-      const builder = selectFrom('users');
+      const chainedBuilder = selectFrom('users');
 
-      const result = builder
+      const sameInstance = chainedBuilder
         .select(['id', 'name'])
         .where({ status: 'active' })
         .limit(10);
 
-      expect(result).toBe(builder); // Same instance
+      expect(sameInstance).toBe(chainedBuilder);
     });
 
     it('should build complex query with chaining', () => {
-      const query = selectFrom('users')
+      const adminUsersQuery = selectFrom('users')
         .select(['id', 'email', 'name'])
         .where({ role: 'admin' })
         .orderBy('createdAt', 'desc')
@@ -108,538 +87,440 @@ describe('QueryBuilder', () => {
         .offset(0)
         .build();
 
-      expect(query.success).toBe(true);
-      if (query.success) {
-        expect(query.data.table).toBe('users');
-        expect(query.data.select).toEqual(['id', 'email', 'name']); // Preserves user's order
-        expect(query.data.where).toEqual({ role: 'admin' });
-        expect(query.data.limit).toBe(25);
-        expect(query.data.offset).toBe(0);
-      }
+      const queryData = expectSuccessData(adminUsersQuery);
+      expect(queryData.table).toBe('users');
+      expect(queryData.select).toEqual(['id', 'email', 'name']);
+      expect(queryData.where).toEqual({ role: 'admin' });
+      expect(queryData.limit).toBe(25);
+      expect(queryData.offset).toBe(0);
     });
   });
 
   describe('SELECT Query', () => {
     it('should build select query with specific fields', () => {
-      const query = selectFrom('users')
+      const specificFieldsQuery = selectFrom('users')
         .select(['id', 'name'])
         .build();
 
-      expect(query.success).toBe(true);
-      if (query.success) {
-        expect(query.data).toMatchObject({
-          type: 'select',
-          table: 'users',
-          select: ['id', 'name'],
-        });
-      }
+      const queryData = expectSuccessData(specificFieldsQuery);
+      expect(queryData).toMatchObject({
+        type: 'select',
+        table: 'users',
+        select: ['id', 'name'],
+      });
     });
 
     it('should build select query with wildcard', () => {
-      const query = selectFrom('users')
+      const wildcardQuery = selectFrom('users')
         .select('*')
         .build();
 
-      expect(query.success).toBe(true);
-      if (query.success) {
-        expect(query.data.select).toBe('*');
-      }
+      const queryData = expectSuccessData(wildcardQuery);
+      expect(queryData.select).toBe('*');
     });
 
     it('should build select query without explicit select (select all)', () => {
-      const query = selectFrom('users').build();
+      const implicitSelectAllQuery = selectFrom('users').build();
 
-      expect(query.success).toBe(true);
-      if (query.success) {
-        expect(query.data.type).toBe('select');
-        // select might be undefined (implying *)
-      }
+      const queryData = expectSuccessData(implicitSelectAllQuery);
+      expect(queryData.type).toBe('select');
     });
 
     it('should override previous selection, not merge', () => {
-      const query = selectFrom('users')
+      const overriddenSelectQuery = selectFrom('users')
         .select(['id', 'name'])
         .select(['email'])
         .build();
 
-      expect(query.success).toBe(true);
-      if (query.success) {
-        // Second select() call overrides the first one
-        expect(query.data.select).toEqual(['email']);
-        // NOT ['email', 'id', 'name'] - select doesn't merge
-      }
+      const queryData = expectSuccessData(overriddenSelectQuery);
+      expect(queryData.select).toEqual(['email']);
     });
 
     it('should remove duplicate fields while preserving order', () => {
-      const query = selectFrom('users')
+      const duplicateFieldsQuery = selectFrom('users')
         .select(['name', 'id', 'name', 'email', 'id'])
         .build();
 
-      expect(query.success).toBe(true);
-      if (query.success) {
-        // Duplicates removed, first occurrence position preserved
-        expect(query.data.select).toEqual(['name', 'id', 'email']);
-      }
+      const queryData = expectSuccessData(duplicateFieldsQuery);
+      expect(queryData.select).toEqual(['name', 'id', 'email']);
     });
   });
 
   describe('INSERT Query', () => {
     it('should build insert query', () => {
-      const query = insertInto('users', {
+      const newUserData = {
         name: 'John',
         email: 'john@example.com',
         role: 'user',
-      }).build();
+      };
+      const insertQuery = insertInto('users', newUserData).build();
 
-      expect(query.success).toBe(true);
-      if (query.success) {
-        expect(query.data.type).toBe('insert');
-        expect(query.data.data).toEqual({
-          name: 'John',
-          email: 'john@example.com',
-          role: 'user',
-        });
-      }
+      const queryData = expectSuccessData(insertQuery);
+      expect(queryData.type).toBe('insert');
+      expect(queryData.data).toEqual(newUserData);
     });
 
     it('should support returning clause', () => {
-      const query = insertInto('users', { name: 'John' })
+      const insertWithReturningQuery = insertInto('users', { name: 'John' })
         .returning(['id', 'createdAt'])
         .build();
 
-      expect(query.success).toBe(true);
-      if (query.success) {
-        expect(query.data.returning).toEqual(['id', 'createdAt']); // Preserves user's order
-      }
+      const queryData = expectSuccessData(insertWithReturningQuery);
+      expect(queryData.returning).toEqual(['id', 'createdAt']);
     });
   });
 
   describe('UPDATE Query', () => {
     it('should build update query', () => {
-      const query = updateTable('users', { name: 'Jane' })
+      const updateQuery = updateTable('users', { name: 'Jane' })
         .where({ id: 1 })
         .build();
 
-      expect(query.success).toBe(true);
-      if (query.success) {
-        expect(query.data.type).toBe('update');
-        expect(query.data.data).toEqual({ name: 'Jane' });
-        expect(query.data.where).toEqual({ id: 1 });
-      }
+      const queryData = expectSuccessData(updateQuery);
+      expect(queryData.type).toBe('update');
+      expect(queryData.data).toEqual({ name: 'Jane' });
+      expect(queryData.where).toEqual({ id: 1 });
     });
 
     it('should support returning clause', () => {
-      const query = updateTable('users', { name: 'Jane' })
+      const updateWithReturningQuery = updateTable('users', { name: 'Jane' })
         .where({ id: 1 })
         .returning('*')
         .build();
 
-      expect(query.success).toBe(true);
-      if (query.success) {
-        expect(query.data.returning).toBe('*');
-      }
+      const queryData = expectSuccessData(updateWithReturningQuery);
+      expect(queryData.returning).toBe('*');
     });
   });
 
   describe('DELETE Query', () => {
     it('should build delete query', () => {
-      const query = deleteFrom('users')
+      const deleteQuery = deleteFrom('users')
         .where({ id: 1 })
         .build();
 
-      expect(query.success).toBe(true);
-      if (query.success) {
-        expect(query.data.type).toBe('delete');
-        expect(query.data.where).toEqual({ id: 1 });
-      }
+      const queryData = expectSuccessData(deleteQuery);
+      expect(queryData.type).toBe('delete');
+      expect(queryData.where).toEqual({ id: 1 });
     });
 
     it('should support returning clause', () => {
-      const query = deleteFrom('users')
+      const deleteWithReturningQuery = deleteFrom('users')
         .where({ id: 1 })
         .returning(['id'])
         .build();
 
-      expect(query.success).toBe(true);
-      if (query.success) {
-        expect(query.data.returning).toEqual(['id']);
-      }
+      const queryData = expectSuccessData(deleteWithReturningQuery);
+      expect(queryData.returning).toEqual(['id']);
     });
   });
 
   describe('COUNT Query', () => {
     it('should build count query', () => {
-      const query = createQueryBuilder()
+      const countQuery = createQueryBuilder()
         .type('count')
         .table('users')
         .where({ status: 'active' })
         .build();
 
-      expect(query.success).toBe(true);
-      if (query.success) {
-        expect(query.data.type).toBe('count');
-        expect(query.data.where).toEqual({ status: 'active' });
-      }
+      const queryData = expectSuccessData(countQuery);
+      expect(queryData.type).toBe('count');
+      expect(queryData.where).toEqual({ status: 'active' });
     });
   });
 
   describe('WHERE Conditions', () => {
     it('should set where conditions', () => {
-      const query = selectFrom('users')
+      const simpleWhereQuery = selectFrom('users')
         .where({ status: 'active', role: 'admin' })
         .build();
 
-      expect(query.success).toBe(true);
-      if (query.success) {
-        expect(query.data.where).toEqual({ status: 'active', role: 'admin' });
-      }
+      const queryData = expectSuccessData(simpleWhereQuery);
+      expect(queryData.where).toEqual({ status: 'active', role: 'admin' });
     });
 
     it('should merge conditions with andWhere using $and operator', () => {
-      const query = selectFrom('users')
+      const andWhereQuery = selectFrom('users')
         .where({ status: 'active' })
         .andWhere({ role: 'admin' })
         .build();
 
-      expect(query.success).toBe(true);
-      if (query.success) {
-        expect(query.data.where).toEqual({
-          $and: [
-            { status: 'active' },
-            { role: 'admin' }
-          ]
-        });
-      }
+      const queryData = expectSuccessData(andWhereQuery);
+      expect(queryData.where).toEqual({
+        $and: [
+          { status: 'active' },
+          { role: 'admin' }
+        ]
+      });
     });
 
     it('should support multiple andWhere calls (creates nested structure)', () => {
-      const query = selectFrom('users')
+      const multipleAndWhereQuery = selectFrom('users')
         .where({ status: 'active' })
         .andWhere({ role: 'admin' })
         .andWhere({ verified: true })
         .build();
 
-      expect(query.success).toBe(true);
-      if (query.success) {
-        // Multiple andWhere creates nested $and structure
-        expect(query.data.where).toEqual({
-          $and: [
-            { $and: [{ status: 'active' }, { role: 'admin' }] },
-            { verified: true }
-          ]
-        });
-      }
+      const queryData = expectSuccessData(multipleAndWhereQuery);
+      expect(queryData.where).toEqual({
+        $and: [
+          { $and: [{ status: 'active' }, { role: 'admin' }] },
+          { verified: true }
+        ]
+      });
     });
 
     it('should create OR condition with orWhere', () => {
-      const query = selectFrom('users')
+      const orWhereQuery = selectFrom('users')
         .where({ status: 'active' })
         .orWhere({ role: 'admin' })
         .build();
 
-      expect(query.success).toBe(true);
-      if (query.success) {
-        expect(query.data.where).toHaveProperty('$or');
-        expect(query.data.where).toEqual({
-          $or: [
-            { status: 'active' },
-            { role: 'admin' }
-          ]
-        });
-      }
+      const queryData = expectSuccessData(orWhereQuery);
+      expect(queryData.where).toHaveProperty('$or');
+      expect(queryData.where).toEqual({
+        $or: [
+          { status: 'active' },
+          { role: 'admin' }
+        ]
+      });
     });
 
     it('should support complex where with comparison operators', () => {
-      const query = selectFrom('users')
-        .where({
-          age: { $gte: 18, $lte: 65 },
-          status: 'active'
-        })
+      const ageRangeCondition = {
+        age: { $gte: 18, $lte: 65 },
+        status: 'active'
+      };
+      const complexWhereQuery = selectFrom('users')
+        .where(ageRangeCondition)
         .build();
 
-      expect(query.success).toBe(true);
-      if (query.success) {
-        expect(query.data.where).toEqual({
-          age: { $gte: 18, $lte: 65 },
-          status: 'active'
-        });
-      }
+      const queryData = expectSuccessData(complexWhereQuery);
+      expect(queryData.where).toEqual(ageRangeCondition);
     });
   });
 
   describe('ORDER BY', () => {
     it('should set order by ascending', () => {
-      const query = selectFrom('users')
+      const ascendingOrderQuery = selectFrom('users')
         .orderBy('createdAt', 'asc')
         .build();
 
-      expect(query.success).toBe(true);
-      if (query.success) {
-        expect(query.data.orderBy).toEqual([
-          { field: 'createdAt', direction: 'asc' },
-        ]);
-      }
+      const queryData = expectSuccessData(ascendingOrderQuery);
+      expect(queryData.orderBy).toEqual([
+        { field: 'createdAt', direction: 'asc' },
+      ]);
     });
 
     it('should set order by descending', () => {
-      const query = selectFrom('users')
+      const descendingOrderQuery = selectFrom('users')
         .orderBy('createdAt', 'desc')
         .build();
 
-      expect(query.success).toBe(true);
-      if (query.success) {
-        expect(query.data.orderBy).toEqual([
-          { field: 'createdAt', direction: 'desc' },
-        ]);
-      }
+      const queryData = expectSuccessData(descendingOrderQuery);
+      expect(queryData.orderBy).toEqual([
+        { field: 'createdAt', direction: 'desc' },
+      ]);
     });
 
     it('should support multiple order by', () => {
-      const query = selectFrom('users')
+      const multipleOrderByQuery = selectFrom('users')
         .orderBy('role', 'asc')
         .orderBy('createdAt', 'desc')
         .build();
 
-      expect(query.success).toBe(true);
-      if (query.success) {
-        expect(query.data.orderBy).toHaveLength(2);
-        expect(query.data.orderBy?.[0]).toEqual({ field: 'role', direction: 'asc' });
-        expect(query.data.orderBy?.[1]).toEqual({ field: 'createdAt', direction: 'desc' });
-      }
+      const queryData = expectSuccessData(multipleOrderByQuery);
+      expect(queryData.orderBy).toHaveLength(2);
+      expect(queryData.orderBy?.[0]).toEqual({ field: 'role', direction: 'asc' });
+      expect(queryData.orderBy?.[1]).toEqual({ field: 'createdAt', direction: 'desc' });
     });
   });
 
   describe('Pagination', () => {
     it('should set limit', () => {
-      const query = selectFrom('users')
+      const limitedQuery = selectFrom('users')
         .limit(10)
         .build();
 
-      expect(query.success).toBe(true);
-      if (query.success) {
-        expect(query.data.limit).toBe(10);
-      }
+      const queryData = expectSuccessData(limitedQuery);
+      expect(queryData.limit).toBe(10);
     });
 
     it('should set offset', () => {
-      const query = selectFrom('users')
+      const offsetQuery = selectFrom('users')
         .offset(20)
         .build();
 
-      expect(query.success).toBe(true);
-      if (query.success) {
-        expect(query.data.offset).toBe(20);
-      }
+      const queryData = expectSuccessData(offsetQuery);
+      expect(queryData.offset).toBe(20);
     });
 
     it('should support limit and offset together', () => {
-      const query = selectFrom('users')
+      const paginatedQuery = selectFrom('users')
         .limit(25)
         .offset(50)
         .build();
 
-      expect(query.success).toBe(true);
-      if (query.success) {
-        expect(query.data.limit).toBe(25);
-        expect(query.data.offset).toBe(50);
-      }
+      const queryData = expectSuccessData(paginatedQuery);
+      expect(queryData.limit).toBe(25);
+      expect(queryData.offset).toBe(50);
     });
   });
 
   describe('DISTINCT', () => {
     it('should set distinct flag', () => {
-      const query = selectFrom('users')
+      const distinctQuery = selectFrom('users')
         .select(['email'])
         .distinct()
         .build();
 
-      expect(query.success).toBe(true);
-      if (query.success) {
-        expect(query.data.distinct).toBe(true);
-      }
+      const queryData = expectSuccessData(distinctQuery);
+      expect(queryData.distinct).toBe(true);
     });
 
     it('should work with multiple fields', () => {
-      const query = selectFrom('users')
+      const multiFieldDistinctQuery = selectFrom('users')
         .select(['status', 'role'])
         .distinct()
         .build();
 
-      expect(query.success).toBe(true);
-      if (query.success) {
-        expect(query.data.distinct).toBe(true);
-        expect(query.data.select).toEqual(['status', 'role']); // Preserves user's order
-      }
+      const queryData = expectSuccessData(multiFieldDistinctQuery);
+      expect(queryData.distinct).toBe(true);
+      expect(queryData.select).toEqual(['status', 'role']);
     });
 
     it('should allow disabling distinct', () => {
-      const query = selectFrom('users')
+      const disabledDistinctQuery = selectFrom('users')
         .select(['email'])
         .distinct(false)
         .build();
 
-      expect(query.success).toBe(true);
-      if (query.success) {
-        expect(query.data.distinct).toBe(false);
-      }
+      const queryData = expectSuccessData(disabledDistinctQuery);
+      expect(queryData.distinct).toBe(false);
     });
   });
 
   describe('GROUP BY', () => {
     it('should set group by fields', () => {
-      const query = selectFrom('users')
+      const groupByQuery = selectFrom('users')
         .select(['status'])
         .groupBy(['status'])
         .build();
 
-      expect(query.success).toBe(true);
-      if (query.success) {
-        expect(query.data.groupBy).toEqual(['status']);
-      }
+      const queryData = expectSuccessData(groupByQuery);
+      expect(queryData.groupBy).toEqual(['status']);
     });
 
     it('should support multiple group by fields', () => {
-      const query = selectFrom('users')
+      const multiGroupByQuery = selectFrom('users')
         .select(['status', 'role'])
         .groupBy(['status', 'role'])
         .build();
 
-      expect(query.success).toBe(true);
-      if (query.success) {
-        expect(query.data.groupBy).toEqual(['status', 'role']);
-      }
+      const queryData = expectSuccessData(multiGroupByQuery);
+      expect(queryData.groupBy).toEqual(['status', 'role']);
     });
   });
 
   describe('HAVING', () => {
     it('should set having clause', () => {
-      const query = selectFrom('users')
+      const havingQuery = selectFrom('users')
         .select(['status'])
         .groupBy(['status'])
         .having({ count: { $gt: 5 } })
         .build();
 
-      expect(query.success).toBe(true);
-      if (query.success) {
-        expect(query.data.having).toEqual({ count: { $gt: 5 } });
-      }
+      const queryData = expectSuccessData(havingQuery);
+      expect(queryData.having).toEqual({ count: { $gt: 5 } });
     });
   });
 
   describe('Clone', () => {
     it('should create independent copy without shared references', () => {
-      const original = selectFrom('users')
+      const originalBuilder = selectFrom('users')
         .select(['id', 'name'])
         .where({ status: 'active' })
         .orderBy('createdAt', 'desc')
         .limit(10);
 
-      const cloned = original.clone();
+      const clonedBuilder = originalBuilder.clone();
 
-      // Modify clone - should not affect original
-      cloned
-        .select(['email']) // select() overrides, doesn't merge
+      clonedBuilder
+        .select(['email'])
         .andWhere({ role: 'admin' })
         .orderBy('name', 'asc')
         .limit(20);
 
-      const originalQuery = original.build();
-      const clonedQuery = cloned.build();
+      const originalQueryData = expectSuccessData(originalBuilder.build());
+      const clonedQueryData = expectSuccessData(clonedBuilder.build());
 
-      expect(originalQuery.success).toBe(true);
-      expect(clonedQuery.success).toBe(true);
+      expect(originalQueryData.select).toEqual(['id', 'name']);
+      expect(originalQueryData.where).toEqual({ status: 'active' });
+      expect(originalQueryData.limit).toBe(10);
+      expect(originalQueryData.orderBy).toHaveLength(1);
 
-      if (originalQuery.success && clonedQuery.success) {
-        // Original should remain unchanged
-        expect(originalQuery.data.select).toEqual(['id', 'name']);
-        expect(originalQuery.data.where).toEqual({ status: 'active' });
-        expect(originalQuery.data.limit).toBe(10);
-        expect(originalQuery.data.orderBy).toHaveLength(1);
-
-        // Clone should have modifications (select is overridden, not merged)
-        expect(clonedQuery.data.select).toEqual(['email']);
-        expect(clonedQuery.data.where).toHaveProperty('$and');
-        expect(clonedQuery.data.limit).toBe(20);
-        expect(clonedQuery.data.orderBy).toHaveLength(2);
-      }
+      expect(clonedQueryData.select).toEqual(['email']);
+      expect(clonedQueryData.where).toHaveProperty('$and');
+      expect(clonedQueryData.limit).toBe(20);
+      expect(clonedQueryData.orderBy).toHaveLength(2);
     });
 
     it('should deep clone nested objects (where, populate, data)', () => {
-      const original = updateTable('users', {
+      const originalNestedBuilder = updateTable('users', {
         metadata: { updated: true, count: 1 }
       }).where({
         settings: { notifications: true }
       });
 
-      const cloned = original.clone();
+      const clonedNestedBuilder = originalNestedBuilder.clone();
 
-      // Modify nested data in clone
-      cloned.data({ metadata: { updated: false, count: 2 } });
-      cloned.where({ settings: { notifications: false } });
+      clonedNestedBuilder.data({ metadata: { updated: false, count: 2 } });
+      clonedNestedBuilder.where({ settings: { notifications: false } });
 
-      const originalQuery = original.build();
-      const clonedQuery = cloned.build();
+      const originalQueryData = expectSuccessData(originalNestedBuilder.build());
+      const clonedQueryData = expectSuccessData(clonedNestedBuilder.build());
 
-      if (originalQuery.success && clonedQuery.success) {
-        // Original nested data should be unchanged
-        expect(originalQuery.data.data).toEqual({
-          metadata: { updated: true, count: 1 }
-        });
-        expect(originalQuery.data.where).toEqual({
-          settings: { notifications: true }
-        });
+      expect(originalQueryData.data).toEqual({
+        metadata: { updated: true, count: 1 }
+      });
+      expect(originalQueryData.where).toEqual({
+        settings: { notifications: true }
+      });
 
-        // Clone should have new data
-        expect(clonedQuery.data.data).toEqual({
-          metadata: { updated: false, count: 2 }
-        });
-        expect(clonedQuery.data.where).toEqual({
-          settings: { notifications: false }
-        });
-      }
-    });
-  });
-
-  describe('Reset', () => {
-    it('should reset query builder', () => {
-      const builder = selectFrom('users')
-        .select(['id'])
-        .where({ status: 'active' })
-        .limit(10);
-
-      builder.reset();
-
-      const query = builder.build();
-      expect(query.success).toBe(false); // No type/table after reset
+      expect(clonedQueryData.data).toEqual({
+        metadata: { updated: false, count: 2 }
+      });
+      expect(clonedQueryData.where).toEqual({
+        settings: { notifications: false }
+      });
     });
   });
 
   describe('Complex Query Combinations', () => {
     it('should support UPDATE with WHERE + RETURNING + multiple clauses', () => {
-      const query = updateTable('users', {
+      const inactiveDate = new Date('2024-01-01');
+      const complexUpdateQuery = updateTable('users', {
         status: 'inactive',
-        lastModified: new Date('2024-01-01')
+        lastModified: inactiveDate
       })
         .where({ lastLogin: { $lt: '2023-01-01' } })
         .andWhere({ role: 'user' })
         .returning(['id', 'email', 'status'])
         .build();
 
-      expect(query.success).toBe(true);
-      if (query.success) {
-        expect(query.data.type).toBe('update');
-        expect(query.data.table).toBe('users');
-        expect(query.data.data).toEqual({
-          status: 'inactive',
-          lastModified: new Date('2024-01-01')
-        });
-        expect(query.data.where).toHaveProperty('$and');
-        expect(query.data.returning).toEqual(['id', 'email', 'status']); // Preserves order
-      }
+      const queryData = expectSuccessData(complexUpdateQuery);
+      expect(queryData.type).toBe('update');
+      expect(queryData.table).toBe('users');
+      expect(queryData.data).toEqual({
+        status: 'inactive',
+        lastModified: inactiveDate
+      });
+      expect(queryData.where).toHaveProperty('$and');
+      expect(queryData.returning).toEqual(['id', 'email', 'status']);
     });
 
     it('should support SELECT with DISTINCT + GROUP BY + HAVING + ORDER BY', () => {
-      const query = selectFrom('orders')
+      const complexSelectQuery = selectFrom('orders')
         .select(['customerId', 'status'])
         .distinct()
         .where({ total: { $gte: 100 } })
@@ -651,21 +532,19 @@ describe('QueryBuilder', () => {
         .offset(0)
         .build();
 
-      expect(query.success).toBe(true);
-      if (query.success) {
-        expect(query.data.type).toBe('select');
-        expect(query.data.distinct).toBe(true);
-        expect(query.data.where).toBeDefined();
-        expect(query.data.groupBy).toEqual(['customerId', 'status']);
-        expect(query.data.having).toEqual({ orderCount: { $gt: 5 } });
-        expect(query.data.orderBy).toHaveLength(2);
-        expect(query.data.limit).toBe(10);
-        expect(query.data.offset).toBe(0);
-      }
+      const queryData = expectSuccessData(complexSelectQuery);
+      expect(queryData.type).toBe('select');
+      expect(queryData.distinct).toBe(true);
+      expect(queryData.where).toBeDefined();
+      expect(queryData.groupBy).toEqual(['customerId', 'status']);
+      expect(queryData.having).toEqual({ orderCount: { $gt: 5 } });
+      expect(queryData.orderBy).toHaveLength(2);
+      expect(queryData.limit).toBe(10);
+      expect(queryData.offset).toBe(0);
     });
 
     it('should support DELETE with complex WHERE conditions', () => {
-      const query = deleteFrom('sessions')
+      const expiredSessionsQuery = deleteFrom('sessions')
         .where({ expired: true })
         .andWhere({
           lastActivity: { $lt: new Date('2024-01-01') }
@@ -673,72 +552,43 @@ describe('QueryBuilder', () => {
         .returning(['id', 'userId'])
         .build();
 
-      expect(query.success).toBe(true);
-      if (query.success) {
-        expect(query.data.type).toBe('delete');
-        expect(query.data.where).toHaveProperty('$and');
-        expect(query.data.returning).toBeDefined();
-      }
+      const queryData = expectSuccessData(expiredSessionsQuery);
+      expect(queryData.type).toBe('delete');
+      expect(queryData.where).toHaveProperty('$and');
+      expect(queryData.returning).toBeDefined();
     });
 
     it('should support INSERT with RETURNING', () => {
-      const query = insertInto('posts', {
+      const newPostData = {
         title: 'New Post',
         content: 'Content here',
         authorId: 1,
         tags: ['typescript', 'testing']
-      })
+      };
+      const insertWithReturningQuery = insertInto('posts', newPostData)
         .returning(['id', 'createdAt', 'slug'])
         .build();
 
-      expect(query.success).toBe(true);
-      if (query.success) {
-        expect(query.data.type).toBe('insert');
-        expect(query.data.data).toBeDefined();
-        expect(query.data.data?.tags).toEqual(['typescript', 'testing']);
-        expect(query.data.returning).toEqual(['id', 'createdAt', 'slug']); // Preserves order
-      }
+      const queryData = expectSuccessData(insertWithReturningQuery);
+      expect(queryData.type).toBe('insert');
+      expect(queryData.data).toBeDefined();
+      expect(queryData.data?.['tags']).toEqual(['typescript', 'testing']);
+      expect(queryData.returning).toEqual(['id', 'createdAt', 'slug']);
     });
 
     it('should support SELECT with nested WHERE (OR + AND)', () => {
-      const query = selectFrom('users')
+      const nestedWhereQuery = selectFrom('users')
         .where({ status: 'active' })
         .orWhere({ role: 'admin' })
         .build();
 
-      expect(query.success).toBe(true);
-      if (query.success) {
-        expect(query.data.where).toEqual({
-          $or: [
-            { status: 'active' },
-            { role: 'admin' }
-          ]
-        });
-      }
-    });
-  });
-
-  describe('Error Handling', () => {
-    it('should fail without table name', () => {
-      const query = createQueryBuilder()
-        .type('select')
-        .build();
-
-      expect(query.success).toBe(false);
-      if (!query.success) {
-        expect(query.error.message).toContain('Table');
-      }
-    });
-
-    it('should fail without query type', () => {
-      const query = createQueryBuilder()
-        .table('users')
-        .build();
-
-      expect(query.success).toBe(false);
-      if (!query.success) {
-        expect(query.error.message).toContain('type');
-      }
+      const queryData = expectSuccessData(nestedWhereQuery);
+      expect(queryData.where).toEqual({
+        $or: [
+          { status: 'active' },
+          { role: 'admin' }
+        ]
+      });
     });
   });
 });

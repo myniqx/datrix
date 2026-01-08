@@ -18,11 +18,8 @@
  * 3. DO NOT weaken tests without user approval
  */
 
+import { createPostgresAdapter, PostgresAdapter, PostgresConfig } from '../src';
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { PostgresAdapter, createPostgresAdapter } from '@adapters/postgres/adapter';
-import type { PostgresConfig } from '@adapters/postgres/types';
-import type { Transaction, AlterOperation } from '@adapters/base/types';
-import type { SchemaDefinition } from '@core/schema/types';
 
 // =============================================================================
 // Test Setup

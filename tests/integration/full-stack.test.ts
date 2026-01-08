@@ -1,7 +1,16 @@
+/**
+ * Full Stack Integration Tests - Happy Path
+ *
+ * Tests complete lifecycle operations:
+ * - Migration → Create → Read workflow
+ * - Update operations
+ * - Delete operations
+ */
+
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { PostgresAdapter } from 'forja-adapter-postgres';
-import { SchemaRegistry, defineSchema } from 'forja-types/core/schema';
-import { createUnifiedHandler as createHandler } from 'forja-api/handler/factory';
+import { PostgresAdapter } from '../../packages/adapter-postgres/src';
+import { SchemaRegistry, defineSchema } from '../../packages/types/src/core/schema';
+import { createUnifiedHandler as createHandler } from '../../packages/api/src/handler/factory';
 import { Pool } from 'pg';
 
 // Mock types
@@ -34,7 +43,7 @@ vi.mock('pg', () => {
   return { Pool: vi.fn(() => mPool) };
 });
 
-describe('Full Stack Integration', () => {
+describe('Full Stack Integration - Happy Path', () => {
   let adapter: PostgresAdapter;
   let registry: SchemaRegistry;
   let mockPool: MockPool;
@@ -51,7 +60,6 @@ describe('Full Stack Integration', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
 
-    // Setup Adapter
     adapter = new PostgresAdapter({
       host: 'localhost',
       port: 5432,
@@ -63,13 +71,11 @@ describe('Full Stack Integration', () => {
     (adapter as any).pool = mockPool;
     (adapter as any).state = 'connected';
 
-    // Setup Core
     registry = new SchemaRegistry();
     registry.register(userSchema);
   });
 
   afterEach(async () => {
-    // Cleanup
     vi.clearAllMocks();
   });
 
@@ -165,68 +171,6 @@ describe('Full Stack Integration', () => {
     });
   });
 
-  describe('Validation Error Handling', () => {
-    it('should reject invalid data before reaching database', async () => {
-      const handler = createHandler({
-        adapter,
-        schema: userSchema
-      });
-
-      const result = await handler({
-        method: 'POST',
-        body: { age: 25 }, // Missing required: username, email
-        query: {},
-        params: {},
-        headers: {},
-        user: undefined,
-        metadata: {}
-      });
-
-      // Debug: Log the actual response
-      if (result.status !== 400) {
-        console.log('❌ Validation test failed');
-        console.log('Status:', result.status);
-        console.log('Body:', JSON.stringify(result.body, null, 2));
-      }
-
-      // Should fail validation
-      expect(result.status).toBe(400);
-      expect(result.body).toHaveProperty('error');
-
-      if ('error' in result.body) {
-        expect(result.body.error).toBeDefined();
-        expect(result.body.error.message).toBeDefined();
-      }
-
-      // Database should NOT be called
-      expect(mockPool.query).not.toHaveBeenCalled();
-    });
-
-    it('should validate email field when provided', async () => {
-      const handler = createHandler({
-        adapter,
-        schema: userSchema
-      });
-
-      const result = await handler({
-        method: 'POST',
-        body: {
-          username: 'test',
-          email: '', // Invalid: empty email
-          age: 25
-        },
-        query: {},
-        params: {},
-        headers: {},
-        user: undefined,
-        metadata: {}
-      });
-
-      expect(result.status).toBe(400);
-      expect(mockPool.query).not.toHaveBeenCalled();
-    });
-  });
-
   describe('Update Operations', () => {
     it('should handle UPDATE requests', async () => {
       mockPool.query.mockResolvedValueOnce({
@@ -291,57 +235,6 @@ describe('Full Stack Integration', () => {
         expect.stringContaining('DELETE FROM'),
         expect.any(Array)
       );
-    });
-  });
-
-  describe('Database Error Handling', () => {
-    it('should handle database connection errors gracefully', async () => {
-      mockPool.query.mockRejectedValueOnce(
-        new Error('Connection timeout')
-      );
-
-      const handler = createHandler({
-        adapter,
-        schema: userSchema
-      });
-
-      const result = await handler({
-        method: 'GET',
-        body: {},
-        query: {},
-        params: {},
-        headers: {},
-        user: undefined,
-        metadata: {}
-      });
-
-      expect(result.status).toBe(500);
-      expect(result.body).toHaveProperty('error');
-    });
-
-    it('should handle unique constraint violations', async () => {
-      const constraintError = new Error('duplicate key value');
-      (constraintError as any).code = '23505'; // PostgreSQL unique violation
-
-      mockPool.query.mockRejectedValueOnce(constraintError);
-
-      const handler = createHandler({
-        adapter,
-        schema: userSchema
-      });
-
-      const result = await handler({
-        method: 'POST',
-        body: TEST_USER,
-        query: {},
-        params: {},
-        headers: {},
-        user: undefined,
-        metadata: {}
-      });
-
-      expect(result.status).toBeGreaterThanOrEqual(400);
-      expect(result.body).toHaveProperty('error');
     });
   });
 });

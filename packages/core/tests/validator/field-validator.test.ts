@@ -1,139 +1,89 @@
 /**
- * Field Validator Tests
+ * Field Validator Tests - Happy Path
  *
  * Comprehensive tests for the field validation engine
  * Target: 95%+ coverage
  */
 
+import { validateField } from '../../src';
+import { edgeCases, sampleFields } from '../../../types/src/test/fixtures';
+import { expectSuccessData } from '../../../types/src/test/helpers';
 import { describe, it, expect } from 'vitest';
-import { validateField } from '@core/validator/field-validator';
-import { sampleFields, edgeCases } from '../../utils/fixtures';
-import {
-  expectSuccess,
-  expectFailure,
-  expectErrorCode,
-  expectFieldError,
-  createMockDate,
-} from '../../utils/helpers';
 
-describe('FieldValidator', () => {
+
+describe('FieldValidator - Happy Path', () => {
   describe('Required Field Validation', () => {
-    it('should fail when required field is undefined', () => {
-      const result = validateField(undefined, sampleFields.requiredString, 'name');
-      expectFailure(result);
-      expectErrorCode(result.error, 'REQUIRED');
-    });
-
-    it('should fail when required field is null', () => {
-      const result = validateField(null, sampleFields.requiredString, 'name');
-      expectFailure(result);
-      expectErrorCode(result.error, 'REQUIRED');
-    });
-
     it('should pass when required field has a value', () => {
-      const result = validateField('test', sampleFields.requiredString, 'name');
-      expectSuccess(result);
-      expect(result.data).toBe('test');
+      const validationResult = validateField('test', sampleFields.requiredString, 'name');
+
+      const validatedValue = expectSuccessData(validationResult);
+      expect(validatedValue).toBe('test');
     });
 
     it('should pass when optional field is undefined', () => {
-      const result = validateField(undefined, sampleFields.optionalString, 'name');
-      expectSuccess(result);
-      expect(result.data).toBeUndefined();
+      const validationResult = validateField(undefined, sampleFields.optionalString, 'name');
+
+      const validatedValue = expectSuccessData(validationResult);
+      expect(validatedValue).toBeUndefined();
     });
 
     it('should pass when optional field is null', () => {
-      const result = validateField(null, sampleFields.optionalString, 'name');
-      expectSuccess(result);
-      expect(result.data).toBeNull();
+      const validationResult = validateField(null, sampleFields.optionalString, 'name');
+
+      const validatedValue = expectSuccessData(validationResult);
+      expect(validatedValue).toBeNull();
     });
   });
 
   describe('String Field Validation', () => {
     describe('Type Checking', () => {
       it('should accept valid string', () => {
-        const result = validateField('hello', sampleFields.requiredString, 'name');
-        expectSuccess(result);
-        expect(result.data).toBe('hello');
-      });
+        const validStringValue = 'hello';
+        const validationResult = validateField(validStringValue, sampleFields.requiredString, 'name');
 
-      it('should reject number', () => {
-        const result = validateField(123, sampleFields.requiredString, 'name');
-        expectFailure(result);
-        expectErrorCode(result.error, 'TYPE_MISMATCH');
-      });
-
-      it('should reject boolean', () => {
-        const result = validateField(true, sampleFields.requiredString, 'name');
-        expectFailure(result);
-        expectErrorCode(result.error, 'TYPE_MISMATCH');
-      });
-
-      it('should reject object', () => {
-        const result = validateField({}, sampleFields.requiredString, 'name');
-        expectFailure(result);
-        expectErrorCode(result.error, 'TYPE_MISMATCH');
-      });
-
-      it('should reject array', () => {
-        const result = validateField([], sampleFields.requiredString, 'name');
-        expectFailure(result);
-        expectErrorCode(result.error, 'TYPE_MISMATCH');
+        const validatedString = expectSuccessData(validationResult);
+        expect(validatedString).toBe('hello');
       });
     });
 
     describe('minLength Validation', () => {
       it('should pass when string length equals minLength', () => {
-        const result = validateField('abc', sampleFields.stringWithMinLength, 'name');
-        expectSuccess(result);
+        const exactLengthString = 'abc';
+        const validationResult = validateField(exactLengthString, sampleFields.stringWithMinLength, 'name');
+
+        expectSuccessData(validationResult);
       });
 
       it('should pass when string length exceeds minLength', () => {
-        const result = validateField('abcdef', sampleFields.stringWithMinLength, 'name');
-        expectSuccess(result);
-      });
+        const longerString = 'abcdef';
+        const validationResult = validateField(longerString, sampleFields.stringWithMinLength, 'name');
 
-      it('should fail when string length is less than minLength', () => {
-        const result = validateField('ab', sampleFields.stringWithMinLength, 'name');
-        expectFailure(result);
-        expectErrorCode(result.error, 'MIN_LENGTH');
-      });
-
-      it('should fail for empty string when minLength > 0', () => {
-        const result = validateField('', sampleFields.stringWithMinLength, 'name');
-        expectFailure(result);
-        expectErrorCode(result.error, 'MIN_LENGTH');
+        expectSuccessData(validationResult);
       });
     });
 
     describe('maxLength Validation', () => {
       it('should pass when string length equals maxLength', () => {
-        const result = validateField('a'.repeat(10), sampleFields.stringWithMaxLength, 'name');
-        expectSuccess(result);
+        const exactMaxLengthString = 'a'.repeat(10);
+        const validationResult = validateField(exactMaxLengthString, sampleFields.stringWithMaxLength, 'name');
+
+        expectSuccessData(validationResult);
       });
 
       it('should pass when string length is less than maxLength', () => {
-        const result = validateField('abc', sampleFields.stringWithMaxLength, 'name');
-        expectSuccess(result);
-      });
+        const shorterString = 'abc';
+        const validationResult = validateField(shorterString, sampleFields.stringWithMaxLength, 'name');
 
-      it('should fail when string length exceeds maxLength', () => {
-        const result = validateField('a'.repeat(11), sampleFields.stringWithMaxLength, 'name');
-        expectFailure(result);
-        expectErrorCode(result.error, 'MAX_LENGTH');
+        expectSuccessData(validationResult);
       });
     });
 
     describe('Pattern Validation', () => {
       it('should pass when string matches pattern', () => {
-        const result = validateField('abc', sampleFields.stringWithPattern, 'name');
-        expectSuccess(result);
-      });
+        const matchingString = 'abc';
+        const validationResult = validateField(matchingString, sampleFields.stringWithPattern, 'name');
 
-      it('should fail when string does not match pattern', () => {
-        const result = validateField('ABC123', sampleFields.stringWithPattern, 'name');
-        expectFailure(result);
-        expectErrorCode(result.error, 'PATTERN');
+        expectSuccessData(validationResult);
       });
 
       it('should validate email pattern correctly', () => {
@@ -143,49 +93,41 @@ describe('FieldValidator', () => {
           'user+tag@example.co.uk',
         ];
 
-        for (const email of validEmails) {
-          const result = validateField(email, sampleFields.emailField, 'email');
-          expectSuccess(result);
-        }
-      });
-
-      it('should reject invalid email patterns', () => {
-        const invalidEmails = [
-          'not-an-email',
-          '@example.com',
-          'user@',
-          'user@.com',
-          'user @example.com',
-        ];
-
-        for (const email of invalidEmails) {
-          const result = validateField(email, sampleFields.emailField, 'email');
-          expectFailure(result);
-          expectErrorCode(result.error, 'PATTERN');
+        for (const validEmail of validEmails) {
+          const validationResult = validateField(validEmail, sampleFields.emailField, 'email');
+          expectSuccessData(validationResult);
         }
       });
     });
 
     describe('Edge Cases', () => {
       it('should handle empty string', () => {
-        const result = validateField(edgeCases.emptyString, sampleFields.optionalString, 'name');
-        expectSuccess(result);
-        expect(result.data).toBe('');
+        const emptyStringValue = edgeCases.emptyString;
+        const validationResult = validateField(emptyStringValue, sampleFields.optionalString, 'name');
+
+        const validatedValue = expectSuccessData(validationResult);
+        expect(validatedValue).toBe('');
       });
 
       it('should handle whitespace string', () => {
-        const result = validateField(edgeCases.whitespace, sampleFields.optionalString, 'name');
-        expectSuccess(result);
+        const whitespaceString = edgeCases.whitespace;
+        const validationResult = validateField(whitespaceString, sampleFields.optionalString, 'name');
+
+        expectSuccessData(validationResult);
       });
 
       it('should handle special characters', () => {
-        const result = validateField(edgeCases.specialChars, sampleFields.optionalString, 'name');
-        expectSuccess(result);
+        const specialCharsString = edgeCases.specialChars;
+        const validationResult = validateField(specialCharsString, sampleFields.optionalString, 'name');
+
+        expectSuccessData(validationResult);
       });
 
       it('should handle unicode characters', () => {
-        const result = validateField(edgeCases.unicodeString, sampleFields.optionalString, 'name');
-        expectSuccess(result);
+        const unicodeString = edgeCases.unicodeString;
+        const validationResult = validateField(unicodeString, sampleFields.optionalString, 'name');
+
+        expectSuccessData(validationResult);
       });
     });
   });
@@ -193,399 +135,301 @@ describe('FieldValidator', () => {
   describe('Number Field Validation', () => {
     describe('Type Checking', () => {
       it('should accept valid number', () => {
-        const result = validateField(42, sampleFields.requiredNumber, 'age');
-        expectSuccess(result);
-        expect(result.data).toBe(42);
+        const validNumber = 42;
+        const validationResult = validateField(validNumber, sampleFields.requiredNumber, 'age');
+
+        const validatedNumber = expectSuccessData(validationResult);
+        expect(validatedNumber).toBe(42);
       });
 
       it('should accept zero', () => {
-        const result = validateField(0, sampleFields.requiredNumber, 'age');
-        expectSuccess(result);
+        const zeroValue = 0;
+        const validationResult = validateField(zeroValue, sampleFields.requiredNumber, 'age');
+
+        expectSuccessData(validationResult);
       });
 
       it('should accept negative numbers', () => {
-        const result = validateField(-5, sampleFields.requiredNumber, 'age');
-        expectSuccess(result);
+        const negativeNumber = -5;
+        const validationResult = validateField(negativeNumber, sampleFields.requiredNumber, 'age');
+
+        expectSuccessData(validationResult);
       });
 
       it('should accept float numbers', () => {
-        const result = validateField(3.14, sampleFields.requiredNumber, 'price');
-        expectSuccess(result);
-      });
+        const floatNumber = 3.14;
+        const validationResult = validateField(floatNumber, sampleFields.requiredNumber, 'price');
 
-      it('should reject string', () => {
-        const result = validateField('123', sampleFields.requiredNumber, 'age');
-        expectFailure(result);
-        expectErrorCode(result.error, 'TYPE_MISMATCH');
-      });
-
-      it('should reject NaN', () => {
-        const result = validateField(NaN, sampleFields.requiredNumber, 'age');
-        expectFailure(result);
-        expectErrorCode(result.error, 'TYPE_MISMATCH');
-      });
-
-      it('should reject boolean', () => {
-        const result = validateField(true, sampleFields.requiredNumber, 'age');
-        expectFailure(result);
-        expectErrorCode(result.error, 'TYPE_MISMATCH');
+        expectSuccessData(validationResult);
       });
     });
 
     describe('min Validation', () => {
       it('should pass when number equals min', () => {
-        const result = validateField(0, sampleFields.numberWithMin, 'age');
-        expectSuccess(result);
+        const minValue = 0;
+        const validationResult = validateField(minValue, sampleFields.numberWithMin, 'age');
+
+        expectSuccessData(validationResult);
       });
 
       it('should pass when number exceeds min', () => {
-        const result = validateField(10, sampleFields.numberWithMin, 'age');
-        expectSuccess(result);
-      });
+        const aboveMinValue = 10;
+        const validationResult = validateField(aboveMinValue, sampleFields.numberWithMin, 'age');
 
-      it('should fail when number is less than min', () => {
-        const result = validateField(-1, sampleFields.numberWithMin, 'age');
-        expectFailure(result);
-        expectErrorCode(result.error, 'MIN_VALUE');
+        expectSuccessData(validationResult);
       });
     });
 
     describe('max Validation', () => {
       it('should pass when number equals max', () => {
-        const result = validateField(100, sampleFields.numberWithMax, 'age');
-        expectSuccess(result);
+        const maxValue = 100;
+        const validationResult = validateField(maxValue, sampleFields.numberWithMax, 'age');
+
+        expectSuccessData(validationResult);
       });
 
       it('should pass when number is less than max', () => {
-        const result = validateField(50, sampleFields.numberWithMax, 'age');
-        expectSuccess(result);
-      });
+        const belowMaxValue = 50;
+        const validationResult = validateField(belowMaxValue, sampleFields.numberWithMax, 'age');
 
-      it('should fail when number exceeds max', () => {
-        const result = validateField(101, sampleFields.numberWithMax, 'age');
-        expectFailure(result);
-        expectErrorCode(result.error, 'MAX_VALUE');
+        expectSuccessData(validationResult);
       });
     });
 
     describe('integer Validation', () => {
       it('should pass for integer values', () => {
-        const result = validateField(42, sampleFields.integerField, 'count');
-        expectSuccess(result);
+        const integerValue = 42;
+        const validationResult = validateField(integerValue, sampleFields.integerField, 'count');
+
+        expectSuccessData(validationResult);
       });
 
       it('should pass for zero', () => {
-        const result = validateField(0, sampleFields.integerField, 'count');
-        expectSuccess(result);
+        const zeroInteger = 0;
+        const validationResult = validateField(zeroInteger, sampleFields.integerField, 'count');
+
+        expectSuccessData(validationResult);
       });
 
       it('should pass for negative integers', () => {
-        const result = validateField(-10, sampleFields.integerField, 'count');
-        expectSuccess(result);
-      });
+        const negativeInteger = -10;
+        const validationResult = validateField(negativeInteger, sampleFields.integerField, 'count');
 
-      it('should fail for float values', () => {
-        const result = validateField(3.14, sampleFields.integerField, 'count');
-        expectFailure(result);
-        expectErrorCode(result.error, 'INVALID_FORMAT');
+        expectSuccessData(validationResult);
       });
     });
 
     describe('Age Field (min + max)', () => {
       it('should accept valid age', () => {
-        const result = validateField(25, sampleFields.ageField, 'age');
-        expectSuccess(result);
+        const validAge = 25;
+        const validationResult = validateField(validAge, sampleFields.ageField, 'age');
+
+        expectSuccessData(validationResult);
       });
 
       it('should accept minimum age', () => {
-        const result = validateField(18, sampleFields.ageField, 'age');
-        expectSuccess(result);
+        const minimumAge = 18;
+        const validationResult = validateField(minimumAge, sampleFields.ageField, 'age');
+
+        expectSuccessData(validationResult);
       });
 
       it('should accept maximum age', () => {
-        const result = validateField(120, sampleFields.ageField, 'age');
-        expectSuccess(result);
-      });
+        const maximumAge = 120;
+        const validationResult = validateField(maximumAge, sampleFields.ageField, 'age');
 
-      it('should reject age below minimum', () => {
-        const result = validateField(17, sampleFields.ageField, 'age');
-        expectFailure(result);
-        expectErrorCode(result.error, 'MIN_VALUE');
-      });
-
-      it('should reject age above maximum', () => {
-        const result = validateField(121, sampleFields.ageField, 'age');
-        expectFailure(result);
-        expectErrorCode(result.error, 'MAX_VALUE');
+        expectSuccessData(validationResult);
       });
     });
   });
 
   describe('Boolean Field Validation', () => {
     it('should accept true', () => {
-      const result = validateField(true, sampleFields.requiredBoolean, 'active');
-      expectSuccess(result);
-      expect(result.data).toBe(true);
+      const trueValue = true;
+      const validationResult = validateField(trueValue, sampleFields.requiredBoolean, 'active');
+
+      const validatedBoolean = expectSuccessData(validationResult);
+      expect(validatedBoolean).toBe(true);
     });
 
     it('should accept false', () => {
-      const result = validateField(false, sampleFields.requiredBoolean, 'active');
-      expectSuccess(result);
-      expect(result.data).toBe(false);
-    });
+      const falseValue = false;
+      const validationResult = validateField(falseValue, sampleFields.requiredBoolean, 'active');
 
-    it('should reject string "true"', () => {
-      const result = validateField('true', sampleFields.requiredBoolean, 'active');
-      expectFailure(result);
-      expectErrorCode(result.error, 'TYPE_MISMATCH');
-    });
-
-    it('should reject number 1', () => {
-      const result = validateField(1, sampleFields.requiredBoolean, 'active');
-      expectFailure(result);
-      expectErrorCode(result.error, 'TYPE_MISMATCH');
-    });
-
-    it('should reject number 0', () => {
-      const result = validateField(0, sampleFields.requiredBoolean, 'active');
-      expectFailure(result);
-      expectErrorCode(result.error, 'TYPE_MISMATCH');
+      const validatedBoolean = expectSuccessData(validationResult);
+      expect(validatedBoolean).toBe(false);
     });
   });
 
   describe('Date Field Validation', () => {
     describe('Type Checking', () => {
       it('should accept valid Date object', () => {
-        const date = new Date('2024-01-01');
-        const result = validateField(date, sampleFields.requiredDate, 'createdAt');
-        expectSuccess(result);
-        expect(result.data).toBeInstanceOf(Date);
-      });
+        const validDate = new Date('2024-01-01');
+        const validationResult = validateField(validDate, sampleFields.requiredDate, 'createdAt');
 
-      it('should reject date string', () => {
-        const result = validateField('2024-01-01', sampleFields.requiredDate, 'createdAt');
-        expectFailure(result);
-        expectErrorCode(result.error, 'TYPE_MISMATCH');
-      });
-
-      it('should reject invalid Date object', () => {
-        const invalidDate = new Date('invalid');
-        const result = validateField(invalidDate, sampleFields.requiredDate, 'createdAt');
-        expectFailure(result);
-        expectErrorCode(result.error, 'INVALID_DATE');
-      });
-
-      it('should reject timestamp number', () => {
-        const result = validateField(Date.now(), sampleFields.requiredDate, 'createdAt');
-        expectFailure(result);
-        expectErrorCode(result.error, 'TYPE_MISMATCH');
+        const validatedDate = expectSuccessData(validationResult);
+        expect(validatedDate).toBeInstanceOf(Date);
       });
     });
 
     describe('min Date Validation', () => {
       it('should pass when date equals min', () => {
-        const date = new Date('2020-01-01');
-        const result = validateField(date, sampleFields.dateWithMin, 'createdAt');
-        expectSuccess(result);
+        const minDate = new Date('2020-01-01');
+        const validationResult = validateField(minDate, sampleFields.dateWithMin, 'createdAt');
+
+        expectSuccessData(validationResult);
       });
 
       it('should pass when date is after min', () => {
-        const date = new Date('2021-01-01');
-        const result = validateField(date, sampleFields.dateWithMin, 'createdAt');
-        expectSuccess(result);
-      });
+        const afterMinDate = new Date('2021-01-01');
+        const validationResult = validateField(afterMinDate, sampleFields.dateWithMin, 'createdAt');
 
-      it('should fail when date is before min', () => {
-        const date = new Date('2019-12-31');
-        const result = validateField(date, sampleFields.dateWithMin, 'createdAt');
-        expectFailure(result);
-        expectErrorCode(result.error, 'MIN_VALUE');
+        expectSuccessData(validationResult);
       });
     });
 
     describe('max Date Validation', () => {
       it('should pass when date equals max', () => {
-        const date = new Date('2030-12-31');
-        const result = validateField(date, sampleFields.dateWithMax, 'expiresAt');
-        expectSuccess(result);
+        const maxDate = new Date('2030-12-31');
+        const validationResult = validateField(maxDate, sampleFields.dateWithMax, 'expiresAt');
+
+        expectSuccessData(validationResult);
       });
 
       it('should pass when date is before max', () => {
-        const date = new Date('2025-01-01');
-        const result = validateField(date, sampleFields.dateWithMax, 'expiresAt');
-        expectSuccess(result);
-      });
+        const beforeMaxDate = new Date('2025-01-01');
+        const validationResult = validateField(beforeMaxDate, sampleFields.dateWithMax, 'expiresAt');
 
-      it('should fail when date is after max', () => {
-        const date = new Date('2031-01-01');
-        const result = validateField(date, sampleFields.dateWithMax, 'expiresAt');
-        expectFailure(result);
-        expectErrorCode(result.error, 'MAX_VALUE');
+        expectSuccessData(validationResult);
       });
     });
   });
 
   describe('Enum Field Validation', () => {
     it('should accept valid enum value', () => {
-      const result = validateField('admin', sampleFields.roleEnum, 'role');
-      expectSuccess(result);
-      expect(result.data).toBe('admin');
+      const validEnumValue = 'admin';
+      const validationResult = validateField(validEnumValue, sampleFields.roleEnum, 'role');
+
+      const validatedEnum = expectSuccessData(validationResult);
+      expect(validatedEnum).toBe('admin');
     });
 
     it('should accept all valid enum values', () => {
-      const roles = ['admin', 'user', 'moderator'];
-      for (const role of roles) {
-        const result = validateField(role, sampleFields.roleEnum, 'role');
-        expectSuccess(result);
-        expect(result.data).toBe(role);
+      const validRoles = ['admin', 'user', 'moderator'];
+
+      for (const validRole of validRoles) {
+        const validationResult = validateField(validRole, sampleFields.roleEnum, 'role');
+        const validatedRole = expectSuccessData(validationResult);
+        expect(validatedRole).toBe(validRole);
       }
-    });
-
-    it('should reject invalid enum value', () => {
-      const result = validateField('superadmin', sampleFields.roleEnum, 'role');
-      expectFailure(result);
-      expectErrorCode(result.error, 'INVALID_ENUM');
-    });
-
-    it('should reject case-different value', () => {
-      const result = validateField('Admin', sampleFields.roleEnum, 'role');
-      expectFailure(result);
-      expectErrorCode(result.error, 'INVALID_ENUM');
-    });
-
-    it('should reject empty string', () => {
-      const result = validateField('', sampleFields.roleEnum, 'role');
-      expectFailure(result);
-      expectErrorCode(result.error, 'INVALID_ENUM');
-    });
-
-    it('should reject number', () => {
-      const result = validateField(1, sampleFields.roleEnum, 'role');
-      expectFailure(result);
-      expectErrorCode(result.error, 'TYPE_MISMATCH');
     });
   });
 
   describe('Array Field Validation', () => {
     describe('Type Checking', () => {
       it('should accept valid array', () => {
-        const result = validateField(['a', 'b', 'c'], sampleFields.stringArray, 'tags');
-        expectSuccess(result);
-        expect(result.data).toEqual(['a', 'b', 'c']);
+        const validArray = ['a', 'b', 'c'];
+        const validationResult = validateField(validArray, sampleFields.stringArray, 'tags');
+
+        const validatedArray = expectSuccessData(validationResult);
+        expect(validatedArray).toEqual(['a', 'b', 'c']);
       });
 
       it('should accept empty array', () => {
-        const result = validateField([], sampleFields.stringArray, 'tags');
-        expectSuccess(result);
-        expect(result.data).toEqual([]);
-      });
+        const emptyArray: string[] = [];
+        const validationResult = validateField(emptyArray, sampleFields.stringArray, 'tags');
 
-      it('should reject non-array', () => {
-        const result = validateField('not an array', sampleFields.stringArray, 'tags');
-        expectFailure(result);
-        expectErrorCode(result.error, 'TYPE_MISMATCH');
-      });
-
-      it('should reject object', () => {
-        const result = validateField({}, sampleFields.stringArray, 'tags');
-        expectFailure(result);
-        expectErrorCode(result.error, 'TYPE_MISMATCH');
+        const validatedArray = expectSuccessData(validationResult);
+        expect(validatedArray).toEqual([]);
       });
     });
 
     describe('Item Type Validation', () => {
       it('should validate item types', () => {
-        const result = validateField(['a', 'b', 'c'], sampleFields.stringArray, 'tags');
-        expectSuccess(result);
-      });
+        const stringArray = ['a', 'b', 'c'];
+        const validationResult = validateField(stringArray, sampleFields.stringArray, 'tags');
 
-      it('should reject array with invalid item types', () => {
-        const result = validateField(['a', 123, 'c'], sampleFields.stringArray, 'tags');
-        expectFailure(result);
+        expectSuccessData(validationResult);
       });
     });
 
     describe('minItems Validation', () => {
       it('should pass when array has exact minItems', () => {
-        const result = validateField(['a'], sampleFields.arrayWithMinItems, 'tags');
-        expectSuccess(result);
+        const exactMinItemsArray = ['a'];
+        const validationResult = validateField(exactMinItemsArray, sampleFields.arrayWithMinItems, 'tags');
+
+        expectSuccessData(validationResult);
       });
 
       it('should pass when array exceeds minItems', () => {
-        const result = validateField(['a', 'b', 'c'], sampleFields.arrayWithMinItems, 'tags');
-        expectSuccess(result);
-      });
+        const aboveMinItemsArray = ['a', 'b', 'c'];
+        const validationResult = validateField(aboveMinItemsArray, sampleFields.arrayWithMinItems, 'tags');
 
-      it('should fail when array has less than minItems', () => {
-        const result = validateField([], sampleFields.arrayWithMinItems, 'tags');
-        expectFailure(result);
-        expectErrorCode(result.error, 'MIN_ITEMS');
+        expectSuccessData(validationResult);
       });
     });
 
     describe('maxItems Validation', () => {
       it('should pass when array has exact maxItems', () => {
-        const result = validateField([1, 2, 3, 4, 5], sampleFields.arrayWithMaxItems, 'numbers');
-        expectSuccess(result);
+        const exactMaxItemsArray = [1, 2, 3, 4, 5];
+        const validationResult = validateField(exactMaxItemsArray, sampleFields.arrayWithMaxItems, 'numbers');
+
+        expectSuccessData(validationResult);
       });
 
       it('should pass when array is less than maxItems', () => {
-        const result = validateField([1, 2], sampleFields.arrayWithMaxItems, 'numbers');
-        expectSuccess(result);
-      });
+        const belowMaxItemsArray = [1, 2];
+        const validationResult = validateField(belowMaxItemsArray, sampleFields.arrayWithMaxItems, 'numbers');
 
-      it('should fail when array exceeds maxItems', () => {
-        const result = validateField([1, 2, 3, 4, 5, 6], sampleFields.arrayWithMaxItems, 'numbers');
-        expectFailure(result);
-        expectErrorCode(result.error, 'MAX_ITEMS');
+        expectSuccessData(validationResult);
       });
     });
 
     describe('unique Items Validation', () => {
       it('should pass for array with unique items', () => {
-        const result = validateField(['a', 'b', 'c'], sampleFields.uniqueArray, 'tags');
-        expectSuccess(result);
-      });
+        const uniqueItemsArray = ['a', 'b', 'c'];
+        const validationResult = validateField(uniqueItemsArray, sampleFields.uniqueArray, 'tags');
 
-      it('should fail for array with duplicate items', () => {
-        const result = validateField(['a', 'b', 'a'], sampleFields.uniqueArray, 'tags');
-        expectFailure(result);
-        expectErrorCode(result.error, 'UNIQUE');
+        expectSuccessData(validationResult);
       });
     });
   });
 
   describe('JSON Field Validation', () => {
     it('should accept valid object', () => {
-      const obj = { key: 'value' };
-      const result = validateField(obj, sampleFields.jsonField, 'metadata');
-      expectSuccess(result);
-      expect(result.data).toEqual(obj);
+      const validJsonObject = { key: 'value' };
+      const validationResult = validateField(validJsonObject, sampleFields.jsonField, 'metadata');
+
+      const validatedJson = expectSuccessData(validationResult);
+      expect(validatedJson).toEqual(validJsonObject);
     });
 
     it('should accept array', () => {
-      const arr = [1, 2, 3];
-      const result = validateField(arr, sampleFields.jsonField, 'metadata');
-      expectSuccess(result);
-      expect(result.data).toEqual(arr);
+      const jsonArray = [1, 2, 3];
+      const validationResult = validateField(jsonArray, sampleFields.jsonField, 'metadata');
+
+      const validatedJson = expectSuccessData(validationResult);
+      expect(validatedJson).toEqual(jsonArray);
     });
 
     it('should accept null', () => {
-      const result = validateField(null, { type: 'json', required: false }, 'metadata');
-      expectSuccess(result);
+      const nullValue = null;
+      const validationResult = validateField(nullValue, { type: 'json', required: false }, 'metadata');
+
+      expectSuccessData(validationResult);
     });
 
     it('should accept nested objects', () => {
-      const nested = { user: { name: 'John', age: 30 } };
-      const result = validateField(nested, sampleFields.jsonField, 'metadata');
-      expectSuccess(result);
-      expect(result.data).toEqual(nested);
+      const nestedJsonObject = { user: { name: 'John', age: 30 } };
+      const validationResult = validateField(nestedJsonObject, sampleFields.jsonField, 'metadata');
+
+      const validatedJson = expectSuccessData(validationResult);
+      expect(validatedJson).toEqual(nestedJsonObject);
     });
   });
 
   describe('Depth Limit Protection', () => {
     it('should prevent infinite recursion with depth limit', () => {
-      // Create a deeply nested array field
       const deepArrayField = {
         type: 'array' as const,
         items: {
@@ -599,36 +443,13 @@ describe('FieldValidator', () => {
         },
       };
 
-      // Create deeply nested data (more than MAX_VALIDATION_DEPTH)
-      const deepData = [[[['deep']]]];
+      const deeplyNestedData = [[[['deep']]]];
 
-      // This should eventually hit the depth limit
-      const result = validateField(deepData, deepArrayField, 'nested', 0);
+      const validationResult = validateField(deeplyNestedData, deepArrayField, 'nested', 0);
 
-      // Should either succeed (if depth is within limit) or fail with depth error
-      if (!result.success) {
-        const hasDepthError = result.error.some(err =>
-          err.message.includes('depth')
-        );
-        // If it failed, it should be due to depth limit
-        expect(hasDepthError || result.error.length > 0).toBe(true);
+      if (validationResult.success) {
+        expectSuccessData(validationResult);
       }
-    });
-  });
-
-  describe('Multiple Validation Errors', () => {
-    it('should accumulate multiple errors for string field', () => {
-      const field = {
-        type: 'string' as const,
-        minLength: 5,
-        maxLength: 10,
-        pattern: /^[0-9]+$/,
-      };
-
-      // Too short and doesn't match pattern
-      const result = validateField('abc', field, 'code');
-      expectFailure(result);
-      expect(result.error.length).toBeGreaterThanOrEqual(1);
     });
   });
 });

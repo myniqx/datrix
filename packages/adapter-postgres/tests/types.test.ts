@@ -4,16 +4,9 @@
  * Tests for type mappings and value conversions
  */
 
+import { FIELD_TYPE_TO_POSTGRES, fromPostgresValue, getPostgresType, getPostgresTypeWithModifiers, POSTGRES_TO_TS_TYPE, toPostgresValue } from '../src';
+import { FieldType } from '../../types/src/core/schema';
 import { describe, it, expect } from 'vitest';
-import {
-  getPostgresType,
-  getPostgresTypeWithModifiers,
-  toPostgresValue,
-  fromPostgresValue,
-  FIELD_TYPE_TO_POSTGRES,
-  POSTGRES_TO_TS_TYPE
-} from '@adapters/postgres/types';
-import type { FieldType } from '@core/schema/types';
 
 describe('PostgreSQL Types', () => {
   describe('Type Mappings', () => {

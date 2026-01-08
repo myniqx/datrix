@@ -13,11 +13,11 @@
  * - DO NOT weaken tests without user approval
  */
 
+import { PostgresAdapter, PostgresConfig } from '../src';
+import { AlterOperation } from '../../types/src/adapter';
+import { SchemaDefinition } from '../../types/src/core/schema';
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { PostgresAdapter } from '@adapters/postgres/adapter';
-import type { PostgresConfig } from '@adapters/postgres/types';
-import type { SchemaDefinition } from '@core/schema/types';
-import type { AlterOperation } from '@adapters/base/types';
+
 
 // =============================================================================
 // Test Setup
@@ -70,10 +70,12 @@ describe('PostgresAdapter - Schema Operations', () => {
     const result = await disconnectedAdapter.createTable(schema);
 
     expect(result.success).toBe(false);
-    expect(result.error).toBeDefined();
-    expect(result.error?.name).toBe('MigrationError');
-    expect(result.error?.code).toBe('MIGRATION_ERROR');
-    expect(result.error?.message).toContain('Not connected to database');
+    if (!result.success) {
+      expect(result.error).toBeDefined();
+      expect(result.error?.name).toBe('MigrationError');
+      expect(result.error?.code).toBe('MIGRATION_ERROR');
+      expect(result.error?.message).toContain('Not connected to database');
+    }
   });
 
   it('should create table with basic fields', async () => {
@@ -89,7 +91,8 @@ describe('PostgresAdapter - Schema Operations', () => {
     const result = await adapter.createTable(schema);
 
     expect(result.success).toBe(true);
-    expect(result.data).toBeUndefined();
+    if (result.success)
+      expect(result.data).toBeUndefined();
 
     // Verify table exists
     const exists = await adapter.tableExists('test_schema_table');
@@ -105,7 +108,7 @@ describe('PostgresAdapter - Schema Operations', () => {
         field_boolean: { type: 'boolean', required: false },
         field_date: { type: 'date', required: false },
         field_json: { type: 'json', required: false },
-        field_array: { type: 'array', required: false }
+        field_array: { type: 'array', required: false, items: null! }
       }
     };
 
@@ -141,7 +144,8 @@ describe('PostgresAdapter - Schema Operations', () => {
     );
 
     expect(result.success).toBe(false);
-    expect(result.error?.message).toContain('null value');
+    if (!result.success)
+      expect(result.error?.message).toContain('null value');
   });
 
   it('should create table with default values', async () => {
@@ -174,9 +178,12 @@ describe('PostgresAdapter - Schema Operations', () => {
       select: ['status', 'count', 'enabled']
     });
 
-    expect(result.data?.rows[0]?.status).toBe('active');
-    expect(result.data?.rows[0]?.count).toBe(0);
-    expect(result.data?.rows[0]?.enabled).toBe(true);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data?.rows[0]?.status).toBe('active');
+      expect(result.data?.rows[0]?.count).toBe(0);
+      expect(result.data?.rows[0]?.enabled).toBe(true);
+    }
   });
 
   it('should create table with field name escaping', async () => {
@@ -216,8 +223,10 @@ describe('PostgresAdapter - Schema Operations', () => {
     const result = await adapter.createTable(schema);
 
     expect(result.success).toBe(false);
-    expect(result.error).toBeDefined();
-    expect(result.error?.message).toContain('Failed to create table');
+    if (!result.success) {
+      expect(result.error).toBeDefined();
+      expect(result.error?.message).toContain('Failed to create table');
+    }
   });
 
   it('should fail to drop table when not connected', async () => {
@@ -226,8 +235,10 @@ describe('PostgresAdapter - Schema Operations', () => {
     const result = await disconnectedAdapter.dropTable('test_table');
 
     expect(result.success).toBe(false);
-    expect(result.error?.name).toBe('MigrationError');
-    expect(result.error?.message).toContain('Not connected to database');
+    if (!result.success) {
+      expect(result.error?.name).toBe('MigrationError');
+      expect(result.error?.message).toContain('Not connected to database');
+    }
   });
 
   it('should drop table successfully', async () => {
@@ -245,7 +256,8 @@ describe('PostgresAdapter - Schema Operations', () => {
     const result = await adapter.dropTable('test_schema_table');
 
     expect(result.success).toBe(true);
-    expect(result.data).toBeUndefined();
+    if (result.success)
+      expect(result.data).toBeUndefined();
 
     // Verify table doesn't exist
     const exists = await adapter.tableExists('test_schema_table');
@@ -286,8 +298,10 @@ describe('PostgresAdapter - Schema Operations', () => {
     const result = await disconnectedAdapter.alterTable('test_table', operations);
 
     expect(result.success).toBe(false);
-    expect(result.error?.name).toBe('MigrationError');
-    expect(result.error?.message).toContain('Not connected to database');
+    if (!result.success) {
+      expect(result.error?.name).toBe('MigrationError');
+      expect(result.error?.message).toContain('Not connected to database');
+    }
   });
 
   it('should add column to table', async () => {
@@ -359,7 +373,9 @@ describe('PostgresAdapter - Schema Operations', () => {
       select: ['status']
     });
 
-    expect(selectResult.data?.rows[0]?.status).toBe('active');
+    expect(selectResult.success).toBe(true);
+    if (selectResult.success)
+      expect(selectResult.data?.rows[0]?.status).toBe('active');
   });
 
   it('should drop column from table', async () => {
@@ -392,7 +408,8 @@ describe('PostgresAdapter - Schema Operations', () => {
     );
 
     expect(insertResult.success).toBe(false);
-    expect(insertResult.error?.message).toContain('to_drop');
+    if (!insertResult.success)
+      expect(insertResult.error?.message).toContain('to_drop');
   });
 
   it('should modify column type', async () => {
@@ -411,7 +428,7 @@ describe('PostgresAdapter - Schema Operations', () => {
       {
         type: 'modifyColumn',
         column: 'data',
-        definition: { type: 'json', required: false }
+        newDefinition: { type: 'json', required: false }
       }
     ];
 
@@ -524,8 +541,10 @@ describe('PostgresAdapter - Schema Operations', () => {
     const result = await adapter.alterTable('nonexistent_table', operations);
 
     expect(result.success).toBe(false);
-    expect(result.error).toBeDefined();
-    expect(result.error?.message).toContain('Failed to alter table');
+    if (!result.success) {
+      expect(result.error).toBeDefined();
+      expect(result.error?.message).toContain('Failed to alter table');
+    }
   });
 
   it('should escape column names in alter operations', async () => {
@@ -589,8 +608,10 @@ describe('PostgresAdapter - Schema Operations', () => {
     const result = await adapter.createTable(schema);
 
     expect(result.success).toBe(false);
-    expect(result.error?.details).toBeDefined();
-    expect(result.error?.code).toBe('MIGRATION_ERROR');
+    if (!result.success) {
+      expect(result.error?.details).toBeDefined();
+      expect(result.error?.code).toBe('MIGRATION_ERROR');
+    }
   });
 
   it('should include table name in createTable error message', async () => {
@@ -607,7 +628,8 @@ describe('PostgresAdapter - Schema Operations', () => {
     const result = await adapter.createTable(schema);
 
     expect(result.success).toBe(false);
-    expect(result.error?.message).toContain('test_schema_table');
+    if (!result.success)
+      expect(result.error?.message).toContain('test_schema_table');
   });
 
   it('should include table name in dropTable error message', async () => {
@@ -617,7 +639,8 @@ describe('PostgresAdapter - Schema Operations', () => {
     const result = await adapter.dropTable('some_table');
 
     expect(result.success).toBe(false);
-    expect(result.error?.message).toContain('some_table');
+    if (!result.success)
+      expect(result.error?.message).toContain('some_table');
 
     // Reconnect for other tests
     await adapter.connect();
@@ -635,7 +658,8 @@ describe('PostgresAdapter - Schema Operations', () => {
     const result = await adapter.alterTable('nonexistent_table', operations);
 
     expect(result.success).toBe(false);
-    expect(result.error?.message).toContain('nonexistent_table');
+    if (!result.success)
+      expect(result.error?.message).toContain('nonexistent_table');
   });
 
   it('should handle empty alter operations array', async () => {
@@ -664,7 +688,7 @@ describe('PostgresAdapter - Schema Operations', () => {
         id: { type: 'number', required: true },
         email: { type: 'string', required: true },
         profile: { type: 'json', required: false },
-        tags: { type: 'array', required: false },
+        tags: { type: 'array', required: false, items: null! },
         created_at: { type: 'date', required: true, default: 'NOW()' },
         is_active: { type: 'boolean', required: false, default: true }
       }
@@ -694,7 +718,7 @@ describe('PostgresAdapter - Schema Operations', () => {
       name: 'test_schema_table',
       fields: {
         id: { type: 'number', required: true },
-        role: { type: 'enum', required: true }
+        role: { type: 'enum', required: true, values: null! }
       }
     };
 
@@ -738,7 +762,7 @@ describe('PostgresAdapter - Schema Operations', () => {
       name: 'test_schema_table',
       fields: {
         id: { type: 'number', required: true },
-        user_id: { type: 'relation', required: false }
+        user_id: { type: 'relation', required: false, model: null!, foreignKey: null!, kind: null! }
       }
     };
 
@@ -774,7 +798,8 @@ describe('PostgresAdapter - Schema Operations', () => {
     const result = await adapter.executeRawQuery('INSERT INTO test_schema_table (id, email) VALUES (2, \'u@e.com\')', []);
 
     expect(result.success).toBe(false);
-    expect(result.error?.message).toMatch(/unique constraint/i);
+    if (!result.success)
+      expect(result.error?.message).toMatch(/unique constraint/i);
   });
 
   it('should handle multi-column UNIQUE constraints if defined in indexes', async () => {
@@ -795,7 +820,8 @@ describe('PostgresAdapter - Schema Operations', () => {
     const result = await adapter.executeRawQuery('INSERT INTO test_schema_table (provider, provider_id) VALUES (\'p1\', \'id1\')', []);
 
     expect(result.success).toBe(false);
-    expect(result.error?.message).toMatch(/unique constraint/i);
+    if (!result.success)
+      expect(result.error?.message).toMatch(/unique constraint/i);
   });
 
   it('should support FOREIGN KEY constraints', async () => {
@@ -819,7 +845,8 @@ describe('PostgresAdapter - Schema Operations', () => {
 
     const result = await adapter.executeRawQuery('INSERT INTO test_schema_table (id, parent_id) VALUES (1, 999)', []);
     expect(result.success).toBe(false);
-    expect(result.error?.message).toMatch(/foreign key constraint/i);
+    if (!result.success)
+      expect(result.error?.message).toMatch(/foreign key constraint/i);
   });
 
   it('should fail to drop table with active dependencies (RESTRICT behavior)', async () => {
@@ -842,7 +869,8 @@ describe('PostgresAdapter - Schema Operations', () => {
     const result = await adapter.dropTable('test_schema_parent');
 
     expect(result.success).toBe(false);
-    expect(result.error?.message).toMatch(/cannot drop table .* because other objects depend on it/i);
+    if (!result.success)
+      expect(result.error?.message).toMatch(/cannot drop table .* because other objects depend on it/i);
   });
 
   it('should modify column constraints (e.g. adding NOT NULL to existing column)', async () => {
@@ -866,6 +894,7 @@ describe('PostgresAdapter - Schema Operations', () => {
     const result = await adapter.alterTable('test_schema_table', operations);
 
     expect(result.success).toBe(false);
-    expect(result.error?.message).toMatch(/contains null values/i);
+    if (!result.success)
+      expect(result.error?.message).toMatch(/contains null values/i);
   });
 });

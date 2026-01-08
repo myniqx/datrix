@@ -5,10 +5,9 @@
  * Target: 95%+ coverage - SECURITY CRITICAL
  */
 
+import { createPostgresTranslator } from '../src';
+import { QueryObject, WhereClause } from '../../types/src/core/query-builder';
 import { describe, it, expect, beforeEach } from 'vitest';
-import { createPostgresTranslator } from '@adapters/postgres/query-translator';
-import type { QueryObject } from '@adapters/base/types';
-import type { QueryObject as BuilderQueryObject } from '@core/query-builder/types';
 
 describe('PostgreSQL Query Translator', () => {
   let translator: ReturnType<typeof createPostgresTranslator>;
@@ -159,7 +158,7 @@ describe('PostgreSQL Query Translator', () => {
     });
 
     it('should translate SELECT with ORDER BY', () => {
-      const query: BuilderQueryObject = {
+      const query: QueryObject = {
         type: 'select',
         table: 'users',
         orderBy: [
@@ -217,7 +216,7 @@ describe('PostgreSQL Query Translator', () => {
     });
 
     it('should translate complex SELECT with all clauses', () => {
-      const query: BuilderQueryObject = {
+      const query: QueryObject = {
         type: 'select',
         table: 'users',
         select: ['id', 'email'],
@@ -625,7 +624,7 @@ describe('PostgreSQL Query Translator', () => {
 
       it('should reject excessive nesting depth', () => {
         // Create deeply nested WHERE clause
-        let deep: Record<string, unknown> = { value: 1 };
+        let deep: WhereClause = { value: 1 };
         for (let i = 0; i < 15; i++) {
           deep = { $and: [deep] };
         }

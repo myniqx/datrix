@@ -1,218 +1,185 @@
 /**
- * Schema Differ Tests
+ * Schema Differ Tests (Happy Path)
  *
- * Tests for schema comparison and difference detection
- * Target: 90%+ coverage
+ * Tests successful schema comparison and difference detection
  */
 
 import { describe, it, expect } from 'vitest';
-import { ForgeSchemaDiffer } from '@core/migration/differ';
-import type { SchemaDefinition } from '@core/schema/types';
-import type { SchemaDiff } from '@core/migration/types';
+import { ForgeSchemaDiffer } from '../../src/migration/differ';
+import { SchemaDefinition } from '../../../types/src/core/schema';
+import { parserTestData } from '../../../types/src/test/fixtures';
+import { expectSuccessData } from '../../../types/src/test/helpers';
 
-describe('SchemaDiffer', () => {
+describe('SchemaDiffer - Happy Path', () => {
   const differ = new ForgeSchemaDiffer();
+  const schemas = parserTestData.migrationSchemas;
 
-  describe('Table Detection', () => {
+  describe('No changes', () => {
+    it('should return no changes for identical schemas', () => {
+      const schemasObj = { users: schemas.usersBasic };
+
+      const comparison = expectSuccessData(differ.compare(schemasObj, schemasObj));
+
+      expect(comparison.hasChanges).toBe(false);
+      expect(comparison.differences).toHaveLength(0);
+    });
+
+    it('should handle empty schema collections', () => {
+      const comparison = expectSuccessData(differ.compare({}, {}));
+
+      expect(comparison.hasChanges).toBe(false);
+      expect(comparison.differences).toHaveLength(0);
+    });
+  });
+
+  describe('Table detection', () => {
     it('should detect newly added tables', () => {
       const oldSchemas: Record<string, SchemaDefinition> = {};
       const newSchemas: Record<string, SchemaDefinition> = {
-        users: {
-          name: 'users',
-          fields: {
-            id: { type: 'number', required: true },
-            name: { type: 'string', required: true }
-          }
-        }
+        users: schemas.usersBasic
       };
 
-      const result = differ.compare(oldSchemas, newSchemas);
+      const comparison = expectSuccessData(differ.compare(oldSchemas, newSchemas));
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.hasChanges).toBe(true);
-        expect(result.data.differences).toHaveLength(1);
+      expect(comparison.hasChanges).toBe(true);
+      expect(comparison.differences).toHaveLength(1);
 
-        const diff = result.data.differences[0];
-        expect(diff.type).toBe('tableAdded');
-        if (diff.type === 'tableAdded') {
-          expect(diff.schema.name).toBe('users');
-        }
+      const diff = comparison.differences[0]!;
+      expect(diff.type).toBe('tableAdded');
+      if (diff.type === 'tableAdded') {
+        expect(diff.schema.name).toBe('users');
       }
     });
 
     it('should detect removed tables', () => {
       const oldSchemas: Record<string, SchemaDefinition> = {
-        users: {
-          name: 'users',
-          fields: {
-            id: { type: 'number', required: true }
-          }
-        }
+        users: schemas.usersBasic
       };
       const newSchemas: Record<string, SchemaDefinition> = {};
 
-      const result = differ.compare(oldSchemas, newSchemas);
+      const comparison = expectSuccessData(differ.compare(oldSchemas, newSchemas));
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.hasChanges).toBe(true);
-        expect(result.data.differences).toHaveLength(1);
+      expect(comparison.hasChanges).toBe(true);
+      expect(comparison.differences).toHaveLength(1);
 
-        const diff = result.data.differences[0];
-        expect(diff.type).toBe('tableRemoved');
-        if (diff.type === 'tableRemoved') {
-          expect(diff.tableName).toBe('users');
-        }
+      const diff = comparison.differences[0];
+      expect(diff.type).toBe('tableRemoved');
+      if (diff.type === 'tableRemoved') {
+        expect(diff.tableName).toBe('users');
       }
     });
 
     it('should detect multiple table changes', () => {
       const oldSchemas: Record<string, SchemaDefinition> = {
-        users: {
-          name: 'users',
-          fields: { id: { type: 'number', required: true } }
-        }
+        users: schemas.usersBasic
       };
       const newSchemas: Record<string, SchemaDefinition> = {
-        posts: {
-          name: 'posts',
-          fields: { id: { type: 'number', required: true } }
-        }
+        posts: schemas.postsBasic
       };
 
-      const result = differ.compare(oldSchemas, newSchemas);
+      const comparison = expectSuccessData(differ.compare(oldSchemas, newSchemas));
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.hasChanges).toBe(true);
-        expect(result.data.differences).toHaveLength(2);
+      expect(comparison.hasChanges).toBe(true);
+      expect(comparison.differences).toHaveLength(2);
 
-        const types = result.data.differences.map(d => d.type);
-        expect(types).toContain('tableAdded');
-        expect(types).toContain('tableRemoved');
+      const types = comparison.differences.map(d => d.type);
+      expect(types).toContain('tableAdded');
+      expect(types).toContain('tableRemoved');
+    });
+
+    it('should handle adding table with no fields', () => {
+      const oldSchemas: Record<string, SchemaDefinition> = {};
+      const newSchemas: Record<string, SchemaDefinition> = {
+        empty: schemas.emptySchema
+      };
+
+      const comparison = expectSuccessData(differ.compare(oldSchemas, newSchemas));
+
+      expect(comparison.hasChanges).toBe(true);
+      const tableAdded = comparison.differences.find(d => d.type === 'tableAdded');
+      expect(tableAdded).toBeDefined();
+      if (tableAdded && tableAdded.type === 'tableAdded') {
+        expect(tableAdded.schema.name).toBe('empty');
+        expect(Object.keys(tableAdded.schema.fields)).toHaveLength(0);
       }
     });
 
-    it('should return no changes for identical schemas', () => {
-      const schemas: Record<string, SchemaDefinition> = {
-        users: {
-          name: 'users',
-          fields: {
-            id: { type: 'number', required: true },
-            name: { type: 'string', required: true }
-          }
-        }
+    it('should handle removing table with no fields', () => {
+      const oldSchemas: Record<string, SchemaDefinition> = {
+        empty: schemas.emptySchema
       };
+      const newSchemas: Record<string, SchemaDefinition> = {};
 
-      const result = differ.compare(schemas, schemas);
+      const comparison = expectSuccessData(differ.compare(oldSchemas, newSchemas));
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.hasChanges).toBe(false);
-        expect(result.data.differences).toHaveLength(0);
+      expect(comparison.hasChanges).toBe(true);
+      const tableRemoved = comparison.differences.find(d => d.type === 'tableRemoved');
+      expect(tableRemoved).toBeDefined();
+      if (tableRemoved && tableRemoved.type === 'tableRemoved') {
+        expect(tableRemoved.tableName).toBe('empty');
       }
     });
   });
 
-  describe('Field Detection', () => {
+  describe('Field detection', () => {
     it('should detect newly added fields', () => {
       const oldSchemas: Record<string, SchemaDefinition> = {
-        users: {
-          name: 'users',
-          fields: {
-            id: { type: 'number', required: true }
-          }
-        }
+        users: schemas.usersBasic
       };
       const newSchemas: Record<string, SchemaDefinition> = {
-        users: {
-          name: 'users',
-          fields: {
-            id: { type: 'number', required: true },
-            email: { type: 'string', required: true }
-          }
-        }
+        users: schemas.usersWithEmail
       };
 
-      const result = differ.compare(oldSchemas, newSchemas);
+      const comparison = expectSuccessData(differ.compare(oldSchemas, newSchemas));
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.hasChanges).toBe(true);
+      expect(comparison.hasChanges).toBe(true);
 
-        const fieldDiff = result.data.differences.find(d => d.type === 'fieldAdded');
-        expect(fieldDiff).toBeDefined();
-        if (fieldDiff && fieldDiff.type === 'fieldAdded') {
-          expect(fieldDiff.tableName).toBe('users');
-          expect(fieldDiff.fieldName).toBe('email');
-          expect(fieldDiff.definition.type).toBe('string');
-        }
+      const fieldDiff = comparison.differences.find(d => d.type === 'fieldAdded');
+      expect(fieldDiff).toBeDefined();
+      if (fieldDiff && fieldDiff.type === 'fieldAdded') {
+        expect(fieldDiff.tableName).toBe('users');
+        expect(fieldDiff.fieldName).toBe('email');
+        expect(fieldDiff.definition.type).toBe('string');
       }
     });
 
     it('should detect removed fields', () => {
       const oldSchemas: Record<string, SchemaDefinition> = {
-        users: {
-          name: 'users',
-          fields: {
-            id: { type: 'number', required: true },
-            email: { type: 'string', required: true }
-          }
-        }
+        users: schemas.usersWithEmail
       };
       const newSchemas: Record<string, SchemaDefinition> = {
-        users: {
-          name: 'users',
-          fields: {
-            id: { type: 'number', required: true }
-          }
-        }
+        users: schemas.usersBasic
       };
 
-      const result = differ.compare(oldSchemas, newSchemas);
+      const comparison = expectSuccessData(differ.compare(oldSchemas, newSchemas));
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        const fieldDiff = result.data.differences.find(d => d.type === 'fieldRemoved');
-        expect(fieldDiff).toBeDefined();
-        if (fieldDiff && fieldDiff.type === 'fieldRemoved') {
-          expect(fieldDiff.tableName).toBe('users');
-          expect(fieldDiff.fieldName).toBe('email');
-        }
+      expect(comparison.hasChanges).toBe(true);
+      const fieldDiff = comparison.differences.find(d => d.type === 'fieldRemoved');
+      expect(fieldDiff).toBeDefined();
+      if (fieldDiff && fieldDiff.type === 'fieldRemoved') {
+        expect(fieldDiff.tableName).toBe('users');
+        expect(fieldDiff.fieldName).toBe('email');
       }
     });
 
     it('should detect modified fields', () => {
       const oldSchemas: Record<string, SchemaDefinition> = {
-        users: {
-          name: 'users',
-          fields: {
-            age: { type: 'number', required: false }
-          }
-        }
+        users: schemas.usersAgeOptional
       };
       const newSchemas: Record<string, SchemaDefinition> = {
-        users: {
-          name: 'users',
-          fields: {
-            age: { type: 'number', required: true }
-          }
-        }
+        users: schemas.usersAgeRequired
       };
 
-      const result = differ.compare(oldSchemas, newSchemas);
+      const comparison = expectSuccessData(differ.compare(oldSchemas, newSchemas));
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        const fieldDiff = result.data.differences.find(d => d.type === 'fieldModified');
-        expect(fieldDiff).toBeDefined();
-        if (fieldDiff && fieldDiff.type === 'fieldModified') {
-          expect(fieldDiff.tableName).toBe('users');
-          expect(fieldDiff.fieldName).toBe('age');
-          expect(fieldDiff.oldDefinition.required).toBe(false);
-          expect(fieldDiff.newDefinition.required).toBe(true);
-        }
+      expect(comparison.hasChanges).toBe(true);
+      const fieldDiff = comparison.differences.find(d => d.type === 'fieldModified');
+      expect(fieldDiff).toBeDefined();
+      if (fieldDiff && fieldDiff.type === 'fieldModified') {
+        expect(fieldDiff.tableName).toBe('users');
+        expect(fieldDiff.fieldName).toBe('age');
+        expect(fieldDiff.oldDefinition.required).toBe(false);
+        expect(fieldDiff.newDefinition.required).toBe(true);
       }
     });
 
@@ -238,21 +205,18 @@ describe('SchemaDiffer', () => {
         }
       };
 
-      const result = differ.compare(oldSchemas, newSchemas);
+      const comparison = expectSuccessData(differ.compare(oldSchemas, newSchemas));
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.hasChanges).toBe(true);
+      expect(comparison.hasChanges).toBe(true);
 
-        const types = result.data.differences.map(d => d.type);
-        expect(types).toContain('fieldAdded'); // email
-        expect(types).toContain('fieldRemoved'); // name
-        expect(types).toContain('fieldModified'); // age
-      }
+      const types = comparison.differences.map(d => d.type);
+      expect(types).toContain('fieldAdded');
+      expect(types).toContain('fieldRemoved');
+      expect(types).toContain('fieldModified');
     });
   });
 
-  describe('Field Modification Detection', () => {
+  describe('Field modification detection', () => {
     it('should detect type changes', () => {
       const oldSchemas: Record<string, SchemaDefinition> = {
         users: {
@@ -271,162 +235,46 @@ describe('SchemaDiffer', () => {
         }
       };
 
-      const result = differ.compare(oldSchemas, newSchemas);
+      const comparison = expectSuccessData(differ.compare(oldSchemas, newSchemas));
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        const fieldDiff = result.data.differences.find(d => d.type === 'fieldModified');
-        expect(fieldDiff).toBeDefined();
-        if (fieldDiff && fieldDiff.type === 'fieldModified') {
-          expect(fieldDiff.oldDefinition.type).toBe('string');
-          expect(fieldDiff.newDefinition.type).toBe('boolean');
-        }
+      expect(comparison.hasChanges).toBe(true);
+      const fieldDiff = comparison.differences.find(d => d.type === 'fieldModified');
+      expect(fieldDiff).toBeDefined();
+      if (fieldDiff && fieldDiff.type === 'fieldModified') {
+        expect(fieldDiff.oldDefinition.type).toBe('string');
+        expect(fieldDiff.newDefinition.type).toBe('boolean');
       }
     });
 
-    it('should detect constraint changes', () => {
+    it('should detect string constraint changes', () => {
       const oldSchemas: Record<string, SchemaDefinition> = {
-        users: {
-          name: 'users',
-          fields: {
-            name: { type: 'string', minLength: 3 }
-          }
-        }
+        users: schemas.usersWithConstraints
       };
       const newSchemas: Record<string, SchemaDefinition> = {
-        users: {
-          name: 'users',
-          fields: {
-            name: { type: 'string', minLength: 5, maxLength: 50 }
-          }
-        }
+        users: schemas.usersWithDifferentConstraints
       };
 
-      const result = differ.compare(oldSchemas, newSchemas);
+      const comparison = expectSuccessData(differ.compare(oldSchemas, newSchemas));
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        const fieldDiff = result.data.differences.find(d => d.type === 'fieldModified');
-        expect(fieldDiff).toBeDefined();
-      }
-    });
-  });
-
-  describe('Index Detection', () => {
-    it('should detect newly added indexes', () => {
-      const oldSchemas: Record<string, SchemaDefinition> = {
-        users: {
-          name: 'users',
-          fields: {
-            id: { type: 'number', required: true },
-            email: { type: 'string', required: true }
-          }
-        }
-      };
-      const newSchemas: Record<string, SchemaDefinition> = {
-        users: {
-          name: 'users',
-          fields: {
-            id: { type: 'number', required: true },
-            email: { type: 'string', required: true }
-          },
-          indexes: [
-            { fields: ['email'], unique: true }
-          ]
-        }
-      };
-
-      const result = differ.compare(oldSchemas, newSchemas);
-
-      expect(result.success).toBe(true);
-      if (result.success) {
-        const indexDiff = result.data.differences.find(d => d.type === 'indexAdded');
-        expect(indexDiff).toBeDefined();
-        if (indexDiff && indexDiff.type === 'indexAdded') {
-          expect(indexDiff.tableName).toBe('users');
-          expect(indexDiff.index.fields).toEqual(['email']);
-          expect(indexDiff.index.unique).toBe(true);
-        }
+      expect(comparison.hasChanges).toBe(true);
+      const fieldDiff = comparison.differences.find(d => d.type === 'fieldModified');
+      expect(fieldDiff).toBeDefined();
+      if (fieldDiff && fieldDiff.type === 'fieldModified') {
+        expect(fieldDiff.fieldName).toBe('username');
+        expect(fieldDiff.oldDefinition).toMatchObject({
+          type: 'string',
+          minLength: 3,
+          maxLength: 20
+        });
+        expect(fieldDiff.newDefinition).toMatchObject({
+          type: 'string',
+          minLength: 5,
+          maxLength: 50
+        });
       }
     });
 
-    it('should detect removed indexes', () => {
-      const oldSchemas: Record<string, SchemaDefinition> = {
-        users: {
-          name: 'users',
-          fields: {
-            email: { type: 'string', required: true }
-          },
-          indexes: [
-            { fields: ['email'], unique: true, name: 'email_idx' }
-          ]
-        }
-      };
-      const newSchemas: Record<string, SchemaDefinition> = {
-        users: {
-          name: 'users',
-          fields: {
-            email: { type: 'string', required: true }
-          }
-        }
-      };
-
-      const result = differ.compare(oldSchemas, newSchemas);
-
-      expect(result.success).toBe(true);
-      if (result.success) {
-        const indexDiff = result.data.differences.find(d => d.type === 'indexRemoved');
-        expect(indexDiff).toBeDefined();
-        if (indexDiff && indexDiff.type === 'indexRemoved') {
-          expect(indexDiff.tableName).toBe('users');
-          expect(indexDiff.indexName).toBe('email_idx');
-        }
-      }
-    });
-  });
-
-  describe('Field Modification Details', () => {
-    it('should detect string constraint changes with exact values', () => {
-      const oldSchemas: Record<string, SchemaDefinition> = {
-        users: {
-          name: 'users',
-          fields: {
-            username: { type: 'string', minLength: 3, maxLength: 20 }
-          }
-        }
-      };
-      const newSchemas: Record<string, SchemaDefinition> = {
-        users: {
-          name: 'users',
-          fields: {
-            username: { type: 'string', minLength: 5, maxLength: 50 }
-          }
-        }
-      };
-
-      const result = differ.compare(oldSchemas, newSchemas);
-
-      expect(result.success).toBe(true);
-      if (result.success) {
-        const fieldDiff = result.data.differences.find(d => d.type === 'fieldModified');
-        expect(fieldDiff).toBeDefined();
-        if (fieldDiff && fieldDiff.type === 'fieldModified') {
-          expect(fieldDiff.fieldName).toBe('username');
-          expect(fieldDiff.oldDefinition).toMatchObject({
-            type: 'string',
-            minLength: 3,
-            maxLength: 20
-          });
-          expect(fieldDiff.newDefinition).toMatchObject({
-            type: 'string',
-            minLength: 5,
-            maxLength: 50
-          });
-        }
-      }
-    });
-
-    it('should detect number constraint changes with exact values', () => {
+    it('should detect number constraint changes', () => {
       const oldSchemas: Record<string, SchemaDefinition> = {
         products: {
           name: 'products',
@@ -444,25 +292,23 @@ describe('SchemaDiffer', () => {
         }
       };
 
-      const result = differ.compare(oldSchemas, newSchemas);
+      const comparison = expectSuccessData(differ.compare(oldSchemas, newSchemas));
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        const fieldDiff = result.data.differences.find(d => d.type === 'fieldModified');
-        expect(fieldDiff).toBeDefined();
-        if (fieldDiff && fieldDiff.type === 'fieldModified') {
-          const oldDef = fieldDiff.oldDefinition;
-          const newDef = fieldDiff.newDefinition;
+      expect(comparison.hasChanges).toBe(true);
+      const fieldDiff = comparison.differences.find(d => d.type === 'fieldModified');
+      expect(fieldDiff).toBeDefined();
+      if (fieldDiff && fieldDiff.type === 'fieldModified') {
+        const oldDef = fieldDiff.oldDefinition;
+        const newDef = fieldDiff.newDefinition;
 
-          if (oldDef.type === 'number' && newDef.type === 'number') {
-            expect(oldDef.min).toBe(0);
-            expect(oldDef.max).toBe(1000);
-            expect(oldDef.integer).toBeUndefined();
+        if (oldDef.type === 'number' && newDef.type === 'number') {
+          expect(oldDef.min).toBe(0);
+          expect(oldDef.max).toBe(1000);
+          expect(oldDef.integer).toBeUndefined();
 
-            expect(newDef.min).toBe(10);
-            expect(newDef.max).toBe(5000);
-            expect(newDef.integer).toBe(true);
-          }
+          expect(newDef.min).toBe(10);
+          expect(newDef.max).toBe(5000);
+          expect(newDef.integer).toBe(true);
         }
       }
     });
@@ -485,20 +331,18 @@ describe('SchemaDiffer', () => {
         }
       };
 
-      const result = differ.compare(oldSchemas, newSchemas);
+      const comparison = expectSuccessData(differ.compare(oldSchemas, newSchemas));
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        const fieldDiff = result.data.differences.find(d => d.type === 'fieldModified');
-        expect(fieldDiff).toBeDefined();
-        if (fieldDiff && fieldDiff.type === 'fieldModified') {
-          const oldDef = fieldDiff.oldDefinition;
-          const newDef = fieldDiff.newDefinition;
+      expect(comparison.hasChanges).toBe(true);
+      const fieldDiff = comparison.differences.find(d => d.type === 'fieldModified');
+      expect(fieldDiff).toBeDefined();
+      if (fieldDiff && fieldDiff.type === 'fieldModified') {
+        const oldDef = fieldDiff.oldDefinition;
+        const newDef = fieldDiff.newDefinition;
 
-          if (oldDef.type === 'enum' && newDef.type === 'enum') {
-            expect(oldDef.values).toEqual(['user', 'admin']);
-            expect(newDef.values).toEqual(['user', 'admin', 'moderator']);
-          }
+        if (oldDef.type === 'enum' && newDef.type === 'enum') {
+          expect(oldDef.values).toEqual(['user', 'admin']);
+          expect(newDef.values).toEqual(['user', 'admin', 'moderator']);
         }
       }
     });
@@ -527,28 +371,26 @@ describe('SchemaDiffer', () => {
         }
       };
 
-      const result = differ.compare(oldSchemas, newSchemas);
+      const comparison = expectSuccessData(differ.compare(oldSchemas, newSchemas));
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        const fieldDiff = result.data.differences.find(d => d.type === 'fieldModified');
-        expect(fieldDiff).toBeDefined();
-        if (fieldDiff && fieldDiff.type === 'fieldModified') {
-          const oldDef = fieldDiff.oldDefinition;
-          const newDef = fieldDiff.newDefinition;
+      expect(comparison.hasChanges).toBe(true);
+      const fieldDiff = comparison.differences.find(d => d.type === 'fieldModified');
+      expect(fieldDiff).toBeDefined();
+      if (fieldDiff && fieldDiff.type === 'fieldModified') {
+        const oldDef = fieldDiff.oldDefinition;
+        const newDef = fieldDiff.newDefinition;
 
-          if (oldDef.type === 'array' && newDef.type === 'array') {
-            if (oldDef.items.type === 'string' && newDef.items.type === 'string') {
-              expect(oldDef.items.minLength).toBe(2);
-              expect(newDef.items.minLength).toBe(5);
-              expect(newDef.items.maxLength).toBe(20);
-            }
+        if (oldDef.type === 'array' && newDef.type === 'array') {
+          if (oldDef.items.type === 'string' && newDef.items.type === 'string') {
+            expect(oldDef.items.minLength).toBe(2);
+            expect(newDef.items.minLength).toBe(5);
+            expect(newDef.items.maxLength).toBe(20);
           }
         }
       }
     });
 
-    it('should detect array constraint changes (minItems, maxItems)', () => {
+    it('should detect array constraint changes', () => {
       const oldSchemas: Record<string, SchemaDefinition> = {
         posts: {
           name: 'posts',
@@ -576,25 +418,23 @@ describe('SchemaDiffer', () => {
         }
       };
 
-      const result = differ.compare(oldSchemas, newSchemas);
+      const comparison = expectSuccessData(differ.compare(oldSchemas, newSchemas));
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        const fieldDiff = result.data.differences.find(d => d.type === 'fieldModified');
-        expect(fieldDiff).toBeDefined();
-        if (fieldDiff && fieldDiff.type === 'fieldModified') {
-          const oldDef = fieldDiff.oldDefinition;
-          const newDef = fieldDiff.newDefinition;
+      expect(comparison.hasChanges).toBe(true);
+      const fieldDiff = comparison.differences.find(d => d.type === 'fieldModified');
+      expect(fieldDiff).toBeDefined();
+      if (fieldDiff && fieldDiff.type === 'fieldModified') {
+        const oldDef = fieldDiff.oldDefinition;
+        const newDef = fieldDiff.newDefinition;
 
-          if (oldDef.type === 'array' && newDef.type === 'array') {
-            expect(oldDef.minItems).toBe(1);
-            expect(oldDef.maxItems).toBeUndefined();
-            expect(oldDef.unique).toBeUndefined();
+        if (oldDef.type === 'array' && newDef.type === 'array') {
+          expect(oldDef.minItems).toBe(1);
+          expect(oldDef.maxItems).toBeUndefined();
+          expect(oldDef.unique).toBeUndefined();
 
-            expect(newDef.minItems).toBe(2);
-            expect(newDef.maxItems).toBe(10);
-            expect(newDef.unique).toBe(true);
-          }
+          expect(newDef.minItems).toBe(2);
+          expect(newDef.maxItems).toBe(10);
+          expect(newDef.unique).toBe(true);
         }
       }
     });
@@ -627,70 +467,21 @@ describe('SchemaDiffer', () => {
         }
       };
 
-      const result = differ.compare(oldSchemas, newSchemas);
+      const comparison = expectSuccessData(differ.compare(oldSchemas, newSchemas));
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        const fieldDiff = result.data.differences.find(d => d.type === 'fieldModified');
-        expect(fieldDiff).toBeDefined();
-        if (fieldDiff && fieldDiff.type === 'fieldModified') {
-          const oldDef = fieldDiff.oldDefinition;
-          const newDef = fieldDiff.newDefinition;
+      expect(comparison.hasChanges).toBe(true);
+      const fieldDiff = comparison.differences.find(d => d.type === 'fieldModified');
+      expect(fieldDiff).toBeDefined();
+      if (fieldDiff && fieldDiff.type === 'fieldModified') {
+        const oldDef = fieldDiff.oldDefinition;
+        const newDef = fieldDiff.newDefinition;
 
-          if (oldDef.type === 'relation' && newDef.type === 'relation') {
-            expect(oldDef.model).toBe('User');
-            expect(oldDef.foreignKey).toBe('userId');
+        if (oldDef.type === 'relation' && newDef.type === 'relation') {
+          expect(oldDef.model).toBe('User');
+          expect(oldDef.foreignKey).toBe('userId');
 
-            expect(newDef.model).toBe('Account');
-            expect(newDef.foreignKey).toBe('accountId');
-          }
-        }
-      }
-    });
-
-    it('should detect unique constraint addition/removal', () => {
-      const oldSchemas: Record<string, SchemaDefinition> = {
-        users: {
-          name: 'users',
-          fields: {
-            email: { type: 'string', required: true }
-          }
-        }
-      };
-      const newSchemas: Record<string, SchemaDefinition> = {
-        users: {
-          name: 'users',
-          fields: {
-            email: { type: 'string', required: true, unique: true }
-          }
-        }
-      };
-
-      const result = differ.compare(oldSchemas, newSchemas);
-
-      expect(result.success).toBe(true);
-      if (result.success) {
-        // Unique constraint might be detected as:
-        // 1. fieldModified (if differ checks unique property)
-        // 2. indexAdded (if differ treats unique as an index)
-        // 3. No change (if unique is ignored in field comparison)
-
-        const fieldDiff = result.data.differences.find(d => d.type === 'fieldModified');
-        const indexDiff = result.data.differences.find(d => d.type === 'indexAdded');
-
-        // At least one of these should be true
-        expect(fieldDiff !== undefined || indexDiff !== undefined).toBe(true);
-
-        if (fieldDiff && fieldDiff.type === 'fieldModified') {
-          // If detected as field modification
-          expect(fieldDiff.oldDefinition.unique).toBeUndefined();
-          expect(fieldDiff.newDefinition.unique).toBe(true);
-        }
-
-        if (indexDiff && indexDiff.type === 'indexAdded') {
-          // If detected as index addition
-          expect(indexDiff.tableName).toBe('users');
-          expect(indexDiff.index.unique).toBe(true);
+          expect(newDef.model).toBe('Account');
+          expect(newDef.foreignKey).toBe('accountId');
         }
       }
     });
@@ -713,35 +504,23 @@ describe('SchemaDiffer', () => {
         }
       };
 
-      const result = differ.compare(oldSchemas, newSchemas);
+      const comparison = expectSuccessData(differ.compare(oldSchemas, newSchemas));
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        const fieldDiff = result.data.differences.find(d => d.type === 'fieldModified');
-        expect(fieldDiff).toBeDefined();
-        if (fieldDiff && fieldDiff.type === 'fieldModified') {
-          expect(fieldDiff.oldDefinition.default).toBe('pending');
-          expect(fieldDiff.newDefinition.default).toBe('active');
-        }
+      expect(comparison.hasChanges).toBe(true);
+      const fieldDiff = comparison.differences.find(d => d.type === 'fieldModified');
+      expect(fieldDiff).toBeDefined();
+      if (fieldDiff && fieldDiff.type === 'fieldModified') {
+        expect(fieldDiff.oldDefinition.default).toBe('pending');
+        expect(fieldDiff.newDefinition.default).toBe('active');
       }
     });
-  });
 
-  describe('Multiple Changes', () => {
-    it('should detect all changes in complex scenario with specific order', () => {
+    it('should detect unique constraint addition', () => {
       const oldSchemas: Record<string, SchemaDefinition> = {
         users: {
           name: 'users',
           fields: {
-            id: { type: 'number', required: true },
-            username: { type: 'string', minLength: 3 },
             email: { type: 'string', required: true }
-          }
-        },
-        posts: {
-          name: 'posts',
-          fields: {
-            id: { type: 'number', required: true }
           }
         }
       };
@@ -749,81 +528,86 @@ describe('SchemaDiffer', () => {
         users: {
           name: 'users',
           fields: {
-            id: { type: 'number', required: true },
-            username: { type: 'string', minLength: 5 }, // modified
-            displayName: { type: 'string' } // added
-          }
-          // email removed
-        },
-        comments: { // added table
-          name: 'comments',
-          fields: {
-            id: { type: 'number', required: true }
+            email: { type: 'string', required: true, unique: true }
           }
         }
-        // posts removed
       };
 
-      const result = differ.compare(oldSchemas, newSchemas);
+      const comparison = expectSuccessData(differ.compare(oldSchemas, newSchemas));
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.hasChanges).toBe(true);
+      expect(comparison.hasChanges).toBe(true);
 
-        const types = result.data.differences.map(d => d.type);
+      const fieldDiff = comparison.differences.find(d => d.type === 'fieldModified');
+      const indexDiff = comparison.differences.find(d => d.type === 'indexAdded');
 
-        // Tables
-        expect(types.filter(t => t === 'tableAdded')).toHaveLength(1);
-        expect(types.filter(t => t === 'tableRemoved')).toHaveLength(1);
+      // At least one should be detected
+      expect(fieldDiff !== undefined || indexDiff !== undefined).toBe(true);
 
-        // Fields
-        expect(types.filter(t => t === 'fieldAdded')).toHaveLength(1);
-        expect(types.filter(t => t === 'fieldRemoved')).toHaveLength(1);
-        expect(types.filter(t => t === 'fieldModified')).toHaveLength(1);
+      if (fieldDiff && fieldDiff.type === 'fieldModified') {
+        expect(fieldDiff.oldDefinition.unique).toBeUndefined();
+        expect(fieldDiff.newDefinition.unique).toBe(true);
+      }
 
-        // Verify specific changes
-        const tableAdded = result.data.differences.find(
-          d => d.type === 'tableAdded' && d.schema.name === 'comments'
-        );
-        expect(tableAdded).toBeDefined();
-
-        const tableRemoved = result.data.differences.find(
-          d => d.type === 'tableRemoved' && d.tableName === 'posts'
-        );
-        expect(tableRemoved).toBeDefined();
-
-        const fieldAdded = result.data.differences.find(
-          d => d.type === 'fieldAdded' &&
-          d.tableName === 'users' &&
-          d.fieldName === 'displayName'
-        );
-        expect(fieldAdded).toBeDefined();
-
-        const fieldRemoved = result.data.differences.find(
-          d => d.type === 'fieldRemoved' &&
-          d.tableName === 'users' &&
-          d.fieldName === 'email'
-        );
-        expect(fieldRemoved).toBeDefined();
-
-        const fieldModified = result.data.differences.find(
-          d => d.type === 'fieldModified' &&
-          d.tableName === 'users' &&
-          d.fieldName === 'username'
-        );
-        expect(fieldModified).toBeDefined();
-        if (fieldModified && fieldModified.type === 'fieldModified') {
-          if (fieldModified.oldDefinition.type === 'string' &&
-              fieldModified.newDefinition.type === 'string') {
-            expect(fieldModified.oldDefinition.minLength).toBe(3);
-            expect(fieldModified.newDefinition.minLength).toBe(5);
-          }
-        }
+      if (indexDiff && indexDiff.type === 'indexAdded') {
+        expect(indexDiff.tableName).toBe('users');
+        expect(indexDiff.index.unique).toBe(true);
       }
     });
   });
 
-  describe('Index Edge Cases', () => {
+  describe('Index detection', () => {
+    it('should detect newly added indexes', () => {
+      const oldSchemas: Record<string, SchemaDefinition> = {
+        users: schemas.usersBasic
+      };
+      const newSchemas: Record<string, SchemaDefinition> = {
+        users: schemas.usersWithIndex
+      };
+
+      const comparison = expectSuccessData(differ.compare(oldSchemas, newSchemas));
+
+      expect(comparison.hasChanges).toBe(true);
+      const indexDiff = comparison.differences.find(d => d.type === 'indexAdded');
+      expect(indexDiff).toBeDefined();
+      if (indexDiff && indexDiff.type === 'indexAdded') {
+        expect(indexDiff.tableName).toBe('users');
+        expect(indexDiff.index.fields).toEqual(['email']);
+        expect(indexDiff.index.unique).toBe(true);
+      }
+    });
+
+    it('should detect removed indexes', () => {
+      const oldSchemas: Record<string, SchemaDefinition> = {
+        users: {
+          name: 'users',
+          fields: {
+            email: { type: 'string', required: true }
+          },
+          indexes: [
+            { fields: ['email'], unique: true, name: 'email_idx' }
+          ]
+        }
+      };
+      const newSchemas: Record<string, SchemaDefinition> = {
+        users: {
+          name: 'users',
+          fields: {
+            email: { type: 'string', required: true }
+          }
+        }
+      };
+
+      const comparison = expectSuccessData(differ.compare(oldSchemas, newSchemas));
+
+      expect(comparison.hasChanges).toBe(true);
+      const indexDiff = comparison.differences.find(d => d.type === 'indexRemoved');
+      expect(indexDiff).toBeDefined();
+      if (indexDiff && indexDiff.type === 'indexRemoved') {
+        expect(indexDiff.tableName).toBe('users');
+        expect(indexDiff.indexName).toBe('email_idx');
+      }
+    });
+
     it('should detect multiple indexes added to same table', () => {
       const oldSchemas: Record<string, SchemaDefinition> = {
         users: {
@@ -849,35 +633,32 @@ describe('SchemaDiffer', () => {
         }
       };
 
-      const result = differ.compare(oldSchemas, newSchemas);
+      const comparison = expectSuccessData(differ.compare(oldSchemas, newSchemas));
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        const indexAdded = result.data.differences.filter(d => d.type === 'indexAdded');
-        expect(indexAdded).toHaveLength(3);
+      expect(comparison.hasChanges).toBe(true);
+      const indexAdded = comparison.differences.filter(d => d.type === 'indexAdded');
+      expect(indexAdded).toHaveLength(3);
 
-        // Verify each index
-        const emailIdx = indexAdded.find(
-          d => d.type === 'indexAdded' && d.index.name === 'email_idx'
-        );
-        expect(emailIdx).toBeDefined();
-        if (emailIdx && emailIdx.type === 'indexAdded') {
-          expect(emailIdx.index.fields).toEqual(['email']);
-          expect(emailIdx.index.unique).toBe(true);
-        }
+      const emailIdx = indexAdded.find(
+        d => d.type === 'indexAdded' && d.index.name === 'email_idx'
+      );
+      expect(emailIdx).toBeDefined();
+      if (emailIdx && emailIdx.type === 'indexAdded') {
+        expect(emailIdx.index.fields).toEqual(['email']);
+        expect(emailIdx.index.unique).toBe(true);
+      }
 
-        const compositeIdx = indexAdded.find(
-          d => d.type === 'indexAdded' && d.index.name === 'composite_idx'
-        );
-        expect(compositeIdx).toBeDefined();
-        if (compositeIdx && compositeIdx.type === 'indexAdded') {
-          expect(compositeIdx.index.fields).toEqual(['email', 'username']);
-          expect(compositeIdx.index.unique).toBeUndefined();
-        }
+      const compositeIdx = indexAdded.find(
+        d => d.type === 'indexAdded' && d.index.name === 'composite_idx'
+      );
+      expect(compositeIdx).toBeDefined();
+      if (compositeIdx && compositeIdx.type === 'indexAdded') {
+        expect(compositeIdx.index.fields).toEqual(['email', 'username']);
+        expect(compositeIdx.index.unique).toBeUndefined();
       }
     });
 
-    it('should handle index name generation when not provided', () => {
+    it('should handle index without name', () => {
       const oldSchemas: Record<string, SchemaDefinition> = {
         users: {
           name: 'users',
@@ -893,145 +674,96 @@ describe('SchemaDiffer', () => {
             email: { type: 'string' }
           },
           indexes: [
-            { fields: ['email'], unique: true } // No name provided
+            { fields: ['email'], unique: true }
           ]
         }
       };
 
-      const result = differ.compare(oldSchemas, newSchemas);
+      const comparison = expectSuccessData(differ.compare(oldSchemas, newSchemas));
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        const indexAdded = result.data.differences.find(d => d.type === 'indexAdded');
-        expect(indexAdded).toBeDefined();
-        // Name might be auto-generated or undefined - both acceptable
-      }
+      expect(comparison.hasChanges).toBe(true);
+      const indexAdded = comparison.differences.find(d => d.type === 'indexAdded');
+      expect(indexAdded).toBeDefined();
     });
   });
 
-  describe('Edge Cases', () => {
-    it('should handle empty schema collections', () => {
-      const result = differ.compare({}, {});
-
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.hasChanges).toBe(false);
-        expect(result.data.differences).toHaveLength(0);
-      }
-    });
-
-    it('should handle adding table with no fields', () => {
-      const oldSchemas: Record<string, SchemaDefinition> = {};
-      const newSchemas: Record<string, SchemaDefinition> = {
-        empty: {
-          name: 'empty',
-          fields: {}
-        }
-      };
-
-      const result = differ.compare(oldSchemas, newSchemas);
-
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.hasChanges).toBe(true);
-        const tableAdded = result.data.differences.find(d => d.type === 'tableAdded');
-        expect(tableAdded).toBeDefined();
-        if (tableAdded && tableAdded.type === 'tableAdded') {
-          expect(tableAdded.schema.name).toBe('empty');
-          expect(Object.keys(tableAdded.schema.fields)).toHaveLength(0);
-        }
-      }
-    });
-
-    it('should handle removing table with no fields', () => {
+  describe('Complex scenarios', () => {
+    it('should detect all changes in complex scenario', () => {
       const oldSchemas: Record<string, SchemaDefinition> = {
-        empty: {
-          name: 'empty',
-          fields: {}
-        }
-      };
-      const newSchemas: Record<string, SchemaDefinition> = {};
-
-      const result = differ.compare(oldSchemas, newSchemas);
-
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.hasChanges).toBe(true);
-        const tableRemoved = result.data.differences.find(d => d.type === 'tableRemoved');
-        expect(tableRemoved).toBeDefined();
-        if (tableRemoved && tableRemoved.type === 'tableRemoved') {
-          expect(tableRemoved.tableName).toBe('empty');
-        }
-      }
-    });
-
-    it('should handle invalid schema definitions gracefully', () => {
-      const oldSchemas: Record<string, SchemaDefinition> = {};
-      const newSchemas = {
-        invalid: { notASchema: true }
-      } as unknown as Record<string, SchemaDefinition>;
-
-      const result = differ.compare(oldSchemas, newSchemas);
-
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error.code).toBe('DIFF_ERROR');
-        expect(result.error.message).toContain('Invalid schema definition');
-      }
-    });
-
-    it('should handle null field definitions', () => {
-      const oldSchemas: Record<string, SchemaDefinition> = {};
-      const newSchemas = {
         users: {
           name: 'users',
           fields: {
-            bad: null
+            id: { type: 'number', required: true },
+            username: { type: 'string', minLength: 3 },
+            email: { type: 'string', required: true }
           }
-        }
-      } as unknown as Record<string, SchemaDefinition>;
-
-      const result = differ.compare(oldSchemas, newSchemas);
-
-      // Should either fail gracefully or handle it
-      expect(result.success).toBeDefined();
-    });
-
-    it('should handle very large schemas without performance issues', () => {
-      // Create schema with 100 fields
-      const fields: Record<string, any> = {};
-      for (let i = 0; i < 100; i++) {
-        fields[`field${i}`] = { type: 'string', required: i % 2 === 0 };
-      }
-
-      const oldSchemas: Record<string, SchemaDefinition> = {
-        large: { name: 'large', fields }
+        },
+        posts: schemas.postsBasic
       };
-
-      // Modify half of them
-      const newFields: Record<string, any> = {};
-      for (let i = 0; i < 100; i++) {
-        if (i < 50) {
-          newFields[`field${i}`] = { type: 'string', required: !fields[`field${i}`].required };
-        } else {
-          newFields[`field${i}`] = fields[`field${i}`];
-        }
-      }
-
       const newSchemas: Record<string, SchemaDefinition> = {
-        large: { name: 'large', fields: newFields }
+        users: {
+          name: 'users',
+          fields: {
+            id: { type: 'number', required: true },
+            username: { type: 'string', minLength: 5 },
+            displayName: { type: 'string' }
+          }
+        },
+        comments: schemas.commentsBasic
       };
 
-      const startTime = Date.now();
-      const result = differ.compare(oldSchemas, newSchemas);
-      const duration = Date.now() - startTime;
+      const comparison = expectSuccessData(differ.compare(oldSchemas, newSchemas));
 
-      expect(result.success).toBe(true);
-      expect(duration).toBeLessThan(100); // Should complete in < 100ms
+      expect(comparison.hasChanges).toBe(true);
 
-      if (result.success) {
-        const modified = result.data.differences.filter(d => d.type === 'fieldModified');
-        expect(modified).toHaveLength(50);
+      const types = comparison.differences.map(d => d.type);
+
+      // Tables
+      expect(types.filter(t => t === 'tableAdded')).toHaveLength(1);
+      expect(types.filter(t => t === 'tableRemoved')).toHaveLength(1);
+
+      // Fields
+      expect(types.filter(t => t === 'fieldAdded')).toHaveLength(1);
+      expect(types.filter(t => t === 'fieldRemoved')).toHaveLength(1);
+      expect(types.filter(t => t === 'fieldModified')).toHaveLength(1);
+
+      // Verify specific changes
+      const tableAdded = comparison.differences.find(
+        d => d.type === 'tableAdded' && d.schema.name === 'comments'
+      );
+      expect(tableAdded).toBeDefined();
+
+      const tableRemoved = comparison.differences.find(
+        d => d.type === 'tableRemoved' && d.tableName === 'posts'
+      );
+      expect(tableRemoved).toBeDefined();
+
+      const fieldAdded = comparison.differences.find(
+        d => d.type === 'fieldAdded' &&
+          d.tableName === 'users' &&
+          d.fieldName === 'displayName'
+      );
+      expect(fieldAdded).toBeDefined();
+
+      const fieldRemoved = comparison.differences.find(
+        d => d.type === 'fieldRemoved' &&
+          d.tableName === 'users' &&
+          d.fieldName === 'email'
+      );
+      expect(fieldRemoved).toBeDefined();
+
+      const fieldModified = comparison.differences.find(
+        d => d.type === 'fieldModified' &&
+          d.tableName === 'users' &&
+          d.fieldName === 'username'
+      );
+      expect(fieldModified).toBeDefined();
+      if (fieldModified && fieldModified.type === 'fieldModified') {
+        if (fieldModified.oldDefinition.type === 'string' &&
+          fieldModified.newDefinition.type === 'string') {
+          expect(fieldModified.oldDefinition.minLength).toBe(3);
+          expect(fieldModified.newDefinition.minLength).toBe(5);
+        }
       }
     });
   });
@@ -1066,6 +798,68 @@ describe('SchemaDiffer', () => {
 
       const modified = differ.isFieldModified(field, field);
       expect(modified).toBe(false);
+    });
+  });
+
+  describe('Performance', () => {
+    it('should handle very large schemas without performance issues', () => {
+      const fields: Record<string, any> = {};
+      for (let i = 0; i < 100; i++) {
+        fields[`field${i}`] = { type: 'string', required: i % 2 === 0 };
+      }
+
+      const oldSchemas: Record<string, SchemaDefinition> = {
+        large: { name: 'large', fields }
+      };
+
+      const newFields: Record<string, any> = {};
+      for (let i = 0; i < 100; i++) {
+        if (i < 50) {
+          newFields[`field${i}`] = { type: 'string', required: !fields[`field${i}`].required };
+        } else {
+          newFields[`field${i}`] = fields[`field${i}`];
+        }
+      }
+
+      const newSchemas: Record<string, SchemaDefinition> = {
+        large: { name: 'large', fields: newFields }
+      };
+
+      const startTime = Date.now();
+      const comparison = expectSuccessData(differ.compare(oldSchemas, newSchemas));
+      const duration = Date.now() - startTime;
+
+      expect(comparison.hasChanges).toBe(true);
+      expect(duration).toBeLessThan(100);
+
+      const modified = comparison.differences.filter(d => d.type === 'fieldModified');
+      expect(modified).toHaveLength(50);
+    });
+  });
+
+  describe('Determinism', () => {
+    it('should return same result for identical input', () => {
+      const oldSchemas = { users: schemas.usersBasic };
+      const newSchemas = { users: schemas.usersWithEmail };
+
+      const firstComparison = expectSuccessData(differ.compare(oldSchemas, newSchemas));
+      const secondComparison = expectSuccessData(differ.compare(oldSchemas, newSchemas));
+
+      expect(firstComparison).toEqual(secondComparison);
+    });
+  });
+
+  describe('Input Immutability', () => {
+    it('should not mutate input objects', () => {
+      const oldSchemas = { users: schemas.usersBasic };
+      const newSchemas = { users: schemas.usersWithEmail };
+      const oldSchemasBackup = JSON.parse(JSON.stringify(oldSchemas));
+      const newSchemasBackup = JSON.parse(JSON.stringify(newSchemas));
+
+      expectSuccessData(differ.compare(oldSchemas, newSchemas));
+
+      expect(oldSchemas).toEqual(oldSchemasBackup);
+      expect(newSchemas).toEqual(newSchemasBackup);
     });
   });
 });

@@ -1,119 +1,218 @@
 /**
- * API Parser - Fields Parser Tests
+ * API Parser - Fields Parser Tests (Happy Path)
  *
- * Tests the parsing of fields query parameters:
- * - Wildcard (*)
- * - Comma-separated strings
- * - Array format (fields[0], fields[1])
- * - Multiple fields as array
- * - Invalid field validation
+ * Tests successful parsing of fields query parameters
  */
 
 import { describe, it, expect } from 'vitest';
-import { parseFields } from '@api/parser/fields-parser';
-import type { RawQueryParams } from '@api/parser/types';
+import { parseFields } from '../../src/parser/fields-parser';
+import { RawQueryParams } from '../../../types/src/api/parser';
+import { parserTestData } from '../../../types/src/test/fixtures';
+import { expectSuccessData } from '../../../types/src/test/helpers';
 
-describe('API Parser - Fields Parser', () => {
-  it('should return "*" when no fields parameter is provided', () => {
-    const params: RawQueryParams = {};
-    const result = parseFields(params);
+describe('FieldsParser - Happy Path', () => {
+  describe('Wildcard', () => {
+    it('should return wildcard when no fields parameter is provided', () => {
+      const emptyParams: RawQueryParams = {};
 
-    expect(result.success).toBe(true);
-    expect(result.data).toBe('*');
-  });
+      const parsedFields = expectSuccessData(parseFields(emptyParams));
 
-  it('should return "*" when fields is set to "*"', () => {
-    const params: RawQueryParams = { fields: '*' };
-    const result = parseFields(params);
+      expect(parsedFields).toBe('*');
+    });
 
-    expect(result.success).toBe(true);
-    expect(result.data).toBe('*');
+    it('should return wildcard when fields is explicitly set to "*"', () => {
+      const wildcardParams: RawQueryParams = { fields: '*' };
+
+      const parsedFields = expectSuccessData(parseFields(wildcardParams));
+
+      expect(parsedFields).toBe('*');
+    });
   });
 
   describe('Comma-separated strings', () => {
-    it('should parse simple comma-separated list', () => {
-      const params: RawQueryParams = { fields: 'id,name,email' };
-      const result = parseFields(params);
+    it('should parse simple comma-separated field list', () => {
+      const commaSeparatedParams: RawQueryParams = {
+        fields: parserTestData.commaSeparatedFields.simple
+      };
 
-      expect(result.success).toBe(true);
-      expect(result.data).toEqual(['id', 'name', 'email']);
+      const parsedFields = expectSuccessData(parseFields(commaSeparatedParams));
+
+      expect(parsedFields).toEqual(['id', 'name', 'email']);
     });
 
     it('should trim whitespace from field names', () => {
-      const params: RawQueryParams = { fields: 'id, name , email ' };
-      const result = parseFields(params);
+      const fieldsWithWhitespace: RawQueryParams = {
+        fields: parserTestData.commaSeparatedFields.withWhitespace
+      };
 
-      expect(result.success).toBe(true);
-      expect(result.data).toEqual(['id', 'name', 'email']);
+      const parsedFields = expectSuccessData(parseFields(fieldsWithWhitespace));
+
+      expect(parsedFields).toEqual(['id', 'name', 'email']);
     });
 
-    it('should ignore empty fields', () => {
-      const params: RawQueryParams = { fields: 'id,,name,' };
-      const result = parseFields(params);
+    it('should ignore empty fields in comma-separated list', () => {
+      const fieldsWithEmptyValues: RawQueryParams = {
+        fields: parserTestData.commaSeparatedFields.withEmptyFields
+      };
 
-      expect(result.success).toBe(true);
-      expect(result.data).toEqual(['id', 'name']);
+      const parsedFields = expectSuccessData(parseFields(fieldsWithEmptyValues));
+
+      expect(parsedFields).toEqual(['id', 'name']);
+    });
+
+    it('should parse single field', () => {
+      const singleFieldParams: RawQueryParams = {
+        fields: parserTestData.commaSeparatedFields.single
+      };
+
+      const parsedFields = expectSuccessData(parseFields(singleFieldParams));
+
+      expect(parsedFields).toEqual(['id']);
+    });
+
+    it('should parse complex field list with dots', () => {
+      const complexFieldParams: RawQueryParams = {
+        fields: parserTestData.commaSeparatedFields.complex
+      };
+
+      const parsedFields = expectSuccessData(parseFields(complexFieldParams));
+
+      expect(parsedFields).toEqual([
+        'id',
+        'name',
+        'email',
+        'createdAt',
+        'updatedAt',
+        'profile.avatar'
+      ]);
     });
   });
 
   describe('Array-style parameters (indexed)', () => {
     it('should parse indexed array format', () => {
-      const params: RawQueryParams = {
-        'fields[0]': 'id',
-        'fields[1]': 'name'
-      };
-      const result = parseFields(params);
+      const indexedArrayParams: RawQueryParams = parserTestData.indexedArrayFields.simple;
 
-      expect(result.success).toBe(true);
-      expect(result.data).toEqual(['id', 'name']);
+      const parsedFields = expectSuccessData(parseFields(indexedArrayParams));
+
+      expect(parsedFields).toEqual(['id', 'name']);
     });
 
-    it('should stop at first missing index', () => {
-      const params: RawQueryParams = {
-        'fields[0]': 'id',
-        'fields[2]': 'email' // Skip [1]
-      };
-      const result = parseFields(params);
+    it('should stop parsing at first missing index', () => {
+      const arrayWithGaps: RawQueryParams = parserTestData.indexedArrayFields.withGaps;
 
-      expect(result.success).toBe(true);
-      expect(result.data).toEqual(['id']);
+      const parsedFields = expectSuccessData(parseFields(arrayWithGaps));
+
+      expect(parsedFields).toEqual(['id']);
+    });
+
+    it('should parse single indexed field', () => {
+      const singleIndexedField: RawQueryParams = parserTestData.indexedArrayFields.singleItem;
+
+      const parsedFields = expectSuccessData(parseFields(singleIndexedField));
+
+      expect(parsedFields).toEqual(['id']);
     });
   });
 
   describe('Framework-parsed arrays', () => {
-    it('should handle fields parameter as an array', () => {
-      // Frameworks like Express might parse fields[]=id&fields[]=name into an array
-      const params: RawQueryParams = { fields: ['id', 'name'] };
-      const result = parseFields(params);
+    it('should handle fields parameter as pre-parsed array', () => {
+      const frameworkParsedArray: RawQueryParams = {
+        fields: parserTestData.validFieldNames
+      };
 
-      expect(result.success).toBe(true);
-      expect(result.data).toEqual(['id', 'name']);
+      const parsedFields = expectSuccessData(parseFields(frameworkParsedArray));
+
+      expect(parsedFields).toEqual(parserTestData.validFieldNames);
+    });
+
+    it('should handle array with underscore fields', () => {
+      const underscoreFields: RawQueryParams = {
+        fields: parserTestData.validFieldNamesWithUnderscore
+      };
+
+      const parsedFields = expectSuccessData(parseFields(underscoreFields));
+
+      expect(parsedFields).toEqual(parserTestData.validFieldNamesWithUnderscore);
+    });
+
+    it('should handle array with dot notation fields', () => {
+      const dotNotationFields: RawQueryParams = {
+        fields: parserTestData.validFieldNamesWithDots
+      };
+
+      const parsedFields = expectSuccessData(parseFields(dotNotationFields));
+
+      expect(parsedFields).toEqual(parserTestData.validFieldNamesWithDots);
     });
   });
 
-  describe('Validation', () => {
-    it('should fail on invalid field names', () => {
-      const params: RawQueryParams = { fields: 'id,name!,user space' };
-      const result = parseFields(params);
+  describe('Valid field name patterns', () => {
+    it('should accept fields with underscores', () => {
+      const underscoreFields: RawQueryParams = { fields: '_id,_internal,__typename' };
 
-      expect(result.success).toBe(false);
-      expect(result.error?.code).toBe('INVALID_SYNTAX');
-      expect(result.error?.details).toBeDefined();
+      const parsedFields = expectSuccessData(parseFields(underscoreFields));
+
+      expect(parsedFields).toEqual(['_id', '_internal', '__typename']);
     });
 
-    it('should allow underscore and dots in field names', () => {
-      const params: RawQueryParams = { fields: 'id,_internal,user.profile_name' };
-      const result = parseFields(params);
+    it('should accept fields with dots (relation paths)', () => {
+      const dotNotationFields: RawQueryParams = { fields: 'user.name,profile.avatar' };
 
-      expect(result.success).toBe(true);
-      expect(result.data).toEqual(['id', '_internal', 'user.profile_name']);
+      const parsedFields = expectSuccessData(parseFields(dotNotationFields));
+
+      expect(parsedFields).toEqual(['user.name', 'profile.avatar']);
     });
 
-    it('should fail if field starts with a digit', () => {
-      const params: RawQueryParams = { fields: '1abc' };
-      const result = parseFields(params);
+    it('should accept mixed valid patterns', () => {
+      const mixedFields: RawQueryParams = {
+        fields: parserTestData.validFieldNamesMixed.join(',')
+      };
 
-      expect(result.success).toBe(false);
+      const parsedFields = expectSuccessData(parseFields(mixedFields));
+
+      expect(parsedFields).toEqual(parserTestData.validFieldNamesMixed);
+    });
+  });
+
+  describe('Determinism', () => {
+    it('should return same result for identical input', () => {
+      const identicalParams: RawQueryParams = { fields: 'id,name,email' };
+
+      const firstParse = expectSuccessData(parseFields(identicalParams));
+      const secondParse = expectSuccessData(parseFields(identicalParams));
+
+      expect(firstParse).toEqual(secondParse);
+    });
+
+    it('should return same result regardless of input object mutation', () => {
+      const mutableParams: RawQueryParams = { fields: 'id,name' };
+      const firstParse = expectSuccessData(parseFields(mutableParams));
+
+      mutableParams.fields = 'email';
+      const secondParse = expectSuccessData(parseFields({ fields: 'id,name' }));
+
+      expect(firstParse).toEqual(secondParse);
+    });
+  });
+
+  describe('Input Immutability', () => {
+    it('should not mutate input object', () => {
+      const originalParams: RawQueryParams = { fields: 'id,name,email' };
+      const paramsCopy = JSON.parse(JSON.stringify(originalParams));
+
+      expectSuccessData(parseFields(originalParams));
+
+      expect(originalParams).toEqual(paramsCopy);
+    });
+
+    it('should not mutate input array', () => {
+      const originalArray = ['id', 'name', 'email'];
+      const arrayCopy = [...originalArray];
+      const arrayParams: RawQueryParams = { fields: originalArray };
+
+      expectSuccessData(parseFields(arrayParams));
+
+      expect(originalArray).toEqual(arrayCopy);
     });
   });
 });

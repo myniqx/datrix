@@ -7,26 +7,15 @@
 
 import type { Pool, PoolClient } from 'pg';
 import { Pool as PgPool } from 'pg';
-import {
-  QueryError,
-  ConnectionError,
-  TransactionError,
-  MigrationError,
-  type DatabaseAdapter,
-  type QueryResult,
-  type QueryMetadata,
-  type Transaction,
-  type ConnectionState,
-  type AlterOperation,
-  type IndexDefinition
-} from 'forja-types/adapter';
-import type { SchemaDefinition, FieldDefinition, FieldType } from 'forja-types/core/schema';
-import type { Result } from 'forja-types/utils';
+
 import { PostgresQueryTranslator } from './query-translator';
 import type { PostgresConfig } from './types';
 import { getPostgresTypeWithModifiers } from './types';
 import { QueryObject } from 'forja-types/core/query-builder';
+import { AlterOperation, ConnectionError, ConnectionState, DatabaseAdapter, MigrationError, QueryError, QueryMetadata, QueryResult, Transaction, TransactionError } from 'forja-types/adapter';
+import { Result } from 'forja-types/utils';
 import { validateQueryObject } from 'forja-core/utils/query';
+import { FieldDefinition, FieldType, IndexDefinition, SchemaDefinition } from 'forja-types/core/schema';
 
 /**
  * PostgreSQL adapter implementation
@@ -533,11 +522,8 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
         .join(', ');
       const unique = index.unique ? 'UNIQUE ' : '';
       const using = index.type ? ` USING ${index.type.toUpperCase()}` : '';
-
       const sql = `CREATE ${unique}INDEX ${escapedIndexName} ON ${escapedTable}${using} (${fields})`;
-
       await this.pool.query(sql);
-
       return { success: true, data: undefined };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

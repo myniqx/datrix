@@ -4,40 +4,45 @@
  * Comprehensive tests for migration execution, rollback, and history management
  */
 
+import { createMigrationRunner } from '../../src';
+import { AlterOperation, DatabaseAdapter, QueryError, QueryResult, Transaction, TransactionError } from '../../../types/src/adapter';
+import { Migration, MigrationHistory, MigrationHistoryRecord, MigrationStatus, MigrationSystemError } from '../../../types/src/core/migration';
+import { SchemaDefinition } from '../../../types/src/core/schema';
+import { Result } from '../../../types/src/utils';
 import { describe, it, expect, beforeEach } from 'vitest';
-import { createMigrationRunner } from '@core/migration/runner';
-import type {
-  Migration,
-  MigrationHistory,
-  MigrationHistoryRecord,
-  MigrationStatus
-} from '@core/migration/types';
-import type { DatabaseAdapter, QueryResult, Transaction, AlterOperation } from '@adapters/base/types';
-import type { Result } from '@utils/types';
-import type { SchemaDefinition } from '@core/schema/types';
+
 
 /**
  * Mock Transaction implementation
  */
 class MockTransaction implements Transaction {
+  savepoint(name: string): Promise<Result<void, TransactionError>> {
+    throw new Error('Method not implemented.');
+  }
+  rollbackTo(name: string): Promise<Result<void, TransactionError>> {
+    throw new Error('Method not implemented.');
+  }
+  release(name: string): Promise<Result<void, TransactionError>> {
+    throw new Error('Method not implemented.');
+  }
   readonly id = 'test-tx-1';
   private _committed = false;
   private _rolledBack = false;
 
-  async query<TResult>(): Promise<Result<QueryResult<TResult>, Error>> {
+  async query<TResult>(): Promise<Result<QueryResult<TResult>, QueryError>> {
     return { success: true, data: { rows: [] as readonly TResult[], metadata: {} } };
   }
 
-  async rawQuery<TResult>(): Promise<Result<QueryResult<TResult>, Error>> {
+  async rawQuery<TResult>(): Promise<Result<QueryResult<TResult>, QueryError>> {
     return { success: true, data: { rows: [] as readonly TResult[], metadata: {} } };
   }
 
-  async commit(): Promise<Result<void, Error>> {
+  async commit(): Promise<Result<void, QueryError>> {
     this._committed = true;
     return { success: true, data: undefined };
   }
 
-  async rollback(): Promise<Result<void, Error>> {
+  async rollback(): Promise<Result<void, QueryError>> {
     this._rolledBack = true;
     return { success: true, data: undefined };
   }
@@ -55,6 +60,9 @@ class MockTransaction implements Transaction {
  * Mock Database Adapter
  */
 class MockDatabaseAdapter implements DatabaseAdapter {
+  tableExists(tableName: string): Promise<boolean> {
+    throw new Error('Method not implemented.');
+  }
   readonly name = 'mock';
   readonly config = {};
 
@@ -62,11 +70,11 @@ class MockDatabaseAdapter implements DatabaseAdapter {
   private _shouldFail = false;
   private _failOperation: string | null = null;
 
-  connect(): Promise<Result<void, Error>> {
+  connect(): Promise<Result<void, QueryError>> {
     return Promise.resolve({ success: true, data: undefined });
   }
 
-  disconnect(): Promise<Result<void, Error>> {
+  disconnect(): Promise<Result<void, QueryError>> {
     return Promise.resolve({ success: true, data: undefined });
   }
 
@@ -78,7 +86,7 @@ class MockDatabaseAdapter implements DatabaseAdapter {
     return 'connected' as const;
   }
 
-  executeQuery<TResult>(): Promise<Result<QueryResult<TResult>, Error>> {
+  executeQuery<TResult>(): Promise<Result<QueryResult<TResult>, QueryError>> {
     return Promise.resolve({
       success: true,
       data: { rows: [] as readonly TResult[], metadata: {} }
@@ -87,27 +95,27 @@ class MockDatabaseAdapter implements DatabaseAdapter {
 
   async executeRawQuery<TResult>(
     sql: string
-  ): Promise<Result<QueryResult<TResult>, Error>> {
+  ): Promise<Result<QueryResult<TResult>, QueryError>> {
     if (this._shouldFail && this._failOperation === 'raw') {
-      return { success: false, error: new Error('Raw query failed') };
+      return { success: false, error: new QueryError('Raw query failed') };
     }
     this._operations.push({ type: 'raw', data: sql });
     return { success: true, data: { rows: [] as readonly TResult[], metadata: {} } };
   }
 
-  async beginTransaction(): Promise<Result<Transaction, Error>> {
+  async beginTransaction(): Promise<Result<Transaction, QueryError>> {
     return { success: true, data: new MockTransaction() };
   }
 
-  async createTable(schema: SchemaDefinition): Promise<Result<void, Error>> {
+  async createTable(schema: SchemaDefinition): Promise<Result<void, QueryError>> {
     if (this._shouldFail && this._failOperation === 'createTable') {
-      return { success: false, error: new Error('Create table failed') };
+      return { success: false, error: new QueryError('Create table failed') };
     }
     this._operations.push({ type: 'createTable', data: schema });
     return { success: true, data: undefined };
   }
 
-  async dropTable(tableName: string): Promise<Result<void, Error>> {
+  async dropTable(tableName: string): Promise<Result<void, QueryError>> {
     if (this._shouldFail && this._failOperation === 'dropTable') {
       return { success: false, error: new Error('Drop table failed') };
     }
@@ -118,35 +126,35 @@ class MockDatabaseAdapter implements DatabaseAdapter {
   async alterTable(
     tableName: string,
     operations: readonly AlterOperation[]
-  ): Promise<Result<void, Error>> {
+  ): Promise<Result<void, QueryError>> {
     if (this._shouldFail && this._failOperation === 'alterTable') {
-      return { success: false, error: new Error('Alter table failed') };
+      return { success: false, error: new QueryError('Alter table failed') };
     }
     this._operations.push({ type: 'alterTable', data: { tableName, operations } });
     return { success: true, data: undefined };
   }
 
-  async addIndex(): Promise<Result<void, Error>> {
+  async addIndex(): Promise<Result<void, QueryError>> {
     if (this._shouldFail && this._failOperation === 'addIndex') {
-      return { success: false, error: new Error('Add index failed') };
+      return { success: false, error: new QueryError('Add index failed') };
     }
     this._operations.push({ type: 'addIndex', data: {} });
     return { success: true, data: undefined };
   }
 
-  async dropIndex(): Promise<Result<void, Error>> {
+  async dropIndex(): Promise<Result<void, QueryError>> {
     if (this._shouldFail && this._failOperation === 'dropIndex') {
-      return { success: false, error: new Error('Drop index failed') };
+      return { success: false, error: new QueryError('Drop index failed') };
     }
     this._operations.push({ type: 'dropIndex', data: {} });
     return { success: true, data: undefined };
   }
 
-  getTables(): Promise<Result<readonly string[], Error>> {
+  getTables(): Promise<Result<readonly string[], QueryError>> {
     return Promise.resolve({ success: true, data: [] });
   }
 
-  getTableSchema(): Promise<Result<SchemaDefinition, Error>> {
+  getTableSchema(): Promise<Result<SchemaDefinition, QueryError>> {
     return Promise.resolve({
       success: true,
       data: { name: 'test', fields: {}, indexes: [] }
@@ -172,10 +180,19 @@ class MockDatabaseAdapter implements DatabaseAdapter {
  * Mock Migration History
  */
 class MockMigrationHistory implements MigrationHistory {
+  isApplied(version: string): Promise<Result<boolean, MigrationSystemError>> {
+    throw new Error('Method not implemented.');
+  }
+  calculateChecksum(migration: Migration): string {
+    throw new Error('Method not implemented.');
+  }
+  verifyChecksum(migration: Migration, record: MigrationHistoryRecord): boolean {
+    throw new Error('Method not implemented.');
+  }
   private _records: MigrationHistoryRecord[] = [];
   private _initialized = false;
 
-  async initialize(): Promise<Result<void, Error>> {
+  async initialize(): Promise<Result<void, MigrationSystemError>> {
     this._initialized = true;
     return { success: true, data: undefined };
   }
@@ -184,8 +201,8 @@ class MockMigrationHistory implements MigrationHistory {
     migration: Migration,
     executionTime: number,
     status: MigrationStatus,
-    error?: Error
-  ): Promise<Result<void, Error>> {
+    error?: MigrationSystemError
+  ): Promise<Result<void, MigrationSystemError>> {
     this._records.push({
       id: this._records.length + 1,
       name: migration.metadata.name,
@@ -198,16 +215,16 @@ class MockMigrationHistory implements MigrationHistory {
     return { success: true, data: undefined };
   }
 
-  async getAll(): Promise<Result<readonly MigrationHistoryRecord[], Error>> {
+  async getAll(): Promise<Result<readonly MigrationHistoryRecord[], MigrationSystemError>> {
     return { success: true, data: this._records };
   }
 
-  async getLast(): Promise<Result<MigrationHistoryRecord | null, Error>> {
-    const last = this._records[this._records.length - 1] ?? null;
+  async getLast(): Promise<Result<MigrationHistoryRecord | undefined, MigrationSystemError>> {
+    const last = this._records[this._records.length - 1] ?? undefined;
     return { success: true, data: last };
   }
 
-  async remove(version: string): Promise<Result<void, Error>> {
+  async remove(version: string): Promise<Result<void, MigrationSystemError>> {
     this._records = this._records.filter((r) => r.version !== version);
     return { success: true, data: undefined };
   }
@@ -258,8 +275,8 @@ function createTestMigration(version: string, name: string): Migration {
 }
 
 describe('MigrationRunner', () => {
-  let adapter: MockDatabaseAdapter;
-  let history: MockMigrationHistory;
+  let adapter: DatabaseAdapter;
+  let history: MigrationHistory;
 
   beforeEach(() => {
     adapter = new MockDatabaseAdapter();

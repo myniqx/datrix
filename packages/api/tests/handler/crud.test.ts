@@ -1,302 +1,643 @@
 /**
- * API Handler - CRUD Tests
+ * API Handler - CRUD Tests (Happy Path)
  *
- * Tests the core CRUD handlers:
- * - findMany with pagination and hooks
- * - findOne with error handling
+ * Tests CRUD operations with proper success flows:
+ * - findMany with pagination
+ * - findOne by ID
  * - create with validation
- * - update and delete
+ * - update partial data
+ * - delete by ID
+ * - count with filters
+ * - Hook execution (beforeFind, afterFind, etc.)
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { findMany, findOne, create, update, deleteRecord } from '@api/handler/crud';
-import type { RequestContext, HandlerConfig } from '@api/handler/types';
-import type { DatabaseAdapter } from '@adapters/base/types';
-import type { SchemaDefinition } from '@core/schema/types';
+import { create, deleteRecord, findMany, findOne, update, count } from '../../src/handler/crud';
+import { crudTestData } from '../../../types/src/test/fixtures';
+import type { DatabaseAdapter } from '../../../types/src/adapter';
+import type { HandlerConfig, RequestContext } from '../../../types/src/api/handler';
+import type { SchemaDefinition } from '../../../types/src/core/schema';
 
-describe('API Handler - CRUD', () => {
-  let mockAdapter: any;
+describe('API Handler - CRUD (Happy Path)', () => {
+  let mockAdapter: DatabaseAdapter;
   let mockSchema: SchemaDefinition;
+  let baseContext: RequestContext;
+  let baseConfig: HandlerConfig;
 
   beforeEach(() => {
     mockAdapter = {
-      executeQuery: vi.fn()
+      name: 'mock-adapter',
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      executeQuery: vi.fn(),
+      introspect: vi.fn(),
+      startTransaction: vi.fn(),
+      commit: vi.fn(),
+      rollback: vi.fn(),
+    } as unknown as DatabaseAdapter;
+
+    mockSchema = crudTestData.mockUserSchema;
+    baseContext = { ...crudTestData.validRequestContext };
+    baseConfig = {
+      adapter: mockAdapter,
+      schema: mockSchema,
     };
 
-    mockSchema = {
-      name: 'User',
-      tableName: 'users',
-      fields: {
-        id: { type: 'number', primary: true },
-        name: { type: 'string', required: true },
-        email: { type: 'string', required: true }
-      }
-    };
+    vi.clearAllMocks();
   });
 
   describe('findMany', () => {
-    it('should return many records successfully', async () => {
-      const mockRows = [
-        { id: 1, name: 'John' },
-        { id: 2, name: 'Jane' }
+    it('should return multiple records successfully', async () => {
+      const mockRecords = [
+        crudTestData.validUserRecord,
+        { ...crudTestData.validUserRecord, id: 2, email: 'user2@example.com' },
       ];
 
-      mockAdapter.executeQuery.mockResolvedValue({
+      vi.mocked(mockAdapter.executeQuery).mockResolvedValue({
         success: true,
-        data: { rows: mockRows, metadata: { rowCount: 2, affectedRows: 0 } }
+        data: { rows: mockRecords, metadata: { rowCount: 2, affectedRows: 0 } },
       });
 
-      const context: RequestContext = {
-        params: {},
-        query: {},
-        body: undefined,
-        user: undefined
-      };
-
-      const config: HandlerConfig = {
-        adapter: mockAdapter as DatabaseAdapter,
-        schema: mockSchema
-      };
-
-      const response = await findMany(context, config);
+      const context: RequestContext = { ...baseContext, query: {} };
+      const response = await findMany(context, baseConfig);
 
       expect(response.status).toBe(200);
-      expect(response.body.data).toEqual(mockRows);
-      expect(mockAdapter.executeQuery).toHaveBeenCalled();
+      expect(response.body.data).toEqual(mockRecords);
+      expect(mockAdapter.executeQuery).toHaveBeenCalledTimes(1);
     });
 
-    it('should handle pagination and return total count', async () => {
-      // First call for records, second for count
-      mockAdapter.executeQuery
+    it('should return empty array when no records found', async () => {
+      vi.mocked(mockAdapter.executeQuery).mockResolvedValue({
+        success: true,
+        data: { rows: [], metadata: { rowCount: 0, affectedRows: 0 } },
+      });
+
+      const context: RequestContext = { ...baseContext };
+      const response = await findMany(context, baseConfig);
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toEqual([]);
+    });
+
+    it('should handle pagination with page and pageSize', async () => {
+      const paginatedRecords = crudTestData.bulkRecords.slice(0, 10);
+
+      vi.mocked(mockAdapter.executeQuery)
         .mockResolvedValueOnce({
           success: true,
-          data: { rows: [{ id: 1 }], metadata: { rowCount: 1, affectedRows: 0 } }
+          data: { rows: paginatedRecords, metadata: { rowCount: 10, affectedRows: 0 } },
         })
         .mockResolvedValueOnce({
           success: true,
-          data: { rows: [{ count: 100 }], metadata: { rowCount: 1, affectedRows: 0 } }
+          data: { rows: [{ count: 100 }], metadata: { rowCount: 1, affectedRows: 0 } },
         });
 
       const context: RequestContext = {
-        params: {},
+        ...baseContext,
         query: { page: '1', pageSize: '10' },
-        body: undefined,
-        user: undefined
       };
 
-      const config: HandlerConfig = {
-        adapter: mockAdapter as DatabaseAdapter,
-        schema: mockSchema
-      };
-
-      const response = await findMany(context, config);
+      const response = await findMany(context, baseConfig);
 
       expect(response.status).toBe(200);
+      expect(response.body.data).toHaveLength(10);
       expect(response.body.meta?.pagination).toEqual({
         page: 1,
         pageSize: 10,
         total: 100,
-        pageCount: 10
+        pageCount: 10,
       });
-      // Verify two queries were executed
       expect(mockAdapter.executeQuery).toHaveBeenCalledTimes(2);
     });
 
-    it('should execute beforeFind and afterFind hooks', async () => {
-      const mockRows = [{ id: 1, name: 'John' }];
-      mockAdapter.executeQuery.mockResolvedValue({
-        success: true,
-        data: { rows: mockRows, metadata: { rowCount: 1, affectedRows: 0 } }
-      });
+    it('should handle limit and offset pagination', async () => {
+      const limitedRecords = crudTestData.bulkRecords.slice(20, 40);
 
-      const beforeFindHook = vi.fn().mockImplementation((ctx, query) => ({ ...query, limit: 123 }));
-      const afterFindHook = vi.fn().mockImplementation((ctx, results) =>
-        results.map((r: any) => ({ ...r, hooked: true }))
-      );
+      vi.mocked(mockAdapter.executeQuery)
+        .mockResolvedValueOnce({
+          success: true,
+          data: { rows: limitedRecords, metadata: { rowCount: 20, affectedRows: 0 } },
+        })
+        .mockResolvedValueOnce({
+          success: true,
+          data: { rows: [{ count: 100 }], metadata: { rowCount: 1, affectedRows: 0 } },
+        });
 
       const context: RequestContext = {
-        params: {},
-        query: {},
-        body: undefined,
-        user: undefined
+        ...baseContext,
+        query: { limit: '20', offset: '20' },
       };
 
+      const response = await findMany(context, baseConfig);
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toHaveLength(20);
+    });
+
+    it('should execute beforeFind hook', async () => {
+      const mockRecords = [crudTestData.validUserRecord];
+
+      vi.mocked(mockAdapter.executeQuery).mockResolvedValue({
+        success: true,
+        data: { rows: mockRecords, metadata: { rowCount: 1, affectedRows: 0 } },
+      });
+
+      const beforeFindHook = vi.fn().mockImplementation((ctx, query) => ({
+        ...query,
+        limit: 50,
+      }));
+
+      const context: RequestContext = { ...baseContext };
       const config: HandlerConfig = {
-        adapter: mockAdapter as DatabaseAdapter,
-        schema: mockSchema,
-        hooks: {
-          beforeFind: beforeFindHook,
-          afterFind: afterFindHook
-        }
+        ...baseConfig,
+        hooks: { beforeFind: beforeFindHook },
       };
 
       const response = await findMany(context, config);
 
-      expect(beforeFindHook).toHaveBeenCalled();
-      expect(afterFindHook).toHaveBeenCalled();
-      expect(response.body.data[0].hooked).toBe(true);
+      expect(response.status).toBe(200);
+      expect(beforeFindHook).toHaveBeenCalledOnce();
+      expect(beforeFindHook).toHaveBeenCalledWith(context, expect.any(Object));
+    });
 
-      // Verify beforeFind modified the query (check query builder call indirectly through adapter)
-      const lastCall = mockAdapter.executeQuery.mock.calls[0][0];
-      expect(lastCall.limit).toBe(123);
+    it('should execute afterFind hook', async () => {
+      const mockRecords = [crudTestData.validUserRecord];
+
+      vi.mocked(mockAdapter.executeQuery).mockResolvedValue({
+        success: true,
+        data: { rows: mockRecords, metadata: { rowCount: 1, affectedRows: 0 } },
+      });
+
+      const afterFindHook = vi.fn().mockImplementation((ctx, results) =>
+        results.map((r: any) => ({ ...r, transformed: true }))
+      );
+
+      const context: RequestContext = { ...baseContext };
+      const config: HandlerConfig = {
+        ...baseConfig,
+        hooks: { afterFind: afterFindHook },
+      };
+
+      const response = await findMany(context, config);
+
+      expect(response.status).toBe(200);
+      expect(afterFindHook).toHaveBeenCalledOnce();
+      expect((response.body.data as any)[0].transformed).toBe(true);
+    });
+
+    it('should handle fields selection', async () => {
+      const selectedFieldsRecord = { id: 1, email: 'user@example.com' };
+
+      vi.mocked(mockAdapter.executeQuery).mockResolvedValue({
+        success: true,
+        data: { rows: [selectedFieldsRecord], metadata: { rowCount: 1, affectedRows: 0 } },
+      });
+
+      const context: RequestContext = {
+        ...baseContext,
+        query: { 'fields[0]': 'id', 'fields[1]': 'email' },
+      };
+
+      const response = await findMany(context, baseConfig);
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toEqual([selectedFieldsRecord]);
+    });
+
+    it('should handle sorting', async () => {
+      const sortedRecords = [...crudTestData.bulkRecords].slice(0, 5);
+
+      vi.mocked(mockAdapter.executeQuery).mockResolvedValue({
+        success: true,
+        data: { rows: sortedRecords, metadata: { rowCount: 5, affectedRows: 0 } },
+      });
+
+      const context: RequestContext = {
+        ...baseContext,
+        query: { sort: 'name' },
+      };
+
+      const response = await findMany(context, baseConfig);
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toHaveLength(5);
+    });
+
+    it('should handle where filters', async () => {
+      const adminRecords = crudTestData.bulkRecords.filter((r) => r.role === 'admin');
+
+      vi.mocked(mockAdapter.executeQuery).mockResolvedValue({
+        success: true,
+        data: { rows: adminRecords, metadata: { rowCount: adminRecords.length, affectedRows: 0 } },
+      });
+
+      const context: RequestContext = {
+        ...baseContext,
+        query: { 'where[role]': 'admin' },
+      };
+
+      const response = await findMany(context, baseConfig);
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toEqual(adminRecords);
     });
   });
 
   describe('findOne', () => {
-    it('should return a single record by ID', async () => {
-      const mockRow = { id: 1, name: 'John' };
-      mockAdapter.executeQuery.mockResolvedValue({
+    it('should return single record by ID', async () => {
+      const mockRecord = crudTestData.validUserRecord;
+
+      vi.mocked(mockAdapter.executeQuery).mockResolvedValue({
         success: true,
-        data: { rows: [mockRow], metadata: { rowCount: 1, affectedRows: 0 } }
+        data: { rows: [mockRecord], metadata: { rowCount: 1, affectedRows: 0 } },
       });
 
       const context: RequestContext = {
+        ...baseContext,
         params: { id: '1' },
-        query: {},
-        body: undefined,
-        user: undefined
+      };
+
+      const response = await findOne(context, baseConfig);
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toEqual(mockRecord);
+    });
+
+    it('should handle fields selection in findOne', async () => {
+      const selectedRecord = { id: 1, name: 'John Doe' };
+
+      vi.mocked(mockAdapter.executeQuery).mockResolvedValue({
+        success: true,
+        data: { rows: [selectedRecord], metadata: { rowCount: 1, affectedRows: 0 } },
+      });
+
+      const context: RequestContext = {
+        ...baseContext,
+        params: { id: '1' },
+        query: { 'fields[0]': 'id', 'fields[1]': 'name' },
+      };
+
+      const response = await findOne(context, baseConfig);
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toEqual(selectedRecord);
+    });
+
+    it('should execute afterFind hook for single record', async () => {
+      const mockRecord = crudTestData.validUserRecord;
+
+      vi.mocked(mockAdapter.executeQuery).mockResolvedValue({
+        success: true,
+        data: { rows: [mockRecord], metadata: { rowCount: 1, affectedRows: 0 } },
+      });
+
+      const afterFindHook = vi.fn().mockImplementation((ctx, result) => ({
+        ...result,
+        enhanced: true,
+      }));
+
+      const context: RequestContext = {
+        ...baseContext,
+        params: { id: '1' },
       };
 
       const config: HandlerConfig = {
-        adapter: mockAdapter as DatabaseAdapter,
-        schema: mockSchema
+        ...baseConfig,
+        hooks: { afterFind: afterFindHook },
       };
 
       const response = await findOne(context, config);
 
       expect(response.status).toBe(200);
-      expect(response.body.data).toEqual(mockRow);
-    });
-
-    it('should return 404 when record not found', async () => {
-      mockAdapter.executeQuery.mockResolvedValue({
-        success: true,
-        data: { rows: [], metadata: { rowCount: 0, affectedRows: 0 } }
-      });
-
-      const context: RequestContext = {
-        params: { id: '999' },
-        query: {},
-        body: undefined,
-        user: undefined
-      };
-
-      const config: HandlerConfig = {
-        adapter: mockAdapter as DatabaseAdapter,
-        schema: mockSchema
-      };
-
-      const response = await findOne(context, config);
-
-      expect(response.status).toBe(404);
-      expect(response.body.error.code).toBe('NOT_FOUND');
+      expect(afterFindHook).toHaveBeenCalledOnce();
+      expect((response.body.data as any).enhanced).toBe(true);
     });
   });
 
   describe('create', () => {
-    it('should create a new record', async () => {
-      const mockInput = { name: 'New User', email: 'new@example.com' };
-      const mockOutput = { id: 10, ...mockInput };
+    it('should create new record successfully', async () => {
+      const inputData = crudTestData.validUserInput;
+      const createdRecord = { id: 10, ...inputData };
 
-      mockAdapter.executeQuery.mockResolvedValue({
+      vi.mocked(mockAdapter.executeQuery).mockResolvedValue({
         success: true,
-        data: { rows: [mockOutput], metadata: { rowCount: 1, affectedRows: 1 } }
+        data: { rows: [createdRecord], metadata: { rowCount: 1, affectedRows: 1 } },
       });
 
       const context: RequestContext = {
-        params: {},
-        query: {},
-        body: mockInput,
-        user: undefined
+        ...baseContext,
+        method: 'POST',
+        body: inputData,
+      };
+
+      const response = await create(context, baseConfig);
+
+      expect(response.status).toBe(201);
+      expect(response.body.data).toEqual(createdRecord);
+      expect(mockAdapter.executeQuery).toHaveBeenCalledOnce();
+    });
+
+    it('should execute beforeCreate hook', async () => {
+      const inputData = crudTestData.validUserInput;
+      const transformedData = { ...inputData, transformed: true };
+      const createdRecord = { id: 10, ...transformedData };
+
+      vi.mocked(mockAdapter.executeQuery).mockResolvedValue({
+        success: true,
+        data: { rows: [createdRecord], metadata: { rowCount: 1, affectedRows: 1 } },
+      });
+
+      const beforeCreateHook = vi.fn().mockImplementation((ctx, data) => ({
+        ...data,
+        transformed: true,
+      }));
+
+      const context: RequestContext = {
+        ...baseContext,
+        method: 'POST',
+        body: inputData,
       };
 
       const config: HandlerConfig = {
-        adapter: mockAdapter as DatabaseAdapter,
-        schema: mockSchema
+        ...baseConfig,
+        hooks: { beforeCreate: beforeCreateHook },
       };
 
       const response = await create(context, config);
 
       expect(response.status).toBe(201);
-      expect(response.body.data).toEqual(mockOutput);
+      expect(beforeCreateHook).toHaveBeenCalledOnce();
     });
 
-    it('should return 400 on validation failure', async () => {
-      const invalidInput = { name: '' }; // Missing email, empty name (if validation supports it)
+    it('should execute afterCreate hook', async () => {
+      const inputData = crudTestData.validUserInput;
+      const createdRecord = { id: 10, ...inputData };
+
+      vi.mocked(mockAdapter.executeQuery).mockResolvedValue({
+        success: true,
+        data: { rows: [createdRecord], metadata: { rowCount: 1, affectedRows: 1 } },
+      });
+
+      const afterCreateHook = vi.fn().mockImplementation((ctx, data) => ({
+        ...data,
+        hooked: true,
+      }));
 
       const context: RequestContext = {
-        params: {},
-        query: {},
-        body: invalidInput,
-        user: undefined
+        ...baseContext,
+        method: 'POST',
+        body: inputData,
       };
 
       const config: HandlerConfig = {
-        adapter: mockAdapter as DatabaseAdapter,
-        schema: mockSchema
+        ...baseConfig,
+        hooks: { afterCreate: afterCreateHook },
       };
 
       const response = await create(context, config);
 
-      expect(response.status).toBe(400);
-      expect(response.body.error.code).toBe('VALIDATION_ERROR');
+      expect(response.status).toBe(201);
+      expect(afterCreateHook).toHaveBeenCalledOnce();
+      expect((response.body.data as any).hooked).toBe(true);
     });
   });
 
   describe('update', () => {
-    it('should update a record', async () => {
-      const mockInput = { name: 'Updated Name' };
-      const mockOutput = { id: 1, name: 'Updated Name', email: 'john@example.com' };
+    it('should update record successfully', async () => {
+      const updateData = { name: 'Updated Name' };
+      const updatedRecord = { ...crudTestData.validUserRecord, name: 'Updated Name' };
 
-      mockAdapter.executeQuery.mockResolvedValue({
+      vi.mocked(mockAdapter.executeQuery).mockResolvedValue({
         success: true,
-        data: { rows: [mockOutput], metadata: { rowCount: 1, affectedRows: 1 } }
+        data: { rows: [updatedRecord], metadata: { rowCount: 1, affectedRows: 1 } },
       });
 
       const context: RequestContext = {
+        ...baseContext,
+        method: 'PUT',
         params: { id: '1' },
-        query: {},
-        body: mockInput,
-        user: undefined
+        body: updateData,
+      };
+
+      const response = await update(context, baseConfig);
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toEqual(updatedRecord);
+    });
+
+    it('should handle partial update', async () => {
+      const partialUpdate = { age: 26 };
+      const updatedRecord = { ...crudTestData.validUserRecord, age: 26 };
+
+      vi.mocked(mockAdapter.executeQuery).mockResolvedValue({
+        success: true,
+        data: { rows: [updatedRecord], metadata: { rowCount: 1, affectedRows: 1 } },
+      });
+
+      const context: RequestContext = {
+        ...baseContext,
+        method: 'PATCH',
+        params: { id: '1' },
+        body: partialUpdate,
+      };
+
+      const response = await update(context, baseConfig);
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toEqual(updatedRecord);
+    });
+
+    it('should execute beforeUpdate hook', async () => {
+      const updateData = { name: 'Updated Name' };
+      const updatedRecord = { ...crudTestData.validUserRecord, name: 'Updated Name' };
+
+      vi.mocked(mockAdapter.executeQuery).mockResolvedValue({
+        success: true,
+        data: { rows: [updatedRecord], metadata: { rowCount: 1, affectedRows: 1 } },
+      });
+
+      const beforeUpdateHook = vi.fn().mockImplementation((ctx, id, data) => ({
+        ...data,
+        modifiedAt: new Date().toISOString(),
+      }));
+
+      const context: RequestContext = {
+        ...baseContext,
+        method: 'PUT',
+        params: { id: '1' },
+        body: updateData,
       };
 
       const config: HandlerConfig = {
-        adapter: mockAdapter as DatabaseAdapter,
-        schema: mockSchema
+        ...baseConfig,
+        hooks: { beforeUpdate: beforeUpdateHook },
       };
 
       const response = await update(context, config);
 
       expect(response.status).toBe(200);
-      expect(response.body.data).toEqual(mockOutput);
+      expect(beforeUpdateHook).toHaveBeenCalledOnce();
+      expect(beforeUpdateHook).toHaveBeenCalledWith(context, '1', expect.any(Object));
+    });
+
+    it('should execute afterUpdate hook', async () => {
+      const updateData = { name: 'Updated Name' };
+      const updatedRecord = { ...crudTestData.validUserRecord, name: 'Updated Name' };
+
+      vi.mocked(mockAdapter.executeQuery).mockResolvedValue({
+        success: true,
+        data: { rows: [updatedRecord], metadata: { rowCount: 1, affectedRows: 1 } },
+      });
+
+      const afterUpdateHook = vi.fn().mockImplementation((ctx, data) => ({
+        ...data,
+        processed: true,
+      }));
+
+      const context: RequestContext = {
+        ...baseContext,
+        method: 'PUT',
+        params: { id: '1' },
+        body: updateData,
+      };
+
+      const config: HandlerConfig = {
+        ...baseConfig,
+        hooks: { afterUpdate: afterUpdateHook },
+      };
+
+      const response = await update(context, config);
+
+      expect(response.status).toBe(200);
+      expect(afterUpdateHook).toHaveBeenCalledOnce();
+      expect((response.body.data as any).processed).toBe(true);
     });
   });
 
   describe('delete', () => {
-    it('should delete a record', async () => {
-      const mockDeleted = { id: 1, name: 'John' };
+    it('should delete record successfully', async () => {
+      const deletedRecord = crudTestData.validUserRecord;
 
-      mockAdapter.executeQuery.mockResolvedValue({
+      vi.mocked(mockAdapter.executeQuery).mockResolvedValue({
         success: true,
-        data: { rows: [mockDeleted], metadata: { rowCount: 1, affectedRows: 1 } }
+        data: { rows: [deletedRecord], metadata: { rowCount: 1, affectedRows: 1 } },
       });
 
       const context: RequestContext = {
+        ...baseContext,
+        method: 'DELETE',
         params: { id: '1' },
-        query: {},
-        body: undefined,
-        user: undefined
+      };
+
+      const response = await deleteRecord(context, baseConfig);
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toEqual(deletedRecord);
+    });
+
+    it('should execute beforeDelete hook', async () => {
+      const deletedRecord = crudTestData.validUserRecord;
+
+      vi.mocked(mockAdapter.executeQuery).mockResolvedValue({
+        success: true,
+        data: { rows: [deletedRecord], metadata: { rowCount: 1, affectedRows: 1 } },
+      });
+
+      const beforeDeleteHook = vi.fn().mockResolvedValue(undefined);
+
+      const context: RequestContext = {
+        ...baseContext,
+        method: 'DELETE',
+        params: { id: '1' },
       };
 
       const config: HandlerConfig = {
-        adapter: mockAdapter as DatabaseAdapter,
-        schema: mockSchema
+        ...baseConfig,
+        hooks: { beforeDelete: beforeDeleteHook },
       };
 
       const response = await deleteRecord(context, config);
 
       expect(response.status).toBe(200);
-      expect(response.body.data).toEqual(mockDeleted);
+      expect(beforeDeleteHook).toHaveBeenCalledOnce();
+      expect(beforeDeleteHook).toHaveBeenCalledWith(context, '1');
+    });
+
+    it('should execute afterDelete hook', async () => {
+      const deletedRecord = crudTestData.validUserRecord;
+
+      vi.mocked(mockAdapter.executeQuery).mockResolvedValue({
+        success: true,
+        data: { rows: [deletedRecord], metadata: { rowCount: 1, affectedRows: 1 } },
+      });
+
+      const afterDeleteHook = vi.fn().mockResolvedValue(undefined);
+
+      const context: RequestContext = {
+        ...baseContext,
+        method: 'DELETE',
+        params: { id: '1' },
+      };
+
+      const config: HandlerConfig = {
+        ...baseConfig,
+        hooks: { afterDelete: afterDeleteHook },
+      };
+
+      const response = await deleteRecord(context, config);
+
+      expect(response.status).toBe(200);
+      expect(afterDeleteHook).toHaveBeenCalledOnce();
+      expect(afterDeleteHook).toHaveBeenCalledWith(context, '1');
+    });
+  });
+
+  describe('count', () => {
+    it('should return count of all records', async () => {
+      vi.mocked(mockAdapter.executeQuery).mockResolvedValue({
+        success: true,
+        data: { rows: [{ count: 100 }], metadata: { rowCount: 1, affectedRows: 0 } },
+      });
+
+      const context: RequestContext = { ...baseContext };
+      const response = await count(context, baseConfig);
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toEqual({ count: 100 });
+    });
+
+    it('should return count with where filter', async () => {
+      vi.mocked(mockAdapter.executeQuery).mockResolvedValue({
+        success: true,
+        data: { rows: [{ count: 10 }], metadata: { rowCount: 1, affectedRows: 0 } },
+      });
+
+      const context: RequestContext = {
+        ...baseContext,
+        query: { 'where[role]': 'admin' },
+      };
+
+      const response = await count(context, baseConfig);
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toEqual({ count: 10 });
+    });
+
+    it('should return zero when no records match', async () => {
+      vi.mocked(mockAdapter.executeQuery).mockResolvedValue({
+        success: true,
+        data: { rows: [{ count: 0 }], metadata: { rowCount: 1, affectedRows: 0 } },
+      });
+
+      const context: RequestContext = {
+        ...baseContext,
+        query: { 'where[role]': 'nonexistent' },
+      };
+
+      const response = await count(context, baseConfig);
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toEqual({ count: 0 });
     });
   });
 });

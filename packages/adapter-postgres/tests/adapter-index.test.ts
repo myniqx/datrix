@@ -14,11 +14,11 @@
  * - DO NOT weaken tests without user approval
  */
 
+import { PostgresAdapter } from '../src';
+import { PostgresConfig } from '../src/types';
+import { IndexDefinition, SchemaDefinition } from '../../types/src/core/schema';
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { PostgresAdapter } from '@adapters/postgres/adapter';
-import type { PostgresConfig } from '@adapters/postgres/types';
-import type { SchemaDefinition } from '@core/schema/types';
-import type { IndexDefinition } from '@adapters/base/types';
+
 
 // =============================================================================
 // Test Setup
