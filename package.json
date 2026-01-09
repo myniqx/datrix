@@ -1,6 +1,7 @@
 {
-  "name": "forja",
+  "name": "forja-monorepo",
   "version": "0.1.0",
+  "private": true,
   "description": "TypeScript-first database management framework with Strapi-like API flexibility",
   "author": "Forja Contributors",
   "license": "MIT",
@@ -26,71 +27,30 @@
     "type-safe",
     "plugin-architecture"
   ],
-  "main": "./dist/index.js",
-  "module": "./dist/index.mjs",
-  "types": "./dist/index.d.ts",
-  "bin": {
-    "forja": "./dist/cli/index.js"
-  },
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.js"
-    },
-    "./adapters": {
-      "types": "./dist/adapters/index.d.ts",
-      "import": "./dist/adapters/index.mjs",
-      "require": "./dist/adapters/index.js"
-    },
-    "./plugins": {
-      "types": "./dist/plugins/index.d.ts",
-      "import": "./dist/plugins/index.mjs",
-      "require": "./dist/plugins/index.js"
-    },
-    "./cli": {
-      "types": "./dist/cli/index.d.ts",
-      "import": "./dist/cli/index.mjs",
-      "require": "./dist/cli/index.js"
-    }
-  },
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE"
-  ],
-  "sideEffects": false,
   "scripts": {
-    "build": "tsup",
-    "dev": "tsup --watch",
-    "type-check": "tsc --noEmit",
-    "lint": "eslint src --ext .ts",
-    "test": "vitest run",
-    "test:watch": "vitest watch",
-    "test:coverage": "vitest run --coverage",
-    "prepublishOnly": "pnpm run type-check && pnpm run build"
+    "build": "pnpm -r run build",
+    "dev": "pnpm -r --parallel run dev",
+    "type-check": "pnpm -r run type-check",
+    "lint": "pnpm -r run lint",
+    "test": "pnpm -r run test && vitest run tests/integration",
+    "test:unit": "pnpm -r run test",
+    "test:integration": "vitest run tests/integration",
+    "test:watch": "pnpm -r run test:watch",
+    "test:coverage": "pnpm -r run test:coverage",
+    "clean": "pnpm -r run clean"
   },
   "engines": {
     "node": ">=18.0.0"
   },
-  "packageManager": "pnpm@10.18.2",
-  "dependencies": {
-    "pg": "^8.11.3",
-    "mysql2": "^3.9.1",
-    "mongodb": "^6.3.0"
-  },
+  "packageManager": "pnpm@10.27.0",
   "devDependencies": {
     "@types/node": "^20.11.17",
-    "@types/pg": "^8.11.0",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/parser": "^6.21.0",
+    "@vitest/coverage-v8": "^1.2.2",
     "eslint": "^8.56.0",
     "tsup": "^8.0.2",
     "typescript": "^5.3.3",
-    "vitest": "^1.2.2",
-    "@vitest/coverage-v8": "^1.2.2"
-  },
-  "peerDependencies": {
-    "typescript": ">=5.0.0"
+    "vitest": "^1.2.2"
   }
 }

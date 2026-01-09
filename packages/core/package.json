@@ -1,0 +1,33 @@
+{
+	"name": "forja-core",
+	"version": "0.1.0",
+	"description": "Core functionality for Forja framework - schema, validation, query building, migration",
+	"author": "Forja Contributors",
+	"license": "MIT",
+	"main": "./dist/index.js",
+	"module": "./dist/index.mjs",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		"./*": "./src/*.ts"
+	},
+	"files": [
+		"dist"
+	],
+	"sideEffects": false,
+	"scripts": {
+		"build": "tsup",
+		"dev": "tsup --watch",
+		"type-check": "tsc --noEmit",
+		"test": "vitest run",
+		"test:watch": "vitest watch",
+		"clean": "rm -rf dist"
+	},
+	"dependencies": {
+		"forja-types": "workspace:*"
+	},
+	"devDependencies": {
+		"tsup": "^8.0.2",
+		"typescript": "^5.3.3",
+		"vitest": "^1.2.2"
+	}
+}
