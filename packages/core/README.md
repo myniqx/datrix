@@ -1,4 +1,4 @@
-# @forja/core
+# forja-core
 
 > Core functionality for Forja framework - schema system, validation engine, query builder, and migration system
 
