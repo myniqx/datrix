@@ -1,32 +1,30 @@
-# Query Builder - Adapter Developer Guide
+# Query Builder - Adapter Developer Reference
 
-> **Hedef Kitle:** Database adapter yazanlar (QueryObject → SQL/NoSQL çeviren developerlar)
-
-Bu dokümanda `QueryObject` yapısını ve adapter'da nasıl kullanacağınızı açıklıyoruz.
+> Technical reference for implementing database adapters. Covers `QueryObject` structure and translation patterns.
 
 ---
 
-## Genel Bakış
+## Overview
 
-Query Builder, database-agnostic `QueryObject` üretir. Adapter'ınız bu objeyi kendi database diline çevirir:
+Query Builder produces database-agnostic `QueryObject` structures. Adapters translate these to SQL/NoSQL.
 
 ```typescript
-// Kullanıcı bunu yapar (API layer üzerinden)
+// Input (from API layer)
 const query = selectFrom('users')
   .where({ role: 'admin' })
   .build();
 
-// Adapter bunu alır
-interface QueryObject {
+// QueryObject
+{
   type: 'select',
   table: 'users',
   where: { role: 'admin' }
 }
 
-// Adapter bunu çevirir
-// PostgreSQL → "SELECT * FROM users WHERE role = $1"
-// MySQL      → "SELECT * FROM users WHERE role = ?"
-// MongoDB    → db.users.find({ role: 'admin' })
+// Adapter output
+PostgreSQL: SELECT * FROM users WHERE role = $1
+MySQL:      SELECT * FROM users WHERE role = ?
+MongoDB:    db.users.find({ role: 'admin' })
 ```
 
 ---
@@ -36,21 +34,23 @@ interface QueryObject {
 ```typescript
 interface QueryObject {
   readonly type: QueryType                      // 'select' | 'insert' | 'update' | 'delete' | 'count'
-  readonly table: string                        // Tablo adı
-  readonly select?: SelectClause                // SELECT fields
-  readonly where?: WhereClause                  // WHERE conditions
+  readonly table: string                        // Table name
+  readonly select?: SelectClause                // Fields to select
+  readonly where?: WhereClause                  // Filter conditions
   readonly populate?: PopulateClause            // Relations (JOIN)
-  readonly orderBy?: readonly OrderByItem[]     // ORDER BY
-  readonly limit?: number                       // LIMIT
-  readonly offset?: number                      // OFFSET
+  readonly orderBy?: readonly OrderByItem[]     // Sorting
+  readonly limit?: number                       // Pagination limit
+  readonly offset?: number                      // Pagination offset
   readonly data?: Record<string, unknown>       // INSERT/UPDATE data
-  readonly returning?: SelectClause             // RETURNING (PostgreSQL)
+  readonly returning?: SelectClause             // RETURNING clause (PostgreSQL)
   readonly distinct?: boolean                   // SELECT DISTINCT
-  readonly groupBy?: readonly string[]          // GROUP BY
-  readonly having?: WhereClause                 // HAVING
-  readonly meta?: QueryMetadata                 // Metadata (performans tracking vb)
+  readonly groupBy?: readonly string[]          // GROUP BY fields
+  readonly having?: WhereClause                 // HAVING clause
+  readonly meta?: QueryMetadata                 // Metadata (optional)
 }
 ```
+
+**Source:** `packages/types/src/query-builder.ts`
 
 ---
 
@@ -70,15 +70,7 @@ interface QueryObject {
 }
 ```
 
-**PostgreSQL çevirisi:**
-```sql
-SELECT id, email, name
-FROM users
-WHERE role = $1
-ORDER BY "createdAt" DESC
-LIMIT 25 OFFSET 0
--- Params: ['admin']
-```
+**SQL:** `SELECT id, email, name FROM users WHERE role = $1 ORDER BY "createdAt" DESC LIMIT 25 OFFSET 0`
 
 ### INSERT
 
@@ -86,22 +78,12 @@ LIMIT 25 OFFSET 0
 {
   type: 'insert',
   table: 'users',
-  data: {
-    email: 'user@example.com',
-    name: 'John Doe',
-    role: 'user'
-  },
+  data: { email: 'user@example.com', name: 'John' },
   returning: ['id', 'email']
 }
 ```
 
-**PostgreSQL çevirisi:**
-```sql
-INSERT INTO users (email, name, role)
-VALUES ($1, $2, $3)
-RETURNING id, email
--- Params: ['user@example.com', 'John Doe', 'user']
-```
+**SQL:** `INSERT INTO users (email, name) VALUES ($1, $2) RETURNING id, email`
 
 ### UPDATE
 
@@ -115,14 +97,7 @@ RETURNING id, email
 }
 ```
 
-**PostgreSQL çevirisi:**
-```sql
-UPDATE users
-SET role = $1
-WHERE id = $2
-RETURNING *
--- Params: ['admin', '123']
-```
+**SQL:** `UPDATE users SET role = $1 WHERE id = $2 RETURNING *`
 
 ### DELETE
 
@@ -134,11 +109,7 @@ RETURNING *
 }
 ```
 
-**PostgreSQL çevirisi:**
-```sql
-DELETE FROM users WHERE id = $1
--- Params: ['123']
-```
+**SQL:** `DELETE FROM users WHERE id = $1`
 
 ### COUNT
 
@@ -150,23 +121,16 @@ DELETE FROM users WHERE id = $1
 }
 ```
 
-**PostgreSQL çevirisi:**
-```sql
-SELECT COUNT(*) FROM users WHERE role = $1
--- Params: ['admin']
-```
+**SQL:** `SELECT COUNT(*) FROM users WHERE role = $1`
 
 ---
 
 ## WHERE Clause
 
-### Basit Eşitlik
+### Simple Equality
 
 ```typescript
-where: {
-  role: 'admin',
-  status: 'active'
-}
+where: { role: 'admin', status: 'active' }
 ```
 
 **SQL:** `WHERE role = $1 AND status = $2`
@@ -182,7 +146,7 @@ where: {
 
 **SQL:** `WHERE age >= $1 AND age <= $2 AND status != $3`
 
-**Tüm operatörler:**
+**Operators:**
 - `$eq` → `=`
 - `$ne` → `!=`
 - `$gt` → `>`
@@ -210,12 +174,14 @@ where: {
 }
 ```
 
-**SQL:**
-```sql
-WHERE email LIKE $1 AND name ILIKE $2
--- PostgreSQL: ILIKE (case-insensitive)
--- MySQL: LIKE ... COLLATE utf8_general_ci
-```
+**SQL (PostgreSQL):** `WHERE email LIKE $1 AND name ILIKE $2`
+
+**Operators:**
+- `$like` → `LIKE` (case-sensitive)
+- `$ilike` → `ILIKE` (case-insensitive, PostgreSQL only)
+- `$contains` → `LIKE '%value%'`
+- `$icontains` → `ILIKE '%value%'`
+- `$regex` → Implementation-specific
 
 ### Logical Operators
 
@@ -247,44 +213,10 @@ where: {
 
 **SQL:** `WHERE status = $1 AND (role = $2 OR verified = $3)`
 
-### Implementation Example
-
-```typescript
-function translateWhere(
-  where: WhereClause,
-  params: unknown[],
-  paramIndex: number
-): string {
-  const conditions: string[] = [];
-
-  for (const [key, value] of Object.entries(where)) {
-    if (key === '$and') {
-      const nested = (value as WhereClause[])
-        .map(w => translateWhere(w, params, paramIndex))
-        .join(' AND ');
-      conditions.push(`(${nested})`);
-    } else if (key === '$or') {
-      const nested = (value as WhereClause[])
-        .map(w => translateWhere(w, params, paramIndex))
-        .join(' OR ');
-      conditions.push(`(${nested})`);
-    } else if (typeof value === 'object' && value !== null) {
-      // Comparison operators
-      for (const [op, val] of Object.entries(value)) {
-        params.push(val);
-        const placeholder = `$${paramIndex++}`;
-        conditions.push(`${key} ${operatorMap[op]} ${placeholder}`);
-      }
-    } else {
-      // Simple equality
-      params.push(value);
-      conditions.push(`${key} = $${paramIndex++}`);
-    }
-  }
-
-  return conditions.join(' AND ');
-}
-```
+**Operators:**
+- `$and` → `AND`
+- `$or` → `OR`
+- `$not` → `NOT`
 
 ---
 
@@ -303,47 +235,36 @@ populate: {
 }
 ```
 
-**SQL (JOIN):**
+**Translation Strategy:**
+
+**hasOne/belongsTo:** Use JOIN
 ```sql
-SELECT
-  posts.*,
-  author.id AS "author.id",
-  author.name AS "author.name",
-  author.email AS "author.email"
+SELECT posts.*, author.id, author.name, author.email
 FROM posts
 LEFT JOIN users AS author ON posts.authorId = author.id
 ```
 
-**Not:** Comments gibi hasMany ilişkiler ayrı sorgu gerektirir (N+1 problem).
-
-### Implementation Strategy
-
-**Option 1: JOIN (hasOne, belongsTo)**
+**hasMany/manyToMany:** Separate queries (avoid N+1)
 ```typescript
-if (relation.kind === 'hasOne' || relation.kind === 'belongsTo') {
-  sql += ` LEFT JOIN ${relation.table} AS ${alias} ON ${joinCondition}`;
-}
+// 1. Main query
+const posts = await executeQuery(mainQuery);
+
+// 2. Batch load relations
+const authorIds = [...new Set(posts.map(p => p.authorId))];
+const authors = await executeQuery({
+  type: 'select',
+  table: 'users',
+  where: { id: { $in: authorIds } }
+});
+
+// 3. Map results
+const authorsMap = new Map(authors.map(a => [a.id, a]));
+posts.forEach(p => p.author = authorsMap.get(p.authorId));
 ```
 
-**Option 2: Separate Query (hasMany, manyToMany)**
-```typescript
-if (relation.kind === 'hasMany') {
-  // Ana sorguyu çalıştır
-  const posts = await executeQuery(mainQuery);
-
-  // Relation sorgusu çalıştır
-  const comments = await executeQuery({
-    type: 'select',
-    table: 'comments',
-    where: { postId: { $in: posts.map(p => p.id) } }
-  });
-
-  // Sonuçları birleştir
-  posts.forEach(post => {
-    post.comments = comments.filter(c => c.postId === post.id);
-  });
-}
-```
+**Constraints:**
+- Max populate depth: 5 levels
+- Validated by `validatePopulateClause()` utility
 
 ---
 
@@ -383,8 +304,11 @@ offset: 50
 ```
 
 **SQL:** `LIMIT 25 OFFSET 50`
-
 **MongoDB:** `.skip(50).limit(25)`
+
+**Constraints:**
+- Default limit: 25
+- Max limit: 100 (configurable)
 
 ---
 
@@ -394,9 +318,7 @@ offset: 50
 {
   select: ['category', 'COUNT(*) as count'],
   groupBy: ['category'],
-  having: {
-    count: { $gte: 10 }
-  }
+  having: { count: { $gte: 10 } }
 }
 ```
 
@@ -410,19 +332,17 @@ HAVING count >= $1
 
 ---
 
-## Adapter Implementation Checklist
+## Adapter Implementation
 
-### Gerekli Metodlar
+### Required Method
 
 ```typescript
 class PostgresAdapter implements DatabaseAdapter {
-  // Query execution
   async executeQuery<T>(query: QueryObject): Promise<T> {
     const { sql, params } = this.translate(query);
     return await this.client.query(sql, params);
   }
 
-  // Query translation
   private translate(query: QueryObject): { sql: string; params: unknown[] } {
     switch (query.type) {
       case 'select': return this.translateSelect(query);
@@ -432,47 +352,44 @@ class PostgresAdapter implements DatabaseAdapter {
       case 'count': return this.translateCount(query);
     }
   }
-
-  private translateSelect(query: QueryObject): { sql: string; params: unknown[] } {
-    // Implementation
-  }
-
-  // ... diğer metodlar
 }
 ```
 
-### Handle Edge Cases
+### Critical: SQL Injection Prevention
 
 ```typescript
-// 1. WHERE clause olmadan DELETE (tehlikeli!)
+// ❌ NEVER - String concatenation
+const sql = `SELECT * FROM ${query.table} WHERE id = ${userId}`;
+
+// ✅ ALWAYS - Parameterized queries
+const sql = `SELECT * FROM users WHERE id = $1`;
+const params = [userId];
+```
+
+### Edge Cases to Handle
+
+```typescript
+// 1. DELETE without WHERE
 if (query.type === 'delete' && !query.where) {
   throw new Error('DELETE without WHERE is not allowed');
 }
 
-// 2. Populate depth limit
-if (this.getPopulateDepth(query.populate) > 5) {
-  throw new Error('Populate depth exceeds limit (5)');
+// 2. Populate depth
+if (getPopulateDepth(query.populate) > 5) {
+  throw new Error('Populate depth exceeds limit');
 }
 
 // 3. LIMIT validation
 if (query.limit && query.limit > 1000) {
-  throw new Error('Limit exceeds maximum (1000)');
+  throw new Error('Limit exceeds maximum');
 }
-
-// 4. SQL injection prevention
-// ALWAYS use parameterized queries, NEVER string concatenation
-const sql = `SELECT * FROM ${query.table}`; // ❌ YANLIŞ
-const sql = `SELECT * FROM users WHERE id = ${userId}`; // ❌ TEHLİKELİ
-
-const sql = `SELECT * FROM users WHERE id = $1`; // ✅ DOĞRU
-const params = [userId];
 ```
 
 ---
 
 ## Utility Functions
 
-Core package bu yardımcı fonksiyonları sağlar:
+Core provides validation and helper utilities:
 
 ```typescript
 import {
@@ -481,43 +398,35 @@ import {
   validateSelectFields,
   validatePopulateClause,
   calculatePagination
-} from '@forja/core';
+} from 'forja-core';
 
-// WHERE clause merge
+// Merge WHERE clauses
 const merged = mergeWhereClauses(
   { status: 'active' },
   { role: 'admin' }
 );
-// { status: 'active', role: 'admin' }
 
-// Validation
+// Validate against schema
 const result = validateWhereClause(where, schema);
 if (!result.success) {
   throw new Error('Invalid WHERE clause');
 }
 
-// Pagination
+// Pagination helpers
 const { limit, offset } = calculatePagination(2, 25);
 // { limit: 25, offset: 25, page: 2, pageSize: 25 }
 ```
 
+**Source:** `packages/core/src/query-builder/`
+
 ---
 
-## Performance Considerations
+## Performance
 
-### 1. Parameterized Queries
+### Connection Pooling
+
 ```typescript
-// ❌ String concatenation (SQL injection risk + no query plan caching)
-const sql = `SELECT * FROM users WHERE email = '${email}'`;
-
-// ✅ Parameterized (safe + database can cache query plan)
-const sql = `SELECT * FROM users WHERE email = $1`;
-const params = [email];
-```
-
-### 2. Connection Pooling
-```typescript
-// ✅ Use connection pool
+// ✅ Use pool
 const pool = new Pool({ max: 20 });
 
 // ❌ Don't create new connection per query
@@ -525,16 +434,20 @@ const client = new Client();
 await client.connect();
 ```
 
-### 3. Populate Optimization
-```typescript
-// N+1 problem için batch loading kullan
-const posts = await loadPosts();
-const authorIds = [...new Set(posts.map(p => p.authorId))];
-const authors = await loadAuthors({ id: { $in: authorIds } });
+### Batch Loading (N+1 Prevention)
 
-// Sonuçları map'le
-const authorsMap = new Map(authors.map(a => [a.id, a]));
-posts.forEach(p => p.author = authorsMap.get(p.authorId));
+```typescript
+// Load related data in batch
+const userIds = [...new Set(posts.map(p => p.authorId))];
+const users = await executeQuery({
+  type: 'select',
+  table: 'users',
+  where: { id: { $in: userIds } }
+});
+
+// Map to original records
+const usersMap = new Map(users.map(u => [u.id, u]));
+posts.forEach(p => p.author = usersMap.get(p.authorId));
 ```
 
 ---
@@ -545,10 +458,9 @@ posts.forEach(p => p.author = authorsMap.get(p.authorId));
 async executeQuery<T>(query: QueryObject): Promise<T> {
   try {
     const { sql, params } = this.translate(query);
-    const result = await this.client.query(sql, params);
-    return this.parseResult(result);
+    return await this.client.query(sql, params);
   } catch (error) {
-    // Database errors → MigrationSystemError veya custom error
+    // Map database errors to Forja errors
     if (error.code === '23505') {
       throw new UniqueConstraintError(error.detail);
     }
@@ -564,9 +476,13 @@ async executeQuery<T>(query: QueryObject): Promise<T> {
 
 ## Testing
 
+See [Testing Guidelines](../../../tests/CLAUDE.md) for test strategy.
+
+**Example test structure:**
+
 ```typescript
-describe('PostgresAdapter', () => {
-  it('should translate simple SELECT', () => {
+describe('PostgresAdapter - translateSelect', () => {
+  it('translates simple WHERE clause', () => {
     const query: QueryObject = {
       type: 'select',
       table: 'users',
@@ -578,53 +494,28 @@ describe('PostgresAdapter', () => {
     expect(sql).toBe('SELECT * FROM users WHERE role = $1');
     expect(params).toEqual(['admin']);
   });
-
-  it('should handle complex WHERE with operators', () => {
-    const query: QueryObject = {
-      type: 'select',
-      table: 'users',
-      where: {
-        age: { $gte: 18, $lte: 65 },
-        status: { $in: ['active', 'pending'] }
-      }
-    };
-
-    const { sql, params } = adapter.translate(query);
-
-    expect(sql).toContain('age >= $1');
-    expect(sql).toContain('age <= $2');
-    expect(sql).toContain('status IN ($3, $4)');
-    expect(params).toEqual([18, 65, 'active', 'pending']);
-  });
 });
 ```
 
 ---
 
-## Referans
+## Reference
 
 **Type Definitions:**
-- `QueryObject` - `forja-types/query-builder.ts`
-- `WhereClause` - `forja-types/query-builder.ts`
-- `PopulateClause` - `forja-types/query-builder.ts`
+- `QueryObject` - `packages/types/src/query-builder.ts`
+- `WhereClause` - `packages/types/src/query-builder.ts`
+- `PopulateClause` - `packages/types/src/query-builder.ts`
 
-**Utility Functions:**
-- `mergeWhereClauses()` - `@forja/core/query-builder`
-- `validateWhereClause()` - `@forja/core/query-builder`
-- `calculatePagination()` - `@forja/core/query-builder`
+**Utilities:**
+- WHERE validation - `packages/core/src/query-builder/where/`
+- SELECT validation - `packages/core/src/query-builder/select/`
+- Populate validation - `packages/core/src/query-builder/populate/`
+- Pagination - `packages/core/src/query-builder/pagination/`
 
 **Example Implementation:**
-- PostgreSQL Adapter - `@forja/adapters/postgres`
+- PostgreSQL Adapter - `packages/adapters/postgres/src/translator.ts`
 
----
-
-## Özet
-
-Adapter yazarken:
-- ✅ `QueryObject` → SQL/NoSQL çevirisi yap
-- ✅ Parameterized queries kullan (SQL injection önleme)
-- ✅ WHERE clause recursive parse et (nested $and/$or)
-- ✅ Populate için JOIN veya separate query stratejisi
-- ✅ Edge cases handle et (WHERE'siz DELETE vb)
-- ✅ Connection pooling kullan
-- ✅ Hataları yakala ve anlamlı error throw et
+**Related:**
+- [Schema System](./schema-system.md)
+- [Migration System](./migration-system.md)
+- [Testing Guidelines](../../../tests/CLAUDE.md)

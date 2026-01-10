@@ -1,556 +1,117 @@
-# Field Types
+# Field Types Reference
 
-> **Hedef Kitle:** Forja kullanıcıları (schema tanımlayan developerlar)
-
-Bu dokümanda Forja Core'un desteklediği 9 field type'ı detaylı örneklerle açıklıyoruz.
+> Complete reference for all field types supported in Forja schemas.
 
 ---
 
-## String Field
+## String
 
-Email, isim, açıklama gibi metin verileri için kullanılır.
-
-### Temel Kullanım
-
-```typescript
-const userSchema = {
-  name: 'User',
-  fields: {
-    email: {
-      type: 'string',
-      required: true
-    }
-  }
-}
-```
-
-### Tüm Parametreler
-
-| Parametre | Tip | Varsayılan | Açıklama |
-|-----------|-----|-----------|----------|
-| `type` | `'string'` | - | **Zorunlu.** Field tipi |
-| `required` | `boolean` | `false` | Alan zorunlu mu? |
-| `default` | `string` | `undefined` | Varsayılan değer |
-| `minLength` | `number` | - | Minimum karakter sayısı |
-| `maxLength` | `number` | - | Maximum karakter sayısı |
-| `pattern` | `RegExp` | - | Regex pattern (email, telefon vb için) |
-| `unique` | `boolean` | `false` | Unique constraint (database level) |
-| `description` | `string` | - | Alan açıklaması |
-
-### Örnekler
-
-#### Email Alanı
+Text data: emails, usernames, descriptions, URLs.
 
 ```typescript
 email: {
   type: 'string',
   required: true,
   unique: true,
-  pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-  description: 'Kullanıcı email adresi'
-}
-```
-
-**Geçerli değerler:**
-- ✅ `"user@example.com"`
-- ✅ `"john.doe@company.co.uk"`
-- ❌ `"invalid-email"` → Pattern hatası
-- ❌ `""` → Required hatası
-- ❌ `null` → Required hatası
-
-#### Kullanıcı Adı
-
-```typescript
-username: {
-  type: 'string',
-  required: true,
-  unique: true,
-  minLength: 3,
-  maxLength: 20,
-  pattern: /^[a-zA-Z0-9_]+$/,
-  description: 'Kullanıcı adı (alfanumerik ve _ karakteri)'
-}
-```
-
-**Geçerli değerler:**
-- ✅ `"john_doe"`
-- ✅ `"user123"`
-- ❌ `"ab"` → minLength hatası (minimum 3)
-- ❌ `"john-doe"` → Pattern hatası (tire karakteri yok)
-- ❌ `"a".repeat(21)` → maxLength hatası (maximum 20)
-
-#### Açıklama/Bio
-
-```typescript
-bio: {
-  type: 'string',
-  required: false,
-  maxLength: 500,
-  default: '',
-  description: 'Kullanıcı biyografisi'
-}
-```
-
-**Geçerli değerler:**
-- ✅ `"Developer from Istanbul"`
-- ✅ `""` → Opsiyonel, boş olabilir
-- ✅ `undefined` → Default değer kullanılır: `""`
-- ❌ `"x".repeat(501)` → maxLength hatası
-
-#### URL Alanı
-
-```typescript
-website: {
-  type: 'string',
-  required: false,
-  pattern: /^https?:\/\/.+/,
-  description: 'Kullanıcı web sitesi'
-}
-```
-
-**Geçerli değerler:**
-- ✅ `"https://example.com"`
-- ✅ `"http://blog.example.com/posts"`
-- ❌ `"example.com"` → Pattern hatası (http/https yok)
-- ❌ `"ftp://example.com"` → Pattern hatası
-
-### Validasyon
-
-```typescript
-import { validateField } from '@forja/core';
-
-// Email validasyonu
-const emailField = {
-  type: 'string',
-  required: true,
   pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-};
-
-const result = validateField('user@example.com', emailField, 'email');
-
-if (result.success) {
-  console.log('Valid email:', result.data);
-} else {
-  console.log('Errors:', result.error);
-  // [{ field: 'email', code: 'PATTERN', message: '...' }]
 }
 ```
 
-### Sık Kullanılan Pattern'ler
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `type` | `'string'` | - | Required |
+| `required` | `boolean` | `false` | Field is required |
+| `default` | `string` | - | Default value |
+| `minLength` | `number` | - | Minimum length |
+| `maxLength` | `number` | - | Maximum length |
+| `pattern` | `RegExp` | - | Validation regex |
+| `unique` | `boolean` | `false` | Database unique constraint |
+
+**Common Patterns:**
 
 ```typescript
 // Email
 pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-// Telefon (TR)
-pattern: /^(\+90|0)?[0-9]{10}$/
-
 // URL
 pattern: /^https?:\/\/.+/
 
-// Slug (URL-friendly)
+// Slug
 pattern: /^[a-z0-9-]+$/
-
-// Alfanumerik
-pattern: /^[a-zA-Z0-9]+$/
-
-// Sadece harfler
-pattern: /^[a-zA-Z\s]+$/
 
 // UUID
 pattern: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 ```
 
-### Dikkat Edilmesi Gerekenler
-
-⚠️ **Pattern her zaman test edilmeli:**
-```typescript
-// ❌ Yanlış - başta/sonda anchor yok
-pattern: /test/  // "testtest" geçerli olur
-
-// ✅ Doğru - tam eşleşme
-pattern: /^test$/  // Sadece "test" geçerli
-```
-
-⚠️ **minLength/maxLength boş string'i kontrol etmez:**
-```typescript
-bio: {
-  type: 'string',
-  minLength: 10
-}
-
-// "" (boş string) geçerlidir!
-// Eğer boş olmasın istiyorsanız:
-bio: {
-  type: 'string',
-  required: true,  // ← Bunu ekleyin
-  minLength: 10
-}
-```
-
-⚠️ **Unique constraint sadece database seviyesinde:**
-```typescript
-email: {
-  type: 'string',
-  unique: true  // Database'de unique index oluşturur
-}
-
-// Forja validator unique kontrolü YAPMAZ
-// Database insert/update sırasında hata alırsınız
-```
+**Notes:**
+- `unique` creates database constraint (not validated by core)
+- `pattern` is case-sensitive
+- Empty string `""` passes `minLength` unless `required: true`
 
 ---
 
-## Number Field
+## Number
 
-Yaş, fiyat, miktar gibi sayısal veriler için kullanılır.
-
-### Temel Kullanım
+Numeric data: age, price, quantity, ratings.
 
 ```typescript
 age: {
-  type: 'number',
-  required: true
-}
-```
-
-### Tüm Parametreler
-
-| Parametre | Tip | Varsayılan | Açıklama |
-|-----------|-----|-----------|----------|
-| `type` | `'number'` | - | **Zorunlu.** Field tipi |
-| `required` | `boolean` | `false` | Alan zorunlu mu? |
-| `default` | `number` | `undefined` | Varsayılan değer |
-| `min` | `number` | - | Minimum değer (dahil) |
-| `max` | `number` | - | Maximum değer (dahil) |
-| `integer` | `boolean` | `false` | Sadece tam sayı mı? |
-| `description` | `string` | - | Alan açıklaması |
-
-### Örnekler
-
-#### Yaş Alanı
-
-```typescript
-age: {
-  type: 'number',
-  required: true,
-  min: 18,
-  max: 120,
-  integer: true,
-  description: 'Kullanıcı yaşı'
-}
-```
-
-**Geçerli değerler:**
-- ✅ `18` → Minimum değer
-- ✅ `25`
-- ✅ `120` → Maximum değer
-- ❌ `17` → min hatası
-- ❌ `121` → max hatası
-- ❌ `25.5` → integer hatası
-- ❌ `"25"` → Type hatası (string)
-
-#### Fiyat Alanı
-
-```typescript
-price: {
-  type: 'number',
-  required: true,
-  min: 0,
-  description: 'Ürün fiyatı (TL)'
-}
-```
-
-**Geçerli değerler:**
-- ✅ `99.99` → Ondalıklı sayılar OK
-- ✅ `0` → Minimum değer
-- ✅ `1000000`
-- ❌ `-10` → min hatası
-- ❌ `null` → required hatası
-
-#### Rating/Puan
-
-```typescript
-rating: {
-  type: 'number',
-  required: false,
-  min: 1,
-  max: 5,
-  default: 0,
-  description: 'Kullanıcı puanı (1-5 arası)'
-}
-```
-
-**Geçerli değerler:**
-- ✅ `1` → Minimum
-- ✅ `3.5` → Ondalıklı OK
-- ✅ `5` → Maximum
-- ✅ `undefined` → Default kullanılır: `0`
-- ❌ `0` → min hatası
-- ❌ `6` → max hatası
-
-#### Stok Miktarı
-
-```typescript
-stock: {
-  type: 'number',
-  required: true,
-  min: 0,
-  integer: true,
-  default: 0,
-  description: 'Stok adedi'
-}
-```
-
-**Geçerli değerler:**
-- ✅ `0`
-- ✅ `100`
-- ❌ `50.5` → integer hatası
-- ❌ `-5` → min hatası
-
-### Validasyon
-
-```typescript
-import { validateField } from '@forja/core';
-
-const ageField = {
   type: 'number',
   required: true,
   min: 18,
   max: 120,
   integer: true
-};
-
-// Geçerli
-validateField(25, ageField, 'age');
-// { success: true, data: 25 }
-
-// Geçersiz - çok düşük
-validateField(17, ageField, 'age');
-// { success: false, error: [{ field: 'age', code: 'MIN_VALUE', ... }] }
-
-// Geçersiz - ondalıklı
-validateField(25.5, ageField, 'age');
-// { success: false, error: [{ field: 'age', code: 'TYPE_MISMATCH', ... }] }
+}
 ```
 
-### Dikkat Edilmesi Gerekenler
+**Parameters:**
 
-⚠️ **min/max değerler dahil (inclusive):**
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `type` | `'number'` | - | Required |
+| `required` | `boolean` | `false` | Field is required |
+| `default` | `number` | - | Default value |
+| `min` | `number` | - | Minimum value (inclusive) |
+| `max` | `number` | - | Maximum value (inclusive) |
+| `integer` | `boolean` | `false` | Must be integer |
+
+**Examples:**
+
 ```typescript
-age: { type: 'number', min: 18, max: 65 }
+// Price
+price: {
+  type: 'number',
+  min: 0
+}
 
-// ✅ 18 geçerli
-// ✅ 65 geçerli
-// ❌ 17 geçersiz
-// ❌ 66 geçersiz
+// Rating (1-5)
+rating: {
+  type: 'number',
+  min: 1,
+  max: 5
+}
+
+// Stock count
+stock: {
+  type: 'number',
+  min: 0,
+  integer: true,
+  default: 0
+}
 ```
 
-⚠️ **integer kontrolü strict:**
-```typescript
-count: { type: 'number', integer: true }
-
-// ✅ 10 geçerli
-// ❌ 10.0 geçersiz (JavaScript'te 10.0 === 10 ama yine de kontrol edilir)
-// ❌ 10.5 geçersiz
-```
-
-⚠️ **String → Number dönüşümü otomatik YAPILMAZ:**
-```typescript
-age: { type: 'number' }
-
-// ❌ "25" geçersiz - manuel parse etmelisiniz
-// ✅ Number("25") veya parseInt("25")
-```
-
-⚠️ **Infinity ve NaN geçersizdir:**
-```typescript
-// ❌ Infinity
-// ❌ -Infinity
-// ❌ NaN
-```
+**Notes:**
+- `min`/`max` are inclusive
+- No automatic string → number coercion
+- `Infinity`, `-Infinity`, `NaN` are invalid
 
 ---
 
-## Enum Field
+## Boolean
 
-Sabit/sınırlı seçenekler için kullanılır (durum, rol, kategori vb).
-
-### Temel Kullanım
-
-```typescript
-status: {
-  type: 'enum',
-  values: ['draft', 'published', 'archived']
-}
-```
-
-### Tüm Parametreler
-
-| Parametre | Tip | Varsayılan | Açıklama |
-|-----------|-----|-----------|----------|
-| `type` | `'enum'` | - | **Zorunlu.** Field tipi |
-| `values` | `string[]` | - | **Zorunlu.** İzin verilen değerler |
-| `required` | `boolean` | `false` | Alan zorunlu mu? |
-| `default` | `string` | `undefined` | Varsayılan değer (values içinde olmalı) |
-| `description` | `string` | - | Alan açıklaması |
-
-### Örnekler
-
-#### Durum (Status)
-
-```typescript
-status: {
-  type: 'enum',
-  values: ['draft', 'published', 'archived'],
-  default: 'draft',
-  required: true,
-  description: 'Gönderi durumu'
-}
-```
-
-**Geçerli değerler:**
-- ✅ `'draft'`
-- ✅ `'published'`
-- ✅ `'archived'`
-- ✅ `undefined` → Default kullanılır: `'draft'`
-- ❌ `'pending'` → values içinde yok
-- ❌ `'Draft'` → Case-sensitive, büyük D geçersiz
-- ❌ `null` → required hatası
-
-#### Kullanıcı Rolü
-
-```typescript
-role: {
-  type: 'enum',
-  values: ['user', 'admin', 'moderator'],
-  default: 'user',
-  required: true,
-  description: 'Kullanıcı rolü'
-}
-```
-
-**Geçerli değerler:**
-- ✅ `'user'`
-- ✅ `'admin'`
-- ✅ `'moderator'`
-- ❌ `'superadmin'` → values içinde yok
-
-#### Öncelik Seviyesi
-
-```typescript
-priority: {
-  type: 'enum',
-  values: ['low', 'medium', 'high', 'urgent'],
-  required: false,
-  description: 'Görev önceliği'
-}
-```
-
-**Geçerli değerler:**
-- ✅ `'low'`
-- ✅ `'medium'`
-- ✅ `'high'`
-- ✅ `'urgent'`
-- ✅ `undefined` → Opsiyonel, boş olabilir
-
-#### Dil Seçimi
-
-```typescript
-language: {
-  type: 'enum',
-  values: ['tr', 'en', 'de', 'fr'],
-  default: 'tr',
-  description: 'Kullanıcı dili'
-}
-```
-
-### TypeScript Type Safety
-
-```typescript
-// ✅ as const kullanarak type inference
-const USER_ROLES = ['user', 'admin', 'moderator'] as const;
-
-role: {
-  type: 'enum',
-  values: USER_ROLES,  // TypeScript type olarak da kullanılabilir
-  default: 'user'
-}
-
-// Type:
-type UserRole = typeof USER_ROLES[number]; // 'user' | 'admin' | 'moderator'
-```
-
-### Validasyon
-
-```typescript
-import { validateField } from '@forja/core';
-
-const roleField = {
-  type: 'enum',
-  values: ['user', 'admin', 'moderator'],
-  required: true
-};
-
-// Geçerli
-validateField('admin', roleField, 'role');
-// { success: true, data: 'admin' }
-
-// Geçersiz
-validateField('superadmin', roleField, 'role');
-// { success: false, error: [{ field: 'role', code: 'INVALID_ENUM', ... }] }
-```
-
-### Dikkat Edilmesi Gerekenler
-
-⚠️ **Case-sensitive:**
-```typescript
-status: { type: 'enum', values: ['draft', 'published'] }
-
-// ✅ 'draft'
-// ❌ 'Draft' → Geçersiz
-// ❌ 'DRAFT' → Geçersiz
-```
-
-⚠️ **default değer values içinde olmalı:**
-```typescript
-// ❌ YANLIŞ
-status: {
-  type: 'enum',
-  values: ['draft', 'published'],
-  default: 'pending'  // ← values içinde yok!
-}
-
-// ✅ DOĞRU
-status: {
-  type: 'enum',
-  values: ['draft', 'published'],
-  default: 'draft'  // ← values içinde
-}
-```
-
-⚠️ **Sadece string değerler:**
-```typescript
-// ❌ Number enum desteklenmiyor
-priority: {
-  type: 'enum',
-  values: [1, 2, 3]  // HATA!
-}
-
-// ✅ String kullanın
-priority: {
-  type: 'enum',
-  values: ['1', '2', '3']
-}
-```
-
----
-
-## Boolean Field
-
-Evet/hayır, aktif/pasif gibi iki değerli alanlar için.
-
-### Temel Kullanım
+Binary flags: active/inactive, verified, enabled.
 
 ```typescript
 isActive: {
@@ -559,110 +120,354 @@ isActive: {
 }
 ```
 
-### Tüm Parametreler
+**Parameters:**
 
-| Parametre | Tip | Varsayılan | Açıklama |
-|-----------|-----|-----------|----------|
-| `type` | `'boolean'` | - | **Zorunlu.** Field tipi |
-| `required` | `boolean` | `false` | Alan zorunlu mu? |
-| `default` | `boolean` | `undefined` | Varsayılan değer |
-| `description` | `string` | - | Alan açıklaması |
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `type` | `'boolean'` | - | Required |
+| `required` | `boolean` | `false` | Field is required |
+| `default` | `boolean` | - | Default value |
 
-### Örnekler
-
-#### Aktif/Pasif
-
-```typescript
-isActive: {
-  type: 'boolean',
-  default: true,
-  description: 'Kullanıcı aktif mi?'
-}
-```
-
-**Geçerli değerler:**
-- ✅ `true`
-- ✅ `false`
-- ✅ `undefined` → Default kullanılır: `true`
-- ❌ `1` → Type hatası
-- ❌ `0` → Type hatası
-- ❌ `"true"` → Type hatası
-
-#### Email Doğrulandı
+**Examples:**
 
 ```typescript
 emailVerified: {
   type: 'boolean',
   required: true,
-  default: false,
-  description: 'Email doğrulandı mı?'
+  default: false
 }
 ```
 
-#### Haber Bülteni
+**Notes:**
+- No truthy/falsy conversion (only `true`/`false`)
+- `1`, `0`, `"true"` are invalid
+
+---
+
+## Date
+
+Temporal data: timestamps, birth dates, deadlines.
 
 ```typescript
-newsletter: {
-  type: 'boolean',
-  required: false,
-  default: false,
-  description: 'Haber bülteni almak istiyor mu?'
+birthDate: {
+  type: 'date',
+  required: true,
+  min: new Date('1900-01-01'),
+  max: new Date()
 }
 ```
 
-### Validasyon
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `type` | `'date'` | - | Required |
+| `required` | `boolean` | `false` | Field is required |
+| `default` | `Date` | - | Default value |
+| `min` | `Date` | - | Minimum date (inclusive) |
+| `max` | `Date` | - | Maximum date (inclusive) |
+
+**Examples:**
 
 ```typescript
-import { validateField } from '@forja/core';
+// Event date
+eventDate: {
+  type: 'date',
+  required: true,
+  min: new Date()  // Future dates only
+}
 
-const activeField = {
-  type: 'boolean',
-  required: true
-};
-
-// Geçerli
-validateField(true, activeField, 'isActive');
-// { success: true, data: true }
-
-validateField(false, activeField, 'isActive');
-// { success: true, data: false }
-
-// Geçersiz
-validateField(1, activeField, 'isActive');
-// { success: false, error: [...] }
+// Created timestamp
+createdAt: {
+  type: 'date',
+  default: () => new Date()
+}
 ```
 
-### Dikkat Edilmesi Gerekenler
+**Notes:**
+- Accepts `Date` objects, not ISO strings
+- Adapters handle database-specific serialization
 
-⚠️ **Truthy/Falsy değerler otomatik dönüştürülmez:**
+---
+
+## Enum
+
+Fixed set of values: status, role, category.
+
 ```typescript
-isActive: { type: 'boolean' }
-
-// ❌ 1 geçersiz (JavaScript'te truthy ama boolean değil)
-// ❌ 0 geçersiz
-// ❌ "true" geçersiz
-// ❌ "" geçersiz
-// ✅ true geçerli
-// ✅ false geçerli
+role: {
+  type: 'enum',
+  values: ['user', 'admin', 'moderator'],
+  default: 'user'
+}
 ```
 
-⚠️ **null ve undefined farklıdır:**
-```typescript
-newsletter: { type: 'boolean', required: false }
+**Parameters:**
 
-// ✅ undefined → Opsiyonel, boş olabilir
-// ❌ null → Type hatası
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `type` | `'enum'` | - | Required |
+| `values` | `string[]` | - | Required. Allowed values |
+| `required` | `boolean` | `false` | Field is required |
+| `default` | `string` | - | Default (must be in `values`) |
+
+**TypeScript Type Safety:**
+
+```typescript
+const USER_ROLES = ['user', 'admin', 'moderator'] as const;
+
+role: {
+  type: 'enum',
+  values: USER_ROLES,
+  default: 'user'
+}
+
+type UserRole = typeof USER_ROLES[number]; // 'user' | 'admin' | 'moderator'
+```
+
+**Notes:**
+- Case-sensitive
+- Only string values (no number enums)
+- `default` must exist in `values`
+
+---
+
+## JSON
+
+Structured data: metadata, settings, config.
+
+```typescript
+metadata: {
+  type: 'json',
+  default: {}
+}
+```
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `type` | `'json'` | - | Required |
+| `required` | `boolean` | `false` | Field is required |
+| `default` | `object \| array` | - | Default value |
+
+**Examples:**
+
+```typescript
+settings: {
+  type: 'json',
+  default: {
+    theme: 'dark',
+    notifications: true
+  }
+}
+
+tags: {
+  type: 'json',
+  default: []
+}
+```
+
+**Notes:**
+- Accepts any JSON-serializable value
+- Database-specific storage (JSONB in PostgreSQL, JSON in MySQL)
+
+---
+
+## Array
+
+Collections: tags, IDs, attachments.
+
+```typescript
+tags: {
+  type: 'array',
+  items: { type: 'string' },
+  minItems: 1,
+  maxItems: 10,
+  unique: true
+}
+```
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `type` | `'array'` | - | Required |
+| `items` | `FieldDefinition` | - | Required. Item type |
+| `required` | `boolean` | `false` | Field is required |
+| `default` | `unknown[]` | - | Default value |
+| `minItems` | `number` | - | Minimum length |
+| `maxItems` | `number` | - | Maximum length |
+| `unique` | `boolean` | `false` | All items must be unique |
+
+**Examples:**
+
+```typescript
+// String array
+tags: {
+  type: 'array',
+  items: { type: 'string' },
+  maxItems: 10
+}
+
+// Number array
+scores: {
+  type: 'array',
+  items: { type: 'number', min: 0, max: 100 },
+  default: []
+}
+```
+
+**Notes:**
+- Max nesting depth: 10 levels
+- `unique` checks item equality (strict)
+
+---
+
+## Relation
+
+Database relations: foreign keys, joins.
+
+```typescript
+posts: {
+  type: 'relation',
+  model: 'Post',
+  kind: 'hasMany',
+  foreignKey: 'authorId'
+}
+```
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `type` | `'relation'` | - | Required |
+| `model` | `string` | - | Required. Target schema name |
+| `kind` | `RelationKind` | - | Required. Relation type |
+| `foreignKey` | `string` | - | Foreign key field |
+| `through` | `string` | - | Junction table (manyToMany) |
+
+**Relation Kinds:**
+
+```typescript
+// One-to-one
+profile: {
+  type: 'relation',
+  model: 'Profile',
+  kind: 'hasOne',
+  foreignKey: 'userId'
+}
+
+// One-to-many
+posts: {
+  type: 'relation',
+  model: 'Post',
+  kind: 'hasMany',
+  foreignKey: 'authorId'
+}
+
+// Many-to-one
+author: {
+  type: 'relation',
+  model: 'User',
+  kind: 'belongsTo',
+  foreignKey: 'authorId'
+}
+
+// Many-to-many
+tags: {
+  type: 'relation',
+  model: 'Tag',
+  kind: 'manyToMany',
+  through: 'PostTags'
+}
+```
+
+**Notes:**
+- Relations are not stored in database (virtual fields)
+- Loaded via `populate` in queries
+- See: [Relations Guide](./relations.md)
+
+---
+
+## File
+
+File uploads: images, documents, attachments.
+
+```typescript
+avatar: {
+  type: 'file',
+  allowedTypes: ['image/jpeg', 'image/png'],
+  maxSize: 5 * 1024 * 1024  // 5MB
+}
+```
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `type` | `'file'` | - | Required |
+| `required` | `boolean` | `false` | Field is required |
+| `allowedTypes` | `string[]` | - | MIME types |
+| `maxSize` | `number` | - | Max file size (bytes) |
+
+**Examples:**
+
+```typescript
+// Image upload
+avatar: {
+  type: 'file',
+  allowedTypes: ['image/jpeg', 'image/png', 'image/webp'],
+  maxSize: 2 * 1024 * 1024  // 2MB
+}
+
+// Document upload
+document: {
+  type: 'file',
+  allowedTypes: ['application/pdf', 'application/msword'],
+  maxSize: 10 * 1024 * 1024  // 10MB
+}
+```
+
+**Notes:**
+- Requires Upload plugin for actual storage
+- Stores file metadata (URL, size, MIME type)
+- Validation happens at upload time
+
+---
+
+## Type Inference
+
+Forja automatically infers TypeScript types:
+
+```typescript
+const schema = {
+  name: 'User',
+  fields: {
+    email: { type: 'string', required: true },
+    age: { type: 'number' },
+    role: { type: 'enum', values: ['user', 'admin'] as const }
+  }
+} as const;
+
+// Inferred type:
+type User = {
+  email: string;
+  age?: number;
+  role?: 'user' | 'admin';
+}
 ```
 
 ---
 
-## Özet
+## Reference
 
-Bu dokümanda **5 temel field type'ı** detaylı inceledik:
-- ✅ String - Email, username, bio vb
-- ✅ Number - Yaş, fiyat, stok vb
-- ✅ Enum - Durum, rol, kategori vb
-- ✅ Boolean - Aktif/pasif, doğru/yanlış vb
-- ⏭️ Sonraki: Date, JSON, Array, Relation, File
+**Source Code:**
+- Field definitions: `packages/types/src/schema.ts`
+- Validation: `packages/core/src/validator/`
+- Type inference: `packages/core/src/schema/inference.ts`
 
-**Not:** Kalan 4 field type (Date, JSON, Array, Relation, File) ayrı dokümanda detaylandırılacak.
+**Related:**
+- [Schema Definition Guide](./defining-schemas.md)
+- [Relations Guide](./relations.md)
+- [Indexes Guide](./indexes.md)
