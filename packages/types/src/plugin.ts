@@ -7,35 +7,9 @@
 
 import type { SchemaRegistry } from './core/schema';
 import type { DatabaseAdapter } from './adapter';
+import type { ForjaConfig } from './config';
 import { Result } from './utils';
 import { QueryObject } from './core/query-builder';
-
-/**
- * Forja configuration (simplified)
- */
-export interface ForjaConfig {
-  readonly database: {
-    readonly adapter: string;
-    readonly connection: Record<string, unknown>;
-  };
-  readonly schemas: {
-    readonly path: string;
-  };
-  readonly plugins?: readonly (string | PluginConfig)[];
-  readonly api?: {
-    readonly prefix?: string;
-    readonly defaultPageSize?: number;
-    readonly maxPageSize?: number;
-  };
-}
-
-/**
- * Plugin configuration
- */
-export interface PluginConfig {
-  readonly name: string;
-  readonly options?: Record<string, unknown>;
-}
 
 /**
  * Plugin context (provided during initialization)

@@ -3,11 +3,14 @@
  *
  * This file configures the Forja framework for a Next.js application.
  * All types are inferred automatically - no manual type annotations needed.
+ *
+ * Type is automatically inferred as ForjaConfig from forja-types/config
  */
 
 import { PostgresAdapter } from 'forja/adapters';
 import { AuthPlugin, UploadPlugin, HooksPlugin } from 'forja/plugins';
 import { LocalStorageProvider } from 'forja/plugins/upload';
+import type { ForjaConfig } from 'forja-types/config';
 
 /**
  * Database Adapter Configuration
@@ -121,8 +124,11 @@ const hooksPlugin = new HooksPlugin();
 
 /**
  * Main Forja Configuration
+ *
+ * This config is loaded by the Forja config loader at application startup.
+ * Type is automatically validated against ForjaConfig interface.
  */
-export default {
+const config: ForjaConfig = {
   /**
    * Database adapter
    */
@@ -177,14 +183,16 @@ export default {
     // Pretty print errors in development
     prettyErrors: process.env.NODE_ENV === 'development',
   },
-} as const;
+};
+
+export default config;
 
 /**
  * Type Exports
  *
- * Export types for use in your application
+ * Export inferred config type for use in your application
  */
-export type ForjaConfig = typeof import('./forja.config').default;
+export type AppConfig = typeof config;
 
 /**
  * Environment Variable Validation
