@@ -7,6 +7,7 @@
 
 import type { DatabaseAdapter } from './adapter';
 import type { ForjaPlugin } from './plugin';
+import type { SchemaDefinition } from './core/schema';
 import { ForjaError } from './utils';
 
 /**
@@ -35,10 +36,20 @@ export interface ForjaConfig<TAdapter extends DatabaseAdapter = DatabaseAdapter>
   readonly adapter: TAdapter;
 
   /**
-   * Schema file locations
-   * Supports glob patterns
+   * Schema definitions
+   * Import your schemas and add them to this array
+   *
+   * @example
+   * ```ts
+   * import { userSchema } from './schemas/user.schema';
+   * import { postSchema } from './schemas/post.schema';
+   *
+   * export default {
+   *   schemas: [userSchema, postSchema],
+   * }
+   * ```
    */
-  readonly schemas: SchemaConfig;
+  readonly schemas: readonly SchemaDefinition[];
 
   /**
    * Plugin instances (optional)
@@ -63,18 +74,6 @@ export interface ForjaConfig<TAdapter extends DatabaseAdapter = DatabaseAdapter>
    * Enables additional debugging and validation features
    */
   readonly dev?: DevConfig;
-}
-
-/**
- * Schema Configuration
- */
-export interface SchemaConfig {
-  /**
-   * Glob pattern to find schema files
-   * @example './schemas/**\/*.schema.ts'
-   * @example './src/models/**\/*.ts'
-   */
-  readonly path: string;
 }
 
 /**

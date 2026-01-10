@@ -12,6 +12,10 @@ import { AuthPlugin, UploadPlugin, HooksPlugin } from 'forja/plugins';
 import { LocalStorageProvider } from 'forja/plugins/upload';
 import type { ForjaConfig } from 'forja-types/config';
 
+// Import schema definitions
+import { userSchema } from './schemas/user.schema';
+import { postSchema } from './schemas/post.schema';
+
 /**
  * Database Adapter Configuration
  */
@@ -135,12 +139,13 @@ const config: ForjaConfig = {
   adapter,
 
   /**
-   * Schema location
-   * Glob pattern to find schema files
+   * Schema definitions
+   * Import your schemas and add them to this array
    */
-  schemas: {
-    path: './schemas/**/*.schema.ts',
-  },
+  schemas: [
+    userSchema,
+    postSchema,
+  ],
 
   /**
    * Plugins

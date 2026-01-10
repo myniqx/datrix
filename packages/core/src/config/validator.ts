@@ -12,7 +12,6 @@ import {
   ApiConfig,
   MigrationConfig,
   DevConfig,
-  SchemaConfig,
 } from 'forja-types/config';
 import { isDatabaseAdapter } from 'forja-types/adapter';
 import { isForjaPlugin } from 'forja-types/plugin';
@@ -47,7 +46,7 @@ export function validateConfig(
   if (!('schemas' in config)) {
     errors.push('Config must have "schemas" property');
   } else {
-    const schemasValidation = validateSchemasConfig(config['schemas']);
+    const schemasValidation = validateSchemas(config['schemas']);
     if (!schemasValidation.success) {
       errors.push(schemasValidation.error.message);
     }
@@ -97,40 +96,53 @@ export function validateConfig(
 }
 
 /**
- * Validate schemas config
+ * Validate schemas array
  */
-function validateSchemasConfig(
-  schemas: unknown
-): Result<SchemaConfig, ConfigError> {
-  if (!isObject(schemas)) {
+function validateSchemas(schemas: unknown): Result<void, ConfigError> {
+  if (!Array.isArray(schemas)) {
     return {
       success: false,
-      error: new ConfigError('Config.schemas must be an object'),
+      error: new ConfigError('Config.schemas must be an array'),
     };
   }
 
-  if (!('path' in schemas)) {
+  if (schemas.length === 0) {
     return {
       success: false,
-      error: new ConfigError('Config.schemas must have "path" property'),
+      error: new ConfigError('Config.schemas cannot be empty. Add at least one schema.'),
     };
   }
 
-  if (typeof schemas['path'] !== 'string') {
-    return {
-      success: false,
-      error: new ConfigError('Config.schemas.path must be a string'),
-    };
+  for (let i = 0; i < schemas.length; i++) {
+    const schema = schemas[i];
+
+    if (!isObject(schema)) {
+      return {
+        success: false,
+        error: new ConfigError(`Config.schemas[${i}] must be an object`),
+      };
+    }
+
+    if (!('name' in schema) || typeof schema['name'] !== 'string') {
+      return {
+        success: false,
+        error: new ConfigError(
+          `Config.schemas[${i}] must have a "name" property (string)`
+        ),
+      };
+    }
+
+    if (!('fields' in schema) || !isObject(schema['fields'])) {
+      return {
+        success: false,
+        error: new ConfigError(
+          `Config.schemas[${i}] (${schema['name']}) must have a "fields" property (object)`
+        ),
+      };
+    }
   }
 
-  if ((schemas['path'] as string).trim() === '') {
-    return {
-      success: false,
-      error: new ConfigError('Config.schemas.path cannot be empty'),
-    };
-  }
-
-  return { success: true, data: schemas as unknown as SchemaConfig };
+  return { success: true, data: undefined };
 }
 
 /**
