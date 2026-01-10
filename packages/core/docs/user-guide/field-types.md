@@ -1,4 +1,4 @@
-# Field Types Reference
+# Field Types
 
 > Complete reference for all field types supported in Forja schemas.
 
@@ -463,9 +463,9 @@ type User = {
 ## Reference
 
 **Source Code:**
-- Field definitions: `packages/types/src/schema.ts`
-- Validation: `packages/core/src/validator/`
-- Type inference: `packages/core/src/schema/inference.ts`
+- Field definitions - `packages/types/src/schema.ts`
+- Validation - `packages/core/src/validator/`
+- Type inference - `packages/core/src/schema/inference.ts`
 
 **Related:**
 - [Schema Definition Guide](./defining-schemas.md)
