@@ -25,7 +25,8 @@ const VALID_QUERY_KEYS = new Set([
   'distinct',
   'groupBy',
   'having',
-  'meta'
+  'meta',
+  '__meta__'
 ]);
 
 /**
