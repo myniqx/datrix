@@ -11,11 +11,8 @@
 Start here if you're building REST APIs with Forja.
 
 - [Getting Started](./user-guide/getting-started.md) - Installation and first API endpoint
-- [Query Syntax](./user-guide/query-syntax.md) - Strapi-style query parsing
-- [Handlers](./user-guide/handlers.md) - CRUD operations and configuration
-- [Permissions](./user-guide/permissions.md) - Role-based and function-based access control
-- [Middleware](./user-guide/middleware.md) - Request/response middleware
-- [Hooks](./user-guide/hooks.md) - Lifecycle hooks for CRUD operations
+- [Query Syntax](./user-guide/query-syntax.md) - Strapi-style query parsing (21 operators)
+- [Configuration](./user-guide/configuration.md) - Permissions, middleware, hooks, and options
 
 ### 🔌 Framework Integration
 

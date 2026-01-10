@@ -95,13 +95,6 @@ Response:
 GET /api/users/1
 ```
 
-Response:
-```json
-{
-  "data": { "id": 1, "email": "user@example.com", "name": "John Doe", "role": "user" }
-}
-```
-
 ### Create
 
 ```bash
@@ -134,15 +127,7 @@ DELETE /api/users/1
 
 ---
 
-## Query Parameters
-
-### Field Selection
-
-```bash
-GET /api/users?fields=id,name,email
-```
-
-Returns only specified fields.
+## Query Syntax
 
 ### Filtering
 
@@ -151,11 +136,16 @@ GET /api/users?where[role]=admin
 GET /api/users?where[age][$gte]=18
 ```
 
+### Field Selection
+
+```bash
+GET /api/users?fields=id,name,email
+```
+
 ### Pagination
 
 ```bash
 GET /api/users?page=2&pageSize=50
-GET /api/users?limit=50&offset=100
 ```
 
 ### Sorting
@@ -164,127 +154,51 @@ GET /api/users?limit=50&offset=100
 GET /api/users?sort=-createdAt,name
 ```
 
-Prefix with `-` for descending order.
-
 ### Populate Relations
 
 ```bash
 GET /api/users?populate[posts][fields]=title,content
 ```
 
+See [Query Syntax](./query-syntax.md) for complete reference with all 21 operators.
+
 ---
 
-## Handler Configuration
+## Advanced Configuration
+
+Add permissions, middleware, and lifecycle hooks:
 
 ```typescript
-const handlers = createHandlers({
+createHandlers({
   schema: userSchema,
   adapter: postgresAdapter,
 
-  // Optional: Middleware
-  middleware: [authMiddleware, loggingMiddleware],
+  middleware: [authMiddleware],
 
-  // Optional: Permissions
   permissions: {
     read: ['user', 'admin'],
-    create: ['admin'],
-    update: (ctx) => ctx.user?.id === ctx.params.id,
-    delete: ['admin']
+    create: ['admin']
   },
 
-  // Optional: Lifecycle hooks
   hooks: {
     beforeCreate: async (ctx, data) => ({
       ...data,
       createdAt: new Date()
-    }),
-    afterFind: async (ctx, data) => data
-  },
-
-  // Optional: Options
-  options: {
-    maxPageSize: 100,
-    defaultPageSize: 25,
-    maxPopulateDepth: 5
+    })
   }
 });
 ```
 
----
-
-## Common Patterns
-
-### Authentication Middleware
-
-```typescript
-const authMiddleware: Middleware = async (context, next) => {
-  const token = context.headers?.authorization;
-
-  if (!token) {
-    return {
-      status: 401,
-      body: { error: { message: 'Unauthorized', code: 'UNAUTHORIZED' } }
-    };
-  }
-
-  context.user = await verifyToken(token);
-  return await next();
-};
-```
-
-### Role-Based Permissions
-
-```typescript
-permissions: {
-  read: ['user', 'admin'],      // Any user or admin
-  create: ['admin'],             // Only admin
-  update: ['admin'],
-  delete: ['admin']
-}
-```
-
-### Function-Based Permissions
-
-```typescript
-permissions: {
-  update: (ctx) => {
-    // Users can update their own records
-    return ctx.user?.id === ctx.params.id || ctx.user?.role === 'admin';
-  }
-}
-```
-
-### Lifecycle Hooks
-
-```typescript
-hooks: {
-  beforeCreate: async (ctx, data) => ({
-    ...data,
-    createdAt: new Date(),
-    createdBy: ctx.user?.id
-  }),
-
-  afterFind: async (ctx, data) => {
-    // Remove sensitive fields
-    if (ctx.user?.role !== 'admin') {
-      return Array.isArray(data)
-        ? data.map(item => ({ ...item, password: undefined }))
-        : { ...data, password: undefined };
-    }
-    return data;
-  }
-}
-```
+See [Configuration](./configuration.md) for complete reference on permissions, middleware, hooks, and options.
 
 ---
 
 ## Next Steps
 
-- [Query Syntax](./query-syntax.md) - Learn all query parameters
-- [Handlers](./handlers.md) - Advanced handler configuration
-- [Permissions](./permissions.md) - Access control patterns
-- [Middleware](./middleware.md) - Request/response middleware
-- [Hooks](./hooks.md) - Lifecycle hooks reference
+- [Query Syntax](./query-syntax.md) - Complete query parameter reference
+- [Configuration](./configuration.md) - Permissions, middleware, hooks, and options
+- [Next.js Integration](../framework-integration/nextjs.md) - App Router and Pages Router setup
+- [Express Integration](../framework-integration/express.md) - Express.js setup
 
 ---
 
