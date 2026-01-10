@@ -20,7 +20,10 @@ import { ForjaConfig, LoadConfigOptions, ApiConfig, MigrationConfig, DevConfig, 
 import { DatabaseAdapter } from 'forja-types/adapter';
 import { ForjaPlugin, PluginContext } from 'forja-types/plugin';
 import { SchemaRegistry } from 'forja-types/core/schema';
+import { WhereClause, SelectClause, PopulateClause, OrderByItem } from 'forja-types/core/query-builder';
 import { loadConfig } from './config/loader';
+import { CrudOperations } from './mixins/crud';
+import { SchemaHelpers } from './mixins/schema';
 
 /**
  * Forja initialization error
@@ -71,12 +74,17 @@ export interface ForjaInitOptions extends LoadConfigOptions {
  */
 export class Forja {
   private static instance: Forja | null = null;
+  private static initPromise: Promise<Result<void, ForjaError>> | null = null;
 
   private config: ForjaConfig | null = null;
   private adapter: DatabaseAdapter | null = null;
   private plugins: readonly ForjaPlugin[] = [];
   private schemas: SchemaRegistry = new SchemaRegistry();
   private initialized = false;
+
+  // Composition mixins
+  private _crud!: CrudOperations;
+  private _schema!: SchemaHelpers;
 
   /**
    * Private constructor (singleton pattern)
@@ -118,6 +126,11 @@ export class Forja {
    * ```
    */
   async initialize(options: ForjaInitOptions = {}): Promise<Result<void, ForjaError>> {
+    // Return existing initialization promise if already initializing
+    if (Forja.initPromise) {
+      return Forja.initPromise;
+    }
+
     if (this.initialized) {
       return {
         success: false,
@@ -127,6 +140,13 @@ export class Forja {
         ),
       };
     }
+
+    // Store initialization promise for concurrent calls
+    Forja.initPromise = this.doInitialize(options);
+    return Forja.initPromise;
+  }
+
+  private async doInitialize(options: ForjaInitOptions): Promise<Result<void, ForjaError>> {
 
     try {
       // Step 1: Load configuration
@@ -159,12 +179,16 @@ export class Forja {
         }
       }
 
-      // Step 3: Load schemas (TODO: implement schema loader)
-      if (!options.skipSchemas) {
-        // TODO: Load schemas from config.schemas.path glob pattern
-        // const schemas = await loadSchemas(this.config.schemas.path);
-        // schemas.forEach(schema => this.schemas.register(schema));
+      // Step 3: Register schemas
+      if (!options.skipSchemas && this.config.schemas.length > 0) {
+        for (const schema of this.config.schemas) {
+          this.schemas.register(schema);
+        }
       }
+
+      // Step 3.5: Initialize composition mixins
+      this._crud = new CrudOperations(this.schemas, () => this.adapter!);
+      this._schema = new SchemaHelpers(this.schemas);
 
       // Step 4: Initialize plugins
       if (!options.skipPlugins) {
@@ -189,9 +213,11 @@ export class Forja {
       }
 
       this.initialized = true;
+      Forja.initPromise = null; // Clear promise after success
 
       return { success: true, data: undefined };
     } catch (error) {
+      Forja.initPromise = null; // Clear promise after failure
       return {
         success: false,
         error: new ForjaError(
@@ -364,6 +390,201 @@ export class Forja {
   }
 
   /**
+   * Get CRUD operations handler
+   */
+  get crud(): CrudOperations {
+    this.ensureInitialized();
+    return this._crud;
+  }
+
+  /**
+   * Find one record by criteria
+   *
+   * @param model - Model name (e.g., 'User')
+   * @param where - Filter criteria
+   * @param options - Query options (select, populate)
+   * @returns Record or null if not found
+   */
+  async findOne<T = unknown>(
+    model: string,
+    where: WhereClause,
+    options?: {
+      readonly select?: SelectClause;
+      readonly populate?: PopulateClause;
+    }
+  ): Promise<T | null> {
+    this.ensureInitialized();
+    return this._crud.findOne<T>(model, where, options);
+  }
+
+  /**
+   * Find one record by ID
+   *
+   * @param model - Model name
+   * @param id - Record ID
+   * @param options - Query options
+   * @returns Record or null
+   */
+  async findById<T = unknown>(
+    model: string,
+    id: string | number,
+    options?: {
+      readonly select?: SelectClause;
+      readonly populate?: PopulateClause;
+    }
+  ): Promise<T | null> {
+    this.ensureInitialized();
+    return this._crud.findById<T>(model, id, options);
+  }
+
+  /**
+   * Find multiple records
+   *
+   * @param model - Model name
+   * @param options - Query options
+   * @returns Array of records
+   */
+  async findMany<T = unknown>(
+    model: string,
+    options?: {
+      readonly where?: WhereClause;
+      readonly select?: SelectClause;
+      readonly populate?: PopulateClause;
+      readonly orderBy?: readonly OrderByItem[];
+      readonly limit?: number;
+      readonly offset?: number;
+    }
+  ): Promise<T[]> {
+    this.ensureInitialized();
+    return this._crud.findMany<T>(model, options);
+  }
+
+  /**
+   * Count records
+   *
+   * @param model - Model name
+   * @param where - Filter criteria
+   * @returns Number of matching records
+   */
+  async count(model: string, where?: WhereClause): Promise<number> {
+    this.ensureInitialized();
+    return this._crud.count(model, where);
+  }
+
+  /**
+   * Create a new record
+   *
+   * @param model - Model name
+   * @param data - Record data
+   * @returns Created record
+   */
+  async create<T = unknown>(
+    model: string,
+    data: Record<string, unknown>
+  ): Promise<T> {
+    this.ensureInitialized();
+    return this._crud.create<T>(model, data);
+  }
+
+  /**
+   * Update a record by ID
+   *
+   * @param model - Model name
+   * @param id - Record ID
+   * @param data - Updated data
+   * @returns Updated record
+   */
+  async update<T = unknown>(
+    model: string,
+    id: string | number,
+    data: Record<string, unknown>
+  ): Promise<T> {
+    this.ensureInitialized();
+    return this._crud.update<T>(model, id, data);
+  }
+
+  /**
+   * Update multiple records
+   *
+   * @param model - Model name
+   * @param where - Filter criteria
+   * @param data - Updated data
+   * @returns Number of updated records
+   */
+  async updateMany(
+    model: string,
+    where: WhereClause,
+    data: Record<string, unknown>
+  ): Promise<number> {
+    this.ensureInitialized();
+    return this._crud.updateMany(model, where, data);
+  }
+
+  /**
+   * Delete a record by ID
+   *
+   * @param model - Model name
+   * @param id - Record ID
+   * @returns True if deleted
+   */
+  async delete(model: string, id: string | number): Promise<boolean> {
+    this.ensureInitialized();
+    return this._crud.delete(model, id);
+  }
+
+  /**
+   * Delete multiple records
+   *
+   * @param model - Model name
+   * @param where - Filter criteria
+   * @returns Number of deleted records
+   */
+  async deleteMany(model: string, where: WhereClause): Promise<number> {
+    this.ensureInitialized();
+    return this._crud.deleteMany(model, where);
+  }
+
+  /**
+   * Get schema helpers
+   */
+  get schema(): SchemaHelpers {
+    this.ensureInitialized();
+    return this._schema;
+  }
+
+  /**
+   * Get a specific schema by name
+   *
+   * @param name - Schema name
+   * @returns Schema definition or null
+   */
+  getSchema(name: string) {
+    this.ensureInitialized();
+    return this._schema.get(name);
+  }
+
+  /**
+   * Get all registered schemas
+   *
+   * @returns Array of all schemas
+   */
+  getAllSchemas() {
+    this.ensureInitialized();
+    return this._schema.getAll();
+  }
+
+  /**
+   * Check if schema exists
+   *
+   * @param name - Schema name
+   * @returns True if schema exists
+   */
+  hasSchema(name: string): boolean {
+    this.ensureInitialized();
+    return this._schema.has(name);
+  }
+
+  /**
    * Reset Forja state (for testing only!)
    *
    * WARNING: This should only be used in test environments.
@@ -375,6 +596,7 @@ export class Forja {
     this.plugins = [];
     this.schemas = new SchemaRegistry();
     this.initialized = false;
+    Forja.initPromise = null;
   }
 
   /**
@@ -394,6 +616,21 @@ export class Forja {
 
 /**
  * Get Forja instance (convenience export)
+ *
+ * Note: Forja must be initialized first by calling initializeForja() or Forja.getInstance().initialize()
+ *
+ * @returns Forja singleton instance
+ * @throws {ForjaError} If Forja not initialized
+ *
+ * @example
+ * ```ts
+ * // Initialize first (once, at startup)
+ * await initializeForja();
+ *
+ * // Then use anywhere
+ * const adapter = getForja().getAdapter();
+ * const config = getForja().getConfig();
+ * ```
  */
 export function getForja(): Forja {
   return Forja.getInstance();
