@@ -1,40 +1,56 @@
 /**
- * PostgreSQL Database Adapter (~500 LOC)
+ * MySQL Database Adapter
  *
- * Main adapter implementation for PostgreSQL.
+ * Main adapter implementation for MySQL/MariaDB.
  * Handles connection pooling, query execution, transactions, and schema operations.
  */
 
-import type { Pool, PoolClient } from 'pg';
-import { Pool as PgPool } from 'pg';
+import type { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
+import { createPool } from 'mysql2/promise';
 
-import { PostgresQueryTranslator } from './query-translator';
-import type { PostgresConfig } from './types';
-import { getPostgresTypeWithModifiers } from './types';
+import { MySQLQueryTranslator } from './query-translator';
+import type { MySQLConfig } from './types';
+import { getMySQLTypeWithModifiers, parseConnectionString } from './types';
 import { QueryObject } from 'forja-types/core/query-builder';
-import { AlterOperation, ConnectionError, ConnectionState, DatabaseAdapter, MigrationError, QueryError, QueryMetadata, QueryResult, Transaction, TransactionError } from 'forja-types/adapter';
+import {
+  AlterOperation,
+  ConnectionError,
+  ConnectionState,
+  DatabaseAdapter,
+  MigrationError,
+  QueryError,
+  QueryMetadata,
+  QueryResult,
+  Transaction,
+  TransactionError
+} from 'forja-types/adapter';
 import { Result } from 'forja-types/utils';
 import { validateQueryObject } from 'forja-core/utils/query';
 import { FieldDefinition, FieldType, IndexDefinition, SchemaDefinition } from 'forja-types/core/schema';
 
 /**
- * PostgreSQL adapter implementation
+ * MySQL adapter implementation
  */
-export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
-  readonly name = 'postgres';
-  readonly config: PostgresConfig;
+export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
+  readonly name = 'mysql';
+  readonly config: MySQLConfig;
 
   private pool: Pool | undefined;
   private state: ConnectionState = 'disconnected';
-  private readonly translator: PostgresQueryTranslator;
+  private readonly translator: MySQLQueryTranslator;
 
-  constructor(config: PostgresConfig) {
-    this.config = config;
-    this.translator = new PostgresQueryTranslator();
+  constructor(config: MySQLConfig) {
+    if (config.connectionString) {
+      const parsed = parseConnectionString(config.connectionString);
+      this.config = { ...config, ...parsed };
+    } else {
+      this.config = config;
+    }
+    this.translator = new MySQLQueryTranslator();
   }
 
   /**
-   * Connect to PostgreSQL
+   * Connect to MySQL
    */
   async connect(): Promise<Result<void, ConnectionError>> {
     if (this.state === 'connected') {
@@ -44,23 +60,23 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
     this.state = 'connecting';
 
     try {
-      this.pool = new PgPool({
-        host: this.config.host,
-        port: this.config.port,
+      this.pool = createPool({
+        host: this.config.host ?? 'localhost',
+        port: this.config.port ?? 3306,
         database: this.config.database,
         user: this.config.user,
         password: this.config.password,
         ssl: this.config.ssl,
-        connectionTimeoutMillis: this.config.connectionTimeoutMillis ?? 5000,
-        idleTimeoutMillis: this.config.idleTimeoutMillis ?? 30000,
-        max: this.config.max ?? 10,
-        min: this.config.min ?? 2,
-        application_name: this.config.applicationName ?? 'forja'
+        connectionLimit: this.config.connectionLimit ?? 10,
+        queueLimit: this.config.queueLimit ?? 0,
+        waitForConnections: this.config.waitForConnections ?? true,
+        connectTimeout: this.config.connectTimeout ?? 10000,
+        charset: this.config.charset ?? 'utf8mb4',
+        timezone: this.config.timezone ?? 'local'
       });
 
-      // Test connection
-      const client = await this.pool.connect();
-      client.release();
+      const connection = await this.pool.getConnection();
+      connection.release();
 
       this.state = 'connected';
       return { success: true, data: undefined };
@@ -69,13 +85,13 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
       const message = error instanceof Error ? error.message : String(error);
       return {
         success: false,
-        error: new ConnectionError(`Failed to connect to PostgreSQL: ${message}`, error)
+        error: new ConnectionError(`Failed to connect to MySQL: ${message}`, error)
       };
     }
   }
 
   /**
-   * Disconnect from PostgreSQL
+   * Disconnect from MySQL
    */
   async disconnect(): Promise<Result<void, ConnectionError>> {
     if (this.state === 'disconnected') {
@@ -94,7 +110,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
       const message = error instanceof Error ? error.message : String(error);
       return {
         success: false,
-        error: new ConnectionError(`Failed to disconnect from PostgreSQL: ${message}`, error)
+        error: new ConnectionError(`Failed to disconnect from MySQL: ${message}`, error)
       };
     }
   }
@@ -119,7 +135,6 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
   async executeQuery<TResult>(
     query: QueryObject
   ): Promise<Result<QueryResult<TResult>, QueryError>> {
-    // Runtime validation of QueryObject structure
     const validation = validateQueryObject(query);
     if (!validation.success) {
       return {
@@ -138,67 +153,70 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
     let lastSql: string | undefined;
 
     try {
-      // Translate query to SQL
       const { sql, params } = this.translator.translate(query);
       lastSql = sql;
 
-      // Execute query
-      const result = await this.pool.query(sql, params as unknown[]);
+      const [result] = await this.pool.execute(sql, params as unknown[]);
 
-      // Build metadata
       let insertId: string | number | undefined;
+      let affectedRows = 0;
+      let rows: readonly TResult[] = [];
 
-      // Handle INSERT with RETURNING
-      if (query.type === 'insert' && result.rows.length > 0) {
-        const firstRow = result.rows[0] as Record<string, unknown>;
-        insertId = firstRow['id'] as string | number;
+      if (query.type === 'insert' || query.type === 'update' || query.type === 'delete') {
+        const resultHeader = result as ResultSetHeader;
+        affectedRows = resultHeader.affectedRows ?? 0;
+        if (query.type === 'insert') {
+          insertId = resultHeader.insertId;
+        }
+      } else {
+        rows = result as readonly TResult[];
+        affectedRows = (result as RowDataPacket[]).length;
       }
 
       const metadata: QueryMetadata = {
-        rowCount: result.rowCount ?? 0,
-        affectedRows: result.rowCount ?? 0,
+        rowCount: affectedRows,
+        affectedRows,
         ...(insertId !== undefined && { insertId })
       };
 
       return {
         success: true,
         data: {
-          rows: result.rows as readonly TResult[],
+          rows,
           metadata
         }
       };
     } catch (error) {
       return {
         success: false,
-        error: this.mapPostgresError(error, query, lastSql)
+        error: this.mapMySQLError(error, query, lastSql)
       };
     }
   }
 
   /**
-   * Map Postgres errors to standardized QueryError
+   * Map MySQL errors to standardized QueryError
    */
-  private mapPostgresError(error: unknown, query?: QueryObject, sql?: string): QueryError {
+  private mapMySQLError(error: unknown, query?: QueryObject, sql?: string): QueryError {
     const message = error instanceof Error ? error.message : String(error);
-    const details = error as { code?: string; severity?: string; detail?: string; hint?: string };
+    const details = error as { code?: string; errno?: number; sqlState?: string };
     let code = 'QUERY_ERROR';
 
-    // Postgres error codes (https://www.postgresql.org/docs/current/errcodes-appendix.html)
-    if (details && typeof details.code === 'string') {
-      switch (details.code) {
-        case '23505': // unique_violation
+    if (details && typeof details.errno === 'number') {
+      switch (details.errno) {
+        case 1062:
           code = 'UNIQUE_VIOLATION';
           break;
-        case '23503': // foreign_key_violation
+        case 1452:
           code = 'FOREIGN_KEY_VIOLATION';
           break;
-        case '23502': // not_null_violation
+        case 1048:
           code = 'NOT_NULL_VIOLATION';
           break;
-        case '42P01': // undefined_table
+        case 1146:
           code = 'TABLE_NOT_FOUND';
           break;
-        case '42703': // undefined_column
+        case 1054:
           code = 'COLUMN_NOT_FOUND';
           break;
       }
@@ -227,24 +245,30 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
     }
 
     try {
-      const result = await this.pool.query(sql, params as unknown[]);
+      const [result] = await this.pool.execute(sql, params as unknown[]);
+
+      const isResultSet = Array.isArray(result);
+      const rows = isResultSet ? (result as readonly TResult[]) : [];
+      const affectedRows = isResultSet
+        ? (result as RowDataPacket[]).length
+        : (result as ResultSetHeader).affectedRows ?? 0;
 
       const metadata: QueryMetadata = {
-        rowCount: result.rowCount ?? 0,
-        affectedRows: result.rowCount ?? 0
+        rowCount: affectedRows,
+        affectedRows
       };
 
       return {
         success: true,
         data: {
-          rows: result.rows as readonly TResult[],
+          rows,
           metadata
         }
       };
     } catch (error) {
       return {
         success: false,
-        error: this.mapPostgresError(error, undefined, sql)
+        error: this.mapMySQLError(error, undefined, sql)
       };
     }
   }
@@ -261,13 +285,13 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
     }
 
     try {
-      const client = await this.pool.connect();
-      await client.query('BEGIN');
+      const connection = await this.pool.getConnection();
+      await connection.beginTransaction();
 
-      const transaction = new PostgresTransaction(
-        client,
+      const transaction = new MySQLTransaction(
+        connection,
         this.translator,
-        this.mapPostgresError.bind(this),
+        this.mapMySQLError.bind(this),
         `tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
       );
 
@@ -297,17 +321,15 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
     try {
       const columns: string[] = [];
 
-      // Add fields
       for (const [fieldName, field] of Object.entries(schema.fields)) {
         const columnDef = this.buildColumnDefinition(fieldName, field);
         columns.push(columnDef);
       }
 
-      // Build CREATE TABLE statement
       const tableName = this.translator.escapeIdentifier(schema.name);
-      const sql = `CREATE TABLE ${tableName} (\n  ${columns.join(',\n  ')}\n)`;
+      const sql = `CREATE TABLE ${tableName} (\n  ${columns.join(',\n  ')}\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`;
 
-      await this.pool.query(sql);
+      await this.pool.execute(sql);
 
       return { success: true, data: undefined };
     } catch (error) {
@@ -332,7 +354,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 
     try {
       const escapedTable = this.translator.escapeIdentifier(tableName);
-      await this.pool.query(`DROP TABLE IF EXISTS ${escapedTable}`);
+      await this.pool.execute(`DROP TABLE IF EXISTS ${escapedTable}`);
 
       return { success: true, data: undefined };
     } catch (error) {
@@ -381,10 +403,9 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
           }
 
           case 'modifyColumn': {
-            // PostgreSQL uses ALTER COLUMN for modifications
             const columnName = this.translator.escapeIdentifier(op.column);
-            const pgType = getPostgresTypeWithModifiers(op.newDefinition.type);
-            sql = `ALTER TABLE ${escapedTable} ALTER COLUMN ${columnName} TYPE ${pgType}`;
+            const mysqlType = getMySQLTypeWithModifiers(op.newDefinition.type);
+            sql = `ALTER TABLE ${escapedTable} MODIFY COLUMN ${columnName} ${mysqlType}`;
             break;
           }
 
@@ -397,7 +418,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
         }
 
         if (sql) {
-          await this.pool.query(sql);
+          await this.pool.execute(sql);
         }
       }
 
@@ -428,16 +449,15 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
     try {
       const tableName = tableNameParam;
       const escapedTable = this.translator.escapeIdentifier(tableName);
-      const indexName =
-        index.name ?? `idx_${tableName}_${index.fields.join('_')}`;
+      const indexName = index.name ?? `idx_${tableName}_${index.fields.join('_')}`;
       const escapedIndexName = this.translator.escapeIdentifier(indexName);
       const fields = index.fields
         .map((f) => this.translator.escapeIdentifier(f))
         .join(', ');
       const unique = index.unique ? 'UNIQUE ' : '';
       const using = index.type ? ` USING ${index.type.toUpperCase()}` : '';
-      const sql = `CREATE ${unique}INDEX ${escapedIndexName} ON ${escapedTable}${using} (${fields})`;
-      await this.pool.query(sql);
+      const sql = `CREATE ${unique}INDEX ${escapedIndexName} ON ${escapedTable} (${fields})${using}`;
+      await this.pool.execute(sql);
       return { success: true, data: undefined };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -452,7 +472,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
    * Drop index
    */
   async dropIndex(
-    _tableName: string,
+    tableName: string,
     indexName: string
   ): Promise<Result<void, MigrationError>> {
     if (!this.pool) {
@@ -463,8 +483,9 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
     }
 
     try {
+      const escapedTable = this.translator.escapeIdentifier(tableName);
       const escapedIndexName = this.translator.escapeIdentifier(indexName);
-      await this.pool.query(`DROP INDEX IF EXISTS ${escapedIndexName}`);
+      await this.pool.execute(`DROP INDEX ${escapedIndexName} ON ${escapedTable}`);
 
       return { success: true, data: undefined };
     } catch (error) {
@@ -488,11 +509,12 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
     }
 
     try {
-      const result = await this.pool.query<{ tablename: string }>(
-        `SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename`
+      const [rows] = await this.pool.execute<RowDataPacket[]>(
+        `SELECT TABLE_NAME as tableName FROM information_schema.tables WHERE table_schema = ? ORDER BY TABLE_NAME`,
+        [this.config.database]
       );
 
-      const tables = result.rows.map((row: { tablename: string }) => row.tablename);
+      const tables = rows.map((row) => row['tableName'] as string);
       return { success: true, data: tables };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -517,23 +539,15 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
     }
 
     try {
-      // Query information_schema for column details
-      const columnResult = await this.pool.query<{
-        column_name: string;
-        data_type: string;
-        udt_name: string;
-        is_nullable: string;
-        column_default: string | null;
-      }>(
-        `SELECT column_name, data_type, udt_name, is_nullable, column_default
+      const [rows] = await this.pool.execute<RowDataPacket[]>(
+        `SELECT COLUMN_NAME as column_name, DATA_TYPE as data_type, IS_NULLABLE as is_nullable, COLUMN_DEFAULT as column_default
          FROM information_schema.columns
-         WHERE table_schema = 'public'
-         AND table_name = $1
-         ORDER BY ordinal_position`,
-        [tableName]
+         WHERE table_schema = ? AND table_name = ?
+         ORDER BY ORDINAL_POSITION`,
+        [this.config.database, tableName]
       );
 
-      if (columnResult.rows.length === 0) {
+      if (rows.length === 0) {
         return {
           success: false,
           error: new QueryError(`Table '${tableName}' not found`, { code: 'TABLE_NOT_FOUND' })
@@ -542,18 +556,18 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 
       const fields: Record<string, FieldDefinition> = {};
 
-      for (const row of columnResult.rows) {
-        const fieldType = this.mapPostgresTypeToFieldType(row.data_type, row.udt_name);
+      for (const row of rows) {
+        const fieldType = this.mapMySQLTypeToFieldType(row['data_type'] as string);
 
         const fieldDef = {
           type: fieldType,
-          required: row.is_nullable === 'NO',
-          ...(row.column_default !== null && {
-            default: this.parsePostgresDefault(row.column_default)
+          required: row['is_nullable'] === 'NO',
+          ...(row['column_default'] !== null && {
+            default: this.parseMySQLDefault(row['column_default'] as string)
           })
         } as FieldDefinition;
 
-        fields[row.column_name] = fieldDef;
+        fields[row['column_name'] as string] = fieldDef;
       }
 
       return {
@@ -573,60 +587,51 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
   }
 
   /**
-   * Map Postgres data type to Forja FieldType
+   * Map MySQL data type to Forja FieldType
    */
-  private mapPostgresTypeToFieldType(_dataType: string, udtName: string): FieldType {
-    const type = udtName.toLowerCase();
+  private mapMySQLTypeToFieldType(dataType: string): FieldType {
+    const type = dataType.toLowerCase();
 
-    if (type.includes('int') || type.includes('float') || type.includes('double') || type.includes('numeric') || type.includes('decimal') || type.includes('real')) {
+    if (type.includes('int') || type.includes('float') || type.includes('double') || type.includes('decimal') || type.includes('numeric')) {
       return 'number';
     }
-    if (type.includes('bool')) {
+    if (type === 'tinyint') {
       return 'boolean';
     }
-    if (type.includes('timestamp') || type.includes('date') || type.includes('time')) {
+    if (type.includes('datetime') || type.includes('timestamp') || type.includes('date')) {
       return 'date';
     }
-    if (type.includes('json')) {
+    if (type === 'json') {
       return 'json';
     }
-    if (type.startsWith('_')) {
-      return 'array';
-    }
-    if (type === 'uuid' || type === 'text' || type === 'varchar' || type === 'char' || type === 'bpchar') {
+    if (type.includes('text') || type.includes('char') || type.includes('varchar')) {
       return 'string';
     }
 
-    return 'string'; // Default to string
+    return 'string';
   }
 
   /**
-   * Parse Postgres default value string
+   * Parse MySQL default value
    */
-  private parsePostgresDefault(defaultValue: string): unknown {
+  private parseMySQLDefault(defaultValue: string | null): unknown {
     if (defaultValue === null) return undefined;
 
-    // Remove type cast (e.g., 'active'::character varying -> 'active')
-    let cleaned = defaultValue.split('::')[0];
-
-    // Remove single quotes for strings
-    if (cleaned && cleaned.startsWith("'") && cleaned.endsWith("'")) {
-      cleaned = cleaned.substring(1, cleaned.length - 1);
-    }
-
-    // Common function defaults
-    if (cleaned && (cleaned.toUpperCase().includes('NOW()') || cleaned.toUpperCase().includes('CURRENT_TIMESTAMP'))) {
+    if (defaultValue.toUpperCase() === 'CURRENT_TIMESTAMP' || defaultValue.toUpperCase().includes('NOW()')) {
       return 'NOW()';
     }
 
-    // Numeric and boolean defaults
-    if (cleaned === 'true') return true;
-    if (cleaned === 'false') return false;
+    if (defaultValue === 'true' || defaultValue === '1') return true;
+    if (defaultValue === 'false' || defaultValue === '0') return false;
 
-    const num = Number(cleaned);
-    if (!isNaN(num) && cleaned !== '') return num;
+    const num = Number(defaultValue);
+    if (!isNaN(num) && defaultValue !== '') return num;
 
-    return cleaned;
+    if (defaultValue.startsWith("'") && defaultValue.endsWith("'")) {
+      return defaultValue.slice(1, -1);
+    }
+
+    return defaultValue;
   }
 
   /**
@@ -638,16 +643,12 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
     }
 
     try {
-      const result = await this.pool.query<{ exists: boolean }>(
-        `SELECT EXISTS (
-          SELECT FROM pg_tables
-          WHERE schemaname = 'public'
-          AND tablename = $1
-        ) as exists`,
-        [tableName]
+      const [rows] = await this.pool.execute<RowDataPacket[]>(
+        `SELECT COUNT(*) as count FROM information_schema.tables WHERE table_schema = ? AND table_name = ?`,
+        [this.config.database, tableName]
       );
 
-      return result.rows[0]?.exists ?? false;
+      return (rows[0]?.['count'] as number) > 0;
     } catch {
       return false;
     }
@@ -661,35 +662,35 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
     field: FieldDefinition
   ): string {
     const columnName = this.translator.escapeIdentifier(fieldName);
-    const pgType = getPostgresTypeWithModifiers(field.type);
+    const mysqlType = getMySQLTypeWithModifiers(field.type);
     const nullable = field.required ? ' NOT NULL' : '';
     const defaultValue = field.default !== undefined
       ? ` DEFAULT ${this.translator.escapeValue(field.default)}`
       : '';
 
-    return `${columnName} ${pgType}${nullable}${defaultValue}`;
+    return `${columnName} ${mysqlType}${nullable}${defaultValue}`;
   }
 }
 
 /**
- * PostgreSQL transaction implementation
+ * MySQL transaction implementation
  */
-class PostgresTransaction implements Transaction {
+class MySQLTransaction implements Transaction {
   readonly id: string;
-  private client: PoolClient;
-  private translator: PostgresQueryTranslator;
+  private connection: PoolConnection;
+  private translator: MySQLQueryTranslator;
   private errorMapper: (error: unknown, query?: QueryObject, sql?: string) => QueryError;
   private committed = false;
   private rolledBack = false;
   private aborted = false;
 
   constructor(
-    client: PoolClient,
-    translator: PostgresQueryTranslator,
+    connection: PoolConnection,
+    translator: MySQLQueryTranslator,
     errorMapper: (error: unknown, query?: QueryObject, sql?: string) => QueryError,
     id: string
   ) {
-    this.client = client;
+    this.connection = connection;
     this.translator = translator;
     this.errorMapper = errorMapper;
     this.id = id;
@@ -711,7 +712,7 @@ class PostgresTransaction implements Transaction {
     if (this.aborted) {
       return {
         success: false,
-        error: new QueryError('current transaction is aborted, commands ignored until end of transaction block', { query })
+        error: new QueryError('Transaction is aborted, commands ignored until end of transaction block', { query })
       };
     }
 
@@ -720,17 +721,23 @@ class PostgresTransaction implements Transaction {
     try {
       const { sql, params } = this.translator.translate(query);
       lastSql = sql;
-      const result = await this.client.query(sql, params as unknown[]);
+      const [result] = await this.connection.execute(sql, params as unknown[]);
+
+      const isResultSet = Array.isArray(result);
+      const rows = isResultSet ? (result as readonly TResult[]) : [];
+      const affectedRows = isResultSet
+        ? (result as RowDataPacket[]).length
+        : (result as ResultSetHeader).affectedRows ?? 0;
 
       const metadata: QueryMetadata = {
-        rowCount: result.rowCount ?? 0,
-        affectedRows: result.rowCount ?? 0
+        rowCount: affectedRows,
+        affectedRows
       };
 
       return {
         success: true,
         data: {
-          rows: result.rows as readonly TResult[],
+          rows,
           metadata
         }
       };
@@ -760,22 +767,28 @@ class PostgresTransaction implements Transaction {
     if (this.aborted) {
       return {
         success: false,
-        error: new QueryError('current transaction is aborted, commands ignored until end of transaction block', { sql })
+        error: new QueryError('Transaction is aborted, commands ignored until end of transaction block', { sql })
       };
     }
 
     try {
-      const result = await this.client.query(sql, params as unknown[]);
+      const [result] = await this.connection.execute(sql, params as unknown[]);
+
+      const isResultSet = Array.isArray(result);
+      const rows = isResultSet ? (result as readonly TResult[]) : [];
+      const affectedRows = isResultSet
+        ? (result as RowDataPacket[]).length
+        : (result as ResultSetHeader).affectedRows ?? 0;
 
       const metadata: QueryMetadata = {
-        rowCount: result.rowCount ?? 0,
-        affectedRows: result.rowCount ?? 0
+        rowCount: affectedRows,
+        affectedRows
       };
 
       return {
         success: true,
         data: {
-          rows: result.rows as readonly TResult[],
+          rows,
           metadata
         }
       };
@@ -807,9 +820,9 @@ class PostgresTransaction implements Transaction {
     }
 
     try {
-      await this.client.query('COMMIT');
+      await this.connection.commit();
       this.committed = true;
-      this.client.release();
+      this.connection.release();
 
       return { success: true, data: undefined };
     } catch (error) {
@@ -840,9 +853,9 @@ class PostgresTransaction implements Transaction {
     }
 
     try {
-      await this.client.query('ROLLBACK');
+      await this.connection.rollback();
       this.rolledBack = true;
-      this.client.release();
+      this.connection.release();
 
       return { success: true, data: undefined };
     } catch (error) {
@@ -860,7 +873,7 @@ class PostgresTransaction implements Transaction {
   async savepoint(name: string): Promise<Result<void, TransactionError>> {
     try {
       const escapedName = this.translator.escapeIdentifier(name);
-      await this.client.query(`SAVEPOINT ${escapedName}`);
+      await this.connection.execute(`SAVEPOINT ${escapedName}`);
       return { success: true, data: undefined };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -877,8 +890,8 @@ class PostgresTransaction implements Transaction {
   async rollbackTo(name: string): Promise<Result<void, TransactionError>> {
     try {
       const escapedName = this.translator.escapeIdentifier(name);
-      await this.client.query(`ROLLBACK TO SAVEPOINT ${escapedName}`);
-      this.aborted = false; // Rolling back to a savepoint clears the aborted state for that savepoint
+      await this.connection.execute(`ROLLBACK TO SAVEPOINT ${escapedName}`);
+      this.aborted = false;
       return { success: true, data: undefined };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -895,7 +908,7 @@ class PostgresTransaction implements Transaction {
   async release(name: string): Promise<Result<void, TransactionError>> {
     try {
       const escapedName = this.translator.escapeIdentifier(name);
-      await this.client.query(`RELEASE SAVEPOINT ${escapedName}`);
+      await this.connection.execute(`RELEASE SAVEPOINT ${escapedName}`);
       return { success: true, data: undefined };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -908,10 +921,10 @@ class PostgresTransaction implements Transaction {
 }
 
 /**
- * Create PostgreSQL adapter
+ * Create MySQL adapter
  */
-export function createPostgresAdapter(
-  config: PostgresConfig
-): PostgresAdapter {
-  return new PostgresAdapter(config);
+export function createMySQLAdapter(
+  config: MySQLConfig
+): MySQLAdapter {
+  return new MySQLAdapter(config);
 }

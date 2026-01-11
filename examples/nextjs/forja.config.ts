@@ -7,19 +7,19 @@
  * Type is automatically inferred as ForjaConfig from forja-types/config
  */
 
-import { PostgresAdapter } from 'forja/adapters';
+import { JsonAdapter } from 'forja-adapter-json';
 import { AuthPlugin, UploadPlugin, HooksPlugin } from 'forja/plugins';
 import { LocalStorageProvider } from 'forja/plugins/upload';
-import type { ForjaConfig } from 'forja-types/config';
 
 // Import schema definitions
-import { userSchema } from './schemas/user.schema';
-import { postSchema } from './schemas/post.schema';
+import { userSchema } from './src/schemas/user.schema';
+import { postSchema } from './src/schemas/post.schema';
+import { ForjaConfig } from '../../packages/types/src/config';
 
 /**
  * Database Adapter Configuration
  */
-const adapter = new PostgresAdapter({
+const adapter = new JsonAdapter({
   connectionString: process.env.DATABASE_URL!,
   // Connection pool settings (recommended for production)
   max: 20, // Maximum number of connections in pool
