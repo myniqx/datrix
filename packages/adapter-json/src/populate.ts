@@ -1,12 +1,10 @@
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import { QueryObject, getRelationMetadata } from 'forja-types/core/query-builder';
-import { JsonTableFile } from './types';
+import type { JsonAdapter } from './adapter';
 
 export class JsonPopulator {
-  constructor(private root: string) { }
+  constructor(private adapter: JsonAdapter) { }
 
-  async populate(rows: any[], query: QueryObject): Promise<any[]> {
+  async populate(rows: Record<string, unknown>[], query: QueryObject): Promise<Record<string, unknown>[]> {
     if (!query.populate || rows.length === 0) {
       return rows;
     }
@@ -17,82 +15,84 @@ export class JsonPopulator {
       const meta = getRelationMetadata(query, relationName);
       if (!meta) continue;
 
-      // Currently only supports belongsTo (source has FK)
-      // Todo: Support hasMany/hasOne by checking relation type (if available in meta)
-      // The meta object from getRelationMetadata usually has: sourceTable, targetTable, foreignKey, type...
-      // Let's assume belongsTo logic: source[foreignKey] -> target.id
-
       const targetTable = meta.targetTable;
-      const resultFk = meta.foreignKey; // e.g. 'authorId'
+      const resultFk = meta.foreignKey;
       const kind = meta.kind;
 
-      // 1. Load Target Table (Optimization: Load once per target table)
-      let relatedData: any[] = [];
-      try {
-        const content = await fs.readFile(path.join(this.root, `${targetTable}.json`), 'utf-8');
-        const json: JsonTableFile = JSON.parse(content);
-        relatedData = json.data;
-      } catch {
-        continue;
-      }
+      // Load target table using adapter's cache
+      const tableData = await this.adapter.getCachedTable(targetTable);
+      if (!tableData) continue;
 
-      // 2. Map Data based on Relation Type
+      const relatedData = tableData.data as Record<string, unknown>[];
+
+      // Map data based on relation type
       if (kind === 'belongsTo') {
         // Source has FK (e.g. Post.authorId -> User.id)
-        const ids = new Set(result.map(r => r[resultFk]).filter(id => id !== null && id !== undefined));
-        if (ids.size === 0) continue;
+        const ids = new Set(
+          result
+            .map(r => r[resultFk])
+            .filter((id): id is string | number => id !== null && id !== undefined)
+        );
 
-        const relatedMap = new Map<string | number, any>();
-        relatedData.forEach(item => {
-          if (ids.has(item.id)) {
-            relatedMap.set(item.id, item);
+        const relatedMap = new Map<string | number, Record<string, unknown>>();
+        if (ids.size > 0) {
+          for (const item of relatedData) {
+            const itemId = item['id'] as string | number;
+            if (ids.has(itemId)) {
+              relatedMap.set(itemId, item);
+            }
           }
-        });
+        }
 
         for (const row of result) {
-          const fkValue = row[resultFk];
-          row[relationName] = (fkValue !== null && fkValue !== undefined) ? (relatedMap.get(fkValue) || null) : null;
+          const fkValue = row[resultFk] as string | number | null | undefined;
+          if (fkValue !== null && fkValue !== undefined) {
+            row[relationName] = relatedMap.get(fkValue) ?? null;
+          } else {
+            row[relationName] = null;
+          }
         }
 
       } else if (kind === 'hasMany' || kind === 'hasOne') {
         // Target has FK (e.g. User.id <- Post.authorId)
-        // We need to find items in relatedData where item[resultFk] matches row.id
-
-        const sourceIds = new Set(result.map(r => r.id));
+        const sourceIds = new Set(
+          result
+            .map(r => r['id'])
+            .filter((id): id is string | number => id !== null && id !== undefined)
+        );
 
         // Group related items by FK
-        const grouped = new Map<string | number, any[]>();
-        relatedData.forEach(item => {
-          const fkValue = item[resultFk];
+        const grouped = new Map<string | number, Record<string, unknown>[]>();
+        for (const item of relatedData) {
+          const fkValue = item[resultFk] as string | number | null | undefined;
           if (fkValue !== null && fkValue !== undefined && sourceIds.has(fkValue)) {
-            const group = grouped.get(fkValue) || [];
+            const group = grouped.get(fkValue) ?? [];
             group.push(item);
             grouped.set(fkValue, group);
           }
-        });
+        }
 
         for (const row of result) {
-          const group = grouped.get(row.id) || [];
+          const rowId = row['id'] as string | number;
+          const group = grouped.get(rowId) ?? [];
           if (kind === 'hasOne') {
-            row[relationName] = group[0] || null;
+            row[relationName] = group[0] ?? null;
           } else {
             row[relationName] = group;
           }
         }
       }
 
-      // 3. Nested Populate (Recursion)
-      // _options is the PopulateOptions object
+      // Nested populate (recursion)
       if (typeof _options === 'object' && _options.populate) {
-        // Collect the newly populated items to recurse on
-        let nextRows: any[] = [];
+        const nextRows: Record<string, unknown>[] = [];
         for (const row of result) {
           const val = row[relationName];
           if (!val) continue;
           if (Array.isArray(val)) {
-            nextRows.push(...val);
+            nextRows.push(...(val as Record<string, unknown>[]));
           } else {
-            nextRows.push(val);
+            nextRows.push(val as Record<string, unknown>);
           }
         }
 

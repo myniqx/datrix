@@ -43,12 +43,6 @@ export default defineConfig({
 
       'forja-adapter-postgres': path.resolve(__dirname, './packages/adapter-postgres/src'),
       'forja-api': path.resolve(__dirname, './packages/api/src'),
-
-      // Legacy aliases for backward compatibility with old tests
-      '@': path.resolve(__dirname, './packages'),
-      '@core': path.resolve(__dirname, './packages/core/src'),
-      '@adapters': path.resolve(__dirname, './packages/adapter-postgres/src'),
-      '@api': path.resolve(__dirname, './packages/api/src'),
     },
   },
 });

@@ -45,7 +45,7 @@ export class SimpleLock {
         }
 
         // Wait a bit before retrying
-        await new Promise(resolve => setTimeout(resolve, 100)); // 100ms poll
+        await new Promise(resolve => setTimeout(resolve, 10)); // 10ms poll
       }
     }
   }

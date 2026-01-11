@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { JsonAdapter } from '../src/adapter';
-import { expectFailureError } from 'forja-types/test/helpers';
+import { expectFailureError, expectSuccessData } from '../../types/src/test/helpers';
 
 describe('JsonAdapter - Error Path', () => {
   const root = path.join(__dirname, 'tmp_adapter_error_test');
@@ -46,30 +46,100 @@ describe('JsonAdapter - Error Path', () => {
     expect(error.message).toContain('executeRawQuery is not supported');
   });
 
-  // Security Tests
-  it('should prevent path traversal in table name', async () => {
-    const maliciousTable = '../system_file';
-    // This relies on getTablePath using path.join
+  describe('Security: Path Traversal', () => {
+    it('should prevent directory traversal with parent references', async () => {
+      const maliciousTableNames = [
+        '../../../etc/passwd',
+        '..\\..\\..\\windows\\system32',
+        'users/../../../sensitive',
+        '.ssh/id_rsa',
+      ];
 
-    // Node's path.join resolves 'root/../system_file' to 'root/system_file' or similar depending on depth.
-    // It mitigates simple traversal but we should verify behavior.
-    // JsonAdapter relies on 'table' name.
+      for (const tableName of maliciousTableNames) {
+        const result = await adapter.createTable({
+          name: tableName,
+          fields: { name: { type: 'string', required: true } }
+        });
 
-    // If we try to create a table outside root:
-    const result = await adapter.createTable({ name: maliciousTable, fields: {} });
+        if (result.success) {
+          const tablePath = path.join(root, `${tableName}.json`);
+          const resolved = path.resolve(tablePath);
+          const rootPath = path.resolve(root);
 
-    // It might succeed if it resolves to a valid path or fail if OS blocks/permission issues.
-    // BUT, we want to ensure it mostly stays within 'root' or at least is predictable.
-    // Effectively, path.join does simple string manipulation.
+          expect(resolved.startsWith(rootPath)).toBe(true);
+        }
+      }
+    });
 
-    // Better test: try to READ a file we know exists outside but near?
-    // This is hard in unit test without setup.
+    it('should reject table names with path separators', async () => {
+      const invalidNames = ['users/admin', 'data\\tables', 'a/b/c', './hidden'];
 
-    // Let's assume standard behavior: if the table name validation isn't strict in adapter, it relies on file system.
-    // Postgres adapter validates identifiers. JsonAdapter should too?
+      for (const name of invalidNames) {
+        const result = await adapter.createTable({
+          name,
+          fields: { name: { type: 'string', required: true } }
+        });
 
-    // If we don't have validation, let's at least check if it handles error gracefully or fails.
-    // For now, let's assume successful execution (even if it creates weird file) but no crash.
-    // OR strict enforcement:
+        if (!result.success) {
+          expect(['MIGRATION_ERROR', 'INVALID_TABLE_NAME']).toContain(result.error.code);
+        }
+      }
+    });
+
+    it('should reject table names with null bytes', async () => {
+      const nullByteTable = 'users\x00malicious';
+
+      const result = await adapter.createTable({
+        name: nullByteTable,
+        fields: {}
+      });
+
+      if (!result.success) {
+        expect(result.error.code).toBe('MIGRATION_ERROR');
+      }
+    });
+  });
+
+  describe('Security: File System Permissions', () => {
+    it('should handle read-only directory errors', async () => {
+      const readOnlyRoot = path.join(__dirname, 'tmp_readonly_test');
+      await fs.mkdir(readOnlyRoot, { recursive: true });
+
+      try {
+        await fs.chmod(readOnlyRoot, 0o444);
+
+        const restrictedAdapter = new JsonAdapter({ root: readOnlyRoot });
+        await restrictedAdapter.connect();
+
+        const result = await restrictedAdapter.createTable({
+          name: 'users',
+          fields: { name: { type: 'string', required: true } }
+        });
+
+        if (!result.success) {
+          expect(result.error.code).toBe('MIGRATION_ERROR');
+          expect(result.error.message.toLowerCase()).toContain('permission');
+        }
+      } finally {
+        await fs.chmod(readOnlyRoot, 0o755);
+        await fs.rm(readOnlyRoot, { recursive: true, force: true });
+      }
+    });
+
+    it('should handle non-existent root directory creation', async () => {
+      const deepRoot = path.join(__dirname, 'tmp_deep', 'nested', 'path');
+      await fs.rm(path.join(__dirname, 'tmp_deep'), { recursive: true, force: true });
+
+      const deepAdapter = new JsonAdapter({ root: deepRoot });
+      const connectResult = expectSuccessData(await deepAdapter.connect());
+
+      expect(connectResult).toBeUndefined();
+
+      const dirExists = await fs.stat(deepRoot).then(() => true).catch(() => false);
+      expect(dirExists).toBe(true);
+
+      await deepAdapter.disconnect();
+      await fs.rm(path.join(__dirname, 'tmp_deep'), { recursive: true, force: true });
+    });
   });
 });

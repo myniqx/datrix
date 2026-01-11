@@ -21,6 +21,11 @@ import { JsonQueryRunner } from './runner';
 import { SimpleLock } from './lock';
 import { JsonPopulator } from './populate';
 
+interface CacheEntry {
+  data: JsonTableFile;
+  mtime: number;
+}
+
 /**
  * JSON File Adapter
  */
@@ -28,9 +33,16 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
   readonly name = 'json';
   readonly config: JsonAdapterConfig;
   private state: ConnectionState = 'disconnected';
+  private cache = new Map<string, CacheEntry>();
+  private lock: SimpleLock;
+  private cacheEnabled: boolean;
+  private readLockEnabled: boolean;
 
   constructor(config: JsonAdapterConfig) {
     this.config = config;
+    this.lock = new SimpleLock(config.root, config.lockTimeout, config.staleTimeout);
+    this.cacheEnabled = config.cache !== false; // default: true
+    this.readLockEnabled = config.readLock === true; // default: false
   }
 
   /**
@@ -52,14 +64,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
       const message = error instanceof Error ? error.message : String(error);
       return {
         success: false,
-        error: new (class extends Error {
-          readonly code = 'CONNECTION_ERROR';
-          readonly details = error;
-          constructor() {
-            super(`Failed to access root directory: ${message}`);
-            this.name = 'ConnectionError';
-          }
-        })()
+        error: new ConnectionError(`Failed to access root directory: ${message}`, error)
       };
     }
   }
@@ -78,33 +83,123 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
   }
 
   /**
+   * Validate table name for security
+   */
+  private validateTableName(tableName: string): Result<void, MigrationError> {
+    if (tableName.includes('\x00')) {
+      return {
+        success: false,
+        error: new MigrationError('Invalid table name: contains null byte')
+      };
+    }
+
+    if (tableName.includes('/') || tableName.includes('\\')) {
+      return {
+        success: false,
+        error: new MigrationError('Invalid table name: contains path separators')
+      };
+    }
+
+    if (tableName.includes('..')) {
+      return {
+        success: false,
+        error: new MigrationError('Invalid table name: contains parent directory reference')
+      };
+    }
+
+    return { success: true, data: undefined };
+  }
+
+  /**
    * Helper to get file path for a table
    */
   private getTablePath(tableName: string): string {
     return path.join(this.config.root, `${tableName}.json`);
   }
 
+  /**
+   * Read table with cache support
+   * Uses mtime validation to ensure cache freshness across processes
+   * Throws on file not found or parse errors (caller must handle)
+   */
+  private async readTable(tableName: string): Promise<JsonTableFile> {
+    const filePath = this.getTablePath(tableName);
+
+    if (this.cacheEnabled) {
+      const stat = await fs.stat(filePath);
+      const mtime = stat.mtimeMs;
+
+      const cached = this.cache.get(tableName);
+      if (cached && cached.mtime === mtime) {
+        return cached.data;
+      }
+
+      // Cache miss or stale - read and parse fresh
+      const content = await fs.readFile(filePath, 'utf-8');
+      const data: JsonTableFile = JSON.parse(content);
+
+      this.cache.set(tableName, { data, mtime });
+      return data;
+    }
+
+    const content = await fs.readFile(filePath, 'utf-8');
+    return JSON.parse(content);
+  }
+
+  /**
+   * Get cached table data (for external use like Populate)
+   */
+  async getCachedTable(tableName: string): Promise<JsonTableFile | null> {
+    try {
+      return await this.readTable(tableName);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Invalidate cache for a specific table
+   */
+  private invalidateCache(tableName: string): void {
+    this.cache.delete(tableName);
+  }
+
+  /**
+   * Update cache after write operation
+   */
+  private async updateCache(tableName: string, data: JsonTableFile): Promise<void> {
+    if (!this.cacheEnabled) return;
+
+    const filePath = this.getTablePath(tableName);
+    try {
+      const stat = await fs.stat(filePath);
+      this.cache.set(tableName, { data, mtime: stat.mtimeMs });
+    } catch {
+      this.invalidateCache(tableName);
+    }
+  }
+
   async createTable(schema: SchemaDefinition): Promise<Result<void, MigrationError>> {
     if (!this.isConnected()) {
-      return this.notConnectedError('MigrationError');
+      return {
+        success: false,
+        error: new MigrationError('Not connected to database')
+      };
+    }
+
+    const validation = this.validateTableName(schema.name);
+    if (!validation.success) {
+      return validation;
     }
 
     try {
       const filePath = this.getTablePath(schema.name);
 
-      // Check if exists
       try {
         await fs.access(filePath);
         return {
           success: false,
-          error: new (class extends Error {
-            readonly code = 'MIGRATION_ERROR';
-            readonly details = undefined;
-            constructor() {
-              super(`Table '${schema.name}' already exists`);
-              this.name = 'MigrationError';
-            }
-          })()
+          error: new MigrationError(`Table '${schema.name}' already exists`)
         };
       } catch {
         // File does not exist, proceed
@@ -123,21 +218,33 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
       await fs.writeFile(filePath, JSON.stringify(initialContent, null, 2), 'utf-8');
       return { success: true, data: undefined };
     } catch (error) {
-      return this.mapError(error, 'MigrationError');
+      const message = error instanceof Error ? error.message : String(error);
+      return {
+        success: false,
+        error: new MigrationError(`Adapter error: ${message}`, error)
+      };
     }
   }
 
   async dropTable(tableName: string): Promise<Result<void, MigrationError>> {
     if (!this.isConnected()) {
-      return this.notConnectedError('MigrationError');
+      return {
+        success: false,
+        error: new MigrationError('Not connected to database')
+      };
     }
 
     try {
       const filePath = this.getTablePath(tableName);
       await fs.unlink(filePath);
+      this.invalidateCache(tableName);
       return { success: true, data: undefined };
     } catch (error) {
-      return this.mapError(error, 'MigrationError');
+      const message = error instanceof Error ? error.message : String(error);
+      return {
+        success: false,
+        error: new MigrationError(`Adapter error: ${message}`, error)
+      };
     }
   }
 
@@ -151,20 +258,27 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
     }
 
     if (!this.isConnected()) {
-      return this.notConnectedError('QueryError');
+      return {
+        success: false,
+        error: new QueryError('Not connected to database', { code: 'CONNECTION_ERROR', query })
+      };
     }
 
-    // Determine lock requirement
-    const needsLock = ['insert', 'update', 'delete'].includes(query.type);
-    const lock = needsLock ? new SimpleLock(this.config.root, this.config.lockTimeout, this.config.staleTimeout) : null;
+    const isWriteOp = ['insert', 'update', 'delete'].includes(query.type);
+    const needsLock = isWriteOp || this.readLockEnabled;
+    let lockAcquired = false;
 
-    if (lock) {
+    if (needsLock) {
       try {
-        await lock.acquire();
+        await this.lock.acquire();
+        lockAcquired = true;
       } catch (err) {
         return {
           success: false,
-          error: new QueryError(`Failed to acquire lock: ${err instanceof Error ? err.message : String(err)}`, { query })
+          error: new QueryError(
+            `Failed to acquire lock: ${err instanceof Error ? err.message : String(err)}`,
+            { query }
+          )
         };
       }
     }
@@ -172,32 +286,57 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
     try {
       const filePath = this.getTablePath(query.table);
 
-      // 1. Read Data
+      let tableData: JsonTableFile<Record<string, unknown>>;
       let fileContent: string;
+
+      // Step 1: Read file
       try {
         fileContent = await fs.readFile(filePath, 'utf-8');
       } catch (err) {
-        if (lock) await lock.release();
+        if (lockAcquired) await this.lock.release();
         return {
           success: false,
-          error: new (class extends Error {
-            readonly code = 'TABLE_NOT_FOUND';
-            readonly details = err;
-            readonly query = query;
-            readonly sql = undefined;
-            constructor() {
-              super(`Table '${query.table}' not found`);
-              this.name = 'QueryError';
-            }
-          })()
+          error: new QueryError(
+            `Table '${query.table}' not found`,
+            { code: 'TABLE_NOT_FOUND', query, details: err }
+          )
         };
       }
 
-      const tableData: JsonTableFile<any> = JSON.parse(fileContent);
+      // Step 2: Parse JSON
+      try {
+        tableData = JSON.parse(fileContent);
+      } catch (parseErr) {
+        if (lockAcquired) await this.lock.release();
+        this.invalidateCache(query.table);
+        return {
+          success: false,
+          error: new QueryError(
+            `Failed to parse JSON file for table '${query.table}': ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`,
+            { query }
+          )
+        };
+      }
+
+      // Update cache for read operations
+      if (!isWriteOp && this.cacheEnabled) {
+        try {
+          const stat = await fs.stat(filePath);
+          this.cache.set(query.table, { data: tableData, mtime: stat.mtimeMs });
+        } catch {
+          // Ignore cache update errors
+        }
+      }
+
+      // Handle missing data field
+      if (!tableData.data || !Array.isArray(tableData.data)) {
+        tableData.data = [];
+      }
+
       const runner = new JsonQueryRunner();
 
-      let rows: any[] = [];
-      const metadata: any = { rowCount: 0, affectedRows: 0 };
+      let rows: Record<string, unknown>[] = [];
+      const metadata: { rowCount: number; affectedRows: number; insertId?: number } = { rowCount: 0, affectedRows: 0 };
       let shouldWrite = false;
 
       switch (query.type) {
@@ -206,12 +345,12 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
           rows = runner.run(tableData.data, query);
 
           if (query.type === 'select' && query.populate) {
-            const populator = new JsonPopulator(this.config.root);
+            const populator = new JsonPopulator(this);
             rows = await populator.populate(rows, query);
           }
 
           if (query.type === 'count') {
-            if (lock) await lock.release();
+            if (lockAcquired) await this.lock.release();
             return {
               success: true,
               data: {
@@ -240,14 +379,14 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
           }
 
           metadata.affectedRows = 1;
-          metadata.insertId = newItem['id'];
+          metadata.insertId = newItem['id'] as number;
           shouldWrite = true;
           break;
         }
 
         case 'update': {
           if (!query.data) throw new Error("Update query missing data");
-          const updateQuery: QueryObject = { ...query, limit: undefined, offset: undefined, orderBy: undefined } as any;
+          const updateQuery: QueryObject = { ...query, limit: undefined, offset: undefined, orderBy: undefined } as QueryObject;
           const rowsToUpdate = runner.run(tableData.data, updateQuery);
 
           for (const row of rowsToUpdate) {
@@ -266,7 +405,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
         }
 
         case 'delete': {
-          const deleteQuery: QueryObject = { ...query, limit: undefined, offset: undefined, orderBy: undefined } as any;
+          const deleteQuery: QueryObject = { ...query, limit: undefined, offset: undefined, orderBy: undefined } as QueryObject;
           const rowsToDelete = runner.run(tableData.data, deleteQuery);
           const idsToDelete = new Set(rowsToDelete.map(r => r['id']));
 
@@ -288,11 +427,12 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
       if (shouldWrite) {
         tableData.meta.updatedAt = new Date().toISOString();
         await fs.writeFile(filePath, JSON.stringify(tableData, null, 2), 'utf-8');
+        await this.updateCache(query.table, tableData);
       }
 
       metadata.rowCount = rows.length;
 
-      if (lock) await lock.release();
+      if (lockAcquired) await this.lock.release();
 
       return {
         success: true,
@@ -303,44 +443,35 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
       };
 
     } catch (error) {
-      if (lock) await lock.release();
-      return this.mapError(error, 'QueryError');
+      if (lockAcquired) await this.lock.release();
+      const message = error instanceof Error ? error.message : String(error);
+      return {
+        success: false,
+        error: new QueryError(`Adapter error: ${message}`, { details: error })
+      };
     }
   }
 
-  async executeRawQuery<TResult>(sql: string, params: readonly unknown[]): Promise<Result<QueryResult<TResult>, QueryError>> {
+  async executeRawQuery<TResult>(sql: string): Promise<Result<QueryResult<TResult>, QueryError>> {
     return {
       success: false,
-      error: new (class extends Error {
-        readonly code = 'QUERY_ERROR';
-        readonly query = undefined;
-        readonly sql = sql;
-        readonly details = undefined;
-        constructor() {
-          super('executeRawQuery is not supported by JsonAdapter');
-          this.name = 'QueryError';
-        }
-      })()
+      error: new QueryError('executeRawQuery is not supported by JsonAdapter', { sql })
     };
   }
 
   async beginTransaction(): Promise<Result<Transaction, TransactionError>> {
     return {
       success: false,
-      error: new (class extends Error {
-        readonly code = 'TRANSACTION_ERROR';
-        readonly details = undefined;
-        constructor() {
-          super('Transactions are not fully supported by JsonAdapter yet');
-          this.name = 'TransactionError';
-        }
-      })()
+      error: new TransactionError('Transactions are not fully supported by JsonAdapter yet')
     };
   }
 
   async alterTable(tableName: string, operations: readonly AlterOperation[]): Promise<Result<void, MigrationError>> {
     if (!this.isConnected()) {
-      return this.notConnectedError('MigrationError');
+      return {
+        success: false,
+        error: new MigrationError('Not connected to database')
+      };
     }
 
     try {
@@ -352,21 +483,28 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
       await fs.writeFile(filePath, JSON.stringify(json, null, 2), 'utf-8');
       return { success: true, data: undefined };
     } catch (error) {
-      return this.mapError(error, 'MigrationError');
+      const message = error instanceof Error ? error.message : String(error);
+      return {
+        success: false,
+        error: new MigrationError(`Adapter error: ${message}`, error)
+      };
     }
   }
 
-  async addIndex(tableName: string, index: IndexDefinition): Promise<Result<void, MigrationError>> {
+  async addIndex(_tableName: string, _index: IndexDefinition): Promise<Result<void, MigrationError>> {
     return { success: true, data: undefined };
   }
 
-  async dropIndex(tableName: string, indexName: string): Promise<Result<void, MigrationError>> {
+  async dropIndex(_tableName: string, _indexName: string): Promise<Result<void, MigrationError>> {
     return { success: true, data: undefined };
   }
 
   async getTables(): Promise<Result<readonly string[], QueryError>> {
     if (!this.isConnected()) {
-      return this.notConnectedError('QueryError');
+      return {
+        success: false,
+        error: new QueryError('Not connected to database', { code: 'CONNECTION_ERROR' })
+      };
     }
     try {
       const files = await fs.readdir(this.config.root);
@@ -375,13 +513,20 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
         .map(f => f.replace('.json', ''));
       return { success: true, data: tables };
     } catch (error) {
-      return this.mapError(error, 'QueryError');
+      const message = error instanceof Error ? error.message : String(error);
+      return {
+        success: false,
+        error: new QueryError(`Adapter error: ${message}`, { details: error })
+      };
     }
   }
 
   async getTableSchema(tableName: string): Promise<Result<SchemaDefinition, QueryError>> {
     if (!this.isConnected()) {
-      return this.notConnectedError('QueryError');
+      return {
+        success: false,
+        error: new QueryError('Not connected to database', { code: 'CONNECTION_ERROR' })
+      };
     }
     try {
       const filePath = this.getTablePath(tableName);
@@ -394,19 +539,14 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 
       return {
         success: false,
-        error: new (class extends Error {
-          readonly code = 'QUERY_ERROR';
-          readonly query = undefined;
-          readonly sql = undefined;
-          readonly details = undefined;
-          constructor() {
-            super(`Schema not found for table '${tableName}'`);
-            this.name = 'QueryError';
-          }
-        })()
+        error: new QueryError(`Schema not found for table '${tableName}'`)
       };
     } catch (error) {
-      return this.mapError(error, 'QueryError');
+      const message = error instanceof Error ? error.message : String(error);
+      return {
+        success: false,
+        error: new QueryError(`Adapter error: ${message}`, { details: error })
+      };
     }
   }
 
@@ -418,34 +558,5 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
     } catch {
       return false;
     }
-  }
-
-  private notConnectedError<T extends 'ConnectionError' | 'QueryError' | 'MigrationError' | 'TransactionError'>(type: T): any {
-    return {
-      success: false,
-      error: new (class extends Error {
-        readonly code = 'CONNECTION_ERROR';
-        readonly details = undefined;
-        constructor() {
-          super('Not connected to database');
-          this.name = type;
-        }
-      })()
-    };
-  }
-
-  private mapError(error: unknown, type: string): any {
-    const message = error instanceof Error ? error.message : String(error);
-    return {
-      success: false,
-      error: new (class extends Error {
-        readonly code = 'ADAPTER_ERROR';
-        readonly details = error;
-        constructor() {
-          super(`Adapter error: ${message}`);
-          this.name = type;
-        }
-      })()
-    };
   }
 }
