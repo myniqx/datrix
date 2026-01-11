@@ -8,17 +8,21 @@
 		"start": "next start"
 	},
 	"dependencies": {
+		"forja-adapter-json": "workspace:*",
+		"forja-api": "workspace:*",
+		"forja-core": "workspace:*",
 		"next": "16.1.1",
 		"react": "19.2.3",
-		"react-dom": "19.2.3",
-		"forja-core": "workspace:*",
-		"forja-adapter-json": "workspace:*",
-		"forja-api": "workspace:*"
+		"react-dom": "19.2.3"
 	},
 	"devDependencies": {
+		"@faker-js/faker": "^10.2.0",
+		"@tailwindcss/postcss": "^4.1.18",
 		"@types/node": "^20.19.28",
 		"@types/react": "^19.2.8",
 		"@types/react-dom": "^19",
+		"autoprefixer": "^10.4.23",
+		"tailwindcss": "^4.1.18",
 		"typescript": "^5.9.3"
 	}
 }

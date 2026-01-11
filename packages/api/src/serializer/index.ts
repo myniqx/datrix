@@ -10,3 +10,6 @@ export { serializeRecord, serializeCollection } from './json';
 
 // Export relation serializer
 export { serializeRelations } from './relations';
+
+// Export query serializer
+export { serializeQuery } from './query';

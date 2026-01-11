@@ -1,15 +1,14 @@
 /**
  * API Handler Module
  *
- * Exports request handlers and handler factory functions.
+ * Exports context builders, CRUD handlers, and handler factory.
  */
 
+// Export context builders
+export * from './context';
 
-// Export request context
-export { buildContext } from './context';
-
-// Export CRUD handlers
-export { findMany, findOne, create, update, deleteRecord, count } from './crud';
+// Export CRUD logic
+export * from './crud';
 
 // Export handler factory
-export { createCrudHandler, createHandlers } from './factory';
+export * from './factory';

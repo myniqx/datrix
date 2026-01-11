@@ -1,0 +1,151 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useForja } from '../hooks/useForja';
+import { faker } from '@faker-js/faker';
+
+export default function TopicSection() {
+  const { data: topics, loading, error, fetchAll, create } = useForja('topic');
+  const { data: users, fetchAll: fetchUsers } = useForja('user');
+  const [isCreating, setIsCreating] = useState(false);
+
+  useEffect(() => {
+    fetchAll({
+      populate: { author: true, comments: { populate: { author: true } } },
+      orderBy: [{ field: 'createdAt', direction: 'desc' }]
+    });
+    fetchUsers();
+  }, [fetchAll, fetchUsers]);
+
+  const handleAddTopic = async () => {
+    if (!users.length) return;
+    setIsCreating(true);
+    try {
+      const randomUser = users[Math.floor(Math.random() * users.length)];
+      await create({
+        title: faker.lorem.sentence(),
+        content: faker.lorem.paragraphs(2),
+        author: randomUser.id,
+        createdAt: new Date().toISOString(),
+      });
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  return (
+    <section className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-2xl font-black text-slate-900 tracking-tight">Latest Discussions</h3>
+          <p className="text-slate-500">Explore and join the conversation</p>
+        </div>
+        <button
+          onClick={handleAddTopic}
+          disabled={loading || isCreating || !users.length}
+          className="px-5 py-2.5 bg-white border border-slate-200 hover:border-indigo-200 hover:bg-indigo-50 text-slate-700 text-sm font-bold rounded-xl shadow-sm transition-all flex items-center gap-2 active:scale-95 disabled:opacity-50"
+        >
+          {isCreating ? (
+            <span className="w-4 h-4 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+          ) : (
+            <svg className="w-4 h-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+          )}
+          New Topic
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6">
+        {error && (
+          <div className="p-4 bg-red-50 border border-red-100 rounded-xl text-red-600 text-sm">
+            {error}
+          </div>
+        )}
+
+        {loading && !topics.length ? (
+          <div className="space-y-4">
+            {[1, 2].map((i) => (
+              <div key={i} className="h-48 bg-white border border-slate-100 rounded-2xl animate-pulse" />
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {topics.map((topic) => (
+              <article
+                key={topic.id}
+                className="group bg-white rounded-2xl border border-slate-200 p-6 shadow-sm hover:shadow-md transition-all relative overflow-hidden"
+              >
+                <div className="flex gap-4 mb-4">
+                  <img
+                    src={topic.author?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(topic.author?.name || 'A')}&background=random`}
+                    className="w-10 h-10 rounded-full shrink-0 outline outline-4 outline-slate-50"
+                  />
+                  <div>
+                    <h4 className="text-lg font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
+                      {topic.title}
+                    </h4>
+                    <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
+                      <span>{topic.author?.name || 'Anonymous'}</span>
+                      <span>•</span>
+                      <span>{new Date(topic.createdAt).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <p className="text-slate-600 text-sm leading-relaxed mb-6 line-clamp-3">
+                  {topic.content}
+                </p>
+
+                <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                  <div className="flex items-center gap-4">
+                    <button className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-indigo-600 transition-colors">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                      </svg>
+                      {topic.comments?.length || 0} Comments
+                    </button>
+                    <button className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-rose-600 transition-colors">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                      </svg>
+                      Like
+                    </button>
+                  </div>
+
+                  <div className="flex -space-x-2">
+                    {topic.comments?.slice(0, 3).map((comment: any, idx: number) => (
+                      <img
+                        key={idx}
+                        src={comment.author?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(comment.author?.name || 'C')}&background=random`}
+                        className="w-6 h-6 rounded-full border-2 border-white shadow-sm"
+                        title={comment.author?.name}
+                      />
+                    ))}
+                    {(topic.comments?.length || 0) > 3 && (
+                      <div className="w-6 h-6 rounded-full bg-slate-100 border-2 border-white flex items-center justify-center text-[10px] font-bold text-slate-500">
+                        +{(topic.comments?.length || 0) - 3}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </article>
+            ))}
+
+            {!topics.length && !loading && (
+              <div className="py-20 text-center bg-white rounded-3xl border-2 border-dashed border-slate-200">
+                <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-4 text-indigo-200">
+                  <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                  </svg>
+                </div>
+                <h4 className="text-xl font-bold text-slate-900">Silence is golden?</h4>
+                <p className="text-slate-500 max-w-xs mx-auto mt-2">No topics found. Start a new discussion to see Forja's relations in action.</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}

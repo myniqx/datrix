@@ -60,20 +60,29 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
     this.state = 'connecting';
 
     try {
-      this.pool = createPool({
+      // Build pool options
+      const poolOptions: Record<string, unknown> = {
         host: this.config.host ?? 'localhost',
         port: this.config.port ?? 3306,
         database: this.config.database,
         user: this.config.user,
         password: this.config.password,
-        ssl: this.config.ssl,
         connectionLimit: this.config.connectionLimit ?? 10,
         queueLimit: this.config.queueLimit ?? 0,
         waitForConnections: this.config.waitForConnections ?? true,
         connectTimeout: this.config.connectTimeout ?? 10000,
         charset: this.config.charset ?? 'utf8mb4',
         timezone: this.config.timezone ?? 'local'
-      });
+      };
+
+      // Add SSL config if provided
+      if (this.config.ssl === true) {
+        poolOptions['ssl'] = {};
+      } else if (typeof this.config.ssl === 'object') {
+        poolOptions['ssl'] = { ...this.config.ssl };
+      }
+
+      this.pool = createPool(poolOptions as Parameters<typeof createPool>[0]);
 
       const connection = await this.pool.getConnection();
       connection.release();
@@ -169,7 +178,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
           insertId = resultHeader.insertId;
         }
       } else {
-        rows = result as readonly TResult[];
+        rows = (result as unknown) as readonly TResult[];
         affectedRows = (result as RowDataPacket[]).length;
       }
 
@@ -248,7 +257,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
       const [result] = await this.pool.execute(sql, params as unknown[]);
 
       const isResultSet = Array.isArray(result);
-      const rows = isResultSet ? (result as readonly TResult[]) : [];
+      const rows = isResultSet ? ((result as unknown) as readonly TResult[]) : [];
       const affectedRows = isResultSet
         ? (result as RowDataPacket[]).length
         : (result as ResultSetHeader).affectedRows ?? 0;
@@ -724,7 +733,7 @@ class MySQLTransaction implements Transaction {
       const [result] = await this.connection.execute(sql, params as unknown[]);
 
       const isResultSet = Array.isArray(result);
-      const rows = isResultSet ? (result as readonly TResult[]) : [];
+      const rows = isResultSet ? ((result as unknown) as readonly TResult[]) : [];
       const affectedRows = isResultSet
         ? (result as RowDataPacket[]).length
         : (result as ResultSetHeader).affectedRows ?? 0;
@@ -775,7 +784,7 @@ class MySQLTransaction implements Transaction {
       const [result] = await this.connection.execute(sql, params as unknown[]);
 
       const isResultSet = Array.isArray(result);
-      const rows = isResultSet ? (result as readonly TResult[]) : [];
+      const rows = isResultSet ? ((result as unknown) as readonly TResult[]) : [];
       const affectedRows = isResultSet
         ? (result as RowDataPacket[]).length
         : (result as ResultSetHeader).affectedRows ?? 0;

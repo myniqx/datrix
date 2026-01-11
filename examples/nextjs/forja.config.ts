@@ -8,13 +8,15 @@
  */
 
 import { JsonAdapter } from 'forja-adapter-json';
-import { AuthPlugin, UploadPlugin, HooksPlugin } from 'forja/plugins';
-import { LocalStorageProvider } from 'forja/plugins/upload';
+import { AuthPlugin, UploadPlugin, HooksPlugin } from 'forja-core/plugins';
+import { LocalStorageProvider } from 'forja-plugin-upload';
 
 // Import schema definitions
 import { userSchema } from './src/schemas/user.schema';
-import { postSchema } from './src/schemas/post.schema';
-import { ForjaConfig } from '../../packages/types/src/config';
+import { topicSchema } from './src/schemas/topic.schema';
+import { commentSchema } from './src/schemas/comment.schema';
+import { likeSchema } from './src/schemas/like.schema';
+import { ForjaConfig } from 'forja-types/config';
 
 /**
  * Database Adapter Configuration
@@ -53,10 +55,17 @@ const authPlugin = new AuthPlugin({
           { resource: 'users', action: 'read' },
           { resource: 'users', action: 'update' },
           { resource: 'users', action: 'delete' },
-          { resource: 'posts', action: 'create' },
-          { resource: 'posts', action: 'read' },
-          { resource: 'posts', action: 'update' },
-          { resource: 'posts', action: 'delete' },
+          { resource: 'topics', action: 'create' },
+          { resource: 'topics', action: 'read' },
+          { resource: 'topics', action: 'update' },
+          { resource: 'topics', action: 'delete' },
+          { resource: 'comments', action: 'create' },
+          { resource: 'comments', action: 'read' },
+          { resource: 'comments', action: 'update' },
+          { resource: 'comments', action: 'delete' },
+          { resource: 'likes', action: 'create' },
+          { resource: 'likes', action: 'read' },
+          { resource: 'likes', action: 'delete' },
         ],
       },
 
@@ -65,9 +74,11 @@ const authPlugin = new AuthPlugin({
         name: 'moderator',
         permissions: [
           { resource: 'users', action: 'read' },
-          { resource: 'posts', action: 'read' },
-          { resource: 'posts', action: 'update' },
-          { resource: 'posts', action: 'delete' },
+          { resource: 'topics', action: 'read' },
+          { resource: 'topics', action: 'update' },
+          { resource: 'topics', action: 'delete' },
+          { resource: 'comments', action: 'read' },
+          { resource: 'comments', action: 'delete' },
         ],
       },
 
@@ -76,9 +87,16 @@ const authPlugin = new AuthPlugin({
         name: 'user',
         permissions: [
           { resource: 'users', action: 'read' },
-          { resource: 'posts', action: 'create' },
-          { resource: 'posts', action: 'read' },
-          { resource: 'posts', action: 'update' }, // Own posts only (enforced in handler)
+          { resource: 'topics', action: 'create' },
+          { resource: 'topics', action: 'read' },
+          { resource: 'topics', action: 'update' },
+          { resource: 'comments', action: 'create' },
+          { resource: 'comments', action: 'read' },
+          { resource: 'comments', action: 'update' },
+          { resource: 'comments', action: 'delete' },
+          { resource: 'likes', action: 'create' },
+          { resource: 'likes', action: 'read' },
+          { resource: 'likes', action: 'delete' },
         ],
       },
     ],
@@ -144,7 +162,9 @@ const config: ForjaConfig = {
    */
   schemas: [
     userSchema,
-    postSchema,
+    topicSchema,
+    commentSchema,
+    likeSchema,
   ],
 
   /**

@@ -356,7 +356,7 @@ export function fromMySQLValue(value: unknown, fieldType: FieldType): unknown {
 export function parseConnectionString(connectionString: string): Partial<MySQLConfig> {
   const url = new URL(connectionString);
 
-  const config: Partial<MySQLConfig> = {
+  const config: Record<string, unknown> = {
     host: url.hostname || 'localhost',
     port: url.port ? parseInt(url.port, 10) : 3306,
     user: decodeURIComponent(url.username),
@@ -368,25 +368,25 @@ export function parseConnectionString(connectionString: string): Partial<MySQLCo
   const params = url.searchParams;
 
   if (params.has('charset')) {
-    (config as Record<string, unknown>).charset = params.get('charset');
+    config['charset'] = params.get('charset');
   }
 
   if (params.has('timezone')) {
-    (config as Record<string, unknown>).timezone = params.get('timezone');
+    config['timezone'] = params.get('timezone');
   }
 
   if (params.has('connectionLimit')) {
-    (config as Record<string, unknown>).connectionLimit = parseInt(params.get('connectionLimit')!, 10);
+    config['connectionLimit'] = parseInt(params.get('connectionLimit')!, 10);
   }
 
   if (params.has('connectTimeout')) {
-    (config as Record<string, unknown>).connectTimeout = parseInt(params.get('connectTimeout')!, 10);
+    config['connectTimeout'] = parseInt(params.get('connectTimeout')!, 10);
   }
 
   if (params.has('ssl')) {
     const sslValue = params.get('ssl');
-    (config as Record<string, unknown>).ssl = sslValue === 'true' || sslValue === '1';
+    config['ssl'] = sslValue === 'true' || sslValue === '1';
   }
 
-  return config;
+  return config as Partial<MySQLConfig>;
 }
