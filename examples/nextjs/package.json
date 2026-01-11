@@ -11,6 +11,10 @@
 		"forja-adapter-json": "workspace:*",
 		"forja-api": "workspace:*",
 		"forja-core": "workspace:*",
+		"forja-plugin-auth": "workspace:*",
+		"forja-plugin-hooks": "workspace:*",
+		"forja-plugin-upload": "workspace:*",
+		"forja-types": "workspace:*",
 		"next": "16.1.1",
 		"react": "19.2.3",
 		"react-dom": "19.2.3"

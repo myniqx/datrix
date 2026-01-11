@@ -1,11 +1,18 @@
 /**
- * API Module
+ * Forja API Module
  *
- * Exports HTTP request handling, query parsing, and response serialization.
+ * Simple HTTP handlers for REST API.
+ * Connects HTTP requests to Forja core.
  */
 
-// Re-export handler module
-export * from './handler';
+// Export handlers
+export {
+  handleGet,
+  handlePost,
+  handlePatch,
+  handlePut,
+  handleDelete,
+} from './handler';
 
 // Re-export parser module
 export * from './parser';

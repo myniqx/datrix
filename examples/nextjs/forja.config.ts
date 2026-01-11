@@ -1,35 +1,25 @@
 /**
  * Forja Configuration - Next.js Example
- *
- * This file configures the Forja framework for a Next.js application.
- * All types are inferred automatically - no manual type annotations needed.
- *
- * Type is automatically inferred as ForjaConfig from forja-types/config
  */
 
+import { defineConfig } from 'forja-core';
 import { JsonAdapter } from 'forja-adapter-json';
-import { AuthPlugin, UploadPlugin, HooksPlugin } from 'forja-core/plugins';
-import { LocalStorageProvider } from 'forja-plugin-upload';
+import { AuthPlugin } from 'forja-plugin-auth';
+import { UploadPlugin, LocalStorageProvider } from 'forja-plugin-upload';
+import { HooksPlugin } from 'forja-plugin-hooks';
 
 // Import schema definitions
 import { userSchema } from './src/schemas/user.schema';
 import { topicSchema } from './src/schemas/topic.schema';
 import { commentSchema } from './src/schemas/comment.schema';
 import { likeSchema } from './src/schemas/like.schema';
-import { ForjaConfig } from 'forja-types/config';
 
-/**
- * Database Adapter Configuration
- */
-const adapter = new JsonAdapter({
-  connectionString: process.env.DATABASE_URL!,
-  // Connection pool settings (recommended for production)
-  max: 20, // Maximum number of connections in pool
-  idleTimeoutMillis: 30000, // Close idle connections after 30s
-  connectionTimeoutMillis: 10000, // Timeout after 10s if no connection available
-});
+export default defineConfig(() => ({
+  adapter: new JsonAdapter({
+    root: './data',
+  }),
 
-/**
+  /**
  * Authentication Plugin Configuration
  *
  * Enables JWT-based authentication with RBAC (Role-Based Access Control)
@@ -144,22 +134,6 @@ const uploadPlugin = new UploadPlugin({
  */
 const hooksPlugin = new HooksPlugin();
 
-/**
- * Main Forja Configuration
- *
- * This config is loaded by the Forja config loader at application startup.
- * Type is automatically validated against ForjaConfig interface.
- */
-const config: ForjaConfig = {
-  /**
-   * Database adapter
-   */
-  adapter,
-
-  /**
-   * Schema definitions
-   * Import your schemas and add them to this array
-   */
   schemas: [
     userSchema,
     topicSchema,
@@ -167,19 +141,12 @@ const config: ForjaConfig = {
     likeSchema,
   ],
 
-  /**
-   * Plugins
-   * Order matters - plugins are initialized in order
-   */
   plugins: [
     hooksPlugin, // Initialize hooks first (other plugins may use hooks)
     authPlugin,
     uploadPlugin,
   ],
 
-  /**
-   * API configuration
-   */
   api: {
     prefix: '/api', // All API routes start with /api
     defaultPageSize: 25, // Default pagination size
@@ -208,56 +175,4 @@ const config: ForjaConfig = {
     // Pretty print errors in development
     prettyErrors: process.env.NODE_ENV === 'development',
   },
-};
-
-export default config;
-
-/**
- * Type Exports
- *
- * Export inferred config type for use in your application
- */
-export type AppConfig = typeof config;
-
-/**
- * Environment Variable Validation
- *
- * Ensure all required environment variables are set
- */
-if (!process.env.DATABASE_URL) {
-  throw new Error('DATABASE_URL environment variable is required');
-}
-
-if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
-  throw new Error(
-    'JWT_SECRET environment variable is required and must be at least 32 characters long'
-  );
-}
-
-// Warn about missing optional variables
-if (!process.env.UPLOAD_DIR) {
-  console.warn(
-    'UPLOAD_DIR not set, using default: ./public/uploads'
-  );
-}
-
-if (!process.env.UPLOAD_URL) {
-  console.warn(
-    'UPLOAD_URL not set, using default: http://localhost:3000/uploads'
-  );
-}
-
-/**
- * Production Checklist:
- *
- * [ ] Set strong JWT_SECRET (64+ characters)
- * [ ] Use connection pooling (max: 20)
- * [ ] Enable SSL for database connection
- * [ ] Use S3 or CloudFlare R2 for file uploads
- * [ ] Set up database backups
- * [ ] Configure monitoring and logging
- * [ ] Enable rate limiting
- * [ ] Set up CORS properly
- * [ ] Use environment-specific configs
- * [ ] Set NODE_ENV=production
- */
+}));

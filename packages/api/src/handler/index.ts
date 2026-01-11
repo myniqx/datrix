@@ -12,3 +12,5 @@ export * from './crud';
 
 // Export handler factory
 export * from './factory';
+
+export * from './simple-handler';

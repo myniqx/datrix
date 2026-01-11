@@ -5,7 +5,6 @@
  * Framework-agnostic - works with Next.js, Express, Fastify, etc.
  */
 
-import { DatabaseAdapter } from "../adapter";
 import { SchemaDefinition } from "../core/schema";
 import { Result } from "../utils";
 import { ParsedQuery } from "./parser";
@@ -155,7 +154,6 @@ export type PermissionCheck<TUser = unknown> =
  */
 export interface HandlerConfig<TUser = unknown> {
   readonly schema: SchemaDefinition;
-  readonly adapter: DatabaseAdapter;
   readonly middleware?: readonly Middleware<TUser>[];
   readonly permissions?: {
     readonly read?: PermissionCheck<TUser>;
