@@ -8,11 +8,12 @@
 import { Result } from 'forja-types/utils';
 import { ForjaConfig, ApiConfig, MigrationConfig, DevConfig, DEFAULT_API_CONFIG, DEFAULT_MIGRATION_CONFIG, DEFAULT_DEV_CONFIG } from 'forja-types/config';
 import { DatabaseAdapter } from 'forja-types/adapter';
-import { ForjaPlugin, PluginContext } from 'forja-types/plugin';
+import { ForjaPlugin, PluginContext, SchemaExtension } from 'forja-types/plugin';
 import { SchemaRegistry } from 'forja-types/core/schema';
 import { WhereClause, SelectClause, PopulateClause, OrderByItem } from 'forja-types/core/query-builder';
 import { CrudOperations } from './mixins/crud';
 import { SchemaHelpers } from './mixins/schema';
+import { SchemaExtensionContextImpl } from './plugin/schema-extension-context';
 
 /**
  * Forja initialization error
@@ -38,8 +39,6 @@ export interface ForjaInitOptions {
  */
 export type ConfigFactory = () => ForjaConfig;
 
-// Global config factory storage
-let globalConfigFactory: ConfigFactory | null = null;
 
 /**
  * Forja Main Singleton Class
@@ -96,24 +95,45 @@ export class Forja {
         }
       }
 
-      /*
-        TODO: init sirasi sorunu var mi?
-        plug-inlerin schemalardan once init edilmesi konusu?
-          - schemalari editleme yetkisi mantikli mi? beforeSchemeRegister ?
-          - onSchemeRegistered ?
-          - plug-in kendi schemasini ekleyebilmeli mi, yeni bir tablo kendi islemlerini yapabilmek icin?
-
-        burada api objesi ile ilgili gelistirme lazim.
-        api objesi config icinde verildi ise kontrol edilmesi gereken seyler var.
-        eger api objei configinde auth ektiklestirildi ise eklemesi gereken veya modifiye etmesi gereken schemalar var.
-        bunlarin kontrolu icin onu soz hakki vermeliyiz (api.init() cagirsak o da ekleyecegini veya cagiracaklarini cagirsa?)
-
-      */
-
-      // Register schemas
+      // 1. Register user schemas
       if (!options.skipSchemas && config.schemas.length > 0) {
         for (const schema of config.schemas) {
           this.schemas.register(schema);
+        }
+      }
+
+      // 2. Register plugin schemas
+      if (!options.skipPlugins) {
+        for (const plugin of this.plugins) {
+          if (plugin.getSchemas) {
+            const pluginSchemas = await plugin.getSchemas();
+            for (const schema of pluginSchemas) {
+              this.schemas.register(schema);
+            }
+          }
+        }
+      }
+
+      // 3. Apply schema extensions
+      if (!options.skipPlugins) {
+        const extensionContext = new SchemaExtensionContextImpl(
+          this.schemas.getAll()
+        );
+
+        for (const plugin of this.plugins) {
+          if (plugin.extendSchemas) {
+            const extensions = await plugin.extendSchemas(extensionContext);
+            const applyResult = this.applySchemaExtensions(extensions);
+            if (!applyResult.success) {
+              return {
+                success: false,
+                error: new ForjaError(
+                  `Failed to apply schema extensions from plugin '${plugin.name}': ${applyResult.error.message}`,
+                  'SCHEMA_EXTENSION_FAILED'
+                ),
+              };
+            }
+          }
         }
       }
 
@@ -361,6 +381,77 @@ export class Forja {
       );
     }
   }
+
+  private applySchemaExtensions(
+    extensions: SchemaExtension[]
+  ): Result<void, ForjaError> {
+    for (const extension of extensions) {
+      const schema = this.schemas.get(extension.targetSchema);
+
+      if (!schema) {
+        return {
+          success: false,
+          error: new ForjaError(
+            `Cannot extend schema '${extension.targetSchema}': schema not found`,
+            'SCHEMA_NOT_FOUND'
+          ),
+        };
+      }
+
+      const extendedFields = { ...schema.fields };
+      const extendedIndexes = [...(schema.indexes || [])];
+
+      if (extension.fields) {
+        for (const [fieldName, fieldDef] of Object.entries(extension.fields)) {
+          if (extendedFields[fieldName]) {
+            console.warn(
+              `[Forja] Field '${fieldName}' already exists in schema '${extension.targetSchema}'. Skipping.`
+            );
+            continue;
+          }
+          extendedFields[fieldName] = fieldDef;
+        }
+      }
+
+      if (extension.removeFields) {
+        for (const fieldName of extension.removeFields) {
+          delete extendedFields[fieldName];
+        }
+      }
+
+      if (extension.modifyFields) {
+        for (const [fieldName, modifications] of Object.entries(
+          extension.modifyFields
+        )) {
+          if (!extendedFields[fieldName]) {
+            console.warn(
+              `[Forja] Cannot modify field '${fieldName}' in schema '${extension.targetSchema}': field not found. Skipping.`
+            );
+            continue;
+          }
+
+          extendedFields[fieldName] = {
+            ...extendedFields[fieldName],
+            ...modifications,
+          } as any;
+        }
+      }
+
+      if (extension.indexes) {
+        extendedIndexes.push(...extension.indexes);
+      }
+
+      const extendedSchema = {
+        ...schema,
+        fields: extendedFields,
+        indexes: extendedIndexes,
+      };
+
+      this.schemas.register(extendedSchema);
+    }
+
+    return { success: true, data: undefined };
+  }
 }
 
 /**
@@ -389,7 +480,6 @@ export class Forja {
  * ```
  */
 export function defineConfig(factory: ConfigFactory): () => Promise<Forja> {
-  globalConfigFactory = factory;
 
   return async function getForjaInstance(): Promise<Forja> {
     const instance = Forja.getInstance();

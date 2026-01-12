@@ -6,8 +6,8 @@
  */
 
 import { QueryObject } from "forja-types/core/query-builder";
-import { SchemaRegistry } from "forja-types/core/schema";
-import { ForjaPlugin, PluginContext, PluginError } from "forja-types/plugin";
+import { SchemaRegistry, SchemaDefinition } from "forja-types/core/schema";
+import { ForjaPlugin, PluginContext, PluginError, SchemaExtensionContext, SchemaExtension } from "forja-types/plugin";
 import { Result } from "forja-types/utils";
 
 
@@ -42,6 +42,24 @@ export abstract class BasePlugin<TOptions = Record<string, unknown>>
    * Must be implemented by subclasses
    */
   abstract destroy(): Promise<Result<void, PluginError>>;
+
+  /**
+   * Get plugin schemas
+   *
+   * Default implementation returns empty array
+   */
+  async getSchemas(): Promise<SchemaDefinition[]> {
+    return [];
+  }
+
+  /**
+   * Extend existing schemas
+   *
+   * Default implementation returns empty array
+   */
+  async extendSchemas(_context: SchemaExtensionContext): Promise<SchemaExtension[]> {
+    return [];
+  }
 
   /**
    * Hook called when schemas are loaded

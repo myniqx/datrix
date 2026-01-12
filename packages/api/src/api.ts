@@ -1,90 +1,322 @@
 /**
- * Forja API Class
+ * API Plugin
  *
- * Main API handler - manages authentication, routing, and CRUD operations.
+ * Transforms the API package into a Forja plugin.
+ * Manages authentication schema, user sync, and auth routes.
  */
 
-import type { IForjaApi } from 'forja-types/api';
+import { BasePlugin } from 'forja-core/plugin/plugin';
+import type {
+  PluginContext,
+  PluginError,
+  SchemaDefinition
+} from 'forja-types/plugin';
+import type { QueryObject } from 'forja-types/core/query-builder';
+import type { Result } from 'forja-types/utils';
 import type { ApiConfig } from 'forja-types/config';
-import type { AuthManager } from './auth/manager';
-import type { ApiLifecycleManager } from './lifecycle/manager';
-import { createAuthManager } from './auth/manager';
-import { createApiLifecycleManager } from './lifecycle/manager';
+import { defineSchema } from 'forja-types/core/schema';
+import { AuthManager } from './auth/manager';
 import { createAuthHandlers } from './handler/auth-handler';
 import { handleRequest as handleCrudRequest } from './handler/unified';
 import { errorResponse } from './handler/utils';
 
-/**
- * ForjaApi
- *
- * Implements IForjaApi interface for REST API functionality.
- *
- * Features:
- * - Authentication (JWT + Session)
- * - Authorization (RBAC)
- * - CRUD operations
- * - Auto-generated routes
- *
- * @example
- * ```ts
- * import { ForjaApi } from 'forja-api';
- *
- * const api = new ForjaApi({
- *   enabled: true,
- *   prefix: '/api',
- *   auth: {
- *     enabled: true,
- *     jwt: { secret: 'your-secret' },
- *     rbac: { roles: [...] }
- *   }
- * });
- * ```
- */
-export class ForjaApi<TForja = unknown> implements IForjaApi<TForja> {
-  private initialized = false;
-  private authManager?: AuthManager;
-  private lifecycleManager?: ApiLifecycleManager;
 
-  constructor(private readonly config: ApiConfig) {
-    this.validateConfig();
+export class ApiPlugin extends BasePlugin<ApiConfig> {
+  readonly name = 'api';
+  readonly version = '1.0.0';
+
+  private authManager?: AuthManager;
+  private forjaInstance?: any;
+
+  private get authConfig() {
+    return this.options.auth;
   }
 
-  /**
-   * Initialize API
-   *
-   * Called automatically on first request.
-   * Sets up user schema injection and auth manager.
-   */
-  async init(forja: TForja): Promise<void> {
-    if (this.initialized) return;
+  private get apiConfig() {
+    return this.options;
+  }
 
-    // Initialize lifecycle manager (user schema injection)
-    if (this.config.auth?.enabled) {
-      this.lifecycleManager = createApiLifecycleManager(this.config.auth);
+  private get authSchemaName(): string {
+    return this.authConfig?.authSchemaName ?? 'authentication';
+  }
 
-      // Type assertion - we know forja has getSchemaRegistry
-      const forjaWithRegistry = forja as unknown as {
-        getSchemaRegistry(): {
-          has(name: string): boolean;
-          get(name: string): unknown;
-          register(schema: unknown): void;
-          update(name: string, schema: unknown): void;
-        };
-      };
+  private get userSchemaName(): string {
+    return this.authConfig?.userSchema?.name ?? 'user';
+  }
 
-      const result = await this.lifecycleManager.init(
-        forjaWithRegistry.getSchemaRegistry()
-      );
+  private get authFieldNames() {
+    return {
+      email: this.authConfig?.userSchema?.fields?.email ?? 'email',
+      password: this.authConfig?.userSchema?.fields?.password ?? 'password',
+      role: this.authConfig?.userSchema?.fields?.role ?? 'role',
+    };
+  }
 
-      if (!result.success) {
-        throw result.error;
-      }
+  async init(context: PluginContext): Promise<Result<void, PluginError>> {
+    this.context = context;
 
-      // Create auth manager
-      this.authManager = createAuthManager(this.config.auth);
+    if (!this.authConfig?.enabled) {
+      return { success: true, data: undefined };
     }
 
-    this.initialized = true;
+    if (context.schemas.has('auth')) {
+      return {
+        success: false,
+        error: this.createError(
+          "Schema name 'auth' is reserved for API authentication routes",
+          'RESERVED_SCHEMA_NAME'
+        ),
+      };
+    }
+
+    if (!context.schemas.has(this.userSchemaName)) {
+      return {
+        success: false,
+        error: this.createError(
+          `User schema '${this.userSchemaName}' not found. Create it before enabling auth.`,
+          'USER_SCHEMA_NOT_FOUND'
+        ),
+      };
+    }
+
+    const userSchema = context.schemas.get(this.userSchemaName);
+    if (!userSchema?.fields[this.authFieldNames.email]) {
+      return {
+        success: false,
+        error: this.createError(
+          `User schema must have an '${this.authFieldNames.email}' field`,
+          'MISSING_EMAIL_FIELD'
+        ),
+      };
+    }
+
+    if (this.authConfig.jwt) {
+      if (this.authConfig.jwt.secret.length < 32) {
+        return {
+          success: false,
+          error: this.createError(
+            'JWT secret must be at least 32 characters long for security',
+            'WEAK_JWT_SECRET'
+          ),
+        };
+      }
+    }
+
+    this.authManager = new AuthManager(this.authConfig);
+
+    return { success: true, data: undefined };
+  }
+
+  async destroy(): Promise<Result<void, PluginError>> {
+    return { success: true, data: undefined };
+  }
+
+  async getSchemas(): Promise<SchemaDefinition[]> {
+    if (!this.authConfig?.enabled) {
+      return [];
+    }
+
+    const authSchema = defineSchema({
+      name: this.authSchemaName,
+      fields: {
+        id: {
+          type: 'string',
+          required: true,
+        },
+        userId: {
+          type: 'string',
+          required: true,
+        },
+        email: {
+          type: 'string',
+          required: true,
+        },
+        password: {
+          type: 'string',
+          required: true,
+        },
+        passwordSalt: {
+          type: 'string',
+          required: true,
+        },
+        role: {
+          type: 'string',
+          required: true,
+          default: this.authConfig.rbac?.defaultRole ?? 'user',
+        },
+      },
+      indexes: [
+        {
+          name: `${this.authSchemaName}_email_idx`,
+          fields: ['email'],
+          unique: true,
+        },
+        {
+          name: `${this.authSchemaName}_userId_idx`,
+          fields: ['userId'],
+          unique: true,
+        },
+      ],
+      timestamps: true,
+    });
+
+    return [authSchema];
+  }
+
+  override async onBeforeQuery(query: QueryObject): Promise<QueryObject> {
+    /*
+     * TODO: QueryContext ihtiyacı (opsiyonel - şu an onBeforeQuery çalışıyor)
+     *
+     * Core'da eklenmesi gerekenler (future enhancement):
+     * 1. packages/core/src/dispatcher.ts
+     *    - dispatchBeforeQuery metoduna QueryContext parametresi ekle (optional)
+     *    - QueryContext objesi oluştur: { operation, modelName, user?, metadata }
+     *
+     * Şu anlık onBeforeQuery query objesinden bilgiyi alabildiği için sorun yok.
+     * Ama consistency için gelecekte eklenebilir.
+     */
+
+    if (!this.authConfig?.enabled) {
+      return query;
+    }
+
+    // User insert → authentication record create edilmeli
+    if (query.type === 'insert' && query.table === this.userSchemaName) {
+      (query as any)._apiPlugin_createAuth = true;
+    }
+
+    // User email update → authentication email sync edilmeli
+    if (query.type === 'update' && query.table === this.userSchemaName) {
+      const emailField = this.authFieldNames.email;
+      if (query.data && emailField in query.data) {
+        (query as any)._apiPlugin_syncEmail = query.data[emailField];
+      }
+    }
+
+    // User delete → authentication cascade delete edilmeli
+    if (query.type === 'delete' && query.table === this.userSchemaName) {
+      (query as any)._apiPlugin_deleteAuth = true;
+    }
+
+    return query;
+  }
+
+  override async onAfterQuery<TResult>(result: TResult): Promise<TResult> {
+    /*
+     * TODO: QueryResultContext ihtiyacı
+     *
+     * Core'da eklenmesi gerekenler:
+     * 1. packages/types/src/plugin.ts
+     *    - QueryContext interface ekle (operation, modelName, user, metadata)
+     *    - QueryResultContext interface ekle (extends QueryContext + originalQuery)
+     *    - ForjaPlugin.onAfterQuery signature: onAfterQuery?<TResult>(result: TResult, context?: QueryResultContext)
+     *
+     * 2. packages/core/src/dispatcher.ts
+     *    - dispatchAfterQuery metoduna QueryResultContext parametresi ekle
+     *    - QueryResultContext objesi oluştur (query bilgisi ile)
+     *    - Her plugin.onAfterQuery çağrısına context'i geç
+     *
+     * 3. İhtiyacımız olan context bilgileri:
+     *    - context.originalQuery.type ('insert' | 'update' | 'delete' olduğunu bilmek için)
+     *    - context.originalQuery.table (hangi tabloda işlem yapıldığını bilmek için)
+     *    - context.originalQuery.data (insert/update'te ne eklendiğini bilmek için)
+     *    - context.originalQuery.where (delete'te hangi id silindiğini bilmek için)
+     *
+     * Şu anki workaround: Query objesine custom flag'ler ekliyoruz (_apiPlugin_*)
+     */
+
+    if (!this.authConfig?.enabled) {
+      return result;
+    }
+
+    // TODO: Bu kısım QueryResultContext ile şöyle olacak:
+    // if (context.originalQuery.type === 'insert' && context.originalQuery.table === this.userSchemaName)
+
+    return result;
+
+    /* COMMENTED OUT - QueryResultContext gelince aktif edilecek
+    const contextResult = this.getContext();
+    if (!contextResult.success) {
+      return result;
+    }
+    const context = contextResult.data;
+
+    if ((query as any)._apiPlugin_createAuth && result && typeof result === 'object') {
+      const user = result as any;
+      await this.createAuthenticationRecord(user, context);
+    }
+
+    if ((query as any)._apiPlugin_syncEmail && result && typeof result === 'object') {
+      const user = result as any;
+      const newEmail = (query as any)._apiPlugin_syncEmail;
+      await this.syncAuthenticationEmail(user.id, newEmail, context);
+    }
+
+    if ((query as any)._apiPlugin_deleteAuth && result) {
+      const userId = (query as any).where?.id;
+      if (userId) {
+        await this.deleteAuthenticationRecord(userId, context);
+      }
+    }
+
+    return result;
+    */
+  }
+
+  private async createAuthenticationRecord(
+    user: any,
+    context: PluginContext
+  ): Promise<void> {
+    const emailField = this.authFieldNames.email;
+
+    const authData = {
+      id: this.generateId(),
+      userId: user.id,
+      email: user[emailField],
+      password: user.password || '',
+      passwordSalt: user.passwordSalt || '',
+      role: user.role || this.authConfig!.rbac?.defaultRole || 'user',
+    };
+
+    const query: QueryObject = {
+      type: 'insert',
+      table: this.authSchemaName,
+      data: authData,
+    };
+
+    await context.adapter.executeQuery(query);
+  }
+
+  private async syncAuthenticationEmail(
+    userId: string,
+    newEmail: string,
+    context: PluginContext
+  ): Promise<void> {
+    const query: QueryObject = {
+      type: 'update',
+      table: this.authSchemaName,
+      where: { userId },
+      data: { email: newEmail },
+    };
+
+    await context.adapter.executeQuery(query);
+  }
+
+  private async deleteAuthenticationRecord(
+    userId: string,
+    context: PluginContext
+  ): Promise<void> {
+    const query: QueryObject = {
+      type: 'delete',
+      table: this.authSchemaName,
+      where: { userId },
+    };
+
+    await context.adapter.executeQuery(query);
+  }
+
+  private generateId(): string {
+    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   }
 
   /**
@@ -93,57 +325,40 @@ export class ForjaApi<TForja = unknown> implements IForjaApi<TForja> {
    * Main entry point for all API requests.
    * Routes to auth handlers or CRUD handlers.
    */
-  async handleRequest(request: Request, forja: TForja): Promise<Response> {
-    // Auto-initialize on first request
-    await this.init(forja);
+  async handleRequest(request: Request, forja: any): Promise<Response> {
+    if (!this.isInitialized()) {
+      return errorResponse(
+        'API plugin not initialized',
+        'NOT_INITIALIZED',
+        500
+      );
+    }
 
-    // Extract model from URL
+    this.forjaInstance = forja;
+
     const url = new URL(request.url);
-    const segments = url.pathname.split('/').filter(Boolean);
-    const model = segments[1]; // /api/[model]
+    const prefix = this.apiConfig.prefix ?? '/api';
 
-    // Handle auth endpoints
-    if (model === 'auth' && this.config.auth?.enabled) {
+    if (!url.pathname.startsWith(prefix)) {
+      return errorResponse('Invalid API prefix', 'INVALID_PREFIX', 400);
+    }
+
+    const pathAfterPrefix = url.pathname.slice(prefix.length);
+    const segments = pathAfterPrefix.split('/').filter(Boolean);
+    const model = segments[0];
+
+    if (model === 'auth' && this.authConfig?.enabled) {
       return this.handleAuthRequest(request, forja);
     }
 
-    // Handle CRUD endpoints
     return handleCrudRequest(
       request,
-      forja as never,
+      forja,
       this.authManager,
       {
-        apiPrefix: this.config.prefix ?? '/api',
+        apiPrefix: prefix,
       }
     );
-  }
-
-  /**
-   * Check if API is enabled
-   */
-  isEnabled(): boolean {
-    return this.config.enabled ?? true;
-  }
-
-  /**
-   * Check if authentication is enabled
-   */
-  isAuthEnabled(): boolean {
-    return this.config.auth?.enabled ?? false;
-  }
-
-  /**
-   * Get auth manager (internal use)
-   */
-  getAuthManager(): AuthManager | undefined {
-    return this.authManager;
-  }
-
-  /**
-   * Get API configuration (internal use)
-   */
-  getConfig(): ApiConfig {
-    return this.config;
   }
 
   /**
@@ -151,18 +366,25 @@ export class ForjaApi<TForja = unknown> implements IForjaApi<TForja> {
    */
   private async handleAuthRequest(
     request: Request,
-    forja: TForja
+    forja: any
   ): Promise<Response> {
+    if (!this.authManager) {
+      return errorResponse(
+        'Authentication not configured',
+        'AUTH_NOT_CONFIGURED',
+        500
+      );
+    }
+
     const authHandlers = createAuthHandlers({
-      forja: forja as never,
-      authManager: this.authManager!,
-      authConfig: this.config.auth!,
+      forja,
+      authManager: this.authManager,
+      authConfig: this.authConfig!,
     });
 
     const url = new URL(request.url);
     const method = request.method;
 
-    // Route to appropriate auth handler
     if (url.pathname.endsWith('/register') && method === 'POST') {
       return authHandlers.register(request);
     }
@@ -180,18 +402,23 @@ export class ForjaApi<TForja = unknown> implements IForjaApi<TForja> {
   }
 
   /**
-   * Validate configuration
+   * Check if API is enabled
    */
-  private validateConfig(): void {
-    if (!this.config.enabled) return;
+  isEnabled(): boolean {
+    return this.apiConfig.enabled ?? true;
+  }
 
-    // Validate JWT secret
-    if (this.config.auth?.enabled && this.config.auth.jwt) {
-      if (this.config.auth.jwt.secret.length < 32) {
-        throw new Error(
-          'JWT secret must be at least 32 characters long for security'
-        );
-      }
-    }
+  /**
+   * Check if authentication is enabled
+   */
+  isAuthEnabled(): boolean {
+    return this.authConfig?.enabled ?? false;
+  }
+
+  /**
+   * Get auth manager (for external use)
+   */
+  getAuthManager(): AuthManager | undefined {
+    return this.authManager;
   }
 }

@@ -5,11 +5,13 @@
  * Plugins extend Forja's core functionality with features like auth, upload, hooks, etc.
  */
 
-import type { SchemaRegistry } from './core/schema';
+import type { SchemaRegistry, FieldDefinition, IndexDefinition } from './core/schema';
 import type { DatabaseAdapter } from './adapter';
 import type { ForjaConfig } from './config';
 import { Result } from './utils';
 import { QueryObject } from './core/query-builder';
+
+export type { SchemaDefinition } from './core/schema';
 
 /**
  * Plugin context (provided during initialization)
@@ -35,10 +37,14 @@ export interface ForjaPlugin<TOptions = Record<string, unknown>> {
   init(context: PluginContext): Promise<Result<void, PluginError>>;
   destroy(): Promise<Result<void, PluginError>>;
 
+  // Schema hooks
+  getSchemas?(): Promise<SchemaDefinition[]>;
+  extendSchemas?(context: SchemaExtensionContext): Promise<SchemaExtension[]>;
+
   // Optional hooks
   onSchemaLoad?(schemas: SchemaRegistry): Promise<void>;
-  onBeforeQuery?(query: QueryObject): Promise<QueryObject>;
-  onAfterQuery?<TResult>(result: TResult): Promise<TResult>;
+  onBeforeQuery?(query: QueryObject, context?: QueryContext): Promise<QueryObject>;
+  onAfterQuery?<TResult>(result: TResult, context?: QueryResultContext): Promise<TResult>;
 }
 
 /**
@@ -403,4 +409,55 @@ export function createOptionsValidator<T>(
       error: new PluginError(errorMessage, { code: 'INVALID_OPTIONS' })
     };
   };
+}
+
+/**
+ * Schema extension definition
+ */
+export interface SchemaExtension {
+  readonly targetSchema: string;
+  readonly fields?: Record<string, FieldDefinition>;
+  readonly removeFields?: readonly string[];
+  readonly modifyFields?: Record<string, Partial<FieldDefinition>>;
+  readonly indexes?: readonly IndexDefinition[];
+}
+
+/**
+ * Schema modifier function
+ */
+export type SchemaModifier = (schema: SchemaDefinition) => {
+  readonly fields?: Record<string, FieldDefinition>;
+  readonly indexes?: readonly IndexDefinition[];
+  readonly removeFields?: readonly string[];
+  readonly modifyFields?: Record<string, Partial<FieldDefinition>>;
+};
+
+/**
+ * Schema pattern for filtering
+ */
+export interface SchemaPattern {
+  readonly names?: readonly string[];
+  readonly prefix?: string;
+  readonly suffix?: string;
+  readonly exclude?: readonly string[];
+  readonly custom?: (schema: SchemaDefinition) => boolean;
+}
+
+/**
+ * Schema extension context
+ */
+export interface SchemaExtensionContext {
+  readonly schemas: ReadonlyArray<SchemaDefinition>;
+
+  extendAll(modifier: SchemaModifier): SchemaExtension[];
+
+  extendWhere(
+    predicate: (schema: SchemaDefinition) => boolean,
+    modifier: SchemaModifier
+  ): SchemaExtension[];
+
+  extendByPattern(
+    pattern: SchemaPattern,
+    modifier: SchemaModifier
+  ): SchemaExtension[];
 }
