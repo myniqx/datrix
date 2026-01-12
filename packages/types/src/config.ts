@@ -8,6 +8,7 @@
 import type { DatabaseAdapter } from './adapter';
 import type { ForjaPlugin } from './plugin';
 import type { SchemaDefinition } from './core/schema';
+import type { IForjaApi } from './api';
 import { ForjaError } from './utils';
 
 /**
@@ -58,10 +59,23 @@ export interface ForjaConfig<TAdapter extends DatabaseAdapter = DatabaseAdapter>
   readonly plugins?: readonly ForjaPlugin[];
 
   /**
-   * API configuration (optional)
-   * Controls REST API behavior
+   * API instance (optional)
+   * Use ForjaApi class from forja-api package
+   *
+   * @example
+   * ```ts
+   * import { ForjaApi } from 'forja-api';
+   *
+   * export default {
+   *   api: new ForjaApi({
+   *     enabled: true,
+   *     prefix: '/api',
+   *     auth: { ... }
+   *   })
+   * }
+   * ```
    */
-  readonly api?: ApiConfig;
+  readonly api?: IForjaApi;
 
   /**
    * Migration configuration (optional)

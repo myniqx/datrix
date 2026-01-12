@@ -1,13 +1,13 @@
 /**
- * Next.js API Route - Forja Unified Handler
+ * Next.js API Route - Forja Handler
  *
- * OPTIMIZED IMPLEMENTATION: Minimal code, maximum functionality
+ * ✨ ULTRA-MINIMAL IMPLEMENTATION - Single line handler!
  *
- * This route handles ALL API requests through a unified handler:
- * - Authentication (JWT/Session) - happens ONCE in middleware
- * - Permission checking (RBAC) - happens ONCE in middleware
- * - Request parsing - happens ONCE in middleware
- * - CRUD operations - routed automatically
+ * This route handles ALL API requests:
+ * - Authentication (JWT/Session)
+ * - Authorization (RBAC)
+ * - CRUD operations (findMany, findOne, create, update, delete)
+ * - Query parsing (where, populate, fields, sort, pagination)
  *
  * Examples:
  * - GET    /api/user              -> List users
@@ -25,124 +25,25 @@
  */
 
 import { getForja } from 'forja-core';
-import {
-  handleRequest,
-  createAuthHandlers,
-  createAuthManager,
-  createApiLifecycleManager,
-} from 'forja-api';
-
-// Import config to initialize Forja
+import { handleRequest } from 'forja-api';
 import '../../../../../forja.config';
-
-/**
- * Initialize API (runs once on first request)
- */
-let isInitialized = false;
-async function ensureInitialized(forja: ReturnType<typeof getForja>) {
-  if (isInitialized) return;
-
-  const config = forja.getConfig();
-
-  // Initialize API lifecycle (user schema injection)
-  if (config.api?.auth?.enabled) {
-    const lifecycleManager = createApiLifecycleManager(config.api.auth);
-    const initResult = await lifecycleManager.init(forja.getSchemaRegistry());
-
-    if (!initResult.success) {
-      throw initResult.error;
-    }
-  }
-
-  isInitialized = true;
-}
 
 /**
  * Unified request handler
  *
- * Handles both auth endpoints and CRUD endpoints
+ * All logic handled by handleRequest helper:
+ * - Config validation
+ * - API enabled check
+ * - Initialization
+ * - Auth routing
+ * - CRUD routing
+ * - Error handling
  */
 async function handler(request: Request): Promise<Response> {
-  try {
-    const forja = await getForja();
-    const config = forja.getConfig();
-    const url = new URL(request.url);
-
-    // Check if API is enabled
-    if (!config.api?.enabled) {
-      return new Response(
-        JSON.stringify({ error: { message: 'API is not enabled', code: 'API_DISABLED' } }),
-        { status: 503, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Initialize API (once)
-    await ensureInitialized(forja);
-
-    // Extract model from URL
-    const segments = url.pathname.split('/').filter(Boolean);
-    const model = segments[1]; // /api/[model]
-
-    // Handle auth endpoints
-    if (model === 'auth' && config.api.auth?.enabled) {
-      const authManager = createAuthManager(config.api.auth);
-      const authHandlers = createAuthHandlers({
-        forja,
-        authManager,
-        authConfig: config.api.auth,
-      });
-
-      const path = url.pathname;
-      const method = request.method;
-
-      // Route to appropriate auth handler
-      if (path.endsWith('/register') && method === 'POST') {
-        return authHandlers.register(request);
-      }
-      if (path.endsWith('/login') && method === 'POST') {
-        return authHandlers.login(request);
-      }
-      if (path.endsWith('/logout') && method === 'POST') {
-        return authHandlers.logout(request);
-      }
-      if (path.endsWith('/me') && method === 'GET') {
-        return authHandlers.me(request);
-      }
-
-      return new Response(
-        JSON.stringify({ error: { message: 'Not found', code: 'NOT_FOUND' } }),
-        { status: 404, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Create auth manager (once per request)
-    const authManager = config.api.auth?.enabled
-      ? createAuthManager(config.api.auth)
-      : undefined;
-
-    // Handle CRUD endpoints with unified handler
-    // ✅ Authentication - happens ONCE in buildRequestContext()
-    // ✅ Permission check - happens ONCE in checkPermission()
-    // ✅ Context building - happens ONCE in buildRequestContext()
-    // ✅ CRUD operation - routed by method
-    return handleRequest(request, forja, authManager, {
-      apiPrefix: config.api.prefix ?? '/api',
-    });
-  } catch (error) {
-    console.error('API Error:', error);
-    return new Response(
-      JSON.stringify({
-        error: {
-          message: error instanceof Error ? error.message : 'Internal server error',
-          code: 'INTERNAL_ERROR',
-        },
-      }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
-    );
-  }
+  return handleRequest(await getForja(), request);
 }
 
-// Export for all HTTP methods (single handler for all!)
+// Export for all HTTP methods
 export const GET = handler;
 export const POST = handler;
 export const PATCH = handler;

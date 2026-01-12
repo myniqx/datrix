@@ -6,6 +6,7 @@
 
 import { defineConfig } from 'forja-core';
 import { JsonAdapter } from 'forja-adapter-json';
+import { ForjaApi } from 'forja-api';
 import { UploadPlugin, LocalStorageProvider } from 'forja-plugin-upload';
 import { HooksPlugin } from 'forja-plugin-hooks';
 
@@ -55,11 +56,11 @@ export default defineConfig(() => {
     ],
 
     /**
-     * API Configuration with Integrated Auth
+     * API Configuration with ForjaApi Class
      *
-     * Auth is now part of API, not a separate plugin!
+     * ✨ NEW: Use ForjaApi class instance instead of plain config object
      */
-    api: {
+    api: new ForjaApi({
       enabled: true,
       prefix: '/api',
       defaultPageSize: 25,
@@ -184,7 +185,7 @@ export default defineConfig(() => {
 
       // Exclude schemas from auto-generated routes (auth is always reserved)
       excludeSchemas: [], // e.g., ['internal', 'system']
-    },
+    }),
 
     /**
      * Migration configuration

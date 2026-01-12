@@ -4,6 +4,14 @@
  * Provides REST API functionality with integrated authentication system.
  */
 
+// Main exports (user-facing)
+export { ForjaApi } from './api';
+export { handleRequest } from './helper';
+
+// Type exports
+export type { IForjaApi } from 'forja-types/api';
+export type { ApiConfig, ApiAuthConfig } from 'forja-types/config';
+
 // Middleware module (auth, context, permission)
 export * from './middleware';
 
