@@ -57,7 +57,7 @@ export class Forja {
   private _crud!: CrudOperations;
   private _schema!: SchemaHelpers;
 
-  private constructor() {}
+  private constructor() { }
 
   static getInstance(): Forja {
     if (!Forja.instance) {
@@ -96,6 +96,20 @@ export class Forja {
         }
       }
 
+      /*
+        TODO: init sirasi sorunu var mi?
+        plug-inlerin schemalardan once init edilmesi konusu?
+          - schemalari editleme yetkisi mantikli mi? beforeSchemeRegister ?
+          - onSchemeRegistered ?
+          - plug-in kendi schemasini ekleyebilmeli mi, yeni bir tablo kendi islemlerini yapabilmek icin?
+
+        burada api objesi ile ilgili gelistirme lazim.
+        api objesi config icinde verildi ise kontrol edilmesi gereken seyler var.
+        eger api objei configinde auth ektiklestirildi ise eklemesi gereken veya modifiye etmesi gereken schemalar var.
+        bunlarin kontrolu icin onu soz hakki vermeliyiz (api.init() cagirsak o da ekleyecegini veya cagiracaklarini cagirsa?)
+
+      */
+
       // Register schemas
       if (!options.skipSchemas && config.schemas.length > 0) {
         for (const schema of config.schemas) {
@@ -110,6 +124,7 @@ export class Forja {
       // Initialize plugins
       if (!options.skipPlugins) {
         const pluginContext: PluginContext = {
+          // TODO: neden bu sinifi direk parametre olarak vermiyoruz, ne gibi guvenlik sorunu olabilir?
           adapter: this.adapter,
           schemas: this.schemas,
           config: this.config,
@@ -405,35 +420,4 @@ export function defineConfig(factory: ConfigFactory): () => Promise<Forja> {
 
     return Forja['initPromise'];
   };
-}
-
-/**
- * Get Forja instance with lazy initialization
- *
- * Uses the config factory set by defineConfig().
- * Throws if defineConfig() was never called.
- */
-export async function getForja(): Promise<Forja> {
-  const instance = Forja.getInstance();
-
-  if (instance.isInitialized()) {
-    return instance;
-  }
-
-  if (!globalConfigFactory) {
-    throw new ForjaError(
-      'No config defined. Import your forja.config.ts file or call defineConfig() first.',
-      'NO_CONFIG'
-    );
-  }
-
-  // Use the stored factory to initialize
-  const config = globalConfigFactory();
-  const result = await instance.initializeWithConfig(config);
-
-  if (!result.success) {
-    throw result.error;
-  }
-
-  return instance;
 }

@@ -1,7 +1,8 @@
 {
 	"name": "forja-plugin-auth",
 	"version": "0.1.0",
-	"description": "Authentication and authorization plugin for Forja framework",
+	"description": "[DEPRECATED] Authentication and authorization plugin for Forja framework. Auth features have been moved to forja-api package.",
+	"deprecated": "This package is deprecated. Auth features are now integrated into the forja-api package.",
 	"author": "Forja Contributors",
 	"license": "MIT",
 	"main": "./dist/index.js",

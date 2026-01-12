@@ -1,0 +1,32 @@
+/**
+ * Auth Middleware
+ *
+ * Handles authentication from JWT token or session cookie
+ */
+
+import type { AuthManager } from '../auth/manager';
+import type { AuthenticatedUser } from './types';
+
+/**
+ * Authenticate request
+ *
+ * Extracts and verifies JWT token or session from request
+ * Returns authenticated user or null
+ */
+export async function authenticate(
+  request: Request,
+  authManager?: AuthManager
+): Promise<AuthenticatedUser | null> {
+  if (!authManager) {
+    return null;
+  }
+
+  // Use auth manager's authenticate method
+  const authContext = await authManager.authenticate(request);
+
+  if (!authContext) {
+    return null;
+  }
+
+  return authContext.user;
+}

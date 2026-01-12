@@ -1,10 +1,11 @@
 /**
  * Forja Configuration - Next.js Example
+ *
+ * Updated to use new integrated auth system (no more auth plugin!)
  */
 
 import { defineConfig } from 'forja-core';
 import { JsonAdapter } from 'forja-adapter-json';
-import { AuthPlugin } from 'forja-plugin-auth';
 import { UploadPlugin, LocalStorageProvider } from 'forja-plugin-upload';
 import { HooksPlugin } from 'forja-plugin-hooks';
 
@@ -13,166 +14,195 @@ import { userSchema } from './src/schemas/user.schema';
 import { topicSchema } from './src/schemas/topic.schema';
 import { commentSchema } from './src/schemas/comment.schema';
 import { likeSchema } from './src/schemas/like.schema';
+import { ForjaConfig } from 'forja-types';
 
-export default defineConfig(() => ({
-  adapter: new JsonAdapter({
-    root: './data',
-  }),
+export default defineConfig(() => {
+  const config: ForjaConfig = {
+    adapter: new JsonAdapter({
+      root: './data',
+    }),
 
-  /**
- * Authentication Plugin Configuration
- *
- * Enables JWT-based authentication with RBAC (Role-Based Access Control)
- */
-const authPlugin = new AuthPlugin({
-  // JWT configuration
-  jwt: {
-    secret: process.env.JWT_SECRET!,
-    expiresIn: '7d', // Token expires in 7 days
-    algorithm: 'HS256',
-    issuer: 'forja-nextjs-app',
-    audience: 'forja-api',
-  },
-
-  // RBAC configuration
-  rbac: {
-    roles: [
-      // Admin role - full access
-      {
-        name: 'admin',
-        permissions: [
-          { resource: 'users', action: 'create' },
-          { resource: 'users', action: 'read' },
-          { resource: 'users', action: 'update' },
-          { resource: 'users', action: 'delete' },
-          { resource: 'topics', action: 'create' },
-          { resource: 'topics', action: 'read' },
-          { resource: 'topics', action: 'update' },
-          { resource: 'topics', action: 'delete' },
-          { resource: 'comments', action: 'create' },
-          { resource: 'comments', action: 'read' },
-          { resource: 'comments', action: 'update' },
-          { resource: 'comments', action: 'delete' },
-          { resource: 'likes', action: 'create' },
-          { resource: 'likes', action: 'read' },
-          { resource: 'likes', action: 'delete' },
-        ],
-      },
-
-      // Moderator role - can moderate content
-      {
-        name: 'moderator',
-        permissions: [
-          { resource: 'users', action: 'read' },
-          { resource: 'topics', action: 'read' },
-          { resource: 'topics', action: 'update' },
-          { resource: 'topics', action: 'delete' },
-          { resource: 'comments', action: 'read' },
-          { resource: 'comments', action: 'delete' },
-        ],
-      },
-
-      // User role - basic access
-      {
-        name: 'user',
-        permissions: [
-          { resource: 'users', action: 'read' },
-          { resource: 'topics', action: 'create' },
-          { resource: 'topics', action: 'read' },
-          { resource: 'topics', action: 'update' },
-          { resource: 'comments', action: 'create' },
-          { resource: 'comments', action: 'read' },
-          { resource: 'comments', action: 'update' },
-          { resource: 'comments', action: 'delete' },
-          { resource: 'likes', action: 'create' },
-          { resource: 'likes', action: 'read' },
-          { resource: 'likes', action: 'delete' },
-        ],
-      },
+    schemas: [
+      userSchema,
+      topicSchema,
+      commentSchema,
+      likeSchema,
     ],
-    defaultRole: 'user', // New users get 'user' role by default
-  },
 
-  // Password hashing settings
-  passwordHashIterations: 100000, // PBKDF2 iterations
-  passwordHashKeyLength: 64, // Hash length in bytes
-});
-
-/**
- * Upload Plugin Configuration
- *
- * Enables file uploads with local storage (use S3 in production)
- */
-const uploadPlugin = new UploadPlugin({
-  provider: new LocalStorageProvider({
-    basePath: process.env.UPLOAD_DIR || './public/uploads',
-    baseUrl: process.env.UPLOAD_URL || 'http://localhost:3000/uploads',
-    ensureDirectory: true, // Create directory if it doesn't exist
-  }),
-
-  validation: {
-    maxSize: 5 * 1024 * 1024, // 5MB max file size
-    minSize: 1024, // 1KB minimum
-    allowedMimeTypes: [
-      'image/jpeg',
-      'image/png',
-      'image/gif',
-      'image/webp',
-      'image/svg+xml',
-      'application/pdf',
+    plugins: [
+      new HooksPlugin(), // Initialize hooks first
+      new UploadPlugin({
+        provider: new LocalStorageProvider({
+          basePath: process.env.UPLOAD_DIR || './public/uploads',
+          baseUrl: process.env.UPLOAD_URL || 'http://localhost:3000/uploads',
+          ensureDirectory: true,
+        }),
+        validation: {
+          maxSize: 5 * 1024 * 1024, // 5MB
+          minSize: 1024, // 1KB
+          allowedMimeTypes: [
+            'image/jpeg',
+            'image/png',
+            'image/gif',
+            'image/webp',
+            'image/svg+xml',
+            'application/pdf',
+          ],
+          allowedExtensions: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'pdf'],
+        },
+        enableLogging: process.env.NODE_ENV === 'development',
+      }),
     ],
-    allowedExtensions: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'pdf'],
-  },
 
-  enableLogging: process.env.NODE_ENV === 'development',
-});
+    /**
+     * API Configuration with Integrated Auth
+     *
+     * Auth is now part of API, not a separate plugin!
+     */
+    api: {
+      enabled: true,
+      prefix: '/api',
+      defaultPageSize: 25,
+      maxPageSize: 100,
+      maxPopulateDepth: 5,
 
-/**
- * Hooks Plugin Configuration
- *
- * Enables lifecycle hooks for all schemas
- */
-const hooksPlugin = new HooksPlugin();
+      // Integrated authentication system
+      auth: {
+        enabled: true,
 
-  schemas: [
-    userSchema,
-    topicSchema,
-    commentSchema,
-    likeSchema,
-  ],
+        // User schema configuration
+        // API will automatically extend the existing 'user' schema with auth fields
+        userSchema: {
+          name: 'user', // Use existing user schema
+          fields: {
+            email: 'email', // Field already exists in schema
+            password: 'password', // Will be auto-added (internal)
+            role: 'role', // Field already exists in schema
+          },
+          // Extra fields to add to user schema (optional)
+          extraFields: [
+            // { name: 'firstName', type: 'string', required: true },
+            // { name: 'lastName', type: 'string', required: true },
+          ],
+        },
 
-  plugins: [
-    hooksPlugin, // Initialize hooks first (other plugins may use hooks)
-    authPlugin,
-    uploadPlugin,
-  ],
+        // JWT configuration
+        jwt: {
+          secret: process.env.JWT_SECRET || 'your-super-secret-jwt-key-min-32-chars-long',
+          expiresIn: '7d', // Token expires in 7 days
+          algorithm: 'HS256',
+          issuer: 'forja-nextjs-app',
+          audience: 'forja-api',
+        },
 
-  api: {
-    prefix: '/api', // All API routes start with /api
-    defaultPageSize: 25, // Default pagination size
-    maxPageSize: 100, // Maximum allowed page size
-    maxPopulateDepth: 5, // Maximum depth for nested relations
-  },
+        // Session configuration (optional, can use JWT only)
+        session: {
+          store: 'memory', // Use 'redis' or 'database' in production
+          maxAge: 86400, // 24 hours
+          checkPeriod: 3600, // Cleanup every hour
+          prefix: 'forja:session:',
+        },
 
-  /**
-   * Migration configuration
-   */
-  migration: {
-    auto: process.env.NODE_ENV === 'development', // Auto-run migrations in dev
-    directory: './migrations', // Where to store migration files
-  },
+        // RBAC (Role-Based Access Control)
+        rbac: {
+          roles: [
+            // Admin role - full access
+            {
+              name: 'admin',
+              permissions: [
+                { resource: 'user', action: 'create' },
+                { resource: 'user', action: 'read' },
+                { resource: 'user', action: 'update' },
+                { resource: 'user', action: 'delete' },
+                { resource: 'topic', action: 'create' },
+                { resource: 'topic', action: 'read' },
+                { resource: 'topic', action: 'update' },
+                { resource: 'topic', action: 'delete' },
+                { resource: 'comment', action: 'create' },
+                { resource: 'comment', action: 'read' },
+                { resource: 'comment', action: 'update' },
+                { resource: 'comment', action: 'delete' },
+                { resource: 'like', action: 'create' },
+                { resource: 'like', action: 'read' },
+                { resource: 'like', action: 'delete' },
+              ],
+            },
 
-  /**
-   * Development options
-   */
-  dev: {
-    // Enable detailed logging in development
-    logging: process.env.NODE_ENV === 'development',
+            // Moderator role - can moderate content
+            {
+              name: 'moderator',
+              permissions: [
+                { resource: 'user', action: 'read' },
+                { resource: 'topic', action: 'read' },
+                { resource: 'topic', action: 'update' },
+                { resource: 'topic', action: 'delete' },
+                { resource: 'comment', action: 'read' },
+                { resource: 'comment', action: 'delete' },
+              ],
+            },
 
-    // Validate all queries in development
-    validateQueries: process.env.NODE_ENV === 'development',
+            // User role - basic access
+            {
+              name: 'user',
+              permissions: [
+                { resource: 'user', action: 'read' },
+                { resource: 'topic', action: 'create' },
+                { resource: 'topic', action: 'read' },
+                { resource: 'topic', action: 'update' }, // Own topics only (enforced by hooks)
+                { resource: 'comment', action: 'create' },
+                { resource: 'comment', action: 'read' },
+                { resource: 'comment', action: 'update' }, // Own comments only
+                { resource: 'comment', action: 'delete' }, // Own comments only
+                { resource: 'like', action: 'create' },
+                { resource: 'like', action: 'read' },
+                { resource: 'like', action: 'delete' }, // Own likes only
+              ],
+            },
+          ],
+          defaultRole: 'user', // New users get 'user' role by default
+        },
 
-    // Pretty print errors in development
-    prettyErrors: process.env.NODE_ENV === 'development',
-  },
-}));
+        // Password hashing configuration
+        password: {
+          iterations: 100000, // PBKDF2 iterations
+          keyLength: 64, // Hash length in bytes
+          minLength: 8, // Minimum password length
+        },
+
+        // Auth endpoints configuration (optional, use defaults)
+        endpoints: {
+          login: '/auth/login', // POST /api/auth/login
+          register: '/auth/register', // POST /api/auth/register
+          logout: '/auth/logout', // POST /api/auth/logout
+          me: '/auth/me', // GET /api/auth/me
+          disableRegister: false, // Allow public registration
+        },
+      },
+
+      // Auto-generate CRUD routes for schemas
+      autoRoutes: true,
+
+      // Exclude schemas from auto-generated routes (auth is always reserved)
+      excludeSchemas: [], // e.g., ['internal', 'system']
+    },
+
+    /**
+     * Migration configuration
+     */
+    migration: {
+      auto: process.env.NODE_ENV === 'development',
+      directory: './migrations',
+    },
+
+    /**
+     * Development options
+     */
+    dev: {
+      logging: process.env.NODE_ENV === 'development',
+      validateQueries: process.env.NODE_ENV === 'development',
+      prettyErrors: process.env.NODE_ENV === 'development',
+    },
+  }
+  return config
+}
+);

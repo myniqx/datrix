@@ -1,0 +1,363 @@
+/**
+ * Auth Manager
+ *
+ * Central authentication and authorization manager for API package.
+ * Integrates password hashing, JWT, sessions, and RBAC.
+ */
+
+import type { ApiAuthConfig } from 'forja-types/config';
+import type { Result } from 'forja-types/utils';
+import { DEFAULT_API_AUTH_CONFIG } from 'forja-types/config';
+import { PasswordManager, type PasswordHash } from './password';
+import { JwtStrategy } from './jwt';
+import { SessionStrategy } from './session';
+import { RbacManager } from './rbac';
+
+/**
+ * Auth error
+ */
+export class AuthError extends Error {
+  readonly code: string;
+  readonly details?: unknown;
+
+  constructor(message: string, code: string, details?: unknown) {
+    super(message);
+    this.name = 'AuthError';
+    this.code = code;
+    this.details = details;
+  }
+}
+
+/**
+ * Authenticated user
+ */
+export interface AuthUser {
+  readonly id: string;
+  readonly email: string;
+  readonly role: string;
+  readonly [key: string]: unknown;
+}
+
+/**
+ * Login result
+ */
+export interface LoginResult {
+  readonly user: AuthUser;
+  readonly token?: string;
+  readonly sessionId?: string;
+}
+
+/**
+ * Auth context (attached to request)
+ */
+export interface AuthContext {
+  readonly user: AuthUser;
+  readonly token?: string;
+  readonly sessionId?: string;
+}
+
+/**
+ * Permission action types
+ */
+export type PermissionAction = 'create' | 'read' | 'update' | 'delete' | '*';
+
+/**
+ * Auth Manager
+ *
+ * Main authentication manager that coordinates all auth components
+ */
+export class AuthManager {
+  private readonly passwordManager: PasswordManager;
+  private readonly jwtStrategy: JwtStrategy | undefined;
+  private readonly sessionStrategy: SessionStrategy | undefined;
+  private readonly rbacManager: RbacManager | undefined;
+  private readonly config: ApiAuthConfig;
+
+  constructor(config: ApiAuthConfig) {
+    this.config = config;
+
+    // Initialize password manager
+    this.passwordManager = new PasswordManager(config.password);
+
+    // Initialize JWT strategy if configured
+    if (config.jwt) {
+      this.jwtStrategy = new JwtStrategy(config.jwt);
+    }
+
+    // Initialize session strategy if configured
+    if (config.session) {
+      this.sessionStrategy = new SessionStrategy(config.session);
+      this.sessionStrategy.startCleanup();
+    }
+
+    // Initialize RBAC manager if configured
+    if (config.rbac) {
+      this.rbacManager = new RbacManager(config.rbac);
+    }
+  }
+
+  /**
+   * Hash password
+   */
+  async hashPassword(password: string): Promise<Result<PasswordHash, AuthError>> {
+    const result = await this.passwordManager.hash(password);
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: new AuthError(result.error.message, result.error.code, result.error.details),
+      };
+    }
+
+    return result;
+  }
+
+  /**
+   * Verify password
+   */
+  async verifyPassword(
+    password: string,
+    hash: string,
+    salt: string
+  ): Promise<Result<boolean, AuthError>> {
+    const result = await this.passwordManager.verify(password, hash, salt);
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: new AuthError(result.error.message, result.error.code, result.error.details),
+      };
+    }
+
+    return result;
+  }
+
+  /**
+   * Login user and create token/session
+   */
+  async login(
+    user: AuthUser,
+    options: { createToken?: boolean; createSession?: boolean } = {}
+  ): Promise<Result<LoginResult, AuthError>> {
+    const { createToken = true, createSession = true } = options;
+
+    let token: string | undefined = undefined;
+    let sessionId: string | undefined = undefined;
+
+    // Create JWT token if enabled and requested
+    if (this.jwtStrategy && createToken) {
+      const tokenResult = await this.jwtStrategy.sign({
+        userId: user.id,
+        role: user.role,
+      });
+
+      if (!tokenResult.success) {
+        return {
+          success: false,
+          error: new AuthError(
+            tokenResult.error.message,
+            'JWT_SIGN_ERROR',
+            tokenResult.error.details
+          ),
+        };
+      }
+
+      token = tokenResult.data;
+    }
+
+    // Create session if enabled and requested
+    if (this.sessionStrategy && createSession) {
+      const sessionResult = await this.sessionStrategy.create(
+        user.id,
+        user.role
+      );
+
+      if (!sessionResult.success) {
+        return {
+          success: false,
+          error: new AuthError(
+            sessionResult.error.message,
+            'SESSION_CREATE_ERROR',
+            sessionResult.error.details
+          ),
+        };
+      }
+
+      sessionId = sessionResult.data.id;
+    }
+
+    const result: LoginResult = {
+      user,
+      ...(token !== undefined && { token }),
+      ...(sessionId !== undefined && { sessionId }),
+    };
+
+    return { success: true, data: result };
+  }
+
+  /**
+   * Logout user (destroy session)
+   */
+  async logout(sessionId: string): Promise<Result<void, AuthError>> {
+    if (!this.sessionStrategy) {
+      return {
+        success: false,
+        error: new AuthError(
+          'Session strategy not configured',
+          'SESSION_NOT_CONFIGURED'
+        ),
+      };
+    }
+
+    const result = await this.sessionStrategy.delete(sessionId);
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: new AuthError(
+          result.error.message,
+          'SESSION_DELETE_ERROR',
+          result.error.details
+        ),
+      };
+    }
+
+    return { success: true, data: undefined };
+  }
+
+  /**
+   * Authenticate request (extract and verify token/session)
+   */
+  async authenticate(request: Request): Promise<AuthContext | null> {
+    // Try JWT first
+    const token = this.extractToken(request);
+    if (token && this.jwtStrategy) {
+      const tokenResult = await this.jwtStrategy.verify(token);
+      if (tokenResult.success) {
+        const payload = tokenResult.data;
+        return {
+          user: {
+            id: payload.userId,
+            email: '', // Will be fetched from DB if needed
+            role: payload.role,
+          },
+          token,
+        };
+      }
+    }
+
+    // Try session
+    const sessionId = this.extractSessionId(request);
+    if (sessionId && this.sessionStrategy) {
+      const sessionResult = await this.sessionStrategy.get(sessionId);
+      if (sessionResult.success && sessionResult.data) {
+        const session = sessionResult.data;
+        return {
+          user: {
+            id: session.userId,
+            email: '',
+            role: session.role,
+          },
+          sessionId,
+        };
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Check if user has permission for resource and action
+   */
+  checkPermission(
+    userRole: string | readonly string[],
+    resource: string,
+    action: PermissionAction
+  ): boolean {
+    if (!this.rbacManager) {
+      // If RBAC not configured, allow all
+      return true;
+    }
+
+    const roles = Array.isArray(userRole) ? userRole : [userRole];
+    const result = this.rbacManager.checkPermission(roles, resource, action);
+
+    return result.allowed;
+  }
+
+  /**
+   * Extract JWT token from request headers
+   */
+  private extractToken(request: Request): string | null {
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return null;
+    }
+
+    return authHeader.slice(7); // Remove 'Bearer ' prefix
+  }
+
+  /**
+   * Extract session ID from request cookies
+   */
+  private extractSessionId(request: Request): string | null {
+    const cookieHeader = request.headers.get('cookie');
+    if (!cookieHeader) {
+      return null;
+    }
+
+    // Parse cookies
+    const cookies = cookieHeader.split(';').reduce((acc, cookie) => {
+      const [key, value] = cookie.trim().split('=');
+      if (key && value) {
+        acc[key] = value;
+      }
+      return acc;
+    }, {} as Record<string, string>);
+
+    return cookies['sessionId'] ?? null;
+  }
+
+  /**
+   * Get JWT strategy (for advanced usage)
+   */
+  getJwtStrategy(): JwtStrategy | undefined {
+    return this.jwtStrategy;
+  }
+
+  /**
+   * Get session strategy (for advanced usage)
+   */
+  getSessionStrategy(): SessionStrategy | undefined {
+    return this.sessionStrategy;
+  }
+
+  /**
+   * Get RBAC manager (for advanced usage)
+   */
+  getRbacManager(): RbacManager | undefined {
+    return this.rbacManager;
+  }
+
+  /**
+   * Cleanup resources
+   */
+  async destroy(): Promise<void> {
+    // Stop session cleanup timer
+    if (this.sessionStrategy) {
+      this.sessionStrategy.stopCleanup();
+    }
+
+    // Clear sessions
+    if (this.sessionStrategy) {
+      await this.sessionStrategy.clear();
+    }
+  }
+}
+
+/**
+ * Create auth manager
+ */
+export function createAuthManager(config: ApiAuthConfig): AuthManager {
+  return new AuthManager(config);
+}

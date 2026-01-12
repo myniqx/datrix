@@ -1,16 +1,15 @@
 /**
  * API Handler Module
  *
- * Exports context builders, CRUD handlers, and handler factory.
+ * Exports unified handler with middleware pattern
  */
 
-// Export context builders
-export * from './context';
+// Unified handler (recommended)
+export { handleRequest } from './unified';
 
-// Export CRUD logic
-export * from './crud';
-
-// Export handler factory
-export * from './factory';
-
-export * from './simple-handler';
+// Auth handlers
+export {
+  createAuthHandlers,
+  createUnifiedAuthHandler,
+  type AuthHandlerConfig,
+} from './auth-handler';

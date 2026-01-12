@@ -81,6 +81,12 @@ export interface ForjaConfig<TAdapter extends DatabaseAdapter = DatabaseAdapter>
  */
 export interface ApiConfig {
   /**
+   * Enable API routes
+   * @default true
+   */
+  readonly enabled?: boolean;
+
+  /**
    * API route prefix
    * @default '/api'
    */
@@ -103,6 +109,248 @@ export interface ApiConfig {
    * @default 5
    */
   readonly maxPopulateDepth?: number;
+
+  /**
+   * Authentication configuration (optional)
+   * When enabled, API automatically manages user authentication
+   */
+  readonly auth?: ApiAuthConfig;
+
+  /**
+   * Auto-generate CRUD routes for schemas
+   * @default true
+   */
+  readonly autoRoutes?: boolean;
+
+  /**
+   * Exclude schemas from auto-generated routes
+   * 'auth' is always reserved for authentication endpoints
+   * @default []
+   */
+  readonly excludeSchemas?: readonly string[];
+}
+
+/**
+ * API Authentication Configuration
+ */
+export interface ApiAuthConfig {
+  /**
+   * Enable authentication system
+   * @default true
+   */
+  readonly enabled?: boolean;
+
+  /**
+   * User schema configuration
+   * API will create or extend the user schema with auth fields
+   */
+  readonly userSchema?: {
+    /**
+     * User schema name
+     * @default 'user'
+     */
+    readonly name?: string;
+
+    /**
+     * Field mapping for auth fields
+     */
+    readonly fields?: {
+      /**
+       * Email field name
+       * @default 'email'
+       */
+      readonly email?: string;
+
+      /**
+       * Password field name (will store hash)
+       * @default 'password'
+       */
+      readonly password?: string;
+
+      /**
+       * Role field name
+       * @default 'role'
+       */
+      readonly role?: string;
+    };
+
+    /**
+     * Additional fields to add to user schema
+     * Useful for extending default user schema
+     * @example
+     * ```ts
+     * extraFields: [
+     *   { name: 'firstName', type: 'string', required: true },
+     *   { name: 'lastName', type: 'string', required: true },
+     *   { name: 'avatar', type: 'string' }
+     * ]
+     * ```
+     */
+    readonly extraFields?: readonly Record<string, unknown>[];
+  };
+
+  /**
+   * JWT configuration
+   */
+  readonly jwt?: {
+    /**
+     * JWT secret key (minimum 32 characters)
+     * Should be stored in environment variables
+     */
+    readonly secret: string;
+
+    /**
+     * Token expiration time
+     * @default '7d'
+     * @example '1h', '7d', '30m', 3600 (seconds)
+     */
+    readonly expiresIn?: string | number;
+
+    /**
+     * JWT algorithm
+     * @default 'HS256'
+     */
+    readonly algorithm?: 'HS256' | 'HS512';
+
+    /**
+     * JWT issuer
+     */
+    readonly issuer?: string;
+
+    /**
+     * JWT audience
+     */
+    readonly audience?: string;
+  };
+
+  /**
+   * Session configuration
+   */
+  readonly session?: {
+    /**
+     * Session storage type
+     * @default 'memory'
+     */
+    readonly store?: 'memory' | 'redis' | 'database';
+
+    /**
+     * Session max age in seconds
+     * @default 86400 (24 hours)
+     */
+    readonly maxAge?: number;
+
+    /**
+     * Session cleanup check interval in seconds
+     * @default 3600 (1 hour)
+     */
+    readonly checkPeriod?: number;
+
+    /**
+     * Session key prefix
+     * @default 'forja:session:'
+     */
+    readonly prefix?: string;
+  };
+
+  /**
+   * RBAC (Role-Based Access Control) configuration
+   */
+  readonly rbac?: {
+    /**
+     * Predefined roles with permissions
+     * @example
+     * ```ts
+     * roles: [
+     *   {
+     *     name: 'admin',
+     *     permissions: [
+     *       { resource: '*', action: '*' }
+     *     ]
+     *   },
+     *   {
+     *     name: 'user',
+     *     permissions: [
+     *       { resource: 'post', action: 'read' },
+     *       { resource: 'post', action: 'create' }
+     *     ]
+     *   }
+     * ]
+     * ```
+     */
+    readonly roles?: readonly {
+      readonly name: string;
+      readonly permissions: readonly {
+        readonly resource: string;
+        readonly action: 'create' | 'read' | 'update' | 'delete' | '*';
+      }[];
+      readonly inherits?: readonly string[];
+    }[];
+
+    /**
+     * Default role for new users
+     * @default 'user'
+     */
+    readonly defaultRole?: string;
+  };
+
+  /**
+   * Password hashing configuration
+   */
+  readonly password?: {
+    /**
+     * PBKDF2 iterations
+     * Higher = more secure but slower
+     * @default 100000
+     */
+    readonly iterations?: number;
+
+    /**
+     * PBKDF2 key length
+     * @default 64
+     */
+    readonly keyLength?: number;
+
+    /**
+     * Minimum password length
+     * @default 8
+     */
+    readonly minLength?: number;
+  };
+
+  /**
+   * Authentication endpoints configuration
+   */
+  readonly endpoints?: {
+    /**
+     * Login endpoint path
+     * @default '/auth/login'
+     */
+    readonly login?: string;
+
+    /**
+     * Register endpoint path
+     * @default '/auth/register'
+     */
+    readonly register?: string;
+
+    /**
+     * Logout endpoint path
+     * @default '/auth/logout'
+     */
+    readonly logout?: string;
+
+    /**
+     * Current user endpoint path
+     * @default '/auth/me'
+     */
+    readonly me?: string;
+
+    /**
+     * Disable register endpoint (login only)
+     * @default false
+     */
+    readonly disableRegister?: boolean;
+  };
 }
 
 /**
@@ -268,11 +516,56 @@ export function hasDefaultExport<T>(
 /**
  * Default API configuration values
  */
-export const DEFAULT_API_CONFIG: Required<ApiConfig> = {
+export const DEFAULT_API_CONFIG = {
+  enabled: true,
   prefix: '/api',
   defaultPageSize: 25,
   maxPageSize: 100,
   maxPopulateDepth: 5,
+  autoRoutes: true,
+  excludeSchemas: [],
+} as const;
+
+/**
+ * Default API Auth configuration values
+ */
+export const DEFAULT_API_AUTH_CONFIG = {
+  enabled: true,
+  userSchema: {
+    name: 'user',
+    fields: {
+      email: 'email',
+      password: 'password',
+      role: 'role',
+    },
+    extraFields: [],
+  },
+  jwt: {
+    expiresIn: '7d',
+    algorithm: 'HS256' as const,
+  },
+  session: {
+    store: 'memory' as const,
+    maxAge: 86400, // 24 hours
+    checkPeriod: 3600, // 1 hour
+    prefix: 'forja:session:',
+  },
+  rbac: {
+    defaultRole: 'user',
+    roles: [],
+  },
+  password: {
+    iterations: 100000,
+    keyLength: 64,
+    minLength: 8,
+  },
+  endpoints: {
+    login: '/auth/login',
+    register: '/auth/register',
+    logout: '/auth/logout',
+    me: '/auth/me',
+    disableRegister: false,
+  },
 } as const;
 
 /**

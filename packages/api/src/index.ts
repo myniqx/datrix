@@ -1,21 +1,23 @@
 /**
  * Forja API Module
  *
- * Simple HTTP handlers for REST API.
- * Connects HTTP requests to Forja core.
+ * Provides REST API functionality with integrated authentication system.
  */
 
-// Export handlers
-export {
-  handleGet,
-  handlePost,
-  handlePatch,
-  handlePut,
-  handleDelete,
-} from './handler';
+// Middleware module (auth, context, permission)
+export * from './middleware';
 
-// Re-export parser module
+// Parser module (query string parsing)
 export * from './parser';
 
-// Re-export serializer module
+// Serializer module (response serialization)
 export * from './serializer';
+
+// Handler module (CRUD and auth handlers)
+export * from './handler';
+
+// Auth module (authentication and authorization)
+export * from './auth';
+
+// Lifecycle module (API initialization and schema management)
+export * from './lifecycle';
