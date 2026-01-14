@@ -9,7 +9,7 @@ import { QueryObject } from "forja-types/core/query-builder";
 import { PluginRegistry } from "forja-types/plugin";
 import { validateQueryObject } from "./utils/query";
 import { SchemaRegistry } from "forja-types/core/schema";
-import { Forja } from "./forja";
+import type { Forja } from "./forja";
 
 /**
  * Query operation type
@@ -25,6 +25,7 @@ export interface QueryContext {
   readonly table: string;
   readonly forja: Forja;
   readonly metadata: Record<string, unknown>;
+  [key: string]: unknown;
 }
 
 /**
@@ -52,7 +53,7 @@ export class Dispatcher {
   constructor(
     private readonly registry: PluginRegistry,
     private readonly forja: Forja
-  ) {}
+  ) { }
 
   /**
    * Create and populate query context

@@ -9,8 +9,9 @@ import { BasePlugin } from 'forja-core/plugin/plugin';
 import type {
   PluginContext,
   PluginError,
-  SchemaDefinition
+  SchemaDefinition,
 } from 'forja-types/plugin';
+import type { QueryContext } from 'forja-core/dispatcher';
 import type { QueryObject } from 'forja-types/core/query-builder';
 import type { Result } from 'forja-types/utils';
 import { defineSchema } from 'forja-types/core/schema';
@@ -20,14 +21,20 @@ import { handleRequest as handleCrudRequest } from './handler/unified';
 import { errorResponse } from './handler/utils';
 import { ApiConfig } from './types';
 import { Forja } from 'forja-core';
+import { AuthenticatedUser } from './middleware';
 
 
 export class ApiPlugin extends BasePlugin<ApiConfig> {
   readonly name = 'api';
   readonly version = '1.0.0';
 
-  private authManager?: AuthManager;
+  public authManager?: AuthManager;
+  public user: AuthenticatedUser | null = null;
   private forjaInstance?: Forja;
+
+  public setUser(user: AuthenticatedUser | null) {
+    this.user = user;
+  }
 
   private get authConfig() {
     return this.options.auth;
@@ -47,6 +54,18 @@ export class ApiPlugin extends BasePlugin<ApiConfig> {
 
   private get userSchemaEmailField(): string {
     return this.authConfig?.userSchema?.email ?? 'email';
+  }
+
+  private getTableName(schemaName: string): string {
+    const schema = this.context?.schemas.get(schemaName);
+    return schema?.tableName || `${schemaName.toLowerCase()}s`;
+  }
+
+  override async onCreateQueryContext(context: QueryContext): Promise<QueryContext | void> {
+    // Add authenticated user to context metadata
+    if (this.user) {
+      context["user"] = this.user
+    }
   }
 
   async init(context: PluginContext): Promise<Result<void, PluginError>> {
@@ -161,111 +180,74 @@ export class ApiPlugin extends BasePlugin<ApiConfig> {
     return [authSchema];
   }
 
-  override async onBeforeQuery(query: QueryObject): Promise<QueryObject> {
-    /*
-     * TODO: QueryContext ihtiyacı (opsiyonel - şu an onBeforeQuery çalışıyor)
-     *
-     * Core'da eklenmesi gerekenler (future enhancement):
-     * 1. packages/core/src/dispatcher.ts
-     *    - dispatchBeforeQuery metoduna QueryContext parametresi ekle (optional)
-     *    - QueryContext objesi oluştur: { operation, modelName, user?, metadata }
-     *
-     * Şu anlık onBeforeQuery query objesinden bilgiyi alabildiği için sorun yok.
-     * Ama consistency için gelecekte eklenebilir.
-     */
-
+  override async onBeforeQuery(query: QueryObject, context: QueryContext): Promise<QueryObject> {
     if (!this.authConfig?.enabled) {
       return query;
     }
 
-    // User insert → authentication record create edilmeli
-    if (query.type === 'insert' && query.table === this.userSchemaName) {
-      (query as any)._apiPlugin_createAuth = true;
+    const userTable = this.getTableName(this.userSchemaName);
+
+    // User insert → store flag in metadata
+    if (query.type === 'insert' && query.table === userTable) {
+      context.metadata['api:createAuth'] = true;
+      context.metadata['api:userData'] = query.data;
     }
 
-    // User email update → authentication email sync edilmeli
-    if (query.type === 'update' && query.table === this.userSchemaName) {
+    // User email update → store flag in metadata
+    if (query.type === 'update' && query.table === userTable) {
       const emailField = this.userSchemaEmailField;
       if (query.data && emailField in query.data) {
-        (query as any)._apiPlugin_syncEmail = query.data[emailField];
+        context.metadata['api:syncEmail'] = query.data[emailField];
+        context.metadata['api:userId'] = query.where?.id;
       }
     }
 
-    // User delete → authentication cascade delete edilmeli
-    if (query.type === 'delete' && query.table === this.userSchemaName) {
-      (query as any)._apiPlugin_deleteAuth = true;
+    // User delete → store flag in metadata
+    if (query.type === 'delete' && query.table === userTable) {
+      context.metadata['api:deleteAuth'] = true;
+      context.metadata['api:userId'] = query.where?.id;
     }
 
     return query;
   }
 
-  override async onAfterQuery<TResult>(result: TResult): Promise<TResult> {
-    /*
-     * TODO: QueryResultContext ihtiyacı
-     *
-     * Core'da eklenmesi gerekenler:
-     * 1. packages/types/src/plugin.ts
-     *    - QueryContext interface ekle (operation, modelName, user, metadata)
-     *    - QueryResultContext interface ekle (extends QueryContext + originalQuery)
-     *    - ForjaPlugin.onAfterQuery signature: onAfterQuery?<TResult>(result: TResult, context?: QueryResultContext)
-     *
-     * 2. packages/core/src/dispatcher.ts
-     *    - dispatchAfterQuery metoduna QueryResultContext parametresi ekle
-     *    - QueryResultContext objesi oluştur (query bilgisi ile)
-     *    - Her plugin.onAfterQuery çağrısına context'i geç
-     *
-     * 3. İhtiyacımız olan context bilgileri:
-     *    - context.originalQuery.type ('insert' | 'update' | 'delete' olduğunu bilmek için)
-     *    - context.originalQuery.table (hangi tabloda işlem yapıldığını bilmek için)
-     *    - context.originalQuery.data (insert/update'te ne eklendiğini bilmek için)
-     *    - context.originalQuery.where (delete'te hangi id silindiğini bilmek için)
-     *
-     * Şu anki workaround: Query objesine custom flag'ler ekliyoruz (_apiPlugin_*)
-     */
-
+  override async onAfterQuery<TResult>(result: TResult, context: QueryContext): Promise<TResult> {
     if (!this.authConfig?.enabled) {
       return result;
     }
 
-    // TODO: Bu kısım QueryResultContext ile şöyle olacak:
-    // if (context.originalQuery.type === 'insert' && context.originalQuery.table === this.userSchemaName)
-
-    return result;
-
-    /* COMMENTED OUT - QueryResultContext gelince aktif edilecek
-    const contextResult = this.getContext();
-    if (!contextResult.success) {
+    const pluginContext = this.getContext();
+    if (!pluginContext.success) {
       return result;
     }
-    const context = contextResult.data;
 
-    if ((query as any)._apiPlugin_createAuth && result && typeof result === 'object') {
+    // User created → create authentication record
+    if (context.metadata['api:createAuth'] && result && typeof result === 'object') {
       const user = result as any;
-      await this.createAuthenticationRecord(user, context);
+      await this.createAuthenticationRecord(user, pluginContext.data);
     }
 
-    if ((query as any)._apiPlugin_syncEmail && result && typeof result === 'object') {
-      const user = result as any;
-      const newEmail = (query as any)._apiPlugin_syncEmail;
-      await this.syncAuthenticationEmail(user.id, newEmail, context);
+    // User email updated → sync authentication email
+    if (context.metadata['api:syncEmail'] && context.metadata['api:userId']) {
+      const newEmail = context.metadata['api:syncEmail'] as string;
+      const userId = context.metadata['api:userId'] as string;
+      await this.syncAuthenticationEmail(userId, newEmail, pluginContext.data);
     }
 
-    if ((query as any)._apiPlugin_deleteAuth && result) {
-      const userId = (query as any).where?.id;
-      if (userId) {
-        await this.deleteAuthenticationRecord(userId, context);
-      }
+    // User deleted → delete authentication record
+    if (context.metadata['api:deleteAuth'] && context.metadata['api:userId']) {
+      const userId = context.metadata['api:userId'] as string;
+      await this.deleteAuthenticationRecord(userId, pluginContext.data);
     }
 
     return result;
-    */
   }
 
   private async createAuthenticationRecord(
     user: any,
     context: PluginContext
   ): Promise<void> {
-    const emailField = this.authFieldNames.email;
+    const emailField = this.userSchemaEmailField;
 
     const authData = {
       id: this.generateId(),
@@ -352,7 +334,7 @@ export class ApiPlugin extends BasePlugin<ApiConfig> {
     return handleCrudRequest(
       request,
       forja,
-      this.authManager,
+      this,
       {
         apiPrefix: prefix,
       }

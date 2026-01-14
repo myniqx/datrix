@@ -10,6 +10,7 @@ import type { AuthManager } from '../auth/manager';
 import type { RequestContext, ContextBuilderOptions } from '../middleware/types';
 import { buildRequestContext, checkPermission, methodToAction } from '../middleware';
 import { jsonResponse, errorResponse } from './utils';
+import { ApiPlugin } from '../api';
 
 /**
  * Handle GET request
@@ -152,12 +153,12 @@ async function handleDelete(context: RequestContext, forja: Forja): Promise<Resp
 export async function handleRequest(
   request: Request,
   forja: Forja,
-  authManager?: AuthManager,
+  api: ApiPlugin,
   options?: ContextBuilderOptions
 ): Promise<Response> {
   try {
     // 1️⃣ BUILD REQUEST CONTEXT (Single place - auth, parse, extract)
-    const context = await buildRequestContext(request, authManager, options);
+    const context = await buildRequestContext(request, api.authManager!, options);
 
     if (!context.model) {
       return errorResponse('Model not specified', 'MODEL_NOT_SPECIFIED', 400);
@@ -178,7 +179,7 @@ export async function handleRequest(
       context.user,
       context.model,
       action,
-      authManager
+      api.authManager
     );
 
     if (!allowed) {
@@ -188,6 +189,8 @@ export async function handleRequest(
         context.user ? 403 : 401
       );
     }
+
+    api.setUser(context.user);
 
     // 3️⃣ ROUTE TO METHOD HANDLER
     switch (context.method) {

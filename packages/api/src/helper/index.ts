@@ -4,7 +4,8 @@
  * Provides a single-line helper function for handling API requests in user code.
  */
 
-import type { IForjaApi } from 'forja-types/api';
+import { ApiPlugin } from "../api";
+import { Forja } from "forja-core";
 
 /**
  * Handle Forja API Request
@@ -59,12 +60,10 @@ import type { IForjaApi } from 'forja-types/api';
  * });
  * ```
  */
-export async function handleRequest<
-  TForja extends { getConfig(): { api?: IForjaApi<TForja> } }
->(forja: TForja, request: Request): Promise<Response> {
+export async function handleRequest(forja: Forja, request: Request): Promise<Response> {
   try {
     // 1. Check if API is configured
-    const api = forja.getConfig().api;
+    const api = forja.getPlugin('api') as unknown as ApiPlugin | undefined;
 
     if (!api) {
       return new Response(

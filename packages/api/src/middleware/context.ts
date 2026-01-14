@@ -57,7 +57,7 @@ function extractIdFromPath(pathname: string, prefix: string): string | null {
  */
 export async function buildRequestContext(
   request: Request,
-  authManager?: AuthManager,
+  authManager: AuthManager,
   options: ContextBuilderOptions = {}
 ): Promise<RequestContext> {
   const apiPrefix = options.apiPrefix ?? '/api';
@@ -65,7 +65,8 @@ export async function buildRequestContext(
   const method = request.method as HttpMethod;
 
   // 1. AUTHENTICATE (Single place!)
-  const user = await authenticate(request, authManager);
+  // TODO: use auth only if its enabled!
+  const user = (await authManager.authenticate(request))?.user ?? null;
 
   // 2. EXTRACT MODEL & ID
   const model = extractModelFromPath(url.pathname, apiPrefix);
