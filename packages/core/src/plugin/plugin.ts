@@ -5,6 +5,7 @@
  * Plugins can extend this class instead of implementing ForjaPlugin from scratch.
  */
 
+import { QueryContext } from "forja-core/dispatcher";
 import { QueryObject } from "forja-types/core/query-builder";
 import { SchemaRegistry, SchemaDefinition } from "forja-types/core/schema";
 import { ForjaPlugin, PluginContext, PluginError, SchemaExtensionContext, SchemaExtension } from "forja-types/plugin";
@@ -86,6 +87,10 @@ export abstract class BasePlugin<TOptions = Record<string, unknown>>
    */
   async onAfterQuery<TResult>(result: TResult): Promise<TResult> {
     return result;
+  }
+
+  async onCreateQueryContext(query: QueryContext): Promise<QueryContext> {
+    return query;
   }
 
   /**

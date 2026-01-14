@@ -15,6 +15,7 @@ import {
   OrderByItem,
 } from 'forja-types/core/query-builder';
 import { ForjaError } from '../forja';
+import { Dispatcher } from '../dispatcher';
 
 /**
  * CRUD Operations Class
@@ -24,7 +25,8 @@ import { ForjaError } from '../forja';
 export class CrudOperations {
   constructor(
     private readonly schemas: SchemaRegistry,
-    private readonly getAdapter: () => DatabaseAdapter
+    private readonly getAdapter: () => DatabaseAdapter,
+    private readonly getDispatcher: () => Dispatcher
   ) {}
 
   /**
@@ -56,24 +58,32 @@ export class CrudOperations {
       throw new ForjaError(`Schema '${model}' not found`, 'SCHEMA_NOT_FOUND');
     }
 
+    const table = schema.tableName || `${model.toLowerCase()}s`;
     const query: QueryObject = {
       type: 'select',
-      table: schema.tableName || `${model.toLowerCase()}s`,
+      table,
       where,
       select: options?.select,
       populate: options?.populate,
       limit: 1,
     };
 
-    const result = await this.getAdapter().executeQuery<T>(query);
-    if (!result.success) {
-      throw new ForjaError(
-        `Failed to find ${model}: ${result.error.message}`,
-        'QUERY_FAILED'
-      );
-    }
-
-    return result.data.rows[0] ?? null;
+    return await this.getDispatcher().executeQuery<T | null>(
+      'findOne',
+      model,
+      table,
+      query,
+      async (q) => {
+        const result = await this.getAdapter().executeQuery<T>(q);
+        if (!result.success) {
+          throw new ForjaError(
+            `Failed to find ${model}: ${result.error.message}`,
+            'QUERY_FAILED'
+          );
+        }
+        return result.data.rows[0] ?? null;
+      }
+    );
   }
 
   /**
@@ -132,9 +142,10 @@ export class CrudOperations {
       throw new ForjaError(`Schema '${model}' not found`, 'SCHEMA_NOT_FOUND');
     }
 
+    const table = schema.tableName || `${model.toLowerCase()}s`;
     const query: QueryObject = {
       type: 'select',
-      table: schema.tableName || `${model.toLowerCase()}s`,
+      table,
       where: options?.where,
       select: options?.select,
       populate: options?.populate,
@@ -143,15 +154,22 @@ export class CrudOperations {
       offset: options?.offset,
     };
 
-    const result = await this.getAdapter().executeQuery<T>(query);
-    if (!result.success) {
-      throw new ForjaError(
-        `Failed to find ${model}: ${result.error.message}`,
-        'QUERY_FAILED'
-      );
-    }
-
-    return result.data.rows;
+    return await this.getDispatcher().executeQuery<T[]>(
+      'findMany',
+      model,
+      table,
+      query,
+      async (q) => {
+        const result = await this.getAdapter().executeQuery<T>(q);
+        if (!result.success) {
+          throw new ForjaError(
+            `Failed to find ${model}: ${result.error.message}`,
+            'QUERY_FAILED'
+          );
+        }
+        return result.data.rows;
+      }
+    );
   }
 
   /**
@@ -173,22 +191,29 @@ export class CrudOperations {
       throw new ForjaError(`Schema '${model}' not found`, 'SCHEMA_NOT_FOUND');
     }
 
+    const table = schema.tableName || `${model.toLowerCase()}s`;
     const query: QueryObject = {
       type: 'count',
-      table: schema.tableName || `${model.toLowerCase()}s`,
+      table,
       where,
     };
 
-    const result = await this.getAdapter().executeQuery<{ count: number }>(query);
-    if (!result.success) {
-      throw new ForjaError(
-        `Failed to count ${model}: ${result.error.message}`,
-        'QUERY_FAILED'
-      );
-    }
-
-    // Count query returns single row with count field
-    return result.data.rows[0]?.count ?? 0;
+    return await this.getDispatcher().executeQuery<number>(
+      'count',
+      model,
+      table,
+      query,
+      async (q) => {
+        const result = await this.getAdapter().executeQuery<{ count: number }>(q);
+        if (!result.success) {
+          throw new ForjaError(
+            `Failed to count ${model}: ${result.error.message}`,
+            'QUERY_FAILED'
+          );
+        }
+        return result.data.rows[0]?.count ?? 0;
+      }
+    );
   }
 
   /**
@@ -216,22 +241,30 @@ export class CrudOperations {
       throw new ForjaError(`Schema '${model}' not found`, 'SCHEMA_NOT_FOUND');
     }
 
+    const table = schema.tableName || `${model.toLowerCase()}s`;
     const query: QueryObject = {
       type: 'insert',
-      table: schema.tableName || `${model.toLowerCase()}s`,
+      table,
       data,
       returning: '*',
     };
 
-    const result = await this.getAdapter().executeQuery<T>(query);
-    if (!result.success) {
-      throw new ForjaError(
-        `Failed to create ${model}: ${result.error.message}`,
-        'QUERY_FAILED'
-      );
-    }
-
-    return result.data.rows[0]!;
+    return await this.getDispatcher().executeQuery<T>(
+      'create',
+      model,
+      table,
+      query,
+      async (q) => {
+        const result = await this.getAdapter().executeQuery<T>(q);
+        if (!result.success) {
+          throw new ForjaError(
+            `Failed to create ${model}: ${result.error.message}`,
+            'QUERY_FAILED'
+          );
+        }
+        return result.data.rows[0]!;
+      }
+    );
   }
 
   /**
@@ -259,23 +292,31 @@ export class CrudOperations {
       throw new ForjaError(`Schema '${model}' not found`, 'SCHEMA_NOT_FOUND');
     }
 
+    const table = schema.tableName || `${model.toLowerCase()}s`;
     const query: QueryObject = {
       type: 'update',
-      table: schema.tableName || `${model.toLowerCase()}s`,
+      table,
       where: { id },
       data,
       returning: '*',
     };
 
-    const result = await this.getAdapter().executeQuery<T>(query);
-    if (!result.success) {
-      throw new ForjaError(
-        `Failed to update ${model}: ${result.error.message}`,
-        'QUERY_FAILED'
-      );
-    }
-
-    return result.data.rows[0]!;
+    return await this.getDispatcher().executeQuery<T>(
+      'update',
+      model,
+      table,
+      query,
+      async (q) => {
+        const result = await this.getAdapter().executeQuery<T>(q);
+        if (!result.success) {
+          throw new ForjaError(
+            `Failed to update ${model}: ${result.error.message}`,
+            'QUERY_FAILED'
+          );
+        }
+        return result.data.rows[0]!;
+      }
+    );
   }
 
   /**
@@ -304,23 +345,30 @@ export class CrudOperations {
       throw new ForjaError(`Schema '${model}' not found`, 'SCHEMA_NOT_FOUND');
     }
 
+    const table = schema.tableName || `${model.toLowerCase()}s`;
     const query: QueryObject = {
       type: 'update',
-      table: schema.tableName || `${model.toLowerCase()}s`,
+      table,
       where,
       data,
     };
 
-    const result = await this.getAdapter().executeQuery<{ count: number }>(query);
-    if (!result.success) {
-      throw new ForjaError(
-        `Failed to update ${model}: ${result.error.message}`,
-        'QUERY_FAILED'
-      );
-    }
-
-    // Update returns metadata with affected row count
-    return result.data.metadata.rowCount ?? 0;
+    return await this.getDispatcher().executeQuery<number>(
+      'updateMany',
+      model,
+      table,
+      query,
+      async (q) => {
+        const result = await this.getAdapter().executeQuery<{ count: number }>(q);
+        if (!result.success) {
+          throw new ForjaError(
+            `Failed to update ${model}: ${result.error.message}`,
+            'QUERY_FAILED'
+          );
+        }
+        return result.data.metadata.rowCount ?? 0;
+      }
+    );
   }
 
   /**
@@ -341,21 +389,29 @@ export class CrudOperations {
       throw new ForjaError(`Schema '${model}' not found`, 'SCHEMA_NOT_FOUND');
     }
 
+    const table = schema.tableName || `${model.toLowerCase()}s`;
     const query: QueryObject = {
       type: 'delete',
-      table: schema.tableName || `${model.toLowerCase()}s`,
+      table,
       where: { id },
     };
 
-    const result = await this.getAdapter().executeQuery<unknown>(query);
-    if (!result.success) {
-      throw new ForjaError(
-        `Failed to delete ${model}: ${result.error.message}`,
-        'QUERY_FAILED'
-      );
-    }
-
-    return (result.data.metadata.rowCount ?? 0) > 0;
+    return await this.getDispatcher().executeQuery<boolean>(
+      'delete',
+      model,
+      table,
+      query,
+      async (q) => {
+        const result = await this.getAdapter().executeQuery<unknown>(q);
+        if (!result.success) {
+          throw new ForjaError(
+            `Failed to delete ${model}: ${result.error.message}`,
+            'QUERY_FAILED'
+          );
+        }
+        return (result.data.metadata.rowCount ?? 0) > 0;
+      }
+    );
   }
 
   /**
@@ -376,20 +432,28 @@ export class CrudOperations {
       throw new ForjaError(`Schema '${model}' not found`, 'SCHEMA_NOT_FOUND');
     }
 
+    const table = schema.tableName || `${model.toLowerCase()}s`;
     const query: QueryObject = {
       type: 'delete',
-      table: schema.tableName || `${model.toLowerCase()}s`,
+      table,
       where,
     };
 
-    const result = await this.getAdapter().executeQuery<unknown>(query);
-    if (!result.success) {
-      throw new ForjaError(
-        `Failed to delete ${model}: ${result.error.message}`,
-        'QUERY_FAILED'
-      );
-    }
-
-    return result.data.metadata.rowCount ?? 0;
+    return await this.getDispatcher().executeQuery<number>(
+      'deleteMany',
+      model,
+      table,
+      query,
+      async (q) => {
+        const result = await this.getAdapter().executeQuery<unknown>(q);
+        if (!result.success) {
+          throw new ForjaError(
+            `Failed to delete ${model}: ${result.error.message}`,
+            'QUERY_FAILED'
+          );
+        }
+        return result.data.metadata.rowCount ?? 0;
+      }
+    );
   }
 }

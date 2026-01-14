@@ -146,6 +146,12 @@ export interface AuthPluginOptions {
   readonly rbac?: RbacConfig;
   readonly passwordHashIterations?: number; // PBKDF2 iterations (default: 100000)
   readonly passwordHashKeyLength?: number; // PBKDF2 key length (default: 64)
+  readonly userSchema?: {
+    readonly name?: string;
+    readonly email?: string;
+  }
+  readonly authSchemaName?: string;
+  readonly enabled: boolean;
 }
 
 /**

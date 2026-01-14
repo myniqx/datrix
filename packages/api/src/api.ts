@@ -13,12 +13,13 @@ import type {
 } from 'forja-types/plugin';
 import type { QueryObject } from 'forja-types/core/query-builder';
 import type { Result } from 'forja-types/utils';
-import type { ApiConfig } from 'forja-types/config';
 import { defineSchema } from 'forja-types/core/schema';
 import { AuthManager } from './auth/manager';
 import { createAuthHandlers } from './handler/auth-handler';
 import { handleRequest as handleCrudRequest } from './handler/unified';
 import { errorResponse } from './handler/utils';
+import { ApiConfig } from './types';
+import { Forja } from 'forja-core';
 
 
 export class ApiPlugin extends BasePlugin<ApiConfig> {
@@ -26,7 +27,7 @@ export class ApiPlugin extends BasePlugin<ApiConfig> {
   readonly version = '1.0.0';
 
   private authManager?: AuthManager;
-  private forjaInstance?: any;
+  private forjaInstance?: Forja;
 
   private get authConfig() {
     return this.options.auth;
@@ -44,12 +45,8 @@ export class ApiPlugin extends BasePlugin<ApiConfig> {
     return this.authConfig?.userSchema?.name ?? 'user';
   }
 
-  private get authFieldNames() {
-    return {
-      email: this.authConfig?.userSchema?.fields?.email ?? 'email',
-      password: this.authConfig?.userSchema?.fields?.password ?? 'password',
-      role: this.authConfig?.userSchema?.fields?.role ?? 'role',
-    };
+  private get userSchemaEmailField(): string {
+    return this.authConfig?.userSchema?.email ?? 'email';
   }
 
   async init(context: PluginContext): Promise<Result<void, PluginError>> {
@@ -80,11 +77,12 @@ export class ApiPlugin extends BasePlugin<ApiConfig> {
     }
 
     const userSchema = context.schemas.get(this.userSchemaName);
-    if (!userSchema?.fields[this.authFieldNames.email]) {
+    const emailField = this.userSchemaEmailField;
+    if (!userSchema?.fields[emailField]) {
       return {
         success: false,
         error: this.createError(
-          `User schema must have an '${this.authFieldNames.email}' field`,
+          `User schema must have an '${emailField}' field`,
           'MISSING_EMAIL_FIELD'
         ),
       };
@@ -111,7 +109,7 @@ export class ApiPlugin extends BasePlugin<ApiConfig> {
     return { success: true, data: undefined };
   }
 
-  async getSchemas(): Promise<SchemaDefinition[]> {
+  override async getSchemas(): Promise<SchemaDefinition[]> {
     if (!this.authConfig?.enabled) {
       return [];
     }
@@ -187,7 +185,7 @@ export class ApiPlugin extends BasePlugin<ApiConfig> {
 
     // User email update → authentication email sync edilmeli
     if (query.type === 'update' && query.table === this.userSchemaName) {
-      const emailField = this.authFieldNames.email;
+      const emailField = this.userSchemaEmailField;
       if (query.data && emailField in query.data) {
         (query as any)._apiPlugin_syncEmail = query.data[emailField];
       }

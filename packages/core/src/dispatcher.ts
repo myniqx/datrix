@@ -9,18 +9,81 @@ import { QueryObject } from "forja-types/core/query-builder";
 import { PluginRegistry } from "forja-types/plugin";
 import { validateQueryObject } from "./utils/query";
 import { SchemaRegistry } from "forja-types/core/schema";
+import { Forja } from "./forja";
 
-/*
-import type { PluginRegistry } from '@plugins/base/types';
-import type { QueryObject } from '@adapters/base/types';
-import type { SchemaRegistry } from '@core/schema/types';
-import { validateQueryObject } from '@utils/query';
-*/
+/**
+ * Query operation type
+ */
+export type QueryAction = 'findOne' | 'findMany' | 'count' | 'create' | 'update' | 'updateMany' | 'delete' | 'deleteMany';
+
+/**
+ * Query context passed to plugin hooks
+ */
+export interface QueryContext {
+  readonly action: QueryAction;
+  readonly model: string;
+  readonly table: string;
+  readonly forja: Forja;
+  readonly metadata: Record<string, unknown>;
+}
+
+/**
+ * Create a new query context
+ */
+function createQueryContext(
+  action: QueryAction,
+  model: string,
+  table: string,
+  forja: Forja
+): QueryContext {
+  return {
+    action,
+    model,
+    table,
+    forja,
+    metadata: {}
+  };
+}
+
 /**
  * Dispatcher for plugin hooks
  */
 export class Dispatcher {
-  constructor(private readonly registry: PluginRegistry) { }
+  constructor(
+    private readonly registry: PluginRegistry,
+    private readonly forja: Forja
+  ) {}
+
+  /**
+   * Create and populate query context
+   *
+   * This allows plugins to enrich the context before query execution.
+   */
+  private async buildQueryContext(
+    action: QueryAction,
+    model: string,
+    table: string
+  ): Promise<QueryContext> {
+    let context = createQueryContext(action, model, table, this.forja);
+
+    for (const plugin of this.registry.getAll()) {
+      try {
+        if (plugin.onCreateQueryContext) {
+          const result = await plugin.onCreateQueryContext(context);
+          if (result) {
+            context = result;
+          }
+        }
+      } catch (error) {
+        console.error(
+          `[Dispatcher] Error in plugin '${plugin.name}' onCreateQueryContext:`,
+          error
+        );
+      }
+    }
+
+    return context;
+  }
 
   /**
    * Dispatch onSchemaLoad hook to all plugins
@@ -32,21 +95,48 @@ export class Dispatcher {
           await plugin.onSchemaLoad(schemas);
         }
       } catch (error) {
-        // Log error but continue with other plugins to ensure system stability
-        console.error(`[Dispatcher] Error in plugin '${plugin.name}' onSchemaLoad:`, error);
+        console.error(
+          `[Dispatcher] Error in plugin '${plugin.name}' onSchemaLoad:`,
+          error
+        );
       }
     }
+  }
+
+  /**
+   * Execute full query lifecycle:
+   * 1. Create context
+   * 2. onBeforeQuery hooks
+   * 3. Execute query
+   * 4. onAfterQuery hooks
+   */
+  async executeQuery<TResult>(
+    action: QueryAction,
+    model: string,
+    table: string,
+    query: QueryObject,
+    executor: (query: QueryObject) => Promise<TResult>
+  ): Promise<TResult> {
+    const context = await this.buildQueryContext(action, model, table);
+    const modifiedQuery = await this.dispatchBeforeQuery(query, context);
+    const result = await executor(modifiedQuery);
+    const finalResult = await this.dispatchAfterQuery(result, context);
+    return finalResult;
   }
 
   /**
    * Dispatch onBeforeQuery hook to all plugins (serial execution)
    * Plugins can modify the query object.
    */
-  async dispatchBeforeQuery(query: QueryObject): Promise<QueryObject> {
-    // 1. Validate entrance query (catch errors even without plugins)
+  private async dispatchBeforeQuery(
+    query: QueryObject,
+    context: QueryContext
+  ): Promise<QueryObject> {
     const entranceValidation = validateQueryObject(query);
     if (!entranceValidation.success) {
-      throw new Error(`[Dispatcher] Entrance QueryObject is invalid: ${entranceValidation.error.message}`);
+      throw new Error(
+        `[Dispatcher] Entrance QueryObject is invalid: ${entranceValidation.error.message}`
+      );
     }
 
     let currentQuery = { ...query };
@@ -54,9 +144,8 @@ export class Dispatcher {
     for (const plugin of this.registry.getAll()) {
       try {
         if (plugin.onBeforeQuery) {
-          const modifiedQuery = await plugin.onBeforeQuery(currentQuery);
+          const modifiedQuery = await plugin.onBeforeQuery(currentQuery, context);
 
-          // 2. Validate modified query (strict check for each plugin)
           const validation = validateQueryObject(modifiedQuery);
           if (validation.success) {
             currentQuery = validation.data;
@@ -67,8 +156,11 @@ export class Dispatcher {
           }
         }
       } catch (error) {
-        console.error(`[Dispatcher] Error in plugin '${plugin.name}' onBeforeQuery:`, error);
-        throw error; // Rethrow to stop the query pipeline on invalid state
+        console.error(
+          `[Dispatcher] Error in plugin '${plugin.name}' onBeforeQuery:`,
+          error
+        );
+        throw error;
       }
     }
 
@@ -79,16 +171,22 @@ export class Dispatcher {
    * Dispatch onAfterQuery hook to all plugins (serial execution)
    * Plugins can modify the result.
    */
-  async dispatchAfterQuery<TResult>(result: TResult): Promise<TResult> {
+  private async dispatchAfterQuery<TResult>(
+    result: TResult,
+    context: QueryContext
+  ): Promise<TResult> {
     let currentResult = result;
 
     for (const plugin of this.registry.getAll()) {
       try {
         if (plugin.onAfterQuery) {
-          currentResult = await plugin.onAfterQuery(currentResult);
+          currentResult = await plugin.onAfterQuery(currentResult, context);
         }
       } catch (error) {
-        console.error(`[Dispatcher] Error in plugin '${plugin.name}' onAfterQuery:`, error);
+        console.error(
+          `[Dispatcher] Error in plugin '${plugin.name}' onAfterQuery:`,
+          error
+        );
       }
     }
 
@@ -99,6 +197,6 @@ export class Dispatcher {
 /**
  * Create a new dispatcher
  */
-export function createDispatcher(registry: PluginRegistry): Dispatcher {
-  return new Dispatcher(registry);
+export function createDispatcher(registry: PluginRegistry, forja: Forja): Dispatcher {
+  return new Dispatcher(registry, forja);
 }

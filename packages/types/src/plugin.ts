@@ -14,6 +14,22 @@ import { QueryObject } from './core/query-builder';
 export type { SchemaDefinition } from './core/schema';
 
 /**
+ * Query operation type
+ */
+export type QueryAction = 'findOne' | 'findMany' | 'count' | 'create' | 'update' | 'updateMany' | 'delete' | 'deleteMany';
+
+/**
+ * Query context passed to plugin hooks
+ */
+export interface QueryContext {
+  readonly action: QueryAction;
+  readonly model: string;
+  readonly table: string;
+  readonly forja: any; // Circular dependency workaround
+  readonly metadata: Record<string, unknown>;
+}
+
+/**
  * Plugin context (provided during initialization)
  */
 export interface PluginContext {
@@ -41,10 +57,11 @@ export interface ForjaPlugin<TOptions = Record<string, unknown>> {
   getSchemas?(): Promise<SchemaDefinition[]>;
   extendSchemas?(context: SchemaExtensionContext): Promise<SchemaExtension[]>;
 
-  // Optional hooks
+  // Query hooks
   onSchemaLoad?(schemas: SchemaRegistry): Promise<void>;
-  onBeforeQuery?(query: QueryObject, context?: QueryContext): Promise<QueryObject>;
-  onAfterQuery?<TResult>(result: TResult, context?: QueryResultContext): Promise<TResult>;
+  onCreateQueryContext?(context: QueryContext): Promise<QueryContext | void>;
+  onBeforeQuery?(query: QueryObject, context: QueryContext): Promise<QueryObject>;
+  onAfterQuery?<TResult>(result: TResult, context: QueryContext): Promise<TResult>;
 }
 
 /**

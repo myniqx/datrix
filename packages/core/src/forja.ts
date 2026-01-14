@@ -14,6 +14,8 @@ import { WhereClause, SelectClause, PopulateClause, OrderByItem } from 'forja-ty
 import { CrudOperations } from './mixins/crud';
 import { SchemaHelpers } from './mixins/schema';
 import { SchemaExtensionContextImpl } from './plugin/schema-extension-context';
+import { Dispatcher, createDispatcher } from './dispatcher';
+import { PluginRegistry } from 'forja-types/plugin';
 
 /**
  * Forja initialization error
@@ -49,7 +51,8 @@ export class Forja {
 
   private config: ForjaConfig | null = null;
   private adapter: DatabaseAdapter | null = null;
-  private plugins: readonly ForjaPlugin[] = [];
+  private pluginRegistry: PluginRegistry = new PluginRegistry();
+  private dispatcher: Dispatcher | null = null;
   private schemas: SchemaRegistry = new SchemaRegistry();
   private initialized = false;
 
@@ -79,7 +82,25 @@ export class Forja {
     try {
       this.config = config;
       this.adapter = config.adapter;
-      this.plugins = config.plugins || [];
+
+      // Register plugins
+      if (!options.skipPlugins && config.plugins) {
+        for (const plugin of config.plugins) {
+          const registerResult = this.pluginRegistry.register(plugin);
+          if (!registerResult.success) {
+            return {
+              success: false,
+              error: new ForjaError(
+                `Failed to register plugin '${plugin.name}': ${registerResult.error.message}`,
+                'PLUGIN_REGISTRATION_FAILED'
+              ),
+            };
+          }
+        }
+      }
+
+      // Create dispatcher
+      this.dispatcher = createDispatcher(this.pluginRegistry, this);
 
       // Connect to database
       if (!options.skipConnection && this.adapter) {
@@ -104,7 +125,7 @@ export class Forja {
 
       // 2. Register plugin schemas
       if (!options.skipPlugins) {
-        for (const plugin of this.plugins) {
+        for (const plugin of this.pluginRegistry.getAll()) {
           if (plugin.getSchemas) {
             const pluginSchemas = await plugin.getSchemas();
             for (const schema of pluginSchemas) {
@@ -120,7 +141,7 @@ export class Forja {
           this.schemas.getAll()
         );
 
-        for (const plugin of this.plugins) {
+        for (const plugin of this.pluginRegistry.getAll()) {
           if (plugin.extendSchemas) {
             const extensions = await plugin.extendSchemas(extensionContext);
             const applyResult = this.applySchemaExtensions(extensions);
@@ -138,30 +159,36 @@ export class Forja {
       }
 
       // Initialize mixins
-      this._crud = new CrudOperations(this.schemas, () => this.adapter!);
+      this._crud = new CrudOperations(
+        this.schemas,
+        () => this.adapter!,
+        () => this.dispatcher!
+      );
       this._schema = new SchemaHelpers(this.schemas);
 
       // Initialize plugins
       if (!options.skipPlugins) {
         const pluginContext: PluginContext = {
-          // TODO: neden bu sinifi direk parametre olarak vermiyoruz, ne gibi guvenlik sorunu olabilir?
-          adapter: this.adapter,
+          adapter: this.adapter!,
           schemas: this.schemas,
           config: this.config,
         };
 
-        for (const plugin of this.plugins) {
-          const initResult = await plugin.init(pluginContext);
-          if (!initResult.success) {
-            return {
-              success: false,
-              error: new ForjaError(
-                `Failed to initialize plugin '${plugin.name}': ${initResult.error.message}`,
-                'PLUGIN_INIT_FAILED'
-              ),
-            };
-          }
+        const initResult = await this.pluginRegistry.initAll(pluginContext);
+        if (!initResult.success) {
+          return {
+            success: false,
+            error: new ForjaError(
+              `Failed to initialize plugins: ${initResult.error.message}`,
+              'PLUGIN_INIT_FAILED'
+            ),
+          };
         }
+      }
+
+      // Dispatch schema load event
+      if (!options.skipPlugins) {
+        await this.dispatcher.dispatchSchemaLoad(this.schemas);
       }
 
       this.initialized = true;
@@ -183,8 +210,15 @@ export class Forja {
     }
 
     try {
-      for (const plugin of this.plugins) {
-        await plugin.destroy();
+      const destroyResult = await this.pluginRegistry.destroyAll();
+      if (!destroyResult.success) {
+        return {
+          success: false,
+          error: new ForjaError(
+            `Failed to destroy plugins: ${destroyResult.error.message}`,
+            'PLUGIN_DESTROY_FAILED'
+          ),
+        };
       }
 
       if (this.adapter) {
@@ -192,6 +226,7 @@ export class Forja {
       }
 
       this.schemas.clear();
+      this.dispatcher = null;
       this.initialized = false;
 
       return { success: true, data: undefined };
@@ -218,18 +253,22 @@ export class Forja {
 
   getPlugins(): readonly ForjaPlugin[] {
     this.ensureInitialized();
-    return this.plugins;
+    return this.pluginRegistry.getAll();
   }
 
   getPlugin<T extends ForjaPlugin = ForjaPlugin>(name: string): T | null {
     this.ensureInitialized();
-    const plugin = this.plugins.find((p) => p.name === name);
-    return (plugin as T) ?? null;
+    return (this.pluginRegistry.get(name) as T) ?? null;
   }
 
   hasPlugin(name: string): boolean {
     this.ensureInitialized();
-    return this.plugins.some((p) => p.name === name);
+    return this.pluginRegistry.has(name);
+  }
+
+  getDispatcher(): Dispatcher {
+    this.ensureInitialized();
+    return this.dispatcher!;
   }
 
   getSchemas(): SchemaRegistry {
@@ -367,7 +406,8 @@ export class Forja {
   reset(): void {
     this.config = null;
     this.adapter = null;
-    this.plugins = [];
+    this.pluginRegistry = new PluginRegistry();
+    this.dispatcher = null;
     this.schemas = new SchemaRegistry();
     this.initialized = false;
     Forja.initPromise = null;

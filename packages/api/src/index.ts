@@ -25,16 +25,10 @@
  */
 
 // Main exports - Plugin API
-export { ApiPlugin, createApiPlugin, createApi } from './api';
-export type { ApiPluginOptions } from './api';
+export { ApiPlugin } from './api';
 
-// Deprecated exports (backward compatibility)
-export { ForjaApi } from './api';
 export { handleRequest } from './helper';
 
-// Type exports
-export type { IForjaApi } from 'forja-types/api';
-export type { ApiConfig, ApiAuthConfig } from 'forja-types/config';
 
 // Middleware module (auth, context, permission)
 export * from './middleware';
@@ -47,9 +41,3 @@ export * from './serializer';
 
 // Handler module (CRUD and auth handlers)
 export * from './handler';
-
-// Auth module (authentication and authorization)
-export * from './auth';
-
-// Lifecycle module (deprecated - now handled by plugin)
-export * from './lifecycle';
