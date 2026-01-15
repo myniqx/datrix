@@ -27,6 +27,7 @@ import {
 import { Result } from 'forja-types/utils';
 import { validateQueryObject } from 'forja-core/utils/query';
 import { FieldDefinition, FieldType, IndexDefinition, SchemaDefinition } from 'forja-types/core/schema';
+import { Forja } from 'forja-core';
 
 /**
  * MySQL adapter implementation
@@ -46,7 +47,8 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
     } else {
       this.config = config;
     }
-    this.translator = new MySQLQueryTranslator();
+    const schemaRegistry = Forja.getInstance().getSchemas();
+    this.translator = new MySQLQueryTranslator(schemaRegistry);
   }
 
   /**

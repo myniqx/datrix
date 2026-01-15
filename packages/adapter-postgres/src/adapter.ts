@@ -16,6 +16,7 @@ import { AlterOperation, ConnectionError, ConnectionState, DatabaseAdapter, Migr
 import { Result } from 'forja-types/utils';
 import { validateQueryObject } from 'forja-core/utils/query';
 import { FieldDefinition, FieldType, IndexDefinition, SchemaDefinition } from 'forja-types/core/schema';
+import { Forja } from 'forja-core';
 
 /**
  * PostgreSQL adapter implementation
@@ -30,7 +31,8 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 
   constructor(config: PostgresConfig) {
     this.config = config;
-    this.translator = new PostgresQueryTranslator();
+    const schemaRegistry = Forja.getInstance().getSchemas();
+    this.translator = new PostgresQueryTranslator(schemaRegistry);
   }
 
   /**

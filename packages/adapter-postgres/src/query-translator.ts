@@ -603,6 +603,6 @@ export class PostgresQueryTranslator implements QueryTranslator {
 /**
  * Create a new PostgreSQL query translator
  */
-export function createPostgresTranslator(): PostgresQueryTranslator {
-  return new PostgresQueryTranslator();
+export function createPostgresTranslator(schemaRegistry: SchemaRegistry): PostgresQueryTranslator {
+  return new PostgresQueryTranslator(schemaRegistry);
 }

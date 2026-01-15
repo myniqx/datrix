@@ -16,12 +16,10 @@ import type {
   ComparisonOperators,
   OrderByItem
 } from 'forja-types/core/query-builder';
-import {
-  getAllRelationMetadata,
-  getRelationMetadata
-} from 'forja-types/core/query-builder';
 import type { QueryTranslator } from 'forja-types/adapter';
 import { QueryError } from 'forja-types/adapter';
+import type { SchemaRegistry } from 'forja-core/schema';
+import type { RelationField } from 'forja-types/core/schema';
 
 /**
  * Maximum nesting depth for WHERE clauses to prevent stack overflow
@@ -34,6 +32,11 @@ const MAX_WHERE_DEPTH = 10;
 export class MySQLQueryTranslator implements QueryTranslator {
   private paramIndex = 0;
   private params: unknown[] = [];
+  private schemaRegistry: SchemaRegistry;
+
+  constructor(schemaRegistry: SchemaRegistry) {
+    this.schemaRegistry = schemaRegistry;
+  }
 
   /**
    * Reset state for new query
@@ -241,22 +244,54 @@ export class MySQLQueryTranslator implements QueryTranslator {
       return '';
     }
 
-    const relations = getAllRelationMetadata(query);
-    if (!relations) {
-      return '';
+    // Find current schema from table name
+    const currentModelName = this.schemaRegistry.findModelByTableName(query.table);
+    if (!currentModelName) {
+      throw new QueryError(`Model not found for table: ${query.table}`);
+    }
+
+    const currentSchema = this.schemaRegistry.get(currentModelName);
+    if (!currentSchema) {
+      throw new QueryError(`Schema not found for model: ${currentModelName}`);
     }
 
     const parts: string[] = [];
 
     for (const [relationName, _options] of Object.entries(query.populate)) {
-      const meta = getRelationMetadata(query, relationName);
-      if (!meta) continue;
+      // Get relation field from current schema
+      const relationField = currentSchema.fields[relationName];
+      if (!relationField) {
+        throw new QueryError(`Relation field '${relationName}' not found in schema '${currentSchema.name}'`);
+      }
 
-      const targetTable = this.escapeIdentifier(meta.targetTable);
+      if (relationField.type !== 'relation') {
+        throw new QueryError(`Field '${relationName}' is not a relation field in schema '${currentSchema.name}'`);
+      }
+
+      const relField = relationField as RelationField;
+      const targetModelName = relField.model;
+      const foreignKey = relField.foreignKey;
+      const kind = relField.kind;
+
+      // Get target schema
+      const targetSchema = this.schemaRegistry.get(targetModelName);
+      if (!targetSchema) {
+        throw new QueryError(`Target model '${targetModelName}' not found for relation '${relationName}'`);
+      }
+
+      const targetTable = this.escapeIdentifier(targetSchema.tableName ?? targetModelName.toLowerCase());
       const sourceTable = this.escapeIdentifier(query.table);
-      const fk = this.escapeIdentifier(meta.foreignKey);
+      const fk = this.escapeIdentifier(foreignKey);
 
-      parts.push(`LEFT JOIN ${targetTable} ON ${sourceTable}.${fk} = ${targetTable}.\`id\``);
+      // Generate JOIN based on relation kind
+      if (kind === 'belongsTo') {
+        // Source has FK: source.foreignKey = target.id
+        parts.push(`LEFT JOIN ${targetTable} ON ${sourceTable}.${fk} = ${targetTable}.\`id\``);
+      } else if (kind === 'hasOne' || kind === 'hasMany') {
+        // Target has FK: source.id = target.foreignKey
+        parts.push(`LEFT JOIN ${targetTable} ON ${sourceTable}.\`id\` = ${targetTable}.${fk}`);
+      }
+      // TODO: Handle manyToMany with join tables
     }
 
     return parts.join(' ');
@@ -524,6 +559,6 @@ export class MySQLQueryTranslator implements QueryTranslator {
 /**
  * Create a new MySQL query translator
  */
-export function createMySQLTranslator(): MySQLQueryTranslator {
-  return new MySQLQueryTranslator();
+export function createMySQLTranslator(schemaRegistry: SchemaRegistry): MySQLQueryTranslator {
+  return new MySQLQueryTranslator(schemaRegistry);
 }
