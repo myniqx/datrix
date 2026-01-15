@@ -9,13 +9,13 @@ import { Result } from 'forja-types/utils';
 import { ForjaConfig, ApiConfig, MigrationConfig, DevConfig, DEFAULT_API_CONFIG, DEFAULT_MIGRATION_CONFIG, DEFAULT_DEV_CONFIG } from 'forja-types/config';
 import { DatabaseAdapter } from 'forja-types/adapter';
 import { ForjaPlugin, PluginContext, SchemaExtension } from 'forja-types/plugin';
-import { SchemaRegistry } from 'forja-types/core/schema';
 import { WhereClause, SelectClause, PopulateClause, OrderByItem } from 'forja-types/core/query-builder';
 import { CrudOperations } from './mixins/crud';
 import { SchemaHelpers } from './mixins/schema';
 import { SchemaExtensionContextImpl } from './plugin/schema-extension-context';
 import { Dispatcher, createDispatcher } from './dispatcher';
 import { PluginRegistry } from 'forja-types/plugin';
+import { SchemaRegistry } from './schema';
 
 /**
  * Forja initialization error

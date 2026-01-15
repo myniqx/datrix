@@ -3,7 +3,7 @@ import { AuthPluginOptions } from "./auth/types";
 /**
  * API Configuration
  */
-export interface ApiConfig {
+export interface ApiConfig extends Record<string, unknown> {
   /**
    * Enable API routes
    * @default true

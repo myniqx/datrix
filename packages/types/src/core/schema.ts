@@ -245,7 +245,7 @@ export function defineSchema<
 
 /**
  * Schema registry
- */
+
 export class SchemaRegistry {
   private readonly schemas: Map<string, SchemaDefinition> = new Map();
 
@@ -265,6 +265,16 @@ export class SchemaRegistry {
     return this.schemas.has(name);
   }
 
+  findFromTable(tableName: string): string | null {
+    for (const [name, schema] of this.schemas) {
+      if (schema.tableName === tableName) {
+        return name;
+      }
+    }
+    return null;
+
+  }
+
   getAll(): readonly SchemaDefinition[] {
     return Array.from(this.schemas.values());
   }
@@ -277,6 +287,8 @@ export class SchemaRegistry {
     this.schemas.clear();
   }
 }
+ */
+
 
 /**
  * Field metadata (runtime information)

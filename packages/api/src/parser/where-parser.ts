@@ -59,6 +59,31 @@ export function parseWhere(params: RawQueryParams): Result<WhereClause | undefin
             })
           };
         }
+      } else if (/^\d+$/.test(part)) {
+        // It's a numeric index - validate context
+        // Index can only appear after logical operators ($or, $and)
+        if (i === 0) {
+          return {
+            success: false,
+            error: new ParserError(`Array index cannot appear at the beginning of WHERE clause`, {
+              code: 'INVALID_SYNTAX',
+              field: 'where',
+              details: { index: part, path: key }
+            })
+          };
+        }
+
+        const previousPart = parts[i - 1]!;
+        if (!['$or', '$and'].includes(previousPart)) {
+          return {
+            success: false,
+            error: new ParserError(`Array index [${part}] can only follow logical operators ($or, $and), found after: ${previousPart}`, {
+              code: 'INVALID_SYNTAX',
+              field: 'where',
+              details: { index: part, previousPart, path: key }
+            })
+          };
+        }
       } else {
         // It's a field name - validate it
         if (!isValidFieldName(part)) {
@@ -147,8 +172,31 @@ function transformToFinalWhere(obj: unknown): unknown {
       // Transform object with numeric keys into array
       if (typeof value === 'object' && value !== null) {
         const valueObj = value as Record<string, unknown>;
-        const keys = Object.keys(valueObj).sort((a, b) => Number(a) - Number(b));
-        result[key] = keys.map(k => transformToFinalWhere(valueObj[k]));
+        const keys = Object.keys(valueObj);
+
+        // Validate that all keys are numeric
+        const numericKeys = keys.map(k => {
+          const num = Number(k);
+          if (isNaN(num) || !Number.isInteger(num) || num < 0) {
+            throw new Error(`Invalid array index in ${key}: ${k} (must be non-negative integer)`);
+          }
+          return num;
+        });
+
+        // Sort and validate consecutive sequence starting from 0
+        const sortedKeys = numericKeys.sort((a, b) => a - b);
+
+        if (sortedKeys[0] !== 0) {
+          throw new Error(`Array indices for ${key} must start from 0, found: ${sortedKeys[0]}`);
+        }
+
+        for (let i = 0; i < sortedKeys.length; i++) {
+          if (sortedKeys[i] !== i) {
+            throw new Error(`Array indices for ${key} must be consecutive (0,1,2...), missing index: ${i}`);
+          }
+        }
+
+        result[key] = sortedKeys.map(idx => transformToFinalWhere(valueObj[String(idx)]));
       } else {
         result[key] = transformToFinalWhere(value);
       }

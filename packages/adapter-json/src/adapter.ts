@@ -187,13 +187,15 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
       };
     }
 
-    const validation = this.validateTableName(schema.name);
+    const tableName = schema.tableName!
+
+    const validation = this.validateTableName(tableName);
     if (!validation.success) {
       return validation;
     }
 
     try {
-      const filePath = this.getTablePath(schema.name);
+      const filePath = this.getTablePath(tableName);
 
       try {
         await fs.access(filePath);
@@ -333,7 +335,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
         tableData.data = [];
       }
 
-      const runner = new JsonQueryRunner();
+      const runner = new JsonQueryRunner(tableData);
 
       let rows: Record<string, unknown>[] = [];
       const metadata: { rowCount: number; affectedRows: number; insertId?: number } = { rowCount: 0, affectedRows: 0 };
@@ -342,7 +344,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
       switch (query.type) {
         case 'select':
         case 'count': {
-          rows = runner.run(tableData.data, query);
+          rows = runner.run(query);
 
           if (query.type === 'select' && query.populate) {
             const populator = new JsonPopulator(this);
@@ -367,9 +369,19 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
           const newItem = { ...query.data };
 
           if (!newItem['id']) {
+            // Auto-generate ID
             tableData.meta.lastInsertId = (tableData.meta.lastInsertId ?? 0) + 1;
             newItem['id'] = tableData.meta.lastInsertId;
+          } else {
+            // Manual ID provided - update lastInsertId to avoid future conflicts
+            const manualId = Number(newItem['id']);
+            if (!isNaN(manualId) && manualId > (tableData.meta.lastInsertId ?? 0)) {
+              tableData.meta.lastInsertId = manualId;
+            }
           }
+
+          // Check unique constraints before inserting
+          this.checkUniqueConstraints(tableData, newItem);
 
           tableData.data.push(newItem);
           rows = [newItem];
@@ -387,7 +399,13 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
         case 'update': {
           if (!query.data) throw new Error("Update query missing data");
           const updateQuery: QueryObject = { ...query, limit: undefined, offset: undefined, orderBy: undefined } as QueryObject;
-          const rowsToUpdate = runner.run(tableData.data, updateQuery);
+          const rowsToUpdate = runner.run(updateQuery);
+
+          // Check unique constraints for each row being updated
+          for (const row of rowsToUpdate) {
+            const updatedData = { ...row, ...query.data };
+            this.checkUniqueConstraints(tableData, updatedData, row['id'] as number);
+          }
 
           for (const row of rowsToUpdate) {
             Object.assign(row, query.data);
@@ -406,7 +424,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 
         case 'delete': {
           const deleteQuery: QueryObject = { ...query, limit: undefined, offset: undefined, orderBy: undefined } as QueryObject;
-          const rowsToDelete = runner.run(tableData.data, deleteQuery);
+          const rowsToDelete = runner.run(deleteQuery);
           const idsToDelete = new Set(rowsToDelete.map(r => r['id']));
 
           const originalLength = tableData.data.length;
@@ -557,6 +575,65 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
       return true;
     } catch {
       return false;
+    }
+  }
+
+  /**
+   * Check unique constraints before insert/update
+   *
+   * @param tableData - Table data with schema and existing records
+   * @param newData - Data to be inserted/updated
+   * @param excludeId - For updates, exclude current record from check
+   * @throws Error if unique constraint violated
+   */
+  private checkUniqueConstraints(
+    tableData: JsonTableFile,
+    newData: Record<string, unknown>,
+    excludeId?: number | string
+  ): void {
+    const schema = tableData.schema;
+    const existingData = tableData.data;
+
+    // 1. Check unique fields (field.unique === true)
+    for (const [fieldName, fieldDef] of Object.entries(schema.fields)) {
+      if (!fieldDef.unique) continue;
+
+      const value = newData[fieldName];
+      if (value === undefined || value === null) continue;
+
+      const duplicate = existingData.find(row =>
+        row[fieldName] === value &&
+        row['id'] !== excludeId
+      );
+
+      if (duplicate) {
+        throw new Error(`Duplicate value '${value}' for unique field '${fieldName}'`);
+      }
+    }
+
+    // 2. Check unique indexes
+    if (!schema.indexes) return;
+
+    for (const index of schema.indexes) {
+      if (!index.unique) continue;
+
+      // Get values for all fields in index
+      const indexValues = index.fields.map(f => newData[f]);
+
+      // Skip if any value is undefined
+      if (indexValues.some(v => v === undefined || v === null)) continue;
+
+      // Check if combination exists
+      const duplicate = existingData.find(row =>
+        index.fields.every(f => row[f] === newData[f]) &&
+        row['id'] !== excludeId
+      );
+
+      if (duplicate) {
+        throw new Error(
+          `Duplicate value for unique index [${index.fields.join(', ')}]`
+        );
+      }
     }
   }
 }

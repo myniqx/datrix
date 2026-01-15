@@ -4,15 +4,20 @@ import {
   OrderByItem,
   ComparisonOperators
 } from 'forja-types/core/query-builder';
+import { JsonTableFile } from './types';
 
 export class JsonQueryRunner {
+  constructor(private table: JsonTableFile) { }
 
-  run<T>(data: T[], query: QueryObject): T[] {
-    let result = [...data];
+  run<T>(query: QueryObject): T[] {
+    let result = this.table.data as T[];
 
     // 1. Filter
     if (query.where) {
       result = result.filter(item => this.match(item, query.where!));
+    } else if (query.orderBy && query.orderBy.length > 0) {
+      // No filter but need sort - must copy to avoid mutating original
+      result = [...result];
     }
 
     // 3. Project & Distinct
@@ -20,7 +25,7 @@ export class JsonQueryRunner {
       result = this.project(result, query.select, query.distinct);
     }
 
-    // 4. Sort
+    // 4. Sort (mutates array in-place)
     if (query.orderBy && query.orderBy.length > 0) {
       result.sort((a, b) => this.sort(a, b, query.orderBy!));
     }
@@ -95,35 +100,65 @@ export class JsonQueryRunner {
         if (itemValue !== null && itemValue !== undefined) return false;
       } else if (typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)) {
         // Operators
-        if (!this.matchOperators(itemValue, value as ComparisonOperators)) return false;
+        if (!this.matchOperators(itemValue, value as ComparisonOperators, key)) return false;
       } else {
-        // Direct equality
-        if (itemValue !== value) return false;
+        // Direct equality - type-aware comparison
+        if (!this.compareValues(itemValue, value, key)) return false;
       }
     }
     return true;
   }
 
-  private matchOperators(value: any, operators: ComparisonOperators): boolean {
+  private compareValues(itemValue: any, queryValue: any, fieldName: string): boolean {
+    const schema = this.table.schema as any;
+    const fieldDef = schema?.fields?.[fieldName];
+
+    // No schema or field definition - use strict equality
+    if (!fieldDef) {
+      return itemValue === queryValue;
+    }
+
+    // Type coercion based on field type
+    const fieldType = fieldDef.type;
+
+    if (fieldType === 'number') {
+      const itemNum = Number(itemValue);
+      const queryNum = Number(queryValue);
+      return !isNaN(itemNum) && !isNaN(queryNum) && itemNum === queryNum;
+    }
+
+    if (fieldType === 'string') {
+      return String(itemValue) === String(queryValue);
+    }
+
+    if (fieldType === 'boolean') {
+      return Boolean(itemValue) === Boolean(queryValue);
+    }
+
+    // Default: strict equality
+    return itemValue === queryValue;
+  }
+
+  private matchOperators(value: any, operators: ComparisonOperators, fieldName: string): boolean {
     for (const [op, opValue] of Object.entries(operators)) {
       switch (op) {
         case '$eq':
-          if (value !== opValue) return false;
+          if (!this.compareValues(value, opValue, fieldName)) return false;
           break;
         case '$ne':
-          if (value === opValue) return false;
+          if (this.compareValues(value, opValue, fieldName)) return false;
           break;
         case '$gt':
-          if (!(value > opValue)) return false;
+          if (!(this.coerceForComparison(value, fieldName) > this.coerceForComparison(opValue, fieldName))) return false;
           break;
         case '$gte':
-          if (!(value >= opValue)) return false;
+          if (!(this.coerceForComparison(value, fieldName) >= this.coerceForComparison(opValue, fieldName))) return false;
           break;
         case '$lt':
-          if (!(value < opValue)) return false;
+          if (!(this.coerceForComparison(value, fieldName) < this.coerceForComparison(opValue, fieldName))) return false;
           break;
         case '$lte':
-          if (!(value <= opValue)) return false;
+          if (!(this.coerceForComparison(value, fieldName) <= this.coerceForComparison(opValue, fieldName))) return false;
           break;
         case '$in':
           if (!(opValue as any[]).includes(value)) return false;
@@ -153,10 +188,31 @@ export class JsonQueryRunner {
     return true;
   }
 
+  private coerceForComparison(value: any, fieldName: string): any {
+    const schema = this.table.schema as any;
+    const fieldDef = schema?.fields?.[fieldName];
+
+    if (!fieldDef) return value;
+
+    const fieldType = fieldDef.type;
+
+    if (fieldType === 'number') {
+      const num = Number(value);
+      return isNaN(num) ? value : num;
+    }
+
+    if (fieldType === 'string') {
+      return String(value);
+    }
+
+    return value;
+  }
+
   private sort(a: any, b: any, orderBy: readonly OrderByItem[]): number {
     for (const order of orderBy) {
-      const valA = a[order.field];
-      const valB = b[order.field];
+      const fieldName = order.field;
+      const valA = this.coerceForComparison(a[fieldName], fieldName);
+      const valB = this.coerceForComparison(b[fieldName], fieldName);
 
       if (valA === valB) continue;
 

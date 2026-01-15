@@ -2,7 +2,7 @@
 /**
  * JSON Adapter Configuration
  */
-export interface JsonAdapterConfig {
+export interface JsonAdapterConfig extends Record<string, unknown> {
   /**
    * Root directory to store JSON files
    */

@@ -43,6 +43,11 @@ export interface RequestContext {
   readonly model: string | null;
 
   /**
+   * Table name extracted from URL
+   */
+  readonly tableName: string | null;
+
+  /**
    * Record ID (for single record operations)
    */
   readonly id: string | null;

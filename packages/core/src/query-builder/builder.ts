@@ -279,13 +279,8 @@ export class ForjaQueryBuilder<TSchema = Record<string, unknown>>
       }
     }
 
-    // Prepare relation metadata if schema and populate are present
-    // This metadata is used by adapters to generate JOIN clauses
-    // @see packages/adapter-postgres/src/query-translator.ts:generateJoins()
-    let meta: QueryMetadata | undefined;
+    // Validate populate relations if schema is present
     if (this._schema && this.query.populate) {
-      const relations: Record<string, RelationMetadata> = {};
-
       for (const relationName of Object.keys(this.query.populate)) {
         const field = this._schema.fields[relationName];
 
@@ -322,17 +317,6 @@ export class ForjaQueryBuilder<TSchema = Record<string, unknown>>
             )
           };
         }
-
-        relations[relationName] = {
-          model: field.model,
-          foreignKey: field.foreignKey,
-          kind: field.kind,
-          targetTable: field.model.toLowerCase()
-        };
-      }
-
-      if (Object.keys(relations).length > 0) {
-        meta = { relations };
       }
     }
 
@@ -349,8 +333,7 @@ export class ForjaQueryBuilder<TSchema = Record<string, unknown>>
       ...(this.query.returning !== undefined && { returning: this.query.returning }),
       ...(this.query.distinct !== undefined && { distinct: this.query.distinct }),
       ...(this.query.groupBy !== undefined && { groupBy: this.query.groupBy as readonly string[] }),
-      ...(this.query.having !== undefined && { having: this.query.having }),
-      ...(meta !== undefined && { meta })
+      ...(this.query.having !== undefined && { having: this.query.having })
     };
 
     return { success: true, data: result };

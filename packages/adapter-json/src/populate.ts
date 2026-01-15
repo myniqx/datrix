@@ -1,5 +1,7 @@
-import { QueryObject, getRelationMetadata } from 'forja-types/core/query-builder';
+import { QueryObject } from 'forja-types/core/query-builder';
 import type { JsonAdapter } from './adapter';
+import { Forja, ForjaError } from 'forja-core';
+import type { RelationField } from 'forja-types/core/schema';
 
 export class JsonPopulator {
   constructor(private adapter: JsonAdapter) { }
@@ -9,15 +11,64 @@ export class JsonPopulator {
       return rows;
     }
 
+    const schemaRegistry = Forja.getInstance().getSchemas();
+
+    // Find current schema from table name
+    const currentModelName = schemaRegistry.findModelByTableName(query.table);
+    if (!currentModelName) {
+      throw new ForjaError(
+        `Model not found for table: ${query.table}`,
+        'MODEL_NOT_FOUND',
+        { table: query.table }
+      );
+    }
+
+    const currentSchema = schemaRegistry.get(currentModelName);
+    if (!currentSchema) {
+      throw new ForjaError(
+        `Schema not found for model: ${currentModelName}`,
+        'SCHEMA_NOT_FOUND',
+        { model: currentModelName }
+      );
+    }
+
     const result = [...rows];
 
     for (const [relationName, _options] of Object.entries(query.populate)) {
-      const meta = getRelationMetadata(query, relationName);
-      if (!meta) continue;
+      // Get relation field from current schema
+      const relationField = currentSchema.fields[relationName];
+      if (!relationField) {
+        throw new ForjaError(
+          `Relation field '${relationName}' not found in schema '${currentSchema.name}'`,
+          'RELATION_FIELD_NOT_FOUND',
+          { field: relationName, schema: currentSchema.name }
+        );
+      }
 
-      const targetTable = meta.targetTable;
-      const resultFk = meta.foreignKey;
-      const kind = meta.kind;
+      if (relationField.type !== 'relation') {
+        throw new ForjaError(
+          `Field '${relationName}' is not a relation field in schema '${currentSchema.name}'`,
+          'INVALID_RELATION_TYPE',
+          { field: relationName, schema: currentSchema.name, type: relationField.type }
+        );
+      }
+
+      const relField = relationField as RelationField;
+      const targetModelName = relField.model;
+      const foreignKey = relField.foreignKey;
+      const kind = relField.kind;
+
+      // Get target schema
+      const targetSchema = schemaRegistry.get(targetModelName);
+      if (!targetSchema) {
+        throw new ForjaError(
+          `Target model '${targetModelName}' not found for relation '${relationName}' in schema '${currentSchema.name}'`,
+          'TARGET_MODEL_NOT_FOUND',
+          { relation: relationName, targetModel: targetModelName, schema: currentSchema.name }
+        );
+      }
+
+      const targetTable = targetSchema.tableName ?? targetModelName.toLowerCase();
 
       // Load target table using adapter's cache
       const tableData = await this.adapter.getCachedTable(targetTable);
@@ -25,12 +76,32 @@ export class JsonPopulator {
 
       const relatedData = tableData.data as Record<string, unknown>[];
 
+      // Get field selection from options
+      const selectFields = typeof _options === 'object' && _options.select
+        ? _options.select
+        : undefined;
+
+      // Helper function to project fields
+      const projectFields = (item: Record<string, unknown>): Record<string, unknown> => {
+        if (!selectFields || selectFields === '*') {
+          return item;
+        }
+
+        const projected: Record<string, unknown> = {};
+        for (const field of selectFields as readonly string[]) {
+          if (field in item) {
+            projected[field] = item[field];
+          }
+        }
+        return projected;
+      };
+
       // Map data based on relation type
       if (kind === 'belongsTo') {
         // Source has FK (e.g. Post.authorId -> User.id)
         const ids = new Set(
           result
-            .map(r => r[resultFk])
+            .map(r => r[foreignKey])
             .filter((id): id is string | number => id !== null && id !== undefined)
         );
 
@@ -39,13 +110,13 @@ export class JsonPopulator {
           for (const item of relatedData) {
             const itemId = item['id'] as string | number;
             if (ids.has(itemId)) {
-              relatedMap.set(itemId, item);
+              relatedMap.set(itemId, projectFields(item));
             }
           }
         }
 
         for (const row of result) {
-          const fkValue = row[resultFk] as string | number | null | undefined;
+          const fkValue = row[foreignKey] as string | number | null | undefined;
           if (fkValue !== null && fkValue !== undefined) {
             row[relationName] = relatedMap.get(fkValue) ?? null;
           } else {
@@ -64,10 +135,10 @@ export class JsonPopulator {
         // Group related items by FK
         const grouped = new Map<string | number, Record<string, unknown>[]>();
         for (const item of relatedData) {
-          const fkValue = item[resultFk] as string | number | null | undefined;
+          const fkValue = item[foreignKey] as string | number | null | undefined;
           if (fkValue !== null && fkValue !== undefined && sourceIds.has(fkValue)) {
             const group = grouped.get(fkValue) ?? [];
-            group.push(item);
+            group.push(projectFields(item));
             grouped.set(fkValue, group);
           }
         }
@@ -100,8 +171,7 @@ export class JsonPopulator {
           await this.populate(nextRows, {
             type: 'select',
             table: targetTable,
-            populate: _options.populate,
-            meta: query.meta
+            populate: _options.populate
           });
         }
       }

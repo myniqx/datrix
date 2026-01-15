@@ -9,13 +9,14 @@ import type { AuthManager } from '../auth/manager';
 import type { RequestContext, HttpMethod, ContextBuilderOptions } from './types';
 import { authenticate } from './auth';
 import { parseQuery } from '../parser';
+import { Forja } from 'forja-core';
 
 /**
  * Extract model name from URL path
- * /api/user -> 'user'
- * /api/user/123 -> 'user'
+ * /api/users -> 'users'
+ * /api/users/123 -> 'users'
  */
-function extractModelFromPath(pathname: string, prefix: string): string | null {
+function extractTableNameFromPath(pathname: string, prefix: string): string | null {
   const segments = pathname.split('/').filter(Boolean);
   const prefixSegments = prefix.split('/').filter(Boolean);
   const pathSegments = segments.slice(prefixSegments.length);
@@ -57,7 +58,8 @@ function extractIdFromPath(pathname: string, prefix: string): string | null {
  */
 export async function buildRequestContext(
   request: Request,
-  authManager: AuthManager,
+  forja: Forja,
+  authManager?: AuthManager,
   options: ContextBuilderOptions = {}
 ): Promise<RequestContext> {
   const apiPrefix = options.apiPrefix ?? '/api';
@@ -66,10 +68,11 @@ export async function buildRequestContext(
 
   // 1. AUTHENTICATE (Single place!)
   // TODO: use auth only if its enabled!
-  const user = (await authManager.authenticate(request))?.user ?? null;
+  const user = (await authManager?.authenticate(request))?.user ?? null;
 
   // 2. EXTRACT MODEL & ID
-  const model = extractModelFromPath(url.pathname, apiPrefix);
+  const tableName = extractTableNameFromPath(url.pathname, apiPrefix);
+  const model = forja.getSchemas().findModelByTableName(tableName);
   const id = extractIdFromPath(url.pathname, apiPrefix);
 
   // 3. PARSE QUERY (for GET requests)
@@ -116,6 +119,7 @@ export async function buildRequestContext(
   return {
     user,
     model,
+    tableName,
     id,
     method,
     query,

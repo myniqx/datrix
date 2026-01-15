@@ -304,7 +304,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
       }
 
       // Build CREATE TABLE statement
-      const tableName = this.translator.escapeIdentifier(schema.name);
+      const tableName = this.translator.escapeIdentifier(schema.tableName!);
       const sql = `CREATE TABLE ${tableName} (\n  ${columns.join(',\n  ')}\n)`;
 
       await this.pool.query(sql);

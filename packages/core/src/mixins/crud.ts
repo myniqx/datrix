@@ -6,7 +6,7 @@
  */
 
 import { DatabaseAdapter } from 'forja-types/adapter';
-import { SchemaRegistry } from 'forja-types/core/schema';
+import { SchemaRegistry, SchemaDefinition } from 'forja-types/core/schema';
 import {
   QueryObject,
   WhereClause,
@@ -16,6 +16,7 @@ import {
 } from 'forja-types/core/query-builder';
 import { ForjaError } from '../forja';
 import { Dispatcher } from '../dispatcher';
+import { validateSchema, validatePartial } from '../validator';
 
 /**
  * CRUD Operations Class
@@ -27,7 +28,7 @@ export class CrudOperations {
     private readonly schemas: SchemaRegistry,
     private readonly getAdapter: () => DatabaseAdapter,
     private readonly getDispatcher: () => Dispatcher
-  ) {}
+  ) { }
 
   /**
    * Find one record by criteria
@@ -53,12 +54,7 @@ export class CrudOperations {
       readonly populate?: PopulateClause;
     }
   ): Promise<T | null> {
-    const schema = this.schemas.get(model);
-    if (!schema) {
-      throw new ForjaError(`Schema '${model}' not found`, 'SCHEMA_NOT_FOUND');
-    }
-
-    const table = schema.tableName || `${model.toLowerCase()}s`;
+    const { table } = this.getSchemaAndTable(model);
     const query: QueryObject = {
       type: 'select',
       table,
@@ -137,12 +133,7 @@ export class CrudOperations {
       readonly offset?: number;
     }
   ): Promise<T[]> {
-    const schema = this.schemas.get(model);
-    if (!schema) {
-      throw new ForjaError(`Schema '${model}' not found`, 'SCHEMA_NOT_FOUND');
-    }
-
-    const table = schema.tableName || `${model.toLowerCase()}s`;
+    const { table } = this.getSchemaAndTable(model);
     const query: QueryObject = {
       type: 'select',
       table,
@@ -186,12 +177,7 @@ export class CrudOperations {
    * ```
    */
   async count(model: string, where?: WhereClause): Promise<number> {
-    const schema = this.schemas.get(model);
-    if (!schema) {
-      throw new ForjaError(`Schema '${model}' not found`, 'SCHEMA_NOT_FOUND');
-    }
-
-    const table = schema.tableName || `${model.toLowerCase()}s`;
+    const { table } = this.getSchemaAndTable(model);
     const query: QueryObject = {
       type: 'count',
       table,
@@ -236,16 +222,15 @@ export class CrudOperations {
     model: string,
     data: Record<string, unknown>
   ): Promise<T> {
-    const schema = this.schemas.get(model);
-    if (!schema) {
-      throw new ForjaError(`Schema '${model}' not found`, 'SCHEMA_NOT_FOUND');
-    }
+    const { schema, table } = this.getSchemaAndTable(model);
 
-    const table = schema.tableName || `${model.toLowerCase()}s`;
+    // Validate data against schema (full validation)
+    const validatedData = this.validateData(model, data, schema, false);
+
     const query: QueryObject = {
       type: 'insert',
       table,
-      data,
+      data: validatedData,
       returning: '*',
     };
 
@@ -287,17 +272,16 @@ export class CrudOperations {
     id: string | number,
     data: Record<string, unknown>
   ): Promise<T> {
-    const schema = this.schemas.get(model);
-    if (!schema) {
-      throw new ForjaError(`Schema '${model}' not found`, 'SCHEMA_NOT_FOUND');
-    }
+    const { schema, table } = this.getSchemaAndTable(model);
 
-    const table = schema.tableName || `${model.toLowerCase()}s`;
+    // Validate data against schema (partial validation for updates)
+    const validatedData = this.validateData(model, data, schema, true);
+
     const query: QueryObject = {
       type: 'update',
       table,
       where: { id },
-      data,
+      data: validatedData,
       returning: '*',
     };
 
@@ -340,17 +324,16 @@ export class CrudOperations {
     where: WhereClause,
     data: Record<string, unknown>
   ): Promise<number> {
-    const schema = this.schemas.get(model);
-    if (!schema) {
-      throw new ForjaError(`Schema '${model}' not found`, 'SCHEMA_NOT_FOUND');
-    }
+    const { schema, table } = this.getSchemaAndTable(model);
 
-    const table = schema.tableName || `${model.toLowerCase()}s`;
+    // Validate data against schema (partial validation for updates)
+    const validatedData = this.validateData(model, data, schema, true);
+
     const query: QueryObject = {
       type: 'update',
       table,
       where,
-      data,
+      data: validatedData,
     };
 
     return await this.getDispatcher().executeQuery<number>(
@@ -384,12 +367,7 @@ export class CrudOperations {
    * ```
    */
   async delete(model: string, id: string | number): Promise<boolean> {
-    const schema = this.schemas.get(model);
-    if (!schema) {
-      throw new ForjaError(`Schema '${model}' not found`, 'SCHEMA_NOT_FOUND');
-    }
-
-    const table = schema.tableName || `${model.toLowerCase()}s`;
+    const { table } = this.getSchemaAndTable(model);
     const query: QueryObject = {
       type: 'delete',
       table,
@@ -427,12 +405,7 @@ export class CrudOperations {
    * ```
    */
   async deleteMany(model: string, where: WhereClause): Promise<number> {
-    const schema = this.schemas.get(model);
-    if (!schema) {
-      throw new ForjaError(`Schema '${model}' not found`, 'SCHEMA_NOT_FOUND');
-    }
-
-    const table = schema.tableName || `${model.toLowerCase()}s`;
+    const { table } = this.getSchemaAndTable(model);
     const query: QueryObject = {
       type: 'delete',
       table,
@@ -455,5 +428,59 @@ export class CrudOperations {
         return result.data.metadata.rowCount ?? 0;
       }
     );
+  }
+
+  /**
+   * Get schema and table name (internal helper)
+   * Reduces code duplication across all CRUD methods
+   */
+  private getSchemaAndTable(model: string): {
+    schema: SchemaDefinition;
+    table: string;
+  } {
+    const schema = this.schemas.get(model);
+    if (!schema) {
+      throw new ForjaError(`Schema '${model}' not found`, 'SCHEMA_NOT_FOUND');
+    }
+
+    const table = this.schemas.getMetadata(model)!.tableName;
+    return { schema, table };
+  }
+
+  /**
+   * Validate data against schema (internal helper)
+   * Used by create/update methods to ensure data integrity
+   *
+   * @param model - Model name (for error messages)
+   * @param data - Data to validate
+   * @param schema - Schema definition
+   * @param partial - If true, use partial validation (for updates)
+   * @returns Validated data
+   * @throws ForjaError if validation fails
+   */
+  private validateData(
+    model: string,
+    data: Record<string, unknown>,
+    schema: SchemaDefinition,
+    partial: boolean = false
+  ): Record<string, unknown> {
+    const validationFn = partial ? validatePartial : validateSchema;
+    const result = validationFn(data, schema, {
+      strict: true,
+      stripUnknown: false,
+      abortEarly: false
+    });
+
+    if (!result.success) {
+      const errorMessages = result.error
+        .map(e => `${e.field}: ${e.message}`)
+        .join(', ');
+      throw new ForjaError(
+        `Validation failed for ${model}: ${errorMessages}`,
+        'VALIDATION_FAILED'
+      );
+    }
+
+    return result.data;
   }
 }

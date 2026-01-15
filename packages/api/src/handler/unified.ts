@@ -80,7 +80,18 @@ async function handlePost(context: RequestContext, forja: Forja): Promise<Respon
     return jsonResponse({ data: result }, 201);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Internal server error';
-    return errorResponse(message, 'INTERNAL_ERROR', 500);
+    const code = (error as any)?.code || 'INTERNAL_ERROR';
+
+    // Validation and constraint errors should return 400
+    if (
+      code === 'VALIDATION_FAILED' ||
+      message.toLowerCase().includes('duplicate') ||
+      message.toLowerCase().includes('unique')
+    ) {
+      return errorResponse(message, code, 400);
+    }
+
+    return errorResponse(message, code, 500);
   }
 }
 
@@ -110,7 +121,18 @@ async function handleUpdate(context: RequestContext, forja: Forja): Promise<Resp
     return jsonResponse({ data: result });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Internal server error';
-    return errorResponse(message, 'INTERNAL_ERROR', 500);
+    const code = (error as any)?.code || 'INTERNAL_ERROR';
+
+    // Validation and constraint errors should return 400
+    if (
+      code === 'VALIDATION_FAILED' ||
+      message.toLowerCase().includes('duplicate') ||
+      message.toLowerCase().includes('unique')
+    ) {
+      return errorResponse(message, code, 400);
+    }
+
+    return errorResponse(message, code, 500);
   }
 }
 
@@ -158,7 +180,7 @@ export async function handleRequest(
 ): Promise<Response> {
   try {
     // 1️⃣ BUILD REQUEST CONTEXT (Single place - auth, parse, extract)
-    const context = await buildRequestContext(request, api.authManager!, options);
+    const context = await buildRequestContext(request, forja, api.authManager, options);
 
     if (!context.model) {
       return errorResponse('Model not specified', 'MODEL_NOT_SPECIFIED', 400);

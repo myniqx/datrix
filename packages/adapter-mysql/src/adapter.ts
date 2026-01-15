@@ -335,7 +335,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
         columns.push(columnDef);
       }
 
-      const tableName = this.translator.escapeIdentifier(schema.name);
+      const tableName = this.translator.escapeIdentifier(schema.tableName!);
       const sql = `CREATE TABLE ${tableName} (\n  ${columns.join(',\n  ')}\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`;
 
       await this.pool.execute(sql);

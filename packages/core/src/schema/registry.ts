@@ -151,8 +151,12 @@ export class SchemaRegistry {
       }
     }
 
+
     // Store schema
-    this.schemas.set(schema.name, schema);
+    this.schemas.set(schema.name, {
+      ...schema,
+      tableName: schema.tableName ?? this.pluralize(schema.name.toLowerCase())
+    });
 
     // Store metadata
     const metadata = this.createMetadata(schema);
@@ -235,6 +239,28 @@ export class SchemaRegistry {
    */
   getAllMetadata(): readonly SchemaMetadata[] {
     return Array.from(this.metadata.values());
+  }
+
+  /**
+   * Find model name by table name
+   *
+   * @param tableName - Table name to search for
+   * @returns Model name if found, null otherwise
+   *
+   * @example
+   * ```ts
+   * const modelName = registry.findModelByTableName('categories');
+   * // Returns: 'category'
+   * ```
+   */
+  findModelByTableName(tableName: string | null): string | null {
+    if (!tableName) return null;
+    for (const [modelName, metadata] of this.metadata.entries()) {
+      if (metadata.tableName === tableName) {
+        return modelName;
+      }
+    }
+    return null;
   }
 
   /**
