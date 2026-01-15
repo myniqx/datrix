@@ -99,7 +99,7 @@ export class SchemaRegistry {
   /**
    * Register a schema
    */
-  register(schema: SchemaDefinition): Result<void, SchemaRegistryError> {
+  register(schema: SchemaDefinition): Result<SchemaDefinition, SchemaRegistryError> {
     if (this.locked) {
       return {
         success: false,
@@ -151,21 +151,22 @@ export class SchemaRegistry {
       }
     }
 
-
-    // Store schema
-    this.schemas.set(schema.name, {
+    const finalSchema = {
       ...schema,
       tableName: schema.tableName ?? this.pluralize(schema.name.toLowerCase())
-    });
+    };
+
+    // Store schema
+    this.schemas.set(schema.name, finalSchema);
 
     // Store metadata
-    const metadata = this.createMetadata(schema);
+    const metadata = this.createMetadata(finalSchema);
     this.metadata.set(schema.name, metadata);
 
     // Invalidate cache
     this.invalidateCache();
 
-    return { success: true, data: undefined };
+    return { success: true, data: finalSchema };
   }
 
   /**
