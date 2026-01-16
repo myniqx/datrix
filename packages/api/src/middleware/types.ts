@@ -11,10 +11,7 @@ import type { ParsedQuery } from 'forja-types/api/parser';
  */
 export type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
 
-/**
- * Permission Actions
- */
-export type PermissionAction = 'create' | 'read' | 'update' | 'delete';
+// PermissionAction is now imported from forja-types/core/permission
 
 /**
  * Authenticated User (from token/session)

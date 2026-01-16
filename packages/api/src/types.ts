@@ -1,9 +1,29 @@
 import { AuthPluginOptions } from "./auth/types";
+import type { DefaultPermission } from "forja-types/core/permission";
 
 /**
  * API Configuration
+ *
+ * @template TRoles - Union type of valid role names
+ *
+ * @example
+ * ```ts
+ * const roles = ['admin', 'editor', 'user', 'guest'] as const;
+ * type Roles = typeof roles[number];
+ *
+ * const apiConfig: ApiConfig<Roles> = {
+ *   roles: roles,
+ *   defaultPermission: {
+ *     create: ['admin'],
+ *     read: true,
+ *     update: ['admin'],
+ *     delete: ['admin'],
+ *   },
+ * };
+ * ```
  */
-export interface ApiConfig extends Record<string, unknown> {
+export interface ApiConfig<TRoles extends string = string>
+  extends Record<string, unknown> {
   /**
    * Enable API routes
    * @default true
@@ -15,6 +35,35 @@ export interface ApiConfig extends Record<string, unknown> {
    * @default '/api'
    */
   readonly prefix?: string;
+
+  /**
+   * Defined roles for the application
+   * Used for compile-time and runtime validation of permissions
+   *
+   * @example
+   * ```ts
+   * const roles = ['admin', 'editor', 'user', 'guest'] as const;
+   * // In config:
+   * roles: roles,
+   * ```
+   */
+  readonly roles?: readonly TRoles[];
+
+  /**
+   * Default permission applied to schemas without explicit permissions
+   * Schemas can override these with their own `permission` field
+   *
+   * @example
+   * ```ts
+   * defaultPermission: {
+   *   create: ['admin'],
+   *   read: true,           // Everyone can read
+   *   update: ['admin'],
+   *   delete: ['admin'],
+   * }
+   * ```
+   */
+  readonly defaultPermission?: DefaultPermission<TRoles>;
 
   /**
    * Default pagination page size

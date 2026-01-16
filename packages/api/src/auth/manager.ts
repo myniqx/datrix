@@ -1,17 +1,16 @@
 /**
  * Auth Manager
  *
- * Central authentication and authorization manager for API package.
- * Integrates password hashing, JWT, sessions, and RBAC.
+ * Central authentication manager for API package.
+ * Integrates password hashing, JWT, and sessions.
+ * Note: Permission checking is now handled by schema-based permissions in middleware/permission.ts
  */
 
 import type { ApiAuthConfig } from 'forja-types/config';
 import type { Result } from 'forja-types/utils';
-import { DEFAULT_API_AUTH_CONFIG } from 'forja-types/config';
 import { PasswordManager, type PasswordHash } from './password';
 import { JwtStrategy } from './jwt';
 import { SessionStrategy } from './session';
-import { RbacManager } from './rbac';
 
 /**
  * Auth error
@@ -57,20 +56,15 @@ export interface AuthContext {
 }
 
 /**
- * Permission action types
- */
-export type PermissionAction = 'create' | 'read' | 'update' | 'delete' | '*';
-
-/**
  * Auth Manager
  *
- * Main authentication manager that coordinates all auth components
+ * Main authentication manager that coordinates all auth components.
+ * Note: Permission checking is now schema-based (see middleware/permission.ts)
  */
 export class AuthManager {
   private readonly passwordManager: PasswordManager;
   private readonly jwtStrategy: JwtStrategy | undefined;
   private readonly sessionStrategy: SessionStrategy | undefined;
-  private readonly rbacManager: RbacManager | undefined;
   private readonly config: ApiAuthConfig;
 
   constructor(config: ApiAuthConfig) {
@@ -88,11 +82,6 @@ export class AuthManager {
     if (config.session) {
       this.sessionStrategy = new SessionStrategy(config.session);
       this.sessionStrategy.startCleanup();
-    }
-
-    // Initialize RBAC manager if configured
-    if (config.rbac) {
-      this.rbacManager = new RbacManager(config.rbac);
     }
   }
 
@@ -266,24 +255,6 @@ export class AuthManager {
     return null;
   }
 
-  /**
-   * Check if user has permission for resource and action
-   */
-  checkPermission(
-    userRole: string | readonly string[],
-    resource: string,
-    action: PermissionAction
-  ): boolean {
-    if (!this.rbacManager) {
-      // If RBAC not configured, allow all
-      return true;
-    }
-
-    const roles = Array.isArray(userRole) ? userRole : [userRole];
-    const result = this.rbacManager.checkPermission(roles, resource, action);
-
-    return result.allowed;
-  }
 
   /**
    * Extract JWT token from request headers
@@ -330,13 +301,6 @@ export class AuthManager {
    */
   getSessionStrategy(): SessionStrategy | undefined {
     return this.sessionStrategy;
-  }
-
-  /**
-   * Get RBAC manager (for advanced usage)
-   */
-  getRbacManager(): RbacManager | undefined {
-    return this.rbacManager;
   }
 
   /**

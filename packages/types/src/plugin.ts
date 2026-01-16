@@ -5,7 +5,12 @@
  * Plugins extend Forja's core functionality with features like auth, upload, hooks, etc.
  */
 
-import type { SchemaRegistry, FieldDefinition, IndexDefinition } from './core/schema';
+import type {
+  SchemaRegistry,
+  SchemaDefinition,
+  FieldDefinition,
+  IndexDefinition,
+} from './core/schema';
 import type { DatabaseAdapter } from './adapter';
 import type { ForjaConfig } from './config';
 import { Result } from './utils';
@@ -195,21 +200,16 @@ export class AuthError extends PluginError {
   }
 }
 
-/**
- * Permission definition
- */
-export interface Permission {
-  readonly resource: string;
-  readonly action: 'create' | 'read' | 'update' | 'delete';
-}
-
-/**
- * Role definition
- */
-export interface Role {
-  readonly name: string;
-  readonly permissions: readonly Permission[];
-}
+// Permission types are now in core/permission.ts
+// Re-export for backwards compatibility
+export type {
+  PermissionAction,
+  SchemaPermission,
+  FieldPermission,
+  PermissionValue,
+  PermissionContext,
+  PermissionFn,
+} from './core/permission';
 
 /**
  * Upload plugin types

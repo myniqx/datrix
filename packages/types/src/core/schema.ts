@@ -5,6 +5,31 @@
  * Schemas are defined as plain TypeScript objects with full type inference.
  */
 
+import type { SchemaPermission, FieldPermission } from './permission';
+
+// Re-export permission types for convenience
+export type {
+  SchemaPermission,
+  FieldPermission,
+  PermissionValue,
+  PermissionAction,
+  FieldPermissionAction,
+  PermissionContext,
+  PermissionFn,
+  PermissionUser,
+  DefaultPermission,
+  PermissionCheckResult,
+  FieldPermissionCheckResult,
+} from './permission';
+
+export {
+  isPermissionFn,
+  isRoleArray,
+  isMixedPermissionArray,
+  validatePermissionRoles,
+  validateFieldPermissionRoles,
+} from './permission';
+
 /**
  * Primitive field types
  */
@@ -21,17 +46,26 @@ export type FieldType =
 
 /**
  * Base field definition (common properties)
+ *
+ * @template TRoles - Union type of valid role names for permission checks
  */
-interface BaseFieldDefinition {
+interface BaseFieldDefinition<TRoles extends string = string> {
   readonly required?: boolean;
   readonly default?: unknown;
   readonly description?: string;
+  /**
+   * Field-level permission configuration
+   * - `read`: If denied, field is stripped from response
+   * - `write`: If denied, returns 403 error
+   */
+  readonly permission?: FieldPermission<TRoles>;
 }
 
 /**
  * String field definition
  */
-export interface StringField extends BaseFieldDefinition {
+export interface StringField<TRoles extends string = string>
+  extends BaseFieldDefinition<TRoles> {
   readonly type: 'string';
   readonly minLength?: number;
   readonly maxLength?: number;
@@ -44,7 +78,8 @@ export interface StringField extends BaseFieldDefinition {
 /**
  * Number field definition
  */
-export interface NumberField extends BaseFieldDefinition {
+export interface NumberField<TRoles extends string = string>
+  extends BaseFieldDefinition<TRoles> {
   readonly type: 'number';
   readonly min?: number;
   readonly max?: number;
@@ -56,14 +91,16 @@ export interface NumberField extends BaseFieldDefinition {
 /**
  * Boolean field definition
  */
-export interface BooleanField extends BaseFieldDefinition {
+export interface BooleanField<TRoles extends string = string>
+  extends BaseFieldDefinition<TRoles> {
   readonly type: 'boolean';
 }
 
 /**
  * Date field definition
  */
-export interface DateField extends BaseFieldDefinition {
+export interface DateField<TRoles extends string = string>
+  extends BaseFieldDefinition<TRoles> {
   readonly type: 'date';
   readonly min?: Date;
   readonly max?: Date;
@@ -74,7 +111,8 @@ export interface DateField extends BaseFieldDefinition {
 /**
  * JSON field definition
  */
-export interface JsonField extends BaseFieldDefinition {
+export interface JsonField<TRoles extends string = string>
+  extends BaseFieldDefinition<TRoles> {
   readonly type: 'json';
   readonly schema?: Record<string, unknown>; // JSON schema validation
 }
@@ -82,8 +120,10 @@ export interface JsonField extends BaseFieldDefinition {
 /**
  * Enum field definition
  */
-export interface EnumField<T extends readonly string[] = readonly string[]>
-  extends BaseFieldDefinition {
+export interface EnumField<
+  T extends readonly string[] = readonly string[],
+  TRoles extends string = string
+> extends BaseFieldDefinition<TRoles> {
   readonly type: 'enum';
   readonly values: T;
 }
@@ -91,9 +131,10 @@ export interface EnumField<T extends readonly string[] = readonly string[]>
 /**
  * Array field definition
  */
-export interface ArrayField extends BaseFieldDefinition {
+export interface ArrayField<TRoles extends string = string>
+  extends BaseFieldDefinition<TRoles> {
   readonly type: 'array';
-  readonly items: FieldDefinition;
+  readonly items: FieldDefinition<TRoles>;
   readonly minItems?: number;
   readonly maxItems?: number;
   readonly unique?: boolean; // All items must be unique
@@ -107,7 +148,8 @@ export type RelationKind = 'hasOne' | 'hasMany' | 'belongsTo' | 'manyToMany';
 /**
  * Relation field definition
  */
-export interface RelationField extends BaseFieldDefinition {
+export interface RelationField<TRoles extends string = string>
+  extends BaseFieldDefinition<TRoles> {
   readonly type: 'relation';
   readonly model: string; // Target model name
   readonly kind: RelationKind;
@@ -120,7 +162,8 @@ export interface RelationField extends BaseFieldDefinition {
 /**
  * File field definition
  */
-export interface FileField extends BaseFieldDefinition {
+export interface FileField<TRoles extends string = string>
+  extends BaseFieldDefinition<TRoles> {
   readonly type: 'file';
   readonly allowedTypes?: readonly string[]; // MIME types
   readonly maxSize?: number; // In bytes
@@ -129,17 +172,19 @@ export interface FileField extends BaseFieldDefinition {
 
 /**
  * Union of all field definitions
+ *
+ * @template TRoles - Union type of valid role names for permission checks
  */
-export type FieldDefinition =
-  | StringField
-  | NumberField
-  | BooleanField
-  | DateField
-  | JsonField
-  | EnumField
-  | ArrayField
-  | RelationField
-  | FileField;
+export type FieldDefinition<TRoles extends string = string> =
+  | StringField<TRoles>
+  | NumberField<TRoles>
+  | BooleanField<TRoles>
+  | DateField<TRoles>
+  | JsonField<TRoles>
+  | EnumField<readonly string[], TRoles>
+  | ArrayField<TRoles>
+  | RelationField<TRoles>
+  | FileField<TRoles>;
 
 /**
  * Index definition
@@ -171,11 +216,35 @@ export interface LifecycleHooks<T = Record<string, unknown>> {
 
 /**
  * Schema definition
+ *
+ * @template TRoles - Union type of valid role names for permission checks
+ * @template TFields - Record of field names to field definitions
+ *
+ * @example
+ * ```ts
+ * const roles = ['admin', 'editor', 'user'] as const;
+ * type Roles = typeof roles[number];
+ *
+ * const postSchema = defineSchema<Roles>()({
+ *   name: 'post',
+ *   fields: {
+ *     title: { type: 'string', required: true },
+ *     authorId: { type: 'string', required: true },
+ *   },
+ *   permission: {
+ *     create: ['admin', 'editor'],
+ *     read: true,
+ *     update: ['admin', (ctx) => ctx.user?.id === ctx.record?.authorId],
+ *     delete: ['admin'],
+ *   }
+ * });
+ * ```
  */
 export interface SchemaDefinition<
-  TFields extends Record<string, FieldDefinition> = Record<
+  TRoles extends string = string,
+  TFields extends Record<string, FieldDefinition<TRoles>> = Record<
     string,
-    FieldDefinition
+    FieldDefinition<TRoles>
   >
 > {
   readonly name: string;
@@ -185,12 +254,17 @@ export interface SchemaDefinition<
   readonly timestamps?: boolean; // Auto-add createdAt, updatedAt
   readonly softDelete?: boolean; // Add deletedAt field
   readonly tableName?: string; // Custom table name (defaults to pluralized name)
+  /**
+   * Schema-level permission configuration
+   * Defines who can perform CRUD operations on this schema
+   */
+  readonly permission?: SchemaPermission<TRoles>;
 }
 
 /**
  * Infer TypeScript type from field definition
  */
-export type InferFieldType<F extends FieldDefinition> = F extends {
+export type InferFieldType<F extends FieldDefinition<string>> = F extends {
   type: 'string';
 }
   ? string
@@ -202,9 +276,9 @@ export type InferFieldType<F extends FieldDefinition> = F extends {
   ? Date
   : F extends { type: 'json' }
   ? Record<string, unknown>
-  : F extends EnumField<infer T>
+  : F extends EnumField<infer T, string>
   ? T[number]
-  : F extends { type: 'array'; items: infer I extends FieldDefinition }
+  : F extends { type: 'array'; items: infer I extends FieldDefinition<string> }
   ? Array<InferFieldType<I>>
   : F extends { type: 'relation'; model: string }
   ? string // Just the ID for relations
@@ -215,7 +289,7 @@ export type InferFieldType<F extends FieldDefinition> = F extends {
 /**
  * Infer TypeScript type from schema definition
  */
-export type InferSchemaType<S extends SchemaDefinition> = {
+export type InferSchemaType<S extends SchemaDefinition<string>> = {
   [K in keyof S['fields']]: S['fields'][K] extends { required: true }
   ? InferFieldType<S['fields'][K]>
   : InferFieldType<S['fields'][K]> | undefined;
@@ -229,12 +303,31 @@ declare const __typeBrand: unique symbol;
 /**
  * Schema with inferred type (branded for type safety)
  */
-export interface TypedSchema<T> extends SchemaDefinition {
+export interface TypedSchema<T, TRoles extends string = string>
+  extends SchemaDefinition<TRoles> {
   readonly [__typeBrand]?: T; // Optional phantom type, no runtime cost
 }
 
 /**
  * Define schema with type inference
+ *
+ * @example
+ * ```ts
+ * const roles = ['admin', 'editor', 'user'] as const;
+ * type Roles = typeof roles[number];
+ *
+ * const postSchema = defineSchema<Roles>()({
+ *   name: 'post',
+ *   fields: {
+ *     title: { type: 'string', required: true },
+ *     content: { type: 'string' },
+ *   },
+ *   permission: {
+ *     create: ['admin', 'editor'],
+ *     read: true,
+ *   }
+ * });
+ * ```
  */
 export function defineSchema<
   const T extends SchemaDefinition
@@ -244,50 +337,31 @@ export function defineSchema<
 }
 
 /**
- * Schema registry
-
-export class SchemaRegistry {
-  private readonly schemas: Map<string, SchemaDefinition> = new Map();
-
-  register(schema: SchemaDefinition): void {
-    const validation = validateSchemaDefinition(schema);
-    if (!validation.valid) {
-      throw new Error(`Invalid schema '${schema.name}': ${validation.errors.map(e => e.message).join(', ')}`);
-    }
-    this.schemas.set(schema.name, schema);
-  }
-
-  get(name: string): SchemaDefinition | undefined {
-    return this.schemas.get(name);
-  }
-
-  has(name: string): boolean {
-    return this.schemas.has(name);
-  }
-
-  findFromTable(tableName: string): string | null {
-    for (const [name, schema] of this.schemas) {
-      if (schema.tableName === tableName) {
-        return name;
-      }
-    }
-    return null;
-
-  }
-
-  getAll(): readonly SchemaDefinition[] {
-    return Array.from(this.schemas.values());
-  }
-
-  get size(): number {
-    return this.schemas.size;
-  }
-
-  clear(): void {
-    this.schemas.clear();
-  }
-}
+ * Schema registry interface
+ *
+ * Defines the contract for schema storage and retrieval.
+ * Implementation is in packages/core/src/schema/registry.ts
  */
+export interface SchemaRegistry {
+  /** Register a schema */
+  register(schema: SchemaDefinition): { success: boolean; error?: Error };
+  /** Get schema by name */
+  get(name: string): SchemaDefinition | undefined;
+  /** Check if schema exists */
+  has(name: string): boolean;
+  /** Get all schemas */
+  getAll(): readonly SchemaDefinition[];
+  /** Get schema names */
+  getNames(): readonly string[];
+  /** Get schema count */
+  readonly size: number;
+  /** Find model name by table name */
+  findModelByTableName(tableName: string | null): string | null;
+  /** Get related schemas for a given schema */
+  getRelatedSchemas(schemaName: string): readonly string[];
+  /** Check if registry is locked */
+  isLocked(): boolean;
+}
 
 
 /**

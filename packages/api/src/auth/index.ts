@@ -1,7 +1,8 @@
 /**
  * Auth Module
  *
- * Exports authentication and authorization functionality
+ * Exports authentication functionality.
+ * Note: Permission/RBAC is now schema-based (see middleware/permission.ts)
  */
 
 // Manager
@@ -12,7 +13,6 @@ export {
   type AuthUser,
   type AuthContext,
   type LoginResult,
-  type PermissionAction,
 } from './manager';
 
 // Password utilities
@@ -34,5 +34,5 @@ export {
   createSessionStrategy,
 } from './session';
 
-// RBAC utilities
-export { RbacManager, PredefinedRoles, createRbacManager } from './rbac';
+// Permission types (re-exported from forja-types)
+export type { PermissionAction } from 'forja-types/core/permission';

@@ -1,11 +1,23 @@
 /**
  * Authentication Plugin Types
  *
- * Type definitions for the authentication plugin including JWT, Session, and RBAC.
+ * Type definitions for the authentication plugin including JWT and Session.
+ * Permission/RBAC types are now in forja-types/core/permission.
  */
 
 import { AuthError } from "forja-types/plugin";
 import { Result } from "forja-types/utils";
+
+// Re-export permission types from the new location
+export type {
+  PermissionAction,
+  SchemaPermission,
+  FieldPermission,
+  PermissionValue,
+  PermissionContext,
+  PermissionFn,
+  PermissionCheckResult,
+} from "forja-types/core/permission";
 
 /**
  * JWT algorithm types
@@ -108,48 +120,17 @@ export interface SessionStore {
 }
 
 /**
- * RBAC permission action types
- */
-export type PermissionAction = 'create' | 'read' | 'update' | 'delete';
-
-/**
- * Permission definition
- */
-export interface Permission {
-  readonly resource: string;
-  readonly action: PermissionAction;
-}
-
-/**
- * Role definition
- */
-export interface Role {
-  readonly name: string;
-  readonly permissions: readonly Permission[];
-  readonly inherits?: readonly string[]; // Role names to inherit from
-}
-
-/**
- * RBAC configuration
- */
-export interface RbacConfig {
-  readonly roles?: readonly Role[];
-  readonly defaultRole?: string;
-}
-
-/**
  * Auth plugin options
  */
 export interface AuthPluginOptions {
   readonly jwt?: JwtConfig;
   readonly session?: SessionConfig;
-  readonly rbac?: RbacConfig;
   readonly passwordHashIterations?: number; // PBKDF2 iterations (default: 100000)
   readonly passwordHashKeyLength?: number; // PBKDF2 key length (default: 64)
   readonly userSchema?: {
     readonly name?: string;
     readonly email?: string;
-  }
+  };
   readonly authSchemaName?: string;
   readonly enabled: boolean;
 }
@@ -198,13 +179,6 @@ export interface AuthContext {
   readonly token?: string;
 }
 
-/**
- * Permission check result
- */
-export interface PermissionCheckResult {
-  readonly allowed: boolean;
-  readonly reason?: string;
-}
 
 /**
  * Type guard for JWT payload
@@ -294,40 +268,3 @@ export function isAuthPluginOptions(
   return true;
 }
 
-/**
- * Type guard for permission
- */
-export function isPermission(value: unknown): value is Permission {
-  if (typeof value !== 'object' || value === null) {
-    return false;
-  }
-
-  const obj = value as Record<string, unknown>;
-
-  return (
-    'resource' in obj &&
-    'action' in obj &&
-    typeof obj['resource'] === 'string' &&
-    typeof obj['action'] === 'string' &&
-    ['create', 'read', 'update', 'delete'].includes(obj['action'] as string)
-  );
-}
-
-/**
- * Type guard for role
- */
-export function isRole(value: unknown): value is Role {
-  if (typeof value !== 'object' || value === null) {
-    return false;
-  }
-
-  const obj = value as Record<string, unknown>;
-
-  return (
-    'name' in obj &&
-    'permissions' in obj &&
-    typeof obj['name'] === 'string' &&
-    Array.isArray(obj['permissions']) &&
-    (obj['permissions'] as unknown[]).every(isPermission)
-  );
-}
