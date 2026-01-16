@@ -160,12 +160,18 @@ export class JsonQueryRunner {
         case '$lte':
           if (!(this.coerceForComparison(value, fieldName) <= this.coerceForComparison(opValue, fieldName))) return false;
           break;
-        case '$in':
-          if (!(opValue as any[]).includes(value)) return false;
+        case '$in': {
+          const coercedValue = this.coerceForComparison(value, fieldName);
+          const coercedArray = (opValue as unknown[]).map(v => this.coerceForComparison(v, fieldName));
+          if (!coercedArray.includes(coercedValue)) return false;
           break;
-        case '$nin':
-          if ((opValue as any[]).includes(value)) return false;
+        }
+        case '$nin': {
+          const coercedValue = this.coerceForComparison(value, fieldName);
+          const coercedArray = (opValue as unknown[]).map(v => this.coerceForComparison(v, fieldName));
+          if (coercedArray.includes(coercedValue)) return false;
           break;
+        }
         case '$exists':
           if (opValue && (value === undefined || value === null)) return false;
           if (!opValue && (value !== undefined && value !== null)) return false;
@@ -176,13 +182,29 @@ export class JsonQueryRunner {
           if (!opValue && value === null) return false;
           break;
         case '$like':
-        case '$ilike':
+        case '$ilike': {
           const pattern = (opValue as string).replace(/%/g, '.*').replace(/_/g, '.');
           const flags = op === '$ilike' ? 'i' : '';
           const regex = new RegExp(`^${pattern}$`, flags);
           if (!regex.test(String(value ?? ''))) return false;
           break;
-        // Add others if needed
+        }
+        case '$contains':
+          if (!String(value ?? '').includes(String(opValue))) return false;
+          break;
+        case '$notContains':
+          if (String(value ?? '').includes(String(opValue))) return false;
+          break;
+        case '$startsWith':
+          if (!String(value ?? '').startsWith(String(opValue))) return false;
+          break;
+        case '$endsWith':
+          if (!String(value ?? '').endsWith(String(opValue))) return false;
+          break;
+        case '$notNull':
+          if (opValue && value === null) return false;
+          if (!opValue && value !== null) return false;
+          break;
       }
     }
     return true;

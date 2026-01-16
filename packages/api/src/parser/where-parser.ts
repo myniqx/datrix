@@ -74,10 +74,11 @@ export function parseWhere(params: RawQueryParams): Result<WhereClause | undefin
         }
 
         const previousPart = parts[i - 1]!;
-        if (!['$or', '$and'].includes(previousPart)) {
+        // Allow array index after logical operators ($or, $and, $not) and array operators ($in, $nin)
+        if (!['$or', '$and', '$not', '$in', '$nin'].includes(previousPart)) {
           return {
             success: false,
-            error: new ParserError(`Array index [${part}] can only follow logical operators ($or, $and), found after: ${previousPart}`, {
+            error: new ParserError(`Array index [${part}] can only follow array operators ($or, $and, $not, $in, $nin), found after: ${previousPart}`, {
               code: 'INVALID_SYNTAX',
               field: 'where',
               details: { index: part, previousPart, path: key }
@@ -107,25 +108,40 @@ export function parseWhere(params: RawQueryParams): Result<WhereClause | undefin
       const isLast = i === pathParts.length - 1;
 
       if (isLast) {
-        // Parse and validate the value
-        const parsedValue = parseValue(value);
+        // Find operator context for proper value parsing
+        // Only use operator context for STRING operators (not array operators like $in, $nin)
+        // Array operators' elements should be parsed normally (as numbers, strings, etc.)
+        let operatorContext: string | undefined;
+        const isArrayIndex = /^\d+$/.test(part);
+
+        if (part.startsWith('$')) {
+          // Current part is the operator: where[field][$op]=value
+          const expectedType = getOperatorValueType(part);
+          // Only set context for string operators (to prevent number coercion)
+          if (expectedType === 'string') {
+            operatorContext = part;
+          }
+        }
+        // Note: For array indices (e.g., $in[0]), we don't set operatorContext
+        // because array elements should be parsed as their natural types
+
+        // Parse the value with operator context
+        const parsedValue = parseValue(value, operatorContext);
 
         // Check if parseValue returned an error
         if (parsedValue && typeof parsedValue === 'object' && 'error' in parsedValue) {
           return {
             success: false,
-            error: parsedValue.error
+            error: parsedValue.error as ParserError
           };
         }
 
-        // If previous part was an operator, validate value type
-        if (i > 0) {
-          const previousPart = pathParts[i - 1]!;
-          if (previousPart.startsWith('$')) {
-            const validation = validateOperatorValue(previousPart, parsedValue);
-            if (!validation.success) {
-              return validation;
-            }
+        // Validate operator value type only when operator itself is the last part
+        // (not for array indices like $in[0], $nin[1])
+        if (part.startsWith('$') && !isArrayIndex) {
+          const validation = validateOperatorValue(part, parsedValue);
+          if (!validation.success) {
+            return validation;
           }
         }
 
@@ -168,9 +184,12 @@ function transformToFinalWhere(obj: unknown): unknown {
   const result: Record<string, unknown> = {};
 
   for (const [key, value] of Object.entries(typedObj)) {
-    if (['$or', '$and'].includes(key)) {
+    // Operators that require array transformation
+    const arrayOperators = ['$or', '$and', '$not', '$in', '$nin'];
+
+    if (arrayOperators.includes(key)) {
       // Transform object with numeric keys into array
-      if (typeof value === 'object' && value !== null) {
+      if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
         const valueObj = value as Record<string, unknown>;
         const keys = Object.keys(valueObj);
 
@@ -186,7 +205,7 @@ function transformToFinalWhere(obj: unknown): unknown {
         // Sort and validate consecutive sequence starting from 0
         const sortedKeys = numericKeys.sort((a, b) => a - b);
 
-        if (sortedKeys[0] !== 0) {
+        if (sortedKeys.length > 0 && sortedKeys[0] !== 0) {
           throw new Error(`Array indices for ${key} must start from 0, found: ${sortedKeys[0]}`);
         }
 
@@ -196,7 +215,13 @@ function transformToFinalWhere(obj: unknown): unknown {
           }
         }
 
-        result[key] = sortedKeys.map(idx => transformToFinalWhere(valueObj[String(idx)]));
+        // For $in/$nin, values are primitives - don't recursively transform
+        // For $or/$and, values are conditions - recursively transform
+        if (['$in', '$nin'].includes(key)) {
+          result[key] = sortedKeys.map(idx => valueObj[String(idx)]);
+        } else {
+          result[key] = sortedKeys.map(idx => transformToFinalWhere(valueObj[String(idx)]));
+        }
       } else {
         result[key] = transformToFinalWhere(value);
       }
@@ -211,8 +236,14 @@ function transformToFinalWhere(obj: unknown): unknown {
 /**
  * Parse value from string/array
  * Handles: strings, numbers, booleans, null, arrays (for $in, $nin)
+ *
+ * @param value - The raw value to parse
+ * @param operator - Optional operator context for type-aware parsing
  */
-function parseValue(value: string | readonly string[] | undefined): unknown | { error: ParserError } {
+function parseValue(
+  value: string | readonly string[] | undefined,
+  operator?: string
+): unknown | { error: ParserError } {
   if (value === undefined) {
     return undefined;
   }
@@ -222,7 +253,7 @@ function parseValue(value: string | readonly string[] | undefined): unknown | { 
     const parsed: unknown[] = [];
     for (const v of value) {
       if (typeof v === 'string') {
-        const result = parseSingleValue(v);
+        const result = parseSingleValue(v, operator);
         // Check if result is an error
         if (result && typeof result === 'object' && 'error' in result) {
           return result; // Propagate error
@@ -236,7 +267,7 @@ function parseValue(value: string | readonly string[] | undefined): unknown | { 
   }
 
   if (typeof value === 'string') {
-    return parseSingleValue(value);
+    return parseSingleValue(value, operator);
   }
 
   return value;
@@ -245,22 +276,12 @@ function parseValue(value: string | readonly string[] | undefined): unknown | { 
 /**
  * Parse a single value from string
  * Returns Result to handle validation errors
+ *
+ * @param value - The raw string value to parse
+ * @param operator - Optional operator context for type-aware parsing
  */
-function parseSingleValue(value: string): unknown | { error: ParserError } {
-  // Handle special values
-  if (value === 'null') {
-    return null;
-  }
-
-  if (value === 'true') {
-    return true;
-  }
-
-  if (value === 'false') {
-    return false;
-  }
-
-  // Check value length - reject instead of truncate
+function parseSingleValue(value: string, operator?: string): unknown | { error: ParserError } {
+  // Check value length first - reject instead of truncate
   if (value.length > MAX_WHERE_VALUE_LENGTH) {
     return {
       error: new ParserError(
@@ -274,11 +295,34 @@ function parseSingleValue(value: string): unknown | { error: ParserError } {
     };
   }
 
+  // If operator expects string, return as-is (no type coercion)
+  if (operator) {
+    const expectedType = getOperatorValueType(operator);
+    if (expectedType === 'string') {
+      return value;
+    }
+  }
+
+  // Handle special values
+  if (value === 'null') {
+    return null;
+  }
+
+  if (value === 'true') {
+    return true;
+  }
+
+  if (value === 'false') {
+    return false;
+  }
+
+  /*
   // Try to parse as number
   const num = Number(value);
   if (!isNaN(num) && value.trim() !== '') {
     return num;
   }
+  */
 
   // Return as string
   return value;

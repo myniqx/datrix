@@ -198,6 +198,17 @@ describe('Query Operators Integration Tests', () => {
         isAvailable: true,
         tags: ['audio', 'premium', 'wireless'],
       },
+      {
+        name: '000123',
+        description: 'Product with numeric-looking name',
+        price: 9.99,
+        stock: 10,
+        categoryId: 1,
+        supplierId: 1,
+        sku: 'NUM-NAME-001',
+        isAvailable: true,
+        tags: ['test'],
+      },
     ];
 
     for (const product of products) {
@@ -227,7 +238,7 @@ describe('Query Operators Integration Tests', () => {
     expect(response.status).toBe(200);
     expect(data).toHaveProperty('data');
     expect(Array.isArray(data.data)).toBe(true);
-    console.log(data.data)
+    console.log({ query: where, response: data.data });
     return data.data;
   }
 
@@ -311,7 +322,7 @@ describe('Query Operators Integration Tests', () => {
 
       it('should find products with stock >= 0 (including zero)', async () => {
         const results = await queryProducts({ stock: { $gte: 0 } });
-        expect(results.length).toBe(7); // All products
+        expect(results.length).toBe(8); // All products
       });
     });
 
@@ -348,19 +359,19 @@ describe('Query Operators Integration Tests', () => {
 
   describe('String Operators', () => {
     describe('$contains - String Contains', () => {
-      it('should find products with name containing "book"', async () => {
-        const results = await queryProducts({ name: { $contains: 'Book' } });
+      it('should find products with name containing "Script"', async () => {
+        const results = await queryProducts({ name: { $contains: 'Script' } });
         expect(results.length).toBeGreaterThan(0);
         expect(results.every(p =>
-          typeof p.name === 'string' && p.name.includes('Book')
+          typeof p.name === 'string' && p.name.includes('Script')
         )).toBe(true);
       });
 
-      it('should find products with description containing "cable"', async () => {
-        const results = await queryProducts({ description: { $contains: 'cable' } });
+      it('should find products with description containing "USB"', async () => {
+        const results = await queryProducts({ description: { $contains: 'USB' } });
         expect(results.length).toBeGreaterThan(0);
         expect(results.every(p =>
-          typeof p.description === 'string' && p.description.toLowerCase().includes('cable')
+          typeof p.description === 'string' && p.description.includes('USB')
         )).toBe(true);
       });
 
@@ -423,8 +434,8 @@ describe('Query Operators Integration Tests', () => {
     });
 
     describe('$like - SQL LIKE Pattern', () => {
-      it('should find products matching pattern "%Book%"', async () => {
-        const results = await queryProducts({ name: { $like: '%Book%' } });
+      it('should find products matching pattern "%book%"', async () => {
+        const results = await queryProducts({ name: { $like: '%book%' } });
         expect(results.length).toBeGreaterThan(0);
       });
 
@@ -494,6 +505,16 @@ describe('Query Operators Integration Tests', () => {
         const results = await queryProducts({ categoryId: { $in: [1] } });
         expect(results.length).toBeGreaterThan(0);
         expect(results.every(p => p.categoryId === 1)).toBe(true);
+      });
+
+      it('should handle numeric-looking strings in $in array', async () => {
+        // '000123' looks like a number but should stay as string
+        const results = await queryProducts({
+          name: { $in: ['000123', 'USB Cable'] }
+        });
+        expect(results.length).toBe(2);
+        expect(results.some(p => p.name === '000123')).toBe(true);
+        expect(results.some(p => p.name === 'USB Cable')).toBe(true);
       });
     });
 

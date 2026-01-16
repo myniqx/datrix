@@ -66,13 +66,13 @@ function serializeWhere(where: any, prefix: string, params: Record<string, any>)
     const newPrefix = `${prefix}[${key}]`;
 
     if (Array.isArray(value)) {
-      // Handle logical operators like $or, $and which take arrays
-      if (['$or', '$and'].includes(key)) {
+      // Handle logical operators like $or, $and, $not which take arrays of conditions
+      if (['$or', '$and', '$not'].includes(key)) {
         value.forEach((item, index) => {
           serializeWhere(item, `${newPrefix}[${index}]`, params);
         });
       } else {
-        // Handle $in, $nin which take arrays
+        // Handle $in, $nin which take arrays of values
         value.forEach((item, index) => {
           params[`${newPrefix}[${index}]`] = String(item);
         });
