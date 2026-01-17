@@ -1,9 +1,23 @@
 import { defineSchema } from 'forja-types/core/schema';
+import type { PermissionContext } from 'forja-types/core/permission';
+
+/**
+ * Test Roles Type
+ *
+ * Used for type-safe permission definitions
+ */
+type TestRoles = 'admin' | 'editor' | 'user' | 'guest';
 
 /**
  * Test Schema: Category
  *
  * Parent schema for products
+ *
+ * Permissions:
+ * - create: admin only
+ * - read: everyone
+ * - update: admin or editor
+ * - delete: admin only
  */
 export const categorySchema = defineSchema({
   name: 'category',
@@ -32,15 +46,29 @@ export const categorySchema = defineSchema({
       default: () => new Date(),
     },
   },
-  indexes: [
-    { fields: ['name'], unique: true },
-  ],
+  indexes: [{ fields: ['name'], unique: true }],
+  permission: {
+    create: ['admin'] as readonly TestRoles[],
+    read: true,
+    update: ['admin', 'editor'] as readonly TestRoles[],
+    delete: ['admin'] as readonly TestRoles[],
+  },
 } as const);
 
 /**
  * Test Schema: Supplier
  *
  * Supplier information for products
+ *
+ * Permissions:
+ * - create: admin or editor
+ * - read: authenticated users only (function)
+ * - update: admin or editor
+ * - delete: admin only
+ *
+ * Field-level permissions:
+ * - email: read only for admin/editor (stripped for others)
+ * - rating: write only for admin
  */
 export const supplierSchema = defineSchema({
   name: 'supplier',
@@ -60,6 +88,9 @@ export const supplierSchema = defineSchema({
       type: 'string',
       required: true,
       pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+      permission: {
+        read: ['admin', 'editor'] as readonly TestRoles[],
+      },
     },
     country: {
       type: 'string',
@@ -69,6 +100,9 @@ export const supplierSchema = defineSchema({
       type: 'number',
       min: 0,
       max: 5,
+      permission: {
+        write: ['admin'] as readonly TestRoles[],
+      },
     },
     isVerified: {
       type: 'boolean',
@@ -79,15 +113,29 @@ export const supplierSchema = defineSchema({
       default: () => new Date(),
     },
   },
-  indexes: [
-    { fields: ['email'], unique: true },
-  ],
+  indexes: [{ fields: ['email'], unique: true }],
+  permission: {
+    create: ['admin', 'editor'] as readonly TestRoles[],
+    read: (ctx: PermissionContext) => ctx.user !== undefined,
+    update: ['admin', 'editor'] as readonly TestRoles[],
+    delete: ['admin'] as readonly TestRoles[],
+  },
 } as const);
 
 /**
  * Test Schema: Product
  *
  * Main product schema with relations to Category and Supplier
+ *
+ * Permissions:
+ * - create: admin or editor
+ * - read: everyone
+ * - update: admin, editor, OR owner (mixed array)
+ * - delete: admin only
+ *
+ * Field-level permissions:
+ * - price: write only for admin/editor
+ * - stock: read/write only for admin/editor
  */
 export const productSchema = defineSchema({
   name: 'product',
@@ -111,12 +159,19 @@ export const productSchema = defineSchema({
       type: 'number',
       required: true,
       min: 0,
+      permission: {
+        write: ['admin', 'editor'] as readonly TestRoles[],
+      },
     },
     stock: {
       type: 'number',
       required: true,
       min: 0,
       default: 0,
+      permission: {
+        read: ['admin', 'editor'] as readonly TestRoles[],
+        write: ['admin', 'editor'] as readonly TestRoles[],
+      },
     },
     categoryId: {
       type: 'number',
@@ -138,6 +193,9 @@ export const productSchema = defineSchema({
     tags: {
       type: 'array',
       items: { type: 'string' },
+    },
+    createdBy: {
+      type: 'string',
     },
     createdAt: {
       type: 'date',
@@ -166,10 +224,150 @@ export const productSchema = defineSchema({
     { fields: ['supplierId'] },
     { fields: ['price'] },
   ],
+  permission: {
+    create: ['admin', 'editor'] as readonly TestRoles[],
+    read: true,
+    update: [
+      'admin' as TestRoles,
+      'editor' as TestRoles,
+      (ctx: PermissionContext) => {
+        const record = ctx.record as { createdBy?: string } | undefined;
+        return ctx.user?.id === record?.createdBy;
+      },
+    ],
+    delete: ['admin'] as readonly TestRoles[],
+  },
+} as const);
+
+/**
+ * Test Schema: Secret
+ *
+ * Schema without explicit permissions - uses defaultPermission from API config
+ * When auth is disabled, normal CRUD works
+ * When auth is enabled, defaultPermission applies
+ */
+export const secretSchema = defineSchema({
+  name: 'secret',
+  fields: {
+    id: {
+      type: 'number',
+      required: true,
+      unique: true,
+    },
+    key: {
+      type: 'string',
+      required: true,
+    },
+    value: {
+      type: 'string',
+      required: true,
+    },
+    createdAt: {
+      type: 'date',
+      default: () => new Date(),
+    },
+  },
+  // No permission defined - uses defaultPermission from API config
+} as const);
+
+/**
+ * Test Schema: Public
+ *
+ * Fully public schema - all operations allowed
+ */
+export const publicSchema = defineSchema({
+  name: 'public',
+  fields: {
+    id: {
+      type: 'number',
+      required: true,
+      unique: true,
+    },
+    title: {
+      type: 'string',
+      required: true,
+    },
+    content: {
+      type: 'string',
+    },
+    createdAt: {
+      type: 'date',
+      default: () => new Date(),
+    },
+  },
+  permission: {
+    create: true,
+    read: true,
+    update: true,
+    delete: true,
+  },
+} as const);
+
+/**
+ * Test Schema: Restricted
+ *
+ * Admin-only schema - all operations require admin role
+ */
+export const restrictedSchema = defineSchema({
+  name: 'restricted',
+  fields: {
+    id: {
+      type: 'number',
+      required: true,
+      unique: true,
+    },
+    data: {
+      type: 'string',
+      required: true,
+    },
+    createdAt: {
+      type: 'date',
+      default: () => new Date(),
+    },
+  },
+  permission: {
+    create: ['admin'] as readonly TestRoles[],
+    read: ['admin'] as readonly TestRoles[],
+    update: ['admin'] as readonly TestRoles[],
+    delete: ['admin'] as readonly TestRoles[],
+  },
+} as const);
+
+/**
+ * Test Schema: User
+ *
+ * Required for authentication system.
+ * Auth plugin creates separate 'authentication' table linked via userId.
+ */
+export const userSchema = defineSchema({
+  name: 'user',
+  fields: {
+    id: {
+      type: 'number',
+      required: true,
+      unique: true,
+    },
+    email: {
+      type: 'string',
+      required: true,
+    },
+    name: {
+      type: 'string',
+    },
+    createdAt: {
+      type: 'date',
+      default: () => new Date(),
+    },
+  },
+  indexes: [{ fields: ['email'], unique: true }],
 } as const);
 
 export const testSchemas = [
   categorySchema,
   supplierSchema,
   productSchema,
+  secretSchema,
+  publicSchema,
+  restrictedSchema,
+  userSchema,
 ];

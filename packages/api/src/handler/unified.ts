@@ -278,7 +278,7 @@ async function handleDelete(
 export async function handleRequest(
   request: Request,
   forja: Forja,
-  api: ApiPlugin,
+  api: ApiPlugin<string>,
   options?: ContextBuilderOptions
 ): Promise<Response> {
   try {
@@ -301,30 +301,33 @@ export async function handleRequest(
 
     // 2️⃣ PERMISSION CHECK (Schema-level)
     const action = methodToAction(context.method);
-    const permCtx = createPermissionContext(
-      context.user,
-      action,
-      forja,
-      undefined,
-      context.body as Record<string, unknown> | undefined
-    );
 
     // Get default permission from API config
-    const defaultPermission = api.config?.defaultPermission;
+    const defaultPermission = api.authDefaultPermission;
 
-    const permissionResult = await checkSchemaPermission(
-      schema,
-      action,
-      permCtx,
-      defaultPermission
-    );
-
-    if (!permissionResult.allowed) {
-      return errorResponse(
-        context.user ? 'Forbidden' : 'Unauthorized',
-        context.user ? 'FORBIDDEN' : 'UNAUTHORIZED',
-        context.user ? 403 : 401
+    if (api.isAuthEnabled()) {
+      const permCtx = createPermissionContext(
+        context.user,
+        action,
+        forja,
+        undefined,
+        context.body as Record<string, unknown> | undefined
       );
+
+      const permissionResult = await checkSchemaPermission(
+        schema,
+        action,
+        permCtx,
+        defaultPermission
+      );
+
+      if (!permissionResult.allowed) {
+        return errorResponse(
+          context.user ? 'Forbidden' : 'Unauthorized',
+          context.user ? 'FORBIDDEN' : 'UNAUTHORIZED',
+          context.user ? 403 : 401
+        );
+      }
     }
 
     api.setUser(context.user);

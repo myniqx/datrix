@@ -14,7 +14,7 @@ import type {
 import type { QueryContext } from 'forja-core/dispatcher';
 import type { QueryObject } from 'forja-types/core/query-builder';
 import type { Result } from 'forja-types/utils';
-import { defineSchema } from 'forja-types/core/schema';
+import { DefaultPermission, defineSchema } from 'forja-types/core/schema';
 import { AuthManager } from './auth/manager';
 import { createAuthHandlers } from './handler/auth-handler';
 import { handleRequest as handleCrudRequest } from './handler/unified';
@@ -24,7 +24,10 @@ import { Forja } from 'forja-core';
 import { AuthenticatedUser } from './middleware';
 
 
-export class ApiPlugin extends BasePlugin<ApiConfig> {
+export class ApiPlugin<ROLES extends string>
+  extends
+  BasePlugin<ApiConfig<ROLES>> {
+
   readonly name = 'api';
   readonly version = '1.0.0';
 
@@ -32,15 +35,19 @@ export class ApiPlugin extends BasePlugin<ApiConfig> {
   public user: AuthenticatedUser | null = null;
   private forjaInstance?: Forja;
 
+  public get forja(): Forja {
+    return this.forjaInstance as Forja;
+  }
+
   public setUser(user: AuthenticatedUser | null) {
     this.user = user;
   }
 
-  private get authConfig() {
+  private get authConfig(): ApiConfig<ROLES>['auth'] | undefined {
     return this.options.auth;
   }
 
-  private get apiConfig() {
+  private get apiConfig(): ApiConfig<ROLES> {
     return this.options;
   }
 
@@ -56,8 +63,16 @@ export class ApiPlugin extends BasePlugin<ApiConfig> {
     return this.authConfig?.userSchema?.email ?? 'email';
   }
 
+  public get authDefaultPermission(): DefaultPermission | undefined {
+    return this.apiConfig?.defaultPermission;
+  }
+
+  public get authDefaultRole(): ROLES | undefined {
+    return this.apiConfig?.defaultRole;
+  }
+
   private getTableName(schemaName: string): string {
-    const schema = this.context?.schemas.get(schemaName);
+    const schema = this.forja.getSchema(schemaName);
     return schema?.tableName || `${schemaName.toLowerCase()}s`;
   }
 
@@ -66,6 +81,8 @@ export class ApiPlugin extends BasePlugin<ApiConfig> {
     if (this.user) {
       context["user"] = this.user
     }
+
+    return context
   }
 
   async init(context: PluginContext): Promise<Result<void, PluginError>> {
@@ -140,9 +157,12 @@ export class ApiPlugin extends BasePlugin<ApiConfig> {
           type: 'string',
           required: true,
         },
-        userId: {
-          type: 'string',
+        user: {
+          type: 'relation',
           required: true,
+          kind: 'belongsTo',
+          model: this.userSchemaName,
+          foreignKey: 'userId',
         },
         email: {
           type: 'string',
@@ -159,7 +179,7 @@ export class ApiPlugin extends BasePlugin<ApiConfig> {
         role: {
           type: 'string',
           required: true,
-          default: this.authConfig.rbac?.defaultRole ?? 'user',
+          default: this.authDefaultRole ?? 'user',
         },
       },
       indexes: [
@@ -170,7 +190,7 @@ export class ApiPlugin extends BasePlugin<ApiConfig> {
         },
         {
           name: `${this.authSchemaName}_userId_idx`,
-          fields: ['userId'],
+          fields: ['user'],
           unique: true,
         },
       ],
@@ -250,7 +270,6 @@ export class ApiPlugin extends BasePlugin<ApiConfig> {
     const emailField = this.userSchemaEmailField;
 
     const authData = {
-      id: this.generateId(),
       userId: user.id,
       email: user[emailField],
       password: user.password || '',
@@ -258,9 +277,11 @@ export class ApiPlugin extends BasePlugin<ApiConfig> {
       role: user.role || this.authConfig!.rbac?.defaultRole || 'user',
     };
 
+    const schema = this.forjaInstance?.getSchema(this.authSchemaName);
+
     const query: QueryObject = {
       type: 'insert',
-      table: this.authSchemaName,
+      table: schema?.tableName || this.authSchemaName,
       data: authData,
     };
 
@@ -293,10 +314,6 @@ export class ApiPlugin extends BasePlugin<ApiConfig> {
     };
 
     await context.adapter.executeQuery(query);
-  }
-
-  private generateId(): string {
-    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   }
 
   /**

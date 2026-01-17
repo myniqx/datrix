@@ -6,12 +6,15 @@
  * - POST /auth/login - Login user
  * - POST /auth/logout - Logout user
  * - GET /auth/me - Get current user
+ *
+ * Authentication data is stored in the 'authentication' table,
+ * separate from user business data in the 'user' table.
  */
 
 import type { Forja } from 'forja-core';
-import type { ApiAuthConfig } from 'forja-types/config';
 import { DEFAULT_API_AUTH_CONFIG } from 'forja-types/config';
 import { AuthManager, type AuthUser } from '../auth/manager';
+import type { AuthPluginOptions } from '../auth/types';
 import { jsonResponse, errorResponse, extractSessionId } from './utils';
 
 /**
@@ -20,7 +23,7 @@ import { jsonResponse, errorResponse, extractSessionId } from './utils';
 export interface AuthHandlerConfig {
   readonly forja: Forja;
   readonly authManager: AuthManager;
-  readonly authConfig: ApiAuthConfig;
+  readonly authConfig: AuthPluginOptions;
 }
 
 /**
@@ -31,16 +34,23 @@ export interface AuthHandlerConfig {
 export function createAuthHandlers(config: AuthHandlerConfig) {
   const { forja, authManager, authConfig } = config;
 
-  // Get user schema configuration
+  // Schema names
   const userSchemaName = authConfig.userSchema?.name ?? DEFAULT_API_AUTH_CONFIG.userSchema.name;
-  const fieldNames = {
+  const authSchemaName = authConfig.authSchemaName ?? 'authentication';
+
+  // User schema field mapping
+  const userFields = {
     email: authConfig.userSchema?.fields?.email ?? DEFAULT_API_AUTH_CONFIG.userSchema.fields.email,
-    password: authConfig.userSchema?.fields?.password ?? DEFAULT_API_AUTH_CONFIG.userSchema.fields.password,
     role: authConfig.userSchema?.fields?.role ?? DEFAULT_API_AUTH_CONFIG.userSchema.fields.role,
   };
 
+  // Default role for new users
+  const defaultRole = authConfig.rbac?.defaultRole ?? DEFAULT_API_AUTH_CONFIG.rbac.defaultRole;
+
   /**
    * POST /auth/register - Register new user
+   *
+   * Creates both user record and authentication record
    */
   async function register(request: Request): Promise<Response> {
     try {
@@ -55,7 +65,7 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
 
       // Parse request body
       const body = await request.json();
-      const { email, password, ...extraData } = body as Record<string, string>;
+      const { email, password, ...extraData } = body as Record<string, unknown>;
 
       // Validate required fields
       if (!email || typeof email !== 'string') {
@@ -74,12 +84,12 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
         );
       }
 
-      // Check if user already exists
-      const existingUser = await forja.findOne(userSchemaName, {
-        where: { [fieldNames.email]: email },
+      // Check if auth record already exists (email must be unique)
+      const existingAuth = await forja.findOne(authSchemaName, {
+        [userFields.email]: email,
       });
 
-      if (existingUser) {
+      if (existingAuth) {
         return errorResponse(
           'User with this email already exists',
           'USER_EXISTS',
@@ -99,19 +109,14 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
 
       const { hash, salt } = hashResult.data;
 
-      // Get default role
-      const defaultRole = authConfig.rbac?.defaultRole ?? DEFAULT_API_AUTH_CONFIG.rbac.defaultRole;
-
-      // Create user
+      // Create user record first (without password)
       const userData: Record<string, unknown> = {
-        [fieldNames.email]: email,
-        [fieldNames.password]: hash,
-        passwordSalt: salt,
-        [fieldNames.role]: defaultRole,
-        ...extraData,
+        [userFields.email]: email,
+        //  [userFields.role]: defaultRole,
+        //  ...extraData,
       };
 
-      const user = await forja.create(userSchemaName, userData);
+      const user = await forja.create(userSchemaName, userData) as Record<string, unknown>;
 
       if (!user) {
         return errorResponse(
@@ -121,8 +126,35 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
         );
       }
 
+      // Create authentication record
+      const authData = {
+        userId: String(user['id']),
+        email: email,
+        password: hash,
+        passwordSalt: salt,
+        role: defaultRole,
+      };
+
+      const authRecord = await forja.create(authSchemaName, authData);
+
+      if (!authRecord) {
+        // Rollback: delete user if auth creation fails
+        await forja.delete(userSchemaName, user['id'] as string | number);
+        return errorResponse(
+          'Failed to create authentication record',
+          'AUTH_CREATE_ERROR',
+          500
+        );
+      }
+
       // Login user (create token/session)
-      const loginResult = await authManager.login(user as AuthUser);
+      const authUser: AuthUser = {
+        id: String(user['id']),
+        email: email,
+        role: defaultRole,
+      };
+
+      const loginResult = await authManager.login(authUser);
 
       if (!loginResult.success) {
         return errorResponse(
@@ -132,10 +164,8 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
         );
       }
 
-      // Remove sensitive fields from response
+      // Build response (no sensitive data)
       const safeUser = { ...user };
-      delete safeUser[fieldNames.password];
-      delete safeUser.passwordSalt;
 
       const response = {
         data: {
@@ -165,6 +195,8 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
 
   /**
    * POST /auth/login - Login user
+   *
+   * Verifies credentials against authentication table
    */
   async function login(request: Request): Promise<Response> {
     try {
@@ -189,12 +221,12 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
         );
       }
 
-      // Find user by email
-      const user = await forja.findOne(userSchemaName, {
-        where: { [fieldNames.email]: email },
-      });
+      // Find auth record by email
+      const authRecord = await forja.findOne(authSchemaName, {
+        email: email,
+      }) as Record<string, unknown> | null;
 
-      if (!user) {
+      if (!authRecord) {
         return errorResponse(
           'Invalid credentials',
           'INVALID_CREDENTIALS',
@@ -205,8 +237,8 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
       // Verify password
       const verifyResult = await authManager.verifyPassword(
         password,
-        user[fieldNames.password] as string,
-        user.passwordSalt as string
+        authRecord['password'] as string,
+        authRecord['passwordSalt'] as string
       );
 
       if (!verifyResult.success || !verifyResult.data) {
@@ -217,8 +249,28 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
         );
       }
 
+      // Fetch user data
+      const user = await forja.findById(
+        userSchemaName,
+        authRecord['userId'] as string
+      ) as Record<string, unknown> | null;
+
+      if (!user) {
+        return errorResponse(
+          'User not found',
+          'USER_NOT_FOUND',
+          404
+        );
+      }
+
       // Login user (create token/session)
-      const loginResult = await authManager.login(user as AuthUser);
+      const authUser: AuthUser = {
+        id: String(user['id']),
+        email: authRecord['email'] as string,
+        role: authRecord['role'] as string,
+      };
+
+      const loginResult = await authManager.login(authUser);
 
       if (!loginResult.success) {
         return errorResponse(
@@ -228,10 +280,8 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
         );
       }
 
-      // Remove sensitive fields from response
+      // Build response (no sensitive data)
       const safeUser = { ...user };
-      delete safeUser[fieldNames.password];
-      delete safeUser.passwordSalt;
 
       const response = {
         data: {
@@ -315,9 +365,7 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
       }
 
       // Fetch full user data from database
-      const user = await forja.findById(userSchemaName, authContext.user.id, {
-        select: ['id', fieldNames.email, fieldNames.role, 'createdAt', 'updatedAt'],
-      });
+      const user = await forja.findById(userSchemaName, authContext.user.id) as Record<string, unknown> | null;
 
       if (!user) {
         return errorResponse(
@@ -327,10 +375,8 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
         );
       }
 
-      // Remove sensitive fields
+      // Build response
       const safeUser = { ...user };
-      delete safeUser[fieldNames.password];
-      delete safeUser.passwordSalt;
 
       return jsonResponse({ data: safeUser });
     } catch (error) {

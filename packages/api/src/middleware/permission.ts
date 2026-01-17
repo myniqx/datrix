@@ -265,10 +265,10 @@ export function createPermissionContext<TRecord = Record<string, unknown>>(
   return {
     user: user
       ? {
-          id: user.id,
-          role: user.role,
-          ...user,
-        }
+        id: user.id,
+        role: user.role,
+        ...user,
+      }
       : undefined,
     action,
     record,

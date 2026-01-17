@@ -316,7 +316,7 @@ export interface TypedSchema<T, TRoles extends string = string>
  * const roles = ['admin', 'editor', 'user'] as const;
  * type Roles = typeof roles[number];
  *
- * const postSchema = defineSchema<Roles>()({
+ * const postSchema = defineSchema<Roles>({
  *   name: 'post',
  *   fields: {
  *     title: { type: 'string', required: true },

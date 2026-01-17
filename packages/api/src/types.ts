@@ -22,7 +22,7 @@ import type { DefaultPermission } from "forja-types/core/permission";
  * };
  * ```
  */
-export interface ApiConfig<TRoles extends string = string>
+export interface ApiConfig<TRoles extends string>
   extends Record<string, unknown> {
   /**
    * Enable API routes
@@ -64,6 +64,7 @@ export interface ApiConfig<TRoles extends string = string>
    * ```
    */
   readonly defaultPermission?: DefaultPermission<TRoles>;
+  readonly defaultRole?: TRoles;
 
   /**
    * Default pagination page size

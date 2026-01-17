@@ -59,8 +59,8 @@ export class CrudOperations {
       type: 'select',
       table,
       where,
-      select: options?.select,
-      populate: options?.populate,
+      select: options?.select ?? '*',
+      populate: options?.populate ?? false,
       limit: 1,
     };
 
@@ -138,8 +138,8 @@ export class CrudOperations {
       type: 'select',
       table,
       where: options?.where,
-      select: options?.select,
-      populate: options?.populate,
+      select: options?.select ?? '*',
+      populate: options?.populate ?? false,
       orderBy: options?.orderBy,
       limit: options?.limit,
       offset: options?.offset,

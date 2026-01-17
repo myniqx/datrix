@@ -78,7 +78,7 @@ export interface PopulateOptions {
 /**
  * Populate clause type
  */
-export type PopulateClause = {
+export type PopulateClause = false | {
   readonly [relation: string]: PopulateOptions | '*';
 };
 
