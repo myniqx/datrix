@@ -5,8 +5,10 @@
  * Permission/RBAC types are now in forja-types/core/permission.
  */
 
-import { AuthError } from "forja-types/plugin";
-import { Result } from "forja-types/utils";
+import type { AuthError } from "forja-types/plugin";
+import type { Result } from "forja-types/utils";
+import type { DefaultPermission } from "forja-types/core/permission";
+import type { PasswordConfig } from "./password";
 
 // Re-export permission types from the new location
 export type {
@@ -17,6 +19,7 @@ export type {
   PermissionContext,
   PermissionFn,
   PermissionCheckResult,
+  DefaultPermission,
 } from "forja-types/core/permission";
 
 /**
@@ -120,21 +123,64 @@ export interface SessionStore {
 }
 
 /**
- * Auth plugin options
+ * Authentication configuration
+ *
+ * When auth is defined in ApiConfig, authentication is enabled.
+ * When auth is undefined, authentication is disabled.
+ *
+ * @template TRole - Union type of valid role names
  */
-export interface AuthPluginOptions {
-  readonly enabled: boolean;
+export interface AuthConfig<TRole extends string = string> {
+  /**
+   * Available roles in the application
+   */
+  readonly roles: readonly TRole[];
+
+  /**
+   * Default role for new users
+   */
+  readonly defaultRole: TRole;
+
+  /**
+   * Default permission applied to schemas without explicit permissions
+   */
+  readonly defaultPermission?: DefaultPermission<TRole>;
+
+  /**
+   * JWT configuration (required if not using session)
+   */
   readonly jwt?: JwtConfig;
+
+  /**
+   * Session configuration (required if not using JWT)
+   */
   readonly session?: SessionConfig;
-  readonly passwordHashIterations?: number; // PBKDF2 iterations (default: 100000)
-  readonly passwordHashKeyLength?: number; // PBKDF2 key length (default: 64)
+
+  /**
+   * Password hashing configuration (PBKDF2)
+   * @default { iterations: 100000, keyLength: 64, minLength: 8 }
+   */
+  readonly password?: PasswordConfig;
+
+  /**
+   * Name for the authentication schema/table
+   * @default 'authentication'
+   */
   readonly authSchemaName?: string;
 
+  /**
+   * User schema configuration
+   */
   readonly userSchema?: {
+    /** User schema name @default 'user' */
     readonly name?: string;
+    /** Email field name @default 'email' */
     readonly email?: string;
   };
 
+  /**
+   * Auth endpoint configuration
+   */
   readonly endpoints?: {
     readonly login?: string;
     readonly register?: string;
@@ -143,6 +189,11 @@ export interface AuthPluginOptions {
     readonly disableRegister?: boolean;
   };
 }
+
+/**
+ * @deprecated Use AuthConfig instead
+ */
+export type AuthPluginOptions = AuthConfig<string>;
 
 /**
  * Authenticated user
@@ -243,18 +294,27 @@ export function isSessionData(value: unknown): value is SessionData {
 const MIN_JWT_SECRET_LENGTH = 32;
 
 /**
- * Type guard for auth plugin options
+ * Type guard for auth config
  */
-export function isAuthPluginOptions(
+export function isAuthConfig(
   value: unknown
-): value is AuthPluginOptions {
+): value is AuthConfig<string> {
   if (typeof value !== 'object' || value === null) {
     return false;
   }
 
   const opts = value as Record<string, unknown>;
 
-  // At least one strategy must be configured
+  // roles and defaultRole are required
+  if (!('roles' in opts) || !Array.isArray(opts['roles'])) {
+    return false;
+  }
+
+  if (!('defaultRole' in opts) || typeof opts['defaultRole'] !== 'string') {
+    return false;
+  }
+
+  // At least one auth strategy must be configured
   if (!('jwt' in opts) && !('session' in opts)) {
     return false;
   }
@@ -276,4 +336,9 @@ export function isAuthPluginOptions(
 
   return true;
 }
+
+/**
+ * @deprecated Use isAuthConfig instead
+ */
+export const isAuthPluginOptions = isAuthConfig;
 

@@ -5,10 +5,10 @@
  * Config files (forja.config.ts) should export values matching these types.
  */
 
-import type { DatabaseAdapter } from './adapter';
-import type { ForjaPlugin } from './plugin';
-import type { SchemaDefinition } from './core/schema';
-import { ForjaError } from './utils';
+import type { DatabaseAdapter } from "./adapter";
+import type { ForjaPlugin } from "./plugin";
+import type { SchemaDefinition } from "./core/schema";
+import { ForjaError } from "./utils";
 
 /**
  * Main Forja Configuration
@@ -28,7 +28,9 @@ import { ForjaError } from './utils';
  * } as const;
  * ```
  */
-export interface ForjaConfig<TAdapter extends DatabaseAdapter = DatabaseAdapter> {
+export interface ForjaConfig<
+  TAdapter extends DatabaseAdapter = DatabaseAdapter,
+> {
   /**
    * Database adapter instance
    * Must be an initialized adapter (PostgresAdapter, MySQLAdapter, etc.)
@@ -134,7 +136,7 @@ export interface LoadConfigOptions {
    * Used to load environment-specific config files
    * @default process.env.NODE_ENV ?? 'development'
    */
-  readonly environment?: 'development' | 'production' | 'test';
+  readonly environment?: "development" | "production" | "test";
 
   /**
    * Current working directory
@@ -148,8 +150,8 @@ export interface LoadConfigOptions {
  */
 export class ConfigError extends ForjaError {
   constructor(message: string, details?: unknown) {
-    super(message, { code: 'CONFIG_ERROR', details });
-    this.name = 'ConfigError';
+    super(message, { code: "CONFIG_ERROR", details });
+    this.name = "ConfigError";
   }
 }
 
@@ -158,8 +160,8 @@ export class ConfigError extends ForjaError {
  */
 export class ConfigNotFoundError extends ConfigError {
   constructor(path: string) {
-    super(`Config file not found: ${path}`, { code: 'CONFIG_NOT_FOUND' });
-    this.name = 'ConfigNotFoundError';
+    super(`Config file not found: ${path}`, { code: "CONFIG_NOT_FOUND" });
+    this.name = "ConfigNotFoundError";
   }
 }
 
@@ -171,10 +173,10 @@ export class ConfigValidationError extends ConfigError {
 
   constructor(errors: readonly string[]) {
     super(
-      `Config validation failed:\n${errors.map(e => `  - ${e}`).join('\n')}`,
-      { code: 'CONFIG_VALIDATION_FAILED', details: { errors } }
+      `Config validation failed:\n${errors.map((e) => `  - ${e}`).join("\n")}`,
+      { code: "CONFIG_VALIDATION_FAILED", details: { errors } },
     );
-    this.name = 'ConfigValidationError';
+    this.name = "ConfigValidationError";
     this.errors = errors;
   }
 }
@@ -193,9 +195,9 @@ export class TypeScriptConfigError extends ConfigError {
       `  npm install -D tsx\n\n` +
       `Option 3: Use JavaScript config instead:\n` +
       `  Rename to forja.config.js`,
-      { code: 'TYPESCRIPT_CONFIG_NOT_COMPILED' }
+      { code: "TYPESCRIPT_CONFIG_NOT_COMPILED" },
     );
-    this.name = 'TypeScriptConfigError';
+    this.name = "TypeScriptConfigError";
   }
 }
 
@@ -203,31 +205,25 @@ export class TypeScriptConfigError extends ConfigError {
  * Type guard for ForjaConfig
  */
 export function isForjaConfig(value: unknown): value is ForjaConfig {
-  if (typeof value !== 'object' || value === null) {
+  if (typeof value !== "object" || value === null) {
     return false;
   }
 
   const obj = value as Record<string, unknown>;
 
   return (
-    'adapter' in obj &&
-    typeof obj['adapter'] === 'object' &&
-    'schemas' in obj &&
-    typeof obj['schemas'] === 'object'
+    "adapter" in obj &&
+    typeof obj["adapter"] === "object" &&
+    "schemas" in obj &&
+    typeof obj["schemas"] === "object"
   );
 }
 
 /**
  * Type guard for ESM default export
  */
-export function hasDefaultExport<T>(
-  value: unknown
-): value is { default: T } {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'default' in value
-  );
+export function hasDefaultExport<T>(value: unknown): value is { default: T } {
+  return typeof value === "object" && value !== null && "default" in value;
 }
 
 /**
@@ -235,7 +231,7 @@ export function hasDefaultExport<T>(
  */
 export const DEFAULT_API_CONFIG = {
   enabled: true,
-  prefix: '/api',
+  prefix: "/api",
   defaultPageSize: 25,
   maxPageSize: 100,
   maxPopulateDepth: 5,
@@ -249,27 +245,18 @@ export const DEFAULT_API_CONFIG = {
 export const DEFAULT_API_AUTH_CONFIG = {
   enabled: true,
   userSchema: {
-    name: 'user',
-    fields: {
-      email: 'email',
-      password: 'password',
-      role: 'role',
-    },
-    extraFields: [],
+    name: "user",
+    email: "email",
   },
   jwt: {
-    expiresIn: '7d',
-    algorithm: 'HS256' as const,
+    expiresIn: "7d",
+    algorithm: "HS256" as const,
   },
   session: {
-    store: 'memory' as const,
+    store: "memory" as const,
     maxAge: 86400, // 24 hours
     checkPeriod: 3600, // 1 hour
-    prefix: 'forja:session:',
-  },
-  rbac: {
-    defaultRole: 'user',
-    roles: [],
+    prefix: "forja:session:",
   },
   password: {
     iterations: 100000,
@@ -277,10 +264,10 @@ export const DEFAULT_API_AUTH_CONFIG = {
     minLength: 8,
   },
   endpoints: {
-    login: '/auth/login',
-    register: '/auth/register',
-    logout: '/auth/logout',
-    me: '/auth/me',
+    login: "/auth/login",
+    register: "/auth/register",
+    logout: "/auth/logout",
+    me: "/auth/me",
     disableRegister: false,
   },
 } as const;
@@ -290,7 +277,7 @@ export const DEFAULT_API_AUTH_CONFIG = {
  */
 export const DEFAULT_MIGRATION_CONFIG: Required<MigrationConfig> = {
   auto: false,
-  directory: './migrations',
+  directory: "./migrations",
 } as const;
 
 /**

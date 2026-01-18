@@ -1,15 +1,15 @@
-import { defineConfig } from 'forja-core';
-import { JsonAdapter } from '../../../adapter-json/src/index';
-import { ApiPlugin } from '../../src/api';
-import { testSchemas } from './schemas';
-import { ForjaConfig } from 'forja-types';
+import { defineConfig } from "forja-core";
+import { JsonAdapter } from "../../../adapter-json/src/index";
+import { ApiPlugin } from "../../src/api";
+import { testSchemas } from "./schemas";
+import { ForjaConfig } from "forja-types";
 
 /**
  * Test Roles
  *
  * Defined roles for permission testing
  */
-export const roles = ['admin', 'editor', 'user', 'guest'] as const;
+export const roles = ["admin", "editor", "user", "guest"] as const;
 export type TestRoles = (typeof roles)[number];
 
 /**
@@ -17,7 +17,7 @@ export type TestRoles = (typeof roles)[number];
  *
  * Minimum 32 characters for HS256
  */
-export const testJwtSecret = 'test-jwt-secret-key-for-unit-tests-32-chars-min';
+export const testJwtSecret = "test-jwt-secret-key-for-unit-tests-32-chars-min";
 
 /**
  * Test Configuration with Authentication
@@ -41,36 +41,37 @@ export function createTestConfigWithAuth(tmpDir: string) {
       plugins: [
         new ApiPlugin({
           enabled: true,
-          prefix: '/api',
+          prefix: "/api",
           defaultPageSize: 25,
           maxPageSize: 100,
           maxPopulateDepth: 5,
           autoRoutes: true,
           excludeSchemas: [],
 
-          // Role definitions
-          roles: roles,
-
-          // Default permissions (fallback for schemas without explicit permissions)
-          defaultPermission: {
-            create: ['admin'],
-            read: true,
-            update: ['admin'],
-            delete: ['admin'],
-          },
-
           // Authentication enabled
           auth: {
-            enabled: true,
             jwt: {
               secret: testJwtSecret,
-              expiresIn: '1h',
-              algorithm: 'HS256',
+              expiresIn: "1h",
+              algorithm: "HS256",
             },
             session: {
-              store: 'memory',
+              store: "memory",
               maxAge: 3600,
               checkPeriod: 600,
+            },
+
+            // Role definitions
+            roles: roles,
+
+            defaultRole: "user",
+
+            // Default permissions (fallback for schemas without explicit permissions)
+            defaultPermission: {
+              create: ["admin"],
+              read: true,
+              update: ["admin"],
+              delete: ["admin"],
             },
           },
         }),
@@ -92,8 +93,8 @@ export interface TestUser {
 }
 
 export const testUsers: Record<TestRoles, TestUser> = {
-  admin: { id: '1', email: 'admin@test.com', role: 'admin' },
-  editor: { id: '2', email: 'editor@test.com', role: 'editor' },
-  user: { id: '3', email: 'user@test.com', role: 'user' },
-  guest: { id: '4', email: 'guest@test.com', role: 'guest' },
+  admin: { id: "1", email: "admin@test.com", role: "admin" },
+  editor: { id: "2", email: "editor@test.com", role: "editor" },
+  user: { id: "3", email: "user@test.com", role: "user" },
+  guest: { id: "4", email: "guest@test.com", role: "guest" },
 };

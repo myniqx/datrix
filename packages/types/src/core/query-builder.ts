@@ -8,7 +8,6 @@
 import { Result } from "../utils";
 import { SchemaDefinition } from "./schema";
 
-
 /**
  * Primitive values that can be used in queries
  * (includes Date, excludes undefined)
@@ -18,7 +17,7 @@ export type QueryPrimitive = string | number | boolean | null | Date;
 /**
  * Query operation types
  */
-export type QueryType = 'select' | 'insert' | 'update' | 'delete' | 'count';
+export type QueryType = "select" | "insert" | "update" | "delete" | "count";
 
 /**
  * Comparison operators
@@ -61,40 +60,44 @@ export type WhereClause = {
 /**
  * SELECT clause (fields to select)
  */
-export type SelectClause = readonly string[] | '*';
+export type SelectClause = readonly string[] | "*";
 
 /**
  * Populate clause (relations to include)
  */
-export interface PopulateOptions {
+export type PopulateOptions = {
   readonly select?: SelectClause;
   readonly where?: WhereClause;
   readonly populate?: PopulateClause; // Nested populate
   readonly limit?: number;
   readonly offset?: number;
-  readonly orderBy?: readonly OrderByItem[];
-}
+  readonly orderBy?: OrderBy;
+};
 
 /**
  * Populate clause type
  */
-export type PopulateClause = false | {
-  readonly [relation: string]: PopulateOptions | '*';
-};
+export type PopulateClause =
+  | false
+  | {
+    readonly [relation: string]: PopulateOptions | "*";
+  };
 
 /**
  * Order direction
  */
-export type OrderDirection = 'asc' | 'desc';
+export type OrderDirection = "asc" | "desc";
 
 /**
  * Order by item
  */
-export interface OrderByItem {
+export type OrderByItem = {
   readonly field: string;
   readonly direction: OrderDirection;
-  readonly nulls?: 'first' | 'last'; // NULL ordering
-}
+  readonly nulls?: "first" | "last"; // NULL ordering
+};
+
+export type OrderBy = readonly OrderByItem[];
 
 /**
  * Relation metadata injected by QueryBuilder for adapters
@@ -124,10 +127,10 @@ export interface OrderByItem {
  * ```
  */
 export interface RelationMetadata {
-  readonly model: string;        // Target model name (e.g., 'User')
-  readonly foreignKey: string;   // Foreign key field name (e.g., 'authorId')
-  readonly kind: 'hasOne' | 'hasMany' | 'belongsTo' | 'manyToMany';
-  readonly targetTable: string;  // Target table name (e.g., 'users')
+  readonly model: string; // Target model name (e.g., 'User')
+  readonly foreignKey: string; // Foreign key field name (e.g., 'authorId')
+  readonly kind: "hasOne" | "hasMany" | "belongsTo" | "manyToMany";
+  readonly targetTable: string; // Target table name (e.g., 'users')
 }
 
 /**
@@ -161,12 +164,12 @@ export interface QueryMetadata {
 export interface QueryObject {
   readonly type: QueryType;
   readonly table: string;
-  readonly select?: SelectClause;
-  readonly where?: WhereClause;
-  readonly populate?: PopulateClause;
-  readonly orderBy?: readonly OrderByItem[];
-  readonly limit?: number;
-  readonly offset?: number;
+  readonly select?: SelectClause | undefined;
+  readonly where?: WhereClause | undefined;
+  readonly populate?: PopulateClause | undefined;
+  readonly orderBy?: OrderBy | undefined;
+  readonly limit?: number | undefined;
+  readonly offset?: number | undefined;
   readonly data?: Record<string, unknown>; // For INSERT/UPDATE
   readonly returning?: SelectClause; // Fields to return after INSERT/UPDATE/DELETE
   readonly distinct?: boolean; // SELECT DISTINCT
@@ -271,7 +274,7 @@ export interface QueryBuilder<TSchema = Record<string, unknown>> {
  */
 export type QueryBuilderFactory = <TSchema = Record<string, unknown>>(
   table: string,
-  schema?: SchemaDefinition
+  schema?: SchemaDefinition,
 ) => QueryBuilder<TSchema>;
 
 /**
@@ -318,7 +321,7 @@ export interface SelectBuilder {
    */
   validate(
     select: SelectClause,
-    schema?: SchemaDefinition
+    schema?: SchemaDefinition,
   ): Result<SelectClause, QueryBuilderError>;
 
   /**
@@ -341,16 +344,13 @@ export interface PopulateBuilder {
    */
   validate(
     populate: PopulateClause,
-    schema: SchemaDefinition
+    schema: SchemaDefinition,
   ): Result<PopulateClause, QueryBuilderError>;
 
   /**
    * Resolve nested populates
    */
-  resolveNested(
-    populate: PopulateClause,
-    depth: number
-  ): readonly string[];
+  resolveNested(populate: PopulateClause, depth: number): readonly string[];
 }
 
 /**
@@ -360,7 +360,10 @@ export interface PaginationBuilder {
   /**
    * Build pagination (limit/offset)
    */
-  build(page: number, pageSize: number): {
+  build(
+    page: number,
+    pageSize: number,
+  ): {
     readonly limit: number;
     readonly offset: number;
   };
@@ -370,7 +373,7 @@ export interface PaginationBuilder {
    */
   validate(
     limit?: number,
-    offset?: number
+    offset?: number,
   ): Result<
     { readonly limit: number; readonly offset: number },
     QueryBuilderError
@@ -391,11 +394,11 @@ export class QueryBuilderError extends Error {
       code?: string;
       field?: string;
       details?: unknown;
-    }
+    },
   ) {
     super(message);
-    this.name = 'QueryBuilderError';
-    this.code = options?.code ?? 'UNKNOWN';
+    this.name = "QueryBuilderError";
+    this.code = options?.code ?? "UNKNOWN";
     this.field = options?.field;
     this.details = options?.details;
   }
@@ -433,12 +436,12 @@ export interface QueryBuilderContext {
  */
 export type TypedQueryBuilder<T> = {
   select<K extends keyof T>(
-    fields: readonly K[] | '*'
+    fields: readonly K[] | "*",
   ): TypedQueryBuilder<Pick<T, K>>;
   where(conditions: Partial<WhereConditions<T>>): TypedQueryBuilder<T>;
   orderBy<K extends keyof T>(
     field: K,
-    direction?: OrderDirection
+    direction?: OrderDirection,
   ): TypedQueryBuilder<T>;
   limit(limit: number): TypedQueryBuilder<T>;
   offset(offset: number): TypedQueryBuilder<T>;
@@ -477,7 +480,7 @@ export type WhereConditions<T> = {
  */
 export function getRelationMetadata(
   query: QueryObject,
-  relationName: string
+  relationName: string,
 ): RelationMetadata | undefined {
   return query.meta?.relations?.[relationName];
 }
@@ -499,7 +502,7 @@ export function getRelationMetadata(
  * ```
  */
 export function getAllRelationMetadata(
-  query: QueryObject
+  query: QueryObject,
 ): Record<string, RelationMetadata> | undefined {
   return query.meta?.relations;
 }
@@ -539,7 +542,7 @@ export function hasRelationMetadata(query: QueryObject): boolean {
  */
 export function getMetadataValue<T = unknown>(
   query: QueryObject,
-  key: string
+  key: string,
 ): T | undefined {
   return query.meta?.[key] as T | undefined;
 }

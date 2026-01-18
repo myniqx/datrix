@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Query Operators Integration Tests
  *
@@ -9,14 +10,14 @@
  * - Logical: $and, $or, $not
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { Forja } from 'forja-core';
-import { handleRequest } from '../src/helper';
-import { createTestConfig, getTmpDir, testSchemas } from './data';
-import { serializeQuery } from '../src/serializer/query';
-import fs from 'node:fs/promises';
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { Forja } from "forja-core";
+import { handleRequest } from "../src/helper";
+import { createTestConfig, getTmpDir, testSchemas } from "./data";
+import { serializeQuery } from "../src/serializer/query";
+import fs from "node:fs/promises";
 
-describe('Query Operators Integration Tests', () => {
+describe("Query Operators Integration Tests", () => {
   let forja: Forja;
   let getForja: () => Promise<Forja>;
   const tmpDir = getTmpDir();
@@ -26,7 +27,7 @@ describe('Query Operators Integration Tests', () => {
     try {
       await fs.rm(tmpDir, { recursive: true, force: true });
     } catch (error) {
-      console.warn('Failed to clean up temp directory:', error);
+      console.warn("Failed to clean up temp directory:", error);
     }
     // Create temporary directory
     await fs.mkdir(tmpDir, { recursive: true });
@@ -42,7 +43,9 @@ describe('Query Operators Integration Tests', () => {
     for (const schema of forja.getSchemas().getAll()) {
       const result = await adapter.createTable(schema);
       if (!result.success) {
-        throw new Error(`Failed to create table ${schema.name}: ${result.error.message}`);
+        throw new Error(
+          `Failed to create table ${schema.name}: ${result.error.message}`,
+        );
       }
     }
 
@@ -55,7 +58,7 @@ describe('Query Operators Integration Tests', () => {
     try {
       await fs.rm(tmpDir, { recursive: true, force: true });
     } catch (error) {
-      console.warn('Failed to clean up temp directory:', error);
+      console.warn("Failed to clean up temp directory:", error);
     }
   });
 
@@ -64,179 +67,217 @@ describe('Query Operators Integration Tests', () => {
    */
   async function seedTestData(): Promise<void> {
     // Create categories
-    await handleRequest(forja, new Request('http://localhost:3000/api/categories', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'Electronics', description: 'Electronic devices', isActive: true }),
-    }));
+    await handleRequest(
+      forja,
+      new Request("http://localhost:3000/api/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Electronics",
+          description: "Electronic devices",
+          isActive: true,
+        }),
+      }),
+    );
 
-    await handleRequest(forja, new Request('http://localhost:3000/api/categories', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'Books', description: 'Books and literature', isActive: true }),
-    }));
+    await handleRequest(
+      forja,
+      new Request("http://localhost:3000/api/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Books",
+          description: "Books and literature",
+          isActive: true,
+        }),
+      }),
+    );
 
-    await handleRequest(forja, new Request('http://localhost:3000/api/categories', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'Clothing', description: null, isActive: false }),
-    }));
+    await handleRequest(
+      forja,
+      new Request("http://localhost:3000/api/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Clothing",
+          description: null,
+          isActive: false,
+        }),
+      }),
+    );
 
     // Create suppliers
-    await handleRequest(forja, new Request('http://localhost:3000/api/suppliers', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: 'TechCorp Inc.',
-        email: 'contact@techcorp.com',
-        country: 'USA',
-        rating: 4.5,
-        isVerified: true,
+    await handleRequest(
+      forja,
+      new Request("http://localhost:3000/api/suppliers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "TechCorp Inc.",
+          email: "contact@techcorp.com",
+          country: "USA",
+          rating: 4.5,
+          isVerified: true,
+        }),
       }),
-    }));
+    );
 
-    await handleRequest(forja, new Request('http://localhost:3000/api/suppliers', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: 'BookWorld Ltd.',
-        email: 'info@bookworld.com',
-        country: 'UK',
-        rating: 4.8,
-        isVerified: true,
+    await handleRequest(
+      forja,
+      new Request("http://localhost:3000/api/suppliers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "BookWorld Ltd.",
+          email: "info@bookworld.com",
+          country: "UK",
+          rating: 4.8,
+          isVerified: true,
+        }),
       }),
-    }));
+    );
 
-    await handleRequest(forja, new Request('http://localhost:3000/api/suppliers', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: 'Fashion House',
-        email: 'sales@fashionhouse.com',
-        country: 'France',
-        rating: 3.2,
-        isVerified: false,
+    await handleRequest(
+      forja,
+      new Request("http://localhost:3000/api/suppliers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Fashion House",
+          email: "sales@fashionhouse.com",
+          country: "France",
+          rating: 3.2,
+          isVerified: false,
+        }),
       }),
-    }));
+    );
 
     // Create products with diverse data
     const products = [
       {
-        name: 'Wireless Mouse',
-        description: 'Ergonomic wireless mouse',
+        name: "Wireless Mouse",
+        description: "Ergonomic wireless mouse",
         price: 29.99,
         stock: 150,
         categoryId: 1,
         supplierId: 1,
-        sku: 'WM-2024-001',
+        sku: "WM-2024-001",
         isAvailable: true,
-        tags: ['wireless', 'computer', 'accessories'],
+        tags: ["wireless", "computer", "accessories"],
       },
       {
-        name: 'Mechanical Keyboard',
-        description: 'RGB mechanical keyboard',
-        price: 120.00,
+        name: "Mechanical Keyboard",
+        description: "RGB mechanical keyboard",
+        price: 120.0,
         stock: 5,
         categoryId: 1,
         supplierId: 1,
-        sku: 'KB-MECH-001',
+        sku: "KB-MECH-001",
         isAvailable: true,
-        tags: ['gaming', 'keyboard', 'rgb'],
+        tags: ["gaming", "keyboard", "rgb"],
       },
       {
-        name: 'USB Cable',
-        description: 'USB-C to USB-C cable 2m',
-        price: 15.00,
+        name: "USB Cable",
+        description: "USB-C to USB-C cable 2m",
+        price: 15.0,
         stock: 200,
         categoryId: 1,
         supplierId: 1,
-        sku: 'CABLE-USBC-001',
+        sku: "CABLE-USBC-001",
         isAvailable: true,
-        tags: ['cable', 'usb', 'accessories'],
+        tags: ["cable", "usb", "accessories"],
       },
       {
-        name: 'TypeScript Handbook',
-        description: 'Complete guide to TypeScript',
-        price: 45.00,
+        name: "TypeScript Handbook",
+        description: "Complete guide to TypeScript",
+        price: 45.0,
         stock: 20,
         categoryId: 2,
         supplierId: 2,
-        sku: 'BOOK-TS-001',
+        sku: "BOOK-TS-001",
         isAvailable: true,
-        tags: ['programming', 'typescript', 'book'],
+        tags: ["programming", "typescript", "book"],
       },
       {
-        name: 'JavaScript Guide',
-        description: 'Modern JavaScript programming',
-        price: 38.00,
+        name: "JavaScript Guide",
+        description: "Modern JavaScript programming",
+        price: 38.0,
         stock: 15,
         categoryId: 2,
         supplierId: 2,
-        sku: 'BOOK-JS-001',
+        sku: "BOOK-JS-001",
         isAvailable: false,
-        tags: ['programming', 'javascript', 'book'],
+        tags: ["programming", "javascript", "book"],
       },
       {
-        name: 'Cotton T-Shirt',
+        name: "Cotton T-Shirt",
         description: null,
         price: 19.99,
         stock: 0,
         categoryId: 3,
         supplierId: 3,
-        sku: 'CLOTH-TS-001',
+        sku: "CLOTH-TS-001",
         isAvailable: false,
         tags: [],
       },
       {
-        name: 'Premium Headphones',
-        description: 'Noise-cancelling headphones',
+        name: "Premium Headphones",
+        description: "Noise-cancelling headphones",
         price: 299.99,
         stock: 8,
         categoryId: 1,
         supplierId: 1,
-        sku: 'HP-PRO-001',
+        sku: "HP-PRO-001",
         isAvailable: true,
-        tags: ['audio', 'premium', 'wireless'],
+        tags: ["audio", "premium", "wireless"],
       },
       {
-        name: '000123',
-        description: 'Product with numeric-looking name',
+        name: "000123",
+        description: "Product with numeric-looking name",
         price: 9.99,
         stock: 10,
         categoryId: 1,
         supplierId: 1,
-        sku: 'NUM-NAME-001',
+        sku: "NUM-NAME-001",
         isAvailable: true,
-        tags: ['test'],
+        tags: ["test"],
       },
     ];
 
     for (const product of products) {
-      await handleRequest(forja, new Request('http://localhost:3000/api/products', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(product),
-      }));
+      await handleRequest(
+        forja,
+        new Request("http://localhost:3000/api/products", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(product),
+        }),
+      );
     }
   }
 
   /**
    * Helper function to execute query and return data
    */
-  async function queryProducts(where: Record<string, unknown>): Promise<unknown[]> {
+  async function queryProducts(
+    where: Record<string, unknown>,
+  ): Promise<unknown[]> {
     const query = { where };
     const serialized = serializeQuery(query);
     const queryParams = new URLSearchParams(serialized as Record<string, string>);
 
-    const request = new Request(`http://localhost:3000/api/products?${queryParams}`, {
-      method: 'GET',
-    });
+    const request = new Request(
+      `http://localhost:3000/api/products?${queryParams}`,
+      {
+        method: "GET",
+      },
+    );
 
     const response = await handleRequest(forja, request);
     const data = await response.json();
 
     expect(response.status).toBe(200);
-    expect(data).toHaveProperty('data');
+    expect(data).toHaveProperty("data");
     expect(Array.isArray(data.data)).toBe(true);
     console.log({ query: where, response: data.data });
     return data.data;
@@ -246,109 +287,109 @@ describe('Query Operators Integration Tests', () => {
   // COMPARISON OPERATORS
   // ============================================================================
 
-  describe('Comparison Operators', () => {
-    describe('$eq - Equal', () => {
-      it('should find products with exact price match', async () => {
+  describe("Comparison Operators", () => {
+    describe("$eq - Equal", () => {
+      it("should find products with exact price match", async () => {
         const results = await queryProducts({ price: { $eq: 29.99 } });
         expect(results).toHaveLength(1);
-        expect(results[0]).toHaveProperty('name', 'Wireless Mouse');
+        expect(results[0]).toHaveProperty("name", "Wireless Mouse");
       });
 
-      it('should find products with exact string match', async () => {
-        const results = await queryProducts({ name: { $eq: 'USB Cable' } });
+      it("should find products with exact string match", async () => {
+        const results = await queryProducts({ name: { $eq: "USB Cable" } });
         expect(results).toHaveLength(1);
-        expect(results[0]).toHaveProperty('sku', 'CABLE-USBC-001');
+        expect(results[0]).toHaveProperty("sku", "CABLE-USBC-001");
       });
 
-      it('should find products with exact boolean match', async () => {
+      it("should find products with exact boolean match", async () => {
         const results = await queryProducts({ isAvailable: { $eq: false } });
         expect(results.length).toBeGreaterThanOrEqual(2);
-        expect(results.every(p => p.isAvailable === false)).toBe(true);
+        expect(results.every((p) => p.isAvailable === false)).toBe(true);
       });
 
-      it('should return empty array when no match found', async () => {
+      it("should return empty array when no match found", async () => {
         const results = await queryProducts({ price: { $eq: 999.99 } });
         expect(results).toHaveLength(0);
       });
     });
 
-    describe('$ne - Not Equal', () => {
-      it('should find products where price is not equal', async () => {
+    describe("$ne - Not Equal", () => {
+      it("should find products where price is not equal", async () => {
         const results = await queryProducts({ price: { $ne: 29.99 } });
         expect(results.length).toBeGreaterThan(0);
-        expect(results.every(p => p.price !== 29.99)).toBe(true);
+        expect(results.every((p) => p.price !== 29.99)).toBe(true);
       });
 
-      it('should find products where boolean is not equal', async () => {
+      it("should find products where boolean is not equal", async () => {
         const results = await queryProducts({ isAvailable: { $ne: true } });
-        expect(results.every(p => p.isAvailable === false)).toBe(true);
+        expect(results.every((p) => p.isAvailable === false)).toBe(true);
       });
 
-      it('should exclude specific category', async () => {
+      it("should exclude specific category", async () => {
         const results = await queryProducts({ categoryId: { $ne: 1 } });
-        expect(results.every(p => p.categoryId !== 1)).toBe(true);
+        expect(results.every((p) => p.categoryId !== 1)).toBe(true);
       });
     });
 
-    describe('$gt - Greater Than', () => {
-      it('should find products with price greater than 100', async () => {
+    describe("$gt - Greater Than", () => {
+      it("should find products with price greater than 100", async () => {
         const results = await queryProducts({ price: { $gt: 100 } });
         expect(results.length).toBeGreaterThan(0);
-        expect(results.every(p => p.price > 100)).toBe(true);
+        expect(results.every((p) => p.price > 100)).toBe(true);
       });
 
-      it('should find products with stock greater than 50', async () => {
+      it("should find products with stock greater than 50", async () => {
         const results = await queryProducts({ stock: { $gt: 50 } });
-        expect(results.every(p => p.stock > 50)).toBe(true);
+        expect(results.every((p) => p.stock > 50)).toBe(true);
       });
 
-      it('should return empty array when no match', async () => {
+      it("should return empty array when no match", async () => {
         const results = await queryProducts({ price: { $gt: 1000 } });
         expect(results).toHaveLength(0);
       });
     });
 
-    describe('$gte - Greater Than or Equal', () => {
-      it('should find products with price >= 100', async () => {
+    describe("$gte - Greater Than or Equal", () => {
+      it("should find products with price >= 100", async () => {
         const results = await queryProducts({ price: { $gte: 120 } });
         expect(results.length).toBeGreaterThan(0);
-        expect(results.every(p => p.price >= 120)).toBe(true);
+        expect(results.every((p) => p.price >= 120)).toBe(true);
       });
 
-      it('should include exact match', async () => {
+      it("should include exact match", async () => {
         const results = await queryProducts({ price: { $gte: 29.99 } });
-        expect(results.some(p => p.price === 29.99)).toBe(true);
+        expect(results.some((p) => p.price === 29.99)).toBe(true);
       });
 
-      it('should find products with stock >= 0 (including zero)', async () => {
+      it("should find products with stock >= 0 (including zero)", async () => {
         const results = await queryProducts({ stock: { $gte: 0 } });
         expect(results.length).toBe(8); // All products
       });
     });
 
-    describe('$lt - Less Than', () => {
-      it('should find products with price less than 50', async () => {
+    describe("$lt - Less Than", () => {
+      it("should find products with price less than 50", async () => {
         const results = await queryProducts({ price: { $lt: 50 } });
         expect(results.length).toBeGreaterThan(0);
-        expect(results.every(p => p.price < 50)).toBe(true);
+        expect(results.every((p) => p.price < 50)).toBe(true);
       });
 
-      it('should find products with low stock', async () => {
+      it("should find products with low stock", async () => {
         const results = await queryProducts({ stock: { $lt: 10 } });
-        expect(results.every(p => p.stock < 10)).toBe(true);
+        expect(results.every((p) => p.stock < 10)).toBe(true);
       });
     });
 
-    describe('$lte - Less Than or Equal', () => {
-      it('should find products with price <= 30', async () => {
+    describe("$lte - Less Than or Equal", () => {
+      it("should find products with price <= 30", async () => {
         const results = await queryProducts({ price: { $lte: 30 } });
         expect(results.length).toBeGreaterThan(0);
-        expect(results.every(p => p.price <= 30)).toBe(true);
+        expect(results.every((p) => p.price <= 30)).toBe(true);
       });
 
-      it('should include exact match', async () => {
+      it("should include exact match", async () => {
         const results = await queryProducts({ price: { $lte: 29.99 } });
-        expect(results.some(p => p.price === 29.99)).toBe(true);
+        expect(results.some((p) => p.price === 29.99)).toBe(true);
       });
     });
   });
@@ -357,113 +398,130 @@ describe('Query Operators Integration Tests', () => {
   // STRING OPERATORS
   // ============================================================================
 
-  describe('String Operators', () => {
-    describe('$contains - String Contains', () => {
+  describe("String Operators", () => {
+    describe("$contains - String Contains", () => {
       it('should find products with name containing "Script"', async () => {
-        const results = await queryProducts({ name: { $contains: 'Script' } });
+        const results = await queryProducts({ name: { $contains: "Script" } });
         expect(results.length).toBeGreaterThan(0);
-        expect(results.every(p =>
-          typeof p.name === 'string' && p.name.includes('Script')
-        )).toBe(true);
+        expect(
+          results.every(
+            (p) => typeof p.name === "string" && p.name.includes("Script"),
+          ),
+        ).toBe(true);
       });
 
       it('should find products with description containing "USB"', async () => {
-        const results = await queryProducts({ description: { $contains: 'USB' } });
+        const results = await queryProducts({ description: { $contains: "USB" } });
         expect(results.length).toBeGreaterThan(0);
-        expect(results.every(p =>
-          typeof p.description === 'string' && p.description.includes('USB')
-        )).toBe(true);
+        expect(
+          results.every(
+            (p) => typeof p.description === "string" && p.description.includes("USB"),
+          ),
+        ).toBe(true);
       });
 
-      it('should return empty when substring not found', async () => {
-        const results = await queryProducts({ name: { $contains: 'NonExistent' } });
+      it("should return empty when substring not found", async () => {
+        const results = await queryProducts({ name: { $contains: "NonExistent" } });
         expect(results).toHaveLength(0);
       });
     });
 
-    describe('$notContains - String Does Not Contain', () => {
+    describe("$notContains - String Does Not Contain", () => {
       it('should find products NOT containing "Keyboard"', async () => {
-        const results = await queryProducts({ name: { $notContains: 'Keyboard' } });
+        const results = await queryProducts({ name: { $notContains: "Keyboard" } });
         expect(results.length).toBeGreaterThan(0);
-        expect(results.every(p =>
-          typeof p.name === 'string' && !p.name.includes('Keyboard')
-        )).toBe(true);
+        expect(
+          results.every(
+            (p) => typeof p.name === "string" && !p.name.includes("Keyboard"),
+          ),
+        ).toBe(true);
       });
 
-      it('should exclude products with specific substring', async () => {
-        const results = await queryProducts({ description: { $notContains: 'wireless' } });
-        expect(results.every(p =>
-          p.description === null || !p.description.toLowerCase().includes('wireless')
-        )).toBe(true);
+      it("should exclude products with specific substring", async () => {
+        const results = await queryProducts({
+          description: { $notContains: "wireless" },
+        });
+        expect(
+          results.every(
+            (p) =>
+              p.description === null ||
+              !p.description.toLowerCase().includes("wireless"),
+          ),
+        ).toBe(true);
       });
     });
 
-    describe('$startsWith - String Starts With', () => {
+    describe("$startsWith - String Starts With", () => {
       it('should find products with name starting with "Type"', async () => {
-        const results = await queryProducts({ name: { $startsWith: 'Type' } });
+        const results = await queryProducts({ name: { $startsWith: "Type" } });
         expect(results.length).toBeGreaterThan(0);
-        expect(results.every(p =>
-          typeof p.name === 'string' && p.name.startsWith('Type')
-        )).toBe(true);
+        expect(
+          results.every(
+            (p) => typeof p.name === "string" && p.name.startsWith("Type"),
+          ),
+        ).toBe(true);
       });
 
       it('should find products with SKU starting with "BOOK-"', async () => {
-        const results = await queryProducts({ sku: { $startsWith: 'BOOK-' } });
+        const results = await queryProducts({ sku: { $startsWith: "BOOK-" } });
         expect(results.length).toBe(2);
-        expect(results.every(p => p.sku.startsWith('BOOK-'))).toBe(true);
+        expect(results.every((p) => p.sku.startsWith("BOOK-"))).toBe(true);
       });
 
-      it('should return empty when no match', async () => {
-        const results = await queryProducts({ name: { $startsWith: 'XYZ' } });
+      it("should return empty when no match", async () => {
+        const results = await queryProducts({ name: { $startsWith: "XYZ" } });
         expect(results).toHaveLength(0);
       });
     });
 
-    describe('$endsWith - String Ends With', () => {
+    describe("$endsWith - String Ends With", () => {
       it('should find products with name ending with "Mouse"', async () => {
-        const results = await queryProducts({ name: { $endsWith: 'Mouse' } });
+        const results = await queryProducts({ name: { $endsWith: "Mouse" } });
         expect(results.length).toBe(1);
-        expect(results[0]).toHaveProperty('name', 'Wireless Mouse');
+        expect(results[0]).toHaveProperty("name", "Wireless Mouse");
       });
 
       it('should find products with SKU ending with "-001"', async () => {
-        const results = await queryProducts({ sku: { $endsWith: '-001' } });
+        const results = await queryProducts({ sku: { $endsWith: "-001" } });
         expect(results.length).toBeGreaterThan(0);
-        expect(results.every(p => p.sku.endsWith('-001'))).toBe(true);
+        expect(results.every((p) => p.sku.endsWith("-001"))).toBe(true);
       });
     });
 
-    describe('$like - SQL LIKE Pattern', () => {
+    describe("$like - SQL LIKE Pattern", () => {
       it('should find products matching pattern "%book%"', async () => {
-        const results = await queryProducts({ name: { $like: '%book%' } });
+        const results = await queryProducts({ name: { $like: "%book%" } });
         expect(results.length).toBeGreaterThan(0);
       });
 
       it('should find products matching pattern "USB%"', async () => {
-        const results = await queryProducts({ name: { $like: 'USB%' } });
+        const results = await queryProducts({ name: { $like: "USB%" } });
         expect(results.length).toBe(1);
-        expect(results[0]).toHaveProperty('name', 'USB Cable');
+        expect(results[0]).toHaveProperty("name", "USB Cable");
       });
 
       it('should support single character wildcard "_"', async () => {
-        const results = await queryProducts({ sku: { $like: 'BOOK-_S-001' } });
+        const results = await queryProducts({ sku: { $like: "BOOK-_S-001" } });
         expect(results.length).toBe(2);
       });
     });
 
-    describe('$ilike - Case-Insensitive LIKE', () => {
-      it('should find products matching pattern case-insensitively', async () => {
-        const results = await queryProducts({ name: { $ilike: '%book%' } });
+    describe("$ilike - Case-Insensitive LIKE", () => {
+      it("should find products matching pattern case-insensitively", async () => {
+        const results = await queryProducts({ name: { $ilike: "%book%" } });
         expect(results.length).toBeGreaterThan(0);
-        expect(results.every(p =>
-          typeof p.name === 'string' && p.name.toLowerCase().includes('book')
-        )).toBe(true);
+        expect(
+          results.every(
+            (p) =>
+              typeof p.name === "string" && p.name.toLowerCase().includes("book"),
+          ),
+        ).toBe(true);
       });
 
-      it('should match regardless of case', async () => {
-        const results1 = await queryProducts({ name: { $ilike: '%KEYBOARD%' } });
-        const results2 = await queryProducts({ name: { $ilike: '%keyboard%' } });
-        const results3 = await queryProducts({ name: { $ilike: '%Keyboard%' } });
+      it("should match regardless of case", async () => {
+        const results1 = await queryProducts({ name: { $ilike: "%KEYBOARD%" } });
+        const results2 = await queryProducts({ name: { $ilike: "%keyboard%" } });
+        const results3 = await queryProducts({ name: { $ilike: "%Keyboard%" } });
 
         expect(results1.length).toBe(results2.length);
         expect(results2.length).toBe(results3.length);
@@ -475,68 +533,74 @@ describe('Query Operators Integration Tests', () => {
   // ARRAY OPERATORS
   // ============================================================================
 
-  describe('Array Operators', () => {
-    describe('$in - Value In Array', () => {
-      it('should find products with price in array', async () => {
-        const results = await queryProducts({ price: { $in: [29.99, 45.00, 120.00] } });
+  describe("Array Operators", () => {
+    describe("$in - Value In Array", () => {
+      it("should find products with price in array", async () => {
+        const results = await queryProducts({
+          price: { $in: [29.99, 45.0, 120.0] },
+        });
         expect(results.length).toBe(3);
-        expect(results.every(p => [29.99, 45.00, 120.00].includes(p.price))).toBe(true);
+        expect(results.every((p) => [29.99, 45.0, 120.0].includes(p.price))).toBe(
+          true,
+        );
       });
 
-      it('should find products with categoryId in array', async () => {
+      it("should find products with categoryId in array", async () => {
         const results = await queryProducts({ categoryId: { $in: [1, 2] } });
         expect(results.length).toBeGreaterThan(0);
-        expect(results.every(p => [1, 2].includes(p.categoryId))).toBe(true);
+        expect(results.every((p) => [1, 2].includes(p.categoryId))).toBe(true);
       });
 
-      it('should find products with name in array', async () => {
+      it("should find products with name in array", async () => {
         const results = await queryProducts({
-          name: { $in: ['USB Cable', 'Wireless Mouse'] }
+          name: { $in: ["USB Cable", "Wireless Mouse"] },
         });
         expect(results.length).toBe(2);
       });
 
-      it('should return empty when no values match', async () => {
+      it("should return empty when no values match", async () => {
         const results = await queryProducts({ price: { $in: [999, 1000, 1001] } });
         expect(results).toHaveLength(0);
       });
 
-      it('should handle single value in array', async () => {
+      it("should handle single value in array", async () => {
         const results = await queryProducts({ categoryId: { $in: [1] } });
         expect(results.length).toBeGreaterThan(0);
-        expect(results.every(p => p.categoryId === 1)).toBe(true);
+        expect(results.every((p) => p.categoryId === 1)).toBe(true);
       });
 
-      it('should handle numeric-looking strings in $in array', async () => {
+      it("should handle numeric-looking strings in $in array", async () => {
         // '000123' looks like a number but should stay as string
         const results = await queryProducts({
-          name: { $in: ['000123', 'USB Cable'] }
+          name: { $in: ["000123", "USB Cable"] },
         });
         expect(results.length).toBe(2);
-        expect(results.some(p => p.name === '000123')).toBe(true);
-        expect(results.some(p => p.name === 'USB Cable')).toBe(true);
+        expect(results.some((p) => p.name === "000123")).toBe(true);
+        expect(results.some((p) => p.name === "USB Cable")).toBe(true);
       });
     });
 
-    describe('$nin - Value Not In Array', () => {
-      it('should find products with price not in array', async () => {
-        const results = await queryProducts({ price: { $nin: [29.99, 45.00] } });
+    describe("$nin - Value Not In Array", () => {
+      it("should find products with price not in array", async () => {
+        const results = await queryProducts({ price: { $nin: [29.99, 45.0] } });
         expect(results.length).toBeGreaterThan(0);
-        expect(results.every(p => ![29.99, 45.00].includes(p.price))).toBe(true);
+        expect(results.every((p) => ![29.99, 45.0].includes(p.price))).toBe(true);
       });
 
-      it('should exclude multiple categories', async () => {
+      it("should exclude multiple categories", async () => {
         const results = await queryProducts({ categoryId: { $nin: [1, 3] } });
-        expect(results.every(p => p.categoryId === 2)).toBe(true);
+        expect(results.every((p) => p.categoryId === 2)).toBe(true);
       });
 
-      it('should exclude specific products by name', async () => {
+      it("should exclude specific products by name", async () => {
         const results = await queryProducts({
-          name: { $nin: ['USB Cable', 'Cotton T-Shirt'] }
+          name: { $nin: ["USB Cable", "Cotton T-Shirt"] },
         });
-        expect(results.every(p =>
-          p.name !== 'USB Cable' && p.name !== 'Cotton T-Shirt'
-        )).toBe(true);
+        expect(
+          results.every(
+            (p) => p.name !== "USB Cable" && p.name !== "Cotton T-Shirt",
+          ),
+        ).toBe(true);
       });
     });
   });
@@ -545,32 +609,32 @@ describe('Query Operators Integration Tests', () => {
   // NULL OPERATORS
   // ============================================================================
 
-  describe('Null Operators', () => {
-    describe('$null - Is Null', () => {
-      it('should find products with null description', async () => {
+  describe("Null Operators", () => {
+    describe("$null - Is Null", () => {
+      it("should find products with null description", async () => {
         const results = await queryProducts({ description: { $null: true } });
         expect(results.length).toBeGreaterThan(0);
-        expect(results.every(p => p.description === null)).toBe(true);
+        expect(results.every((p) => p.description === null)).toBe(true);
       });
 
-      it('should find products with non-null description using $null: false', async () => {
+      it("should find products with non-null description using $null: false", async () => {
         const results = await queryProducts({ description: { $null: false } });
         expect(results.length).toBeGreaterThan(0);
-        expect(results.every(p => p.description !== null)).toBe(true);
+        expect(results.every((p) => p.description !== null)).toBe(true);
       });
     });
 
-    describe('$notNull - Is Not Null', () => {
-      it('should find products with non-null description', async () => {
+    describe("$notNull - Is Not Null", () => {
+      it("should find products with non-null description", async () => {
         const results = await queryProducts({ description: { $notNull: true } });
         expect(results.length).toBeGreaterThan(0);
-        expect(results.every(p => p.description !== null)).toBe(true);
+        expect(results.every((p) => p.description !== null)).toBe(true);
       });
 
-      it('should find products with null description using $notNull: false', async () => {
+      it("should find products with null description using $notNull: false", async () => {
         const results = await queryProducts({ description: { $notNull: false } });
         expect(results.length).toBeGreaterThan(0);
-        expect(results.every(p => p.description === null)).toBe(true);
+        expect(results.every((p) => p.description === null)).toBe(true);
       });
     });
   });
@@ -579,9 +643,9 @@ describe('Query Operators Integration Tests', () => {
   // LOGICAL OPERATORS
   // ============================================================================
 
-  describe('Logical Operators', () => {
-    describe('$and - Logical AND', () => {
-      it('should find products matching all conditions', async () => {
+  describe("Logical Operators", () => {
+    describe("$and - Logical AND", () => {
+      it("should find products matching all conditions", async () => {
         const results = await queryProducts({
           $and: [
             { price: { $gte: 20 } },
@@ -590,146 +654,126 @@ describe('Query Operators Integration Tests', () => {
           ],
         });
         expect(results.length).toBeGreaterThan(0);
-        expect(results.every(p =>
-          p.price >= 20 && p.price <= 50 && p.isAvailable === true
-        )).toBe(true);
+        expect(
+          results.every(
+            (p) => p.price >= 20 && p.price <= 50 && p.isAvailable === true,
+          ),
+        ).toBe(true);
       });
 
-      it('should combine multiple field conditions', async () => {
+      it("should combine multiple field conditions", async () => {
         const results = await queryProducts({
-          $and: [
-            { categoryId: 1 },
-            { stock: { $gt: 100 } },
-          ],
+          $and: [{ categoryId: 1 }, { stock: { $gt: 100 } }],
         });
-        expect(results.every(p => p.categoryId === 1 && p.stock > 100)).toBe(true);
+        expect(results.every((p) => p.categoryId === 1 && p.stock > 100)).toBe(
+          true,
+        );
       });
 
-      it('should return empty when conditions conflict', async () => {
+      it("should return empty when conditions conflict", async () => {
         const results = await queryProducts({
-          $and: [
-            { price: { $gt: 100 } },
-            { price: { $lt: 50 } },
-          ],
+          $and: [{ price: { $gt: 100 } }, { price: { $lt: 50 } }],
         });
         expect(results).toHaveLength(0);
       });
     });
 
-    describe('$or - Logical OR', () => {
-      it('should find products matching any condition', async () => {
+    describe("$or - Logical OR", () => {
+      it("should find products matching any condition", async () => {
         const results = await queryProducts({
-          $or: [
-            { price: { $lt: 20 } },
-            { price: { $gt: 200 } },
-          ],
+          $or: [{ price: { $lt: 20 } }, { price: { $gt: 200 } }],
         });
         expect(results.length).toBeGreaterThan(0);
-        expect(results.every(p => p.price < 20 || p.price > 200)).toBe(true);
+        expect(results.every((p) => p.price < 20 || p.price > 200)).toBe(true);
       });
 
-      it('should combine different fields', async () => {
+      it("should combine different fields", async () => {
         const results = await queryProducts({
-          $or: [
-            { categoryId: 2 },
-            { stock: { $eq: 0 } },
-          ],
+          $or: [{ categoryId: 2 }, { stock: { $eq: 0 } }],
         });
-        expect(results.every(p => p.categoryId === 2 || p.stock === 0)).toBe(true);
+        expect(results.every((p) => p.categoryId === 2 || p.stock === 0)).toBe(
+          true,
+        );
       });
 
-      it('should handle multiple OR conditions', async () => {
+      it("should handle multiple OR conditions", async () => {
         const results = await queryProducts({
           $or: [
-            { name: { $contains: 'Book' } },
-            { name: { $contains: 'Cable' } },
-            { name: { $contains: 'Mouse' } },
+            { name: { $contains: "Book" } },
+            { name: { $contains: "Cable" } },
+            { name: { $contains: "Mouse" } },
           ],
         });
         expect(results.length).toBeGreaterThan(0);
       });
     });
 
-    describe('$not - Logical NOT', () => {
-      it('should exclude products matching condition', async () => {
+    describe("$not - Logical NOT", () => {
+      it("should exclude products matching condition", async () => {
         const results = await queryProducts({
-          $not: [
-            { categoryId: 1 },
-          ],
+          $not: [{ categoryId: 1 }],
         });
-        expect(results.every(p => p.categoryId !== 1)).toBe(true);
+        expect(results.every((p) => p.categoryId !== 1)).toBe(true);
       });
 
-      it('should negate complex conditions', async () => {
+      it("should negate complex conditions", async () => {
         const results = await queryProducts({
           $not: [
             {
-              $and: [
-                { price: { $gte: 100 } },
-                { stock: { $lte: 10 } },
-              ]
+              $and: [{ price: { $gte: 100 } }, { stock: { $lte: 10 } }],
             },
           ],
         });
-        expect(results.every(p =>
-          !(p.price >= 100 && p.stock <= 10)
-        )).toBe(true);
+        expect(results.every((p) => !(p.price >= 100 && p.stock <= 10))).toBe(true);
       });
     });
 
-    describe('Complex Logical Combinations', () => {
-      it('should handle nested $and inside $or', async () => {
+    describe("Complex Logical Combinations", () => {
+      it("should handle nested $and inside $or", async () => {
         const results = await queryProducts({
           $or: [
             {
-              $and: [
-                { price: { $gte: 100 } },
-                { stock: { $lte: 10 } },
-              ],
+              $and: [{ price: { $gte: 100 } }, { stock: { $lte: 10 } }],
             },
             {
-              $and: [
-                { price: { $lte: 20 } },
-                { stock: { $gte: 100 } },
-              ],
+              $and: [{ price: { $lte: 20 } }, { stock: { $gte: 100 } }],
             },
           ],
         });
         expect(results.length).toBeGreaterThan(0);
-        expect(results.every(p =>
-          (p.price >= 100 && p.stock <= 10) ||
-          (p.price <= 20 && p.stock >= 100)
-        )).toBe(true);
+        expect(
+          results.every(
+            (p) =>
+              (p.price >= 100 && p.stock <= 10) || (p.price <= 20 && p.stock >= 100),
+          ),
+        ).toBe(true);
       });
 
-      it('should handle $or inside $and', async () => {
+      it("should handle $or inside $and", async () => {
         const results = await queryProducts({
           $and: [
             { isAvailable: true },
             {
-              $or: [
-                { categoryId: 1 },
-                { categoryId: 2 },
-              ],
+              $or: [{ categoryId: 1 }, { categoryId: 2 }],
             },
           ],
         });
-        expect(results.every(p =>
-          p.isAvailable === true && (p.categoryId === 1 || p.categoryId === 2)
-        )).toBe(true);
+        expect(
+          results.every(
+            (p) =>
+              p.isAvailable === true && (p.categoryId === 1 || p.categoryId === 2),
+          ),
+        ).toBe(true);
       });
 
-      it('should handle triple nested logic', async () => {
+      it("should handle triple nested logic", async () => {
         const results = await queryProducts({
           $or: [
             {
               $and: [
                 { categoryId: 1 },
                 {
-                  $or: [
-                    { price: { $lt: 30 } },
-                    { price: { $gt: 200 } },
-                  ],
+                  $or: [{ price: { $lt: 30 } }, { price: { $gt: 200 } }],
                 },
               ],
             },
@@ -745,61 +789,53 @@ describe('Query Operators Integration Tests', () => {
   // OPERATOR COMBINATIONS
   // ============================================================================
 
-  describe('Operator Combinations', () => {
-    it('should combine comparison with string operators', async () => {
+  describe("Operator Combinations", () => {
+    it("should combine comparison with string operators", async () => {
       const results = await queryProducts({
-        $and: [
-          { price: { $gte: 20 } },
-          { name: { $contains: 'Book' } },
-        ],
+        $and: [{ price: { $gte: 20 } }, { name: { $contains: "Book" } }],
       });
-      expect(results.every(p => p.price >= 20 && p.name.includes('Book'))).toBe(true);
+      expect(results.every((p) => p.price >= 20 && p.name.includes("Book"))).toBe(
+        true,
+      );
     });
 
-    it('should combine array with comparison operators', async () => {
+    it("should combine array with comparison operators", async () => {
       const results = await queryProducts({
-        $and: [
-          { categoryId: { $in: [1, 2] } },
-          { price: { $lte: 50 } },
-        ],
+        $and: [{ categoryId: { $in: [1, 2] } }, { price: { $lte: 50 } }],
       });
-      expect(results.every(p =>
-        [1, 2].includes(p.categoryId) && p.price <= 50
-      )).toBe(true);
+      expect(
+        results.every((p) => [1, 2].includes(p.categoryId) && p.price <= 50),
+      ).toBe(true);
     });
 
-    it('should combine null with other operators', async () => {
+    it("should combine null with other operators", async () => {
       const results = await queryProducts({
-        $and: [
-          { description: { $notNull: true } },
-          { price: { $lt: 100 } },
-        ],
+        $and: [{ description: { $notNull: true } }, { price: { $lt: 100 } }],
       });
-      expect(results.every(p => p.description !== null && p.price < 100)).toBe(true);
+      expect(results.every((p) => p.description !== null && p.price < 100)).toBe(
+        true,
+      );
     });
 
-    it('should use multiple operators on same field', async () => {
+    it("should use multiple operators on same field", async () => {
       const results = await queryProducts({
         price: {
           $gte: 20,
           $lte: 100,
         },
       });
-      expect(results.every(p => p.price >= 20 && p.price <= 100)).toBe(true);
+      expect(results.every((p) => p.price >= 20 && p.price <= 100)).toBe(true);
     });
 
-    it('should combine all operator types', async () => {
+    it("should combine all operator types", async () => {
       const results = await queryProducts({
         $and: [
           { price: { $gte: 15, $lte: 50 } },
-          { name: { $notContains: 'Premium' } },
+          { name: { $notContains: "Premium" } },
           { categoryId: { $in: [1, 2] } },
           { description: { $notNull: true } },
           {
-            $or: [
-              { stock: { $gte: 10 } },
-              { isAvailable: false },
-            ],
+            $or: [{ stock: { $gte: 10 } }, { isAvailable: false }],
           },
         ],
       });

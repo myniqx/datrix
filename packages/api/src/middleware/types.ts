@@ -4,45 +4,34 @@
  * Type definitions for middleware system
  */
 
-import type { ParsedQuery } from 'forja-types/api/parser';
+import type { ParsedQuery } from "forja-types/api/parser";
+import type { SchemaDefinition } from "forja-types/core/schema";
+import type { PermissionAction } from "forja-types/core/permission";
+import type { Forja } from "forja-core";
+import type { IApiPlugin, AuthenticatedUser } from "../interface";
 
 /**
  * HTTP Methods
  */
-export type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
-
-// PermissionAction is now imported from forja-types/core/permission
-
-/**
- * Authenticated User (from token/session)
- */
-export interface AuthenticatedUser {
-  readonly id: string;
-  readonly role: string;
-  readonly email?: string;
-  readonly [key: string]: unknown;
-}
+export type HttpMethod = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 
 /**
  * Request Context
  *
- * Centralized context object containing all request information
+ * Unified context object containing all request information.
+ * Single source of truth for the entire request lifecycle.
  */
-export interface RequestContext {
+export interface RequestContext<TRole extends string = string> {
   /**
-   * Authenticated user (null if not authenticated)
+   * Resolved schema from URL (null if not found)
+   * Access model name via schema.name, table name via schema.tableName
    */
-  readonly user: AuthenticatedUser | null;
+  readonly schema: SchemaDefinition | null;
 
   /**
-   * Model name extracted from URL
+   * Permission action derived from HTTP method
    */
-  readonly model: string | null;
-
-  /**
-   * Table name extracted from URL
-   */
-  readonly tableName: string | null;
+  readonly action: PermissionAction;
 
   /**
    * Record ID (for single record operations)
@@ -75,14 +64,29 @@ export interface RequestContext {
   readonly url: URL;
 
   /**
-   * API prefix (e.g., '/api')
-   */
-  readonly apiPrefix: string;
-
-  /**
    * Raw request object
    */
   readonly request: Request;
+
+  /**
+   * Authenticated user (null if not authenticated or auth disabled)
+   */
+  readonly user: AuthenticatedUser | null;
+
+  /**
+   * Forja instance for database operations
+   */
+  readonly forja: Forja;
+
+  /**
+   * API plugin instance
+   */
+  readonly api: IApiPlugin<TRole>;
+
+  /**
+   * Whether authentication is enabled
+   */
+  readonly authEnabled: boolean;
 }
 
 /**

@@ -5,7 +5,7 @@
  * Schemas are defined as plain TypeScript objects with full type inference.
  */
 
-import type { SchemaPermission, FieldPermission } from './permission';
+import type { SchemaPermission, FieldPermission } from "./permission";
 
 // Re-export permission types for convenience
 export type {
@@ -16,11 +16,10 @@ export type {
   FieldPermissionAction,
   PermissionContext,
   PermissionFn,
-  PermissionUser,
   DefaultPermission,
   PermissionCheckResult,
   FieldPermissionCheckResult,
-} from './permission';
+} from "./permission";
 
 export {
   isPermissionFn,
@@ -28,21 +27,21 @@ export {
   isMixedPermissionArray,
   validatePermissionRoles,
   validateFieldPermissionRoles,
-} from './permission';
+} from "./permission";
 
 /**
  * Primitive field types
  */
 export type FieldType =
-  | 'string'
-  | 'number'
-  | 'boolean'
-  | 'date'
-  | 'json'
-  | 'enum'
-  | 'array'
-  | 'relation'
-  | 'file';
+  | "string"
+  | "number"
+  | "boolean"
+  | "date"
+  | "json"
+  | "enum"
+  | "array"
+  | "relation"
+  | "file";
 
 /**
  * Base field definition (common properties)
@@ -64,9 +63,10 @@ interface BaseFieldDefinition<TRoles extends string = string> {
 /**
  * String field definition
  */
-export interface StringField<TRoles extends string = string>
-  extends BaseFieldDefinition<TRoles> {
-  readonly type: 'string';
+export interface StringField<
+  TRoles extends string = string,
+> extends BaseFieldDefinition<TRoles> {
+  readonly type: "string";
   readonly minLength?: number;
   readonly maxLength?: number;
   readonly pattern?: RegExp;
@@ -78,9 +78,10 @@ export interface StringField<TRoles extends string = string>
 /**
  * Number field definition
  */
-export interface NumberField<TRoles extends string = string>
-  extends BaseFieldDefinition<TRoles> {
-  readonly type: 'number';
+export interface NumberField<
+  TRoles extends string = string,
+> extends BaseFieldDefinition<TRoles> {
+  readonly type: "number";
   readonly min?: number;
   readonly max?: number;
   readonly integer?: boolean;
@@ -91,17 +92,19 @@ export interface NumberField<TRoles extends string = string>
 /**
  * Boolean field definition
  */
-export interface BooleanField<TRoles extends string = string>
-  extends BaseFieldDefinition<TRoles> {
-  readonly type: 'boolean';
+export interface BooleanField<
+  TRoles extends string = string,
+> extends BaseFieldDefinition<TRoles> {
+  readonly type: "boolean";
 }
 
 /**
  * Date field definition
  */
-export interface DateField<TRoles extends string = string>
-  extends BaseFieldDefinition<TRoles> {
-  readonly type: 'date';
+export interface DateField<
+  TRoles extends string = string,
+> extends BaseFieldDefinition<TRoles> {
+  readonly type: "date";
   readonly min?: Date;
   readonly max?: Date;
   readonly autoCreate?: boolean; // Auto-set on creation
@@ -111,9 +114,10 @@ export interface DateField<TRoles extends string = string>
 /**
  * JSON field definition
  */
-export interface JsonField<TRoles extends string = string>
-  extends BaseFieldDefinition<TRoles> {
-  readonly type: 'json';
+export interface JsonField<
+  TRoles extends string = string,
+> extends BaseFieldDefinition<TRoles> {
+  readonly type: "json";
   readonly schema?: Record<string, unknown>; // JSON schema validation
 }
 
@@ -122,18 +126,19 @@ export interface JsonField<TRoles extends string = string>
  */
 export interface EnumField<
   T extends readonly string[] = readonly string[],
-  TRoles extends string = string
+  TRoles extends string = string,
 > extends BaseFieldDefinition<TRoles> {
-  readonly type: 'enum';
+  readonly type: "enum";
   readonly values: T;
 }
 
 /**
  * Array field definition
  */
-export interface ArrayField<TRoles extends string = string>
-  extends BaseFieldDefinition<TRoles> {
-  readonly type: 'array';
+export interface ArrayField<
+  TRoles extends string = string,
+> extends BaseFieldDefinition<TRoles> {
+  readonly type: "array";
   readonly items: FieldDefinition<TRoles>;
   readonly minItems?: number;
   readonly maxItems?: number;
@@ -143,28 +148,30 @@ export interface ArrayField<TRoles extends string = string>
 /**
  * Relation kinds
  */
-export type RelationKind = 'hasOne' | 'hasMany' | 'belongsTo' | 'manyToMany';
+export type RelationKind = "hasOne" | "hasMany" | "belongsTo" | "manyToMany";
 
 /**
  * Relation field definition
  */
-export interface RelationField<TRoles extends string = string>
-  extends BaseFieldDefinition<TRoles> {
-  readonly type: 'relation';
+export interface RelationField<
+  TRoles extends string = string,
+> extends BaseFieldDefinition<TRoles> {
+  readonly type: "relation";
   readonly model: string; // Target model name
   readonly kind: RelationKind;
   readonly foreignKey: string; // Foreign key field name (REQUIRED for JOIN operations)
   readonly through?: string; // Join table for manyToMany
-  readonly onDelete?: 'cascade' | 'setNull' | 'restrict';
-  readonly onUpdate?: 'cascade' | 'restrict';
+  readonly onDelete?: "cascade" | "setNull" | "restrict";
+  readonly onUpdate?: "cascade" | "restrict";
 }
 
 /**
  * File field definition
  */
-export interface FileField<TRoles extends string = string>
-  extends BaseFieldDefinition<TRoles> {
-  readonly type: 'file';
+export interface FileField<
+  TRoles extends string = string,
+> extends BaseFieldDefinition<TRoles> {
+  readonly type: "file";
   readonly allowedTypes?: readonly string[]; // MIME types
   readonly maxSize?: number; // In bytes
   readonly multiple?: boolean; // Allow multiple files
@@ -193,20 +200,16 @@ export interface IndexDefinition {
   readonly name?: string;
   readonly fields: readonly string[];
   readonly unique?: boolean;
-  readonly type?: 'btree' | 'hash' | 'gist' | 'gin';
+  readonly type?: "btree" | "hash" | "gist" | "gin";
 }
 
 /**
  * Lifecycle hooks
  */
 export interface LifecycleHooks<T = Record<string, unknown>> {
-  readonly beforeCreate?: (
-    data: Partial<T>
-  ) => Promise<Partial<T>> | Partial<T>;
+  readonly beforeCreate?: (data: Partial<T>) => Promise<Partial<T>> | Partial<T>;
   readonly afterCreate?: (data: T) => Promise<T> | T;
-  readonly beforeUpdate?: (
-    data: Partial<T>
-  ) => Promise<Partial<T>> | Partial<T>;
+  readonly beforeUpdate?: (data: Partial<T>) => Promise<Partial<T>> | Partial<T>;
   readonly afterUpdate?: (data: T) => Promise<T> | T;
   readonly beforeDelete?: (id: string) => Promise<void> | void;
   readonly afterDelete?: (id: string) => Promise<void> | void;
@@ -245,7 +248,7 @@ export interface SchemaDefinition<
   TFields extends Record<string, FieldDefinition<TRoles>> = Record<
     string,
     FieldDefinition<TRoles>
-  >
+  >,
 > {
   readonly name: string;
   readonly fields: TFields;
@@ -264,35 +267,33 @@ export interface SchemaDefinition<
 /**
  * Infer TypeScript type from field definition
  */
-export type InferFieldType<F extends FieldDefinition<string>> = F extends {
-  type: 'string';
-}
-  ? string
-  : F extends { type: 'number' }
-  ? number
-  : F extends { type: 'boolean' }
-  ? boolean
-  : F extends { type: 'date' }
-  ? Date
-  : F extends { type: 'json' }
-  ? Record<string, unknown>
-  : F extends EnumField<infer T, string>
-  ? T[number]
-  : F extends { type: 'array'; items: infer I extends FieldDefinition<string> }
-  ? Array<InferFieldType<I>>
-  : F extends { type: 'relation'; model: string }
-  ? string // Just the ID for relations
-  : F extends { type: 'file' }
-  ? string // File URL/path
+export type InferFieldType<F extends FieldDefinition<string>> =
+  F extends (
+    {
+      type: "string";
+    }
+  ) ?
+  string
+  : F extends { type: "number" } ? number
+  : F extends { type: "boolean" } ? boolean
+  : F extends { type: "date" } ? Date
+  : F extends { type: "json" } ? Record<string, unknown>
+  : F extends EnumField<infer T, string> ? T[number]
+  : F extends { type: "array"; items: infer I extends FieldDefinition<string> } ?
+  Array<InferFieldType<I>>
+  : F extends { type: "relation"; model: string } ?
+  string // Just the ID for relations
+  : F extends { type: "file" } ?
+  string // File URL/path
   : never;
 
 /**
  * Infer TypeScript type from schema definition
  */
 export type InferSchemaType<S extends SchemaDefinition<string>> = {
-  [K in keyof S['fields']]: S['fields'][K] extends { required: true }
-  ? InferFieldType<S['fields'][K]>
-  : InferFieldType<S['fields'][K]> | undefined;
+  [K in keyof S["fields"]]: S["fields"][K] extends { required: true } ?
+  InferFieldType<S["fields"][K]>
+  : InferFieldType<S["fields"][K]> | undefined;
 };
 
 /**
@@ -303,8 +304,10 @@ declare const __typeBrand: unique symbol;
 /**
  * Schema with inferred type (branded for type safety)
  */
-export interface TypedSchema<T, TRoles extends string = string>
-  extends SchemaDefinition<TRoles> {
+export interface TypedSchema<
+  T,
+  TRoles extends string = string,
+> extends SchemaDefinition<TRoles> {
   readonly [__typeBrand]?: T; // Optional phantom type, no runtime cost
 }
 
@@ -329,9 +332,9 @@ export interface TypedSchema<T, TRoles extends string = string>
  * });
  * ```
  */
-export function defineSchema<
-  const T extends SchemaDefinition
->(schema: T): TypedSchema<InferSchemaType<T>> {
+export function defineSchema<const T extends SchemaDefinition>(
+  schema: T,
+): TypedSchema<InferSchemaType<T>> {
   // No runtime transformation needed - type brand is compile-time only
   return schema as TypedSchema<InferSchemaType<T>>;
 }
@@ -363,7 +366,6 @@ export interface SchemaRegistry {
   isLocked(): boolean;
 }
 
-
 /**
  * Field metadata (runtime information)
  */
@@ -382,16 +384,16 @@ export interface FieldMetadata {
  */
 export function getFieldMetadata(
   name: string,
-  field: FieldDefinition
+  field: FieldDefinition,
 ): FieldMetadata {
   return {
     name,
     type: field.type,
     required: field.required ?? false,
-    unique: 'unique' in field ? (field.unique ?? false) : false,
+    unique: "unique" in field ? (field.unique ?? false) : false,
     hasDefault: field.default !== undefined,
-    isRelation: field.type === 'relation',
-    isArray: field.type === 'array'
+    isRelation: field.type === "relation",
+    isArray: field.type === "array",
   };
 }
 
@@ -416,74 +418,77 @@ export interface SchemaValidationError {
  * Validate schema definition
  */
 export function validateSchemaDefinition(
-  schema: SchemaDefinition
+  schema: SchemaDefinition,
 ): SchemaDefinitionValidationResult {
   const errors: SchemaValidationError[] = [];
 
   // Check name
-  if (!schema.name || schema.name.trim() === '') {
+  if (!schema.name || schema.name.trim() === "") {
     errors.push({
-      message: 'Schema name is required',
-      code: 'MISSING_NAME'
+      message: "Schema name is required",
+      code: "MISSING_NAME",
     });
   }
 
   // Check fields
   if (!schema.fields || Object.keys(schema.fields).length === 0) {
     errors.push({
-      message: 'Schema must have at least one field',
-      code: 'NO_FIELDS'
+      message: "Schema must have at least one field",
+      code: "NO_FIELDS",
     });
   }
 
   // Validate each field
   for (const [fieldName, fieldDef] of Object.entries(schema.fields)) {
     // Check field name
-    if (!fieldName || fieldName.trim() === '') {
+    if (!fieldName || fieldName.trim() === "") {
       errors.push({
-        message: 'Field name cannot be empty',
-        code: 'INVALID_FIELD_NAME'
+        message: "Field name cannot be empty",
+        code: "INVALID_FIELD_NAME",
       });
     }
 
     // Check relation references
-    if (fieldDef.type === 'relation') {
-      if (!fieldDef.model || fieldDef.model.trim() === '') {
+    if (fieldDef.type === "relation") {
+      if (!fieldDef.model || fieldDef.model.trim() === "") {
         errors.push({
           field: fieldName,
-          message: 'Relation field must specify a model',
-          code: 'MISSING_RELATION_MODEL'
+          message: "Relation field must specify a model",
+          code: "MISSING_RELATION_MODEL",
         });
       }
 
       // Check foreignKey for belongsTo
-      if (fieldDef.kind === 'belongsTo' && (!fieldDef.foreignKey || fieldDef.foreignKey.trim() === '')) {
+      if (
+        fieldDef.kind === "belongsTo" &&
+        (!fieldDef.foreignKey || fieldDef.foreignKey.trim() === "")
+      ) {
         errors.push({
           field: fieldName,
           message: 'Relation with kind "belongsTo" must specify a foreignKey',
-          code: 'MISSING_FOREIGN_KEY'
+          code: "MISSING_FOREIGN_KEY",
         });
       }
     }
 
     // Check enum values
-    if (fieldDef.type === 'enum') {
+    if (fieldDef.type === "enum") {
       if (!fieldDef.values || fieldDef.values.length === 0) {
         errors.push({
           field: fieldName,
-          message: 'Enum field must have at least one value',
-          code: 'EMPTY_ENUM'
+          message: "Enum field must have at least one value",
+          code: "EMPTY_ENUM",
         });
       }
     }
 
     // Check array items
-    if (fieldDef.type === 'array') {
+    if (fieldDef.type === "array") {
       if (!fieldDef.items) {
         errors.push({
           field: fieldName,
-          message: 'Array field must specify items type',
-          code: 'MISSING_ARRAY_ITEMS'
+          message: "Array field must specify items type",
+          code: "MISSING_ARRAY_ITEMS",
         });
       }
     }
@@ -491,6 +496,6 @@ export function validateSchemaDefinition(
 
   return {
     valid: errors.length === 0,
-    errors
+    errors,
   };
 }

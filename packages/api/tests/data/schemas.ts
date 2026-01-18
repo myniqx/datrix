@@ -1,12 +1,12 @@
-import { defineSchema } from 'forja-types/core/schema';
-import type { PermissionContext } from 'forja-types/core/permission';
+import { defineSchema } from "forja-types/core/schema";
+import type { PermissionContext } from "forja-types/core/permission";
 
 /**
  * Test Roles Type
  *
  * Used for type-safe permission definitions
  */
-type TestRoles = 'admin' | 'editor' | 'user' | 'guest';
+type TestRoles = "admin" | "editor" | "user" | "guest";
 
 /**
  * Test Schema: Category
@@ -20,38 +20,38 @@ type TestRoles = 'admin' | 'editor' | 'user' | 'guest';
  * - delete: admin only
  */
 export const categorySchema = defineSchema({
-  name: 'category',
+  name: "category",
   fields: {
     id: {
-      type: 'number',
+      type: "number",
       required: true,
       unique: true,
     },
     name: {
-      type: 'string',
+      type: "string",
       required: true,
       minLength: 2,
       maxLength: 100,
     },
     description: {
-      type: 'string',
+      type: "string",
       maxLength: 500,
     },
     isActive: {
-      type: 'boolean',
+      type: "boolean",
       default: true,
     },
     createdAt: {
-      type: 'date',
+      type: "date",
       default: () => new Date(),
     },
   },
-  indexes: [{ fields: ['name'], unique: true }],
+  indexes: [{ fields: ["name"], unique: true }],
   permission: {
-    create: ['admin'] as readonly TestRoles[],
+    create: ["admin"] as readonly TestRoles[],
     read: true,
-    update: ['admin', 'editor'] as readonly TestRoles[],
-    delete: ['admin'] as readonly TestRoles[],
+    update: ["admin", "editor"] as readonly TestRoles[],
+    delete: ["admin"] as readonly TestRoles[],
   },
 } as const);
 
@@ -71,54 +71,54 @@ export const categorySchema = defineSchema({
  * - rating: write only for admin
  */
 export const supplierSchema = defineSchema({
-  name: 'supplier',
+  name: "supplier",
   fields: {
     id: {
-      type: 'number',
+      type: "number",
       required: true,
       unique: true,
     },
     name: {
-      type: 'string',
+      type: "string",
       required: true,
       minLength: 2,
       maxLength: 200,
     },
     email: {
-      type: 'string',
+      type: "string",
       required: true,
       pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
       permission: {
-        read: ['admin', 'editor'] as readonly TestRoles[],
+        read: ["admin", "editor"] as readonly TestRoles[],
       },
     },
     country: {
-      type: 'string',
+      type: "string",
       required: true,
     },
     rating: {
-      type: 'number',
+      type: "number",
       min: 0,
       max: 5,
       permission: {
-        write: ['admin'] as readonly TestRoles[],
+        write: ["admin"] as readonly TestRoles[],
       },
     },
     isVerified: {
-      type: 'boolean',
+      type: "boolean",
       default: false,
     },
     createdAt: {
-      type: 'date',
+      type: "date",
       default: () => new Date(),
     },
   },
-  indexes: [{ fields: ['email'], unique: true }],
+  indexes: [{ fields: ["email"], unique: true }],
   permission: {
-    create: ['admin', 'editor'] as readonly TestRoles[],
+    create: ["admin", "editor"] as readonly TestRoles[],
     read: (ctx: PermissionContext) => ctx.user !== undefined,
-    update: ['admin', 'editor'] as readonly TestRoles[],
-    delete: ['admin'] as readonly TestRoles[],
+    update: ["admin", "editor"] as readonly TestRoles[],
+    delete: ["admin"] as readonly TestRoles[],
   },
 } as const);
 
@@ -138,104 +138,104 @@ export const supplierSchema = defineSchema({
  * - stock: read/write only for admin/editor
  */
 export const productSchema = defineSchema({
-  name: 'product',
+  name: "product",
   fields: {
     id: {
-      type: 'number',
+      type: "number",
       required: true,
       unique: true,
     },
     name: {
-      type: 'string',
+      type: "string",
       required: true,
       minLength: 3,
       maxLength: 200,
     },
     description: {
-      type: 'string',
+      type: "string",
       maxLength: 1000,
     },
     price: {
-      type: 'number',
+      type: "number",
       required: true,
       min: 0,
       permission: {
-        write: ['admin', 'editor'] as readonly TestRoles[],
+        write: ["admin", "editor"] as readonly TestRoles[],
       },
     },
     stock: {
-      type: 'number',
+      type: "number",
       required: true,
       min: 0,
       default: 0,
       permission: {
-        read: ['admin', 'editor'] as readonly TestRoles[],
-        write: ['admin', 'editor'] as readonly TestRoles[],
+        read: ["admin", "editor"] as readonly TestRoles[],
+        write: ["admin", "editor"] as readonly TestRoles[],
       },
     },
     categoryId: {
-      type: 'number',
+      type: "number",
       required: true,
     },
     supplierId: {
-      type: 'number',
+      type: "number",
       required: true,
     },
     sku: {
-      type: 'string',
+      type: "string",
       required: true,
       pattern: /^[A-Z0-9-]+$/,
     },
     isAvailable: {
-      type: 'boolean',
+      type: "boolean",
       default: true,
     },
     tags: {
-      type: 'array',
-      items: { type: 'string' },
+      type: "array",
+      items: { type: "string" },
     },
     createdBy: {
-      type: 'string',
+      type: "string",
     },
     createdAt: {
-      type: 'date',
+      type: "date",
       default: () => new Date(),
     },
     updatedAt: {
-      type: 'date',
+      type: "date",
       default: () => new Date(),
     },
     category: {
-      type: 'relation',
-      kind: 'belongsTo',
-      model: 'category',
-      foreignKey: 'categoryId',
+      type: "relation",
+      kind: "belongsTo",
+      model: "category",
+      foreignKey: "categoryId",
     },
     supplier: {
-      type: 'relation',
-      kind: 'belongsTo',
-      model: 'supplier',
-      foreignKey: 'supplierId',
+      type: "relation",
+      kind: "belongsTo",
+      model: "supplier",
+      foreignKey: "supplierId",
     },
   },
   indexes: [
-    { fields: ['sku'], unique: true },
-    { fields: ['categoryId'] },
-    { fields: ['supplierId'] },
-    { fields: ['price'] },
+    { fields: ["sku"], unique: true },
+    { fields: ["categoryId"] },
+    { fields: ["supplierId"] },
+    { fields: ["price"] },
   ],
   permission: {
-    create: ['admin', 'editor'] as readonly TestRoles[],
+    create: ["admin", "editor"] as readonly TestRoles[],
     read: true,
     update: [
-      'admin' as TestRoles,
-      'editor' as TestRoles,
+      "admin" as TestRoles,
+      "editor" as TestRoles,
       (ctx: PermissionContext) => {
         const record = ctx.record as { createdBy?: string } | undefined;
-        return ctx.user?.id === record?.createdBy;
+        return ctx.user?.["id"] === record?.createdBy;
       },
     ],
-    delete: ['admin'] as readonly TestRoles[],
+    delete: ["admin"] as readonly TestRoles[],
   },
 } as const);
 
@@ -247,23 +247,23 @@ export const productSchema = defineSchema({
  * When auth is enabled, defaultPermission applies
  */
 export const secretSchema = defineSchema({
-  name: 'secret',
+  name: "secret",
   fields: {
     id: {
-      type: 'number',
+      type: "number",
       required: true,
       unique: true,
     },
     key: {
-      type: 'string',
+      type: "string",
       required: true,
     },
     value: {
-      type: 'string',
+      type: "string",
       required: true,
     },
     createdAt: {
-      type: 'date',
+      type: "date",
       default: () => new Date(),
     },
   },
@@ -276,22 +276,22 @@ export const secretSchema = defineSchema({
  * Fully public schema - all operations allowed
  */
 export const publicSchema = defineSchema({
-  name: 'public',
+  name: "public",
   fields: {
     id: {
-      type: 'number',
+      type: "number",
       required: true,
       unique: true,
     },
     title: {
-      type: 'string',
+      type: "string",
       required: true,
     },
     content: {
-      type: 'string',
+      type: "string",
     },
     createdAt: {
-      type: 'date',
+      type: "date",
       default: () => new Date(),
     },
   },
@@ -309,27 +309,27 @@ export const publicSchema = defineSchema({
  * Admin-only schema - all operations require admin role
  */
 export const restrictedSchema = defineSchema({
-  name: 'restricted',
+  name: "restricted",
   fields: {
     id: {
-      type: 'number',
+      type: "number",
       required: true,
       unique: true,
     },
     data: {
-      type: 'string',
+      type: "string",
       required: true,
     },
     createdAt: {
-      type: 'date',
+      type: "date",
       default: () => new Date(),
     },
   },
   permission: {
-    create: ['admin'] as readonly TestRoles[],
-    read: ['admin'] as readonly TestRoles[],
-    update: ['admin'] as readonly TestRoles[],
-    delete: ['admin'] as readonly TestRoles[],
+    create: ["admin"] as readonly TestRoles[],
+    read: ["admin"] as readonly TestRoles[],
+    update: ["admin"] as readonly TestRoles[],
+    delete: ["admin"] as readonly TestRoles[],
   },
 } as const);
 
@@ -340,26 +340,26 @@ export const restrictedSchema = defineSchema({
  * Auth plugin creates separate 'authentication' table linked via userId.
  */
 export const userSchema = defineSchema({
-  name: 'user',
+  name: "user",
   fields: {
     id: {
-      type: 'number',
+      type: "number",
       required: true,
       unique: true,
     },
     email: {
-      type: 'string',
+      type: "string",
       required: true,
     },
     name: {
-      type: 'string',
+      type: "string",
     },
     createdAt: {
-      type: 'date',
+      type: "date",
       default: () => new Date(),
     },
   },
-  indexes: [{ fields: ['email'], unique: true }],
+  indexes: [{ fields: ["email"], unique: true }],
 } as const);
 
 export const testSchemas = [

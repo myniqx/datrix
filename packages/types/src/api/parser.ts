@@ -5,28 +5,37 @@
  * Supports: populate, fields, where, pagination, sorting
  */
 
-import { OrderByItem, PopulateClause, SelectClause, WhereClause } from "../core/query-builder";
+import {
+  OrderByItem,
+  PopulateClause,
+  QueryObject,
+  SelectClause,
+  WhereClause,
+} from "../core/query-builder";
 import { Result } from "../utils";
-
 
 /**
  * Raw query parameters from HTTP request
  * (framework-agnostic - works with URLSearchParams, Express req.query, etc.)
  */
-export type RawQueryParams = Record<string, string | readonly string[] | undefined>;
+export type RawQueryParams = Record<
+  string,
+  string | readonly string[] | undefined
+>;
 
 /**
  * Parsed query result
  */
+
 export interface ParsedQuery {
-  readonly select?: SelectClause;
-  readonly where?: WhereClause;
-  readonly populate?: PopulateClause;
-  readonly orderBy?: readonly OrderByItem[];
-  readonly limit?: number;
-  readonly offset?: number;
-  readonly page?: number;
-  readonly pageSize?: number;
+  readonly select?: QueryObject["select"];
+  readonly where?: QueryObject["where"];
+  readonly populate?: QueryObject["populate"];
+  readonly orderBy?: QueryObject["orderBy"];
+  readonly limit?: QueryObject["limit"];
+  readonly offset?: QueryObject["offset"];
+  readonly page?: number | undefined;
+  readonly pageSize?: number | undefined;
 }
 
 /**
@@ -54,11 +63,11 @@ export class ParserError extends Error {
       code?: ParserErrorCode;
       field?: string;
       details?: unknown;
-    }
+    },
   ) {
     super(message);
-    this.name = 'ParserError';
-    this.code = options?.code ?? 'UNKNOWN';
+    this.name = "ParserError";
+    this.code = options?.code ?? "UNKNOWN";
     this.field = options?.field;
     this.details = options?.details;
   }
@@ -68,13 +77,14 @@ export class ParserError extends Error {
  * Parser error codes
  */
 export type ParserErrorCode =
-  | 'INVALID_SYNTAX'
-  | 'INVALID_OPERATOR'
-  | 'INVALID_VALUE'
-  | 'MAX_DEPTH_EXCEEDED'
-  | 'INVALID_PAGINATION'
-  | 'UNKNOWN_FIELD'
-  | 'UNKNOWN';
+  | "INVALID_SYNTAX"
+  | "INVALID_OPERATOR"
+  | "INVALID_VALUE"
+  | "MAX_DEPTH_EXCEEDED"
+  | "INVALID_PAGINATION"
+  | "UNKNOWN_FIELD"
+  | "INVALID_FIELD"
+  | "UNKNOWN";
 
 /**
  * Field parser result
@@ -89,7 +99,10 @@ export type WhereParserResult = Result<WhereClause | undefined, ParserError>;
 /**
  * Populate parser result
  */
-export type PopulateParserResult = Result<PopulateClause | undefined, ParserError>;
+export type PopulateParserResult = Result<
+  PopulateClause | undefined,
+  ParserError
+>;
 
 /**
  * Query parser result
@@ -100,31 +113,31 @@ export type QueryParserResult = Result<ParsedQuery, ParserError>;
  * Supported WHERE operators
  */
 export const WHERE_OPERATORS = [
-  '$eq',
-  '$ne',
-  '$lt',
-  '$lte',
-  '$gt',
-  '$gte',
-  '$in',
-  '$nin',
-  '$contains',
-  '$notContains',
-  '$startsWith',
-  '$endsWith',
-  '$null',
-  '$notNull',
-  '$like',
-  '$ilike',
-  '$and',
-  '$or',
-  '$not'
+  "$eq",
+  "$ne",
+  "$lt",
+  "$lte",
+  "$gt",
+  "$gte",
+  "$in",
+  "$nin",
+  "$contains",
+  "$notContains",
+  "$startsWith",
+  "$endsWith",
+  "$null",
+  "$notNull",
+  "$like",
+  "$ilike",
+  "$and",
+  "$or",
+  "$not",
 ] as const;
 
 /**
  * WHERE operator type
  */
-export type WhereOperator = typeof WHERE_OPERATORS[number];
+export type WhereOperator = (typeof WHERE_OPERATORS)[number];
 
 /**
  * Check if string is a valid operator

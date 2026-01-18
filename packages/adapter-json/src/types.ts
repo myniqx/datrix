@@ -1,3 +1,4 @@
+import { SchemaDefinition } from "forja-types";
 
 /**
  * JSON Adapter Configuration
@@ -30,13 +31,13 @@ export interface JsonAdapterConfig extends Record<string, unknown> {
 /**
  * File structure for a table
  */
-export interface JsonTableFile<T = unknown> {
+export interface JsonTableFile<T = Record<string, unknown>> {
   meta: {
     version: number;
     lastInsertId?: number;
     updatedAt: string;
     name: string;
   };
-  readonly schema?: unknown; // We can store schema definition here
+  readonly schema?: SchemaDefinition;
   data: T[];
 }

@@ -5,12 +5,17 @@
  * Plugins can extend this class instead of implementing ForjaPlugin from scratch.
  */
 
-import { QueryContext } from "forja-core/dispatcher";
 import { QueryObject } from "forja-types/core/query-builder";
 import { SchemaRegistry, SchemaDefinition } from "forja-types/core/schema";
-import { ForjaPlugin, PluginContext, PluginError, SchemaExtensionContext, SchemaExtension } from "forja-types/plugin";
+import {
+  ForjaPlugin,
+  PluginContext,
+  PluginError,
+  SchemaExtensionContext,
+  SchemaExtension,
+  QueryContext,
+} from "forja-types/plugin";
 import { Result } from "forja-types/utils";
-
 
 /**
  * Abstract base plugin class
@@ -18,8 +23,9 @@ import { Result } from "forja-types/utils";
  * Provides default implementations for optional hooks.
  * Subclasses must implement init() and destroy() methods.
  */
-export abstract class BasePlugin<TOptions = Record<string, unknown>>
-  implements ForjaPlugin<TOptions> {
+export abstract class BasePlugin<
+  TOptions = Record<string, unknown>,
+> implements ForjaPlugin<TOptions> {
   abstract readonly name: string;
   abstract readonly version: string;
   readonly options: TOptions;
@@ -58,7 +64,9 @@ export abstract class BasePlugin<TOptions = Record<string, unknown>>
    *
    * Default implementation returns empty array
    */
-  async extendSchemas(_context: SchemaExtensionContext): Promise<SchemaExtension[]> {
+  async extendSchemas(
+    _context: SchemaExtensionContext,
+  ): Promise<SchemaExtension[]> {
     return [];
   }
 
@@ -76,7 +84,10 @@ export abstract class BasePlugin<TOptions = Record<string, unknown>>
    *
    * Default implementation returns query unchanged
    */
-  async onBeforeQuery(query: QueryObject): Promise<QueryObject> {
+  async onBeforeQuery(
+    query: QueryObject,
+    _context: QueryContext,
+  ): Promise<QueryObject> {
     return query;
   }
 
@@ -85,12 +96,20 @@ export abstract class BasePlugin<TOptions = Record<string, unknown>>
    *
    * Default implementation returns result unchanged
    */
-  async onAfterQuery<TResult>(result: TResult): Promise<TResult> {
+  async onAfterQuery<TResult>(
+    result: TResult,
+    _context: QueryContext,
+  ): Promise<TResult> {
     return result;
   }
 
-  async onCreateQueryContext(query: QueryContext): Promise<QueryContext> {
-    return query;
+  /**
+   * Hook called when creating query context
+   *
+   * Default implementation returns context unchanged
+   */
+  async onCreateQueryContext(context: QueryContext): Promise<QueryContext> {
+    return context;
   }
 
   /**
@@ -100,7 +119,7 @@ export abstract class BasePlugin<TOptions = Record<string, unknown>>
    */
   protected validateOptions(
     validator: (options: unknown) => options is TOptions,
-    errorMessage: string
+    errorMessage: string,
   ): Result<TOptions, PluginError> {
     if (validator(this.options)) {
       return { success: true, data: this.options };
@@ -109,7 +128,7 @@ export abstract class BasePlugin<TOptions = Record<string, unknown>>
     return {
       success: false,
       error: new PluginError(errorMessage, {
-        code: 'INVALID_OPTIONS',
+        code: "INVALID_OPTIONS",
         pluginName: this.name,
         details: this.options,
       }),
@@ -137,7 +156,7 @@ export abstract class BasePlugin<TOptions = Record<string, unknown>>
       return {
         success: false,
         error: new PluginError(`Plugin ${this.name} not initialized`, {
-          code: 'PLUGIN_NOT_INITIALIZED',
+          code: "PLUGIN_NOT_INITIALIZED",
           pluginName: this.name,
         }),
       };
@@ -153,7 +172,7 @@ export abstract class BasePlugin<TOptions = Record<string, unknown>>
   protected createError(
     message: string,
     code: string,
-    details?: unknown
+    details?: unknown,
   ): PluginError {
     return new PluginError(message, {
       code,

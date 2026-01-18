@@ -5,31 +5,29 @@
  * Manages authentication schema, user sync, and auth routes.
  */
 
-import { BasePlugin } from 'forja-core/plugin/plugin';
+import { BasePlugin } from "forja-core/plugin/plugin";
 import type {
   PluginContext,
   PluginError,
+  QueryContext,
   SchemaDefinition,
-} from 'forja-types/plugin';
-import type { QueryContext } from 'forja-core/dispatcher';
-import type { QueryObject } from 'forja-types/core/query-builder';
-import type { Result } from 'forja-types/utils';
-import { DefaultPermission, defineSchema } from 'forja-types/core/schema';
-import { AuthManager } from './auth/manager';
-import { createAuthHandlers } from './handler/auth-handler';
-import { handleRequest as handleCrudRequest } from './handler/unified';
-import { errorResponse } from './handler/utils';
-import { ApiConfig } from './types';
-import { Forja } from 'forja-core';
-import { AuthenticatedUser } from './middleware';
+} from "forja-types/plugin";
+import type { QueryObject } from "forja-types/core/query-builder";
+import type { Result } from "forja-types/utils";
+import { DefaultPermission, defineSchema } from "forja-types/core/schema";
+import { AuthManager } from "./auth/manager";
+import { createAuthHandlers } from "./handler/auth-handler";
+import { handleRequest as handleCrudRequest } from "./handler/unified";
+import { errorResponse } from "./handler/utils";
+import { ApiConfig } from "./types";
+import { Forja } from "forja-core";
+import type { IApiPlugin, AuthenticatedUser } from "./interface";
 
-
-export class ApiPlugin<ROLES extends string>
-  extends
-  BasePlugin<ApiConfig<ROLES>> {
-
-  readonly name = 'api';
-  readonly version = '1.0.0';
+export class ApiPlugin<TRole extends string = string>
+  extends BasePlugin<ApiConfig<TRole>>
+  implements IApiPlugin<TRole> {
+  readonly name = "api";
+  readonly version = "1.0.0";
 
   public authManager?: AuthManager;
   public user: AuthenticatedUser | null = null;
@@ -43,32 +41,32 @@ export class ApiPlugin<ROLES extends string>
     this.user = user;
   }
 
-  private get authConfig(): ApiConfig<ROLES>['auth'] | undefined {
+  private get authConfig(): ApiConfig<TRole>["auth"] | undefined {
     return this.options.auth;
   }
 
-  private get apiConfig(): ApiConfig<ROLES> {
+  private get apiConfig(): ApiConfig<TRole> {
     return this.options;
   }
 
   private get authSchemaName(): string {
-    return this.authConfig?.authSchemaName ?? 'authentication';
+    return this.authConfig?.authSchemaName ?? "authentication";
   }
 
   private get userSchemaName(): string {
-    return this.authConfig?.userSchema?.name ?? 'user';
+    return this.authConfig?.userSchema?.name ?? "user";
   }
 
   private get userSchemaEmailField(): string {
-    return this.authConfig?.userSchema?.email ?? 'email';
+    return this.authConfig?.userSchema?.email ?? "email";
   }
 
-  public get authDefaultPermission(): DefaultPermission | undefined {
-    return this.apiConfig?.defaultPermission;
+  public get authDefaultPermission(): DefaultPermission<TRole> | undefined {
+    return this.authConfig?.defaultPermission;
   }
 
-  public get authDefaultRole(): ROLES | undefined {
-    return this.apiConfig?.defaultRole;
+  public get authDefaultRole(): TRole | undefined {
+    return this.authConfig?.defaultRole;
   }
 
   private getTableName(schemaName: string): string {
@@ -76,28 +74,31 @@ export class ApiPlugin<ROLES extends string>
     return schema?.tableName || `${schemaName.toLowerCase()}s`;
   }
 
-  override async onCreateQueryContext(context: QueryContext): Promise<QueryContext | void> {
+  override async onCreateQueryContext(
+    context: QueryContext,
+  ): Promise<QueryContext> {
     // Add authenticated user to context metadata
     if (this.user) {
-      context["user"] = this.user
+      context["user"] = this.user;
     }
 
-    return context
+    return context;
   }
 
   async init(context: PluginContext): Promise<Result<void, PluginError>> {
     this.context = context;
 
-    if (!this.authConfig?.enabled) {
+    // Auth is disabled if authConfig is undefined
+    if (!this.authConfig) {
       return { success: true, data: undefined };
     }
 
-    if (context.schemas.has('auth')) {
+    if (context.schemas.has("auth")) {
       return {
         success: false,
         error: this.createError(
           "Schema name 'auth' is reserved for API authentication routes",
-          'RESERVED_SCHEMA_NAME'
+          "RESERVED_SCHEMA_NAME",
         ),
       };
     }
@@ -107,7 +108,7 @@ export class ApiPlugin<ROLES extends string>
         success: false,
         error: this.createError(
           `User schema '${this.userSchemaName}' not found. Create it before enabling auth.`,
-          'USER_SCHEMA_NOT_FOUND'
+          "USER_SCHEMA_NOT_FOUND",
         ),
       };
     }
@@ -119,7 +120,7 @@ export class ApiPlugin<ROLES extends string>
         success: false,
         error: this.createError(
           `User schema must have an '${emailField}' field`,
-          'MISSING_EMAIL_FIELD'
+          "MISSING_EMAIL_FIELD",
         ),
       };
     }
@@ -129,8 +130,8 @@ export class ApiPlugin<ROLES extends string>
         return {
           success: false,
           error: this.createError(
-            'JWT secret must be at least 32 characters long for security',
-            'WEAK_JWT_SECRET'
+            "JWT secret must be at least 32 characters long for security",
+            "WEAK_JWT_SECRET",
           ),
         };
       }
@@ -146,7 +147,7 @@ export class ApiPlugin<ROLES extends string>
   }
 
   override async getSchemas(): Promise<SchemaDefinition[]> {
-    if (!this.authConfig?.enabled) {
+    if (!this.authConfig) {
       return [];
     }
 
@@ -154,43 +155,43 @@ export class ApiPlugin<ROLES extends string>
       name: this.authSchemaName,
       fields: {
         id: {
-          type: 'string',
+          type: "string",
           required: true,
         },
         user: {
-          type: 'relation',
+          type: "relation",
           required: true,
-          kind: 'belongsTo',
+          kind: "belongsTo",
           model: this.userSchemaName,
-          foreignKey: 'userId',
+          foreignKey: "userId",
         },
         email: {
-          type: 'string',
+          type: "string",
           required: true,
         },
         password: {
-          type: 'string',
+          type: "string",
           required: true,
         },
         passwordSalt: {
-          type: 'string',
+          type: "string",
           required: true,
         },
         role: {
-          type: 'string',
+          type: "string",
           required: true,
-          default: this.authDefaultRole ?? 'user',
+          default: this.authDefaultRole ?? "user",
         },
       },
       indexes: [
         {
           name: `${this.authSchemaName}_email_idx`,
-          fields: ['email'],
+          fields: ["email"],
           unique: true,
         },
         {
           name: `${this.authSchemaName}_userId_idx`,
-          fields: ['user'],
+          fields: ["user"],
           unique: true,
         },
       ],
@@ -200,39 +201,45 @@ export class ApiPlugin<ROLES extends string>
     return [authSchema];
   }
 
-  override async onBeforeQuery(query: QueryObject, context: QueryContext): Promise<QueryObject> {
-    if (!this.authConfig?.enabled) {
+  override async onBeforeQuery(
+    query: QueryObject,
+    context: QueryContext,
+  ): Promise<QueryObject> {
+    if (!this.authConfig) {
       return query;
     }
 
     const userTable = this.getTableName(this.userSchemaName);
 
     // User insert → store flag in metadata
-    if (query.type === 'insert' && query.table === userTable) {
-      context.metadata['api:createAuth'] = true;
-      context.metadata['api:userData'] = query.data;
+    if (query.type === "insert" && query.table === userTable) {
+      context.metadata["api:createAuth"] = true;
+      context.metadata["api:userData"] = query.data;
     }
 
     // User email update → store flag in metadata
-    if (query.type === 'update' && query.table === userTable) {
+    if (query.type === "update" && query.table === userTable) {
       const emailField = this.userSchemaEmailField;
       if (query.data && emailField in query.data) {
-        context.metadata['api:syncEmail'] = query.data[emailField];
-        context.metadata['api:userId'] = query.where?.id;
+        context.metadata["api:syncEmail"] = query.data[emailField];
+        context.metadata["api:userId"] = query.where?.["id"];
       }
     }
 
     // User delete → store flag in metadata
-    if (query.type === 'delete' && query.table === userTable) {
-      context.metadata['api:deleteAuth'] = true;
-      context.metadata['api:userId'] = query.where?.id;
+    if (query.type === "delete" && query.table === userTable) {
+      context.metadata["api:deleteAuth"] = true;
+      context.metadata["api:userId"] = query.where?.["id"];
     }
 
     return query;
   }
 
-  override async onAfterQuery<TResult>(result: TResult, context: QueryContext): Promise<TResult> {
-    if (!this.authConfig?.enabled) {
+  override async onAfterQuery<TResult>(
+    result: TResult,
+    context: QueryContext,
+  ): Promise<TResult> {
+    if (!this.authConfig) {
       return result;
     }
 
@@ -242,21 +249,25 @@ export class ApiPlugin<ROLES extends string>
     }
 
     // User created → create authentication record
-    if (context.metadata['api:createAuth'] && result && typeof result === 'object') {
-      const user = result as any;
+    if (
+      context.metadata["api:createAuth"] &&
+      result &&
+      typeof result === "object"
+    ) {
+      const user = result as Record<string, unknown>;
       await this.createAuthenticationRecord(user, pluginContext.data);
     }
 
     // User email updated → sync authentication email
-    if (context.metadata['api:syncEmail'] && context.metadata['api:userId']) {
-      const newEmail = context.metadata['api:syncEmail'] as string;
-      const userId = context.metadata['api:userId'] as string;
+    if (context.metadata["api:syncEmail"] && context.metadata["api:userId"]) {
+      const newEmail = context.metadata["api:syncEmail"] as string;
+      const userId = context.metadata["api:userId"] as string;
       await this.syncAuthenticationEmail(userId, newEmail, pluginContext.data);
     }
 
     // User deleted → delete authentication record
-    if (context.metadata['api:deleteAuth'] && context.metadata['api:userId']) {
-      const userId = context.metadata['api:userId'] as string;
+    if (context.metadata["api:deleteAuth"] && context.metadata["api:userId"]) {
+      const userId = context.metadata["api:userId"] as string;
       await this.deleteAuthenticationRecord(userId, pluginContext.data);
     }
 
@@ -264,23 +275,23 @@ export class ApiPlugin<ROLES extends string>
   }
 
   private async createAuthenticationRecord(
-    user: any,
-    context: PluginContext
+    user: Record<string, unknown>,
+    context: PluginContext,
   ): Promise<void> {
     const emailField = this.userSchemaEmailField;
 
     const authData = {
-      userId: user.id,
-      email: user[emailField],
-      password: user.password || '',
-      passwordSalt: user.passwordSalt || '',
-      role: user.role || this.authConfig!.rbac?.defaultRole || 'user',
+      userId: user["id"] as string,
+      email: user[emailField] as string,
+      password: (user["password"] as string) || "",
+      passwordSalt: (user["passwordSalt"] as string) || "",
+      role: (user["role"] as string) || this.authConfig?.defaultRole || "user",
     };
 
     const schema = this.forjaInstance?.getSchema(this.authSchemaName);
 
     const query: QueryObject = {
-      type: 'insert',
+      type: "insert",
       table: schema?.tableName || this.authSchemaName,
       data: authData,
     };
@@ -291,10 +302,10 @@ export class ApiPlugin<ROLES extends string>
   private async syncAuthenticationEmail(
     userId: string,
     newEmail: string,
-    context: PluginContext
+    context: PluginContext,
   ): Promise<void> {
     const query: QueryObject = {
-      type: 'update',
+      type: "update",
       table: this.authSchemaName,
       where: { userId },
       data: { email: newEmail },
@@ -305,10 +316,10 @@ export class ApiPlugin<ROLES extends string>
 
   private async deleteAuthenticationRecord(
     userId: string,
-    context: PluginContext
+    context: PluginContext,
   ): Promise<void> {
     const query: QueryObject = {
-      type: 'delete',
+      type: "delete",
       table: this.authSchemaName,
       where: { userId },
     };
@@ -322,40 +333,31 @@ export class ApiPlugin<ROLES extends string>
    * Main entry point for all API requests.
    * Routes to auth handlers or CRUD handlers.
    */
-  async handleRequest(request: Request, forja: any): Promise<Response> {
+  async handleRequest(request: Request, forja: Forja): Promise<Response> {
     if (!this.isInitialized()) {
-      return errorResponse(
-        'API plugin not initialized',
-        'NOT_INITIALIZED',
-        500
-      );
+      return errorResponse("API plugin not initialized", "NOT_INITIALIZED", 500);
     }
 
     this.forjaInstance = forja;
 
     const url = new URL(request.url);
-    const prefix = this.apiConfig.prefix ?? '/api';
+    const prefix = this.apiConfig.prefix ?? "/api";
 
     if (!url.pathname.startsWith(prefix)) {
-      return errorResponse('Invalid API prefix', 'INVALID_PREFIX', 400);
+      return errorResponse("Invalid API prefix", "INVALID_PREFIX", 400);
     }
 
     const pathAfterPrefix = url.pathname.slice(prefix.length);
-    const segments = pathAfterPrefix.split('/').filter(Boolean);
+    const segments = pathAfterPrefix.split("/").filter(Boolean);
     const model = segments[0];
 
-    if (model === 'auth' && this.authConfig?.enabled) {
+    if (model === "auth" && this.authConfig) {
       return this.handleAuthRequest(request, forja);
     }
 
-    return handleCrudRequest(
-      request,
-      forja,
-      this,
-      {
-        apiPrefix: prefix,
-      }
-    );
+    return handleCrudRequest(request, forja, this, {
+      apiPrefix: prefix,
+    });
   }
 
   /**
@@ -363,13 +365,13 @@ export class ApiPlugin<ROLES extends string>
    */
   private async handleAuthRequest(
     request: Request,
-    forja: any
+    forja: Forja,
   ): Promise<Response> {
     if (!this.authManager) {
       return errorResponse(
-        'Authentication not configured',
-        'AUTH_NOT_CONFIGURED',
-        500
+        "Authentication not configured",
+        "AUTH_NOT_CONFIGURED",
+        500,
       );
     }
 
@@ -382,20 +384,20 @@ export class ApiPlugin<ROLES extends string>
     const url = new URL(request.url);
     const method = request.method;
 
-    if (url.pathname.endsWith('/register') && method === 'POST') {
+    if (url.pathname.endsWith("/register") && method === "POST") {
       return authHandlers.register(request);
     }
-    if (url.pathname.endsWith('/login') && method === 'POST') {
+    if (url.pathname.endsWith("/login") && method === "POST") {
       return authHandlers.login(request);
     }
-    if (url.pathname.endsWith('/logout') && method === 'POST') {
+    if (url.pathname.endsWith("/logout") && method === "POST") {
       return authHandlers.logout(request);
     }
-    if (url.pathname.endsWith('/me') && method === 'GET') {
+    if (url.pathname.endsWith("/me") && method === "GET") {
       return authHandlers.me(request);
     }
 
-    return errorResponse('Not found', 'NOT_FOUND', 404);
+    return errorResponse("Not found", "NOT_FOUND", 404);
   }
 
   /**
@@ -409,7 +411,7 @@ export class ApiPlugin<ROLES extends string>
    * Check if authentication is enabled
    */
   isAuthEnabled(): boolean {
-    return this.authConfig?.enabled ?? false;
+    return this.authConfig !== undefined;
   }
 
   /**

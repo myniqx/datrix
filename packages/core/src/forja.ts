@@ -5,25 +5,40 @@
  * Manages configuration, database adapter, plugins, and schemas.
  */
 
-import { Result } from 'forja-types/utils';
-import { ForjaConfig, ApiConfig, MigrationConfig, DevConfig, DEFAULT_API_CONFIG, DEFAULT_MIGRATION_CONFIG, DEFAULT_DEV_CONFIG } from 'forja-types/config';
-import { DatabaseAdapter } from 'forja-types/adapter';
-import { ForjaPlugin, PluginContext, SchemaExtension } from 'forja-types/plugin';
-import { WhereClause, SelectClause, PopulateClause, OrderByItem } from 'forja-types/core/query-builder';
-import { CrudOperations } from './mixins/crud';
-import { SchemaHelpers } from './mixins/schema';
-import { SchemaExtensionContextImpl } from './plugin/schema-extension-context';
-import { Dispatcher, createDispatcher } from './dispatcher';
-import { PluginRegistry } from 'forja-types/plugin';
-import { SchemaRegistry } from './schema';
+import { Result } from "forja-types/utils";
+import {
+  ForjaConfig,
+  MigrationConfig,
+  DevConfig,
+  DEFAULT_MIGRATION_CONFIG,
+  DEFAULT_DEV_CONFIG,
+} from "forja-types/config";
+import { DatabaseAdapter } from "forja-types/adapter";
+import {
+  ForjaPlugin,
+  PluginContext,
+  SchemaExtension,
+} from "forja-types/plugin";
+import { WhereClause } from "forja-types/core/query-builder";
+import { CrudOperations } from "./mixins/crud";
+import { SchemaHelpers } from "./mixins/schema";
+import { SchemaExtensionContextImpl } from "./plugin/schema-extension-context";
+import { Dispatcher, createDispatcher } from "./dispatcher";
+import { PluginRegistry } from "forja-types/plugin";
+import { SchemaRegistry } from "./schema";
+import { ParsedQuery } from "forja-types";
+import { IForja } from "forja-types/forja";
 
 /**
  * Forja initialization error
  */
 export class ForjaError extends Error {
-  constructor(message: string, public readonly code: string) {
+  constructor(
+    message: string,
+    public readonly code: string,
+  ) {
     super(message);
-    this.name = 'ForjaError';
+    this.name = "ForjaError";
   }
 }
 
@@ -41,11 +56,10 @@ export interface ForjaInitOptions {
  */
 export type ConfigFactory = () => ForjaConfig;
 
-
 /**
  * Forja Main Singleton Class
  */
-export class Forja {
+export class Forja implements IForja {
   private static instance: Forja | null = null;
   private static initPromise: Promise<Forja> | null = null;
 
@@ -73,7 +87,7 @@ export class Forja {
    */
   async initializeWithConfig(
     config: ForjaConfig,
-    options: ForjaInitOptions = {}
+    options: ForjaInitOptions = {},
   ): Promise<Result<void, ForjaError>> {
     if (this.initialized) {
       return { success: true, data: undefined };
@@ -92,7 +106,7 @@ export class Forja {
               success: false,
               error: new ForjaError(
                 `Failed to register plugin '${plugin.name}': ${registerResult.error.message}`,
-                'PLUGIN_REGISTRATION_FAILED'
+                "PLUGIN_REGISTRATION_FAILED",
               ),
             };
           }
@@ -110,7 +124,7 @@ export class Forja {
             success: false,
             error: new ForjaError(
               `Failed to connect to database: ${connectResult.error.message}`,
-              'ADAPTER_CONNECTION_FAILED'
+              "ADAPTER_CONNECTION_FAILED",
             ),
           };
         }
@@ -138,7 +152,7 @@ export class Forja {
       // 3. Apply schema extensions
       if (!options.skipPlugins) {
         const extensionContext = new SchemaExtensionContextImpl(
-          this.schemas.getAll()
+          this.schemas.getAll(),
         );
 
         for (const plugin of this.pluginRegistry.getAll()) {
@@ -150,7 +164,7 @@ export class Forja {
                 success: false,
                 error: new ForjaError(
                   `Failed to apply schema extensions from plugin '${plugin.name}': ${applyResult.error.message}`,
-                  'SCHEMA_EXTENSION_FAILED'
+                  "SCHEMA_EXTENSION_FAILED",
                 ),
               };
             }
@@ -162,7 +176,7 @@ export class Forja {
       this._crud = new CrudOperations(
         this.schemas,
         () => this.adapter!,
-        () => this.dispatcher!
+        () => this.dispatcher!,
       );
       this._schema = new SchemaHelpers(this.schemas);
 
@@ -180,7 +194,7 @@ export class Forja {
             success: false,
             error: new ForjaError(
               `Failed to initialize plugins: ${initResult.error.message}`,
-              'PLUGIN_INIT_FAILED'
+              "PLUGIN_INIT_FAILED",
             ),
           };
         }
@@ -198,7 +212,7 @@ export class Forja {
         success: false,
         error: new ForjaError(
           `Initialization failed: ${error instanceof Error ? error.message : String(error)}`,
-          'INIT_FAILED'
+          "INIT_FAILED",
         ),
       };
     }
@@ -216,7 +230,7 @@ export class Forja {
           success: false,
           error: new ForjaError(
             `Failed to destroy plugins: ${destroyResult.error.message}`,
-            'PLUGIN_DESTROY_FAILED'
+            "PLUGIN_DESTROY_FAILED",
           ),
         };
       }
@@ -235,7 +249,7 @@ export class Forja {
         success: false,
         error: new ForjaError(
           `Shutdown failed: ${error instanceof Error ? error.message : String(error)}`,
-          'SHUTDOWN_FAILED'
+          "SHUTDOWN_FAILED",
         ),
       };
     }
@@ -276,12 +290,6 @@ export class Forja {
     return this.schemas;
   }
 
-  getApiConfig(): Required<ApiConfig> {
-    this.ensureInitialized();
-    const userConfig = this.config!.api ?? {};
-    return { ...DEFAULT_API_CONFIG, ...userConfig };
-  }
-
   getMigrationConfig(): Required<MigrationConfig> {
     this.ensureInitialized();
     const userConfig = this.config!.migration ?? {};
@@ -306,10 +314,7 @@ export class Forja {
   async findOne<T = unknown>(
     model: string,
     where: WhereClause,
-    options?: {
-      readonly select?: SelectClause;
-      readonly populate?: PopulateClause;
-    }
+    options?: Pick<ParsedQuery, "select" | "populate">,
   ): Promise<T | null> {
     this.ensureInitialized();
     return this._crud.findOne<T>(model, where, options);
@@ -318,10 +323,7 @@ export class Forja {
   async findById<T = unknown>(
     model: string,
     id: string | number,
-    options?: {
-      readonly select?: SelectClause;
-      readonly populate?: PopulateClause;
-    }
+    options?: Pick<ParsedQuery, "select" | "populate">,
   ): Promise<T | null> {
     this.ensureInitialized();
     return this._crud.findById<T>(model, id, options);
@@ -329,14 +331,10 @@ export class Forja {
 
   async findMany<T = unknown>(
     model: string,
-    options?: {
-      readonly where?: WhereClause;
-      readonly select?: SelectClause;
-      readonly populate?: PopulateClause;
-      readonly orderBy?: readonly OrderByItem[];
-      readonly limit?: number;
-      readonly offset?: number;
-    }
+    options?: Pick<
+      ParsedQuery,
+      "where" | "select" | "populate" | "orderBy" | "limit" | "offset"
+    >,
   ): Promise<T[]> {
     this.ensureInitialized();
     return this._crud.findMany<T>(model, options);
@@ -349,7 +347,7 @@ export class Forja {
 
   async create<T = unknown>(
     model: string,
-    data: Record<string, unknown>
+    data: Record<string, unknown>,
   ): Promise<T> {
     this.ensureInitialized();
     return this._crud.create<T>(model, data);
@@ -358,7 +356,7 @@ export class Forja {
   async update<T = unknown>(
     model: string,
     id: string | number,
-    data: Record<string, unknown>
+    data: Record<string, unknown>,
   ): Promise<T> {
     this.ensureInitialized();
     return this._crud.update<T>(model, id, data);
@@ -367,7 +365,7 @@ export class Forja {
   async updateMany(
     model: string,
     where: WhereClause,
-    data: Record<string, unknown>
+    data: Record<string, unknown>,
   ): Promise<number> {
     this.ensureInitialized();
     return this._crud.updateMany(model, where, data);
@@ -416,14 +414,14 @@ export class Forja {
   private ensureInitialized(): void {
     if (!this.initialized) {
       throw new ForjaError(
-        'Forja not initialized. Use defineConfig() and call the returned function first.',
-        'NOT_INITIALIZED'
+        "Forja not initialized. Use defineConfig() and call the returned function first.",
+        "NOT_INITIALIZED",
       );
     }
   }
 
   private applySchemaExtensions(
-    extensions: SchemaExtension[]
+    extensions: SchemaExtension[],
   ): Result<void, ForjaError> {
     for (const extension of extensions) {
       const schema = this.schemas.get(extension.targetSchema);
@@ -433,7 +431,7 @@ export class Forja {
           success: false,
           error: new ForjaError(
             `Cannot extend schema '${extension.targetSchema}': schema not found`,
-            'SCHEMA_NOT_FOUND'
+            "SCHEMA_NOT_FOUND",
           ),
         };
       }
@@ -445,7 +443,7 @@ export class Forja {
         for (const [fieldName, fieldDef] of Object.entries(extension.fields)) {
           if (extendedFields[fieldName]) {
             console.warn(
-              `[Forja] Field '${fieldName}' already exists in schema '${extension.targetSchema}'. Skipping.`
+              `[Forja] Field '${fieldName}' already exists in schema '${extension.targetSchema}'. Skipping.`,
             );
             continue;
           }
@@ -461,11 +459,11 @@ export class Forja {
 
       if (extension.modifyFields) {
         for (const [fieldName, modifications] of Object.entries(
-          extension.modifyFields
+          extension.modifyFields,
         )) {
           if (!extendedFields[fieldName]) {
             console.warn(
-              `[Forja] Cannot modify field '${fieldName}' in schema '${extension.targetSchema}': field not found. Skipping.`
+              `[Forja] Cannot modify field '${fieldName}' in schema '${extension.targetSchema}': field not found. Skipping.`,
             );
             continue;
           }
@@ -520,7 +518,6 @@ export class Forja {
  * ```
  */
 export function defineConfig(factory: ConfigFactory): () => Promise<Forja> {
-
   return async function getForjaInstance(): Promise<Forja> {
     const instance = Forja.getInstance();
 
@@ -530,24 +527,24 @@ export function defineConfig(factory: ConfigFactory): () => Promise<Forja> {
     }
 
     // Initialization in progress - wait for it
-    if (Forja['initPromise']) {
-      return Forja['initPromise'];
+    if (Forja["initPromise"]) {
+      return Forja["initPromise"];
     }
 
     // Start initialization
-    Forja['initPromise'] = (async () => {
+    Forja["initPromise"] = (async () => {
       const config = factory();
       const result = await instance.initializeWithConfig(config);
 
       if (!result.success) {
-        Forja['initPromise'] = null;
+        Forja["initPromise"] = null;
         throw result.error;
       }
 
-      Forja['initPromise'] = null;
+      Forja["initPromise"] = null;
       return instance;
     })();
 
-    return Forja['initPromise'];
+    return Forja["initPromise"];
   };
 }

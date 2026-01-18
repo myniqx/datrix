@@ -6,27 +6,10 @@
  */
 
 import { QueryObject } from "forja-types/core/query-builder";
-import { PluginRegistry } from "forja-types/plugin";
+import { PluginRegistry, QueryAction, QueryContext } from "forja-types/plugin";
 import { validateQueryObject } from "./utils/query";
 import { SchemaRegistry } from "forja-types/core/schema";
 import type { Forja } from "./forja";
-
-/**
- * Query operation type
- */
-export type QueryAction = 'findOne' | 'findMany' | 'count' | 'create' | 'update' | 'updateMany' | 'delete' | 'deleteMany';
-
-/**
- * Query context passed to plugin hooks
- */
-export interface QueryContext {
-  readonly action: QueryAction;
-  readonly model: string;
-  readonly table: string;
-  readonly forja: Forja;
-  readonly metadata: Record<string, unknown>;
-  [key: string]: unknown;
-}
 
 /**
  * Create a new query context
@@ -35,14 +18,14 @@ function createQueryContext(
   action: QueryAction,
   model: string,
   table: string,
-  forja: Forja
+  forja: Forja,
 ): QueryContext {
   return {
     action,
     model,
     table,
     forja,
-    metadata: {}
+    metadata: {},
   };
 }
 
@@ -52,7 +35,7 @@ function createQueryContext(
 export class Dispatcher {
   constructor(
     private readonly registry: PluginRegistry,
-    private readonly forja: Forja
+    private readonly forja: Forja,
   ) { }
 
   /**
@@ -63,7 +46,7 @@ export class Dispatcher {
   private async buildQueryContext(
     action: QueryAction,
     model: string,
-    table: string
+    table: string,
   ): Promise<QueryContext> {
     let context = createQueryContext(action, model, table, this.forja);
 
@@ -78,7 +61,7 @@ export class Dispatcher {
       } catch (error) {
         console.error(
           `[Dispatcher] Error in plugin '${plugin.name}' onCreateQueryContext:`,
-          error
+          error,
         );
       }
     }
@@ -98,7 +81,7 @@ export class Dispatcher {
       } catch (error) {
         console.error(
           `[Dispatcher] Error in plugin '${plugin.name}' onSchemaLoad:`,
-          error
+          error,
         );
       }
     }
@@ -116,7 +99,7 @@ export class Dispatcher {
     model: string,
     table: string,
     query: QueryObject,
-    executor: (query: QueryObject) => Promise<TResult>
+    executor: (query: QueryObject) => Promise<TResult>,
   ): Promise<TResult> {
     const context = await this.buildQueryContext(action, model, table);
     const modifiedQuery = await this.dispatchBeforeQuery(query, context);
@@ -131,12 +114,12 @@ export class Dispatcher {
    */
   private async dispatchBeforeQuery(
     query: QueryObject,
-    context: QueryContext
+    context: QueryContext,
   ): Promise<QueryObject> {
     const entranceValidation = validateQueryObject(query);
     if (!entranceValidation.success) {
       throw new Error(
-        `[Dispatcher] Entrance QueryObject is invalid: ${entranceValidation.error.message}`
+        `[Dispatcher] Entrance QueryObject is invalid: ${entranceValidation.error.message}`,
       );
     }
 
@@ -159,7 +142,7 @@ export class Dispatcher {
       } catch (error) {
         console.error(
           `[Dispatcher] Error in plugin '${plugin.name}' onBeforeQuery:`,
-          error
+          error,
         );
         throw error;
       }
@@ -174,7 +157,7 @@ export class Dispatcher {
    */
   private async dispatchAfterQuery<TResult>(
     result: TResult,
-    context: QueryContext
+    context: QueryContext,
   ): Promise<TResult> {
     let currentResult = result;
 
@@ -186,7 +169,7 @@ export class Dispatcher {
       } catch (error) {
         console.error(
           `[Dispatcher] Error in plugin '${plugin.name}' onAfterQuery:`,
-          error
+          error,
         );
       }
     }
@@ -198,6 +181,9 @@ export class Dispatcher {
 /**
  * Create a new dispatcher
  */
-export function createDispatcher(registry: PluginRegistry, forja: Forja): Dispatcher {
+export function createDispatcher(
+  registry: PluginRegistry,
+  forja: Forja,
+): Dispatcher {
   return new Dispatcher(registry, forja);
 }

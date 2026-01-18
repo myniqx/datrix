@@ -10,18 +10,27 @@ import type {
   SchemaDefinition,
   FieldDefinition,
   IndexDefinition,
-} from './core/schema';
-import type { DatabaseAdapter } from './adapter';
-import type { ForjaConfig } from './config';
-import { Result } from './utils';
-import { QueryObject } from './core/query-builder';
+} from "./core/schema";
+import type { DatabaseAdapter } from "./adapter";
+import type { ForjaConfig } from "./config";
+import { Result } from "./utils";
+import { QueryObject } from "./core/query-builder";
+import { IForja } from "./forja";
 
-export type { SchemaDefinition } from './core/schema';
+export type { SchemaDefinition } from "./core/schema";
 
 /**
  * Query operation type
  */
-export type QueryAction = 'findOne' | 'findMany' | 'count' | 'create' | 'update' | 'updateMany' | 'delete' | 'deleteMany';
+export type QueryAction =
+  | "findOne"
+  | "findMany"
+  | "count"
+  | "create"
+  | "update"
+  | "updateMany"
+  | "delete"
+  | "deleteMany";
 
 /**
  * Query context passed to plugin hooks
@@ -30,7 +39,7 @@ export interface QueryContext {
   readonly action: QueryAction;
   readonly model: string;
   readonly table: string;
-  readonly forja: any; // Circular dependency workaround
+  readonly forja: IForja;
   readonly metadata: Record<string, unknown>;
 }
 
@@ -64,9 +73,15 @@ export interface ForjaPlugin<TOptions = Record<string, unknown>> {
 
   // Query hooks
   onSchemaLoad?(schemas: SchemaRegistry): Promise<void>;
-  onCreateQueryContext?(context: QueryContext): Promise<QueryContext | void>;
-  onBeforeQuery?(query: QueryObject, context: QueryContext): Promise<QueryObject>;
-  onAfterQuery?<TResult>(result: TResult, context: QueryContext): Promise<TResult>;
+  onCreateQueryContext?(context: QueryContext): Promise<QueryContext>;
+  onBeforeQuery?(
+    query: QueryObject,
+    context: QueryContext,
+  ): Promise<QueryObject>;
+  onAfterQuery?<TResult>(
+    result: TResult,
+    context: QueryContext,
+  ): Promise<TResult>;
 }
 
 /**
@@ -79,11 +94,11 @@ export class PluginError extends Error {
 
   constructor(
     message: string,
-    options?: { code?: string; pluginName?: string; details?: unknown }
+    options?: { code?: string; pluginName?: string; details?: unknown },
   ) {
     super(message);
-    this.name = 'PluginError';
-    this.code = options?.code ?? 'UNKNOWN';
+    this.name = "PluginError";
+    this.code = options?.code ?? "UNKNOWN";
     this.pluginName = options?.pluginName;
     this.details = options?.details;
   }
@@ -93,21 +108,21 @@ export class PluginError extends Error {
  * Type guard for ForjaPlugin
  */
 export function isForjaPlugin(value: unknown): value is ForjaPlugin {
-  if (typeof value !== 'object' || value === null) {
+  if (typeof value !== "object" || value === null) {
     return false;
   }
 
   const obj = value as Record<string, unknown>;
 
   return (
-    'name' in obj &&
-    'version' in obj &&
-    'init' in obj &&
-    'destroy' in obj &&
-    typeof obj['name'] === 'string' &&
-    typeof obj['version'] === 'string' &&
-    typeof obj['init'] === 'function' &&
-    typeof obj['destroy'] === 'function'
+    "name" in obj &&
+    "version" in obj &&
+    "init" in obj &&
+    "destroy" in obj &&
+    typeof obj["name"] === "string" &&
+    typeof obj["version"] === "string" &&
+    typeof obj["init"] === "function" &&
+    typeof obj["destroy"] === "function"
   );
 }
 
@@ -115,7 +130,7 @@ export function isForjaPlugin(value: unknown): value is ForjaPlugin {
  * Plugin factory type
  */
 export type PluginFactory<TOptions = Record<string, unknown>> = (
-  options: TOptions
+  options: TOptions,
 ) => ForjaPlugin<TOptions>;
 
 /**
@@ -123,7 +138,7 @@ export type PluginFactory<TOptions = Record<string, unknown>> = (
  */
 export interface HookContext {
   readonly modelName: string;
-  readonly operation: 'create' | 'update' | 'delete' | 'find';
+  readonly operation: "create" | "update" | "delete" | "find";
   readonly user?: {
     readonly id: string;
     readonly role: string;
@@ -136,7 +151,7 @@ export interface HookContext {
  */
 export type HookHandler<TData = unknown, TResult = TData> = (
   data: TData,
-  context: HookContext
+  context: HookContext,
 ) => Promise<TResult> | TResult;
 
 /**
@@ -195,8 +210,8 @@ export interface AuthUser {
  */
 export class AuthError extends PluginError {
   constructor(message: string, details?: unknown) {
-    super(message, { code: 'AUTH_ERROR', details });
-    this.name = 'AuthError';
+    super(message, { code: "AUTH_ERROR", details });
+    this.name = "AuthError";
   }
 }
 
@@ -209,7 +224,7 @@ export type {
   PermissionValue,
   PermissionContext,
   PermissionFn,
-} from './core/permission';
+} from "./core/permission";
 
 /**
  * Upload plugin types
@@ -254,8 +269,8 @@ export interface StorageProvider {
  */
 export class UploadError extends PluginError {
   constructor(message: string, details?: unknown) {
-    super(message, { code: 'UPLOAD_ERROR', details });
-    this.name = 'UploadError';
+    super(message, { code: "UPLOAD_ERROR", details });
+    this.name = "UploadError";
   }
 }
 
@@ -268,7 +283,7 @@ export class UploadError extends PluginError {
  */
 export interface SoftDeleteOptions {
   readonly field?: string; // Field name (default: 'deletedAt')
-  readonly type?: 'timestamp' | 'boolean'; // Field type
+  readonly type?: "timestamp" | "boolean"; // Field type
 }
 
 /**
@@ -303,7 +318,7 @@ export interface HooksManager {
     modelName: string,
     hookName: keyof LifecycleHooks,
     data: TData,
-    context: HookContext
+    context: HookContext,
   ): Promise<TResult>;
   hasHook(modelName: string, hookName: keyof LifecycleHooks): boolean;
 }
@@ -356,7 +371,7 @@ export class PluginRegistry {
       return {
         success: false,
         error: new PluginError(`Plugin already registered: ${plugin.name}`, {
-          code: 'DUPLICATE_PLUGIN',
+          code: "DUPLICATE_PLUGIN",
         }),
       };
     }
@@ -402,7 +417,7 @@ export class PluginRegistry {
  */
 export type Middleware<TRequest = unknown, TResponse = unknown> = (
   request: TRequest,
-  next: () => Promise<TResponse>
+  next: () => Promise<TResponse>,
 ) => Promise<TResponse>;
 
 /**
@@ -415,7 +430,7 @@ export type OptionsValidator<T> = (options: unknown) => Result<T, PluginError>;
  */
 export function createOptionsValidator<T>(
   validator: (options: unknown) => options is T,
-  errorMessage: string
+  errorMessage: string,
 ): OptionsValidator<T> {
   return (options: unknown): Result<T, PluginError> => {
     if (validator(options)) {
@@ -423,7 +438,7 @@ export function createOptionsValidator<T>(
     }
     return {
       success: false,
-      error: new PluginError(errorMessage, { code: 'INVALID_OPTIONS' })
+      error: new PluginError(errorMessage, { code: "INVALID_OPTIONS" }),
     };
   };
 }
@@ -470,11 +485,11 @@ export interface SchemaExtensionContext {
 
   extendWhere(
     predicate: (schema: SchemaDefinition) => boolean,
-    modifier: SchemaModifier
+    modifier: SchemaModifier,
   ): SchemaExtension[];
 
   extendByPattern(
     pattern: SchemaPattern,
-    modifier: SchemaModifier
+    modifier: SchemaModifier,
   ): SchemaExtension[];
 }

@@ -9,11 +9,10 @@
 export {
   AuthManager,
   AuthError,
-  createAuthManager,
   type AuthUser,
   type AuthContext,
   type LoginResult,
-} from './manager';
+} from "./manager";
 
 // Password utilities
 export {
@@ -22,17 +21,17 @@ export {
   createPasswordManager,
   type PasswordHash,
   type PasswordConfig,
-} from './password';
+} from "./password";
 
 // JWT utilities
-export { JwtStrategy, createJwtStrategy } from './jwt';
+export { JwtStrategy, createJwtStrategy } from "./jwt";
 
 // Session utilities
 export {
   SessionStrategy,
   MemorySessionStore,
   createSessionStrategy,
-} from './session';
+} from "./session";
 
 // Permission types (re-exported from forja-types)
-export type { PermissionAction } from 'forja-types/core/permission';
+export type { PermissionAction } from "forja-types/core/permission";

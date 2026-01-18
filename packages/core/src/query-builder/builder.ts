@@ -14,16 +14,14 @@ import type {
   PopulateClause,
   OrderByItem,
   OrderDirection,
-  QueryMetadata,
-  RelationMetadata
-} from 'forja-types/core/query-builder';
+} from "forja-types/core/query-builder";
 
-import { mergeWhereClauses } from './where';
-import { mergePopulateClauses } from './populate';
-import { normalizeSelectClause, validateSelectFields } from './select';
-import { validateWhereClause } from './where';
-import type { SchemaDefinition } from 'forja-types/core/schema';
-import type { Result } from 'forja-types/utils';
+import { mergeWhereClauses } from "./where";
+import { mergePopulateClauses } from "./populate";
+import { normalizeSelectClause, validateSelectFields } from "./select";
+import { validateWhereClause } from "./where";
+import type { SchemaDefinition } from "forja-types/core/schema";
+import type { Result } from "forja-types/utils";
 
 /**
  * Query builder error
@@ -31,14 +29,14 @@ import type { Result } from 'forja-types/utils';
 export class QueryBuilderError extends Error {
   constructor(
     message: string,
-    public readonly code: string = 'QUERY_BUILD_ERROR',
+    public readonly code: string = "QUERY_BUILD_ERROR",
     public readonly details?: {
       field?: string;
       value?: unknown;
-    }
+    },
   ) {
     super(message);
-    this.name = 'QueryBuilderError';
+    this.name = "QueryBuilderError";
   }
 }
 
@@ -46,7 +44,7 @@ export class QueryBuilderError extends Error {
  * Deep clone an object (safe for JSON-serializable data)
  */
 function deepClone<T>(obj: T): T {
-  if (obj === null || typeof obj !== 'object') {
+  if (obj === null || typeof obj !== "object") {
     return obj;
   }
 
@@ -94,8 +92,9 @@ interface MutableQueryState {
 /**
  * Query builder implementation
  */
-export class ForjaQueryBuilder<TSchema = Record<string, unknown>>
-  implements QueryBuilder<TSchema> {
+export class ForjaQueryBuilder<
+  TSchema = Record<string, unknown>,
+> implements QueryBuilder<TSchema> {
   private query: MutableQueryState = {};
   private readonly _schema: SchemaDefinition | undefined;
 
@@ -152,7 +151,7 @@ export class ForjaQueryBuilder<TSchema = Record<string, unknown>>
   orWhere(conditions: WhereClause): this {
     const existing = this.query.where || ({} as WhereClause);
     this.query.where = {
-      $or: [existing, conditions]
+      $or: [existing, conditions],
     } as WhereClause;
     return this;
   }
@@ -168,7 +167,7 @@ export class ForjaQueryBuilder<TSchema = Record<string, unknown>>
   /**
    * Order by field
    */
-  orderBy(field: string, direction: OrderDirection = 'asc'): this {
+  orderBy(field: string, direction: OrderDirection = "asc"): this {
     const orderByItem: OrderByItem = { field, direction };
     this.query.orderBy = [...(this.query.orderBy || []), orderByItem];
     return this;
@@ -238,14 +237,14 @@ export class ForjaQueryBuilder<TSchema = Record<string, unknown>>
     if (!this.query.type) {
       return {
         success: false,
-        error: new QueryBuilderError('Query type is required')
+        error: new QueryBuilderError("Query type is required"),
       };
     }
 
     if (!this.query.table) {
       return {
         success: false,
-        error: new QueryBuilderError('Table name is required')
+        error: new QueryBuilderError("Table name is required"),
       };
     }
 
@@ -258,8 +257,8 @@ export class ForjaQueryBuilder<TSchema = Record<string, unknown>>
           error: new QueryBuilderError(
             validation.error.message,
             validation.error.code,
-            validation.error.details
-          )
+            validation.error.details,
+          ),
         };
       }
     }
@@ -273,8 +272,8 @@ export class ForjaQueryBuilder<TSchema = Record<string, unknown>>
           error: new QueryBuilderError(
             validation.error.message,
             validation.error.code,
-            validation.error.details
-          )
+            validation.error.details,
+          ),
         };
       }
     }
@@ -289,20 +288,20 @@ export class ForjaQueryBuilder<TSchema = Record<string, unknown>>
             success: false,
             error: new QueryBuilderError(
               `Relation '${relationName}' not found in schema '${this._schema.name}'`,
-              'INVALID_RELATION',
-              { field: relationName }
-            )
+              "INVALID_RELATION",
+              { field: relationName },
+            ),
           };
         }
 
-        if (field.type !== 'relation') {
+        if (field.type !== "relation") {
           return {
             success: false,
             error: new QueryBuilderError(
               `Field '${relationName}' is not a relation`,
-              'INVALID_RELATION',
-              { field: relationName }
-            )
+              "INVALID_RELATION",
+              { field: relationName },
+            ),
           };
         }
 
@@ -312,9 +311,9 @@ export class ForjaQueryBuilder<TSchema = Record<string, unknown>>
             success: false,
             error: new QueryBuilderError(
               `Relation '${relationName}' must have a foreignKey defined in schema`,
-              'MISSING_FOREIGN_KEY',
-              { field: relationName }
-            )
+              "MISSING_FOREIGN_KEY",
+              { field: relationName },
+            ),
           };
         }
       }
@@ -326,14 +325,20 @@ export class ForjaQueryBuilder<TSchema = Record<string, unknown>>
       ...(this.query.select !== undefined && { select: this.query.select }),
       ...(this.query.where !== undefined && { where: this.query.where }),
       ...(this.query.populate !== undefined && { populate: this.query.populate }),
-      ...(this.query.orderBy !== undefined && { orderBy: this.query.orderBy as readonly OrderByItem[] }),
+      ...(this.query.orderBy !== undefined && {
+        orderBy: this.query.orderBy as readonly OrderByItem[],
+      }),
       ...(this.query.limit !== undefined && { limit: this.query.limit }),
       ...(this.query.offset !== undefined && { offset: this.query.offset }),
       ...(this.query.data !== undefined && { data: this.query.data }),
-      ...(this.query.returning !== undefined && { returning: this.query.returning }),
+      ...(this.query.returning !== undefined && {
+        returning: this.query.returning,
+      }),
       ...(this.query.distinct !== undefined && { distinct: this.query.distinct }),
-      ...(this.query.groupBy !== undefined && { groupBy: this.query.groupBy as readonly string[] }),
-      ...(this.query.having !== undefined && { having: this.query.having })
+      ...(this.query.groupBy !== undefined && {
+        groupBy: this.query.groupBy as readonly string[],
+      }),
+      ...(this.query.having !== undefined && { having: this.query.having }),
     };
 
     return { success: true, data: result };
@@ -349,12 +354,22 @@ export class ForjaQueryBuilder<TSchema = Record<string, unknown>>
     cloned.query = {
       ...this.query,
       // Deep clone nested objects
-      ...(this.query.where !== undefined && { where: deepClone(this.query.where) }),
-      ...(this.query.populate !== undefined && { populate: deepClone(this.query.populate) }),
+      ...(this.query.where !== undefined && {
+        where: deepClone(this.query.where),
+      }),
+      ...(this.query.populate !== undefined && {
+        populate: deepClone(this.query.populate),
+      }),
       ...(this.query.data !== undefined && { data: deepClone(this.query.data) }),
-      ...(this.query.orderBy !== undefined && { orderBy: deepClone(this.query.orderBy) }),
-      ...(this.query.groupBy !== undefined && { groupBy: deepClone(this.query.groupBy) }),
-      ...(this.query.having !== undefined && { having: deepClone(this.query.having) })
+      ...(this.query.orderBy !== undefined && {
+        orderBy: deepClone(this.query.orderBy),
+      }),
+      ...(this.query.groupBy !== undefined && {
+        groupBy: deepClone(this.query.groupBy),
+      }),
+      ...(this.query.having !== undefined && {
+        having: deepClone(this.query.having),
+      }),
     };
 
     return cloned;
@@ -373,7 +388,7 @@ export class ForjaQueryBuilder<TSchema = Record<string, unknown>>
  * Create a new query builder
  */
 export function createQueryBuilder<TSchema = Record<string, unknown>>(
-  schema?: SchemaDefinition
+  schema?: SchemaDefinition,
 ): ForjaQueryBuilder<TSchema> {
   return new ForjaQueryBuilder<TSchema>(schema);
 }
@@ -383,9 +398,9 @@ export function createQueryBuilder<TSchema = Record<string, unknown>>(
  */
 export function selectFrom<TSchema = Record<string, unknown>>(
   table: string,
-  schema?: SchemaDefinition
+  schema?: SchemaDefinition,
 ): ForjaQueryBuilder<TSchema> {
-  return createQueryBuilder<TSchema>(schema).type('select').table(table);
+  return createQueryBuilder<TSchema>(schema).type("select").table(table);
 }
 
 /**
@@ -394,10 +409,10 @@ export function selectFrom<TSchema = Record<string, unknown>>(
 export function insertInto<TSchema = Record<string, unknown>>(
   table: string,
   data: Record<string, unknown>,
-  schema?: SchemaDefinition
+  schema?: SchemaDefinition,
 ): ForjaQueryBuilder<TSchema> {
   return createQueryBuilder<TSchema>(schema)
-    .type('insert')
+    .type("insert")
     .table(table)
     .data(data);
 }
@@ -408,10 +423,10 @@ export function insertInto<TSchema = Record<string, unknown>>(
 export function updateTable<TSchema = Record<string, unknown>>(
   table: string,
   data: Record<string, unknown>,
-  schema?: SchemaDefinition
+  schema?: SchemaDefinition,
 ): ForjaQueryBuilder<TSchema> {
   return createQueryBuilder<TSchema>(schema)
-    .type('update')
+    .type("update")
     .table(table)
     .data(data);
 }
@@ -421,9 +436,9 @@ export function updateTable<TSchema = Record<string, unknown>>(
  */
 export function deleteFrom<TSchema = Record<string, unknown>>(
   table: string,
-  schema?: SchemaDefinition
+  schema?: SchemaDefinition,
 ): ForjaQueryBuilder<TSchema> {
-  return createQueryBuilder<TSchema>(schema).type('delete').table(table);
+  return createQueryBuilder<TSchema>(schema).type("delete").table(table);
 }
 
 /**
@@ -431,7 +446,7 @@ export function deleteFrom<TSchema = Record<string, unknown>>(
  */
 export function countFrom<TSchema = Record<string, unknown>>(
   table: string,
-  schema?: SchemaDefinition
+  schema?: SchemaDefinition,
 ): ForjaQueryBuilder<TSchema> {
-  return createQueryBuilder<TSchema>(schema).type('count').table(table);
+  return createQueryBuilder<TSchema>(schema).type("count").table(table);
 }

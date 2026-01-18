@@ -6,11 +6,11 @@
  * Note: Permission checking is now handled by schema-based permissions in middleware/permission.ts
  */
 
-import type { ApiAuthConfig } from 'forja-types/config';
-import type { Result } from 'forja-types/utils';
-import { PasswordManager, type PasswordHash } from './password';
-import { JwtStrategy } from './jwt';
-import { SessionStrategy } from './session';
+import type { Result } from "forja-types/utils";
+import { PasswordManager, type PasswordHash } from "./password";
+import { JwtStrategy } from "./jwt";
+import { SessionStrategy } from "./session";
+import { AuthConfig } from "./types";
 
 /**
  * Auth error
@@ -21,7 +21,7 @@ export class AuthError extends Error {
 
   constructor(message: string, code: string, details?: unknown) {
     super(message);
-    this.name = 'AuthError';
+    this.name = "AuthError";
     this.code = code;
     this.details = details;
   }
@@ -61,13 +61,17 @@ export interface AuthContext {
  * Main authentication manager that coordinates all auth components.
  * Note: Permission checking is now schema-based (see middleware/permission.ts)
  */
-export class AuthManager {
+export class AuthManager<TRole extends string = string> {
   private readonly passwordManager: PasswordManager;
   private readonly jwtStrategy: JwtStrategy | undefined;
   private readonly sessionStrategy: SessionStrategy | undefined;
-  private readonly config: ApiAuthConfig;
+  private readonly config: AuthConfig<TRole>;
 
-  constructor(config: ApiAuthConfig) {
+  public get authConfig(): AuthConfig<TRole> {
+    return this.config;
+  }
+
+  constructor(config: AuthConfig<TRole>) {
     this.config = config;
 
     // Initialize password manager
@@ -88,13 +92,19 @@ export class AuthManager {
   /**
    * Hash password
    */
-  async hashPassword(password: string): Promise<Result<PasswordHash, AuthError>> {
+  async hashPassword(
+    password: string,
+  ): Promise<Result<PasswordHash, AuthError>> {
     const result = await this.passwordManager.hash(password);
 
     if (!result.success) {
       return {
         success: false,
-        error: new AuthError(result.error.message, result.error.code, result.error.details),
+        error: new AuthError(
+          result.error.message,
+          result.error.code,
+          result.error.details,
+        ),
       };
     }
 
@@ -107,14 +117,18 @@ export class AuthManager {
   async verifyPassword(
     password: string,
     hash: string,
-    salt: string
+    salt: string,
   ): Promise<Result<boolean, AuthError>> {
     const result = await this.passwordManager.verify(password, hash, salt);
 
     if (!result.success) {
       return {
         success: false,
-        error: new AuthError(result.error.message, result.error.code, result.error.details),
+        error: new AuthError(
+          result.error.message,
+          result.error.code,
+          result.error.details,
+        ),
       };
     }
 
@@ -126,7 +140,7 @@ export class AuthManager {
    */
   async login(
     user: AuthUser,
-    options: { createToken?: boolean; createSession?: boolean } = {}
+    options: { createToken?: boolean; createSession?: boolean } = {},
   ): Promise<Result<LoginResult, AuthError>> {
     const { createToken = true, createSession = true } = options;
 
@@ -145,8 +159,8 @@ export class AuthManager {
           success: false,
           error: new AuthError(
             tokenResult.error.message,
-            'JWT_SIGN_ERROR',
-            tokenResult.error.details
+            "JWT_SIGN_ERROR",
+            tokenResult.error.details,
           ),
         };
       }
@@ -156,18 +170,15 @@ export class AuthManager {
 
     // Create session if enabled and requested
     if (this.sessionStrategy && createSession) {
-      const sessionResult = await this.sessionStrategy.create(
-        user.id,
-        user.role
-      );
+      const sessionResult = await this.sessionStrategy.create(user.id, user.role);
 
       if (!sessionResult.success) {
         return {
           success: false,
           error: new AuthError(
             sessionResult.error.message,
-            'SESSION_CREATE_ERROR',
-            sessionResult.error.details
+            "SESSION_CREATE_ERROR",
+            sessionResult.error.details,
           ),
         };
       }
@@ -192,8 +203,8 @@ export class AuthManager {
       return {
         success: false,
         error: new AuthError(
-          'Session strategy not configured',
-          'SESSION_NOT_CONFIGURED'
+          "Session strategy not configured",
+          "SESSION_NOT_CONFIGURED",
         ),
       };
     }
@@ -205,8 +216,8 @@ export class AuthManager {
         success: false,
         error: new AuthError(
           result.error.message,
-          'SESSION_DELETE_ERROR',
-          result.error.details
+          "SESSION_DELETE_ERROR",
+          result.error.details,
         ),
       };
     }
@@ -227,7 +238,7 @@ export class AuthManager {
         return {
           user: {
             id: payload.userId,
-            email: '', // Will be fetched from DB if needed
+            email: "", // Will be fetched from DB if needed
             role: payload.role,
           },
           token,
@@ -244,7 +255,7 @@ export class AuthManager {
         return {
           user: {
             id: session.userId,
-            email: '',
+            email: "",
             role: session.role,
           },
           sessionId,
@@ -255,13 +266,12 @@ export class AuthManager {
     return null;
   }
 
-
   /**
    * Extract JWT token from request headers
    */
   private extractToken(request: Request): string | null {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    const authHeader = request.headers.get("authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return null;
     }
 
@@ -272,21 +282,24 @@ export class AuthManager {
    * Extract session ID from request cookies
    */
   private extractSessionId(request: Request): string | null {
-    const cookieHeader = request.headers.get('cookie');
+    const cookieHeader = request.headers.get("cookie");
     if (!cookieHeader) {
       return null;
     }
 
     // Parse cookies
-    const cookies = cookieHeader.split(';').reduce((acc, cookie) => {
-      const [key, value] = cookie.trim().split('=');
-      if (key && value) {
-        acc[key] = value;
-      }
-      return acc;
-    }, {} as Record<string, string>);
+    const cookies = cookieHeader.split(";").reduce(
+      (acc, cookie) => {
+        const [key, value] = cookie.trim().split("=");
+        if (key && value) {
+          acc[key] = value;
+        }
+        return acc;
+      },
+      {} as Record<string, string>,
+    );
 
-    return cookies['sessionId'] ?? null;
+    return cookies["sessionId"] ?? null;
   }
 
   /**
@@ -317,11 +330,4 @@ export class AuthManager {
       await this.sessionStrategy.clear();
     }
   }
-}
-
-/**
- * Create auth manager
- */
-export function createAuthManager(config: ApiAuthConfig): AuthManager {
-  return new AuthManager(config);
 }

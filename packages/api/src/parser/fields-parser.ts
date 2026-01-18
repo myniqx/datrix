@@ -7,13 +7,12 @@
  *   ?fields=name,email
  */
 
-import type { RawQueryParams, FieldsParserResult } from 'forja-types/api/parser';
-import { ParserError } from 'forja-types/api/parser';
-import {
-  MAX_FIELD_NAME_LENGTH,
-  MAX_ARRAY_INDEX,
-  isValidFieldName,
-} from 'forja-types/core/constants';
+import type {
+  RawQueryParams,
+  FieldsParserResult,
+} from "forja-types/api/parser";
+import { ParserError } from "forja-types/api/parser";
+import { MAX_ARRAY_INDEX, isValidFieldName } from "forja-types/core/constants";
 
 /**
  * Parse fields parameter
@@ -25,19 +24,22 @@ export function parseFields(params: RawQueryParams): FieldsParserResult {
   // Check for suspicious parameters (fields[extra], fields_injection, etc.)
   const suspiciousParams = Object.keys(params).filter(
     (key) =>
-      key.startsWith('fields') &&
-      key !== 'fields' &&
-      !key.match(/^fields\[\d+\]$/) // Allow fields[0], fields[1], etc.
+      key.startsWith("fields") &&
+      key !== "fields" &&
+      !key.match(/^fields\[\d+\]$/), // Allow fields[0], fields[1], etc.
   );
 
   if (suspiciousParams.length > 0) {
     return {
       success: false,
-      error: new ParserError(`Unknown fields parameters: ${suspiciousParams.join(', ')}`, {
-        code: 'INVALID_SYNTAX',
-        field: 'fields',
-        details: { suspiciousParams }
-      })
+      error: new ParserError(
+        `Unknown fields parameters: ${suspiciousParams.join(", ")}`,
+        {
+          code: "INVALID_SYNTAX",
+          field: "fields",
+          details: { suspiciousParams },
+        },
+      ),
     };
   }
 
@@ -48,30 +50,36 @@ export function parseFields(params: RawQueryParams): FieldsParserResult {
   }
 
   // Check for fields parameter
-  const fieldsParam = params['fields'];
+  const fieldsParam = params["fields"];
 
   if (fieldsParam === undefined) {
     // No fields specified, return success with undefined (will select all)
-    return { success: true, data: '*' };
+    return { success: true, data: "*" };
   }
 
   // Handle wildcard
-  if (fieldsParam === '*') {
-    return { success: true, data: '*' };
+  if (fieldsParam === "*") {
+    return { success: true, data: "*" };
   }
 
   // Handle comma-separated format: fields=name,email
-  if (typeof fieldsParam === 'string') {
-    const fields = fieldsParam.split(',').map((f) => f.trim()).filter(Boolean);
+  if (typeof fieldsParam === "string") {
+    const fields = fieldsParam
+      .split(",")
+      .map((f) => f.trim())
+      .filter(Boolean);
 
     // Reject if all fields are empty after trimming
     if (fields.length === 0) {
       return {
         success: false,
-        error: new ParserError('Fields parameter is empty or contains only whitespace', {
-          code: 'INVALID_SYNTAX',
-          field: 'fields'
-        })
+        error: new ParserError(
+          "Fields parameter is empty or contains only whitespace",
+          {
+            code: "INVALID_SYNTAX",
+            field: "fields",
+          },
+        ),
       };
     }
 
@@ -86,10 +94,13 @@ export function parseFields(params: RawQueryParams): FieldsParserResult {
     if (fields.length === 0) {
       return {
         success: false,
-        error: new ParserError('Fields parameter is empty or contains only whitespace', {
-          code: 'INVALID_SYNTAX',
-          field: 'fields'
-        })
+        error: new ParserError(
+          "Fields parameter is empty or contains only whitespace",
+          {
+            code: "INVALID_SYNTAX",
+            field: "fields",
+          },
+        ),
       };
     }
 
@@ -99,10 +110,10 @@ export function parseFields(params: RawQueryParams): FieldsParserResult {
   // Invalid format
   return {
     success: false,
-    error: new ParserError('Invalid fields format', {
-      code: 'INVALID_SYNTAX',
-      field: 'fields'
-    })
+    error: new ParserError("Invalid fields format", {
+      code: "INVALID_SYNTAX",
+      field: "fields",
+    }),
   };
 }
 
@@ -121,7 +132,7 @@ function extractArrayFields(params: RawQueryParams): string[] {
     const match = key.match(/^fields\[(\d+)\]$/);
     if (!match) continue;
 
-    const index = parseInt(match[1], 10);
+    const index = parseInt(match[1]!, 10);
 
     // Prevent DoS attacks with extremely large indices
     if (index >= MAX_ARRAY_INDEX) {
@@ -129,7 +140,7 @@ function extractArrayFields(params: RawQueryParams): string[] {
     }
 
     const value = params[key];
-    if (typeof value === 'string') {
+    if (typeof value === "string") {
       fields.push(value.trim());
     } else if (Array.isArray(value)) {
       // Framework might parse duplicate params as array
@@ -145,7 +156,7 @@ function extractArrayFields(params: RawQueryParams): string[] {
  */
 function validateAndReturn(fields: readonly string[]): FieldsParserResult {
   if (fields.length === 0) {
-    return { success: true, data: '*' };
+    return { success: true, data: "*" };
   }
 
   // Validate field names (alphanumeric, underscores, dots for nested fields)
@@ -154,11 +165,11 @@ function validateAndReturn(fields: readonly string[]): FieldsParserResult {
   if (invalidFields.length > 0) {
     return {
       success: false,
-      error: new ParserError(`Invalid field names: ${invalidFields.join(', ')}`, {
-        code: 'INVALID_SYNTAX',
-        field: 'fields',
-        details: { invalidFields }
-      })
+      error: new ParserError(`Invalid field names: ${invalidFields.join(", ")}`, {
+        code: "INVALID_SYNTAX",
+        field: "fields",
+        details: { invalidFields },
+      }),
     };
   }
 
@@ -167,4 +178,3 @@ function validateAndReturn(fields: readonly string[]): FieldsParserResult {
 
 // Field validation is now centralized in forja-types/core/constants
 // isValidFieldName() is imported from there
-

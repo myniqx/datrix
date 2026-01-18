@@ -5,14 +5,14 @@
  * This is the SINGLE PLACE where all request preprocessing happens
  */
 
-import type { AuthManager } from '../auth/manager';
 import type { RequestContext, HttpMethod, ContextBuilderOptions } from './types';
-import { authenticate } from './auth';
+import type { Forja } from 'forja-core';
+import type { IApiPlugin } from '../interface';
+import { methodToAction } from './permission';
 import { parseQuery } from '../parser';
-import { Forja } from 'forja-core';
 
 /**
- * Extract model name from URL path
+ * Extract table name from URL path
  * /api/users -> 'users'
  * /api/users/123 -> 'users'
  */
@@ -49,33 +49,44 @@ function extractIdFromPath(pathname: string, prefix: string): string | null {
  * Build Request Context
  *
  * This is the CENTRALIZED place where:
- * 1. Authentication happens
- * 2. URL parsing happens
- * 3. Query parsing happens
- * 4. Body parsing happens
+ * 1. Schema resolution happens
+ * 2. Authentication happens (only if enabled)
+ * 3. URL parsing happens
+ * 4. Query parsing happens
+ * 5. Body parsing happens
  *
  * ALL requests go through this function ONCE
  */
-export async function buildRequestContext(
+export async function buildRequestContext<TRole extends string = string>(
   request: Request,
   forja: Forja,
-  authManager?: AuthManager,
+  api: IApiPlugin<TRole>,
   options: ContextBuilderOptions = {}
-): Promise<RequestContext> {
+): Promise<RequestContext<TRole>> {
   const apiPrefix = options.apiPrefix ?? '/api';
   const url = new URL(request.url);
   const method = request.method as HttpMethod;
+  const authEnabled = api.isAuthEnabled();
 
-  // 1. AUTHENTICATE (Single place!)
-  // TODO: use auth only if its enabled!
-  const user = (await authManager?.authenticate(request))?.user ?? null;
-
-  // 2. EXTRACT MODEL & ID
+  // 1. RESOLVE SCHEMA from URL
   const tableName = extractTableNameFromPath(url.pathname, apiPrefix);
-  const model = forja.getSchemas().findModelByTableName(tableName);
+  const modelName = forja.getSchemas().findModelByTableName(tableName);
+  const schema = modelName ? forja.getSchema(modelName) ?? null : null;
+
+  // 2. DERIVE ACTION from HTTP method
+  const action = methodToAction(method);
+
+  // 3. EXTRACT ID from URL
   const id = extractIdFromPath(url.pathname, apiPrefix);
 
-  // 3. PARSE QUERY (for GET requests)
+  // 4. AUTHENTICATE (only if auth is enabled)
+  let user = null;
+  if (authEnabled && api.authManager) {
+    const authResult = await api.authManager.authenticate(request);
+    user = authResult?.user ?? null;
+  }
+
+  // 5. PARSE QUERY (for GET requests)
   let query = null;
   if (method === 'GET') {
     const queryParams: Record<string, string | string[]> = {};
@@ -96,7 +107,7 @@ export async function buildRequestContext(
     query = parseResult.success ? parseResult.data : null;
   }
 
-  // 4. PARSE BODY (for POST/PATCH/PUT requests)
+  // 6. PARSE BODY (for POST/PATCH/PUT requests)
   let body = null;
   if (['POST', 'PATCH', 'PUT'].includes(method)) {
     try {
@@ -109,24 +120,26 @@ export async function buildRequestContext(
     }
   }
 
-  // 5. EXTRACT HEADERS
+  // 7. EXTRACT HEADERS
   const headers: Record<string, string> = {};
   request.headers.forEach((value, key) => {
     headers[key] = value;
   });
 
-  // 6. BUILD CONTEXT
+  // 8. BUILD UNIFIED CONTEXT
   return {
-    user,
-    model,
-    tableName,
+    schema,
+    action,
     id,
     method,
     query,
     body,
     headers,
     url,
-    apiPrefix,
     request,
+    user,
+    forja,
+    api,
+    authEnabled,
   };
 }

@@ -60,24 +60,27 @@ import { Forja } from "forja-core";
  * });
  * ```
  */
-export async function handleRequest(forja: Forja, request: Request): Promise<Response> {
+export async function handleRequest(
+  forja: Forja,
+  request: Request,
+): Promise<Response> {
   try {
     // 1. Check if API is configured
-    const api = forja.getPlugin('api') as unknown as ApiPlugin | undefined;
+    const api = forja.getPlugin("api") as unknown as ApiPlugin | undefined;
 
     if (!api) {
       return new Response(
         JSON.stringify({
           error: {
-            message: 'API is not configured in forja.config.ts',
-            code: 'API_NOT_CONFIGURED',
+            message: "API is not configured in forja.config.ts",
+            code: "API_NOT_CONFIGURED",
             hint: 'Add "api: new ForjaApi({ ... })" to your forja.config.ts',
           },
         }),
         {
           status: 503,
-          headers: { 'Content-Type': 'application/json' },
-        }
+          headers: { "Content-Type": "application/json" },
+        },
       );
     }
 
@@ -86,15 +89,15 @@ export async function handleRequest(forja: Forja, request: Request): Promise<Res
       return new Response(
         JSON.stringify({
           error: {
-            message: 'API is disabled',
-            code: 'API_DISABLED',
+            message: "API is disabled",
+            code: "API_DISABLED",
             hint: 'Set "enabled: true" in ForjaApi configuration',
           },
         }),
         {
           status: 503,
-          headers: { 'Content-Type': 'application/json' },
-        }
+          headers: { "Content-Type": "application/json" },
+        },
       );
     }
 
@@ -102,24 +105,23 @@ export async function handleRequest(forja: Forja, request: Request): Promise<Res
     return await api.handleRequest(request, forja);
   } catch (error) {
     // 4. Catch unexpected errors (should rarely happen)
-    console.error('[Forja API] Unexpected error:', error);
+    console.error("[Forja API] Unexpected error:", error);
 
     return new Response(
       JSON.stringify({
         error: {
-          message:
-            error instanceof Error ? error.message : 'Internal server error',
-          code: 'INTERNAL_ERROR',
+          message: error instanceof Error ? error.message : "Internal server error",
+          code: "INTERNAL_ERROR",
           stack:
-            process.env.NODE_ENV === 'development' && error instanceof Error
-              ? error.stack
+            process.env["NODE_ENV"] === "development" && error instanceof Error ?
+              error.stack
               : undefined,
         },
       }),
       {
         status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      }
+        headers: { "Content-Type": "application/json" },
+      },
     );
   }
 }

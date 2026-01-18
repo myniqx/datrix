@@ -5,18 +5,13 @@
  * This class encapsulates all data manipulation logic.
  */
 
-import { DatabaseAdapter } from 'forja-types/adapter';
-import { SchemaRegistry, SchemaDefinition } from 'forja-types/core/schema';
-import {
-  QueryObject,
-  WhereClause,
-  SelectClause,
-  PopulateClause,
-  OrderByItem,
-} from 'forja-types/core/query-builder';
-import { ForjaError } from '../forja';
-import { Dispatcher } from '../dispatcher';
-import { validateSchema, validatePartial } from '../validator';
+import { DatabaseAdapter } from "forja-types/adapter";
+import { SchemaRegistry, SchemaDefinition } from "forja-types/core/schema";
+import { QueryObject, WhereClause } from "forja-types/core/query-builder";
+import { ForjaError } from "../forja";
+import { Dispatcher } from "../dispatcher";
+import { validateSchema, validatePartial } from "../validator";
+import { ParsedQuery } from "forja-types";
 
 /**
  * CRUD Operations Class
@@ -27,7 +22,7 @@ export class CrudOperations {
   constructor(
     private readonly schemas: SchemaRegistry,
     private readonly getAdapter: () => DatabaseAdapter,
-    private readonly getDispatcher: () => Dispatcher
+    private readonly getDispatcher: () => Dispatcher,
   ) { }
 
   /**
@@ -49,36 +44,33 @@ export class CrudOperations {
   async findOne<T = unknown>(
     model: string,
     where: WhereClause,
-    options?: {
-      readonly select?: SelectClause;
-      readonly populate?: PopulateClause;
-    }
+    options?: Pick<ParsedQuery, "select" | "populate">,
   ): Promise<T | null> {
-    const { table } = this.getSchemaAndTable(model);
+    const { tableName } = this.getSchema(model);
     const query: QueryObject = {
-      type: 'select',
-      table,
+      type: "select",
+      table: tableName!,
       where,
-      select: options?.select ?? '*',
+      select: options?.select ?? "*",
       populate: options?.populate ?? false,
       limit: 1,
     };
 
     return await this.getDispatcher().executeQuery<T | null>(
-      'findOne',
+      "findOne",
       model,
-      table,
+      tableName!,
       query,
       async (q) => {
         const result = await this.getAdapter().executeQuery<T>(q);
         if (!result.success) {
           throw new ForjaError(
             `Failed to find ${model}: ${result.error.message}`,
-            'QUERY_FAILED'
+            "QUERY_FAILED",
           );
         }
         return result.data.rows[0] ?? null;
-      }
+      },
     );
   }
 
@@ -98,10 +90,7 @@ export class CrudOperations {
   async findById<T = unknown>(
     model: string,
     id: string | number,
-    options?: {
-      readonly select?: SelectClause;
-      readonly populate?: PopulateClause;
-    }
+    options?: Pick<ParsedQuery, "select" | "populate">,
   ): Promise<T | null> {
     return this.findOne<T>(model, { id }, options);
   }
@@ -124,21 +113,17 @@ export class CrudOperations {
    */
   async findMany<T = unknown>(
     model: string,
-    options?: {
-      readonly where?: WhereClause;
-      readonly select?: SelectClause;
-      readonly populate?: PopulateClause;
-      readonly orderBy?: readonly OrderByItem[];
-      readonly limit?: number;
-      readonly offset?: number;
-    }
+    options?: Pick<
+      ParsedQuery,
+      "where" | "select" | "populate" | "orderBy" | "limit" | "offset"
+    >,
   ): Promise<T[]> {
-    const { table } = this.getSchemaAndTable(model);
+    const { tableName } = this.getSchema(model);
     const query: QueryObject = {
-      type: 'select',
-      table,
+      type: "select",
+      table: tableName!,
       where: options?.where,
-      select: options?.select ?? '*',
+      select: options?.select ?? "*",
       populate: options?.populate ?? false,
       orderBy: options?.orderBy,
       limit: options?.limit,
@@ -146,20 +131,20 @@ export class CrudOperations {
     };
 
     return await this.getDispatcher().executeQuery<T[]>(
-      'findMany',
+      "findMany",
       model,
-      table,
+      tableName!,
       query,
       async (q) => {
         const result = await this.getAdapter().executeQuery<T>(q);
         if (!result.success) {
           throw new ForjaError(
             `Failed to find ${model}: ${result.error.message}`,
-            'QUERY_FAILED'
+            "QUERY_FAILED",
           );
         }
-        return result.data.rows;
-      }
+        return result.data.rows as T[];
+      },
     );
   }
 
@@ -177,28 +162,28 @@ export class CrudOperations {
    * ```
    */
   async count(model: string, where?: WhereClause): Promise<number> {
-    const { table } = this.getSchemaAndTable(model);
+    const { tableName } = this.getSchema(model);
     const query: QueryObject = {
-      type: 'count',
-      table,
+      type: "count",
+      table: tableName!,
       where,
     };
 
     return await this.getDispatcher().executeQuery<number>(
-      'count',
+      "count",
       model,
-      table,
+      tableName!,
       query,
       async (q) => {
         const result = await this.getAdapter().executeQuery<{ count: number }>(q);
         if (!result.success) {
           throw new ForjaError(
             `Failed to count ${model}: ${result.error.message}`,
-            'QUERY_FAILED'
+            "QUERY_FAILED",
           );
         }
         return result.data.rows[0]?.count ?? 0;
-      }
+      },
     );
   }
 
@@ -220,35 +205,35 @@ export class CrudOperations {
    */
   async create<T = unknown>(
     model: string,
-    data: Record<string, unknown>
+    data: Record<string, unknown>,
   ): Promise<T> {
-    const { schema, table } = this.getSchemaAndTable(model);
+    const schema = this.getSchema(model);
 
     // Validate data against schema (full validation)
     const validatedData = this.validateData(model, data, schema, false);
 
     const query: QueryObject = {
-      type: 'insert',
-      table,
+      type: "insert",
+      table: schema.tableName!,
       data: validatedData,
-      returning: '*',
+      returning: "*",
     };
 
     return await this.getDispatcher().executeQuery<T>(
-      'create',
+      "create",
       model,
-      table,
+      schema.tableName!,
       query,
       async (q) => {
         const result = await this.getAdapter().executeQuery<T>(q);
         if (!result.success) {
           throw new ForjaError(
             `Failed to create ${model}: ${result.error.message}`,
-            'QUERY_FAILED'
+            "QUERY_FAILED",
           );
         }
         return result.data.rows[0]!;
-      }
+      },
     );
   }
 
@@ -270,36 +255,36 @@ export class CrudOperations {
   async update<T = unknown>(
     model: string,
     id: string | number,
-    data: Record<string, unknown>
+    data: Record<string, unknown>,
   ): Promise<T> {
-    const { schema, table } = this.getSchemaAndTable(model);
+    const schema = this.getSchema(model);
 
     // Validate data against schema (partial validation for updates)
     const validatedData = this.validateData(model, data, schema, true);
 
     const query: QueryObject = {
-      type: 'update',
-      table,
+      type: "update",
+      table: schema.tableName!,
       where: { id },
       data: validatedData,
-      returning: '*',
+      returning: "*",
     };
 
     return await this.getDispatcher().executeQuery<T>(
-      'update',
+      "update",
       model,
-      table,
+      schema.tableName!,
       query,
       async (q) => {
         const result = await this.getAdapter().executeQuery<T>(q);
         if (!result.success) {
           throw new ForjaError(
             `Failed to update ${model}: ${result.error.message}`,
-            'QUERY_FAILED'
+            "QUERY_FAILED",
           );
         }
         return result.data.rows[0]!;
-      }
+      },
     );
   }
 
@@ -322,35 +307,35 @@ export class CrudOperations {
   async updateMany(
     model: string,
     where: WhereClause,
-    data: Record<string, unknown>
+    data: Record<string, unknown>,
   ): Promise<number> {
-    const { schema, table } = this.getSchemaAndTable(model);
+    const schema = this.getSchema(model);
 
     // Validate data against schema (partial validation for updates)
     const validatedData = this.validateData(model, data, schema, true);
 
     const query: QueryObject = {
-      type: 'update',
-      table,
+      type: "update",
+      table: schema.tableName!,
       where,
       data: validatedData,
     };
 
     return await this.getDispatcher().executeQuery<number>(
-      'updateMany',
+      "updateMany",
       model,
-      table,
+      schema.tableName!,
       query,
       async (q) => {
         const result = await this.getAdapter().executeQuery<{ count: number }>(q);
         if (!result.success) {
           throw new ForjaError(
             `Failed to update ${model}: ${result.error.message}`,
-            'QUERY_FAILED'
+            "QUERY_FAILED",
           );
         }
         return result.data.metadata.rowCount ?? 0;
-      }
+      },
     );
   }
 
@@ -367,28 +352,28 @@ export class CrudOperations {
    * ```
    */
   async delete(model: string, id: string | number): Promise<boolean> {
-    const { table } = this.getSchemaAndTable(model);
+    const { tableName } = this.getSchema(model);
     const query: QueryObject = {
-      type: 'delete',
-      table,
+      type: "delete",
+      table: tableName!,
       where: { id },
     };
 
     return await this.getDispatcher().executeQuery<boolean>(
-      'delete',
+      "delete",
       model,
-      table,
+      tableName!,
       query,
       async (q) => {
         const result = await this.getAdapter().executeQuery<unknown>(q);
         if (!result.success) {
           throw new ForjaError(
             `Failed to delete ${model}: ${result.error.message}`,
-            'QUERY_FAILED'
+            "QUERY_FAILED",
           );
         }
         return (result.data.metadata.rowCount ?? 0) > 0;
-      }
+      },
     );
   }
 
@@ -405,28 +390,28 @@ export class CrudOperations {
    * ```
    */
   async deleteMany(model: string, where: WhereClause): Promise<number> {
-    const { table } = this.getSchemaAndTable(model);
+    const { tableName } = this.getSchema(model);
     const query: QueryObject = {
-      type: 'delete',
-      table,
+      type: "delete",
+      table: tableName!,
       where,
     };
 
     return await this.getDispatcher().executeQuery<number>(
-      'deleteMany',
+      "deleteMany",
       model,
-      table,
+      tableName!,
       query,
       async (q) => {
         const result = await this.getAdapter().executeQuery<unknown>(q);
         if (!result.success) {
           throw new ForjaError(
             `Failed to delete ${model}: ${result.error.message}`,
-            'QUERY_FAILED'
+            "QUERY_FAILED",
           );
         }
         return result.data.metadata.rowCount ?? 0;
-      }
+      },
     );
   }
 
@@ -434,17 +419,12 @@ export class CrudOperations {
    * Get schema and table name (internal helper)
    * Reduces code duplication across all CRUD methods
    */
-  private getSchemaAndTable(model: string): {
-    schema: SchemaDefinition;
-    table: string;
-  } {
+  private getSchema(model: string): SchemaDefinition {
     const schema = this.schemas.get(model);
     if (!schema) {
-      throw new ForjaError(`Schema '${model}' not found`, 'SCHEMA_NOT_FOUND');
+      throw new ForjaError(`Schema '${model}' not found`, "SCHEMA_NOT_FOUND");
     }
-
-    const table = this.schemas.getMetadata(model)!.tableName;
-    return { schema, table };
+    return schema;
   }
 
   /**
@@ -462,22 +442,22 @@ export class CrudOperations {
     model: string,
     data: Record<string, unknown>,
     schema: SchemaDefinition,
-    partial: boolean = false
+    partial: boolean = false,
   ): Record<string, unknown> {
     const validationFn = partial ? validatePartial : validateSchema;
     const result = validationFn(data, schema, {
       strict: true,
       stripUnknown: false,
-      abortEarly: false
+      abortEarly: false,
     });
 
     if (!result.success) {
       const errorMessages = result.error
-        .map(e => `${e.field}: ${e.message}`)
-        .join(', ');
+        .map((e) => `${e.field}: ${e.message}`)
+        .join(", ");
       throw new ForjaError(
         `Validation failed for ${model}: ${errorMessages}`,
-        'VALIDATION_FAILED'
+        "VALIDATION_FAILED",
       );
     }
 

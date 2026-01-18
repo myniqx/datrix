@@ -4,8 +4,8 @@
  * Exports all middleware functionality
  */
 
-export { buildRequestContext } from './context';
-export { authenticate } from './auth';
+export { buildRequestContext } from "./context";
+export { authenticate } from "./auth";
 export {
   methodToAction,
   evaluatePermissionValue,
@@ -13,15 +13,13 @@ export {
   checkFieldsForWrite,
   filterFieldsForRead,
   filterRecordsForRead,
-  createPermissionContext,
-} from './permission';
+} from "./permission";
 
 export type {
   RequestContext,
-  AuthenticatedUser,
   HttpMethod,
   ContextBuilderOptions,
-} from './types';
+} from "./types";
 
 // Re-export permission types
-export type { PermissionAction } from 'forja-types/core/permission';
+export type { PermissionAction } from "forja-types/core/permission";

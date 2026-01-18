@@ -1,6 +1,5 @@
-
-import fs from 'node:fs/promises';
-import path from 'node:path';
+import fs from "node:fs/promises";
+import path from "node:path";
 import {
   AlterOperation,
   ConnectionError,
@@ -11,15 +10,15 @@ import {
   QueryResult,
   Transaction,
   TransactionError,
-} from 'forja-types/adapter';
-import { QueryObject } from 'forja-types/core/query-builder';
-import { IndexDefinition, SchemaDefinition } from 'forja-types/core/schema';
-import { Result } from 'forja-types/utils';
-import { validateQueryObject } from 'forja-core/utils/query';
-import { JsonAdapterConfig, JsonTableFile } from './types';
-import { JsonQueryRunner } from './runner';
-import { SimpleLock } from './lock';
-import { JsonPopulator } from './populate';
+} from "forja-types/adapter";
+import { QueryObject } from "forja-types/core/query-builder";
+import { IndexDefinition, SchemaDefinition } from "forja-types/core/schema";
+import { Result } from "forja-types/utils";
+import { validateQueryObject } from "forja-core/utils/query";
+import { JsonAdapterConfig, JsonTableFile } from "./types";
+import { JsonQueryRunner } from "./runner";
+import { SimpleLock } from "./lock";
+import { JsonPopulator } from "./populate";
 
 interface CacheEntry {
   data: JsonTableFile;
@@ -30,9 +29,9 @@ interface CacheEntry {
  * JSON File Adapter
  */
 export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
-  readonly name = 'json';
+  readonly name = "json";
   readonly config: JsonAdapterConfig;
-  private state: ConnectionState = 'disconnected';
+  private state: ConnectionState = "disconnected";
   private cache = new Map<string, CacheEntry>();
   private lock: SimpleLock;
   private cacheEnabled: boolean;
@@ -40,7 +39,11 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 
   constructor(config: JsonAdapterConfig) {
     this.config = config;
-    this.lock = new SimpleLock(config.root, config.lockTimeout, config.staleTimeout);
+    this.lock = new SimpleLock(
+      config.root,
+      config.lockTimeout,
+      config.staleTimeout,
+    );
     this.cacheEnabled = config.cache !== false; // default: true
     this.readLockEnabled = config.readLock === true; // default: false
   }
@@ -49,33 +52,36 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
    * Connect involves ensuring the root directory exists
    */
   async connect(): Promise<Result<void, ConnectionError>> {
-    if (this.state === 'connected') {
+    if (this.state === "connected") {
       return { success: true, data: undefined };
     }
 
-    this.state = 'connecting';
+    this.state = "connecting";
 
     try {
       await fs.mkdir(this.config.root, { recursive: true });
-      this.state = 'connected';
+      this.state = "connected";
       return { success: true, data: undefined };
     } catch (error) {
-      this.state = 'error';
+      this.state = "error";
       const message = error instanceof Error ? error.message : String(error);
       return {
         success: false,
-        error: new ConnectionError(`Failed to access root directory: ${message}`, error)
+        error: new ConnectionError(
+          `Failed to access root directory: ${message}`,
+          error,
+        ),
       };
     }
   }
 
   async disconnect(): Promise<Result<void, ConnectionError>> {
-    this.state = 'disconnected';
+    this.state = "disconnected";
     return { success: true, data: undefined };
   }
 
   isConnected(): boolean {
-    return this.state === 'connected';
+    return this.state === "connected";
   }
 
   getConnectionState(): ConnectionState {
@@ -86,24 +92,26 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
    * Validate table name for security
    */
   private validateTableName(tableName: string): Result<void, MigrationError> {
-    if (tableName.includes('\x00')) {
+    if (tableName.includes("\x00")) {
       return {
         success: false,
-        error: new MigrationError('Invalid table name: contains null byte')
+        error: new MigrationError("Invalid table name: contains null byte"),
       };
     }
 
-    if (tableName.includes('/') || tableName.includes('\\')) {
+    if (tableName.includes("/") || tableName.includes("\\")) {
       return {
         success: false,
-        error: new MigrationError('Invalid table name: contains path separators')
+        error: new MigrationError("Invalid table name: contains path separators"),
       };
     }
 
-    if (tableName.includes('..')) {
+    if (tableName.includes("..")) {
       return {
         success: false,
-        error: new MigrationError('Invalid table name: contains parent directory reference')
+        error: new MigrationError(
+          "Invalid table name: contains parent directory reference",
+        ),
       };
     }
 
@@ -135,14 +143,14 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
       }
 
       // Cache miss or stale - read and parse fresh
-      const content = await fs.readFile(filePath, 'utf-8');
+      const content = await fs.readFile(filePath, "utf-8");
       const data: JsonTableFile = JSON.parse(content);
 
       this.cache.set(tableName, { data, mtime });
       return data;
     }
 
-    const content = await fs.readFile(filePath, 'utf-8');
+    const content = await fs.readFile(filePath, "utf-8");
     return JSON.parse(content);
   }
 
@@ -167,7 +175,10 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
   /**
    * Update cache after write operation
    */
-  private async updateCache(tableName: string, data: JsonTableFile): Promise<void> {
+  private async updateCache(
+    tableName: string,
+    data: JsonTableFile,
+  ): Promise<void> {
     if (!this.cacheEnabled) return;
 
     const filePath = this.getTablePath(tableName);
@@ -179,15 +190,17 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
     }
   }
 
-  async createTable(schema: SchemaDefinition): Promise<Result<void, MigrationError>> {
+  async createTable(
+    schema: SchemaDefinition,
+  ): Promise<Result<void, MigrationError>> {
     if (!this.isConnected()) {
       return {
         success: false,
-        error: new MigrationError('Not connected to database')
+        error: new MigrationError("Not connected to database"),
       };
     }
 
-    const tableName = schema.tableName!
+    const tableName = schema.tableName!;
 
     const validation = this.validateTableName(tableName);
     if (!validation.success) {
@@ -201,7 +214,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
         await fs.access(filePath);
         return {
           success: false,
-          error: new MigrationError(`Table '${schema.name}' already exists`)
+          error: new MigrationError(`Table '${schema.name}' already exists`),
         };
       } catch {
         // File does not exist, proceed
@@ -211,19 +224,23 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
         meta: {
           version: 1,
           updatedAt: new Date().toISOString(),
-          name: schema.name
+          name: schema.name,
         },
         schema: schema,
-        data: []
+        data: [],
       };
 
-      await fs.writeFile(filePath, JSON.stringify(initialContent, null, 2), 'utf-8');
+      await fs.writeFile(
+        filePath,
+        JSON.stringify(initialContent, null, 2),
+        "utf-8",
+      );
       return { success: true, data: undefined };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return {
         success: false,
-        error: new MigrationError(`Adapter error: ${message}`, error)
+        error: new MigrationError(`Adapter error: ${message}`, error),
       };
     }
   }
@@ -232,7 +249,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
     if (!this.isConnected()) {
       return {
         success: false,
-        error: new MigrationError('Not connected to database')
+        error: new MigrationError("Not connected to database"),
       };
     }
 
@@ -245,28 +262,35 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
       const message = error instanceof Error ? error.message : String(error);
       return {
         success: false,
-        error: new MigrationError(`Adapter error: ${message}`, error)
+        error: new MigrationError(`Adapter error: ${message}`, error),
       };
     }
   }
 
-  async executeQuery<TResult>(query: QueryObject): Promise<Result<QueryResult<TResult>, QueryError>> {
+  async executeQuery<TResult>(
+    query: QueryObject,
+  ): Promise<Result<QueryResult<TResult>, QueryError>> {
     const validation = validateQueryObject(query);
     if (!validation.success) {
       return {
         success: false,
-        error: new QueryError(`Invalid QueryObject: ${validation.error.message}`, { query })
+        error: new QueryError(`Invalid QueryObject: ${validation.error.message}`, {
+          query,
+        }),
       };
     }
 
     if (!this.isConnected()) {
       return {
         success: false,
-        error: new QueryError('Not connected to database', { code: 'CONNECTION_ERROR', query })
+        error: new QueryError("Not connected to database", {
+          code: "CONNECTION_ERROR",
+          query,
+        }),
       };
     }
 
-    const isWriteOp = ['insert', 'update', 'delete'].includes(query.type);
+    const isWriteOp = ["insert", "update", "delete"].includes(query.type);
     const needsLock = isWriteOp || this.readLockEnabled;
     let lockAcquired = false;
 
@@ -279,8 +303,8 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
           success: false,
           error: new QueryError(
             `Failed to acquire lock: ${err instanceof Error ? err.message : String(err)}`,
-            { query }
-          )
+            { query },
+          ),
         };
       }
     }
@@ -293,15 +317,16 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 
       // Step 1: Read file
       try {
-        fileContent = await fs.readFile(filePath, 'utf-8');
+        fileContent = await fs.readFile(filePath, "utf-8");
       } catch (err) {
         if (lockAcquired) await this.lock.release();
         return {
           success: false,
-          error: new QueryError(
-            `Table '${query.table}' not found`,
-            { code: 'TABLE_NOT_FOUND', query, details: err }
-          )
+          error: new QueryError(`Table '${query.table}' not found`, {
+            code: "TABLE_NOT_FOUND",
+            query,
+            details: err,
+          }),
         };
       }
 
@@ -315,8 +340,8 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
           success: false,
           error: new QueryError(
             `Failed to parse JSON file for table '${query.table}': ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`,
-            { query }
-          )
+            { query },
+          ),
         };
       }
 
@@ -338,43 +363,47 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
       const runner = new JsonQueryRunner(tableData);
 
       let rows: Record<string, unknown>[] = [];
-      const metadata: { rowCount: number; affectedRows: number; insertId?: number } = { rowCount: 0, affectedRows: 0 };
+      const metadata: {
+        rowCount: number;
+        affectedRows: number;
+        insertId?: number;
+      } = { rowCount: 0, affectedRows: 0 };
       let shouldWrite = false;
 
       switch (query.type) {
-        case 'select':
-        case 'count': {
+        case "select":
+        case "count": {
           rows = runner.run(query);
 
-          if (query.type === 'select' && query.populate) {
+          if (query.type === "select" && query.populate) {
             const populator = new JsonPopulator(this);
             rows = await populator.populate(rows, query);
           }
 
-          if (query.type === 'count') {
+          if (query.type === "count") {
             if (lockAcquired) await this.lock.release();
             return {
               success: true,
               data: {
                 rows: [{ count: rows.length }] as unknown as TResult[],
-                metadata: { rowCount: 1, affectedRows: 0 }
-              }
+                metadata: { rowCount: 1, affectedRows: 0 },
+              },
             };
           }
           break;
         }
 
-        case 'insert': {
+        case "insert": {
           if (!query.data) throw new Error("Insert query missing data");
           const newItem = { ...query.data };
 
-          if (!newItem['id']) {
+          if (!newItem["id"]) {
             // Auto-generate ID
             tableData.meta.lastInsertId = (tableData.meta.lastInsertId ?? 0) + 1;
-            newItem['id'] = tableData.meta.lastInsertId;
+            newItem["id"] = tableData.meta.lastInsertId;
           } else {
             // Manual ID provided - update lastInsertId to avoid future conflicts
-            const manualId = Number(newItem['id']);
+            const manualId = Number(newItem["id"]);
             if (!isNaN(manualId) && manualId > (tableData.meta.lastInsertId ?? 0)) {
               tableData.meta.lastInsertId = manualId;
             }
@@ -391,20 +420,25 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
           }
 
           metadata.affectedRows = 1;
-          metadata.insertId = newItem['id'] as number;
+          metadata.insertId = newItem["id"] as number;
           shouldWrite = true;
           break;
         }
 
-        case 'update': {
+        case "update": {
           if (!query.data) throw new Error("Update query missing data");
-          const updateQuery: QueryObject = { ...query, limit: undefined, offset: undefined, orderBy: undefined } as QueryObject;
+          const updateQuery: QueryObject = {
+            ...query,
+            limit: undefined,
+            offset: undefined,
+            orderBy: undefined,
+          } as QueryObject;
           const rowsToUpdate = runner.run(updateQuery);
 
           // Check unique constraints for each row being updated
           for (const row of rowsToUpdate) {
             const updatedData = { ...row, ...query.data };
-            this.checkUniqueConstraints(tableData, updatedData, row['id'] as number);
+            this.checkUniqueConstraints(tableData, updatedData, row["id"] as number);
           }
 
           for (const row of rowsToUpdate) {
@@ -422,13 +456,18 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
           break;
         }
 
-        case 'delete': {
-          const deleteQuery: QueryObject = { ...query, limit: undefined, offset: undefined, orderBy: undefined } as QueryObject;
+        case "delete": {
+          const deleteQuery: QueryObject = {
+            ...query,
+            limit: undefined,
+            offset: undefined,
+            orderBy: undefined,
+          } as QueryObject;
           const rowsToDelete = runner.run(deleteQuery);
-          const idsToDelete = new Set(rowsToDelete.map(r => r['id']));
+          const idsToDelete = new Set(rowsToDelete.map((r) => r["id"]));
 
           const originalLength = tableData.data.length;
-          tableData.data = tableData.data.filter(d => !idsToDelete.has(d['id']));
+          tableData.data = tableData.data.filter((d) => !idsToDelete.has(d["id"]));
 
           rows = rowsToDelete;
 
@@ -444,7 +483,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 
       if (shouldWrite) {
         tableData.meta.updatedAt = new Date().toISOString();
-        await fs.writeFile(filePath, JSON.stringify(tableData, null, 2), 'utf-8');
+        await fs.writeFile(filePath, JSON.stringify(tableData, null, 2), "utf-8");
         await this.updateCache(query.table, tableData);
       }
 
@@ -456,64 +495,78 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
         success: true,
         data: {
           rows: rows as TResult[],
-          metadata
-        }
+          metadata,
+        },
       };
-
     } catch (error) {
       if (lockAcquired) await this.lock.release();
       const message = error instanceof Error ? error.message : String(error);
       return {
         success: false,
-        error: new QueryError(`Adapter error: ${message}`, { details: error })
+        error: new QueryError(`Adapter error: ${message}`, { details: error }),
       };
     }
   }
 
-  async executeRawQuery<TResult>(sql: string): Promise<Result<QueryResult<TResult>, QueryError>> {
+  async executeRawQuery<TResult>(
+    sql: string,
+  ): Promise<Result<QueryResult<TResult>, QueryError>> {
     return {
       success: false,
-      error: new QueryError('executeRawQuery is not supported by JsonAdapter', { sql })
+      error: new QueryError("executeRawQuery is not supported by JsonAdapter", {
+        sql,
+      }),
     };
   }
 
   async beginTransaction(): Promise<Result<Transaction, TransactionError>> {
     return {
       success: false,
-      error: new TransactionError('Transactions are not fully supported by JsonAdapter yet')
+      error: new TransactionError(
+        "Transactions are not fully supported by JsonAdapter yet",
+      ),
     };
   }
 
-  async alterTable(tableName: string, operations: readonly AlterOperation[]): Promise<Result<void, MigrationError>> {
+  async alterTable(
+    tableName: string,
+    _operations: readonly AlterOperation[],
+  ): Promise<Result<void, MigrationError>> {
     if (!this.isConnected()) {
       return {
         success: false,
-        error: new MigrationError('Not connected to database')
+        error: new MigrationError("Not connected to database"),
       };
     }
 
     try {
       const filePath = this.getTablePath(tableName);
-      const content = await fs.readFile(filePath, 'utf-8');
+      const content = await fs.readFile(filePath, "utf-8");
       const json: JsonTableFile = JSON.parse(content);
 
       json.meta.updatedAt = new Date().toISOString();
-      await fs.writeFile(filePath, JSON.stringify(json, null, 2), 'utf-8');
+      await fs.writeFile(filePath, JSON.stringify(json, null, 2), "utf-8");
       return { success: true, data: undefined };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return {
         success: false,
-        error: new MigrationError(`Adapter error: ${message}`, error)
+        error: new MigrationError(`Adapter error: ${message}`, error),
       };
     }
   }
 
-  async addIndex(_tableName: string, _index: IndexDefinition): Promise<Result<void, MigrationError>> {
+  async addIndex(
+    _tableName: string,
+    _index: IndexDefinition,
+  ): Promise<Result<void, MigrationError>> {
     return { success: true, data: undefined };
   }
 
-  async dropIndex(_tableName: string, _indexName: string): Promise<Result<void, MigrationError>> {
+  async dropIndex(
+    _tableName: string,
+    _indexName: string,
+  ): Promise<Result<void, MigrationError>> {
     return { success: true, data: undefined };
   }
 
@@ -521,34 +574,40 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
     if (!this.isConnected()) {
       return {
         success: false,
-        error: new QueryError('Not connected to database', { code: 'CONNECTION_ERROR' })
+        error: new QueryError("Not connected to database", {
+          code: "CONNECTION_ERROR",
+        }),
       };
     }
     try {
       const files = await fs.readdir(this.config.root);
       const tables = files
-        .filter(f => f.endsWith('.json'))
-        .map(f => f.replace('.json', ''));
+        .filter((f) => f.endsWith(".json"))
+        .map((f) => f.replace(".json", ""));
       return { success: true, data: tables };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return {
         success: false,
-        error: new QueryError(`Adapter error: ${message}`, { details: error })
+        error: new QueryError(`Adapter error: ${message}`, { details: error }),
       };
     }
   }
 
-  async getTableSchema(tableName: string): Promise<Result<SchemaDefinition, QueryError>> {
+  async getTableSchema(
+    tableName: string,
+  ): Promise<Result<SchemaDefinition, QueryError>> {
     if (!this.isConnected()) {
       return {
         success: false,
-        error: new QueryError('Not connected to database', { code: 'CONNECTION_ERROR' })
+        error: new QueryError("Not connected to database", {
+          code: "CONNECTION_ERROR",
+        }),
       };
     }
     try {
       const filePath = this.getTablePath(tableName);
-      const content = await fs.readFile(filePath, 'utf-8');
+      const content = await fs.readFile(filePath, "utf-8");
       const json: JsonTableFile = JSON.parse(content);
 
       if (json.schema) {
@@ -557,13 +616,13 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 
       return {
         success: false,
-        error: new QueryError(`Schema not found for table '${tableName}'`)
+        error: new QueryError(`Schema not found for table '${tableName}'`),
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return {
         success: false,
-        error: new QueryError(`Adapter error: ${message}`, { details: error })
+        error: new QueryError(`Adapter error: ${message}`, { details: error }),
       };
     }
   }
@@ -589,25 +648,26 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
   private checkUniqueConstraints(
     tableData: JsonTableFile,
     newData: Record<string, unknown>,
-    excludeId?: number | string
+    excludeId?: number | string,
   ): void {
-    const schema = tableData.schema;
+    const schema = tableData.schema!;
     const existingData = tableData.data;
 
     // 1. Check unique fields (field.unique === true)
     for (const [fieldName, fieldDef] of Object.entries(schema.fields)) {
-      if (!fieldDef.unique) continue;
+      if ("unique" in fieldDef && !fieldDef.unique) continue;
 
       const value = newData[fieldName];
       if (value === undefined || value === null) continue;
 
-      const duplicate = existingData.find(row =>
-        row[fieldName] === value &&
-        row['id'] !== excludeId
+      const duplicate = existingData.find(
+        (row) => row[fieldName] === value && row["id"] !== excludeId,
       );
 
       if (duplicate) {
-        throw new Error(`Duplicate value '${value}' for unique field '${fieldName}'`);
+        throw new Error(
+          `Duplicate value '${value}' for unique field '${fieldName}'`,
+        );
       }
     }
 
@@ -618,20 +678,21 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
       if (!index.unique) continue;
 
       // Get values for all fields in index
-      const indexValues = index.fields.map(f => newData[f]);
+      const indexValues = index.fields.map((f) => newData[f]);
 
       // Skip if any value is undefined
-      if (indexValues.some(v => v === undefined || v === null)) continue;
+      if (indexValues.some((v) => v === undefined || v === null)) continue;
 
       // Check if combination exists
-      const duplicate = existingData.find(row =>
-        index.fields.every(f => row[f] === newData[f]) &&
-        row['id'] !== excludeId
+      const duplicate = existingData.find(
+        (row) =>
+          index.fields.every((f) => row[f] === newData[f]) &&
+          row["id"] !== excludeId,
       );
 
       if (duplicate) {
         throw new Error(
-          `Duplicate value for unique index [${index.fields.join(', ')}]`
+          `Duplicate value for unique index [${index.fields.join(", ")}]`,
         );
       }
     }

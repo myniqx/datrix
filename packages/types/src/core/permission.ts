@@ -8,21 +8,12 @@
 /**
  * Permission actions for schema-level access
  */
-export type PermissionAction = 'create' | 'read' | 'update' | 'delete';
+export type PermissionAction = "create" | "read" | "update" | "delete";
 
 /**
  * Permission actions for field-level access
  */
-export type FieldPermissionAction = 'read' | 'write';
-
-/**
- * Authenticated user context
- */
-export interface PermissionUser {
-  readonly id: string;
-  readonly role: string;
-  readonly [key: string]: unknown;
-}
+export type FieldPermissionAction = "read" | "write";
 
 /**
  * Permission evaluation context
@@ -31,7 +22,7 @@ export interface PermissionUser {
  */
 export interface PermissionContext<TRecord = Record<string, unknown>> {
   /** Current authenticated user (undefined if not authenticated) */
-  readonly user: PermissionUser | undefined;
+  readonly user: Record<string, unknown> | undefined;
   /** Current record (for update/delete operations) */
   readonly record?: TRecord;
   /** Input data (for create/update operations) */
@@ -52,7 +43,7 @@ export interface PermissionContext<TRecord = Record<string, unknown>> {
  * @template TRecord - The record type for the schema
  */
 export type PermissionFn<TRecord = Record<string, unknown>> = (
-  ctx: PermissionContext<TRecord>
+  ctx: PermissionContext<TRecord>,
 ) => boolean | Promise<boolean>;
 
 /**
@@ -68,7 +59,7 @@ export type PermissionFn<TRecord = Record<string, unknown>> = (
  */
 export type PermissionValue<
   TRoles extends string = string,
-  TRecord = Record<string, unknown>
+  TRecord = Record<string, unknown>,
 > =
   | boolean
   | readonly TRoles[]
@@ -93,7 +84,7 @@ export type PermissionValue<
  */
 export interface SchemaPermission<
   TRoles extends string = string,
-  TRecord = Record<string, unknown>
+  TRecord = Record<string, unknown>,
 > {
   readonly create?: PermissionValue<TRoles, TRecord>;
   readonly read?: PermissionValue<TRoles, TRecord>;
@@ -124,18 +115,18 @@ export interface SchemaPermission<
  */
 export interface FieldPermission<
   TRoles extends string = string,
-  TRecord = Record<string, unknown>
+  TRecord = Record<string, unknown>,
 > {
   /**
    * Read permission - if denied, field is stripped from response
    * 'owner' is a placeholder for future owner-based access
    */
-  readonly read?: PermissionValue<TRoles, TRecord> | 'owner';
+  readonly read?: PermissionValue<TRoles, TRecord> | "owner";
   /**
    * Write permission - if denied, returns 403 error
    * 'owner' is a placeholder for future owner-based access
    */
-  readonly write?: PermissionValue<TRoles, TRecord> | 'owner';
+  readonly write?: PermissionValue<TRoles, TRecord> | "owner";
 }
 
 /**
@@ -157,7 +148,7 @@ export interface DefaultPermission<TRoles extends string = string> {
  */
 export interface PermissionCheckResult {
   readonly allowed: boolean;
-  readonly reason?: string;
+  readonly reason?: string | undefined;
 }
 
 /**
@@ -165,28 +156,28 @@ export interface PermissionCheckResult {
  */
 export interface FieldPermissionCheckResult {
   readonly allowed: boolean;
-  readonly deniedFields?: readonly string[];
+  readonly deniedFields?: readonly string[] | undefined;
 }
 
 /**
  * Type guard for PermissionFn
  */
 export function isPermissionFn<TRecord = Record<string, unknown>>(
-  value: unknown
+  value: unknown,
 ): value is PermissionFn<TRecord> {
-  return typeof value === 'function';
+  return typeof value === "function";
 }
 
 /**
  * Type guard for checking if permission value is a role array
  */
 export function isRoleArray<TRoles extends string>(
-  value: PermissionValue<TRoles>
+  value: PermissionValue<TRoles>,
 ): value is readonly TRoles[] {
   return (
     Array.isArray(value) &&
     value.length > 0 &&
-    value.every((item) => typeof item === 'string')
+    value.every((item) => typeof item === "string")
   );
 }
 
@@ -195,15 +186,15 @@ export function isRoleArray<TRoles extends string>(
  */
 export function isMixedPermissionArray<
   TRoles extends string,
-  TRecord = Record<string, unknown>
+  TRecord = Record<string, unknown>,
 >(
-  value: PermissionValue<TRoles, TRecord>
+  value: PermissionValue<TRoles, TRecord>,
 ): value is readonly (TRoles | PermissionFn<TRecord>)[] {
   return (
     Array.isArray(value) &&
     value.length > 0 &&
-    value.some((item) => typeof item === 'string') &&
-    value.some((item) => typeof item === 'function')
+    value.some((item) => typeof item === "string") &&
+    value.some((item) => typeof item === "function")
   );
 }
 
@@ -216,7 +207,7 @@ export function isMixedPermissionArray<
  */
 export function validatePermissionRoles<TRoles extends string>(
   permission: SchemaPermission<TRoles> | undefined,
-  validRoles: readonly TRoles[]
+  validRoles: readonly TRoles[],
 ): { valid: boolean; invalidRoles: string[] } {
   if (!permission) {
     return { valid: true, invalidRoles: [] };
@@ -226,13 +217,13 @@ export function validatePermissionRoles<TRoles extends string>(
   const roleSet = new Set(validRoles);
 
   const checkValue = (value: PermissionValue<TRoles> | undefined): void => {
-    if (!value || typeof value === 'boolean' || typeof value === 'function') {
+    if (!value || typeof value === "boolean" || typeof value === "function") {
       return;
     }
 
     if (Array.isArray(value)) {
       for (const item of value) {
-        if (typeof item === 'string' && !roleSet.has(item as TRoles)) {
+        if (typeof item === "string" && !roleSet.has(item as TRoles)) {
           invalidRoles.push(item);
         }
       }
@@ -255,7 +246,7 @@ export function validatePermissionRoles<TRoles extends string>(
  */
 export function validateFieldPermissionRoles<TRoles extends string>(
   permission: FieldPermission<TRoles> | undefined,
-  validRoles: readonly TRoles[]
+  validRoles: readonly TRoles[],
 ): { valid: boolean; invalidRoles: string[] } {
   if (!permission) {
     return { valid: true, invalidRoles: [] };
@@ -265,20 +256,20 @@ export function validateFieldPermissionRoles<TRoles extends string>(
   const roleSet = new Set(validRoles);
 
   const checkValue = (
-    value: PermissionValue<TRoles> | 'owner' | undefined
+    value: PermissionValue<TRoles> | "owner" | undefined,
   ): void => {
     if (
       !value ||
-      typeof value === 'boolean' ||
-      typeof value === 'function' ||
-      value === 'owner'
+      typeof value === "boolean" ||
+      typeof value === "function" ||
+      value === "owner"
     ) {
       return;
     }
 
     if (Array.isArray(value)) {
       for (const item of value) {
-        if (typeof item === 'string' && !roleSet.has(item as TRoles)) {
+        if (typeof item === "string" && !roleSet.has(item as TRoles)) {
           invalidRoles.push(item);
         }
       }

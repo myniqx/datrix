@@ -4,8 +4,8 @@
  * Handles authentication from JWT token or session cookie
  */
 
-import type { AuthManager } from '../auth/manager';
-import type { AuthenticatedUser } from './types';
+import { AuthenticatedUser } from "../interface";
+import type { AuthManager } from "../auth/manager";
 
 /**
  * Authenticate request
@@ -15,7 +15,7 @@ import type { AuthenticatedUser } from './types';
  */
 export async function authenticate(
   request: Request,
-  authManager?: AuthManager
+  authManager?: AuthManager,
 ): Promise<AuthenticatedUser | null> {
   if (!authManager) {
     return null;

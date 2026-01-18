@@ -1,12 +1,15 @@
-import { QueryObject } from 'forja-types/core/query-builder';
-import type { JsonAdapter } from './adapter';
-import { Forja, ForjaError } from 'forja-core';
-import type { RelationField } from 'forja-types/core/schema';
+import { QueryObject } from "forja-types/core/query-builder";
+import type { JsonAdapter } from "./adapter";
+import { Forja, ForjaError } from "forja-core";
+import type { RelationField } from "forja-types/core/schema";
 
 export class JsonPopulator {
   constructor(private adapter: JsonAdapter) { }
 
-  async populate(rows: Record<string, unknown>[], query: QueryObject): Promise<Record<string, unknown>[]> {
+  async populate(
+    rows: Record<string, unknown>[],
+    query: QueryObject,
+  ): Promise<Record<string, unknown>[]> {
     if (!query.populate || rows.length === 0) {
       return rows;
     }
@@ -18,8 +21,7 @@ export class JsonPopulator {
     if (!currentModelName) {
       throw new ForjaError(
         `Model not found for table: ${query.table}`,
-        'MODEL_NOT_FOUND',
-        { table: query.table }
+        "MODEL_NOT_FOUND",
       );
     }
 
@@ -27,8 +29,7 @@ export class JsonPopulator {
     if (!currentSchema) {
       throw new ForjaError(
         `Schema not found for model: ${currentModelName}`,
-        'SCHEMA_NOT_FOUND',
-        { model: currentModelName }
+        "SCHEMA_NOT_FOUND",
       );
     }
 
@@ -40,16 +41,14 @@ export class JsonPopulator {
       if (!relationField) {
         throw new ForjaError(
           `Relation field '${relationName}' not found in schema '${currentSchema.name}'`,
-          'RELATION_FIELD_NOT_FOUND',
-          { field: relationName, schema: currentSchema.name }
+          "RELATION_FIELD_NOT_FOUND",
         );
       }
 
-      if (relationField.type !== 'relation') {
+      if (relationField.type !== "relation") {
         throw new ForjaError(
-          `Field '${relationName}' is not a relation field in schema '${currentSchema.name}'`,
-          'INVALID_RELATION_TYPE',
-          { field: relationName, schema: currentSchema.name, type: relationField.type }
+          `Field '${relationName}(type: ${relationField.type})' is not a relation field in schema '${currentSchema.name}'`,
+          "INVALID_RELATION_TYPE",
         );
       }
 
@@ -63,8 +62,7 @@ export class JsonPopulator {
       if (!targetSchema) {
         throw new ForjaError(
           `Target model '${targetModelName}' not found for relation '${relationName}' in schema '${currentSchema.name}'`,
-          'TARGET_MODEL_NOT_FOUND',
-          { relation: relationName, targetModel: targetModelName, schema: currentSchema.name }
+          "TARGET_MODEL_NOT_FOUND",
         );
       }
 
@@ -77,13 +75,16 @@ export class JsonPopulator {
       const relatedData = tableData.data as Record<string, unknown>[];
 
       // Get field selection from options
-      const selectFields = typeof _options === 'object' && _options.select
-        ? _options.select
-        : undefined;
+      const selectFields =
+        typeof _options === "object" && _options.select ?
+          _options.select
+          : undefined;
 
       // Helper function to project fields
-      const projectFields = (item: Record<string, unknown>): Record<string, unknown> => {
-        if (!selectFields || selectFields === '*') {
+      const projectFields = (
+        item: Record<string, unknown>,
+      ): Record<string, unknown> => {
+        if (!selectFields || selectFields === "*") {
           return item;
         }
 
@@ -97,18 +98,18 @@ export class JsonPopulator {
       };
 
       // Map data based on relation type
-      if (kind === 'belongsTo') {
+      if (kind === "belongsTo") {
         // Source has FK (e.g. Post.authorId -> User.id)
         const ids = new Set(
           result
-            .map(r => r[foreignKey])
-            .filter((id): id is string | number => id !== null && id !== undefined)
+            .map((r) => r[foreignKey])
+            .filter((id): id is string | number => id !== null && id !== undefined),
         );
 
         const relatedMap = new Map<string | number, Record<string, unknown>>();
         if (ids.size > 0) {
           for (const item of relatedData) {
-            const itemId = item['id'] as string | number;
+            const itemId = item["id"] as string | number;
             if (ids.has(itemId)) {
               relatedMap.set(itemId, projectFields(item));
             }
@@ -123,13 +124,12 @@ export class JsonPopulator {
             row[relationName] = null;
           }
         }
-
-      } else if (kind === 'hasMany' || kind === 'hasOne') {
+      } else if (kind === "hasMany" || kind === "hasOne") {
         // Target has FK (e.g. User.id <- Post.authorId)
         const sourceIds = new Set(
           result
-            .map(r => r['id'])
-            .filter((id): id is string | number => id !== null && id !== undefined)
+            .map((r) => r["id"])
+            .filter((id): id is string | number => id !== null && id !== undefined),
         );
 
         // Group related items by FK
@@ -144,9 +144,9 @@ export class JsonPopulator {
         }
 
         for (const row of result) {
-          const rowId = row['id'] as string | number;
+          const rowId = row["id"] as string | number;
           const group = grouped.get(rowId) ?? [];
-          if (kind === 'hasOne') {
+          if (kind === "hasOne") {
             row[relationName] = group[0] ?? null;
           } else {
             row[relationName] = group;
@@ -155,7 +155,7 @@ export class JsonPopulator {
       }
 
       // Nested populate (recursion)
-      if (typeof _options === 'object' && _options.populate) {
+      if (typeof _options === "object" && _options.populate) {
         const nextRows: Record<string, unknown>[] = [];
         for (const row of result) {
           const val = row[relationName];
@@ -169,9 +169,9 @@ export class JsonPopulator {
 
         if (nextRows.length > 0) {
           await this.populate(nextRows, {
-            type: 'select',
+            type: "select",
             table: targetTable,
-            populate: _options.populate
+            populate: _options.populate,
           });
         }
       }
