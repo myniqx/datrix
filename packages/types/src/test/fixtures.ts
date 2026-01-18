@@ -915,7 +915,13 @@ export const parserTestData = {
 /**
  * Helper functions for creating test data
  */
-export const createTestData = {
+export const createTestData: {
+  user: (overrides?: Partial<typeof validData.user>) => typeof validData.user;
+  post: (overrides?: Partial<typeof validData.post>) => typeof validData.post;
+  profile: (overrides?: Partial<typeof validData.profile>) => typeof validData.profile;
+  expressRequest: (overrides?: Partial<typeof apiContextData.validExpressRequest>) => typeof apiContextData.validExpressRequest;
+  nextRequest: (url: string, options?: RequestInit) => Request;
+} = {
   user: (overrides?: Partial<typeof validData.user>) => ({
     ...validData.user,
     ...overrides,
@@ -936,7 +942,7 @@ export const createTestData = {
     ...overrides,
   }),
 
-  nextRequest: (url: string, options?: RequestInit) => {
+  nextRequest: (url: string, options?: RequestInit): Request => {
     return new Request(url, {
       method: 'GET',
       headers: { 'content-type': 'application/json' },
