@@ -64,15 +64,6 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
       const body = await request.json();
       const { email, password, ...extraData } = body as Record<string, unknown>;
 
-      if (extraData) {
-        return errorResponse(
-          "The following fields are not allowed: " +
-          Object.keys(extraData).join(", "),
-          "VALIDATION_ERROR",
-          400,
-        );
-      }
-
       // Validate required fields
       if (!email || typeof email !== "string") {
         return errorResponse("Email is required", "VALIDATION_ERROR", 400);
@@ -83,7 +74,7 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
       }
 
       // Check if auth record already exists (email must be unique)
-      const existingAuth = await forja.findOne(authSchemaName, {
+      const existingAuth = await forja.raw.findOne(authSchemaName, {
         email: email,
       });
 
@@ -104,14 +95,24 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
       const { hash, salt } = hashResult.data;
 
       // Create user record first (without password)
+      // Extra data (name, phone, etc.) will be validated by user schema
       const userData: Record<string, unknown> = {
         [userEmailField]: email,
+        ...extraData,
       };
 
-      const user = (await forja.create(userSchemaName, userData)) as Record<
-        string,
-        unknown
-      >;
+      let user: Record<string, unknown>;
+      try {
+        user = (await forja.raw.create(userSchemaName, userData)) as Record<
+          string,
+          unknown
+        >;
+      } catch (error) {
+        // Validation errors from user schema will be caught here
+        const message =
+          error instanceof Error ? error.message : "Failed to create user";
+        return errorResponse(message, "VALIDATION_ERROR", 400);
+      }
 
       if (!user) {
         return errorResponse("Failed to create user", "USER_CREATE_ERROR", 500);
@@ -119,18 +120,18 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
 
       // Create authentication record
       const authData = {
-        userId: String(user["id"]),
+        user: String(user["id"]),
         email: email,
         password: hash,
         passwordSalt: salt,
         role: defaultRole,
       };
 
-      const authRecord = await forja.create(authSchemaName, authData);
+      const authRecord = await forja.raw.create(authSchemaName, authData);
 
       if (!authRecord) {
         // Rollback: delete user if auth creation fails
-        await forja.delete(userSchemaName, user["id"] as string | number);
+        await forja.raw.delete(userSchemaName, user["id"] as string | number);
         return errorResponse(
           "Failed to create authentication record",
           "AUTH_CREATE_ERROR",
@@ -206,7 +207,7 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
       }
 
       // Find auth record by email
-      const authRecord = (await forja.findOne(authSchemaName, {
+      const authRecord = (await forja.raw.findOne(authSchemaName, {
         email: email,
       })) as Record<string, unknown> | null;
 
@@ -226,9 +227,9 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
       }
 
       // Fetch user data
-      const user = (await forja.findById(
+      const user = (await forja.raw.findById(
         userSchemaName,
-        authRecord["userId"] as string,
+        authRecord["user"] as string,
       )) as Record<string, unknown> | null;
 
       if (!user) {
@@ -331,7 +332,7 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
       }
 
       // Fetch full user data from database
-      const user = (await forja.findById(
+      const user = (await forja.raw.findById(
         userSchemaName,
         authContext.user.id,
       )) as Record<string, unknown> | null;

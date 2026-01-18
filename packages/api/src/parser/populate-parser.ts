@@ -54,6 +54,19 @@ export function parsePopulate(
     }
 
     if (typeof mainPopulate === 'string') {
+      // Handle empty or whitespace-only string
+      const trimmed = mainPopulate.trim();
+      if (trimmed === '') {
+        return {
+          success: false,
+          error: new ParserError('Populate value cannot be empty', {
+            code: 'INVALID_SYNTAX',
+            field: 'populate',
+            details: { value: mainPopulate }
+          })
+        };
+      }
+
       // Handle comma-separated: populate=author,comments
       const relations = mainPopulate.split(',').map((r) => r.trim()).filter(Boolean);
       for (const rel of relations) {
@@ -89,6 +102,16 @@ export function parsePopulate(
           populateClause[trimmed] = '*';
         }
       }
+    } else {
+      // Invalid type (number, object, etc.)
+      return {
+        success: false,
+        error: new ParserError('Populate value must be a string or array', {
+          code: 'INVALID_SYNTAX',
+          field: 'populate',
+          details: { type: typeof mainPopulate }
+        })
+      };
     }
   }
 

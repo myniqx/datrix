@@ -224,7 +224,7 @@ describe("QueryParser - Happy Path", () => {
       expect(parsedQuery.select).toEqual(["id", "title"]);
       expect(parsedQuery.where).toEqual({
         published: true,
-        views: { $gte: 100 },
+        views: { $gte: "100" },
       });
       expect(parsedQuery.populate).toEqual({
         author: { select: ["name", "email"] },
@@ -254,7 +254,7 @@ describe("QueryParser - Happy Path", () => {
 
       expect(parsedQuery.select).toEqual(["id", "title", "author.name"]);
       expect(parsedQuery.where).toEqual({
-        price: { $gte: 10, $lte: 100 },
+        price: { $gte: "10", $lte: "100" },
         category: { $in: ["tech", "science"] },
       });
       expect(parsedQuery.orderBy).toEqual([

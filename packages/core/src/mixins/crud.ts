@@ -8,6 +8,7 @@
 import { DatabaseAdapter } from "forja-types/adapter";
 import { SchemaRegistry, SchemaDefinition } from "forja-types/core/schema";
 import { QueryObject, WhereClause } from "forja-types/core/query-builder";
+import { QueryAction } from "forja-types/plugin";
 import { ForjaError } from "../forja";
 import { Dispatcher } from "../dispatcher";
 import { validateSchema, validatePartial } from "../validator";
@@ -22,8 +23,34 @@ export class CrudOperations {
   constructor(
     private readonly schemas: SchemaRegistry,
     private readonly getAdapter: () => DatabaseAdapter,
-    private readonly getDispatcher: () => Dispatcher,
+    private readonly getDispatcher: (() => Dispatcher) | null = null,
   ) { }
+
+  /**
+   * Execute a query with optional plugin hooks
+   *
+   * If getDispatcher is null (raw mode), executes directly without hooks.
+   * Otherwise, runs through the full plugin lifecycle (onBeforeQuery, onAfterQuery).
+   *
+   * @param action - Query action type
+   * @param model - Model name
+   * @param table - Table name
+   * @param query - Query object
+   * @param handler - Function that executes the actual database query
+   * @returns Query result
+   */
+  private async execute<T>(
+    action: QueryAction,
+    model: string,
+    table: string,
+    query: QueryObject,
+    handler: (q: QueryObject) => Promise<T>,
+  ): Promise<T> {
+    if (!this.getDispatcher) {
+      return handler(query);
+    }
+    return this.getDispatcher().executeQuery(action, model, table, query, handler);
+  }
 
   /**
    * Find one record by criteria
@@ -56,22 +83,16 @@ export class CrudOperations {
       limit: 1,
     };
 
-    return await this.getDispatcher().executeQuery<T | null>(
-      "findOne",
-      model,
-      tableName!,
-      query,
-      async (q) => {
-        const result = await this.getAdapter().executeQuery<T>(q);
-        if (!result.success) {
-          throw new ForjaError(
-            `Failed to find ${model}: ${result.error.message}`,
-            "QUERY_FAILED",
-          );
-        }
-        return result.data.rows[0] ?? null;
-      },
-    );
+    return this.execute<T | null>("findOne", model, tableName!, query, async (q) => {
+      const result = await this.getAdapter().executeQuery<T>(q);
+      if (!result.success) {
+        throw new ForjaError(
+          `Failed to find ${model}: ${result.error.message}`,
+          "QUERY_FAILED",
+        );
+      }
+      return result.data.rows[0] ?? null;
+    });
   }
 
   /**
@@ -130,22 +151,16 @@ export class CrudOperations {
       offset: options?.offset,
     };
 
-    return await this.getDispatcher().executeQuery<T[]>(
-      "findMany",
-      model,
-      tableName!,
-      query,
-      async (q) => {
-        const result = await this.getAdapter().executeQuery<T>(q);
-        if (!result.success) {
-          throw new ForjaError(
-            `Failed to find ${model}: ${result.error.message}`,
-            "QUERY_FAILED",
-          );
-        }
-        return result.data.rows as T[];
-      },
-    );
+    return this.execute<T[]>("findMany", model, tableName!, query, async (q) => {
+      const result = await this.getAdapter().executeQuery<T>(q);
+      if (!result.success) {
+        throw new ForjaError(
+          `Failed to find ${model}: ${result.error.message}`,
+          "QUERY_FAILED",
+        );
+      }
+      return result.data.rows as T[];
+    });
   }
 
   /**
@@ -169,22 +184,16 @@ export class CrudOperations {
       where,
     };
 
-    return await this.getDispatcher().executeQuery<number>(
-      "count",
-      model,
-      tableName!,
-      query,
-      async (q) => {
-        const result = await this.getAdapter().executeQuery<{ count: number }>(q);
-        if (!result.success) {
-          throw new ForjaError(
-            `Failed to count ${model}: ${result.error.message}`,
-            "QUERY_FAILED",
-          );
-        }
-        return result.data.rows[0]?.count ?? 0;
-      },
-    );
+    return this.execute<number>("count", model, tableName!, query, async (q) => {
+      const result = await this.getAdapter().executeQuery<{ count: number }>(q);
+      if (!result.success) {
+        throw new ForjaError(
+          `Failed to count ${model}: ${result.error.message}`,
+          "QUERY_FAILED",
+        );
+      }
+      return result.data.rows[0]?.count ?? 0;
+    });
   }
 
   /**
@@ -219,22 +228,16 @@ export class CrudOperations {
       returning: "*",
     };
 
-    return await this.getDispatcher().executeQuery<T>(
-      "create",
-      model,
-      schema.tableName!,
-      query,
-      async (q) => {
-        const result = await this.getAdapter().executeQuery<T>(q);
-        if (!result.success) {
-          throw new ForjaError(
-            `Failed to create ${model}: ${result.error.message}`,
-            "QUERY_FAILED",
-          );
-        }
-        return result.data.rows[0]!;
-      },
-    );
+    return this.execute<T>("create", model, schema.tableName!, query, async (q) => {
+      const result = await this.getAdapter().executeQuery<T>(q);
+      if (!result.success) {
+        throw new ForjaError(
+          `Failed to create ${model}: ${result.error.message}`,
+          "QUERY_FAILED",
+        );
+      }
+      return result.data.rows[0]!;
+    });
   }
 
   /**
@@ -270,22 +273,16 @@ export class CrudOperations {
       returning: "*",
     };
 
-    return await this.getDispatcher().executeQuery<T>(
-      "update",
-      model,
-      schema.tableName!,
-      query,
-      async (q) => {
-        const result = await this.getAdapter().executeQuery<T>(q);
-        if (!result.success) {
-          throw new ForjaError(
-            `Failed to update ${model}: ${result.error.message}`,
-            "QUERY_FAILED",
-          );
-        }
-        return result.data.rows[0]!;
-      },
-    );
+    return this.execute<T>("update", model, schema.tableName!, query, async (q) => {
+      const result = await this.getAdapter().executeQuery<T>(q);
+      if (!result.success) {
+        throw new ForjaError(
+          `Failed to update ${model}: ${result.error.message}`,
+          "QUERY_FAILED",
+        );
+      }
+      return result.data.rows[0]!;
+    });
   }
 
   /**
@@ -321,22 +318,16 @@ export class CrudOperations {
       data: validatedData,
     };
 
-    return await this.getDispatcher().executeQuery<number>(
-      "updateMany",
-      model,
-      schema.tableName!,
-      query,
-      async (q) => {
-        const result = await this.getAdapter().executeQuery<{ count: number }>(q);
-        if (!result.success) {
-          throw new ForjaError(
-            `Failed to update ${model}: ${result.error.message}`,
-            "QUERY_FAILED",
-          );
-        }
-        return result.data.metadata.rowCount ?? 0;
-      },
-    );
+    return this.execute<number>("updateMany", model, schema.tableName!, query, async (q) => {
+      const result = await this.getAdapter().executeQuery<{ count: number }>(q);
+      if (!result.success) {
+        throw new ForjaError(
+          `Failed to update ${model}: ${result.error.message}`,
+          "QUERY_FAILED",
+        );
+      }
+      return result.data.metadata.rowCount ?? 0;
+    });
   }
 
   /**
@@ -359,22 +350,16 @@ export class CrudOperations {
       where: { id },
     };
 
-    return await this.getDispatcher().executeQuery<boolean>(
-      "delete",
-      model,
-      tableName!,
-      query,
-      async (q) => {
-        const result = await this.getAdapter().executeQuery<unknown>(q);
-        if (!result.success) {
-          throw new ForjaError(
-            `Failed to delete ${model}: ${result.error.message}`,
-            "QUERY_FAILED",
-          );
-        }
-        return (result.data.metadata.rowCount ?? 0) > 0;
-      },
-    );
+    return this.execute<boolean>("delete", model, tableName!, query, async (q) => {
+      const result = await this.getAdapter().executeQuery<unknown>(q);
+      if (!result.success) {
+        throw new ForjaError(
+          `Failed to delete ${model}: ${result.error.message}`,
+          "QUERY_FAILED",
+        );
+      }
+      return (result.data.metadata.rowCount ?? 0) > 0;
+    });
   }
 
   /**
@@ -397,22 +382,16 @@ export class CrudOperations {
       where,
     };
 
-    return await this.getDispatcher().executeQuery<number>(
-      "deleteMany",
-      model,
-      tableName!,
-      query,
-      async (q) => {
-        const result = await this.getAdapter().executeQuery<unknown>(q);
-        if (!result.success) {
-          throw new ForjaError(
-            `Failed to delete ${model}: ${result.error.message}`,
-            "QUERY_FAILED",
-          );
-        }
-        return result.data.metadata.rowCount ?? 0;
-      },
-    );
+    return this.execute<number>("deleteMany", model, tableName!, query, async (q) => {
+      const result = await this.getAdapter().executeQuery<unknown>(q);
+      if (!result.success) {
+        throw new ForjaError(
+          `Failed to delete ${model}: ${result.error.message}`,
+          "QUERY_FAILED",
+        );
+      }
+      return result.data.metadata.rowCount ?? 0;
+    });
   }
 
   /**

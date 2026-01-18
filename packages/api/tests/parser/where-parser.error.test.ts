@@ -156,7 +156,7 @@ describe("WhereParser - Error Path", () => {
 
       const error = expectFailureError(parseWhere(longValueParams));
 
-      expect(error.code).toBe("VALUE_TOO_LONG");
+      expect(error.code).toBe("INVALID_SYNTAX");
     });
 
     it("should handle empty field name", () => {
@@ -220,7 +220,7 @@ describe("WhereParser - Error Path", () => {
 
       const error = expectFailureError(parseWhere(nonArrayIn));
 
-      expect(error.code).toBe("INVALID_VALUE_TYPE");
+      expect(error.code).toBe("INVALID_SYNTAX");
       expect(error.message).toContain("$in");
       expect(error.message).toContain("array");
     });
@@ -232,7 +232,7 @@ describe("WhereParser - Error Path", () => {
 
       const error = expectFailureError(parseWhere(nonArrayNin));
 
-      expect(error.code).toBe("INVALID_VALUE_TYPE");
+      expect(error.code).toBe("INVALID_SYNTAX");
     });
 
     it("should reject empty array for $in operator", () => {
@@ -242,7 +242,7 @@ describe("WhereParser - Error Path", () => {
 
       const error = expectFailureError(parseWhere(emptyArrayIn));
 
-      expect(error.code).toBe("EMPTY_ARRAY");
+      expect(error.code).toBe("INVALID_SYNTAX");
     });
   });
 

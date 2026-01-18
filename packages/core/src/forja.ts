@@ -71,6 +71,7 @@ export class Forja implements IForja {
   private initialized = false;
 
   private _crud!: CrudOperations;
+  private _rawCrud!: CrudOperations;
   private _schema!: SchemaHelpers;
 
   private constructor() { }
@@ -177,6 +178,11 @@ export class Forja implements IForja {
         this.schemas,
         () => this.adapter!,
         () => this.dispatcher!,
+      );
+      this._rawCrud = new CrudOperations(
+        this.schemas,
+        () => this.adapter!,
+        null, // No dispatcher = raw mode (bypasses plugin hooks)
       );
       this._schema = new SchemaHelpers(this.schemas);
 
@@ -309,6 +315,26 @@ export class Forja implements IForja {
   get crud(): CrudOperations {
     this.ensureInitialized();
     return this._crud;
+  }
+
+  /**
+   * Raw CRUD operations (bypasses plugin hooks)
+   *
+   * Use this when you need direct database access without
+   * triggering onBeforeQuery/onAfterQuery plugin hooks.
+   *
+   * @example
+   * ```ts
+   * // Normal (with hooks)
+   * const user = await forja.findOne('User', { id: 1 });
+   *
+   * // Raw (without hooks)
+   * const user = await forja.raw.findOne('User', { id: 1 });
+   * ```
+   */
+  get raw(): CrudOperations {
+    this.ensureInitialized();
+    return this._rawCrud;
   }
 
   async findOne<T = unknown>(

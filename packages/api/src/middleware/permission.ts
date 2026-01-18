@@ -30,6 +30,7 @@ import type { RequestContext } from "./types";
 function buildPermCtx(ctx: RequestContext): PermissionContext {
   const permCtx: PermissionContext = {
     user: ctx.user ?? undefined,
+    id: ctx.id,
     action: ctx.action,
     forja: ctx.forja,
   };

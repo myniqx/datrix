@@ -191,11 +191,24 @@ function parsePagination(params: RawQueryParams, options: Required<ParserOptions
   const parsedPage = page !== undefined ? parseInt(String(page), 10) : 1;
   const parsedPageSize = pageSize !== undefined ? parseInt(String(pageSize), 10) : options.defaultPageSize;
 
+  // Maximum safe page number to prevent overflow
+  const MAX_PAGE_NUMBER = 1000000;
+
   // Validate
   if (isNaN(parsedPage) || parsedPage < 1) {
     return {
       success: false,
       error: new ParserError('Invalid page value (must be >= 1)', {
+        code: 'INVALID_PAGINATION',
+        field: 'page'
+      })
+    };
+  }
+
+  if (parsedPage > MAX_PAGE_NUMBER) {
+    return {
+      success: false,
+      error: new ParserError(`Page number exceeds maximum (${MAX_PAGE_NUMBER})`, {
         code: 'INVALID_PAGINATION',
         field: 'page'
       })
@@ -250,6 +263,17 @@ function parseSort(params: RawQueryParams): QueryParserResult | { success: true;
     return { success: true, data: undefined };
   }
 
+  // Handle empty or whitespace-only sort
+  if (typeof sortParam === 'string' && sortParam.trim() === '') {
+    return {
+      success: false,
+      error: new ParserError('Sort value cannot be empty', {
+        code: 'INVALID_SYNTAX',
+        field: 'sort'
+      })
+    };
+  }
+
   const sorts: OrderByItem[] = [];
 
   // Handle comma-separated sorts
@@ -286,10 +310,20 @@ function parseSort(params: RawQueryParams): QueryParserResult | { success: true;
 }
 
 /**
+ * Maximum field name length
+ */
+const MAX_FIELD_NAME_LENGTH = 64;
+
+/**
  * Check if field name is valid
  */
 function isValidFieldName(field: string): boolean {
   if (!field || field.trim() === '') {
+    return false;
+  }
+
+  // Check length
+  if (field.length > MAX_FIELD_NAME_LENGTH) {
     return false;
   }
 

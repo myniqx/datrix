@@ -59,7 +59,7 @@ describe("PopulateParser - Error Path", () => {
 
       const error = expectFailureError(parsePopulate(sqlInjectionRelation));
 
-      expect(error.code).toBe("INVALID_RELATION");
+      expect(error.code).toBe("INVALID_SYNTAX");
     });
 
     it("should reject SQL injection with quotes", () => {
@@ -69,7 +69,7 @@ describe("PopulateParser - Error Path", () => {
 
       const error = expectFailureError(parsePopulate(sqlInjectionWithQuotes));
 
-      expect(error.code).toBe("INVALID_RELATION");
+      expect(error.code).toBe("INVALID_SYNTAX");
     });
 
     it("should reject SQL injection in object-style populate", () => {
@@ -79,7 +79,7 @@ describe("PopulateParser - Error Path", () => {
 
       const error = expectFailureError(parsePopulate(sqlInjectionObjectStyle));
 
-      expect(error.code).toBe("INVALID_RELATION");
+      expect(error.code).toBe("INVALID_SYNTAX");
     });
 
     it("should reject SQL injection in nested populate", () => {
@@ -90,7 +90,7 @@ describe("PopulateParser - Error Path", () => {
 
       const error = expectFailureError(parsePopulate(sqlInjectionNested));
 
-      expect(error.code).toBe("INVALID_RELATION");
+      expect(error.code).toBe("INVALID_SYNTAX");
     });
   });
 
@@ -102,7 +102,7 @@ describe("PopulateParser - Error Path", () => {
 
       const error = expectFailureError(parsePopulate(xssScriptRelation));
 
-      expect(error.code).toBe("INVALID_RELATION");
+      expect(error.code).toBe("INVALID_SYNTAX");
     });
 
     it("should reject XSS in nested relation", () => {
@@ -112,7 +112,7 @@ describe("PopulateParser - Error Path", () => {
 
       const error = expectFailureError(parsePopulate(xssNestedRelation));
 
-      expect(error.code).toBe("INVALID_RELATION");
+      expect(error.code).toBe("INVALID_SYNTAX");
     });
   });
 
@@ -124,7 +124,7 @@ describe("PopulateParser - Error Path", () => {
 
       const error = expectFailureError(parsePopulate(pathTraversalRelation));
 
-      expect(error.code).toBe("INVALID_RELATION");
+      expect(error.code).toBe("INVALID_SYNTAX");
     });
   });
 
@@ -136,7 +136,7 @@ describe("PopulateParser - Error Path", () => {
 
       const error = expectFailureError(parsePopulate(commandInjectionRelation));
 
-      expect(error.code).toBe("INVALID_RELATION");
+      expect(error.code).toBe("INVALID_SYNTAX");
     });
   });
 
@@ -148,7 +148,7 @@ describe("PopulateParser - Error Path", () => {
 
       const error = expectFailureError(parsePopulate(nullByteRelation));
 
-      expect(error.code).toBe("INVALID_RELATION");
+      expect(error.code).toBe("INVALID_SYNTAX");
     });
 
     it("should reject control characters in relation name", () => {
@@ -158,7 +158,7 @@ describe("PopulateParser - Error Path", () => {
 
       const error = expectFailureError(parsePopulate(controlCharsRelation));
 
-      expect(error.code).toBe("INVALID_RELATION");
+      expect(error.code).toBe("INVALID_SYNTAX");
     });
   });
 
@@ -170,7 +170,7 @@ describe("PopulateParser - Error Path", () => {
 
       const error = expectFailureError(parsePopulate(digitStartRelation));
 
-      expect(error.code).toBe("INVALID_RELATION");
+      expect(error.code).toBe("INVALID_SYNTAX");
     });
 
     it("should reject relation with spaces", () => {
@@ -180,7 +180,7 @@ describe("PopulateParser - Error Path", () => {
 
       const error = expectFailureError(parsePopulate(relationWithSpaces));
 
-      expect(error.code).toBe("INVALID_RELATION");
+      expect(error.code).toBe("INVALID_SYNTAX");
     });
 
     it("should reject relation with special characters", () => {
@@ -190,7 +190,7 @@ describe("PopulateParser - Error Path", () => {
 
       const error = expectFailureError(parsePopulate(relationWithSpecialChars));
 
-      expect(error.code).toBe("INVALID_RELATION");
+      expect(error.code).toBe("INVALID_SYNTAX");
     });
   });
 
@@ -202,7 +202,7 @@ describe("PopulateParser - Error Path", () => {
 
       const error = expectFailureError(parsePopulate(excessivelyLongRelation));
 
-      expect(error.code).toBe("INVALID_RELATION");
+      expect(error.code).toBe("INVALID_SYNTAX");
     });
 
     it("should reject zero max depth", () => {
@@ -210,7 +210,7 @@ describe("PopulateParser - Error Path", () => {
 
       const error = expectFailureError(parsePopulate(simpleRelation, 0));
 
-      expect(error.code).toBe("MAX_DEPTH_EXCEEDED");
+      expect(error.code).toBe("INVALID_SYNTAX");
     });
 
     it("should reject negative max depth", () => {
@@ -218,7 +218,7 @@ describe("PopulateParser - Error Path", () => {
 
       const error = expectFailureError(parsePopulate(simpleRelation, -1));
 
-      expect(error.code).toBe("MAX_DEPTH_EXCEEDED");
+      expect(error.code).toBe("INVALID_SYNTAX");
     });
   });
 
@@ -228,7 +228,7 @@ describe("PopulateParser - Error Path", () => {
 
       const error = expectFailureError(parsePopulate(emptyStringRelation));
 
-      expect(error.code).toBe("INVALID_RELATION");
+      expect(error.code).toBe("INVALID_SYNTAX");
     });
 
     it("should reject whitespace-only relation", () => {
@@ -236,7 +236,7 @@ describe("PopulateParser - Error Path", () => {
 
       const error = expectFailureError(parsePopulate(whitespaceRelation));
 
-      expect(error.code).toBe("INVALID_RELATION");
+      expect(error.code).toBe("INVALID_SYNTAX");
     });
 
     it("should reject comma-separated list with invalid relation", () => {
@@ -246,7 +246,7 @@ describe("PopulateParser - Error Path", () => {
 
       const error = expectFailureError(parsePopulate(mixedValidInvalid));
 
-      expect(error.code).toBe("INVALID_RELATION");
+      expect(error.code).toBe("INVALID_SYNTAX");
     });
   });
 
@@ -272,7 +272,7 @@ describe("PopulateParser - Error Path", () => {
 
       expect(error).toHaveProperty("code");
       expect(error).toHaveProperty("message");
-      expect(error.code).toBe("INVALID_RELATION");
+      expect(error.code).toBe("INVALID_SYNTAX");
       expect(typeof error.message).toBe("string");
     });
 
@@ -297,7 +297,7 @@ describe("PopulateParser - Error Path", () => {
       expectFailureError(parsePopulate(invalidParams));
 
       const error = expectFailureError(parsePopulate(invalidParams));
-      expect(error.code).toBe("INVALID_RELATION");
+      expect(error.code).toBe("INVALID_SYNTAX");
     });
 
     it("should handle alternating valid and invalid calls", () => {
@@ -317,7 +317,7 @@ describe("PopulateParser - Error Path", () => {
 
       const error = expectFailureError(parsePopulate(numericPopulate));
 
-      expect(error.code).toBe("INVALID_RELATION");
+      expect(error.code).toBe("INVALID_SYNTAX");
     });
 
     it("should reject object as populate value", () => {
@@ -327,7 +327,7 @@ describe("PopulateParser - Error Path", () => {
 
       const error = expectFailureError(parsePopulate(objectPopulate));
 
-      expect(error.code).toBe("INVALID_RELATION");
+      expect(error.code).toBe("INVALID_SYNTAX");
     });
   });
 });

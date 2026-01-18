@@ -1,5 +1,6 @@
 import { defineSchema } from "forja-types/core/schema";
 import type { PermissionContext } from "forja-types/core/permission";
+import { RequestContext } from "forja-api";
 
 /**
  * Test Roles Type
@@ -230,9 +231,11 @@ export const productSchema = defineSchema({
     update: [
       "admin" as TestRoles,
       "editor" as TestRoles,
-      (ctx: PermissionContext) => {
-        const record = ctx.record as { createdBy?: string } | undefined;
-        return ctx.user?.["id"] === record?.createdBy;
+      async (ctx: RequestContext) => {
+        const record = await ctx.forja.findById("product", ctx.id!);
+
+        console.log(record);
+        return ctx.user?.["id"] === record?.["createdBy"];
       },
     ],
     delete: ["admin"] as readonly TestRoles[],

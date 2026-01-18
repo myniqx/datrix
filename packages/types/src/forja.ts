@@ -7,6 +7,43 @@ import { ForjaPlugin } from "./plugin";
 import { ForjaError, Result } from "./utils";
 
 /**
+ * Raw CRUD operations interface (bypasses plugin hooks)
+ */
+export interface IRawCrud {
+  findOne<T>(
+    model: string,
+    where: WhereClause,
+    options?: Pick<ParsedQuery, "select" | "populate">,
+  ): Promise<T | null>;
+  findById<T>(
+    model: string,
+    id: string | number,
+    options?: Pick<ParsedQuery, "select" | "populate">,
+  ): Promise<T | null>;
+  findMany<T>(
+    model: string,
+    options?: Pick<
+      ParsedQuery,
+      "where" | "select" | "populate" | "orderBy" | "limit" | "offset"
+    >,
+  ): Promise<T[]>;
+  count(model: string, where?: WhereClause): Promise<number>;
+  create<T>(model: string, data: Record<string, unknown>): Promise<T>;
+  update<T>(
+    model: string,
+    id: string | number,
+    data: Record<string, unknown>,
+  ): Promise<T>;
+  updateMany(
+    model: string,
+    where: WhereClause,
+    data: Record<string, unknown>,
+  ): Promise<number>;
+  delete(model: string, id: string | number): Promise<boolean>;
+  deleteMany(model: string, where: WhereClause): Promise<number>;
+}
+
+/**
  * Forja Main Singleton Class
  */
 export interface IForja {
@@ -58,4 +95,12 @@ export interface IForja {
     where?: WhereClause,
     options?: Pick<ParsedQuery, "where">,
   ): Promise<number>;
+
+  /**
+   * Raw CRUD operations (bypasses plugin hooks)
+   *
+   * Use this when you need direct database access without
+   * triggering onBeforeQuery/onAfterQuery plugin hooks.
+   */
+  readonly raw: IRawCrud;
 }

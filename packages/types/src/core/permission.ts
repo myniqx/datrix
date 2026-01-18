@@ -29,6 +29,8 @@ export interface PermissionContext<TRecord = Record<string, unknown>> {
   readonly input?: Partial<TRecord>;
   /** Current action being performed */
   readonly action: PermissionAction;
+
+  readonly id?: number | string | null;
   /**
    * Forja instance for custom queries
    * User can perform additional checks if needed
