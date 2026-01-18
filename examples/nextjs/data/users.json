@@ -1,0 +1,66 @@
+{
+  "meta": {
+    "version": 1,
+    "updatedAt": "2026-01-18T22:50:09.570Z",
+    "name": "user",
+    "lastInsertId": 1
+  },
+  "schema": {
+    "name": "user",
+    "timestamps": true,
+    "fields": {
+      "name": {
+        "type": "string",
+        "required": true,
+        "minLength": 2
+      },
+      "email": {
+        "type": "string",
+        "required": true,
+        "unique": true
+      },
+      "avatar": {
+        "type": "string",
+        "required": false
+      },
+      "role": {
+        "type": "enum",
+        "values": [
+          "admin",
+          "moderator",
+          "user"
+        ],
+        "default": "user",
+        "required": true
+      },
+      "topics": {
+        "type": "relation",
+        "model": "topic",
+        "kind": "hasMany",
+        "foreignKey": "authorId"
+      },
+      "comments": {
+        "type": "relation",
+        "model": "comment",
+        "kind": "hasMany",
+        "foreignKey": "authorId"
+      },
+      "likes": {
+        "type": "relation",
+        "model": "like",
+        "kind": "hasMany",
+        "foreignKey": "userId"
+      }
+    },
+    "tableName": "users"
+  },
+  "data": [
+    {
+      "name": "Roger Farrell",
+      "email": "Rebeka.Herzog@hotmail.com",
+      "avatar": "https://avatars.githubusercontent.com/u/46939326",
+      "role": "user",
+      "id": 1
+    }
+  ]
+}

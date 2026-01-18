@@ -1,0 +1,29 @@
+{
+  "meta": {
+    "version": 1,
+    "updatedAt": "2026-01-18T22:35:03.893Z",
+    "name": "like"
+  },
+  "schema": {
+    "name": "like",
+    "timestamps": true,
+    "fields": {
+      "user": {
+        "type": "relation",
+        "model": "user",
+        "kind": "belongsTo",
+        "foreignKey": "userId",
+        "required": true
+      },
+      "topic": {
+        "type": "relation",
+        "model": "topic",
+        "kind": "belongsTo",
+        "foreignKey": "topicId",
+        "required": true
+      }
+    },
+    "tableName": "likes"
+  },
+  "data": []
+}

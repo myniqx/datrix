@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import UserSection from '../components/UserSection';
-import TopicSection from '../components/TopicSection';
+import UserSection from "../components/UserSection";
+import TopicSection from "../components/TopicSection";
 
 export default function Home() {
   return (
@@ -30,24 +30,27 @@ export default function Home() {
         {/* Intro */}
         <section className="text-center space-y-4 mb-16">
           <h2 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight">
-            The Power of <span className="italic text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-600">Relations</span>
+            The Power of{" "}
+            <span className="italic text-transparent bg-clip-text bg-linear-to-r from-indigo-600 to-violet-600">
+              Relations
+            </span>
           </h2>
           <p className="text-lg text-slate-500 max-w-2xl mx-auto">
-            This demo showcases Forja's advanced features: nested relationships, recursive population,
-            smart sorting, and real-time fake data generation.
+            This demo showcases Forja's advanced features: nested relationships,
+            recursive population, smart sorting, and real-time fake data generation.
           </p>
         </section>
 
         {/* User Management Section */}
         <div className="relative group">
-          <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-2xl blur opacity-10 group-hover:opacity-20 transition duration-1000 group-hover:duration-200"></div>
+          <div className="absolute -inset-1 bg-linear-to-r pointer-events-none from-indigo-500 to-purple-500 rounded-2xl blur opacity-10 group-hover:opacity-20 transition duration-1000 group-hover:duration-200"></div>
           <UserSection />
         </div>
 
         {/* Content Section */}
         <div className="grid grid-cols-1 gap-12">
           <div className="relative">
-            <div className="absolute -left-4 top-0 bottom-0 w-px bg-slate-200 hidden md:block"></div>
+            <div className="absolute -left-4 top-0 bottom-0 pointer-events-none w-px bg-slate-200 hidden md:block"></div>
             <TopicSection />
           </div>
         </div>
@@ -58,15 +61,24 @@ export default function Home() {
         </footer>
       </main>
 
-      <style jsx global>{`
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        .animate-in {
-          animation: fadeIn 0.8s ease-out forwards;
-        }
-      `}</style>
+      <style
+        jsx
+        global
+      >{`
+				@keyframes fadeIn {
+					from {
+						opacity: 0;
+						transform: translateY(10px);
+					}
+					to {
+						opacity: 1;
+						transform: translateY(0);
+					}
+				}
+				.animate-in {
+					animation: fadeIn 0.8s ease-out forwards;
+				}
+			`}</style>
     </div>
   );
 }

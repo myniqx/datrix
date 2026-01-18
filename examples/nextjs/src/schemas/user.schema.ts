@@ -1,51 +1,52 @@
-import { defineSchema } from 'forja-types/core/schema';
+import { defineSchema } from "forja-types/core/schema";
 
 /**
  * User Schema
  */
 export const userSchema = defineSchema({
-  name: 'user',
+  name: "user",
   timestamps: true,
   fields: {
     name: {
-      type: 'string',
+      type: "string",
       required: true,
       minLength: 2,
     },
     email: {
-      type: 'string',
+      type: "string",
       required: true,
       unique: true,
-      validator: (val) => val.includes('@') || 'Invalid email address',
+      validator: (val) => val.includes("@") || "Invalid email address",
     },
     avatar: {
-      type: 'string',
+      type: "string",
       required: false,
     },
     role: {
-      type: 'enum',
-      values: ['admin', 'moderator', 'user'] as const,
-      default: 'user',
+      type: "enum",
+      values: ["admin", "moderator", "user"] as const,
+      default: "user",
       required: true,
+      unique: false,
     },
     // Relations
     topics: {
-      type: 'relation',
-      model: 'topic',
-      kind: 'hasMany',
-      foreignKey: 'authorId',
+      type: "relation",
+      model: "topic",
+      kind: "hasMany",
+      foreignKey: "authorId",
     },
     comments: {
-      type: 'relation',
-      model: 'comment',
-      kind: 'hasMany',
-      foreignKey: 'authorId',
+      type: "relation",
+      model: "comment",
+      kind: "hasMany",
+      foreignKey: "authorId",
     },
     likes: {
-      type: 'relation',
-      model: 'like',
-      kind: 'hasMany',
-      foreignKey: 'userId',
+      type: "relation",
+      model: "like",
+      kind: "hasMany",
+      foreignKey: "userId",
     },
   },
 });

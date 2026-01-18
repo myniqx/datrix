@@ -24,10 +24,10 @@
  * - GET  /api/auth/me            -> Get current user
  */
 
-import { getForja } from 'forja-core';
-import { handleRequest } from 'forja-api';
-import '../../../../../forja.config';
+import forja from "../../../../../forja.config";
+import { handleRequest } from "forja-api";
 
+let schemaCreated = false;
 /**
  * Unified request handler
  *
@@ -40,7 +40,17 @@ import '../../../../../forja.config';
  * - Error handling
  */
 async function handler(request: Request): Promise<Response> {
-  return handleRequest(await getForja(), request);
+  const instance = await forja();
+  if (!schemaCreated) {
+    // Create tables
+    const adapter = instance.getAdapter();
+    for (const schema of instance.getSchemas().getAll()) {
+      try {
+        await adapter.createTable(schema);
+      } catch { }
+    }
+  }
+  return handleRequest(instance, request);
 }
 
 // Export for all HTTP methods

@@ -1,0 +1,33 @@
+{
+  "meta": {
+    "version": 1,
+    "updatedAt": "2026-01-18T22:35:03.889Z",
+    "name": "comment"
+  },
+  "schema": {
+    "name": "comment",
+    "timestamps": true,
+    "fields": {
+      "content": {
+        "type": "string",
+        "required": true
+      },
+      "author": {
+        "type": "relation",
+        "model": "user",
+        "kind": "belongsTo",
+        "foreignKey": "authorId",
+        "required": true
+      },
+      "topic": {
+        "type": "relation",
+        "model": "topic",
+        "kind": "belongsTo",
+        "foreignKey": "topicId",
+        "required": true
+      }
+    },
+    "tableName": "comments"
+  },
+  "data": []
+}
