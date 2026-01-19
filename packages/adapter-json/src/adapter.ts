@@ -655,7 +655,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 
     // 1. Check unique fields (field.unique === true)
     for (const [fieldName, fieldDef] of Object.entries(schema.fields)) {
-      if ("unique" in fieldDef && !fieldDef.unique) continue;
+      if (!(fieldDef as { unique: boolean }).unique) continue;
 
       const value = newData[fieldName];
       if (value === undefined || value === null) continue;

@@ -19,10 +19,13 @@ const result = response as User;
 
 // ✅ ALWAYS do this
 function processData<T extends Record<string, unknown>>(
-	data: T
+	data: T,
 ): ProcessResult<T> {}
 const result: User | null = isUser(response) ? response : null;
 ```
+
+import { ForjaEntry } from 'forja-types/forja';
+Database entry tipi için her zaman <T extends ForjaEntry> generic kullanılmalıdır.
 
 **Enforcement:**
 
@@ -371,7 +374,7 @@ Before committing code, verify:
  */
 function validateField(
 	value: unknown,
-	field: FieldDefinition
+	field: FieldDefinition,
 ): Result<unknown, ValidationError> {
 	// Implementation
 }

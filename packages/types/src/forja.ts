@@ -6,6 +6,12 @@ import { SchemaRegistry } from "./core/schema";
 import { ForjaPlugin } from "./plugin";
 import { ForjaError, Result } from "./utils";
 
+export interface ForjaEntry {
+  readonly id: number;
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
+}
+
 /**
  * Raw CRUD operations interface (bypasses plugin hooks)
  */

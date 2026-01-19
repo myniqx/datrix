@@ -27,7 +27,6 @@ export const userSchema = defineSchema({
       values: ["admin", "moderator", "user"] as const,
       default: "user",
       required: true,
-      unique: false,
     },
     // Relations
     topics: {

@@ -103,9 +103,6 @@ importers:
       typescript:
         specifier: ^5.3.3
         version: 5.9.3
-      vitest:
-        specifier: ^1.2.2
-        version: 1.6.1(@types/node@20.19.28)(lightningcss@1.30.2)
 
   packages/adapter-mongodb:
     dependencies:
@@ -162,9 +159,6 @@ importers:
       typescript:
         specifier: ^5.3.3
         version: 5.9.3
-      vitest:
-        specifier: ^1.2.2
-        version: 1.6.1(@types/node@20.19.28)(lightningcss@1.30.2)
 
   packages/api:
     dependencies:
@@ -181,9 +175,6 @@ importers:
       typescript:
         specifier: ^5.3.3
         version: 5.9.3
-      vitest:
-        specifier: ^1.2.2
-        version: 1.6.1(@types/node@20.19.28)(lightningcss@1.30.2)
 
   packages/cli:
     dependencies:
@@ -203,9 +194,6 @@ importers:
       typescript:
         specifier: ^5.3.3
         version: 5.9.3
-      vitest:
-        specifier: ^1.2.2
-        version: 1.6.1(@types/node@20.19.25)(lightningcss@1.30.2)
 
   packages/core:
     dependencies:
@@ -219,9 +207,6 @@ importers:
       typescript:
         specifier: ^5.3.3
         version: 5.9.3
-      vitest:
-        specifier: ^1.2.2
-        version: 1.6.1(@types/node@20.19.28)(lightningcss@1.30.2)
 
   packages/plugin-hooks:
     dependencies:
@@ -238,9 +223,6 @@ importers:
       typescript:
         specifier: ^5.3.3
         version: 5.9.3
-      vitest:
-        specifier: ^1.2.2
-        version: 1.6.1(@types/node@20.19.28)(lightningcss@1.30.2)
 
   packages/plugin-soft-delete:
     dependencies:
@@ -257,9 +239,6 @@ importers:
       typescript:
         specifier: ^5.3.3
         version: 5.9.3
-      vitest:
-        specifier: ^1.2.2
-        version: 1.6.1(@types/node@20.19.28)(lightningcss@1.30.2)
 
   packages/plugin-upload:
     dependencies:
@@ -276,9 +255,6 @@ importers:
       typescript:
         specifier: ^5.3.3
         version: 5.9.3
-      vitest:
-        specifier: ^1.2.2
-        version: 1.6.1(@types/node@20.19.28)(lightningcss@1.30.2)
 
   packages/types:
     devDependencies:
