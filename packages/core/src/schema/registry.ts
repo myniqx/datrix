@@ -6,7 +6,7 @@
  */
 
 import type { RelationField, SchemaDefinition, SchemaValidationError } from 'forja-types/core/schema';
-import { validateSchemaDefinition } from 'forja-types/core/schema';
+import { validateSchemaDefinition, RESERVED_FIELDS } from 'forja-types/core/schema';
 import type { Result } from 'forja-types/utils';
 
 /**
@@ -133,6 +133,23 @@ export class SchemaRegistry {
       };
     }
 
+    // Check for reserved field names
+    for (const reservedField of RESERVED_FIELDS) {
+      if (reservedField in schema.fields) {
+        return {
+          success: false,
+          error: new SchemaRegistryError(
+            `Field '${reservedField}' is reserved and cannot be defined manually in schema '${schema.name}'`,
+            {
+              code: 'RESERVED_FIELD_NAME',
+              schemaName: schema.name,
+              details: { field: reservedField }
+            }
+          )
+        };
+      }
+    }
+
     // Validate schema if strict mode
     if (this.config.strict) {
       const validation = validateSchemaDefinition(schema);
@@ -151,9 +168,29 @@ export class SchemaRegistry {
       }
     }
 
+    // Add automatic fields (id, createdAt, updatedAt)
+    const enhancedFields = {
+      id: {
+        type: 'number' as const,
+        primary: true,
+        autoIncrement: true,
+        required: true
+      },
+      ...schema.fields,
+      createdAt: {
+        type: 'date' as const,
+        required: true
+      },
+      updatedAt: {
+        type: 'date' as const,
+        required: true
+      }
+    };
+
     const finalSchema = {
       ...schema,
-      tableName: schema.tableName ?? this.pluralize(schema.name.toLowerCase())
+      tableName: schema.tableName ?? this.pluralize(schema.name.toLowerCase()),
+      fields: enhancedFields
     };
 
     // Store schema

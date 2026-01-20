@@ -30,6 +30,17 @@ export {
 } from "./permission";
 
 /**
+ * Reserved field names that are automatically added to all schemas
+ * and cannot be defined manually by users
+ */
+export const RESERVED_FIELDS = ['id', 'createdAt', 'updatedAt'] as const;
+
+/**
+ * Type for reserved field names
+ */
+export type ReservedFieldName = typeof RESERVED_FIELDS[number];
+
+/**
  * Primitive field types
  */
 export type FieldType =

@@ -6,7 +6,7 @@
  */
 
 import { DatabaseAdapter } from "forja-types/adapter";
-import { SchemaRegistry, SchemaDefinition } from "forja-types/core/schema";
+import { SchemaRegistry, SchemaDefinition, RESERVED_FIELDS } from "forja-types/core/schema";
 import { QueryObject, WhereClause } from "forja-types/core/query-builder";
 import { QueryAction } from "forja-types/plugin";
 import { ForjaError } from "../forja";
@@ -217,14 +217,36 @@ export class CrudOperations {
     data: Record<string, unknown>,
   ): Promise<T> {
     const schema = this.getSchema(model);
+    const isRawMode = this.getDispatcher === null;
 
     // Validate data against schema (full validation)
     const validatedData = this.validateData(model, data, schema, false);
 
+    // Smart timestamp handling
+    const now = new Date();
+    let finalData: Record<string, unknown>;
+
+    if (isRawMode) {
+      // Raw mode: Smart defaults
+      const createdAt = 'createdAt' in validatedData ? validatedData.createdAt : now;
+      finalData = {
+        ...validatedData,
+        ...(!('createdAt' in validatedData) && { createdAt }),
+        ...(!('updatedAt' in validatedData) && { updatedAt: createdAt }),
+      };
+    } else {
+      // Normal mode: Always add timestamps
+      finalData = {
+        ...validatedData,
+        createdAt: now,
+        updatedAt: now,
+      };
+    }
+
     const query: QueryObject = {
       type: "insert",
       table: schema.tableName!,
-      data: validatedData,
+      data: finalData,
       returning: "*",
     };
 
@@ -261,15 +283,29 @@ export class CrudOperations {
     data: Record<string, unknown>,
   ): Promise<T> {
     const schema = this.getSchema(model);
+    const isRawMode = this.getDispatcher === null;
 
     // Validate data against schema (partial validation for updates)
     const validatedData = this.validateData(model, data, schema, true);
+
+    // Smart timestamp handling
+    const finalData = isRawMode
+      ? {
+          ...validatedData,
+          // Raw mode: Add updatedAt only if not provided
+          ...(!('updatedAt' in validatedData) && { updatedAt: new Date() }),
+        }
+      : {
+          ...validatedData,
+          // Normal mode: Always update timestamp
+          updatedAt: new Date(),
+        };
 
     const query: QueryObject = {
       type: "update",
       table: schema.tableName!,
       where: { id },
-      data: validatedData,
+      data: finalData,
       returning: "*",
     };
 
@@ -307,15 +343,29 @@ export class CrudOperations {
     data: Record<string, unknown>,
   ): Promise<number> {
     const schema = this.getSchema(model);
+    const isRawMode = this.getDispatcher === null;
 
     // Validate data against schema (partial validation for updates)
     const validatedData = this.validateData(model, data, schema, true);
+
+    // Smart timestamp handling
+    const finalData = isRawMode
+      ? {
+          ...validatedData,
+          // Raw mode: Add updatedAt only if not provided
+          ...(!('updatedAt' in validatedData) && { updatedAt: new Date() }),
+        }
+      : {
+          ...validatedData,
+          // Normal mode: Always update timestamp
+          updatedAt: new Date(),
+        };
 
     const query: QueryObject = {
       type: "update",
       table: schema.tableName!,
       where,
-      data: validatedData,
+      data: finalData,
     };
 
     return this.execute<number>("updateMany", model, schema.tableName!, query, async (q) => {
@@ -407,6 +457,31 @@ export class CrudOperations {
   }
 
   /**
+   * Check for reserved fields in user data (internal helper)
+   *
+   * Reserved fields (id, createdAt, updatedAt) are automatically managed
+   * and cannot be set manually in normal mode. Use forja.raw for manual control.
+   *
+   * @param data - Data to check
+   * @throws ForjaError if reserved field is found in normal mode
+   */
+  private checkReservedFields(data: Record<string, unknown>): void {
+    // Skip check in raw mode (dispatcher is null)
+    if (this.getDispatcher === null) {
+      return;
+    }
+
+    for (const field of RESERVED_FIELDS) {
+      if (field in data) {
+        throw new ForjaError(
+          `Cannot set reserved field '${field}'. Use forja.raw.create() or forja.raw.update() for manual control.`,
+          "RESERVED_FIELD_WRITE",
+        );
+      }
+    }
+  }
+
+  /**
    * Validate data against schema (internal helper)
    * Used by create/update methods to ensure data integrity
    *
@@ -423,6 +498,10 @@ export class CrudOperations {
     schema: SchemaDefinition,
     partial: boolean = false,
   ): Record<string, unknown> {
+    // 1. Check for reserved fields (only in normal mode)
+    this.checkReservedFields(data);
+
+    // 2. Schema validation
     const validationFn = partial ? validatePartial : validateSchema;
     const result = validationFn(data, schema, {
       strict: true,
