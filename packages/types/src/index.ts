@@ -41,6 +41,10 @@ export * from './api/serializer';
 
 // Core schema types - exclude LifecycleHooks (defined in plugin.ts)
 export {
+  // Reserved fields
+  RESERVED_FIELDS,
+  type ReservedFieldName,
+  type ForjaEntry,
   // Field types
   type FieldType,
   type StringField,

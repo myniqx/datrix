@@ -26,7 +26,7 @@ import { SchemaExtensionContextImpl } from "./plugin/schema-extension-context";
 import { Dispatcher, createDispatcher } from "./dispatcher";
 import { PluginRegistry } from "forja-types/plugin";
 import { SchemaRegistry } from "./schema";
-import { ParsedQuery } from "forja-types";
+import { ParsedQuery, ForjaEntry } from "forja-types";
 import { IForja } from "forja-types/forja";
 
 /**
@@ -337,7 +337,7 @@ export class Forja implements IForja {
     return this._rawCrud;
   }
 
-  async findOne<T = unknown>(
+  async findOne<T extends ForjaEntry = ForjaEntry>(
     model: string,
     where: WhereClause,
     options?: Pick<ParsedQuery, "select" | "populate">,
@@ -346,7 +346,7 @@ export class Forja implements IForja {
     return this._crud.findOne<T>(model, where, options);
   }
 
-  async findById<T = unknown>(
+  async findById<T extends ForjaEntry = ForjaEntry>(
     model: string,
     id: string | number,
     options?: Pick<ParsedQuery, "select" | "populate">,
@@ -355,7 +355,7 @@ export class Forja implements IForja {
     return this._crud.findById<T>(model, id, options);
   }
 
-  async findMany<T = unknown>(
+  async findMany<T extends ForjaEntry = ForjaEntry>(
     model: string,
     options?: Pick<
       ParsedQuery,
@@ -371,21 +371,23 @@ export class Forja implements IForja {
     return this._crud.count(model, where);
   }
 
-  async create<T = unknown>(
+  async create<T extends ForjaEntry = ForjaEntry>(
     model: string,
     data: Record<string, unknown>,
+    options?: Pick<ParsedQuery, "select" | "populate">,
   ): Promise<T> {
     this.ensureInitialized();
-    return this._crud.create<T>(model, data);
+    return this._crud.create<T>(model, data, options);
   }
 
-  async update<T = unknown>(
+  async update<T extends ForjaEntry = ForjaEntry>(
     model: string,
     id: string | number,
     data: Record<string, unknown>,
+    options?: Pick<ParsedQuery, "select" | "populate">,
   ): Promise<T> {
     this.ensureInitialized();
-    return this._crud.update<T>(model, id, data);
+    return this._crud.update<T>(model, id, data, options);
   }
 
   async updateMany(
@@ -397,9 +399,13 @@ export class Forja implements IForja {
     return this._crud.updateMany(model, where, data);
   }
 
-  async delete(model: string, id: string | number): Promise<boolean> {
+  async delete(
+    model: string,
+    id: string | number,
+    options?: Pick<ParsedQuery, "select" | "populate">,
+  ): Promise<boolean> {
     this.ensureInitialized();
-    return this._crud.delete(model, id);
+    return this._crud.delete(model, id, options);
   }
 
   async deleteMany(model: string, where: WhereClause): Promise<number> {

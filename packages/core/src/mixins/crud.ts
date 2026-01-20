@@ -6,7 +6,7 @@
  */
 
 import { DatabaseAdapter } from "forja-types/adapter";
-import { SchemaRegistry, SchemaDefinition, RESERVED_FIELDS } from "forja-types/core/schema";
+import { SchemaRegistry, SchemaDefinition, RESERVED_FIELDS, ForjaEntry } from "forja-types/core/schema";
 import { QueryObject, WhereClause } from "forja-types/core/query-builder";
 import { QueryAction } from "forja-types/plugin";
 import { ForjaError } from "../forja";
@@ -68,7 +68,7 @@ export class CrudOperations {
    * });
    * ```
    */
-  async findOne<T = unknown>(
+  async findOne<T extends ForjaEntry = ForjaEntry>(
     model: string,
     where: WhereClause,
     options?: Pick<ParsedQuery, "select" | "populate">,
@@ -108,7 +108,7 @@ export class CrudOperations {
    * const user = await crud.findById('User', '123');
    * ```
    */
-  async findById<T = unknown>(
+  async findById<T extends ForjaEntry = ForjaEntry>(
     model: string,
     id: string | number,
     options?: Pick<ParsedQuery, "select" | "populate">,
@@ -132,7 +132,7 @@ export class CrudOperations {
    * });
    * ```
    */
-  async findMany<T = unknown>(
+  async findMany<T extends ForjaEntry = ForjaEntry>(
     model: string,
     options?: Pick<
       ParsedQuery,
@@ -212,12 +212,20 @@ export class CrudOperations {
    * });
    * ```
    */
-  async create<T = unknown>(
+  async create<T extends ForjaEntry = ForjaEntry>(
     model: string,
     data: Record<string, unknown>,
+    options?: Pick<ParsedQuery, "select" | "populate">,
   ): Promise<T> {
     const schema = this.getSchema(model);
     const isRawMode = this.getDispatcher === null;
+
+    // TODO: Implement options.select and options.populate
+    // - options.select: Filter returned fields
+    // - options.populate: Load related entities
+    if (options) {
+      // Placeholder for options handling
+    }
 
     // Validate data against schema (full validation)
     const validatedData = this.validateData(model, data, schema, false);
@@ -277,13 +285,21 @@ export class CrudOperations {
    * });
    * ```
    */
-  async update<T = unknown>(
+  async update<T extends ForjaEntry = ForjaEntry>(
     model: string,
     id: string | number,
     data: Record<string, unknown>,
+    options?: Pick<ParsedQuery, "select" | "populate">,
   ): Promise<T> {
     const schema = this.getSchema(model);
     const isRawMode = this.getDispatcher === null;
+
+    // TODO: Implement options.select and options.populate
+    // - options.select: Filter returned fields
+    // - options.populate: Load related entities
+    if (options) {
+      // Placeholder for options handling
+    }
 
     // Validate data against schema (partial validation for updates)
     const validatedData = this.validateData(model, data, schema, true);
@@ -392,8 +408,20 @@ export class CrudOperations {
    * const deleted = await crud.delete('User', '123');
    * ```
    */
-  async delete(model: string, id: string | number): Promise<boolean> {
+  async delete(
+    model: string,
+    id: string | number,
+    options?: Pick<ParsedQuery, "select" | "populate">,
+  ): Promise<boolean> {
     const { tableName } = this.getSchema(model);
+
+    // TODO: Implement options.select and options.populate
+    // - options.select: Return deleted record with selected fields
+    // - options.populate: Return deleted record with populated relations
+    if (options) {
+      // Placeholder for options handling
+    }
+
     const query: QueryObject = {
       type: "delete",
       table: tableName!,

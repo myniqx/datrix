@@ -41,6 +41,20 @@ export const RESERVED_FIELDS = ['id', 'createdAt', 'updatedAt'] as const;
 export type ReservedFieldName = typeof RESERVED_FIELDS[number];
 
 /**
+ * Base type for all database entries
+ *
+ * All schemas automatically include these fields:
+ * - id: Auto-incremented primary key
+ * - createdAt: Timestamp when record was created
+ * - updatedAt: Timestamp when record was last updated
+ */
+export interface ForjaEntry {
+  readonly id: number;
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
+}
+
+/**
  * Primitive field types
  */
 export type FieldType =
@@ -300,12 +314,33 @@ export type InferFieldType<F extends FieldDefinition<string>> =
 
 /**
  * Infer TypeScript type from schema definition
+ *
+ * Automatically includes ForjaEntry fields (id, createdAt, updatedAt)
+ * along with user-defined fields from the schema.
+ *
+ * @template S - Schema definition
+ * @returns Type that combines ForjaEntry with inferred field types
+ *
+ * @example
+ * ```ts
+ * const userSchema = defineSchema({
+ *   name: 'User',
+ *   fields: {
+ *     name: { type: 'string', required: true },
+ *     email: { type: 'string' }
+ *   }
+ * } as const);
+ *
+ * type User = InferSchemaType<typeof userSchema>;
+ * // → { id: number; createdAt: Date; updatedAt: Date; name: string; email?: string }
+ * ```
  */
-export type InferSchemaType<S extends SchemaDefinition<string>> = {
-  [K in keyof S["fields"]]: S["fields"][K] extends { required: true } ?
-  InferFieldType<S["fields"][K]>
-  : InferFieldType<S["fields"][K]> | undefined;
-};
+export type InferSchemaType<S extends SchemaDefinition<string>> =
+  ForjaEntry & {
+    [K in keyof S["fields"]]: S["fields"][K] extends { required: true } ?
+      InferFieldType<S["fields"][K]>
+      : InferFieldType<S["fields"][K]> | undefined;
+  };
 
 /**
  * Type brand symbol (compile-time only, no runtime overhead)

@@ -2,31 +2,28 @@ import { DatabaseAdapter } from "./adapter";
 import { ParsedQuery } from "./api/parser";
 import { DevConfig, ForjaConfig, MigrationConfig } from "./config";
 import { WhereClause } from "./core/query-builder";
-import { SchemaRegistry } from "./core/schema";
+import { ForjaEntry, SchemaRegistry } from "./core/schema";
 import { ForjaPlugin } from "./plugin";
 import { ForjaError, Result } from "./utils";
 
-export interface ForjaEntry {
-  readonly id: number;
-  readonly createdAt: Date;
-  readonly updatedAt: Date;
-}
-
 /**
  * Raw CRUD operations interface (bypasses plugin hooks)
+ *
+ * All database entry types must extend ForjaEntry to ensure
+ * they include the required fields (id, createdAt, updatedAt).
  */
 export interface IRawCrud {
-  findOne<T>(
+  findOne<T extends ForjaEntry = ForjaEntry>(
     model: string,
     where: WhereClause,
     options?: Pick<ParsedQuery, "select" | "populate">,
   ): Promise<T | null>;
-  findById<T>(
+  findById<T extends ForjaEntry = ForjaEntry>(
     model: string,
     id: string | number,
     options?: Pick<ParsedQuery, "select" | "populate">,
   ): Promise<T | null>;
-  findMany<T>(
+  findMany<T extends ForjaEntry = ForjaEntry>(
     model: string,
     options?: Pick<
       ParsedQuery,
@@ -34,25 +31,39 @@ export interface IRawCrud {
     >,
   ): Promise<T[]>;
   count(model: string, where?: WhereClause): Promise<number>;
-  create<T>(model: string, data: Record<string, unknown>): Promise<T>;
-  update<T>(
+  create<T extends ForjaEntry = ForjaEntry>(
+    model: string,
+    data: Record<string, unknown>,
+    options?: Pick<ParsedQuery, "select" | "populate">,
+  ): Promise<T>;
+  update<T extends ForjaEntry = ForjaEntry>(
     model: string,
     id: string | number,
     data: Record<string, unknown>,
+    options?: Pick<ParsedQuery, "select" | "populate">,
   ): Promise<T>;
   updateMany(
     model: string,
     where: WhereClause,
     data: Record<string, unknown>,
   ): Promise<number>;
-  delete(model: string, id: string | number): Promise<boolean>;
+  delete(
+    model: string,
+    id: string | number,
+    options?: Pick<ParsedQuery, "select" | "populate">,
+  ): Promise<boolean>;
   deleteMany(model: string, where: WhereClause): Promise<number>;
 }
 
 /**
  * Forja Main Singleton Class
+ *
+ * Extends IRawCrud to provide the same CRUD operations with plugin hooks enabled.
+ * All database entry types must extend ForjaEntry to ensure
+ * they include the required fields (id, createdAt, updatedAt).
  */
-export interface IForja {
+export interface IForja extends IRawCrud {
+  // Lifecycle & Configuration
   shutdown(): Promise<Result<void, ForjaError>>;
   getConfig(): ForjaConfig;
   getAdapter<T extends DatabaseAdapter = DatabaseAdapter>(): T;
@@ -63,44 +74,6 @@ export interface IForja {
   getMigrationConfig(): Required<MigrationConfig>;
   getDevConfig(): Required<DevConfig>;
   isInitialized(): boolean;
-  findOne<T>(
-    model: string,
-    where: WhereClause,
-    options?: Pick<ParsedQuery, "select" | "populate">,
-  ): Promise<T | null>;
-  findById<T>(
-    model: string,
-    id: string | number,
-    options?: Pick<ParsedQuery, "select" | "populate">,
-  ): Promise<T | null>;
-  findMany<T>(
-    model: string,
-    options?: Pick<
-      ParsedQuery,
-      "where" | "select" | "populate" | "orderBy" | "limit" | "offset"
-    >,
-  ): Promise<T[]>;
-  create<T>(
-    model: string,
-    data: object,
-    options?: Pick<ParsedQuery, "select" | "populate">,
-  ): Promise<T>;
-  update<T>(
-    model: string,
-    id: string | number,
-    data: object,
-    options?: Pick<ParsedQuery, "select" | "populate">,
-  ): Promise<T | null>;
-  delete(
-    model: string,
-    id: string | number,
-    options?: Pick<ParsedQuery, "select" | "populate">,
-  ): Promise<boolean>;
-  count(
-    model: string,
-    where?: WhereClause,
-    options?: Pick<ParsedQuery, "where">,
-  ): Promise<number>;
 
   /**
    * Raw CRUD operations (bypasses plugin hooks)
