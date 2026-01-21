@@ -56,6 +56,7 @@ export {
   type ArrayField,
   type RelationKind,
   type RelationField,
+  type RelationInput,
   type FileField,
   type FieldDefinition,
   // Index

@@ -184,11 +184,35 @@ export interface RelationField<
   readonly type: "relation";
   readonly model: string; // Target model name
   readonly kind: RelationKind;
-  readonly foreignKey: string; // Foreign key field name (REQUIRED for JOIN operations)
-  readonly through?: string; // Join table for manyToMany
+  readonly foreignKey?: string; // Optional - defaults to fieldName + "Id"
+  readonly through?: string; // Join table for manyToMany (optional - auto-generated)
   readonly onDelete?: "cascade" | "setNull" | "restrict";
   readonly onUpdate?: "cascade" | "restrict";
 }
+
+/**
+ * Relation input for create/update operations
+ * Supports Prisma-style relation API
+ */
+export type RelationInput<T = Record<string, unknown>> = {
+  // Connect existing records by ID
+  connect?: { id: string | number } | { id: string | number }[];
+
+  // Disconnect records by ID
+  disconnect?: { id: string | number } | { id: string | number }[];
+
+  // Replace all relations (set)
+  set?: { id: string | number }[];
+
+  // Create new records and connect
+  create?: Partial<T> | Partial<T>[];
+
+  // Update existing related records
+  update?: { where: { id: string | number }, data: Partial<T> } | { where: { id: string | number }, data: Partial<T> }[];
+
+  // Delete related records
+  delete?: { id: string | number } | { id: string | number }[];
+};
 
 /**
  * File field definition
@@ -287,6 +311,11 @@ export interface SchemaDefinition<
    * Defines who can perform CRUD operations on this schema
    */
   readonly permission?: SchemaPermission<TRoles>;
+  /**
+   * Internal flag - marks auto-generated junction tables for manyToMany relations
+   * @internal
+   */
+  readonly _isJunctionTable?: boolean;
 }
 
 /**

@@ -191,6 +191,18 @@ export class Forja implements IForja {
         }
       }
 
+      // 4. Finalize registry (process relations, create junction tables)
+      const finalizeResult = this.schemas.finalizeRegistry();
+      if (!finalizeResult.success) {
+        return {
+          success: false,
+          error: new ForjaError(
+            `Failed to finalize schema registry: ${finalizeResult.error.message}`,
+            "SCHEMA_FINALIZATION_FAILED",
+          ),
+        };
+      }
+
       // Initialize mixins
       this._crud = new CrudOperations(
         this.schemas,

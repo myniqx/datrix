@@ -151,14 +151,6 @@ export const productSchema = defineSchema({
         write: ["admin", "editor"] as readonly TestRoles[],
       },
     },
-    categoryId: {
-      type: "number",
-      required: true,
-    },
-    supplierId: {
-      type: "number",
-      required: true,
-    },
     sku: {
       type: "string",
       required: true,
@@ -179,13 +171,11 @@ export const productSchema = defineSchema({
       type: "relation",
       kind: "belongsTo",
       model: "category",
-      foreignKey: "categoryId",
     },
     supplier: {
       type: "relation",
       kind: "belongsTo",
       model: "supplier",
-      foreignKey: "supplierId",
     },
   },
   indexes: [

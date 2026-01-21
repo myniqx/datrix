@@ -105,6 +105,8 @@ export class SchemaRegistry {
 
   /**
    * Register a schema
+   * Adds reserved fields (id, createdAt, updatedAt)
+   * Does NOT process relations - call finalizeRegistry() after all schemas are registered
    */
   register(
     schema: SchemaDefinition,
@@ -144,7 +146,6 @@ export class SchemaRegistry {
 
     // Check for reserved field names
     for (const reservedField of RESERVED_FIELDS) {
-      // TODO: if the reserve field what we want let it pass!
       if (reservedField in schema.fields) {
         return {
           success: false,
@@ -178,7 +179,7 @@ export class SchemaRegistry {
       }
     }
 
-    // Add automatic fields (id, createdAt, updatedAt)
+    // Add reserved fields (id, createdAt, updatedAt)
     const enhancedFields = {
       id: {
         type: "number" as const,
@@ -197,27 +198,27 @@ export class SchemaRegistry {
       },
     };
 
-    const finalSchema = {
+    const storedSchema = {
       ...schema,
       tableName: schema.tableName ?? this.pluralize(schema.name.toLowerCase()),
       fields: enhancedFields,
     };
 
-    // Store schema
-    this.schemas.set(schema.name, finalSchema);
+    this.schemas.set(schema.name, storedSchema);
 
-    // Store metadata
-    const metadata = this.createMetadata(finalSchema);
+    // Create metadata
+    const metadata = this.createMetadata(storedSchema);
     this.metadata.set(schema.name, metadata);
 
-    // Invalidate cache
     this.invalidateCache();
 
-    return { success: true, data: finalSchema };
+    return { success: true, data: storedSchema };
   }
 
   /**
    * Register multiple schemas
+   * Just loops through and registers each schema
+   * Call finalizeRegistry() after all schemas are registered to process relations
    */
   registerMany(
     schemas: readonly SchemaDefinition[],
@@ -227,6 +228,30 @@ export class SchemaRegistry {
       if (!result.success) {
         return result;
       }
+    }
+
+    return { success: true, data: undefined };
+  }
+
+  /**
+   * Finalize registry after all schemas are registered
+   * Processes relations and creates junction tables
+   * Call this after:
+   * 1. User schemas registered
+   * 2. Plugin schemas registered
+   * 3. Plugin schema extensions applied
+   */
+  finalizeRegistry(): Result<void, SchemaRegistryError> {
+    // Process relations (add foreign keys, create junction tables)
+    const relationsResult = this.processRelations();
+    if (!relationsResult.success) {
+      return relationsResult;
+    }
+
+    // Update metadata for all schemas (including auto-generated junction tables)
+    for (const [schemaName, schema] of this.schemas.entries()) {
+      const metadata = this.createMetadata(schema);
+      this.metadata.set(schemaName, metadata);
     }
 
     // Validate relations if enabled
@@ -506,6 +531,131 @@ export class SchemaRegistry {
       hasSoftDelete: schema.softDelete ?? false,
       registeredAt: new Date(),
     };
+  }
+
+  /**
+   * Process relations (Pass 2)
+   * Add foreign keys for belongsTo/hasOne/hasMany
+   * Create junction tables for manyToMany
+   */
+  private processRelations(): Result<void, SchemaRegistryError> {
+    for (const [schemaName, schema] of this.schemas.entries()) {
+      const enhancedFields = { ...schema.fields };
+
+      for (const [fieldName, field] of Object.entries(schema.fields)) {
+        if (field.type !== "relation") continue;
+
+        const relation = field as RelationField;
+        const targetSchema = this.schemas.get(relation.model);
+
+        if (!targetSchema) {
+          return {
+            success: false,
+            error: new SchemaRegistryError(
+              `Relation target not found: ${relation.model} in schema ${schemaName}.${fieldName}`,
+              {
+                code: "INVALID_RELATION_TARGET",
+                schemaName,
+                details: { field: fieldName, target: relation.model },
+              },
+            ),
+          };
+        }
+
+        // belongsTo / hasOne → Add foreign key to THIS schema
+        if (relation.kind === "belongsTo" || relation.kind === "hasOne") {
+          const foreignKey = relation.foreignKey ?? `${fieldName}Id`;
+
+          if (!(foreignKey in enhancedFields)) {
+            enhancedFields[foreignKey] = {
+              type: "number",
+              required: (field as any).required ?? false,
+            };
+          }
+        }
+
+        // hasMany → Add foreign key to TARGET schema
+        if (relation.kind === "hasMany") {
+          const foreignKey = relation.foreignKey ?? `${schemaName}Id`;
+          const targetFields = { ...targetSchema.fields };
+
+          if (!(foreignKey in targetFields)) {
+            targetFields[foreignKey] = {
+              type: "number",
+              required: false,
+            };
+          }
+
+          // Update target schema
+          this.schemas.set(relation.model, {
+            ...targetSchema,
+            fields: targetFields,
+          });
+        }
+
+        // manyToMany → Create junction table
+        if (relation.kind === "manyToMany") {
+          const junctionResult = this.createJunctionTable(schemaName, fieldName, relation);
+          if (!junctionResult.success) {
+            return junctionResult;
+          }
+        }
+      }
+
+      // Update this schema
+      this.schemas.set(schemaName, {
+        ...schema,
+        fields: enhancedFields,
+      });
+    }
+
+    return { success: true, data: undefined };
+  }
+
+  /**
+   * Create junction table for manyToMany relation
+   */
+  private createJunctionTable(
+    schemaName: string,
+    fieldName: string,
+    relation: RelationField,
+  ): Result<void, SchemaRegistryError> {
+    const junctionTableName = relation.through ??
+      this.getJunctionTableName(schemaName, relation.model);
+
+    // Check if junction table already exists
+    if (this.schemas.has(junctionTableName)) {
+      return { success: true, data: undefined };
+    }
+
+    // Create junction table schema
+    const junctionSchema: SchemaDefinition = {
+      name: junctionTableName,
+      tableName: junctionTableName,
+      fields: {
+        [`${schemaName}Id`]: { type: "number", required: true },
+        [`${relation.model}Id`]: { type: "number", required: true },
+      },
+      indexes: [
+        {
+          fields: [`${schemaName}Id`, `${relation.model}Id`],
+          unique: true,
+        },
+      ],
+      _isJunctionTable: true,
+    };
+
+    this.schemas.set(junctionTableName, junctionSchema);
+    return { success: true, data: undefined };
+  }
+
+  /**
+   * Get junction table name for manyToMany relation
+   * Alphabetically sorted for consistency
+   */
+  private getJunctionTableName(schema1: string, schema2: string): string {
+    const sorted = [schema1, schema2].sort();
+    return `${sorted[0]}_${sorted[1]}`;
   }
 
   /**
