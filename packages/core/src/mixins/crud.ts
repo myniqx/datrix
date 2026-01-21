@@ -11,6 +11,8 @@ import {
   SchemaDefinition,
   RESERVED_FIELDS,
   ForjaEntry,
+  RelationField,
+  RelationInput,
 } from "forja-types/core/schema";
 import { QueryObject, WhereClause, SelectClause } from "forja-types/core/query-builder";
 import { QueryAction } from "forja-types/plugin";
@@ -238,10 +240,13 @@ export class CrudOperations implements IRawCrud {
   ): Promise<T> {
     const schema = this.getSchema(model);
 
-    // Validate data against schema (full validation, timestamps added inside)
+    // Separate scalar fields from relations
+    const { scalars, relations } = this.separateRelations(data, schema);
+
+    // Validate scalar data against schema (full validation, timestamps added inside)
     const finalData = this.validateData<T, false>(
       model,
-      data,
+      scalars,
       schema,
       false,
       true,
@@ -273,10 +278,16 @@ export class CrudOperations implements IRawCrud {
       },
     );
 
-    // Fetch created record with options applied (ensure reserved fields in select)
+    // Process relations (connect/disconnect/set)
+    for (const [fieldName, relationData] of Object.entries(relations)) {
+      await this.processRelation(model, insertedId, fieldName, relationData, schema);
+    }
+
+    // Fetch created record with options applied (ensure reserved fields in select and populate)
     const fetchOptions = options ? {
       ...options,
       select: this.ensureReservedFieldsInSelect(options.select),
+      populate: this.ensureReservedFieldsInPopulate(options.populate),
     } : undefined;
 
     return (await this.findById<T>(model, insertedId, fetchOptions))!;
@@ -305,43 +316,54 @@ export class CrudOperations implements IRawCrud {
   ): Promise<T> {
     const schema = this.getSchema(model);
 
-    // Validate data against schema (partial validation, timestamps added inside)
+    // Separate scalar fields from relations
+    const { scalars, relations } = this.separateRelations(data, schema);
+
+    // Validate scalar data against schema (partial validation, timestamps added inside)
     const finalData = this.validateData<T, true>(
       model,
-      data,
+      scalars,
       schema,
       true,
       false,
     );
 
-    // UPDATE query
-    const query: QueryObject = {
-      type: "update",
-      table: schema.tableName!,
-      where: { id },
-      data: finalData,
-    };
+    // UPDATE query (only if there are scalar fields to update)
+    if (Object.keys(finalData).length > 0) {
+      const query: QueryObject = {
+        type: "update",
+        table: schema.tableName!,
+        where: { id },
+        data: finalData,
+      };
 
-    await this.execute<void>(
-      "update",
-      model,
-      schema.tableName!,
-      query,
-      async (q) => {
-        const result = await this.getAdapter().executeQuery<T>(q);
-        if (!result.success) {
-          throw new ForjaError(
-            `Failed to update ${model}: ${result.error.message}`,
-            "QUERY_FAILED",
-          );
-        }
-      },
-    );
+      await this.execute<void>(
+        "update",
+        model,
+        schema.tableName!,
+        query,
+        async (q) => {
+          const result = await this.getAdapter().executeQuery<T>(q);
+          if (!result.success) {
+            throw new ForjaError(
+              `Failed to update ${model}: ${result.error.message}`,
+              "QUERY_FAILED",
+            );
+          }
+        },
+      );
+    }
 
-    // Fetch updated record with options applied (ensure reserved fields in select)
+    // Process relations (connect/disconnect/set)
+    for (const [fieldName, relationData] of Object.entries(relations)) {
+      await this.processRelation(model, id, fieldName, relationData, schema);
+    }
+
+    // Fetch updated record with options applied (ensure reserved fields in select and populate)
     const fetchOptions = options ? {
       ...options,
       select: this.ensureReservedFieldsInSelect(options.select),
+      populate: this.ensureReservedFieldsInPopulate(options.populate),
     } : undefined;
 
     return (await this.findById<T>(model, id, fetchOptions))!;
@@ -511,6 +533,10 @@ export class CrudOperations implements IRawCrud {
    * @param select - User-provided select array or "*"
    * @returns Select with reserved fields guaranteed
    */
+  /**
+   * Ensure reserved fields (id, createdAt, updatedAt) are included in select
+   * Handles both top-level select and nested populate select fields
+   */
   private ensureReservedFieldsInSelect(select?: SelectClause): SelectClause {
     // If select is "*" or undefined, return as-is
     if (!select || select === "*") {
@@ -524,6 +550,170 @@ export class CrudOperations implements IRawCrud {
     }
 
     return Array.from(selectSet);
+  }
+
+  /**
+   * Ensure reserved fields in populate object (nested support)
+   * Recursively processes populate tree and adds reserved fields to all select clauses
+   */
+  private ensureReservedFieldsInPopulate(
+    populate?: PopulateClause | false,
+  ): PopulateClause | false {
+    if (!populate || populate === false) {
+      return populate;
+    }
+
+    const result: PopulateClause = {};
+
+    for (const [key, value] of Object.entries(populate)) {
+      if (typeof value === "boolean") {
+        // populate[category]=true → no changes needed
+        result[key] = value;
+      } else {
+        // populate[category]={ select: [...], populate: {...} }
+        result[key] = {
+          ...value,
+          // Ensure reserved fields in select
+          select: value.select ? this.ensureReservedFieldsInSelect(value.select) : value.select,
+          // Recursively process nested populate
+          populate: value.populate ? this.ensureReservedFieldsInPopulate(value.populate) : value.populate,
+        };
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Separate scalar fields from relation fields
+   * Normalizes relation shortcuts (id → { connect: { id } })
+   */
+  private separateRelations(
+    data: Record<string, unknown>,
+    schema: SchemaDefinition,
+  ): { scalars: Record<string, unknown>; relations: Record<string, unknown> } {
+    const scalars: Record<string, unknown> = {};
+    const relations: Record<string, unknown> = {};
+
+    for (const [key, value] of Object.entries(data)) {
+      const field = schema.fields[key];
+
+      if (field?.type === "relation") {
+        // Normalize shortcuts
+        if (typeof value === "number" || typeof value === "string") {
+          // Shortcut: category: 5 → { connect: { id: 5 } }
+          relations[key] = { connect: { id: value } };
+        } else if (Array.isArray(value)) {
+          // Shortcut: products: [1, 2] → { set: [{ id: 1 }, { id: 2 }] }
+          relations[key] = { set: value.map((id) => ({ id })) };
+        } else {
+          // Full API: { connect, disconnect, set }
+          relations[key] = value;
+        }
+      } else {
+        scalars[key] = value;
+      }
+    }
+
+    return { scalars, relations };
+  }
+
+  /**
+   * Process a single relation (connect/disconnect/set)
+   */
+  private async processRelation(
+    model: string,
+    recordId: number | string,
+    fieldName: string,
+    relationData: unknown,
+    schema: SchemaDefinition,
+  ): Promise<void> {
+    const field = schema.fields[fieldName];
+    if (!field || field.type !== "relation") {
+      return;
+    }
+
+    const relation = field as RelationField;
+    const relData = relationData as RelationInput;
+    const foreignKey = relation.foreignKey ?? `${fieldName}Id`;
+
+    // belongsTo / hasOne → Update THIS record's foreign key
+    if (relation.kind === "belongsTo" || relation.kind === "hasOne") {
+      if (relData.connect) {
+        const connectId = Array.isArray(relData.connect)
+          ? relData.connect[0]?.id
+          : relData.connect.id;
+        if (connectId !== undefined) {
+          await this.update(model, recordId, { [foreignKey]: connectId });
+        }
+      }
+      if (relData.disconnect) {
+        await this.update(model, recordId, { [foreignKey]: null });
+      }
+      if (relData.set) {
+        const setId = relData.set[0]?.id;
+        await this.update(model, recordId, {
+          [foreignKey]: setId ?? null,
+        });
+      }
+    }
+
+    // hasMany → Update TARGET records' foreign key
+    if (relation.kind === "hasMany") {
+      const reverseForeignKey = relation.foreignKey ?? `${model}Id`;
+
+      if (relData.connect) {
+        const ids = Array.isArray(relData.connect)
+          ? relData.connect.map((c) => c.id)
+          : [relData.connect.id];
+        if (ids.length > 0) {
+          await this.updateMany(
+            relation.model,
+            { id: { $in: ids } },
+            { [reverseForeignKey]: recordId },
+          );
+        }
+      }
+
+      if (relData.disconnect) {
+        const ids = Array.isArray(relData.disconnect)
+          ? relData.disconnect.map((c) => c.id)
+          : [relData.disconnect.id];
+        if (ids.length > 0) {
+          await this.updateMany(
+            relation.model,
+            { id: { $in: ids } },
+            { [reverseForeignKey]: null },
+          );
+        }
+      }
+
+      if (relData.set) {
+        // 1. Disconnect all current
+        await this.updateMany(
+          relation.model,
+          { [reverseForeignKey]: recordId },
+          { [reverseForeignKey]: null },
+        );
+        // 2. Connect new ones
+        const ids = relData.set.map((item) => item.id);
+        if (ids.length > 0) {
+          await this.updateMany(
+            relation.model,
+            { id: { $in: ids } },
+            { [reverseForeignKey]: recordId },
+          );
+        }
+      }
+    }
+
+    // manyToMany → TODO: Junction table insert/delete
+    if (relation.kind === "manyToMany") {
+      throw new ForjaError(
+        "manyToMany relations not yet implemented",
+        "NOT_IMPLEMENTED",
+      );
+    }
   }
 
   /**

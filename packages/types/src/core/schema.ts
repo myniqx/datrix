@@ -33,12 +33,12 @@ export {
  * Reserved field names that are automatically added to all schemas
  * and cannot be defined manually by users
  */
-export const RESERVED_FIELDS = ['id', 'createdAt', 'updatedAt'] as const;
+export const RESERVED_FIELDS = ["id", "createdAt", "updatedAt"] as const;
 
 /**
  * Type for reserved field names
  */
-export type ReservedFieldName = typeof RESERVED_FIELDS[number];
+export type ReservedFieldName = (typeof RESERVED_FIELDS)[number];
 
 /**
  * Base type for all database entries
@@ -208,7 +208,9 @@ export type RelationInput<T = Record<string, unknown>> = {
   create?: Partial<T> | Partial<T>[];
 
   // Update existing related records
-  update?: { where: { id: string | number }, data: Partial<T> } | { where: { id: string | number }, data: Partial<T> }[];
+  update?:
+  | { where: { id: string | number }; data: Partial<T> }
+  | { where: { id: string | number }; data: Partial<T> }[];
 
   // Delete related records
   delete?: { id: string | number } | { id: string | number }[];
@@ -364,12 +366,11 @@ export type InferFieldType<F extends FieldDefinition<string>> =
  * // → { id: number; createdAt: Date; updatedAt: Date; name: string; email?: string }
  * ```
  */
-export type InferSchemaType<S extends SchemaDefinition<string>> =
-  ForjaEntry & {
-    [K in keyof S["fields"]]: S["fields"][K] extends { required: true } ?
-      InferFieldType<S["fields"][K]>
-      : InferFieldType<S["fields"][K]> | undefined;
-  };
+export type InferSchemaType<S extends SchemaDefinition<string>> = ForjaEntry & {
+  [K in keyof S["fields"]]: S["fields"][K] extends { required: true } ?
+  InferFieldType<S["fields"][K]>
+  : InferFieldType<S["fields"][K]> | undefined;
+};
 
 /**
  * Type brand symbol (compile-time only, no runtime overhead)
@@ -530,18 +531,6 @@ export function validateSchemaDefinition(
           field: fieldName,
           message: "Relation field must specify a model",
           code: "MISSING_RELATION_MODEL",
-        });
-      }
-
-      // Check foreignKey for belongsTo
-      if (
-        fieldDef.kind === "belongsTo" &&
-        (!fieldDef.foreignKey || fieldDef.foreignKey.trim() === "")
-      ) {
-        errors.push({
-          field: fieldName,
-          message: 'Relation with kind "belongsTo" must specify a foreignKey',
-          code: "MISSING_FOREIGN_KEY",
         });
       }
     }

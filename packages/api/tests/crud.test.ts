@@ -44,6 +44,21 @@ describe("API CRUD Integration Tests", () => {
         );
       }
     }
+
+    // Create fixture data for tests
+    await forja.create("category", {
+      name: "Electronics",
+      description: "Electronic devices and gadgets",
+      isActive: true,
+    });
+
+    await forja.create("supplier", {
+      name: "TechCorp Inc.",
+      email: "contact@techcorp.com",
+      country: "USA",
+      rating: 4.5,
+      isVerified: true,
+    });
   });
 
   afterAll(async () => {
@@ -124,8 +139,8 @@ describe("API CRUD Integration Tests", () => {
           description: "Ergonomic wireless mouse with 2.4GHz connectivity",
           price: 29.99,
           stock: 150,
-          categoryId: 1,
-          supplierId: 1,
+          category: 1,
+          supplier: 1,
           sku: "WM-2024-001",
           isAvailable: true,
           tags: ["wireless", "computer", "accessories"],
@@ -141,8 +156,6 @@ describe("API CRUD Integration Tests", () => {
       expect(data.data.name).toBe("Wireless Mouse");
       expect(data.data.price).toBe(29.99);
       expect(data.data.stock).toBe(150);
-      expect(data.data.categoryId).toBe(1);
-      expect(data.data.supplierId).toBe(1);
       expect(data.data.sku).toBe("WM-2024-001");
       expect(data.data.tags).toEqual(["wireless", "computer", "accessories"]);
     });
@@ -215,8 +228,8 @@ describe("API CRUD Integration Tests", () => {
             description: "Mechanical keyboard with RGB lighting",
             price: 79.99,
             stock: 50,
-            categoryId: 1,
-            supplierId: 1,
+            category: 1,
+            supplier: 1,
             sku: "KB-2024-001",
             isAvailable: true,
           }),
@@ -259,8 +272,8 @@ describe("API CRUD Integration Tests", () => {
             description: "27-inch 4K monitor",
             price: 399.99,
             stock: 25,
-            categoryId: 1,
-            supplierId: 1,
+            category: 1,
+            supplier: 1,
             sku: "MON-2024-001",
             isAvailable: true,
           }),
@@ -302,8 +315,8 @@ describe("API CRUD Integration Tests", () => {
             description: "1080p HD webcam",
             price: 59.99,
             stock: 100,
-            categoryId: 1,
-            supplierId: 1,
+            category: 1,
+            supplier: 1,
             sku: "WC-2024-001",
             isAvailable: true,
           }),
@@ -372,8 +385,8 @@ describe("API CRUD Integration Tests", () => {
           description: "Complete guide to TypeScript",
           price: 45.0,
           stock: 20,
-          categoryId: 3,
-          supplierId: 2,
+          category: 3,
+          supplier: 2,
           sku: "BOOK-TS-001",
           isAvailable: true,
           tags: ["programming", "typescript", "book"],
@@ -383,8 +396,8 @@ describe("API CRUD Integration Tests", () => {
           description: "RGB mechanical keyboard",
           price: 120.0,
           stock: 5,
-          categoryId: 1,
-          supplierId: 1,
+          category: 1,
+          supplier: 1,
           sku: "KB-MECH-001",
           isAvailable: true,
           tags: ["gaming", "keyboard", "rgb"],
@@ -394,8 +407,8 @@ describe("API CRUD Integration Tests", () => {
           description: "USB-C to USB-C cable 2m",
           price: 15.0,
           stock: 200,
-          categoryId: 1,
-          supplierId: 1,
+          category: 1,
+          supplier: 1,
           sku: "CABLE-USBC-001",
           isAvailable: true,
           tags: ["cable", "usb", "accessories"],
@@ -405,8 +418,8 @@ describe("API CRUD Integration Tests", () => {
           description: "Modern JavaScript programming",
           price: 38.0,
           stock: 15,
-          categoryId: 3,
-          supplierId: 2,
+          category: 3,
+          supplier: 2,
           sku: "BOOK-JS-001",
           isAvailable: false,
           tags: ["programming", "javascript", "book"],

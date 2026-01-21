@@ -572,6 +572,12 @@ export class SchemaRegistry {
               required: (field as any).required ?? false,
             };
           }
+
+          // Update relation definition with default foreignKey
+          enhancedFields[fieldName] = {
+            ...relation,
+            foreignKey,
+          };
         }
 
         // hasMany → Add foreign key to TARGET schema
@@ -591,6 +597,12 @@ export class SchemaRegistry {
             ...targetSchema,
             fields: targetFields,
           });
+
+          // Update relation definition with default foreignKey
+          enhancedFields[fieldName] = {
+            ...relation,
+            foreignKey,
+          };
         }
 
         // manyToMany → Create junction table
