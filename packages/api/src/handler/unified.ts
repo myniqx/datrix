@@ -107,7 +107,7 @@ async function handleGet(ctx: RequestContext): Promise<Response> {
  * Handle POST request
  */
 async function handlePost(ctx: RequestContext): Promise<Response> {
-  const { forja, schema, authEnabled, body } = ctx;
+  const { forja, schema, authEnabled, body, query } = ctx;
 
   if (!schema) {
     return errorResponse("Schema not found", "SCHEMA_NOT_FOUND", 404);
@@ -131,13 +131,16 @@ async function handlePost(ctx: RequestContext): Promise<Response> {
       }
     }
 
-    const result = await forja.create(schema.name, body);
+    const result = await forja.create(schema.name, body, {
+      select: query?.select,
+      populate: query?.populate,
+    });
 
     // Filter response fields (only if auth enabled)
     if (authEnabled) {
       const { data: filteredResult } = await filterFieldsForRead(
         schema,
-        result as Record<string, unknown>,
+        result,
         ctx,
       );
       return jsonResponse({ data: filteredResult }, 201);
@@ -202,7 +205,10 @@ async function handleUpdate(ctx: RequestContext): Promise<Response> {
       }
     }
 
-    const result = await forja.update(schema.name, id, body);
+    const result = await forja.update(schema.name, id, body, {
+      select: ctx.query?.select,
+      populate: ctx.query?.populate,
+    });
 
     if (!result) {
       return errorResponse("Not found", "NOT_FOUND", 404);

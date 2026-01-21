@@ -86,23 +86,23 @@ export async function buildRequestContext<TRole extends string = string>(
     user = authResult?.user ?? null;
   }
 
-  // 5. PARSE QUERY (for GET requests)
+  // 5. PARSE QUERY (from query string - works for all HTTP methods)
   let query = null;
-  if (method === 'GET') {
-    const queryParams: Record<string, string | string[]> = {};
-    url.searchParams.forEach((value, key) => {
-      const existing = queryParams[key];
-      if (existing !== undefined) {
-        if (Array.isArray(existing)) {
-          existing.push(value);
-        } else {
-          queryParams[key] = [existing, value];
-        }
+  const queryParams: Record<string, string | string[]> = {};
+  url.searchParams.forEach((value, key) => {
+    const existing = queryParams[key];
+    if (existing !== undefined) {
+      if (Array.isArray(existing)) {
+        existing.push(value);
       } else {
-        queryParams[key] = value;
+        queryParams[key] = [existing, value];
       }
-    });
+    } else {
+      queryParams[key] = value;
+    }
+  });
 
+  if (Object.keys(queryParams).length > 0) {
     const parseResult = parseQuery(queryParams);
     query = parseResult.success ? parseResult.data : null;
   }

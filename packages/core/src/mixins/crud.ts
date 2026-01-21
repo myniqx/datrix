@@ -6,20 +6,27 @@
  */
 
 import { DatabaseAdapter } from "forja-types/adapter";
-import { SchemaRegistry, SchemaDefinition, RESERVED_FIELDS, ForjaEntry } from "forja-types/core/schema";
-import { QueryObject, WhereClause } from "forja-types/core/query-builder";
+import {
+  SchemaRegistry,
+  SchemaDefinition,
+  RESERVED_FIELDS,
+  ForjaEntry,
+} from "forja-types/core/schema";
+import { QueryObject, WhereClause, SelectClause } from "forja-types/core/query-builder";
 import { QueryAction } from "forja-types/plugin";
 import { ForjaError } from "../forja";
 import { Dispatcher } from "../dispatcher";
 import { validateSchema, validatePartial } from "../validator";
+import { IRawCrud } from "forja-types/forja";
 import { ParsedQuery } from "forja-types";
 
 /**
  * CRUD Operations Class
  *
  * Handles all database CRUD operations with type-safe query building.
+ * Implements IRawCrud interface.
  */
-export class CrudOperations {
+export class CrudOperations implements IRawCrud {
   constructor(
     private readonly schemas: SchemaRegistry,
     private readonly getAdapter: () => DatabaseAdapter,
@@ -49,7 +56,13 @@ export class CrudOperations {
     if (!this.getDispatcher) {
       return handler(query);
     }
-    return this.getDispatcher().executeQuery(action, model, table, query, handler);
+    return this.getDispatcher().executeQuery(
+      action,
+      model,
+      table,
+      query,
+      handler,
+    );
   }
 
   /**
@@ -83,16 +96,22 @@ export class CrudOperations {
       limit: 1,
     };
 
-    return this.execute<T | null>("findOne", model, tableName!, query, async (q) => {
-      const result = await this.getAdapter().executeQuery<T>(q);
-      if (!result.success) {
-        throw new ForjaError(
-          `Failed to find ${model}: ${result.error.message}`,
-          "QUERY_FAILED",
-        );
-      }
-      return result.data.rows[0] ?? null;
-    });
+    return this.execute<T | null>(
+      "findOne",
+      model,
+      tableName!,
+      query,
+      async (q) => {
+        const result = await this.getAdapter().executeQuery<T>(q);
+        if (!result.success) {
+          throw new ForjaError(
+            `Failed to find ${model}: ${result.error.message}`,
+            "QUERY_FAILED",
+          );
+        }
+        return result.data.rows[0] ?? null;
+      },
+    );
   }
 
   /**
@@ -218,56 +237,49 @@ export class CrudOperations {
     options?: Pick<ParsedQuery, "select" | "populate">,
   ): Promise<T> {
     const schema = this.getSchema(model);
-    const isRawMode = this.getDispatcher === null;
 
-    // TODO: Implement options.select and options.populate
-    // - options.select: Filter returned fields
-    // - options.populate: Load related entities
-    if (options) {
-      // Placeholder for options handling
-    }
+    // Validate data against schema (full validation, timestamps added inside)
+    const finalData = this.validateData<T, false>(
+      model,
+      data,
+      schema,
+      false,
+      true,
+    );
 
-    // Validate data against schema (full validation)
-    const validatedData = this.validateData(model, data, schema, false);
-
-    // Smart timestamp handling
-    const now = new Date();
-    let finalData: Record<string, unknown>;
-
-    if (isRawMode) {
-      // Raw mode: Smart defaults
-      const createdAt = 'createdAt' in validatedData ? validatedData.createdAt : now;
-      finalData = {
-        ...validatedData,
-        ...(!('createdAt' in validatedData) && { createdAt }),
-        ...(!('updatedAt' in validatedData) && { updatedAt: createdAt }),
-      };
-    } else {
-      // Normal mode: Always add timestamps
-      finalData = {
-        ...validatedData,
-        createdAt: now,
-        updatedAt: now,
-      };
-    }
-
+    // INSERT query - adapter returns insertedId
     const query: QueryObject = {
       type: "insert",
       table: schema.tableName!,
       data: finalData,
-      returning: "*",
+      // Don't use returning - adapters should return insertedId in metadata
     };
 
-    return this.execute<T>("create", model, schema.tableName!, query, async (q) => {
-      const result = await this.getAdapter().executeQuery<T>(q);
-      if (!result.success) {
-        throw new ForjaError(
-          `Failed to create ${model}: ${result.error.message}`,
-          "QUERY_FAILED",
-        );
-      }
-      return result.data.rows[0]!;
-    });
+    const insertedId = await this.execute<number | string>(
+      "create",
+      model,
+      schema.tableName!,
+      query,
+      async (q) => {
+        const result = await this.getAdapter().executeQuery<T>(q);
+        if (!result.success) {
+          throw new ForjaError(
+            `Failed to create ${model}: ${result.error.message}`,
+            "QUERY_FAILED",
+          );
+        }
+        // Get insertedId from result (standardized across adapters)
+        return result.data.metadata?.insertId ?? result.data.rows?.[0]?.id!;
+      },
+    );
+
+    // Fetch created record with options applied (ensure reserved fields in select)
+    const fetchOptions = options ? {
+      ...options,
+      select: this.ensureReservedFieldsInSelect(options.select),
+    } : undefined;
+
+    return (await this.findById<T>(model, insertedId, fetchOptions))!;
   }
 
   /**
@@ -292,49 +304,47 @@ export class CrudOperations {
     options?: Pick<ParsedQuery, "select" | "populate">,
   ): Promise<T> {
     const schema = this.getSchema(model);
-    const isRawMode = this.getDispatcher === null;
 
-    // TODO: Implement options.select and options.populate
-    // - options.select: Filter returned fields
-    // - options.populate: Load related entities
-    if (options) {
-      // Placeholder for options handling
-    }
+    // Validate data against schema (partial validation, timestamps added inside)
+    const finalData = this.validateData<T, true>(
+      model,
+      data,
+      schema,
+      true,
+      false,
+    );
 
-    // Validate data against schema (partial validation for updates)
-    const validatedData = this.validateData(model, data, schema, true);
-
-    // Smart timestamp handling
-    const finalData = isRawMode
-      ? {
-          ...validatedData,
-          // Raw mode: Add updatedAt only if not provided
-          ...(!('updatedAt' in validatedData) && { updatedAt: new Date() }),
-        }
-      : {
-          ...validatedData,
-          // Normal mode: Always update timestamp
-          updatedAt: new Date(),
-        };
-
+    // UPDATE query
     const query: QueryObject = {
       type: "update",
       table: schema.tableName!,
       where: { id },
       data: finalData,
-      returning: "*",
     };
 
-    return this.execute<T>("update", model, schema.tableName!, query, async (q) => {
-      const result = await this.getAdapter().executeQuery<T>(q);
-      if (!result.success) {
-        throw new ForjaError(
-          `Failed to update ${model}: ${result.error.message}`,
-          "QUERY_FAILED",
-        );
-      }
-      return result.data.rows[0]!;
-    });
+    await this.execute<void>(
+      "update",
+      model,
+      schema.tableName!,
+      query,
+      async (q) => {
+        const result = await this.getAdapter().executeQuery<T>(q);
+        if (!result.success) {
+          throw new ForjaError(
+            `Failed to update ${model}: ${result.error.message}`,
+            "QUERY_FAILED",
+          );
+        }
+      },
+    );
+
+    // Fetch updated record with options applied (ensure reserved fields in select)
+    const fetchOptions = options ? {
+      ...options,
+      select: this.ensureReservedFieldsInSelect(options.select),
+    } : undefined;
+
+    return (await this.findById<T>(model, id, fetchOptions))!;
   }
 
   /**
@@ -359,23 +369,15 @@ export class CrudOperations {
     data: Record<string, unknown>,
   ): Promise<number> {
     const schema = this.getSchema(model);
-    const isRawMode = this.getDispatcher === null;
 
-    // Validate data against schema (partial validation for updates)
-    const validatedData = this.validateData(model, data, schema, true);
-
-    // Smart timestamp handling
-    const finalData = isRawMode
-      ? {
-          ...validatedData,
-          // Raw mode: Add updatedAt only if not provided
-          ...(!('updatedAt' in validatedData) && { updatedAt: new Date() }),
-        }
-      : {
-          ...validatedData,
-          // Normal mode: Always update timestamp
-          updatedAt: new Date(),
-        };
+    // Validate data against schema (partial validation, timestamps added inside)
+    const finalData = this.validateData<ForjaEntry, true>(
+      model,
+      data,
+      schema,
+      true,
+      false,
+    );
 
     const query: QueryObject = {
       type: "update",
@@ -384,16 +386,22 @@ export class CrudOperations {
       data: finalData,
     };
 
-    return this.execute<number>("updateMany", model, schema.tableName!, query, async (q) => {
-      const result = await this.getAdapter().executeQuery<{ count: number }>(q);
-      if (!result.success) {
-        throw new ForjaError(
-          `Failed to update ${model}: ${result.error.message}`,
-          "QUERY_FAILED",
-        );
-      }
-      return result.data.metadata.rowCount ?? 0;
-    });
+    return this.execute<number>(
+      "updateMany",
+      model,
+      schema.tableName!,
+      query,
+      async (q) => {
+        const result = await this.getAdapter().executeQuery<{ count: number }>(q);
+        if (!result.success) {
+          throw new ForjaError(
+            `Failed to update ${model}: ${result.error.message}`,
+            "QUERY_FAILED",
+          );
+        }
+        return result.data.metadata.rowCount ?? 0;
+      },
+    );
   }
 
   /**
@@ -415,29 +423,35 @@ export class CrudOperations {
   ): Promise<boolean> {
     const { tableName } = this.getSchema(model);
 
-    // TODO: Implement options.select and options.populate
-    // - options.select: Return deleted record with selected fields
-    // - options.populate: Return deleted record with populated relations
+    // If options provided, fetch record before deleting
+    // (to return it with select/populate applied)
     if (options) {
-      // Placeholder for options handling
+      await this.findById(model, id, options);
     }
 
+    // DELETE query
     const query: QueryObject = {
       type: "delete",
       table: tableName!,
       where: { id },
     };
 
-    return this.execute<boolean>("delete", model, tableName!, query, async (q) => {
-      const result = await this.getAdapter().executeQuery<unknown>(q);
-      if (!result.success) {
-        throw new ForjaError(
-          `Failed to delete ${model}: ${result.error.message}`,
-          "QUERY_FAILED",
-        );
-      }
-      return (result.data.metadata.rowCount ?? 0) > 0;
-    });
+    return this.execute<boolean>(
+      "delete",
+      model,
+      tableName!,
+      query,
+      async (q) => {
+        const result = await this.getAdapter().executeQuery<unknown>(q);
+        if (!result.success) {
+          throw new ForjaError(
+            `Failed to delete ${model}: ${result.error.message}`,
+            "QUERY_FAILED",
+          );
+        }
+        return (result.data.metadata.rowCount ?? 0) > 0;
+      },
+    );
   }
 
   /**
@@ -460,16 +474,22 @@ export class CrudOperations {
       where,
     };
 
-    return this.execute<number>("deleteMany", model, tableName!, query, async (q) => {
-      const result = await this.getAdapter().executeQuery<unknown>(q);
-      if (!result.success) {
-        throw new ForjaError(
-          `Failed to delete ${model}: ${result.error.message}`,
-          "QUERY_FAILED",
-        );
-      }
-      return result.data.metadata.rowCount ?? 0;
-    });
+    return this.execute<number>(
+      "deleteMany",
+      model,
+      tableName!,
+      query,
+      async (q) => {
+        const result = await this.getAdapter().executeQuery<unknown>(q);
+        if (!result.success) {
+          throw new ForjaError(
+            `Failed to delete ${model}: ${result.error.message}`,
+            "QUERY_FAILED",
+          );
+        }
+        return result.data.metadata.rowCount ?? 0;
+      },
+    );
   }
 
   /**
@@ -482,6 +502,28 @@ export class CrudOperations {
       throw new ForjaError(`Schema '${model}' not found`, "SCHEMA_NOT_FOUND");
     }
     return schema;
+  }
+
+  /**
+   * Ensure reserved fields are included in select
+   * Reserved fields (id, createdAt, updatedAt) must always be present
+   *
+   * @param select - User-provided select array or "*"
+   * @returns Select with reserved fields guaranteed
+   */
+  private ensureReservedFieldsInSelect(select?: SelectClause): SelectClause {
+    // If select is "*" or undefined, return as-is
+    if (!select || select === "*") {
+      return select || "*";
+    }
+
+    // Ensure all reserved fields are present
+    const selectSet = new Set(select);
+    for (const field of RESERVED_FIELDS) {
+      selectSet.add(field);
+    }
+
+    return Array.from(selectSet);
   }
 
   /**
@@ -517,21 +559,59 @@ export class CrudOperations {
    * @param data - Data to validate
    * @param schema - Schema definition
    * @param partial - If true, use partial validation (for updates)
+   * @param isCreate - If true, this is a create operation (affects timestamp handling)
    * @returns Validated data
    * @throws ForjaError if validation fails
    */
-  private validateData(
+  private validateData<
+    T extends ForjaEntry = ForjaEntry,
+    P extends boolean = false,
+  >(
     model: string,
     data: Record<string, unknown>,
     schema: SchemaDefinition,
-    partial: boolean = false,
-  ): Record<string, unknown> {
+    partial: P,
+    isCreate: boolean = false,
+  ): P extends true ? Partial<T> : T {
+    const isRawMode = this.getDispatcher === null;
+
     // 1. Check for reserved fields (only in normal mode)
     this.checkReservedFields(data);
 
-    // 2. Schema validation
+    // 2. Add timestamps BEFORE validation so they're present during validation
+    const now = new Date();
+    const dataWithTimestamps: Record<string, unknown> = { ...data };
+
+    if (isCreate) {
+      if (isRawMode) {
+        // Raw mode: Smart defaults (only if not provided)
+        if (!("createdAt" in dataWithTimestamps)) {
+          dataWithTimestamps["createdAt"] = now;
+        }
+        if (!("updatedAt" in dataWithTimestamps)) {
+          dataWithTimestamps["updatedAt"] = dataWithTimestamps["createdAt"];
+        }
+      } else {
+        // Normal mode: Always add timestamps
+        dataWithTimestamps["createdAt"] = now;
+        dataWithTimestamps["updatedAt"] = now;
+      }
+    } else {
+      // Update operation
+      if (isRawMode) {
+        // Raw mode: Add updatedAt only if not provided
+        if (!("updatedAt" in dataWithTimestamps)) {
+          dataWithTimestamps["updatedAt"] = now;
+        }
+      } else {
+        // Normal mode: Always update timestamp
+        dataWithTimestamps["updatedAt"] = now;
+      }
+    }
+
+    // 3. Schema validation (with timestamps already present)
     const validationFn = partial ? validatePartial : validateSchema;
-    const result = validationFn(data, schema, {
+    const result = validationFn(dataWithTimestamps, schema, {
       strict: true,
       stripUnknown: false,
       abortEarly: false,
@@ -547,6 +627,6 @@ export class CrudOperations {
       );
     }
 
-    return result.data;
+    return result.data as P extends true ? Partial<T> : T;
   }
 }

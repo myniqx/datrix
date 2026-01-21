@@ -201,6 +201,139 @@ describe("API CRUD Integration Tests", () => {
       expect(response2.status).toBe(400);
       expect(data2).toHaveProperty("error");
     });
+
+    it("should create product with select fields option", async () => {
+      const request = new Request(
+        "http://localhost:3000/api/products?fields[0]=id&fields[1]=name&fields[2]=price",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: "Keyboard",
+            description: "Mechanical keyboard with RGB lighting",
+            price: 79.99,
+            stock: 50,
+            categoryId: 1,
+            supplierId: 1,
+            sku: "KB-2024-001",
+            isAvailable: true,
+          }),
+        },
+      );
+
+      const response = await handleRequest(forja, request);
+      const data = await response.json();
+
+      expect(response.status).toBe(201);
+      expect(data).toHaveProperty("data");
+
+      // Should only have selected fields (plus reserved fields)
+      expect(data.data).toHaveProperty("id");
+      expect(data.data).toHaveProperty("name");
+      expect(data.data).toHaveProperty("price");
+      expect(data.data.name).toBe("Keyboard");
+      expect(data.data.price).toBe(79.99);
+
+      // Reserved fields always present
+      expect(data.data).toHaveProperty("createdAt");
+      expect(data.data).toHaveProperty("updatedAt");
+
+      // Other fields should not be present
+      expect(data.data).not.toHaveProperty("description");
+      expect(data.data).not.toHaveProperty("stock");
+      expect(data.data).not.toHaveProperty("sku");
+    });
+
+    it("should create product with populate option", async () => {
+      const request = new Request(
+        "http://localhost:3000/api/products?populate[category]=true&populate[supplier]=true",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: "Monitor",
+            description: "27-inch 4K monitor",
+            price: 399.99,
+            stock: 25,
+            categoryId: 1,
+            supplierId: 1,
+            sku: "MON-2024-001",
+            isAvailable: true,
+          }),
+        },
+      );
+
+      const response = await handleRequest(forja, request);
+      const data = await response.json();
+
+      expect(response.status).toBe(201);
+      expect(data).toHaveProperty("data");
+      expect(data.data).toHaveProperty("id");
+      expect(data.data.name).toBe("Monitor");
+      expect(data.data.price).toBe(399.99);
+
+      // Check populated category
+      expect(data.data).toHaveProperty("category");
+      expect(data.data.category).toHaveProperty("id");
+      expect(data.data.category).toHaveProperty("name");
+      expect(data.data.category.id).toBe(1);
+
+      // Check populated supplier
+      expect(data.data).toHaveProperty("supplier");
+      expect(data.data.supplier).toHaveProperty("id");
+      expect(data.data.supplier).toHaveProperty("name");
+      expect(data.data.supplier.id).toBe(1);
+    });
+
+    it("should create product with both select and populate options", async () => {
+      const request = new Request(
+        "http://localhost:3000/api/products?fields[0]=id&fields[1]=name&fields[2]=price&populate[category][fields][0]=id&populate[category][fields][1]=name",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: "Webcam",
+            description: "1080p HD webcam",
+            price: 59.99,
+            stock: 100,
+            categoryId: 1,
+            supplierId: 1,
+            sku: "WC-2024-001",
+            isAvailable: true,
+          }),
+        },
+      );
+
+      const response = await handleRequest(forja, request);
+      const data = await response.json();
+
+      expect(response.status).toBe(201);
+      expect(data).toHaveProperty("data");
+
+      // Should only have selected fields
+      expect(data.data).toHaveProperty("id");
+      expect(data.data).toHaveProperty("name");
+      expect(data.data).toHaveProperty("price");
+      expect(data.data.name).toBe("Webcam");
+      expect(data.data.price).toBe(59.99);
+
+      // Should not have non-selected fields
+      expect(data.data).not.toHaveProperty("description");
+      expect(data.data).not.toHaveProperty("stock");
+
+      // Check populated category with selected fields only
+      expect(data.data).toHaveProperty("category");
+      expect(data.data.category).toHaveProperty("id");
+      expect(data.data.category).toHaveProperty("name");
+      expect(data.data.category).not.toHaveProperty("description");
+      expect(data.data.category).not.toHaveProperty("isActive");
+    });
   });
 
   describe("COMPLEX QUERY Operations", () => {

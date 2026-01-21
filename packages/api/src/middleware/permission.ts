@@ -8,7 +8,7 @@
  * - Mixed arrays with OR logic (['admin', (ctx) => ctx.user?.id === ctx.record?.authorId])
  */
 
-import type { SchemaDefinition } from "forja-types/core/schema";
+import type { ForjaEntry, SchemaDefinition } from "forja-types/core/schema";
 import type {
   PermissionAction,
   PermissionValue,
@@ -153,7 +153,7 @@ export async function checkSchemaPermission<TRoles extends string>(
  */
 export async function filterFieldsForRead<
   TRoles extends string,
-  TRecord extends Record<string, unknown>,
+  TRecord extends ForjaEntry,
 >(
   schema: SchemaDefinition<TRoles>,
   record: TRecord,

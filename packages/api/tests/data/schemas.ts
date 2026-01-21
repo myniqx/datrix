@@ -23,11 +23,6 @@ type TestRoles = "admin" | "editor" | "user" | "guest";
 export const categorySchema = defineSchema({
   name: "category",
   fields: {
-    id: {
-      type: "number",
-      required: true,
-      unique: true,
-    },
     name: {
       type: "string",
       required: true,
@@ -41,10 +36,6 @@ export const categorySchema = defineSchema({
     isActive: {
       type: "boolean",
       default: true,
-    },
-    createdAt: {
-      type: "date",
-      default: () => new Date(),
     },
   },
   indexes: [{ fields: ["name"], unique: true }],
@@ -74,11 +65,6 @@ export const categorySchema = defineSchema({
 export const supplierSchema = defineSchema({
   name: "supplier",
   fields: {
-    id: {
-      type: "number",
-      required: true,
-      unique: true,
-    },
     name: {
       type: "string",
       required: true,
@@ -109,10 +95,6 @@ export const supplierSchema = defineSchema({
       type: "boolean",
       default: false,
     },
-    createdAt: {
-      type: "date",
-      default: () => new Date(),
-    },
   },
   indexes: [{ fields: ["email"], unique: true }],
   permission: {
@@ -141,11 +123,6 @@ export const supplierSchema = defineSchema({
 export const productSchema = defineSchema({
   name: "product",
   fields: {
-    id: {
-      type: "number",
-      required: true,
-      unique: true,
-    },
     name: {
       type: "string",
       required: true,
@@ -198,14 +175,6 @@ export const productSchema = defineSchema({
     createdBy: {
       type: "string",
     },
-    createdAt: {
-      type: "date",
-      default: () => new Date(),
-    },
-    updatedAt: {
-      type: "date",
-      default: () => new Date(),
-    },
     category: {
       type: "relation",
       kind: "belongsTo",
@@ -252,11 +221,6 @@ export const productSchema = defineSchema({
 export const secretSchema = defineSchema({
   name: "secret",
   fields: {
-    id: {
-      type: "number",
-      required: true,
-      unique: true,
-    },
     key: {
       type: "string",
       required: true,
@@ -264,10 +228,6 @@ export const secretSchema = defineSchema({
     value: {
       type: "string",
       required: true,
-    },
-    createdAt: {
-      type: "date",
-      default: () => new Date(),
     },
   },
   // No permission defined - uses defaultPermission from API config
@@ -281,21 +241,12 @@ export const secretSchema = defineSchema({
 export const publicSchema = defineSchema({
   name: "public",
   fields: {
-    id: {
-      type: "number",
-      required: true,
-      unique: true,
-    },
     title: {
       type: "string",
       required: true,
     },
     content: {
       type: "string",
-    },
-    createdAt: {
-      type: "date",
-      default: () => new Date(),
     },
   },
   permission: {
@@ -314,18 +265,9 @@ export const publicSchema = defineSchema({
 export const restrictedSchema = defineSchema({
   name: "restricted",
   fields: {
-    id: {
-      type: "number",
-      required: true,
-      unique: true,
-    },
     data: {
       type: "string",
       required: true,
-    },
-    createdAt: {
-      type: "date",
-      default: () => new Date(),
     },
   },
   permission: {
@@ -345,21 +287,12 @@ export const restrictedSchema = defineSchema({
 export const userSchema = defineSchema({
   name: "user",
   fields: {
-    id: {
-      type: "number",
-      required: true,
-      unique: true,
-    },
     email: {
       type: "string",
       required: true,
     },
     name: {
       type: "string",
-    },
-    createdAt: {
-      type: "date",
-      default: () => new Date(),
     },
   },
   indexes: [{ fields: ["email"], unique: true }],

@@ -5,9 +5,16 @@
  * Central store for all schemas in the application.
  */
 
-import type { RelationField, SchemaDefinition, SchemaValidationError } from 'forja-types/core/schema';
-import { validateSchemaDefinition, RESERVED_FIELDS } from 'forja-types/core/schema';
-import type { Result } from 'forja-types/utils';
+import type {
+  RelationField,
+  SchemaDefinition,
+  SchemaValidationError,
+} from "forja-types/core/schema";
+import {
+  validateSchemaDefinition,
+  RESERVED_FIELDS,
+} from "forja-types/core/schema";
+import type { Result } from "forja-types/utils";
 
 /**
  * Schema registry error
@@ -23,11 +30,11 @@ export class SchemaRegistryError extends Error {
       code?: string;
       schemaName?: string;
       details?: unknown;
-    }
+    },
   ) {
     super(message);
-    this.name = 'SchemaRegistryError';
-    this.code = options?.code ?? 'UNKNOWN';
+    this.name = "SchemaRegistryError";
+    this.code = options?.code ?? "UNKNOWN";
     this.schemaName = options?.schemaName;
     this.details = options?.details;
   }
@@ -76,14 +83,14 @@ export class SchemaRegistry {
   private cache: RegistryCache = {
     relatedSchemas: new Map(),
     referencingSchemas: new Map(),
-    fieldTypeIndex: new Map()
+    fieldTypeIndex: new Map(),
   };
 
   constructor(config?: SchemaRegistryConfig) {
     this.config = {
       strict: config?.strict ?? true,
       allowOverwrite: config?.allowOverwrite ?? false,
-      validateRelations: config?.validateRelations ?? true
+      validateRelations: config?.validateRelations ?? true,
     };
   }
 
@@ -99,23 +106,25 @@ export class SchemaRegistry {
   /**
    * Register a schema
    */
-  register(schema: SchemaDefinition): Result<SchemaDefinition, SchemaRegistryError> {
+  register(
+    schema: SchemaDefinition,
+  ): Result<SchemaDefinition, SchemaRegistryError> {
     if (this.locked) {
       return {
         success: false,
-        error: new SchemaRegistryError('Registry is locked', {
-          code: 'REGISTRY_LOCKED'
-        })
+        error: new SchemaRegistryError("Registry is locked", {
+          code: "REGISTRY_LOCKED",
+        }),
       };
     }
 
     // Validate schema name
-    if (!schema.name || schema.name.trim() === '') {
+    if (!schema.name || schema.name.trim() === "") {
       return {
         success: false,
-        error: new SchemaRegistryError('Schema name is required', {
-          code: 'INVALID_SCHEMA_NAME'
-        })
+        error: new SchemaRegistryError("Schema name is required", {
+          code: "INVALID_SCHEMA_NAME",
+        }),
       };
     }
 
@@ -126,26 +135,27 @@ export class SchemaRegistry {
         error: new SchemaRegistryError(
           `Schema already registered: ${schema.name}`,
           {
-            code: 'DUPLICATE_SCHEMA',
-            schemaName: schema.name
-          }
-        )
+            code: "DUPLICATE_SCHEMA",
+            schemaName: schema.name,
+          },
+        ),
       };
     }
 
     // Check for reserved field names
     for (const reservedField of RESERVED_FIELDS) {
+      // TODO: if the reserve field what we want let it pass!
       if (reservedField in schema.fields) {
         return {
           success: false,
           error: new SchemaRegistryError(
             `Field '${reservedField}' is reserved and cannot be defined manually in schema '${schema.name}'`,
             {
-              code: 'RESERVED_FIELD_NAME',
+              code: "RESERVED_FIELD_NAME",
               schemaName: schema.name,
-              details: { field: reservedField }
-            }
-          )
+              details: { field: reservedField },
+            },
+          ),
         };
       }
     }
@@ -159,11 +169,11 @@ export class SchemaRegistry {
           error: new SchemaRegistryError(
             `Schema validation failed: ${schema.name}`,
             {
-              code: 'VALIDATION_FAILED',
+              code: "VALIDATION_FAILED",
               schemaName: schema.name,
-              details: validation.errors
-            }
-          )
+              details: validation.errors,
+            },
+          ),
         };
       }
     }
@@ -171,26 +181,26 @@ export class SchemaRegistry {
     // Add automatic fields (id, createdAt, updatedAt)
     const enhancedFields = {
       id: {
-        type: 'number' as const,
+        type: "number" as const,
         primary: true,
         autoIncrement: true,
-        required: true
+        required: true,
       },
       ...schema.fields,
       createdAt: {
-        type: 'date' as const,
-        required: true
+        type: "date" as const,
+        required: true,
       },
       updatedAt: {
-        type: 'date' as const,
-        required: true
-      }
+        type: "date" as const,
+        required: true,
+      },
     };
 
     const finalSchema = {
       ...schema,
       tableName: schema.tableName ?? this.pluralize(schema.name.toLowerCase()),
-      fields: enhancedFields
+      fields: enhancedFields,
     };
 
     // Store schema
@@ -210,7 +220,7 @@ export class SchemaRegistry {
    * Register multiple schemas
    */
   registerMany(
-    schemas: readonly SchemaDefinition[]
+    schemas: readonly SchemaDefinition[],
   ): Result<void, SchemaRegistryError> {
     for (const schema of schemas) {
       const result = this.register(schema);
@@ -306,7 +316,7 @@ export class SchemaRegistry {
    */
   getSchemasWithRelations(): readonly SchemaDefinition[] {
     return this.getAll().filter((schema) =>
-      Object.values(schema.fields).some((field) => field.type === 'relation')
+      Object.values(schema.fields).some((field) => field.type === "relation"),
     );
   }
 
@@ -326,7 +336,7 @@ export class SchemaRegistry {
     const related: string[] = [];
 
     for (const field of Object.values(schema.fields)) {
-      if (field.type === 'relation') {
+      if (field.type === "relation") {
         const relationField = field as RelationField;
         if (!related.includes(relationField.model)) {
           related.push(relationField.model);
@@ -354,7 +364,7 @@ export class SchemaRegistry {
 
     for (const [name, schema] of this.schemas.entries()) {
       for (const field of Object.values(schema.fields)) {
-        if (field.type === 'relation') {
+        if (field.type === "relation") {
           const relationField = field as RelationField;
           if (relationField.model === schemaName) {
             referencing.push(name);
@@ -381,7 +391,7 @@ export class SchemaRegistry {
     }
 
     const result = this.getAll().filter((schema) =>
-      Object.values(schema.fields).some((field) => field.type === fieldType)
+      Object.values(schema.fields).some((field) => field.type === fieldType),
     );
 
     // Cache the result
@@ -398,7 +408,7 @@ export class SchemaRegistry {
 
     for (const [, schema] of this.schemas.entries()) {
       for (const [fieldName, field] of Object.entries(schema.fields)) {
-        if (field.type === 'relation') {
+        if (field.type === "relation") {
           const relationField = field as RelationField;
 
           // Check if target model exists
@@ -406,7 +416,7 @@ export class SchemaRegistry {
             errors.push({
               field: fieldName,
               message: `Relation target not found: ${relationField.model}`,
-              code: 'INVALID_RELATION_TARGET'
+              code: "INVALID_RELATION_TARGET",
             });
           }
         }
@@ -416,10 +426,10 @@ export class SchemaRegistry {
     if (errors.length > 0) {
       return {
         success: false,
-        error: new SchemaRegistryError('Relation validation failed', {
-          code: 'INVALID_RELATIONS',
-          details: errors
-        })
+        error: new SchemaRegistryError("Relation validation failed", {
+          code: "INVALID_RELATIONS",
+          details: errors,
+        }),
       };
     }
 
@@ -431,8 +441,8 @@ export class SchemaRegistry {
    */
   clear(): void {
     if (this.locked) {
-      throw new SchemaRegistryError('Cannot clear locked registry', {
-        code: 'REGISTRY_LOCKED'
+      throw new SchemaRegistryError("Cannot clear locked registry", {
+        code: "REGISTRY_LOCKED",
       });
     }
     this.schemas.clear();
@@ -445,8 +455,8 @@ export class SchemaRegistry {
    */
   remove(name: string): boolean {
     if (this.locked) {
-      throw new SchemaRegistryError('Cannot remove from locked registry', {
-        code: 'REGISTRY_LOCKED'
+      throw new SchemaRegistryError("Cannot remove from locked registry", {
+        code: "REGISTRY_LOCKED",
       });
     }
 
@@ -484,7 +494,7 @@ export class SchemaRegistry {
    */
   private createMetadata(schema: SchemaDefinition): SchemaMetadata {
     const fields = Object.values(schema.fields);
-    const relationCount = fields.filter((f) => f.type === 'relation').length;
+    const relationCount = fields.filter((f) => f.type === "relation").length;
 
     return {
       name: schema.name,
@@ -494,7 +504,7 @@ export class SchemaRegistry {
       indexCount: schema.indexes?.length ?? 0,
       hasTimestamps: schema.timestamps ?? false,
       hasSoftDelete: schema.softDelete ?? false,
-      registeredAt: new Date()
+      registeredAt: new Date(),
     };
   }
 
@@ -504,21 +514,21 @@ export class SchemaRegistry {
   private pluralize(word: string): string {
     // Irregular plurals (common cases)
     const irregulars: Record<string, string> = {
-      person: 'people',
-      child: 'children',
-      man: 'men',
-      woman: 'women',
-      tooth: 'teeth',
-      foot: 'feet',
-      mouse: 'mice',
-      goose: 'geese',
-      ox: 'oxen',
-      datum: 'data',
-      index: 'indices',
-      vertex: 'vertices',
-      matrix: 'matrices',
-      status: 'statuses',
-      quiz: 'quizzes'
+      person: "people",
+      child: "children",
+      man: "men",
+      woman: "women",
+      tooth: "teeth",
+      foot: "feet",
+      mouse: "mice",
+      goose: "geese",
+      ox: "oxen",
+      datum: "data",
+      index: "indices",
+      vertex: "vertices",
+      matrix: "matrices",
+      status: "statuses",
+      quiz: "quizzes",
     };
 
     const lower = word.toLowerCase();
@@ -526,59 +536,59 @@ export class SchemaRegistry {
     if (irregular) {
       // Preserve original casing pattern
       const firstChar = word.charAt(0);
-      return firstChar === firstChar.toUpperCase()
-        ? irregular.charAt(0).toUpperCase() + irregular.slice(1)
+      return firstChar === firstChar.toUpperCase() ?
+        irregular.charAt(0).toUpperCase() + irregular.slice(1)
         : irregular;
     }
 
     // Already plural or uncountable
     if (
-      word.endsWith('ss') ||
-      lower === 'data' ||
-      lower === 'information' ||
-      lower === 'equipment'
+      word.endsWith("ss") ||
+      lower === "data" ||
+      lower === "information" ||
+      lower === "equipment"
     ) {
       return word;
     }
 
     // Words ending in consonant + y -> ies
-    if (word.endsWith('y') && word.length > 1) {
+    if (word.endsWith("y") && word.length > 1) {
       const beforeY = word[word.length - 2];
-      if (beforeY && !'aeiou'.includes(beforeY.toLowerCase())) {
-        return word.slice(0, -1) + 'ies';
+      if (beforeY && !"aeiou".includes(beforeY.toLowerCase())) {
+        return word.slice(0, -1) + "ies";
       }
     }
 
     // Words ending in f or fe -> ves
-    if (word.endsWith('f')) {
-      return word.slice(0, -1) + 'ves';
+    if (word.endsWith("f")) {
+      return word.slice(0, -1) + "ves";
     }
-    if (word.endsWith('fe')) {
-      return word.slice(0, -2) + 'ves';
+    if (word.endsWith("fe")) {
+      return word.slice(0, -2) + "ves";
     }
 
     // Words ending in o (preceded by consonant) -> oes
-    if (word.endsWith('o') && word.length > 1) {
+    if (word.endsWith("o") && word.length > 1) {
       const beforeO = word[word.length - 2];
-      if (beforeO && !'aeiou'.includes(beforeO.toLowerCase())) {
-        return word + 'es';
+      if (beforeO && !"aeiou".includes(beforeO.toLowerCase())) {
+        return word + "es";
       }
     }
 
     // Words ending in ch, sh, s, ss, x, z -> es
     if (
-      word.endsWith('ch') ||
-      word.endsWith('sh') ||
-      word.endsWith('s') ||
-      word.endsWith('ss') ||
-      word.endsWith('x') ||
-      word.endsWith('z')
+      word.endsWith("ch") ||
+      word.endsWith("sh") ||
+      word.endsWith("s") ||
+      word.endsWith("ss") ||
+      word.endsWith("x") ||
+      word.endsWith("z")
     ) {
-      return word + 'es';
+      return word + "es";
     }
 
     // Default: just add s
-    return word + 's';
+    return word + "s";
   }
 
   /**
@@ -592,7 +602,7 @@ export class SchemaRegistry {
    * Import schemas from JSON
    */
   fromJSON(
-    data: Record<string, SchemaDefinition>
+    data: Record<string, SchemaDefinition>,
   ): Result<void, SchemaRegistryError> {
     const schemas = Object.values(data);
     return this.registerMany(schemas);

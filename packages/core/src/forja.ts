@@ -134,7 +134,16 @@ export class Forja implements IForja {
       // 1. Register user schemas
       if (!options.skipSchemas && config.schemas.length > 0) {
         for (const schema of config.schemas) {
-          this.schemas.register(schema);
+          const registerResult = this.schemas.register(schema);
+          if (!registerResult.success) {
+            return {
+              success: false,
+              error: new ForjaError(
+                `Failed to register schema '${schema.name}': ${registerResult.error.message}`,
+                "SCHEMA_REGISTRATION_FAILED",
+              ),
+            };
+          }
         }
       }
 
@@ -144,7 +153,16 @@ export class Forja implements IForja {
           if (plugin.getSchemas) {
             const pluginSchemas = await plugin.getSchemas();
             for (const schema of pluginSchemas) {
-              this.schemas.register(schema);
+              const registerResult = this.schemas.register(schema);
+              if (!registerResult.success) {
+                return {
+                  success: false,
+                  error: new ForjaError(
+                    `Failed to register schema '${schema.name}' from plugin '${plugin.name}': ${registerResult.error.message}`,
+                    "PLUGIN_SCHEMA_REGISTRATION_FAILED",
+                  ),
+                };
+              }
             }
           }
         }

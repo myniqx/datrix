@@ -340,8 +340,12 @@ export class PostgresQueryTranslator implements QueryTranslator {
     parts.push(`VALUES (${values.join(', ')})`);
 
     // RETURNING clause
+    // - If query.returning is specified (raw query), use it
+    // - Otherwise, default to returning only ID (adapter standardization)
     if (query.returning) {
       parts.push(`RETURNING ${this.translateSelectClause(query.returning)}`);
+    } else {
+      parts.push(`RETURNING id`);
     }
 
     return parts.join(' ');

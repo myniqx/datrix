@@ -6,7 +6,7 @@
  */
 
 import { Result } from "../utils";
-import { SchemaDefinition } from "./schema";
+import { ForjaEntry, SchemaDefinition } from "./schema";
 
 /**
  * Primitive values that can be used in queries
@@ -161,7 +161,7 @@ export interface QueryMetadata {
 /**
  * Query object (database-agnostic representation)
  */
-export interface QueryObject {
+export interface QueryObject<T extends ForjaEntry = ForjaEntry> {
   readonly type: QueryType;
   readonly table: string;
   readonly select?: SelectClause | undefined;
@@ -170,7 +170,7 @@ export interface QueryObject {
   readonly orderBy?: OrderBy | undefined;
   readonly limit?: number | undefined;
   readonly offset?: number | undefined;
-  readonly data?: Record<string, unknown>; // For INSERT/UPDATE
+  readonly data?: Partial<T>; // For INSERT/UPDATE
   readonly returning?: SelectClause; // Fields to return after INSERT/UPDATE/DELETE
   readonly distinct?: boolean; // SELECT DISTINCT
   readonly groupBy?: readonly string[]; // GROUP BY fields
