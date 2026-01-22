@@ -18,10 +18,7 @@ import {
   filterFieldsForRead,
   filterRecordsForRead,
 } from "../middleware/permission";
-import {
-  jsonResponse,
-  forjaErrorResponse,
-} from "./utils";
+import { jsonResponse, forjaErrorResponse } from "./utils";
 import { handlerError } from "../errors/api-error";
 import { ForjaError, ForjaValidationError } from "forja-types/errors";
 import type { ForjaEntry } from "forja-types/core/schema";
@@ -77,11 +74,7 @@ async function handleGet(ctx: RequestContext): Promise<Response> {
 
       // Filter fields for each record (only if auth enabled)
       if (authEnabled) {
-        const filteredResults = await filterRecordsForRead(
-          schema,
-          result as unknown as Record<string, unknown>[],
-          ctx,
-        );
+        const filteredResults = await filterRecordsForRead(schema, result, ctx);
 
         return jsonResponse({
           data: filteredResults,
@@ -110,7 +103,10 @@ async function handleGet(ctx: RequestContext): Promise<Response> {
     }
     const message =
       error instanceof Error ? error.message : "Internal server error";
-    const result = handlerError.internalError(message, error instanceof Error ? error : undefined);
+    const result = handlerError.internalError(
+      message,
+      error instanceof Error ? error : undefined,
+    );
     return forjaErrorResponse(result);
   }
 }
@@ -139,7 +135,7 @@ async function handlePost(ctx: RequestContext): Promise<Response> {
       if (!fieldCheck.allowed) {
         const result = handlerError.permissionDenied(
           `Permission denied for fields: ${fieldCheck.deniedFields?.join(", ")}`,
-          { deniedFields: fieldCheck.deniedFields }
+          { deniedFields: fieldCheck.deniedFields },
         );
         return forjaErrorResponse(result);
       }
@@ -180,7 +176,10 @@ async function handlePost(ctx: RequestContext): Promise<Response> {
       return forjaErrorResponse(result);
     }
 
-    const result = handlerError.internalError(message, error instanceof Error ? error : undefined);
+    const result = handlerError.internalError(
+      message,
+      error instanceof Error ? error : undefined,
+    );
     return forjaErrorResponse(result);
   }
 }
@@ -222,7 +221,7 @@ async function handleUpdate(ctx: RequestContext): Promise<Response> {
       if (!fieldCheck.allowed) {
         const result = handlerError.permissionDenied(
           `Permission denied for fields: ${fieldCheck.deniedFields?.join(", ")}`,
-          { deniedFields: fieldCheck.deniedFields }
+          { deniedFields: fieldCheck.deniedFields },
         );
         return forjaErrorResponse(result);
       }
@@ -268,7 +267,10 @@ async function handleUpdate(ctx: RequestContext): Promise<Response> {
       return forjaErrorResponse(result);
     }
 
-    const errResult = handlerError.internalError(message, error instanceof Error ? error : undefined);
+    const errResult = handlerError.internalError(
+      message,
+      error instanceof Error ? error : undefined,
+    );
     return forjaErrorResponse(errResult);
   }
 }
@@ -304,7 +306,10 @@ async function handleDelete(ctx: RequestContext): Promise<Response> {
     }
     const message =
       error instanceof Error ? error.message : "Internal server error";
-    const result = handlerError.internalError(message, error instanceof Error ? error : undefined);
+    const result = handlerError.internalError(
+      message,
+      error instanceof Error ? error : undefined,
+    );
     return forjaErrorResponse(result);
   }
 }
@@ -343,9 +348,10 @@ export async function handleRequest<TRole extends string = string>(
       );
 
       if (!permissionResult.allowed) {
-        const result = ctx.user
-          ? handlerError.permissionDenied("Schema scope permission denied")
-          : handlerError.unauthorized();
+        const result =
+          ctx.user ?
+            handlerError.permissionDenied("Schema scope permission denied")
+            : handlerError.unauthorized();
         return forjaErrorResponse(result);
       }
     }
@@ -379,7 +385,10 @@ export async function handleRequest<TRole extends string = string>(
     console.error("Unified Handler Error:", error);
     const message =
       error instanceof Error ? error.message : "Internal server error";
-    const errResult = handlerError.internalError(message, error instanceof Error ? error : undefined);
+    const errResult = handlerError.internalError(
+      message,
+      error instanceof Error ? error : undefined,
+    );
     return forjaErrorResponse(errResult);
   }
 }

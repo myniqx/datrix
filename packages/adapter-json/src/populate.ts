@@ -2,6 +2,13 @@ import { QueryObject } from "forja-types/core/query-builder";
 import type { JsonAdapter } from "./adapter";
 import { Forja } from "forja-core";
 import type { RelationField } from "forja-types/core/schema";
+import {
+  throwModelNotFound,
+  throwSchemaNotFound,
+  throwRelationNotFound,
+  throwInvalidRelationType,
+  throwTargetModelNotFound,
+} from "./error-helper";
 
 export class JsonPopulator {
   constructor(private adapter: JsonAdapter) { }
@@ -19,18 +26,12 @@ export class JsonPopulator {
     // Find current schema from table name
     const currentModelName = schemaRegistry.findModelByTableName(query.table);
     if (!currentModelName) {
-      throw new ForjaError(
-        `Model not found for table: ${query.table}`,
-        "MODEL_NOT_FOUND",
-      );
+      throwModelNotFound(query.table);
     }
 
     const currentSchema = schemaRegistry.get(currentModelName);
     if (!currentSchema) {
-      throw new ForjaError(
-        `Schema not found for model: ${currentModelName}`,
-        "SCHEMA_NOT_FOUND",
-      );
+      throwSchemaNotFound(currentModelName);
     }
 
     const result = [...rows];
@@ -39,30 +40,29 @@ export class JsonPopulator {
       // Get relation field from current schema
       const relationField = currentSchema.fields[relationName];
       if (!relationField) {
-        throw new ForjaError(
-          `Relation field '${relationName}' not found in schema '${currentSchema.name}'`,
-          "RELATION_FIELD_NOT_FOUND",
-        );
+        throwRelationNotFound(relationName, currentSchema.name);
       }
 
       if (relationField.type !== "relation") {
-        throw new ForjaError(
-          `Field '${relationName}(type: ${relationField.type})' is not a relation field in schema '${currentSchema.name}'`,
-          "INVALID_RELATION_TYPE",
+        throwInvalidRelationType(
+          relationName,
+          relationField.type,
+          currentSchema.name,
         );
       }
 
       const relField = relationField as RelationField;
       const targetModelName = relField.model;
-      const foreignKey = relField.foreignKey;
+      const foreignKey = relField.foreignKey!;
       const kind = relField.kind;
 
       // Get target schema
       const targetSchema = schemaRegistry.get(targetModelName);
       if (!targetSchema) {
-        throw new ForjaError(
-          `Target model '${targetModelName}' not found for relation '${relationName}' in schema '${currentSchema.name}'`,
-          "TARGET_MODEL_NOT_FOUND",
+        throwTargetModelNotFound(
+          targetModelName,
+          relationName,
+          currentSchema.name,
         );
       }
 

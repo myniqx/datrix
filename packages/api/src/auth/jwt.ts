@@ -15,8 +15,19 @@ import type {
   ExpiryString,
 } from './types';
 import { isJwtPayload } from './types';
-import { AuthError } from 'forja-types/plugin';
-import { Result } from 'forja-types/utils';
+import {
+  throwJwtSignError,
+  throwJwtVerifyError,
+  throwJwtDecodeError,
+  throwJwtInvalidFormat,
+  throwJwtInvalidHeader,
+  throwJwtInvalidPayload,
+  throwJwtInvalidSignature,
+  throwJwtExpired,
+  throwJwtInvalidIat,
+  throwJwtInvalidIssuer,
+  throwJwtInvalidAudience,
+} from './error-helper';
 
 /**
  * JWT Strategy
@@ -41,9 +52,7 @@ export class JwtStrategy {
   /**
    * Sign a JWT token
    */
-  async sign(
-    payload: Omit<JwtPayload, 'iat' | 'exp' | 'iss' | 'aud'>
-  ): Promise<Result<string, AuthError>> {
+  sign(payload: Omit<JwtPayload, 'iat' | 'exp' | 'iss' | 'aud'>): string {
     try {
       const now = Math.floor(Date.now() / 1000);
       const exp = now + this.expiresIn;
@@ -61,32 +70,21 @@ export class JwtStrategy {
 
       const token = this.createToken(fullPayload);
 
-      return { success: true, data: token };
+      return token;
     } catch (error) {
-      return {
-        success: false,
-        error: new AuthError('Failed to sign JWT token', {
-          code: 'JWT_SIGN_ERROR',
-          details: error,
-        }),
-      };
+      throwJwtSignError(error instanceof Error ? error : undefined);
     }
   }
 
   /**
    * Verify a JWT token
    */
-  async verify(token: string): Promise<Result<JwtPayload, AuthError>> {
+  verify(token: string): JwtPayload {
     try {
       // Split token into parts
       const parts = token.split('.');
       if (parts.length !== 3) {
-        return {
-          success: false,
-          error: new AuthError('Invalid JWT format', {
-            code: 'JWT_INVALID_FORMAT',
-          }),
-        };
+        throwJwtInvalidFormat();
       }
 
       const encodedHeader = parts[0];
@@ -94,12 +92,7 @@ export class JwtStrategy {
       const signature = parts[2];
 
       if (!encodedHeader || !encodedPayload || !signature) {
-        return {
-          success: false,
-          error: new AuthError('Invalid JWT format', {
-            code: 'JWT_INVALID_FORMAT',
-          }),
-        };
+        throwJwtInvalidFormat();
       }
 
       // Verify signature
@@ -108,88 +101,49 @@ export class JwtStrategy {
       );
 
       if (!this.constantTimeCompare(signature, expectedSignature)) {
-        return {
-          success: false,
-          error: new AuthError('Invalid JWT signature', {
-            code: 'JWT_INVALID_SIGNATURE',
-          }),
-        };
+        throwJwtInvalidSignature();
       }
 
       // Decode and validate header
       const header = this.decodeBase64Url<JwtHeader>(encodedHeader);
       if (!header || header.typ !== 'JWT' || header.alg !== this.algorithm) {
-        return {
-          success: false,
-          error: new AuthError('Invalid JWT header', {
-            code: 'JWT_INVALID_HEADER',
-          }),
-        };
+        throwJwtInvalidHeader();
       }
 
       // Decode and validate payload
       const payload = this.decodeBase64Url<JwtPayload>(encodedPayload);
       if (!payload || !isJwtPayload(payload)) {
-        return {
-          success: false,
-          error: new AuthError('Invalid JWT payload', {
-            code: 'JWT_INVALID_PAYLOAD',
-          }),
-        };
+        throwJwtInvalidPayload();
       }
 
       // Check expiration
       const now = Math.floor(Date.now() / 1000);
       if (payload.exp < now) {
-        return {
-          success: false,
-          error: new AuthError('JWT token expired', {
-            code: 'JWT_EXPIRED',
-            details: { exp: payload.exp, now },
-          }),
-        };
+        throwJwtExpired(payload.exp, now);
       }
 
       // Check issued at (not in future)
       if (payload.iat > now + 60) {
         // Allow 60s clock skew
-        return {
-          success: false,
-          error: new AuthError('JWT token issued in the future', {
-            code: 'JWT_INVALID_IAT',
-          }),
-        };
+        throwJwtInvalidIat();
       }
 
       // Check issuer if configured
       if (this.issuer !== undefined && payload.iss !== this.issuer) {
-        return {
-          success: false,
-          error: new AuthError('JWT issuer mismatch', {
-            code: 'JWT_INVALID_ISSUER',
-          }),
-        };
+        throwJwtInvalidIssuer(this.issuer, payload.iss);
       }
 
       // Check audience if configured
       if (this.audience !== undefined && payload.aud !== this.audience) {
-        return {
-          success: false,
-          error: new AuthError('JWT audience mismatch', {
-            code: 'JWT_INVALID_AUDIENCE',
-          }),
-        };
+        throwJwtInvalidAudience(this.audience, payload.aud);
       }
 
-      return { success: true, data: payload };
+      return payload;
     } catch (error) {
-      return {
-        success: false,
-        error: new AuthError('Failed to verify JWT token', {
-          code: 'JWT_VERIFY_ERROR',
-          details: error,
-        }),
-      };
+      if (error instanceof Error && error.name === 'ForjaAuthError') {
+        throw error;
+      }
+      throwJwtVerifyError(error instanceof Error ? error : undefined);
     }
   }
 
@@ -198,14 +152,10 @@ export class JwtStrategy {
    *
    * Creates a new token with updated expiration
    */
-  async refresh(token: string): Promise<Result<string, AuthError>> {
-    const verifyResult = await this.verify(token);
+  refresh(token: string): string {
+    const payload = this.verify(token);
 
-    if (!verifyResult.success) {
-      return verifyResult;
-    }
-
-    const { userId, role, ...rest } = verifyResult.data;
+    const { userId, role, ...rest } = payload;
 
     // Remove standard claims
     const { iat: _iat, exp: _exp, iss: _iss, aud: _aud, ...custom } = rest;
@@ -216,47 +166,29 @@ export class JwtStrategy {
   /**
    * Decode token without verification (for debugging)
    */
-  decode(token: string): Result<JwtPayload, AuthError> {
+  decode(token: string): JwtPayload {
     try {
       const parts = token.split('.');
       if (parts.length !== 3) {
-        return {
-          success: false,
-          error: new AuthError('Invalid JWT format', {
-            code: 'JWT_INVALID_FORMAT',
-          }),
-        };
+        throwJwtInvalidFormat();
       }
 
       const encodedPayload = parts[1];
       if (!encodedPayload) {
-        return {
-          success: false,
-          error: new AuthError('Invalid JWT format', {
-            code: 'JWT_INVALID_FORMAT',
-          }),
-        };
+        throwJwtInvalidFormat();
       }
 
       const payload = this.decodeBase64Url<JwtPayload>(encodedPayload);
       if (!payload || !isJwtPayload(payload)) {
-        return {
-          success: false,
-          error: new AuthError('Invalid JWT payload', {
-            code: 'JWT_INVALID_PAYLOAD',
-          }),
-        };
+        throwJwtInvalidPayload();
       }
 
-      return { success: true, data: payload };
+      return payload;
     } catch (error) {
-      return {
-        success: false,
-        error: new AuthError('Failed to decode JWT token', {
-          code: 'JWT_DECODE_ERROR',
-          details: error,
-        }),
-      };
+      if (error instanceof Error && error.name === 'ForjaAuthError') {
+        throw error;
+      }
+      throwJwtDecodeError(error instanceof Error ? error : undefined);
     }
   }
 

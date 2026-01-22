@@ -104,7 +104,7 @@ export const whereError = {
     };
   },
 
-  arrayIndexAtStart(index: string, path: string[]): ErrorResult {
+  arrayIndexAtStart(index: string, _path: string[]): ErrorResult {
     return {
       success: false,
       error: new ParserError(
@@ -482,7 +482,7 @@ export const fieldsError = {
  */
 export const paginationError = {
   invalidLimit(
-    value: string | number,
+    value: string | number | readonly string[] | undefined,
     path: string[],
     context?: Partial<PaginationErrorContext>,
   ): ErrorResult {
@@ -504,7 +504,7 @@ export const paginationError = {
   },
 
   invalidOffset(
-    value: string | number,
+    value: string | number | readonly string[] | undefined,
     path: string[],
     context?: Partial<PaginationErrorContext>,
   ): ErrorResult {
@@ -526,7 +526,7 @@ export const paginationError = {
   },
 
   invalidPage(
-    value: string | number,
+    value: string | number | readonly string[],
     path: string[],
     context?: Partial<PaginationErrorContext>,
   ): ErrorResult {
@@ -549,7 +549,7 @@ export const paginationError = {
   },
 
   invalidPageSize(
-    value: string | number,
+    value: string | number | readonly string[] | undefined,
     path: string[],
     context?: Partial<PaginationErrorContext>,
   ): ErrorResult {

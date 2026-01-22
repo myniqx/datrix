@@ -59,7 +59,7 @@ export interface SerializedForjaConfigError extends SerializedForjaError {
  * Includes field name for identifying which config property failed.
  */
 export class ForjaConfigError extends ForjaError<ConfigErrorContext> {
-  readonly field?: string;
+  readonly field?: string | undefined;
 
   constructor(message: string, options: ForjaConfigErrorOptions) {
     super(message, {

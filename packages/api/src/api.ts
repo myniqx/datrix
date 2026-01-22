@@ -219,7 +219,9 @@ export class ApiPlugin<TRole extends string = string>
     if (query.type === "update" && query.table === userTable) {
       const emailField = this.userSchemaEmailField;
       if (query.data && emailField in query.data) {
-        context.metadata["api:syncEmail"] = query.data[emailField];
+        context.metadata["api:syncEmail"] = (query.data as Record<string, unknown>)[
+          emailField
+        ];
         context.metadata["api:userId"] = query.where?.["id"];
       }
     }
@@ -300,7 +302,7 @@ export class ApiPlugin<TRole extends string = string>
     newEmail: string,
     context: PluginContext,
   ): Promise<void> {
-    const query: QueryObject = {
+    const query: QueryObject<{ email: string } & ForjaEntry> = {
       type: "update",
       table: this.authSchemaName,
       where: { userId },

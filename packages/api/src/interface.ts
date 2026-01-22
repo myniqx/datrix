@@ -10,6 +10,7 @@
 import type { DefaultPermission } from "forja-types/core/permission";
 import type { Forja } from "forja-core";
 import type { AuthManager } from "./auth/manager";
+import { AuthenticatedUser } from "forja-types/api/auth";
 
 /**
  * API Plugin Interface

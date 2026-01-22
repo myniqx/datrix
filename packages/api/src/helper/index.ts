@@ -8,7 +8,7 @@ import { ApiPlugin } from "../api";
 import { Forja } from "forja-core";
 import { forjaErrorResponse } from "../handler/utils";
 import { handlerError } from "../errors/api-error";
-import { ForjaError } from "forja-types/errors/base";
+import { ForjaError } from "forja-types/errors";
 
 /**
  * Handle Forja API Request
@@ -73,7 +73,7 @@ export async function handleRequest(
 
     if (!api || !(api instanceof ApiPlugin)) {
       const errRes = handlerError.internalError(
-        "API is not configured in forja.config.ts. Add \"api: new ForjaApi({ ... })\" to your configuration."
+        'API is not configured in forja.config.ts. Add "api: new ForjaApi({ ... })" to your configuration.',
       );
       return forjaErrorResponse(errRes);
     }
@@ -81,7 +81,7 @@ export async function handleRequest(
     // 2. Check if API is enabled (api.enabled = false)
     if (!api.isEnabled()) {
       const errRes = handlerError.internalError(
-        "API is disabled. Set \"enabled: true\" in ForjaApi configuration."
+        'API is disabled. Set "enabled: true" in ForjaApi configuration.',
       );
       return forjaErrorResponse(errRes);
     }
@@ -95,8 +95,12 @@ export async function handleRequest(
 
     // 4. Catch unexpected errors (should rarely happen)
     console.error("[Forja API] Unexpected error:", error);
-    const message = error instanceof Error ? error.message : "Internal server error";
-    const errRes = handlerError.internalError(message, error instanceof Error ? error : undefined);
+    const message =
+      error instanceof Error ? error.message : "Internal server error";
+    const errRes = handlerError.internalError(
+      message,
+      error instanceof Error ? error : undefined,
+    );
     return forjaErrorResponse(errRes);
   }
 }

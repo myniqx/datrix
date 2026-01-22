@@ -27,8 +27,10 @@ import type { RequestContext } from "./types";
  * Build PermissionContext from RequestContext
  * Internal helper to satisfy PermissionFn signature
  */
-function buildPermCtx(ctx: RequestContext): PermissionContext {
-  const permCtx: PermissionContext = {
+function buildPermCtx<T extends ForjaEntry>(
+  ctx: RequestContext,
+): PermissionContext<T> {
+  const permCtx: PermissionContext<T> = {
     user: ctx.user ?? undefined,
     id: ctx.id,
     action: ctx.action,
@@ -282,7 +284,7 @@ export function methodToAction(method: string): PermissionAction {
  */
 export async function filterRecordsForRead<
   TRoles extends string,
-  TRecord extends Record<string, unknown>,
+  TRecord extends ForjaEntry,
 >(
   schema: SchemaDefinition<TRoles>,
   records: readonly TRecord[],

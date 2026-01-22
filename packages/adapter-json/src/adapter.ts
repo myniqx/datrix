@@ -19,6 +19,11 @@ import { JsonAdapterConfig, JsonTableFile } from "./types";
 import { JsonQueryRunner } from "./runner";
 import { SimpleLock } from "./lock";
 import { JsonPopulator } from "./populate";
+import {
+  throwQueryMissingData,
+  throwUniqueConstraintField,
+  throwUniqueConstraintIndex,
+} from "./error-helper";
 
 interface CacheEntry {
   data: JsonTableFile;
@@ -404,7 +409,9 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
         }
 
         case "insert": {
-          if (!query.data) throw new Error("Insert query missing data");
+          if (!query.data) {
+            throwQueryMissingData("insert", query.table);
+          }
           const newItem = { ...query.data };
 
           if (!newItem["id"]) {
@@ -436,7 +443,9 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
         }
 
         case "update": {
-          if (!query.data) throw new Error("Update query missing data");
+          if (!query.data) {
+            throwQueryMissingData("update", query.table);
+          }
           const updateQuery: QueryObject = {
             ...query,
             limit: undefined,
@@ -754,8 +763,10 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
       );
 
       if (duplicate) {
-        throw new Error(
-          `Duplicate value '${value}' for unique field '${fieldName}'`,
+        throwUniqueConstraintField(
+          fieldName,
+          value,
+          tableData.schema?.tableName ?? "unknown",
         );
       }
     }
@@ -780,8 +791,9 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
       );
 
       if (duplicate) {
-        throw new Error(
-          `Duplicate value for unique index [${index.fields.join(", ")}]`,
+        throwUniqueConstraintIndex(
+          index.fields,
+          tableData.schema?.tableName ?? "unknown",
         );
       }
     }

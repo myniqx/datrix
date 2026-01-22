@@ -8,7 +8,6 @@
 import {
   ForjaQueryBuilderError,
   type QueryBuilderComponent,
-  type QueryBuilderErrorCode,
 } from "forja-types/errors";
 
 /**
@@ -35,9 +34,10 @@ export function throwInvalidField(
       component,
       field,
       context: availableFields ? { availableFields } : undefined,
-      suggestion: availableFields
-        ? `Use one of: ${availableFields.join(", ")}`
-        : `Check that '${field}' exists in the schema`,
+      suggestion:
+        availableFields ?
+          `Use one of: ${availableFields.join(", ")}`
+          : `Check that '${field}' exists in the schema`,
       expected: availableFields ? availableFields.join(" | ") : undefined,
       received: field,
     },
@@ -94,11 +94,10 @@ export function throwInvalidValue(
   value: unknown,
   expectedType: string,
 ): never {
-  const receivedType = Array.isArray(value)
-    ? "array"
-    : value === null
-      ? "null"
-      : typeof value;
+  const receivedType =
+    Array.isArray(value) ? "array"
+      : value === null ? "null"
+        : typeof value;
 
   throw new ForjaQueryBuilderError(
     `Invalid value for field '${field}'. Expected ${expectedType}, got ${receivedType}`,
@@ -215,16 +214,13 @@ export function throwMissingTable(): never {
  * ```
  */
 export function throwInvalidQueryType(receivedType: unknown): never {
-  throw new ForjaQueryBuilderError(
-    `Invalid query type: ${receivedType}`,
-    {
-      code: "INVALID_QUERY_TYPE",
-      component: "builder",
-      suggestion: "Use one of: select, insert, update, delete",
-      expected: "select | insert | update | delete",
-      received: receivedType,
-    },
-  );
+  throw new ForjaQueryBuilderError(`Invalid query type: ${receivedType}`, {
+    code: "INVALID_QUERY_TYPE",
+    component: "builder",
+    suggestion: "Use one of: select, insert, update, delete",
+    expected: "select | insert | update | delete",
+    received: receivedType,
+  });
 }
 
 /**

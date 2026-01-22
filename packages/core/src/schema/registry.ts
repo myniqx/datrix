@@ -707,7 +707,7 @@ export class SchemaRegistry {
    */
   private createJunctionTable(
     schemaName: string,
-    fieldName: string,
+    _fieldName: string,
     relation: RelationField,
   ): Result<void, SchemaRegistryError> {
     const junctionTableName =

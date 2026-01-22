@@ -7,8 +7,6 @@
 
 import { SelectClause } from "forja-types/core/query-builder";
 import type { SchemaDefinition } from "forja-types/core/schema";
-import type { Result } from "forja-types/utils";
-import { ForjaQueryBuilderError } from "forja-types/errors";
 import { throwInvalidField, throwInvalidValue } from "./error-helper";
 
 /**
@@ -18,13 +16,13 @@ import { throwInvalidField, throwInvalidValue } from "./error-helper";
 export function parseSelectClause(input: unknown): SelectClause {
   // Handle null/undefined -> select all
   if (input === null || input === undefined) {
-    return '*';
+    return "*";
   }
 
   // Handle string
-  if (typeof input === 'string') {
-    if (input === '*') {
-      return '*';
+  if (typeof input === "string") {
+    if (input === "*") {
+      return "*";
     }
     // Single field
     return [input];
@@ -34,22 +32,22 @@ export function parseSelectClause(input: unknown): SelectClause {
   if (Array.isArray(input)) {
     // Validate all items are strings
     for (const item of input) {
-      if (typeof item !== 'string') {
-        throwInvalidValue('select', 'field', item, 'string');
+      if (typeof item !== "string") {
+        throwInvalidValue("select", "field", item, "string");
       }
     }
     return input as readonly string[];
   }
 
-  throwInvalidValue('select', 'input', input, "string, array, or '*'");
+  throwInvalidValue("select", "input", input, "string, array, or '*'");
 }
 
 /**
  * Normalize select clause (remove duplicates, preserve order)
  */
 export function normalizeSelectClause(select: SelectClause): SelectClause {
-  if (select === '*') {
-    return '*';
+  if (select === "*") {
+    return "*";
   }
 
   // Remove duplicates using Set (preserves insertion order per ES6+)
@@ -62,10 +60,10 @@ export function normalizeSelectClause(select: SelectClause): SelectClause {
  */
 export function validateSelectFields(
   select: SelectClause,
-  schema: SchemaDefinition
+  schema: SchemaDefinition,
 ): void {
   // '*' is always valid
-  if (select === '*') {
+  if (select === "*") {
     return;
   }
 
@@ -74,7 +72,7 @@ export function validateSelectFields(
   // Check each field exists in schema
   for (const field of select) {
     if (!availableFields.includes(field)) {
-      throwInvalidField('select', field, availableFields);
+      throwInvalidField("select", field, availableFields);
     }
   }
 }
@@ -86,14 +84,14 @@ export function mergeSelectClauses(
   ...selects: readonly SelectClause[]
 ): SelectClause {
   // If any is '*', return '*'
-  if (selects.some((s) => s === '*')) {
-    return '*';
+  if (selects.some((s) => s === "*")) {
+    return "*";
   }
 
   // Merge all arrays
   const allFields: string[] = [];
   for (const select of selects) {
-    if (select !== '*') {
+    if (select !== "*") {
       allFields.push(...select);
     }
   }
@@ -108,9 +106,9 @@ export function mergeSelectClauses(
  */
 export function expandSelectClause(
   select: SelectClause,
-  schema: SchemaDefinition
+  schema: SchemaDefinition,
 ): readonly string[] {
-  if (select === '*') {
+  if (select === "*") {
     return Object.keys(schema.fields);
   }
   return select;
@@ -119,11 +117,8 @@ export function expandSelectClause(
 /**
  * Check if field is selected
  */
-export function isFieldSelected(
-  field: string,
-  select: SelectClause
-): boolean {
-  if (select === '*') {
+export function isFieldSelected(field: string, select: SelectClause): boolean {
+  if (select === "*") {
     return true;
   }
   return select.includes(field);
@@ -133,9 +128,9 @@ export function isFieldSelected(
  * Create select clause from fields
  */
 export function createSelectClause(
-  fields: readonly string[] | '*'
+  fields: readonly string[] | "*",
 ): SelectClause {
-  return fields === '*' ? '*' : [...fields];
+  return fields === "*" ? "*" : [...fields];
 }
 
 /**
@@ -144,9 +139,9 @@ export function createSelectClause(
 export function excludeFields(
   select: SelectClause,
   schema: SchemaDefinition,
-  excludeList: readonly string[]
+  excludeList: readonly string[],
 ): SelectClause {
-  if (select === '*') {
+  if (select === "*") {
     // Get all fields except excluded ones (preserves schema definition order)
     const allFields = Object.keys(schema.fields);
     return allFields.filter((f) => !excludeList.includes(f));

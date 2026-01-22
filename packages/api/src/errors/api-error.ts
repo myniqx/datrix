@@ -16,7 +16,7 @@ import type { Result } from "forja-types/utils";
  */
 export class ApiError extends ForjaError {
   /** HTTP status code associated with this error */
-  readonly status: number;
+  status: number;
 
   constructor(message: string, options: ApiErrorOptions) {
     super(message, {
@@ -54,7 +54,7 @@ export interface ApiErrorOptions {
   cause?: Error;
 }
 
-type ErrorResult<T = never> = Result<T, ApiError>;
+export type ErrorResult<T = never> = Result<T, ApiError | ForjaError>;
 
 /**
  * Handler Error Helpers
@@ -69,7 +69,8 @@ export const handlerError = {
         code: "SCHEMA_NOT_FOUND",
         status: 404,
         context: { tableName, availableModels },
-        suggestion: "Check if the table name is correct and the schema is properly defined.",
+        suggestion:
+          "Check if the table name is correct and the schema is properly defined.",
       }),
     };
   },
@@ -100,12 +101,16 @@ export const handlerError = {
   invalidBody(reason?: string): ErrorResult {
     return {
       success: false,
-      error: new ApiError(reason ? `Invalid request body: ${reason}` : "Invalid request body", {
-        code: "INVALID_BODY",
-        status: 400,
-        context: { reason },
-        suggestion: "Ensure the request body is a valid JSON object and contains all required fields.",
-      }),
+      error: new ApiError(
+        reason ? `Invalid request body: ${reason}` : "Invalid request body",
+        {
+          code: "INVALID_BODY",
+          status: 400,
+          context: { reason },
+          suggestion:
+            "Ensure the request body is a valid JSON object and contains all required fields.",
+        },
+      ),
     };
   },
 
@@ -127,12 +132,16 @@ export const handlerError = {
         code: "METHOD_NOT_ALLOWED",
         status: 405,
         context: { method },
-        suggestion: "Check the API documentation for supported methods on this endpoint.",
+        suggestion:
+          "Check the API documentation for supported methods on this endpoint.",
       }),
     };
   },
 
-  permissionDenied(reason: string, context?: Record<string, unknown>): ErrorResult {
+  permissionDenied(
+    reason: string,
+    context?: Record<string, unknown>,
+  ): ErrorResult {
     return {
       success: false,
       error: new ApiError("Permission denied", {
@@ -174,7 +183,8 @@ export const handlerError = {
         code: "CONFLICT",
         status: 409,
         ...(context && { context }),
-        suggestion: "Ensure the resource you are trying to create does not already exist.",
+        suggestion:
+          "Ensure the resource you are trying to create does not already exist.",
       }),
     };
   },

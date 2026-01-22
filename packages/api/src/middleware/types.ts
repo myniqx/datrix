@@ -72,7 +72,7 @@ export interface RequestContext<TRole extends string = string> {
   /**
    * Authenticated user (null if not authenticated or auth disabled)
    */
-  readonly user: AuthenticatedUser | null;
+  readonly user: AuthenticatedUser<TRole> | null;
 
   /**
    * Forja instance for database operations

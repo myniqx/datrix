@@ -209,10 +209,29 @@ export interface AuthUser {
 
 /**
  * Auth error
+ *
+ * @deprecated Use ForjaAuthError from 'forja-types/errors' instead.
+ * This class is kept for backwards compatibility only.
+ *
+ * @example
+ * ```ts
+ * // Old (deprecated)
+ * throw new AuthError('Invalid credentials', { userId: '123' });
+ *
+ * // New (recommended)
+ * import { throwInvalidCredentials } from '@forja/api/auth/error-helper';
+ * throwInvalidCredentials();
+ * ```
  */
 export class AuthError extends PluginError {
-  constructor(message: string, details?: unknown) {
-    super(message, { code: "AUTH_ERROR", details });
+  constructor(
+    message: string,
+    options?: { code?: string; details?: unknown },
+  ) {
+    super(message, {
+      code: options?.code ?? "AUTH_ERROR",
+      details: options?.details,
+    });
     this.name = "AuthError";
   }
 }

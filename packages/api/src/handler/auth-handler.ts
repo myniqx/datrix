@@ -13,12 +13,12 @@
 
 import type { Forja } from "forja-core";
 import { DEFAULT_API_AUTH_CONFIG } from "forja-types/config";
-import { AuthManager, type AuthUser } from "../auth/manager";
-import type { AuthConfig } from "../auth/types";
+import { AuthManager } from "../auth/manager";
+import type { AuthConfig, AuthUser } from "../auth/types";
 import { jsonResponse, extractSessionId, forjaErrorResponse } from "./utils";
 import { authError } from "../errors/auth-error";
 import { handlerError } from "../errors/api-error";
-import { ForjaError } from "forja-types/errors/base";
+import { ForjaError } from "forja-types/errors";
 import { AuthenticatedUser } from "forja-types/api/auth";
 import { ForjaEntry } from "forja-types";
 
@@ -91,16 +91,7 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
       }
 
       // Hash password
-      const hashResult = await authManager.hashPassword(password);
-      if (!hashResult.success) {
-        const err = handlerError.internalError(
-          hashResult.error.message,
-          hashResult.error,
-        );
-        return forjaErrorResponse(err);
-      }
-
-      const { hash, salt } = hashResult.data;
+      const { hash, salt } = await authManager.hashPassword(password);
 
       // Create user record first (without password)
       const userData: Record<string, unknown> = {
@@ -156,30 +147,22 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
 
       const loginResult = await authManager.login(authUser);
 
-      if (!loginResult.success) {
-        const err = handlerError.internalError(
-          loginResult.error.message,
-          loginResult.error,
-        );
-        return forjaErrorResponse(err);
-      }
-
       // Build response (no sensitive data)
       const responseBody = {
         data: {
           user: authUser,
-          token: loginResult.data.token,
-          sessionId: loginResult.data.sessionId,
+          token: loginResult.token,
+          sessionId: loginResult.sessionId,
         },
       };
 
       // Set session cookie if session was created
-      if (loginResult.data.sessionId) {
+      if (loginResult.sessionId) {
         return new Response(JSON.stringify(responseBody), {
           status: 201,
           headers: {
             "Content-Type": "application/json",
-            "Set-Cookie": `sessionId=${loginResult.data.sessionId}; HttpOnly; Path=/; Max-Age=86400; SameSite=Strict`,
+            "Set-Cookie": `sessionId=${loginResult.sessionId}; HttpOnly; Path=/; Max-Age=86400; SameSite=Strict`,
           },
         });
       }
@@ -235,13 +218,13 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
       }
 
       // Verify password
-      const verifyResult = await authManager.verifyPassword(
+      const isValid = await authManager.verifyPassword(
         password,
         authRecord.password,
         authRecord.passwordSalt,
       );
 
-      if (!verifyResult.success || !verifyResult.data) {
+      if (!isValid) {
         const result = authError.invalidCredentials();
         return forjaErrorResponse(result);
       }
@@ -255,30 +238,22 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
 
       const loginResult = await authManager.login(authUser);
 
-      if (!loginResult.success) {
-        const result = handlerError.internalError(
-          loginResult.error.message,
-          loginResult.error,
-        );
-        return forjaErrorResponse(result);
-      }
-
       // Build response (no sensitive data)
       const responseBody = {
         data: {
           user: authUser,
-          token: loginResult.data.token,
-          sessionId: loginResult.data.sessionId,
+          token: loginResult.token,
+          sessionId: loginResult.sessionId,
         },
       };
 
       // Set session cookie if session was created
-      if (loginResult.data.sessionId) {
+      if (loginResult.sessionId) {
         return new Response(JSON.stringify(responseBody), {
           status: 200,
           headers: {
             "Content-Type": "application/json",
-            "Set-Cookie": `sessionId=${loginResult.data.sessionId}; HttpOnly; Path=/; Max-Age=86400; SameSite=Strict`,
+            "Set-Cookie": `sessionId=${loginResult.sessionId}; HttpOnly; Path=/; Max-Age=86400; SameSite=Strict`,
           },
         });
       }
@@ -310,15 +285,7 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
         return forjaErrorResponse(result);
       }
 
-      const logoutResult = await authManager.logout(sessionId);
-
-      if (!logoutResult.success) {
-        const result = handlerError.internalError(
-          logoutResult.error.message,
-          logoutResult.error,
-        );
-        return forjaErrorResponse(result);
-      }
+      await authManager.logout(sessionId);
 
       // Clear session cookie
       return new Response(JSON.stringify({ data: { success: true } }), {

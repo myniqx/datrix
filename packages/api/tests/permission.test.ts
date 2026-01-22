@@ -116,9 +116,7 @@ describe("Schema-Level Permission Tests", () => {
         userId: user.id,
         role: user.role,
       });
-      if (result.success) {
-        tokens[role] = result.data;
-      }
+      tokens[role] = result;
     }
   });
 

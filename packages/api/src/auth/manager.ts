@@ -6,12 +6,11 @@
  * Note: Permission checking is now handled by schema-based permissions in middleware/permission.ts
  */
 
-import type { Result } from "forja-types/utils";
 import { PasswordManager, type PasswordHash } from "./password";
 import { JwtStrategy } from "./jwt";
 import { SessionStrategy } from "./session";
 import { AuthConfig, AuthContext, AuthUser, LoginResult } from "./types";
-import { AuthError } from "forja-types";
+import { throwSessionNotConfigured } from "./error-helper";
 
 /**
  * Auth Manager
@@ -50,23 +49,8 @@ export class AuthManager<TRole extends string = string> {
   /**
    * Hash password
    */
-  async hashPassword(
-    password: string,
-  ): Promise<Result<PasswordHash, AuthError>> {
-    const result = await this.passwordManager.hash(password);
-
-    if (!result.success) {
-      return {
-        success: false,
-        error: new AuthError(
-          result.error.message,
-          result.error.code,
-          result.error.details,
-        ),
-      };
-    }
-
-    return result;
+  async hashPassword(password: string): Promise<PasswordHash> {
+    return this.passwordManager.hash(password);
   }
 
   /**
@@ -76,21 +60,8 @@ export class AuthManager<TRole extends string = string> {
     password: string,
     hash: string,
     salt: string,
-  ): Promise<Result<boolean, AuthError>> {
-    const result = await this.passwordManager.verify(password, hash, salt);
-
-    if (!result.success) {
-      return {
-        success: false,
-        error: new AuthError(
-          result.error.message,
-          result.error.code,
-          result.error.details,
-        ),
-      };
-    }
-
-    return result;
+  ): Promise<boolean> {
+    return this.passwordManager.verify(password, hash, salt);
   }
 
   /**
@@ -99,7 +70,7 @@ export class AuthManager<TRole extends string = string> {
   async login(
     user: AuthUser,
     options: { createToken?: boolean; createSession?: boolean } = {},
-  ): Promise<Result<LoginResult, AuthError>> {
+  ): Promise<LoginResult> {
     const { createToken = true, createSession = true } = options;
 
     let token: string | undefined = undefined;
@@ -107,41 +78,16 @@ export class AuthManager<TRole extends string = string> {
 
     // Create JWT token if enabled and requested
     if (this.jwtStrategy && createToken) {
-      const tokenResult = await this.jwtStrategy.sign({
+      token = this.jwtStrategy.sign({
         userId: user.id,
         role: user.role,
       });
-
-      if (!tokenResult.success) {
-        return {
-          success: false,
-          error: new AuthError(
-            tokenResult.error.message,
-            "JWT_SIGN_ERROR",
-            tokenResult.error.details,
-          ),
-        };
-      }
-
-      token = tokenResult.data;
     }
 
     // Create session if enabled and requested
     if (this.sessionStrategy && createSession) {
-      const sessionResult = await this.sessionStrategy.create(user.id, user.role);
-
-      if (!sessionResult.success) {
-        return {
-          success: false,
-          error: new AuthError(
-            sessionResult.error.message,
-            "SESSION_CREATE_ERROR",
-            sessionResult.error.details,
-          ),
-        };
-      }
-
-      sessionId = sessionResult.data.id;
+      const sessionData = await this.sessionStrategy.create(user.id, user.role);
+      sessionId = sessionData.id;
     }
 
     const result: LoginResult = {
@@ -150,37 +96,18 @@ export class AuthManager<TRole extends string = string> {
       ...(sessionId !== undefined && { sessionId }),
     };
 
-    return { success: true, data: result };
+    return result;
   }
 
   /**
    * Logout user (destroy session)
    */
-  async logout(sessionId: string): Promise<Result<void, AuthError>> {
+  async logout(sessionId: string): Promise<void> {
     if (!this.sessionStrategy) {
-      return {
-        success: false,
-        error: new AuthError(
-          "Session strategy not configured",
-          "SESSION_NOT_CONFIGURED",
-        ),
-      };
+      throwSessionNotConfigured();
     }
 
-    const result = await this.sessionStrategy.delete(sessionId);
-
-    if (!result.success) {
-      return {
-        success: false,
-        error: new AuthError(
-          result.error.message,
-          "SESSION_DELETE_ERROR",
-          result.error.details,
-        ),
-      };
-    }
-
-    return { success: true, data: undefined };
+    await this.sessionStrategy.delete(sessionId);
   }
 
   /**
@@ -190,9 +117,8 @@ export class AuthManager<TRole extends string = string> {
     // Try JWT first
     const token = this.extractToken(request);
     if (token && this.jwtStrategy) {
-      const tokenResult = await this.jwtStrategy.verify(token);
-      if (tokenResult.success) {
-        const payload = tokenResult.data;
+      try {
+        const payload = this.jwtStrategy.verify(token);
         return {
           user: {
             id: payload.userId,
@@ -201,15 +127,16 @@ export class AuthManager<TRole extends string = string> {
           },
           token,
         };
+      } catch {
+        // JWT verification failed, continue to session
       }
     }
 
     // Try session
     const sessionId = this.extractSessionId(request);
     if (sessionId && this.sessionStrategy) {
-      const sessionResult = await this.sessionStrategy.get(sessionId);
-      if (sessionResult.success && sessionResult.data) {
-        const session = sessionResult.data;
+      try {
+        const session = await this.sessionStrategy.get(sessionId);
         return {
           user: {
             id: session.userId,
@@ -218,6 +145,8 @@ export class AuthManager<TRole extends string = string> {
           },
           sessionId,
         };
+      } catch {
+        // Session not found or expired
       }
     }
 

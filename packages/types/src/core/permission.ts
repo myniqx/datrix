@@ -5,6 +5,9 @@
  * and field-level access control.
  */
 
+import { AuthenticatedUser } from "forja-types/api/auth";
+import { ForjaEntry } from "./schema";
+
 /**
  * Permission actions for schema-level access
  */
@@ -20,9 +23,9 @@ export type FieldPermissionAction = "read" | "write";
  *
  * @template TRecord - The record type for the schema
  */
-export interface PermissionContext<TRecord = Record<string, unknown>> {
+export interface PermissionContext<TRecord extends ForjaEntry = ForjaEntry> {
   /** Current authenticated user (undefined if not authenticated) */
-  readonly user: Record<string, unknown> | undefined;
+  readonly user: AuthenticatedUser | undefined;
   /** Current record (for update/delete operations) */
   readonly record?: TRecord;
   /** Input data (for create/update operations) */
@@ -44,7 +47,7 @@ export interface PermissionContext<TRecord = Record<string, unknown>> {
  *
  * @template TRecord - The record type for the schema
  */
-export type PermissionFn<TRecord = Record<string, unknown>> = (
+export type PermissionFn<TRecord extends ForjaEntry = ForjaEntry> = (
   ctx: PermissionContext<TRecord>,
 ) => boolean | Promise<boolean>;
 
@@ -61,7 +64,7 @@ export type PermissionFn<TRecord = Record<string, unknown>> = (
  */
 export type PermissionValue<
   TRoles extends string = string,
-  TRecord = Record<string, unknown>,
+  TRecord extends ForjaEntry = ForjaEntry,
 > =
   | boolean
   | readonly TRoles[]
@@ -86,7 +89,7 @@ export type PermissionValue<
  */
 export interface SchemaPermission<
   TRoles extends string = string,
-  TRecord = Record<string, unknown>,
+  TRecord extends ForjaEntry = ForjaEntry,
 > {
   readonly create?: PermissionValue<TRoles, TRecord>;
   readonly read?: PermissionValue<TRoles, TRecord>;
@@ -117,7 +120,7 @@ export interface SchemaPermission<
  */
 export interface FieldPermission<
   TRoles extends string = string,
-  TRecord = Record<string, unknown>,
+  TRecord extends ForjaEntry = ForjaEntry,
 > {
   /**
    * Read permission - if denied, field is stripped from response
@@ -164,7 +167,7 @@ export interface FieldPermissionCheckResult {
 /**
  * Type guard for PermissionFn
  */
-export function isPermissionFn<TRecord = Record<string, unknown>>(
+export function isPermissionFn<TRecord extends ForjaEntry = ForjaEntry>(
   value: unknown,
 ): value is PermissionFn<TRecord> {
   return typeof value === "function";
@@ -188,7 +191,7 @@ export function isRoleArray<TRoles extends string>(
  */
 export function isMixedPermissionArray<
   TRoles extends string,
-  TRecord = Record<string, unknown>,
+  TRecord extends ForjaEntry = ForjaEntry,
 >(
   value: PermissionValue<TRoles, TRecord>,
 ): value is readonly (TRoles | PermissionFn<TRecord>)[] {

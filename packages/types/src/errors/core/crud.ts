@@ -52,11 +52,11 @@ export interface ForjaCrudErrorOptions {
   readonly code: CrudErrorCode;
   readonly operation: CrudOperation;
   readonly model: string;
-  readonly context?: CrudErrorContext;
-  readonly cause?: Error;
-  readonly suggestion?: string;
-  readonly expected?: string;
-  readonly received?: unknown;
+  readonly context?: CrudErrorContext | undefined;
+  readonly cause?: Error | undefined;
+  readonly suggestion?: string | undefined;
+  readonly expected?: string | undefined;
+  readonly received?: unknown | undefined;
 }
 
 /**
@@ -74,7 +74,7 @@ export interface SerializedForjaCrudError extends SerializedForjaError {
  * Includes operation type and model name for better debugging.
  */
 export class ForjaCrudError extends ForjaError<CrudErrorContext> {
-  readonly operation: CrudOperation;
+  override readonly operation: CrudOperation;
   readonly model: string;
 
   constructor(message: string, options: ForjaCrudErrorOptions) {

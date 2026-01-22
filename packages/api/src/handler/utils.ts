@@ -5,10 +5,8 @@
  */
 
 import { ParserError } from "forja-types/api/parser";
-import { ForjaValidationError } from "forja-types/core/error/validation";
-import { ForjaError } from "forja-types/error";
-import { ApiError } from "../errors/api-error";
-import { Result } from "forja-types";
+import { ForjaValidationError } from "forja-types/errors/core/validation";
+import { ApiError, ErrorResult } from "../errors/api-error";
 
 /**
  * Create JSON response
@@ -24,9 +22,13 @@ export function jsonResponse(data: unknown, status = 200): Response {
  * Generic ForjaError to Response converter
  * Handles ApiError (with status), ForjaValidationError (400), and base ForjaError
  */
-export function forjaErrorResponse({
-  error,
-}: Result<never, ForjaError>): Response {
+export function forjaErrorResponse(errResult: ErrorResult<never>): Response {
+  if (errResult.success) {
+    // this wont happen
+    return jsonResponse({}, 500);
+  }
+  const { error } = errResult;
+
   let status = 400;
 
   if (error instanceof ApiError) {

@@ -5,22 +5,11 @@
  */
 
 import { pbkdf2Sync, randomBytes, timingSafeEqual } from 'node:crypto';
-import type { Result } from 'forja-types/utils';
-
-/**
- * Password hash error
- */
-export class PasswordError extends Error {
-  readonly code: string;
-  readonly details?: unknown;
-
-  constructor(message: string, code: string, details?: unknown) {
-    super(message);
-    this.name = 'PasswordError';
-    this.code = code;
-    this.details = details;
-  }
-}
+import {
+  throwPasswordTooShort,
+  throwPasswordHashError,
+  throwPasswordVerifyError,
+} from './error-helper';
 
 /**
  * Password hash result
@@ -67,17 +56,10 @@ export class PasswordManager {
   /**
    * Hash password using PBKDF2
    */
-  async hash(password: string): Promise<Result<PasswordHash, PasswordError>> {
+  async hash(password: string): Promise<PasswordHash> {
     // Validate password strength
     if (!password || password.length < this.minLength) {
-      return {
-        success: false,
-        error: new PasswordError(
-          `Password must be at least ${this.minLength} characters`,
-          'WEAK_PASSWORD',
-          { minLength: this.minLength, actualLength: password?.length ?? 0 }
-        ),
-      };
+      throwPasswordTooShort(this.minLength, password?.length ?? 0);
     }
 
     try {
@@ -91,19 +73,9 @@ export class PasswordManager {
         'sha512'
       ).toString('hex');
 
-      return {
-        success: true,
-        data: { hash, salt },
-      };
+      return { hash, salt };
     } catch (error) {
-      return {
-        success: false,
-        error: new PasswordError(
-          'Failed to hash password',
-          'HASH_ERROR',
-          error
-        ),
-      };
+      throwPasswordHashError(error instanceof Error ? error : undefined);
     }
   }
 
@@ -114,7 +86,7 @@ export class PasswordManager {
     password: string,
     hash: string,
     salt: string
-  ): Promise<Result<boolean, PasswordError>> {
+  ): Promise<boolean> {
     try {
       const computedHash = pbkdf2Sync(
         password,
@@ -127,16 +99,9 @@ export class PasswordManager {
       // Constant-time comparison to prevent timing attacks
       const isValid = this.constantTimeCompare(computedHash, hash);
 
-      return { success: true, data: isValid };
+      return isValid;
     } catch (error) {
-      return {
-        success: false,
-        error: new PasswordError(
-          'Failed to verify password',
-          'VERIFY_ERROR',
-          error
-        ),
-      };
+      throwPasswordVerifyError(error instanceof Error ? error : undefined);
     }
   }
 

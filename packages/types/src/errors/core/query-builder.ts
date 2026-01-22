@@ -51,12 +51,12 @@ export interface QueryBuilderErrorContext {
 export interface ForjaQueryBuilderErrorOptions {
   readonly code: QueryBuilderErrorCode;
   readonly component: QueryBuilderComponent;
-  readonly field?: string;
-  readonly context?: QueryBuilderErrorContext;
-  readonly cause?: Error;
-  readonly suggestion?: string;
-  readonly expected?: string;
-  readonly received?: unknown;
+  readonly field?: string | undefined;
+  readonly context?: QueryBuilderErrorContext | undefined;
+  readonly cause?: Error | undefined;
+  readonly suggestion?: string | undefined;
+  readonly expected?: string | undefined;
+  readonly received?: unknown | undefined;
 }
 
 /**
@@ -75,16 +75,19 @@ export interface SerializedForjaQueryBuilderError extends SerializedForjaError {
  */
 export class ForjaQueryBuilderError extends ForjaError<QueryBuilderErrorContext> {
   readonly component: QueryBuilderComponent;
-  readonly field?: string;
+  readonly field?: string | undefined;
 
-  constructor(message: string, options?: ForjaQueryBuilderErrorOptions | string) {
+  constructor(
+    message: string,
+    options?: ForjaQueryBuilderErrorOptions | string,
+  ) {
     // Backward compatibility: if options is string, it's the old 'code' parameter
     const normalizedOptions: ForjaQueryBuilderErrorOptions =
-      typeof options === "string" || options === undefined
-        ? {
-            code: (options as QueryBuilderErrorCode) || "INVALID_VALUE",
-            component: "builder",
-          }
+      typeof options === "string" || options === undefined ?
+        {
+          code: (options as QueryBuilderErrorCode) || "INVALID_VALUE",
+          component: "builder",
+        }
         : options;
 
     super(message, {

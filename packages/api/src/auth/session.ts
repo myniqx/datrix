@@ -5,10 +5,15 @@
  * Includes in-memory store by default.
  */
 
-import { randomBytes } from 'node:crypto';
-import type { SessionConfig, SessionData, SessionStore } from './types';
-import { AuthError } from 'forja-types/plugin';
-import { Result } from 'forja-types/utils';
+import { randomBytes } from "node:crypto";
+import type { SessionConfig, SessionData, SessionStore } from "./types";
+import {
+  throwSessionCreateError,
+  throwSessionNotFound,
+  throwSessionExpired,
+} from "./error-helper";
+import { Result } from "forja-types";
+import { ForjaAuthError } from "forja-types/errors";
 
 /**
  * Session Strategy
@@ -33,8 +38,8 @@ export class SessionStrategy {
   async create(
     userId: string,
     role: string,
-    data?: Record<string, unknown>
-  ): Promise<Result<SessionData, AuthError>> {
+    data?: Record<string, unknown>,
+  ): Promise<SessionData> {
     try {
       const sessionId = this.generateSessionId();
       const now = new Date();
@@ -53,81 +58,51 @@ export class SessionStrategy {
       const setResult = await this.store.set(sessionId, sessionData);
 
       if (!setResult.success) {
-        return {
-          success: false,
-          error: setResult.error,
-        };
+        throw setResult.error;
       }
 
-      return { success: true, data: sessionData };
+      return sessionData;
     } catch (error) {
-      return {
-        success: false,
-        error: new AuthError('Failed to create session', {
-          code: 'SESSION_CREATE_ERROR',
-          details: error,
-        }),
-      };
+      if (error instanceof Error && error.name === "ForjaAuthError") {
+        throw error;
+      }
+      throwSessionCreateError(error instanceof Error ? error : undefined);
     }
   }
 
   /**
    * Get session by ID
    */
-  async get(sessionId: string): Promise<Result<SessionData, AuthError>> {
-    try {
-      const getResult = await this.store.get(sessionId);
+  async get(sessionId: string): Promise<SessionData> {
+    const getResult = await this.store.get(sessionId);
 
-      if (!getResult.success) {
-        return {
-          success: false,
-          error: getResult.error,
-        };
-      }
-
-      const session = getResult.data;
-
-      if (session === undefined) {
-        return {
-          success: false,
-          error: new AuthError('Session not found', {
-            code: 'SESSION_NOT_FOUND',
-          }),
-        };
-      }
-
-      // Check if session expired
-      const now = new Date();
-      if (session.expiresAt < now) {
-        // Delete expired session
-        await this.store.delete(sessionId);
-
-        return {
-          success: false,
-          error: new AuthError('Session expired', {
-            code: 'SESSION_EXPIRED',
-          }),
-        };
-      }
-
-      // Update last accessed time
-      const updatedSession: SessionData = {
-        ...session,
-        lastAccessedAt: now,
-      };
-
-      await this.store.set(sessionId, updatedSession);
-
-      return { success: true, data: updatedSession };
-    } catch (error) {
-      return {
-        success: false,
-        error: new AuthError('Failed to get session', {
-          code: 'SESSION_GET_ERROR',
-          details: error,
-        }),
-      };
+    if (!getResult.success) {
+      throw getResult.error;
     }
+
+    const session = getResult.data;
+
+    if (session === undefined) {
+      throwSessionNotFound(sessionId);
+    }
+
+    // Check if session expired
+    const now = new Date();
+    if (session.expiresAt < now) {
+      // Delete expired session
+      await this.store.delete(sessionId);
+      throwSessionExpired(sessionId);
+    }
+
+    // Update last accessed time
+    const updatedSession: SessionData = {
+      ...session,
+      lastAccessedAt: now,
+    };
+
+    await this.store.set(sessionId, updatedSession);
+
+    return updatedSession;
   }
 
   /**
@@ -135,56 +110,40 @@ export class SessionStrategy {
    */
   async update(
     sessionId: string,
-    data: Partial<Omit<SessionData, 'id' | 'createdAt'>>
-  ): Promise<Result<SessionData, AuthError>> {
-    try {
-      const getResult = await this.get(sessionId);
+    data: Partial<Omit<SessionData, "id" | "createdAt">>,
+  ): Promise<SessionData> {
+    const session = await this.get(sessionId);
 
-      if (!getResult.success) {
-        return getResult;
-      }
+    const updatedSession: SessionData = {
+      ...session,
+      ...data,
+      id: session.id, // Preserve ID
+      createdAt: session.createdAt, // Preserve creation time
+    };
 
-      const session = getResult.data;
+    const setResult = await this.store.set(sessionId, updatedSession);
 
-      const updatedSession: SessionData = {
-        ...session,
-        ...data,
-        id: session.id, // Preserve ID
-        createdAt: session.createdAt, // Preserve creation time
-      };
-
-      const setResult = await this.store.set(sessionId, updatedSession);
-
-      if (!setResult.success) {
-        return {
-          success: false,
-          error: setResult.error,
-        };
-      }
-
-      return { success: true, data: updatedSession };
-    } catch (error) {
-      return {
-        success: false,
-        error: new AuthError('Failed to update session', {
-          code: 'SESSION_UPDATE_ERROR',
-          details: error,
-        }),
-      };
+    if (!setResult.success) {
+      throw setResult.error;
     }
+
+    return updatedSession;
   }
 
   /**
    * Delete session
    */
-  async delete(sessionId: string): Promise<Result<void, AuthError>> {
-    return this.store.delete(sessionId);
+  async delete(sessionId: string): Promise<void> {
+    const result = await this.store.delete(sessionId);
+    if (!result.success) {
+      throw result.error;
+    }
   }
 
   /**
    * Refresh session (extend expiration)
    */
-  async refresh(sessionId: string): Promise<Result<SessionData, AuthError>> {
+  async refresh(sessionId: string): Promise<SessionData> {
     const now = new Date();
     const expiresAt = new Date(now.getTime() + this.maxAge * 1000);
 
@@ -194,12 +153,13 @@ export class SessionStrategy {
   /**
    * Validate session (check if exists and not expired)
    */
-  async validate(sessionId: string): Promise<Result<boolean, AuthError>> {
-    const getResult = await this.get(sessionId);
-    return {
-      success: true,
-      data: getResult.success,
-    };
+  async validate(sessionId: string): Promise<boolean> {
+    try {
+      await this.get(sessionId);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -231,15 +191,18 @@ export class SessionStrategy {
   /**
    * Clear all sessions
    */
-  async clear(): Promise<Result<void, AuthError>> {
-    return this.store.clear();
+  async clear(): Promise<void> {
+    const result = await this.store.clear();
+    if (!result.success) {
+      throw result.error;
+    }
   }
 
   /**
    * Generate secure session ID
    */
   private generateSessionId(): string {
-    return randomBytes(32).toString('hex');
+    return randomBytes(32).toString("hex");
   }
 }
 
@@ -249,17 +212,17 @@ export class SessionStrategy {
  * Default session store implementation using Map
  */
 export class MemorySessionStore implements SessionStore {
-  readonly name = 'memory' as const;
+  readonly name = "memory" as const;
   private readonly sessions: Map<string, SessionData> = new Map();
   private readonly prefix: string;
 
-  constructor(prefix = 'sess:') {
+  constructor(prefix = "sess:") {
     this.prefix = prefix;
   }
 
   async get(
-    sessionId: string
-  ): Promise<Result<SessionData | undefined, AuthError>> {
+    sessionId: string,
+  ): Promise<Result<SessionData | undefined, ForjaAuthError>> {
     try {
       const key = this.getKey(sessionId);
       const session = this.sessions.get(key);
@@ -268,9 +231,9 @@ export class MemorySessionStore implements SessionStore {
     } catch (error) {
       return {
         success: false,
-        error: new AuthError('Failed to get session from store', {
-          code: 'SESSION_STORE_ERROR',
-          details: error,
+        error: new ForjaAuthError("Failed to get session from store", {
+          code: "SESSION_CREATE_ERROR",
+          strategy: "session",
         }),
       };
     }
@@ -278,8 +241,8 @@ export class MemorySessionStore implements SessionStore {
 
   async set(
     sessionId: string,
-    data: SessionData
-  ): Promise<Result<void, AuthError>> {
+    data: SessionData,
+  ): Promise<Result<void, ForjaAuthError>> {
     try {
       const key = this.getKey(sessionId);
       this.sessions.set(key, data);
@@ -288,15 +251,15 @@ export class MemorySessionStore implements SessionStore {
     } catch (error) {
       return {
         success: false,
-        error: new AuthError('Failed to set session in store', {
-          code: 'SESSION_STORE_ERROR',
-          details: error,
+        error: new ForjaAuthError("Failed to set session in store", {
+          code: "SESSION_CREATE_ERROR",
+          strategy: "session",
         }),
       };
     }
   }
 
-  async delete(sessionId: string): Promise<Result<void, AuthError>> {
+  async delete(sessionId: string): Promise<Result<void, ForjaAuthError>> {
     try {
       const key = this.getKey(sessionId);
       this.sessions.delete(key);
@@ -305,15 +268,15 @@ export class MemorySessionStore implements SessionStore {
     } catch (error) {
       return {
         success: false,
-        error: new AuthError('Failed to delete session from store', {
-          code: 'SESSION_STORE_ERROR',
-          details: error,
+        error: new ForjaAuthError("Failed to delete session from store", {
+          code: "SESSION_DELETE_ERROR",
+          strategy: "session",
         }),
       };
     }
   }
 
-  async cleanup(): Promise<Result<number, AuthError>> {
+  async cleanup(): Promise<Result<number, ForjaAuthError>> {
     try {
       const now = new Date();
       let deletedCount = 0;
@@ -329,24 +292,24 @@ export class MemorySessionStore implements SessionStore {
     } catch (error) {
       return {
         success: false,
-        error: new AuthError('Failed to cleanup sessions', {
-          code: 'SESSION_CLEANUP_ERROR',
-          details: error,
+        error: new ForjaAuthError("Failed to cleanup sessions", {
+          code: "SESSION_CREATE_ERROR",
+          strategy: "session",
         }),
       };
     }
   }
 
-  async clear(): Promise<Result<void, AuthError>> {
+  async clear(): Promise<Result<void, ForjaAuthError>> {
     try {
       this.sessions.clear();
       return { success: true, data: undefined };
     } catch (error) {
       return {
         success: false,
-        error: new AuthError('Failed to clear sessions', {
-          code: 'SESSION_STORE_ERROR',
-          details: error,
+        error: new ForjaAuthError("Failed to clear sessions", {
+          code: "SESSION_CREATE_ERROR",
+          strategy: "session",
         }),
       };
     }
@@ -362,7 +325,7 @@ export class MemorySessionStore implements SessionStore {
  */
 export function createSessionStrategy(
   config: SessionConfig,
-  store?: SessionStore
+  store?: SessionStore,
 ): SessionStrategy {
   return new SessionStrategy(config, store);
 }

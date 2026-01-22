@@ -24,7 +24,7 @@ import { whereError } from "./errors";
  * Type guard for parser error results
  */
 function isParserErrorResult(
-  value: unknown
+  value: unknown,
 ): value is Result<never, ParserError> {
   return (
     typeof value === "object" &&
@@ -83,10 +83,15 @@ export function parseWhere(
         const previousPart = parts[i - 1]!;
         // Allow array index after logical operators ($or, $and, $not) and array operators ($in, $nin)
         if (!["$or", "$and", "$not", "$in", "$nin"].includes(previousPart)) {
-          return whereError.invalidArrayIndex(part, previousPart, parts.slice(0, i), {
-            previousOperator: previousPart,
-            operatorPath: key,
-          });
+          return whereError.invalidArrayIndex(
+            part,
+            previousPart,
+            parts.slice(0, i),
+            {
+              previousOperator: previousPart,
+              operatorPath: key,
+            },
+          );
         }
       } else {
         // It's a field name - validate it
@@ -205,7 +210,9 @@ function transformToFinalWhere(obj: unknown): Result<unknown, ParserError> {
         const sortedKeys = numericKeys.sort((a, b) => a - b);
 
         if (sortedKeys.length > 0 && sortedKeys[0] !== 0) {
-          return whereError.arrayIndexNotStartingFromZero(sortedKeys[0], key, [key]);
+          return whereError.arrayIndexNotStartingFromZero(sortedKeys[0]!, key, [
+            key,
+          ]);
         }
 
         for (let i = 0; i < sortedKeys.length; i++) {
@@ -397,11 +404,10 @@ function validateNestingDepth(
       // Recursively check each condition
       for (const condition of value) {
         if (typeof condition === "object" && condition !== null) {
-          const result = validateNestingDepth(
-            condition as WhereClause,
-            depth + 1,
-            [...path, key]
-          );
+          const result = validateNestingDepth(condition as WhereClause, depth + 1, [
+            ...path,
+            key,
+          ]);
           if (!result.success) {
             return result;
           }
@@ -413,7 +419,10 @@ function validateNestingDepth(
       !Array.isArray(value)
     ) {
       // Recursively check nested objects
-      const result = validateNestingDepth(value as WhereClause, depth, [...path, key]);
+      const result = validateNestingDepth(value as WhereClause, depth, [
+        ...path,
+        key,
+      ]);
       if (!result.success) {
         return result;
       }

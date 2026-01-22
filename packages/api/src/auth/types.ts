@@ -5,10 +5,10 @@
  * Permission/RBAC types are now in forja-types/core/permission.
  */
 
-import type { AuthError } from "forja-types/plugin";
 import type { Result } from "forja-types/utils";
 import type { DefaultPermission } from "forja-types/core/permission";
 import type { PasswordConfig } from "./password";
+import type { ForjaAuthError } from "forja-types/errors";
 
 // Re-export permission types from the new location
 export type {
@@ -112,11 +112,11 @@ export interface SessionData {
 export interface SessionStore {
   readonly name: SessionStoreType;
 
-  get(sessionId: string): Promise<Result<SessionData | undefined, AuthError>>;
-  set(sessionId: string, data: SessionData): Promise<Result<void, AuthError>>;
-  delete(sessionId: string): Promise<Result<void, AuthError>>;
-  cleanup(): Promise<Result<number, AuthError>>; // Returns number of deleted sessions
-  clear(): Promise<Result<void, AuthError>>;
+  get(sessionId: string): Promise<Result<SessionData | undefined, ForjaAuthError>>;
+  set(sessionId: string, data: SessionData): Promise<Result<void, ForjaAuthError>>;
+  delete(sessionId: string): Promise<Result<void, ForjaAuthError>>;
+  cleanup(): Promise<Result<number, ForjaAuthError>>; // Returns number of deleted sessions
+  clear(): Promise<Result<void, ForjaAuthError>>;
 }
 
 /**
@@ -196,7 +196,7 @@ export type AuthPluginOptions = AuthConfig<string>;
  * Authenticated user
  */
 export interface AuthUser {
-  readonly id: string;
+  readonly id: number;
   readonly email: string;
   readonly role: string;
   readonly [key: string]: unknown;

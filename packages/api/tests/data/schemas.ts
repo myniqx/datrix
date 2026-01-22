@@ -1,6 +1,6 @@
-import { defineSchema } from "forja-types/core/schema";
+import { defineSchema, ForjaEntry } from "forja-types/core/schema";
 import type { PermissionContext } from "forja-types/core/permission";
-import { RequestContext } from "forja-api";
+import { Forja } from "forja-core";
 
 /**
  * Test Roles Type
@@ -190,8 +190,10 @@ export const productSchema = defineSchema({
     update: [
       "admin" as TestRoles,
       "editor" as TestRoles,
-      async (ctx: RequestContext) => {
-        const record = await ctx.forja.findById("product", ctx.id!);
+      async (ctx: PermissionContext) => {
+        const record = await (ctx.forja as Forja).findById<
+          { createdBy: string } & ForjaEntry
+        >("product", ctx.id!);
 
         console.log(record);
         return ctx.user?.["id"] === record?.["createdBy"];
