@@ -70,6 +70,7 @@ interface RegistryCache {
   relatedSchemas: Map<string, readonly string[]>;
   referencingSchemas: Map<string, readonly string[]>;
   fieldTypeIndex: Map<string, readonly SchemaDefinition[]>;
+  selectFields: Map<string, readonly string[]>; // Cached select field lists
 }
 
 /**
@@ -84,6 +85,7 @@ export class SchemaRegistry {
     relatedSchemas: new Map(),
     referencingSchemas: new Map(),
     fieldTypeIndex: new Map(),
+    selectFields: new Map(),
   };
 
   constructor(config?: SchemaRegistryConfig) {
@@ -101,6 +103,7 @@ export class SchemaRegistry {
     this.cache.relatedSchemas.clear();
     this.cache.referencingSchemas.clear();
     this.cache.fieldTypeIndex.clear();
+    this.cache.selectFields.clear();
   }
 
   /**
@@ -426,6 +429,75 @@ export class SchemaRegistry {
   }
 
   /**
+   * Get select fields for a model (with caching)
+   * Resolves "*" to clean field list (excludes hidden and relation fields)
+   * Adds reserved fields to user-provided select arrays
+   *
+   * @param modelName - Model name
+   * @param userSelect - User-provided select clause ("*", array, or undefined)
+   * @returns Clean select field list
+   *
+   * @example
+   * ```ts
+   * // userSelect = "*" → ["id", "name", "price", "createdAt", "updatedAt"]
+   * // (categoryId hidden, category relation excluded)
+   *
+   * // userSelect = ["name", "price"] → ["id", "name", "price", "createdAt", "updatedAt"]
+   * // (reserved fields added)
+   * ```
+   */
+  getSelectFieldsFor(
+    modelName: string,
+    userSelect?: readonly string[] | "*",
+  ): readonly string[] | "*" {
+    const schema = this.get(modelName);
+    if (!schema) {
+      throw new SchemaRegistryError(`Schema not found: ${modelName}`, {
+        code: "SCHEMA_NOT_FOUND",
+      });
+    }
+
+    // If userSelect is an array, add reserved fields and return
+    if (Array.isArray(userSelect)) {
+      const selectSet = new Set(userSelect);
+      // Add reserved fields
+      selectSet.add("id");
+      selectSet.add("createdAt");
+      selectSet.add("updatedAt");
+      return Array.from(selectSet);
+    }
+
+    // userSelect is "*" or undefined → build clean field list from schema
+    // Check cache first
+    const cacheKey = modelName;
+    const cached = this.cache.selectFields.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    // Build clean field list: exclude hidden and relation fields
+    const cleanFields: string[] = [];
+    for (const [fieldName, fieldDef] of Object.entries(schema.fields)) {
+      // Skip hidden fields (e.g., foreign keys)
+      if ((fieldDef as { hidden?: boolean }).hidden) {
+        continue;
+      }
+
+      // Skip relation fields (they're not actual columns)
+      if (fieldDef.type === "relation") {
+        continue;
+      }
+
+      cleanFields.push(fieldName);
+    }
+
+    // Cache the result
+    this.cache.selectFields.set(cacheKey, cleanFields);
+
+    return cleanFields;
+  }
+
+  /**
    * Validate all relations
    */
   validateRelations(): Result<void, SchemaRegistryError> {
@@ -570,6 +642,7 @@ export class SchemaRegistry {
             enhancedFields[foreignKey] = {
               type: "number",
               required: (field as any).required ?? false,
+              hidden: true, // Hide foreign keys from responses
             };
           }
 
@@ -589,6 +662,7 @@ export class SchemaRegistry {
             targetFields[foreignKey] = {
               type: "number",
               required: false,
+              hidden: true, // Hide foreign keys from responses
             };
           }
 
@@ -607,7 +681,11 @@ export class SchemaRegistry {
 
         // manyToMany → Create junction table
         if (relation.kind === "manyToMany") {
-          const junctionResult = this.createJunctionTable(schemaName, fieldName, relation);
+          const junctionResult = this.createJunctionTable(
+            schemaName,
+            fieldName,
+            relation,
+          );
           if (!junctionResult.success) {
             return junctionResult;
           }
@@ -632,8 +710,8 @@ export class SchemaRegistry {
     fieldName: string,
     relation: RelationField,
   ): Result<void, SchemaRegistryError> {
-    const junctionTableName = relation.through ??
-      this.getJunctionTableName(schemaName, relation.model);
+    const junctionTableName =
+      relation.through ?? this.getJunctionTableName(schemaName, relation.model);
 
     // Check if junction table already exists
     if (this.schemas.has(junctionTableName)) {

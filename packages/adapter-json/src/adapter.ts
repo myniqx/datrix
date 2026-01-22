@@ -373,11 +373,21 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
       switch (query.type) {
         case "select":
         case "count": {
-          rows = runner.run(query);
+          // Step 1: Filter and sort (WITHOUT projection - keep all fields for populate)
+          if (query.type === "select" && query.populate) {
+            rows = runner.filterAndSort(query);
+          } else {
+            // No populate - use normal flow with projection
+            rows = runner.run(query);
+          }
 
+          // Step 2: Populate (all fields available)
           if (query.type === "select" && query.populate) {
             const populator = new JsonPopulator(this);
             rows = await populator.populate(rows, query);
+
+            // Step 3: Apply select recursively (preserves populated fields, applies nested selects)
+            rows = this.applySelectRecursive(rows, query.select, query.populate);
           }
 
           if (query.type === "count") {
@@ -635,6 +645,85 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Apply SELECT recursively (preserves populated fields)
+   * This ensures that:
+   * 1. Top-level select keeps populated relation fields
+   * 2. Nested populate selects are applied to related data
+   *
+   * @param rows - Data rows (may contain populated relations)
+   * @param select - Fields to select at this level
+   * @param populate - Populate configuration (contains nested selects)
+   * @returns Rows with select applied recursively
+   */
+  private applySelectRecursive(
+    rows: Record<string, unknown>[],
+    select?: readonly string[] | "*",
+    populate?: QueryObject["populate"],
+  ): Record<string, unknown>[] {
+    if (!rows || rows.length === 0) {
+      return rows;
+    }
+
+    let result = rows;
+
+    // Apply top-level select (but preserve populated fields)
+    if (select && select !== "*") {
+      const fieldsToKeep = new Set(select);
+
+      // Add populated relation fields to keep them
+      if (populate) {
+        for (const relationName of Object.keys(populate)) {
+          fieldsToKeep.add(relationName);
+        }
+      }
+
+      // Project fields
+      result = rows.map((row) => {
+        const projected: Record<string, unknown> = {};
+        for (const field of fieldsToKeep) {
+          if (field in row) {
+            projected[field] = row[field];
+          }
+        }
+        return projected;
+      });
+    }
+
+    // Apply nested select to populated relations
+    if (populate) {
+      for (const [relationName, options] of Object.entries(populate)) {
+        if (typeof options === "boolean") continue;
+
+        const nestedSelect = options.select;
+        const nestedPopulate = options.populate;
+
+        for (const row of result) {
+          const relationValue = row[relationName];
+          if (!relationValue) continue;
+
+          if (Array.isArray(relationValue)) {
+            // hasMany relation
+            row[relationName] = this.applySelectRecursive(
+              relationValue as Record<string, unknown>[],
+              nestedSelect,
+              nestedPopulate,
+            );
+          } else {
+            // belongsTo/hasOne relation
+            row[relationName] = this.applySelectRecursive(
+              [relationValue as Record<string, unknown>],
+              nestedSelect,
+              nestedPopulate,
+            )[0];
+          }
+        }
+      }
+    }
+
+    return result;
   }
 
   /**

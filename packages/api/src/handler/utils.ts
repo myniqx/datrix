@@ -4,6 +4,8 @@
  * Shared utility functions for handlers
  */
 
+import { ParserError } from "forja-types/api/parser";
+
 /**
  * Create JSON response
  */
@@ -23,6 +25,27 @@ export function errorResponse(
   status = 500,
 ): Response {
   return jsonResponse({ error: { message, code } }, status);
+}
+
+/**
+ * Create detailed parser error response
+ * Uses ParserError.toJSON() for rich error context
+ */
+export function parserErrorResponse(error: ParserError): Response {
+  const serialized = error.toJSON();
+
+  return new Response(
+    JSON.stringify({
+      error: {
+        type: "ParserError",
+        ...serialized,
+      },
+    }),
+    {
+      status: 400, // Parser errors are client errors
+      headers: { "Content-Type": "application/json" },
+    }
+  );
 }
 
 /**

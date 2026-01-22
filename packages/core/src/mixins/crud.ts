@@ -14,7 +14,12 @@ import {
   RelationField,
   RelationInput,
 } from "forja-types/core/schema";
-import { QueryObject, WhereClause, SelectClause } from "forja-types/core/query-builder";
+import {
+  QueryObject,
+  WhereClause,
+  SelectClause,
+  PopulateClause,
+} from "forja-types/core/query-builder";
 import { QueryAction } from "forja-types/plugin";
 import { ForjaError } from "../forja";
 import { Dispatcher } from "../dispatcher";
@@ -93,8 +98,8 @@ export class CrudOperations implements IRawCrud {
       type: "select",
       table: tableName!,
       where,
-      select: options?.select ?? "*",
-      populate: options?.populate ?? false,
+      select: this.processSelect(model, options?.select),
+      populate: this.processPopulate(model, options?.populate),
       limit: 1,
     };
 
@@ -165,8 +170,8 @@ export class CrudOperations implements IRawCrud {
       type: "select",
       table: tableName!,
       where: options?.where,
-      select: options?.select ?? "*",
-      populate: options?.populate ?? false,
+      select: this.processSelect(model, options?.select),
+      populate: this.processPopulate(model, options?.populate),
       orderBy: options?.orderBy,
       limit: options?.limit,
       offset: options?.offset,
@@ -280,15 +285,23 @@ export class CrudOperations implements IRawCrud {
 
     // Process relations (connect/disconnect/set)
     for (const [fieldName, relationData] of Object.entries(relations)) {
-      await this.processRelation(model, insertedId, fieldName, relationData, schema);
+      await this.processRelation(
+        model,
+        insertedId,
+        fieldName,
+        relationData,
+        schema,
+      );
     }
 
-    // Fetch created record with options applied (ensure reserved fields in select and populate)
-    const fetchOptions = options ? {
-      ...options,
-      select: this.ensureReservedFieldsInSelect(options.select),
-      populate: this.ensureReservedFieldsInPopulate(options.populate),
-    } : undefined;
+    // Fetch created record with options applied (process select and populate)
+    const fetchOptions =
+      options ?
+        {
+          select: this.processSelect(model, options.select),
+          populate: this.processPopulate(model, options.populate),
+        }
+        : undefined;
 
     return (await this.findById<T>(model, insertedId, fetchOptions))!;
   }
@@ -359,12 +372,14 @@ export class CrudOperations implements IRawCrud {
       await this.processRelation(model, id, fieldName, relationData, schema);
     }
 
-    // Fetch updated record with options applied (ensure reserved fields in select and populate)
-    const fetchOptions = options ? {
-      ...options,
-      select: this.ensureReservedFieldsInSelect(options.select),
-      populate: this.ensureReservedFieldsInPopulate(options.populate),
-    } : undefined;
+    // Fetch updated record with options applied (process select and populate)
+    const fetchOptions =
+      options ?
+        {
+          select: this.processSelect(model, options.select),
+          populate: this.processPopulate(model, options.populate),
+        }
+        : undefined;
 
     return (await this.findById<T>(model, id, fetchOptions))!;
   }
@@ -534,53 +549,81 @@ export class CrudOperations implements IRawCrud {
    * @returns Select with reserved fields guaranteed
    */
   /**
-   * Ensure reserved fields (id, createdAt, updatedAt) are included in select
-   * Handles both top-level select and nested populate select fields
+   * Process select clause using SchemaRegistry
+   * - Resolves "*" to clean field list (excludes hidden & relation fields)
+   * - Adds reserved fields to user-provided arrays
+   *
+   * @param model - Model name
+   * @param select - User-provided select clause
+   * @returns Processed select clause
    */
-  private ensureReservedFieldsInSelect(select?: SelectClause): SelectClause {
-    // If select is "*" or undefined, return as-is
-    if (!select || select === "*") {
-      return select || "*";
-    }
-
-    // Ensure all reserved fields are present
-    const selectSet = new Set(select);
-    for (const field of RESERVED_FIELDS) {
-      selectSet.add(field);
-    }
-
-    return Array.from(selectSet);
+  private processSelect(model: string, select?: SelectClause): SelectClause {
+    return this.schemas.getSelectFieldsFor(model, select);
   }
 
   /**
-   * Ensure reserved fields in populate object (nested support)
-   * Recursively processes populate tree and adds reserved fields to all select clauses
+   * Process populate object (nested support)
+   * - Converts populate[relation]=true to populate[relation]={select: [...]}
+   * - Recursively processes nested populate
+   * - Uses SchemaRegistry to resolve clean field lists
+   *
+   * @param model - Current model name
+   * @param populate - Populate configuration
+   * @returns Processed populate object
    */
-  private ensureReservedFieldsInPopulate(
-    populate?: PopulateClause | false,
-  ): PopulateClause | false {
-    if (!populate || populate === false) {
+  private processPopulate(
+    model: string,
+    populate?: PopulateClause,
+  ): PopulateClause | undefined {
+    if (!populate) {
       return populate;
     }
 
-    const result: PopulateClause = {};
+    const schema = this.getSchema(model);
+    const result: Record<string, object> = {};
 
-    for (const [key, value] of Object.entries(populate)) {
+    for (const [relationName, value] of Object.entries(populate)) {
+      const field = schema.fields[relationName];
+      if (!field || field.type !== "relation") {
+        // Skip non-relation fields
+        continue;
+      }
+
+      const relationField = field as RelationField;
+      const targetModel = relationField.model;
+
       if (typeof value === "boolean") {
-        // populate[category]=true → no changes needed
-        result[key] = value;
-      } else {
-        // populate[category]={ select: [...], populate: {...} }
-        result[key] = {
-          ...value,
-          // Ensure reserved fields in select
-          select: value.select ? this.ensureReservedFieldsInSelect(value.select) : value.select,
-          // Recursively process nested populate
-          populate: value.populate ? this.ensureReservedFieldsInPopulate(value.populate) : value.populate,
+        // populate[category]=true → convert to { select: [...] }
+        result[relationName] = {
+          select: this.processSelect(targetModel, "*"),
         };
+      } else if (typeof value === "object") {
+        // populate[category]={ select: [...], populate: {...} }
+        result[relationName] = {
+          ...value,
+          // Process select for this level
+          select: this.processSelect(targetModel, value.select),
+          // Recursively process nested populate
+          populate:
+            value.populate ?
+              this.processPopulate(targetModel, value.populate)
+              : value.populate,
+        };
+      } else if (value === "*") {
+        // populate[category]=* → convert to { select: [...] }
+        result[relationName] = {
+          select: this.processSelect(targetModel, "*"),
+        };
+      } else {
+        // Invalid value
+        throw new ForjaError(
+          `Invalid populate value for ${model}.${relationName}: ${value}`,
+          "INVALID_POPULATE_VALUE",
+        );
       }
     }
 
+    // Return populated object
     return result;
   }
 
@@ -640,9 +683,10 @@ export class CrudOperations implements IRawCrud {
     // belongsTo / hasOne → Update THIS record's foreign key
     if (relation.kind === "belongsTo" || relation.kind === "hasOne") {
       if (relData.connect) {
-        const connectId = Array.isArray(relData.connect)
-          ? relData.connect[0]?.id
-          : relData.connect.id;
+        const connectId =
+          Array.isArray(relData.connect) ?
+            relData.connect[0]?.id
+            : relData.connect.id;
         if (connectId !== undefined) {
           await this.update(model, recordId, { [foreignKey]: connectId });
         }
@@ -651,7 +695,10 @@ export class CrudOperations implements IRawCrud {
         await this.update(model, recordId, { [foreignKey]: null });
       }
       if (relData.set) {
-        const setId = relData.set[0]?.id;
+        // set can be array or single object for belongsTo/hasOne
+        const setId = Array.isArray(relData.set) ?
+          relData.set[0]?.id
+          : (relData.set as { id: string | number })?.id;
         await this.update(model, recordId, {
           [foreignKey]: setId ?? null,
         });
@@ -663,9 +710,10 @@ export class CrudOperations implements IRawCrud {
       const reverseForeignKey = relation.foreignKey ?? `${model}Id`;
 
       if (relData.connect) {
-        const ids = Array.isArray(relData.connect)
-          ? relData.connect.map((c) => c.id)
-          : [relData.connect.id];
+        const ids =
+          Array.isArray(relData.connect) ?
+            relData.connect.map((c) => c.id)
+            : [relData.connect.id];
         if (ids.length > 0) {
           await this.updateMany(
             relation.model,
@@ -676,9 +724,10 @@ export class CrudOperations implements IRawCrud {
       }
 
       if (relData.disconnect) {
-        const ids = Array.isArray(relData.disconnect)
-          ? relData.disconnect.map((c) => c.id)
-          : [relData.disconnect.id];
+        const ids =
+          Array.isArray(relData.disconnect) ?
+            relData.disconnect.map((c) => c.id)
+            : [relData.disconnect.id];
         if (ids.length > 0) {
           await this.updateMany(
             relation.model,

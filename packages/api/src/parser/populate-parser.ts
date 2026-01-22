@@ -10,9 +10,9 @@
  */
 
 import type { RawQueryParams, PopulateParserResult } from 'forja-types/api/parser';
-import { ParserError } from 'forja-types/api/parser';
 import { PopulateOptions } from 'forja-types/core/query-builder';
 import { isValidFieldName } from 'forja-types/core/constants';
+import { populateError } from './errors';
 
 /**
  * Default max populate depth
@@ -32,14 +32,9 @@ export function parsePopulate(
 ): PopulateParserResult {
   // Validate maxDepth
   if (maxDepth <= 0) {
-    return {
-      success: false,
-      error: new ParserError(`Maximum populate depth must be greater than 0`, {
-        code: 'INVALID_SYNTAX',
-        field: 'populate',
-        details: { maxDepth }
-      })
-    };
+    return populateError.maxDepthExceeded(maxDepth, maxDepth, ['config'], {
+      maxDepth,
+    });
   }
 
   // Build populate clause
@@ -57,14 +52,7 @@ export function parsePopulate(
       // Handle empty or whitespace-only string
       const trimmed = mainPopulate.trim();
       if (trimmed === '') {
-        return {
-          success: false,
-          error: new ParserError('Populate value cannot be empty', {
-            code: 'INVALID_SYNTAX',
-            field: 'populate',
-            details: { value: mainPopulate }
-          })
-        };
+        return populateError.emptyValue([]);
       }
 
       // Handle comma-separated: populate=author,comments
@@ -72,14 +60,7 @@ export function parsePopulate(
       for (const rel of relations) {
         // Validate relation name
         if (!isValidFieldName(rel)) {
-          return {
-            success: false,
-            error: new ParserError(`Invalid relation name: ${rel}`, {
-              code: 'INVALID_SYNTAX',
-              field: 'populate',
-              details: { relationName: rel }
-            })
-          };
+          return populateError.invalidRelation(rel, [rel]);
         }
         populateClause[rel] = '*';
       }
@@ -90,28 +71,14 @@ export function parsePopulate(
           const trimmed = rel.trim();
           // Validate relation name
           if (!isValidFieldName(trimmed)) {
-            return {
-              success: false,
-              error: new ParserError(`Invalid relation name: ${trimmed}`, {
-                code: 'INVALID_SYNTAX',
-                field: 'populate',
-                details: { relationName: trimmed }
-              })
-            };
+            return populateError.invalidRelation(trimmed, [trimmed]);
           }
           populateClause[trimmed] = '*';
         }
       }
     } else {
       // Invalid type (number, object, etc.)
-      return {
-        success: false,
-        error: new ParserError('Populate value must be a string or array', {
-          code: 'INVALID_SYNTAX',
-          field: 'populate',
-          details: { type: typeof mainPopulate }
-        })
-      };
+      return populateError.invalidType(typeof mainPopulate, []);
     }
   }
 
@@ -285,28 +252,22 @@ function parseRelationPath(relationData: Record<string, unknown>, path: string, 
 /**
  * Parse a single relation into PopulateOptions
  */
-function parseRelation(relation: string, params: RelationParams, currentDepth: number, maxDepth: number): { success: false; error: ParserError } | { success: true; data: PopulateOptions | '*' } {
+function parseRelation(relation: string, params: RelationParams, currentDepth: number, maxDepth: number, path: string[] = []): { success: false; error: import("forja-types/api/parser").ParserError } | { success: true; data: PopulateOptions | '*' } {
   // Validate relation name
   if (!isValidFieldName(relation)) {
-    return {
-      success: false,
-      error: new ParserError(`Invalid relation name: ${relation}`, {
-        code: 'INVALID_SYNTAX',
-        field: 'populate',
-        details: { relationName: relation }
-      })
-    };
+    return populateError.invalidRelation(relation, [...path, relation], {
+      relationPath: [...path, relation].join('.'),
+    });
   }
 
   // Check depth
   if (currentDepth > maxDepth) {
-    return {
-      success: false,
-      error: new ParserError(`Maximum populate depth (${maxDepth}) exceeded`, {
-        code: 'MAX_DEPTH_EXCEEDED',
-        field: relation
-      })
-    };
+    return populateError.maxDepthExceeded(currentDepth, maxDepth, [...path, relation], {
+      relation,
+      relationPath: [...path, relation].join('.'),
+      currentDepth,
+      nestedRelations: [...path, relation],
+    });
   }
 
   // Handle wildcard
@@ -334,7 +295,8 @@ function parseRelation(relation: string, params: RelationParams, currentDepth: n
         nestedRelation,
         nestedParams,
         currentDepth + 1,
-        maxDepth
+        maxDepth,
+        [...path, relation]
       );
 
       if (!parseResult.success) {

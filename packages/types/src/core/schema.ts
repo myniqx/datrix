@@ -78,6 +78,12 @@ interface BaseFieldDefinition<TRoles extends string = string> {
   readonly default?: unknown;
   readonly description?: string;
   /**
+   * If true, field is excluded from SELECT queries by default
+   * Used for auto-generated fields like foreign keys that shouldn't appear in responses
+   * @internal
+   */
+  readonly hidden?: boolean;
+  /**
    * Field-level permission configuration
    * - `read`: If denied, field is stripped from response
    * - `write`: If denied, returns 403 error
@@ -440,6 +446,11 @@ export interface SchemaRegistry {
   getRelatedSchemas(schemaName: string): readonly string[];
   /** Check if registry is locked */
   isLocked(): boolean;
+  /** Get select fields for a model  */
+  getSelectFieldsFor(
+    modelName: string,
+    userSelect?: readonly string[] | "*",
+  ): readonly string[] | "*";
 }
 
 /**

@@ -8,6 +8,7 @@
 import type { RequestContext, HttpMethod, ContextBuilderOptions } from './types';
 import type { Forja } from 'forja-core';
 import type { IApiPlugin } from '../interface';
+import { ParserError } from 'forja-types/api/parser';
 import { methodToAction } from './permission';
 import { parseQuery } from '../parser';
 
@@ -46,6 +47,19 @@ function extractIdFromPath(pathname: string, prefix: string): string | null {
 }
 
 /**
+ * Parser error wrapper for context building
+ */
+export class ContextBuildError extends Error {
+  readonly parserError: ParserError;
+
+  constructor(parserError: ParserError) {
+    super(parserError.message);
+    this.name = "ContextBuildError";
+    this.parserError = parserError;
+  }
+}
+
+/**
  * Build Request Context
  *
  * This is the CENTRALIZED place where:
@@ -56,6 +70,8 @@ function extractIdFromPath(pathname: string, prefix: string): string | null {
  * 5. Body parsing happens
  *
  * ALL requests go through this function ONCE
+ *
+ * @throws {ContextBuildError} When query parsing fails
  */
 export async function buildRequestContext<TRole extends string = string>(
   request: Request,
@@ -104,7 +120,13 @@ export async function buildRequestContext<TRole extends string = string>(
 
   if (Object.keys(queryParams).length > 0) {
     const parseResult = parseQuery(queryParams);
-    query = parseResult.success ? parseResult.data : null;
+
+    if (!parseResult.success) {
+      // Throw wrapped error so unified handler can catch and format it
+      throw new ContextBuildError(parseResult.error);
+    }
+
+    query = parseResult.data;
   }
 
   // 6. PARSE BODY (for POST/PATCH/PUT requests)

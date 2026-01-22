@@ -154,10 +154,6 @@ export class ApiPlugin<TRole extends string = string>
     const authSchema = defineSchema({
       name: this.authSchemaName,
       fields: {
-        id: {
-          type: "string",
-          required: true,
-        },
         user: {
           type: "relation",
           required: true,

@@ -17,9 +17,24 @@ import {
   isValidWhereOperator,
   isLogicalOperator,
   getOperatorValueType,
-  MAX_WHERE_VALUE_LENGTH,
-  MAX_LOGICAL_NESTING_DEPTH,
 } from "forja-types/core/constants";
+import { whereError } from "./errors";
+
+/**
+ * Type guard for parser error results
+ */
+function isParserErrorResult(
+  value: unknown
+): value is Result<never, ParserError> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "success" in value &&
+    value.success === false &&
+    "error" in value &&
+    value.error instanceof ParserError
+  );
+}
 
 /**
  * Parse where parameter
@@ -54,58 +69,29 @@ export function parseWhere(
       if (part.startsWith("$")) {
         // Validate operator
         if (!isValidWhereOperator(part)) {
-          return {
-            success: false,
-            error: new ParserError(`Invalid WHERE operator: ${part}`, {
-              code: "INVALID_OPERATOR",
-              field: "where",
-              details: { operator: part },
-            }),
-          };
+          return whereError.invalidOperator(part, parts.slice(0, i), {
+            operatorPath: key,
+          });
         }
       } else if (/^\d+$/.test(part)) {
         // It's a numeric index - validate context
         // Index can only appear after logical operators ($or, $and)
         if (i === 0) {
-          return {
-            success: false,
-            error: new ParserError(
-              `Array index cannot appear at the beginning of WHERE clause`,
-              {
-                code: "INVALID_SYNTAX",
-                field: "where",
-                details: { index: part, path: key },
-              },
-            ),
-          };
+          return whereError.arrayIndexAtStart(part, []);
         }
 
         const previousPart = parts[i - 1]!;
         // Allow array index after logical operators ($or, $and, $not) and array operators ($in, $nin)
         if (!["$or", "$and", "$not", "$in", "$nin"].includes(previousPart)) {
-          return {
-            success: false,
-            error: new ParserError(
-              `Array index [${part}] can only follow array operators ($or, $and, $not, $in, $nin), found after: ${previousPart}`,
-              {
-                code: "INVALID_SYNTAX",
-                field: "where",
-                details: { index: part, previousPart, path: key },
-              },
-            ),
-          };
+          return whereError.invalidArrayIndex(part, previousPart, parts.slice(0, i), {
+            previousOperator: previousPart,
+            operatorPath: key,
+          });
         }
       } else {
         // It's a field name - validate it
         if (!isValidFieldName(part)) {
-          return {
-            success: false,
-            error: new ParserError(`Invalid field name in WHERE clause: ${part}`, {
-              code: "INVALID_FIELD",
-              field: "where",
-              details: { fieldName: part },
-            }),
-          };
+          return whereError.invalidFieldName(part, parts.slice(0, i));
         }
       }
     }
@@ -139,21 +125,14 @@ export function parseWhere(
         const parsedValue = parseValue(value, operatorContext);
 
         // Check if parseValue returned an error
-        if (
-          parsedValue &&
-          typeof parsedValue === "object" &&
-          "error" in parsedValue
-        ) {
-          return {
-            success: false,
-            error: parsedValue.error as ParserError,
-          };
+        if (isParserErrorResult(parsedValue)) {
+          return parsedValue;
         }
 
         // Validate operator value type only when operator itself is the last part
         // (not for array indices like $in[0], $nin[1])
         if (part.startsWith("$") && !isArrayIndex) {
-          const validation = validateOperatorValue(part, parsedValue);
+          const validation = validateOperatorValue(part, parsedValue, pathParts);
           if (!validation.success) {
             return validation;
           }
@@ -170,7 +149,12 @@ export function parseWhere(
   }
 
   // Transform into Final WhereClause
-  const finalClause = transformToFinalWhere(whereClause) as WhereClause;
+  const transformResult = transformToFinalWhere(whereClause);
+  if (!transformResult.success) {
+    return transformResult;
+  }
+
+  const finalClause = transformResult.data as WhereClause;
 
   // If no where parameters found, return undefined
   if (Object.keys(finalClause).length === 0) {
@@ -189,9 +173,9 @@ export function parseWhere(
 /**
  * Post-process the object to handle logical operators which should be arrays
  */
-function transformToFinalWhere(obj: unknown): unknown {
+function transformToFinalWhere(obj: unknown): Result<unknown, ParserError> {
   if (obj === null || typeof obj !== "object" || Array.isArray(obj)) {
-    return obj;
+    return { success: true, data: obj };
   }
 
   const typedObj = obj as Record<string, unknown>;
@@ -208,30 +192,25 @@ function transformToFinalWhere(obj: unknown): unknown {
         const keys = Object.keys(valueObj);
 
         // Validate that all keys are numeric
-        const numericKeys = keys.map((k) => {
+        const numericKeys: number[] = [];
+        for (const k of keys) {
           const num = Number(k);
           if (isNaN(num) || !Number.isInteger(num) || num < 0) {
-            throw new Error(
-              `Invalid array index in ${key}: ${k} (must be non-negative integer)`,
-            );
+            return whereError.invalidArrayIndexFormat(k, key, [key]);
           }
-          return num;
-        });
+          numericKeys.push(num);
+        }
 
         // Sort and validate consecutive sequence starting from 0
         const sortedKeys = numericKeys.sort((a, b) => a - b);
 
         if (sortedKeys.length > 0 && sortedKeys[0] !== 0) {
-          throw new Error(
-            `Array indices for ${key} must start from 0, found: ${sortedKeys[0]}`,
-          );
+          return whereError.arrayIndexNotStartingFromZero(sortedKeys[0], key, [key]);
         }
 
         for (let i = 0; i < sortedKeys.length; i++) {
           if (sortedKeys[i] !== i) {
-            throw new Error(
-              `Array indices for ${key} must be consecutive (0,1,2...), missing index: ${i}`,
-            );
+            return whereError.arrayIndexNotConsecutive(i, key, [key]);
           }
         }
 
@@ -240,19 +219,33 @@ function transformToFinalWhere(obj: unknown): unknown {
         if (["$in", "$nin"].includes(key)) {
           result[key] = sortedKeys.map((idx) => valueObj[String(idx)]);
         } else {
-          result[key] = sortedKeys.map((idx) =>
-            transformToFinalWhere(valueObj[String(idx)]),
-          );
+          const transformed: unknown[] = [];
+          for (const idx of sortedKeys) {
+            const transformResult = transformToFinalWhere(valueObj[String(idx)]);
+            if (!transformResult.success) {
+              return transformResult;
+            }
+            transformed.push(transformResult.data);
+          }
+          result[key] = transformed;
         }
       } else {
-        result[key] = transformToFinalWhere(value);
+        const transformResult = transformToFinalWhere(value);
+        if (!transformResult.success) {
+          return transformResult;
+        }
+        result[key] = transformResult.data;
       }
     } else {
-      result[key] = transformToFinalWhere(value);
+      const transformResult = transformToFinalWhere(value);
+      if (!transformResult.success) {
+        return transformResult;
+      }
+      result[key] = transformResult.data;
     }
   }
 
-  return result;
+  return { success: true, data: result };
 }
 
 /**
@@ -305,19 +298,13 @@ function parseValue(
 function parseSingleValue(
   value: string,
   operator?: string,
-): unknown | { error: ParserError } {
+): unknown | Result<never, ParserError> {
+  // Import MAX_WHERE_VALUE_LENGTH
+  const MAX_WHERE_VALUE_LENGTH = 1000;
+
   // Check value length first - reject instead of truncate
   if (value.length > MAX_WHERE_VALUE_LENGTH) {
-    return {
-      error: new ParserError(
-        `WHERE value exceeds maximum length of ${MAX_WHERE_VALUE_LENGTH} characters`,
-        {
-          code: "INVALID_SYNTAX",
-          field: "where",
-          details: { maxLength: MAX_WHERE_VALUE_LENGTH, actualLength: value.length },
-        },
-      ),
-    };
+    return whereError.maxValueLength(value.length, []);
   }
 
   // If operator expects string, return as-is (no type coercion)
@@ -359,6 +346,7 @@ function parseSingleValue(
 function validateOperatorValue(
   operator: string,
   value: unknown,
+  path: string[],
 ): Result<void, ParserError> {
   const expectedType = getOperatorValueType(operator);
 
@@ -370,26 +358,12 @@ function validateOperatorValue(
   // Check type-specific requirements
   if (expectedType === "array") {
     if (!Array.isArray(value)) {
-      return {
-        success: false,
-        error: new ParserError(`Operator ${operator} requires an array value`, {
-          code: "INVALID_SYNTAX",
-          field: "where",
-          details: { operator, valueType: typeof value },
-        }),
-      };
+      return whereError.invalidOperatorValue(operator, typeof value, path);
     }
 
     // Check if array is empty
     if (value.length === 0) {
-      return {
-        success: false,
-        error: new ParserError(`Operator ${operator} requires a non-empty array`, {
-          code: "INVALID_SYNTAX",
-          field: "where",
-          details: { operator },
-        }),
-      };
+      return whereError.emptyArrayOperator(operator, path);
     }
   }
 
@@ -404,19 +378,12 @@ function validateOperatorValue(
 function validateNestingDepth(
   clause: WhereClause,
   depth: number = 0,
+  path: string[] = [],
 ): Result<void, ParserError> {
+  const MAX_LOGICAL_NESTING_DEPTH = 10;
+
   if (depth > MAX_LOGICAL_NESTING_DEPTH) {
-    return {
-      success: false,
-      error: new ParserError(
-        `WHERE clause nesting depth exceeds maximum of ${MAX_LOGICAL_NESTING_DEPTH}`,
-        {
-          code: "MAX_DEPTH_EXCEEDED",
-          field: "where",
-          details: { maxDepth: MAX_LOGICAL_NESTING_DEPTH, actualDepth: depth },
-        },
-      ),
-    };
+    return whereError.maxDepthExceeded(depth, path);
   }
 
   // Check nested logical operators
@@ -424,23 +391,17 @@ function validateNestingDepth(
     if (isLogicalOperator(key) && Array.isArray(value)) {
       // Validate that logical operators have array of conditions
       if (value.length === 0) {
-        return {
-          success: false,
-          error: new ParserError(
-            `Logical operator ${key} requires at least one condition`,
-            {
-              code: "INVALID_SYNTAX",
-              field: "where",
-              details: { operator: key },
-            },
-          ),
-        };
+        return whereError.emptyLogicalOperator(key, [...path, key]);
       }
 
       // Recursively check each condition
       for (const condition of value) {
         if (typeof condition === "object" && condition !== null) {
-          const result = validateNestingDepth(condition as WhereClause, depth + 1);
+          const result = validateNestingDepth(
+            condition as WhereClause,
+            depth + 1,
+            [...path, key]
+          );
           if (!result.success) {
             return result;
           }
@@ -452,7 +413,7 @@ function validateNestingDepth(
       !Array.isArray(value)
     ) {
       // Recursively check nested objects
-      const result = validateNestingDepth(value as WhereClause, depth);
+      const result = validateNestingDepth(value as WhereClause, depth, [...path, key]);
       if (!result.success) {
         return result;
       }

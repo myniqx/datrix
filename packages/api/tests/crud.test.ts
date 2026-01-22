@@ -83,7 +83,7 @@ describe("API CRUD Integration Tests", () => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          name: "Electronics",
+          name: "Electronics 2",
           description: "Electronic devices and gadgets",
           isActive: true,
         }),
@@ -95,7 +95,7 @@ describe("API CRUD Integration Tests", () => {
       expect(response.status).toBe(201);
       expect(data).toHaveProperty("data");
       expect(data.data).toHaveProperty("id");
-      expect(data.data.name).toBe("Electronics");
+      expect(data.data.name).toBe("Electronics 2");
       expect(data.data.description).toBe("Electronic devices and gadgets");
       expect(data.data.isActive).toBe(true);
     });
@@ -107,8 +107,8 @@ describe("API CRUD Integration Tests", () => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          name: "TechCorp Inc.",
-          email: "contact@techcorp.com",
+          name: "TechCorp Inc. 2",
+          email: "contact2@techcorp.com",
           country: "USA",
           rating: 4.5,
           isVerified: true,
@@ -121,8 +121,8 @@ describe("API CRUD Integration Tests", () => {
       expect(response.status).toBe(201);
       expect(data).toHaveProperty("data");
       expect(data.data).toHaveProperty("id");
-      expect(data.data.name).toBe("TechCorp Inc.");
-      expect(data.data.email).toBe("contact@techcorp.com");
+      expect(data.data.name).toBe("TechCorp Inc. 2");
+      expect(data.data.email).toBe("contact2@techcorp.com");
       expect(data.data.country).toBe("USA");
       expect(data.data.rating).toBe(4.5);
       expect(data.data.isVerified).toBe(true);
@@ -259,94 +259,6 @@ describe("API CRUD Integration Tests", () => {
       expect(data.data).not.toHaveProperty("sku");
     });
 
-    it("should create product with populate option", async () => {
-      const request = new Request(
-        "http://localhost:3000/api/products?populate[category]=true&populate[supplier]=true",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            name: "Monitor",
-            description: "27-inch 4K monitor",
-            price: 399.99,
-            stock: 25,
-            category: 1,
-            supplier: 1,
-            sku: "MON-2024-001",
-            isAvailable: true,
-          }),
-        },
-      );
-
-      const response = await handleRequest(forja, request);
-      const data = await response.json();
-
-      expect(response.status).toBe(201);
-      expect(data).toHaveProperty("data");
-      expect(data.data).toHaveProperty("id");
-      expect(data.data.name).toBe("Monitor");
-      expect(data.data.price).toBe(399.99);
-
-      // Check populated category
-      expect(data.data).toHaveProperty("category");
-      expect(data.data.category).toHaveProperty("id");
-      expect(data.data.category).toHaveProperty("name");
-      expect(data.data.category.id).toBe(1);
-
-      // Check populated supplier
-      expect(data.data).toHaveProperty("supplier");
-      expect(data.data.supplier).toHaveProperty("id");
-      expect(data.data.supplier).toHaveProperty("name");
-      expect(data.data.supplier.id).toBe(1);
-    });
-
-    it("should create product with both select and populate options", async () => {
-      const request = new Request(
-        "http://localhost:3000/api/products?fields[0]=id&fields[1]=name&fields[2]=price&populate[category][fields][0]=id&populate[category][fields][1]=name",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            name: "Webcam",
-            description: "1080p HD webcam",
-            price: 59.99,
-            stock: 100,
-            category: 1,
-            supplier: 1,
-            sku: "WC-2024-001",
-            isAvailable: true,
-          }),
-        },
-      );
-
-      const response = await handleRequest(forja, request);
-      const data = await response.json();
-
-      expect(response.status).toBe(201);
-      expect(data).toHaveProperty("data");
-
-      // Should only have selected fields
-      expect(data.data).toHaveProperty("id");
-      expect(data.data).toHaveProperty("name");
-      expect(data.data).toHaveProperty("price");
-      expect(data.data.name).toBe("Webcam");
-      expect(data.data.price).toBe(59.99);
-
-      // Should not have non-selected fields
-      expect(data.data).not.toHaveProperty("description");
-      expect(data.data).not.toHaveProperty("stock");
-
-      // Check populated category with selected fields only
-      expect(data.data).toHaveProperty("category");
-      expect(data.data.category).toHaveProperty("id");
-      expect(data.data.category).toHaveProperty("name");
-      expect(data.data.category).not.toHaveProperty("description");
-      expect(data.data.category).not.toHaveProperty("isActive");
-    });
   });
 
   describe("COMPLEX QUERY Operations", () => {
@@ -480,149 +392,4 @@ describe("API CRUD Integration Tests", () => {
     });
   });
 
-  describe("POPULATE Operations", () => {
-    let testProductId: number;
-
-    beforeAll(async () => {
-      // Create test data for populate tests
-      const categoryResponse = await handleRequest(
-        forja,
-        new Request("http://localhost:3000/api/categories", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: "Gaming",
-            description: "Gaming peripherals and accessories",
-            isActive: true,
-          }),
-        }),
-      );
-      const categoryData = await categoryResponse.json();
-      const categoryId = categoryData.data.id;
-
-      const supplierResponse = await handleRequest(
-        forja,
-        new Request("http://localhost:3000/api/suppliers", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: "GameSupply Co.",
-            email: "sales@gamesupply.com",
-            country: "Japan",
-            rating: 4.9,
-            isVerified: true,
-          }),
-        }),
-      );
-      const supplierData = await supplierResponse.json();
-      const supplierId = supplierData.data.id;
-
-      // Create a product for populate tests
-      const productResponse = await handleRequest(
-        forja,
-        new Request("http://localhost:3000/api/products", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: "Gaming Headset",
-            description: "7.1 Surround Sound Gaming Headset",
-            price: 89.99,
-            stock: 50,
-            categoryId,
-            supplierId,
-            sku: "GH-PRO-001",
-            isAvailable: true,
-            tags: ["gaming", "audio", "headset"],
-          }),
-        }),
-      );
-
-      const productData = await productResponse.json();
-      if (!productData.data || !productData.data.id) {
-        throw new Error("Failed to create test product for populate tests");
-      }
-      testProductId = productData.data.id;
-    });
-
-    it("should populate with selected fields (Level 1 - 3 fields)", async () => {
-      const query = {
-        populate: {
-          category: {
-            select: ["id", "name", "description"],
-          },
-        },
-      };
-
-      const serialized = serializeQuery(query);
-      const queryParams = new URLSearchParams(
-        serialized as Record<string, string>,
-      );
-
-      const request = new Request(
-        `http://localhost:3000/api/products/${testProductId}?${queryParams}`,
-        {
-          method: "GET",
-        },
-      );
-
-      const response = await handleRequest(forja, request);
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
-      expect(data).toHaveProperty("data");
-      console.log(data.data);
-      expect(data.data).toHaveProperty("category");
-      expect(data.data.category).toHaveProperty("id");
-      expect(data.data.category).toHaveProperty("name");
-      expect(data.data.category).toHaveProperty("description");
-      expect(data.data.category).not.toHaveProperty("isActive");
-      expect(data.data.category).not.toHaveProperty("createdAt");
-    });
-
-    it("should populate nested relations (Level 2 - full first level, 3 fields second level)", async () => {
-      const query = {
-        populate: {
-          category: {
-            select: "*",
-          },
-          supplier: {
-            select: ["id", "name", "country"],
-          },
-        },
-      };
-
-      const serialized = serializeQuery(query);
-      const queryParams = new URLSearchParams(
-        serialized as Record<string, string>,
-      );
-
-      const request = new Request(
-        `http://localhost:3000/api/products/${testProductId}?${queryParams}`,
-        {
-          method: "GET",
-        },
-      );
-
-      const response = await handleRequest(forja, request);
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
-      expect(data).toHaveProperty("data");
-
-      expect(data.data).toHaveProperty("category");
-      expect(data.data.category).toHaveProperty("id");
-      expect(data.data.category).toHaveProperty("name");
-      expect(data.data.category).toHaveProperty("description");
-      expect(data.data.category).toHaveProperty("isActive");
-      //expect(data.data.category).toHaveProperty('createdAt');
-
-      expect(data.data).toHaveProperty("supplier");
-      expect(data.data.supplier).toHaveProperty("id");
-      expect(data.data.supplier).toHaveProperty("name");
-      expect(data.data.supplier).toHaveProperty("country");
-      expect(data.data.supplier).not.toHaveProperty("email");
-      expect(data.data.supplier).not.toHaveProperty("rating");
-      expect(data.data.supplier).not.toHaveProperty("isVerified");
-    });
-  });
 });

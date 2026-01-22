@@ -42,6 +42,38 @@ export class JsonQueryRunner {
     return result;
   }
 
+  /**
+   * Run query without projection (for populate workflow)
+   * Applies WHERE, ORDER BY, OFFSET, LIMIT but keeps all fields
+   */
+  filterAndSort<T = Record<string, unknown>>(query: QueryObject): T[] {
+    let result = this.table.data as T[];
+
+    // 1. Filter
+    if (query.where) {
+      result = result.filter((item) => this.match(item, query.where!));
+    } else if (query.orderBy && query.orderBy.length > 0) {
+      // No filter but need sort - must copy to avoid mutating original
+      result = [...result];
+    }
+
+    // 2. Sort (mutates array in-place)
+    if (query.orderBy && query.orderBy.length > 0) {
+      result.sort((a, b) => this.sort(a, b, query.orderBy!));
+    }
+
+    // 3. Offset/Limit
+    const offset = query.offset ?? 0;
+
+    if (query.limit !== undefined) {
+      result = result.slice(offset, offset + query.limit);
+    } else if (offset > 0) {
+      result = result.slice(offset);
+    }
+
+    return result;
+  }
+
   // Exposed for Adapter's RETURNING clause usage
   public projectData<T>(
     data: T[],

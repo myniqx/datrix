@@ -4,7 +4,7 @@
  * Exports all middleware functionality
  */
 
-export { buildRequestContext } from "./context";
+export { buildRequestContext, ContextBuildError } from "./context";
 export { authenticate } from "./auth";
 export {
   methodToAction,

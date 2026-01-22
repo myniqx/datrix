@@ -14,10 +14,11 @@ import type {
   ParsedSort,
   ParsedQuery
 } from 'forja-types/api/parser';
-import { ParserError } from 'forja-types/api/parser';
+import { isValidFieldName } from 'forja-types/core/constants';
 import { parseFields } from './fields-parser';
 import { parseWhere } from './where-parser';
 import { parsePopulate } from './populate-parser';
+import { paginationError, sortError } from './errors';
 
 /**
  * Default parser options
@@ -148,34 +149,16 @@ function parsePagination(params: RawQueryParams, options: Required<ParserOptions
 
     // Validate
     if (isNaN(parsedLimit) || parsedLimit < 0) {
-      return {
-        success: false,
-        error: new ParserError('Invalid limit value', {
-          code: 'INVALID_PAGINATION',
-          field: 'limit'
-        })
-      };
+      return paginationError.invalidLimit(limit ?? '', ['limit']);
     }
 
     if (isNaN(parsedOffset) || parsedOffset < 0) {
-      return {
-        success: false,
-        error: new ParserError('Invalid offset value', {
-          code: 'INVALID_PAGINATION',
-          field: 'offset'
-        })
-      };
+      return paginationError.invalidOffset(offset ?? '', ['offset']);
     }
 
     // Check max page size
     if (parsedLimit > options.maxPageSize) {
-      return {
-        success: false,
-        error: new ParserError(`Limit exceeds maximum page size (${options.maxPageSize})`, {
-          code: 'INVALID_PAGINATION',
-          field: 'limit'
-        })
-      };
+      return paginationError.maxLimitExceeded(parsedLimit, options.maxPageSize, ['limit']);
     }
 
     return {
@@ -196,44 +179,20 @@ function parsePagination(params: RawQueryParams, options: Required<ParserOptions
 
   // Validate
   if (isNaN(parsedPage) || parsedPage < 1) {
-    return {
-      success: false,
-      error: new ParserError('Invalid page value (must be >= 1)', {
-        code: 'INVALID_PAGINATION',
-        field: 'page'
-      })
-    };
+    return paginationError.invalidPage(page ?? '', ['page']);
   }
 
   if (parsedPage > MAX_PAGE_NUMBER) {
-    return {
-      success: false,
-      error: new ParserError(`Page number exceeds maximum (${MAX_PAGE_NUMBER})`, {
-        code: 'INVALID_PAGINATION',
-        field: 'page'
-      })
-    };
+    return paginationError.maxPageNumberExceeded(parsedPage, MAX_PAGE_NUMBER, ['page']);
   }
 
   if (isNaN(parsedPageSize) || parsedPageSize < 1) {
-    return {
-      success: false,
-      error: new ParserError('Invalid pageSize value (must be >= 1)', {
-        code: 'INVALID_PAGINATION',
-        field: 'pageSize'
-      })
-    };
+    return paginationError.invalidPageSize(pageSize ?? '', ['pageSize']);
   }
 
   // Check max page size
   if (parsedPageSize > options.maxPageSize) {
-    return {
-      success: false,
-      error: new ParserError(`Page size exceeds maximum (${options.maxPageSize})`, {
-        code: 'INVALID_PAGINATION',
-        field: 'pageSize'
-      })
-    };
+    return paginationError.maxPageSizeExceeded(parsedPageSize, options.maxPageSize, ['pageSize']);
   }
 
   // Convert page/pageSize to limit/offset
@@ -265,13 +224,7 @@ function parseSort(params: RawQueryParams): QueryParserResult | { success: true;
 
   // Handle empty or whitespace-only sort
   if (typeof sortParam === 'string' && sortParam.trim() === '') {
-    return {
-      success: false,
-      error: new ParserError('Sort value cannot be empty', {
-        code: 'INVALID_SYNTAX',
-        field: 'sort'
-      })
-    };
+    return sortError.emptyValue([]);
   }
 
   const sorts: OrderByItem[] = [];
@@ -293,13 +246,7 @@ function parseSort(params: RawQueryParams): QueryParserResult | { success: true;
     const field = isDescending ? sortStr.slice(1) : sortStr;
 
     if (!field || !isValidFieldName(field)) {
-      return {
-        success: false,
-        error: new ParserError(`Invalid sort field: ${sortStr}`, {
-          code: 'INVALID_SYNTAX',
-          field: 'sort'
-        })
-      };
+      return sortError.invalidFieldName(sortStr, [sortStr]);
     }
 
     const direction: OrderDirection = isDescending ? 'desc' : 'asc';
@@ -309,25 +256,3 @@ function parseSort(params: RawQueryParams): QueryParserResult | { success: true;
   return { success: true, data: sorts.length > 0 ? sorts : undefined };
 }
 
-/**
- * Maximum field name length
- */
-const MAX_FIELD_NAME_LENGTH = 64;
-
-/**
- * Check if field name is valid
- */
-function isValidFieldName(field: string): boolean {
-  if (!field || field.trim() === '') {
-    return false;
-  }
-
-  // Check length
-  if (field.length > MAX_FIELD_NAME_LENGTH) {
-    return false;
-  }
-
-  // Allow alphanumeric, underscores, and dots
-  const pattern = /^[a-zA-Z_][a-zA-Z0-9_.]*$/;
-  return pattern.test(field);
-}

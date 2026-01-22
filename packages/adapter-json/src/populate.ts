@@ -74,28 +74,8 @@ export class JsonPopulator {
 
       const relatedData = tableData.data as Record<string, unknown>[];
 
-      // Get field selection from options
-      const selectFields =
-        typeof _options === "object" && _options.select ?
-          _options.select
-          : undefined;
-
-      // Helper function to project fields
-      const projectFields = (
-        item: Record<string, unknown>,
-      ): Record<string, unknown> => {
-        if (!selectFields || selectFields === "*") {
-          return item;
-        }
-
-        const projected: Record<string, unknown> = {};
-        for (const field of selectFields as readonly string[]) {
-          if (field in item) {
-            projected[field] = item[field];
-          }
-        }
-        return projected;
-      };
+      // NOTE: We no longer apply select here - it's handled by adapter's applySelectRecursive
+      // This ensures proper handling of nested populate + select combinations
 
       // Map data based on relation type
       if (kind === "belongsTo") {
@@ -111,7 +91,7 @@ export class JsonPopulator {
           for (const item of relatedData) {
             const itemId = item["id"] as string | number;
             if (ids.has(itemId)) {
-              relatedMap.set(itemId, projectFields(item));
+              relatedMap.set(itemId, item);
             }
           }
         }
@@ -138,7 +118,7 @@ export class JsonPopulator {
           const fkValue = item[foreignKey] as string | number | null | undefined;
           if (fkValue !== null && fkValue !== undefined && sourceIds.has(fkValue)) {
             const group = grouped.get(fkValue) ?? [];
-            group.push(projectFields(item));
+            group.push(item);
             grouped.set(fkValue, group);
           }
         }

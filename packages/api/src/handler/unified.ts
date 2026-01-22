@@ -11,14 +11,14 @@ import type {
   ContextBuilderOptions,
 } from "../middleware/types";
 import type { IApiPlugin } from "../interface";
-import { buildRequestContext } from "../middleware/context";
+import { buildRequestContext, ContextBuildError } from "../middleware/context";
 import {
   checkSchemaPermission,
   checkFieldsForWrite,
   filterFieldsForRead,
   filterRecordsForRead,
 } from "../middleware/permission";
-import { jsonResponse, errorResponse } from "./utils";
+import { jsonResponse, errorResponse, parserErrorResponse } from "./utils";
 
 /**
  * Handle GET request
@@ -336,6 +336,12 @@ export async function handleRequest<TRole extends string = string>(
         );
     }
   } catch (error) {
+    // Handle parser errors with rich context
+    if (error instanceof ContextBuildError) {
+      return parserErrorResponse(error.parserError);
+    }
+
+    // Generic error handling
     console.error("Unified Handler Error:", error);
     const message =
       error instanceof Error ? error.message : "Internal server error";

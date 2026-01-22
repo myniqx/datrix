@@ -11,8 +11,8 @@ import type {
   RawQueryParams,
   FieldsParserResult,
 } from "forja-types/api/parser";
-import { ParserError } from "forja-types/api/parser";
 import { MAX_ARRAY_INDEX, isValidFieldName } from "forja-types/core/constants";
+import { fieldsError } from "./errors";
 
 /**
  * Parse fields parameter
@@ -30,17 +30,7 @@ export function parseFields(params: RawQueryParams): FieldsParserResult {
   );
 
   if (suspiciousParams.length > 0) {
-    return {
-      success: false,
-      error: new ParserError(
-        `Unknown fields parameters: ${suspiciousParams.join(", ")}`,
-        {
-          code: "INVALID_SYNTAX",
-          field: "fields",
-          details: { suspiciousParams },
-        },
-      ),
-    };
+    return fieldsError.suspiciousParams(suspiciousParams, []);
   }
 
   // Handle array format: fields[0]=name&fields[2]=email (sparse arrays allowed)
@@ -71,16 +61,7 @@ export function parseFields(params: RawQueryParams): FieldsParserResult {
 
     // Reject if all fields are empty after trimming
     if (fields.length === 0) {
-      return {
-        success: false,
-        error: new ParserError(
-          "Fields parameter is empty or contains only whitespace",
-          {
-            code: "INVALID_SYNTAX",
-            field: "fields",
-          },
-        ),
-      };
+      return fieldsError.emptyValue([]);
     }
 
     return validateAndReturn(fields);
@@ -92,29 +73,14 @@ export function parseFields(params: RawQueryParams): FieldsParserResult {
 
     // Reject if all fields are empty after trimming
     if (fields.length === 0) {
-      return {
-        success: false,
-        error: new ParserError(
-          "Fields parameter is empty or contains only whitespace",
-          {
-            code: "INVALID_SYNTAX",
-            field: "fields",
-          },
-        ),
-      };
+      return fieldsError.emptyValue([]);
     }
 
     return validateAndReturn(fields);
   }
 
   // Invalid format
-  return {
-    success: false,
-    error: new ParserError("Invalid fields format", {
-      code: "INVALID_SYNTAX",
-      field: "fields",
-    }),
-  };
+  return fieldsError.invalidFormat([]);
 }
 
 /**
@@ -163,14 +129,7 @@ function validateAndReturn(fields: readonly string[]): FieldsParserResult {
   const invalidFields = fields.filter((field) => !isValidFieldName(field));
 
   if (invalidFields.length > 0) {
-    return {
-      success: false,
-      error: new ParserError(`Invalid field names: ${invalidFields.join(", ")}`, {
-        code: "INVALID_SYNTAX",
-        field: "fields",
-        details: { invalidFields },
-      }),
-    };
+    return fieldsError.invalidFieldNames(invalidFields, []);
   }
 
   return { success: true, data: fields };
