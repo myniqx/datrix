@@ -18,12 +18,13 @@ import { DefaultPermission, defineSchema } from "forja-types/core/schema";
 import { AuthManager } from "./auth/manager";
 import { createAuthHandlers } from "./handler/auth-handler";
 import { handleRequest as handleCrudRequest } from "./handler/unified";
-import { forjaErrorResponse } from "./handler/utils";
 import { handlerError } from "./errors/api-error";
 import { ApiConfig } from "./types";
 import { Forja } from "forja-core";
-import type { IApiPlugin, AuthenticatedUser } from "./interface";
+import type { IApiPlugin } from "./interface";
 import type { ForjaEntry } from "forja-types/core/schema";
+import { forjaErrorResponse } from "./handler/utils";
+import { AuthenticatedUser } from "forja-types/api/auth";
 
 export class ApiPlugin<TRole extends string = string>
   extends BasePlugin<ApiConfig<TRole>>
@@ -81,7 +82,7 @@ export class ApiPlugin<TRole extends string = string>
   ): Promise<QueryContext> {
     // Add authenticated user to context metadata
     if (this.user) {
-      context["user"] = this.user;
+      context.user = this.user;
     }
 
     return context;

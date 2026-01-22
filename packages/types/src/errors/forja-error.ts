@@ -69,7 +69,9 @@
  *   received: undefined
  * });
  */
-export class ForjaError extends Error {
+export class ForjaError<
+  TContext extends Record<string, unknown> = Record<string, unknown>,
+> extends Error {
   /** Error code for programmatic handling */
   readonly code: string;
 
@@ -77,29 +79,29 @@ export class ForjaError extends Error {
   readonly timestamp: Date;
 
   /** Operation that caused the error (e.g., 'parseQuery', 'validateField') */
-  readonly operation?: string;
+  readonly operation?: string | undefined;
 
   /** Additional error context (error-specific details) */
-  readonly context?: Record<string, unknown>;
+  readonly context?: TContext | undefined;
 
   /** Underlying error (for error chaining) */
-  readonly cause?: Error;
+  override readonly cause?: Error | undefined;
 
   // Client-facing fields (optional)
 
   /** User guidance - how to fix this error */
-  readonly suggestion?: string;
+  readonly suggestion?: string | undefined;
 
   /** Expected value/format */
-  readonly expected?: string;
+  readonly expected?: string | undefined;
 
   /** Actual received value */
   readonly received?: unknown;
 
   /** Documentation link (optional, can be added later) */
-  readonly documentation?: string;
+  readonly documentation?: string | undefined;
 
-  constructor(message: string, options: ForjaErrorOptions) {
+  constructor(message: string, options: ForjaErrorOptions<TContext>) {
     super(message, { cause: options.cause });
 
     this.name = this.constructor.name;
@@ -199,7 +201,9 @@ export class ForjaError extends Error {
 /**
  * Options for creating ForjaError
  */
-export interface ForjaErrorOptions {
+export interface ForjaErrorOptions<
+  TContext extends Record<string, unknown> = Record<string, unknown>,
+> {
   /**
    * Error code (machine-readable)
    * Each error type can define its own code constants
@@ -210,19 +214,19 @@ export interface ForjaErrorOptions {
    * Operation that caused the error
    * Examples: 'parseQuery', 'validateField', 'executeQuery'
    */
-  readonly operation?: string;
+  readonly operation?: string | undefined;
 
   /**
    * Additional error context
    * Include relevant details for debugging
    */
-  readonly context?: Record<string, unknown>;
+  readonly context?: TContext | undefined;
 
   /**
    * Underlying error (for error chaining)
    * Use when wrapping lower-level errors
    */
-  readonly cause?: Error;
+  readonly cause?: Error | undefined;
 
   // Client-facing fields (optional)
 
@@ -230,25 +234,25 @@ export interface ForjaErrorOptions {
    * User guidance - how to fix this error
    * Only for client-facing errors
    */
-  readonly suggestion?: string;
+  readonly suggestion?: string | undefined;
 
   /**
    * Expected value/format
    * Only for client-facing errors
    */
-  readonly expected?: string;
+  readonly expected?: string | undefined;
 
   /**
    * Actual received value
    * Only for client-facing errors
    */
-  readonly received?: unknown;
+  readonly received?: unknown | undefined;
 
   /**
    * Documentation link
    * Can be added later
    */
-  readonly documentation?: string;
+  readonly documentation?: string | undefined;
 }
 
 /**
@@ -260,13 +264,13 @@ export interface SerializedForjaError {
   readonly message: string;
   readonly code: string;
   readonly timestamp: string;
-  readonly operation?: string;
-  readonly context?: Record<string, unknown>;
-  readonly suggestion?: string;
-  readonly expected?: string;
-  readonly received?: unknown;
-  readonly documentation?: string;
-  readonly cause?: {
+  operation?: string;
+  context?: Record<string, unknown>;
+  suggestion?: string;
+  expected?: string;
+  received?: unknown;
+  documentation?: string;
+  cause?: {
     readonly message: string;
     readonly name: string;
   };

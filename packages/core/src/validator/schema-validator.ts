@@ -15,7 +15,11 @@ import type {
   ValidatorOptions,
 } from "forja-types/core/validator";
 import { validateField } from "./field-validator";
-import { createValidationError, ValidationErrorCollection } from "./errors";
+import {
+  createValidationError,
+  throwValidationMultiple,
+  ValidationErrorCollection,
+} from "./errors";
 
 /**
  * Create a non-required version of a field definition for partial validation
@@ -212,9 +216,26 @@ export function validatePartial<T extends ForjaEntry>(
 }
 
 /**
+ * Validate partial data and throw on error
+ */
+export function validatePartialOrThrow<T extends ForjaEntry>(
+  data: unknown,
+  schema: SchemaDefinition,
+  options?: ValidatorOptions,
+): Partial<T> {
+  const result = validatePartial<T>(data, schema, options);
+
+  if (!result.success) {
+    throwValidationMultiple(schema.name, result.error);
+  }
+
+  return (result as any).data;
+}
+
+/**
  * Validate array of data
  */
-export function validateMany<T = Record<string, unknown>>(
+export function validateMany<T extends ForjaEntry>(
   dataArray: unknown,
   schema: SchemaDefinition,
   options?: ValidatorOptions,
@@ -284,7 +305,7 @@ export function isValid(
 /**
  * Validate and throw on error
  */
-export function validateOrThrow<T = Record<string, unknown>>(
+export function validateOrThrow<T extends ForjaEntry>(
   data: unknown,
   schema: SchemaDefinition,
   options?: ValidatorOptions,
@@ -292,11 +313,10 @@ export function validateOrThrow<T = Record<string, unknown>>(
   const result = validateSchema<T>(data, schema, options);
 
   if (!result.success) {
-    const errorMessages = result.error.map((e) => e.message).join(", ");
-    throw new Error(`Validation failed: ${errorMessages}`);
+    throwValidationMultiple(schema.name, result.error);
   }
 
-  return result.data;
+  return (result as any).data;
 }
 
 /**
@@ -310,7 +330,6 @@ export function assertSchema<T>(
   const result = validateSchema(data, schema, options);
 
   if (!result.success) {
-    const errorMessages = result.error.map((e) => e.message).join(", ");
-    throw new Error(`Validation assertion failed: ${errorMessages}`);
+    throwValidationMultiple(schema.name, result.error);
   }
 }

@@ -8,40 +8,26 @@
 import { SelectClause } from "forja-types/core/query-builder";
 import type { SchemaDefinition } from "forja-types/core/schema";
 import type { Result } from "forja-types/utils";
-
-/**
- * Select builder error
- */
-export class SelectBuilderError extends Error {
-  constructor(
-    message: string,
-    public readonly code: string = 'SELECT_BUILD_ERROR',
-    public readonly details?: {
-      field?: string;
-      availableFields?: readonly string[];
-    }
-  ) {
-    super(message);
-    this.name = 'SelectBuilderError';
-  }
-}
+import { ForjaQueryBuilderError } from "forja-types/errors";
+import { throwInvalidField, throwInvalidValue } from "./error-helper";
 
 /**
  * Parse select clause from various formats
+ * @throws {ForjaQueryBuilderError} If input format is invalid
  */
-export function parseSelectClause(input: unknown): Result<SelectClause, SelectBuilderError> {
+export function parseSelectClause(input: unknown): SelectClause {
   // Handle null/undefined -> select all
   if (input === null || input === undefined) {
-    return { success: true, data: '*' };
+    return '*';
   }
 
   // Handle string
   if (typeof input === 'string') {
     if (input === '*') {
-      return { success: true, data: '*' };
+      return '*';
     }
     // Single field
-    return { success: true, data: [input] };
+    return [input];
   }
 
   // Handle array
@@ -49,23 +35,13 @@ export function parseSelectClause(input: unknown): Result<SelectClause, SelectBu
     // Validate all items are strings
     for (const item of input) {
       if (typeof item !== 'string') {
-        return {
-          success: false,
-          error: new SelectBuilderError(
-            `Invalid field type: expected string, got ${typeof item}`
-          )
-        };
+        throwInvalidValue('select', 'field', item, 'string');
       }
     }
-    return { success: true, data: input as readonly string[] };
+    return input as readonly string[];
   }
 
-  return {
-    success: false,
-    error: new SelectBuilderError(
-      `Invalid select clause type: expected string, array, or '*', got ${typeof input}`
-    )
-  };
+  throwInvalidValue('select', 'input', input, "string, array, or '*'");
 }
 
 /**
@@ -82,14 +58,15 @@ export function normalizeSelectClause(select: SelectClause): SelectClause {
 
 /**
  * Validate select fields against schema
+ * @throws {ForjaQueryBuilderError} If any field doesn't exist in schema
  */
 export function validateSelectFields(
   select: SelectClause,
   schema: SchemaDefinition
-): Result<void, SelectBuilderError> {
+): void {
   // '*' is always valid
   if (select === '*') {
-    return { success: true, data: undefined };
+    return;
   }
 
   const availableFields = Object.keys(schema.fields);
@@ -97,18 +74,9 @@ export function validateSelectFields(
   // Check each field exists in schema
   for (const field of select) {
     if (!availableFields.includes(field)) {
-      return {
-        success: false,
-        error: new SelectBuilderError(
-          `Field '${field}' does not exist in schema '${schema.name}'`,
-          'INVALID_FIELD',
-          { field, availableFields }
-        )
-      };
+      throwInvalidField('select', field, availableFields);
     }
   }
-
-  return { success: true, data: undefined };
 }
 
 /**

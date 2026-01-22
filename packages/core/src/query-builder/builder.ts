@@ -21,24 +21,12 @@ import { mergePopulateClauses } from "./populate";
 import { normalizeSelectClause, validateSelectFields } from "./select";
 import { validateWhereClause } from "./where";
 import type { SchemaDefinition } from "forja-types/core/schema";
-import type { Result } from "forja-types/utils";
-
-/**
- * Query builder error
- */
-export class QueryBuilderError extends Error {
-  constructor(
-    message: string,
-    public readonly code: string = "QUERY_BUILD_ERROR",
-    public readonly details?: {
-      field?: string;
-      value?: unknown;
-    },
-  ) {
-    super(message);
-    this.name = "QueryBuilderError";
-  }
-}
+import {
+  throwMissingTable,
+  throwInvalidQueryType,
+  throwInvalidField,
+  throwInvalidValue,
+} from "./error-helper";
 
 /**
  * Deep clone an object (safe for JSON-serializable data)
@@ -231,51 +219,26 @@ export class ForjaQueryBuilder<
 
   /**
    * Build final QueryObject
+   * @throws {ForjaQueryBuilderError} If query is invalid
    */
-  build(): Result<QueryObject, QueryBuilderError> {
+  build(): QueryObject {
     // Validate required fields
     if (!this.query.type) {
-      return {
-        success: false,
-        error: new QueryBuilderError("Query type is required"),
-      };
+      throwInvalidQueryType(this.query.type);
     }
 
     if (!this.query.table) {
-      return {
-        success: false,
-        error: new QueryBuilderError("Table name is required"),
-      };
+      throwMissingTable();
     }
 
-    // Validate select fields
+    // Validate select fields (throws on error)
     if (this._schema && this.query.select) {
-      const validation = validateSelectFields(this.query.select, this._schema);
-      if (!validation.success) {
-        return {
-          success: false,
-          error: new QueryBuilderError(
-            validation.error.message,
-            validation.error.code,
-            validation.error.details,
-          ),
-        };
-      }
+      validateSelectFields(this.query.select, this._schema);
     }
 
-    // Validate where clause
+    // Validate where clause (throws on error)
     if (this._schema && this.query.where) {
-      const validation = validateWhereClause(this.query.where, this._schema);
-      if (!validation.success) {
-        return {
-          success: false,
-          error: new QueryBuilderError(
-            validation.error.message,
-            validation.error.code,
-            validation.error.details,
-          ),
-        };
-      }
+      validateWhereClause(this.query.where, this._schema);
     }
 
     // Validate populate relations if schema is present
@@ -284,42 +247,30 @@ export class ForjaQueryBuilder<
         const field = this._schema.fields[relationName];
 
         if (!field) {
-          return {
-            success: false,
-            error: new QueryBuilderError(
-              `Relation '${relationName}' not found in schema '${this._schema.name}'`,
-              "INVALID_RELATION",
-              { field: relationName },
-            ),
-          };
+          throwInvalidField(
+            "populate",
+            relationName,
+            Object.keys(this._schema.fields),
+          );
         }
 
         if (field.type !== "relation") {
-          return {
-            success: false,
-            error: new QueryBuilderError(
-              `Field '${relationName}' is not a relation`,
-              "INVALID_RELATION",
-              { field: relationName },
-            ),
-          };
+          throwInvalidValue("populate", relationName, field, "relation field");
         }
 
         // Runtime validation: foreignKey must be defined
         if (!field.foreignKey) {
-          return {
-            success: false,
-            error: new QueryBuilderError(
-              `Relation '${relationName}' must have a foreignKey defined in schema`,
-              "MISSING_FOREIGN_KEY",
-              { field: relationName },
-            ),
-          };
+          throwInvalidValue(
+            "populate",
+            relationName,
+            field,
+            "relation with foreignKey",
+          );
         }
       }
     }
 
-    const result: QueryObject = {
+    return {
       type: this.query.type,
       table: this.query.table,
       ...(this.query.select !== undefined && { select: this.query.select }),
@@ -340,8 +291,6 @@ export class ForjaQueryBuilder<
       }),
       ...(this.query.having !== undefined && { having: this.query.having }),
     };
-
-    return { success: true, data: result };
   }
 
   /**

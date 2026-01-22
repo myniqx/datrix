@@ -22,9 +22,16 @@ import {
 } from "forja-types/core/query-builder";
 import { QueryAction } from "forja-types/plugin";
 import { Dispatcher } from "../dispatcher";
-import { validateSchema, validatePartial } from "../validator";
+import { validateOrThrow, validatePartialOrThrow } from "../validator";
 import { IRawCrud } from "forja-types/forja";
-import { ForjaError, ParsedQuery } from "forja-types";
+import { ParsedQuery } from "forja-types";
+import {
+  throwQueryExecutionError,
+  throwSchemaNotFoundError,
+  throwInvalidPopulateError,
+  throwReservedFieldError,
+  throwNotImplementedError,
+} from "./error-helper";
 
 /**
  * CRUD Operations Class
@@ -110,10 +117,7 @@ export class CrudOperations implements IRawCrud {
       async (q) => {
         const result = await this.getAdapter().executeQuery<T>(q);
         if (!result.success) {
-          throw new ForjaError(
-            `Failed to find ${model}: ${result.error.message}`,
-            "QUERY_FAILED",
-          );
+          throwQueryExecutionError("findOne", model, q, result.error);
         }
         return result.data.rows[0] ?? null;
       },
@@ -179,10 +183,7 @@ export class CrudOperations implements IRawCrud {
     return this.execute<T[]>("findMany", model, tableName!, query, async (q) => {
       const result = await this.getAdapter().executeQuery<T>(q);
       if (!result.success) {
-        throw new ForjaError(
-          `Failed to find ${model}: ${result.error.message}`,
-          "QUERY_FAILED",
-        );
+        throwQueryExecutionError("findMany", model, q, result.error);
       }
       return result.data.rows as T[];
     });
@@ -212,10 +213,7 @@ export class CrudOperations implements IRawCrud {
     return this.execute<number>("count", model, tableName!, query, async (q) => {
       const result = await this.getAdapter().executeQuery<{ count: number }>(q);
       if (!result.success) {
-        throw new ForjaError(
-          `Failed to count ${model}: ${result.error.message}`,
-          "QUERY_FAILED",
-        );
+        throwQueryExecutionError("count", model, q, result.error);
       }
       return result.data.rows[0]?.count ?? 0;
     });
@@ -250,7 +248,6 @@ export class CrudOperations implements IRawCrud {
     // 2. Validate EVERYTHING (scalars + relations)
     // This solves the "required relation" problem because Validator now sees RelationInput
     const validatedData = this.validateData<T, false>(
-      model,
       normalizedData,
       schema,
       false,
@@ -259,7 +256,10 @@ export class CrudOperations implements IRawCrud {
 
     // 3. Separate scalars from async relations
     // Inlines local FKs (belongsTo) into scalars
-    const { scalars, relations } = this.separateRelations(validatedData as Record<string, unknown>, schema);
+    const { scalars, relations } = this.separateRelations(
+      validatedData as Record<string, unknown>,
+      schema,
+    );
 
     // INSERT query - now contains local FKs
     const query: QueryObject = {
@@ -276,10 +276,7 @@ export class CrudOperations implements IRawCrud {
       async (q) => {
         const result = await this.getAdapter().executeQuery<T>(q);
         if (!result.success) {
-          throw new ForjaError(
-            `Failed to create ${model}: ${result.error.message}`,
-            "QUERY_FAILED",
-          );
+          throwQueryExecutionError("create", model, q, result.error);
         }
         // Get insertedId from result (standardized across adapters)
         return result.data.metadata?.insertId ?? result.data.rows?.[0]?.id!;
@@ -337,7 +334,6 @@ export class CrudOperations implements IRawCrud {
 
     // 2. Validate everything (partial)
     const validatedData = this.validateData<T, true>(
-      model,
       normalizedData,
       schema,
       true,
@@ -345,7 +341,10 @@ export class CrudOperations implements IRawCrud {
     );
 
     // 3. Separate and inline
-    const { scalars, relations } = this.separateRelations(validatedData as Record<string, unknown>, schema);
+    const { scalars, relations } = this.separateRelations(
+      validatedData as Record<string, unknown>,
+      schema,
+    );
 
     // UPDATE query (only if there are scalar fields to update)
     if (Object.keys(scalars).length > 0) {
@@ -364,10 +363,7 @@ export class CrudOperations implements IRawCrud {
         async (q) => {
           const result = await this.getAdapter().executeQuery<T>(q);
           if (!result.success) {
-            throw new ForjaError(
-              `Failed to update ${model}: ${result.error.message}`,
-              "QUERY_FAILED",
-            );
+            throwQueryExecutionError("update", model, q, result.error);
           }
         },
       );
@@ -415,7 +411,6 @@ export class CrudOperations implements IRawCrud {
 
     // Validate data against schema (partial validation, timestamps added inside)
     const finalData = this.validateData<ForjaEntry, true>(
-      model,
       data,
       schema,
       true,
@@ -437,10 +432,7 @@ export class CrudOperations implements IRawCrud {
       async (q) => {
         const result = await this.getAdapter().executeQuery<{ count: number }>(q);
         if (!result.success) {
-          throw new ForjaError(
-            `Failed to update ${model}: ${result.error.message}`,
-            "QUERY_FAILED",
-          );
+          throwQueryExecutionError("updateMany", model, q, result.error);
         }
         return result.data.metadata.rowCount ?? 0;
       },
@@ -487,10 +479,7 @@ export class CrudOperations implements IRawCrud {
       async (q) => {
         const result = await this.getAdapter().executeQuery<unknown>(q);
         if (!result.success) {
-          throw new ForjaError(
-            `Failed to delete ${model}: ${result.error.message}`,
-            "QUERY_FAILED",
-          );
+          throwQueryExecutionError("delete", model, q, result.error);
         }
         return (result.data.metadata.rowCount ?? 0) > 0;
       },
@@ -525,10 +514,7 @@ export class CrudOperations implements IRawCrud {
       async (q) => {
         const result = await this.getAdapter().executeQuery<unknown>(q);
         if (!result.success) {
-          throw new ForjaError(
-            `Failed to delete ${model}: ${result.error.message}`,
-            "QUERY_FAILED",
-          );
+          throwQueryExecutionError("deleteMany", model, q, result.error);
         }
         return result.data.metadata.rowCount ?? 0;
       },
@@ -542,7 +528,7 @@ export class CrudOperations implements IRawCrud {
   private getSchema(model: string): SchemaDefinition {
     const schema = this.schemas.get(model);
     if (!schema) {
-      throw new ForjaError(`Schema '${model}' not found`, "SCHEMA_NOT_FOUND");
+      throwSchemaNotFoundError(model);
     }
     return schema;
   }
@@ -622,10 +608,7 @@ export class CrudOperations implements IRawCrud {
         };
       } else {
         // Invalid value
-        throw new ForjaError(
-          `Invalid populate value for ${model}.${relationName}: ${value}`,
-          "INVALID_POPULATE_VALUE",
-        );
+        throwInvalidPopulateError(model, relationName, value);
       }
     }
 
@@ -652,10 +635,7 @@ export class CrudOperations implements IRawCrud {
 
     const result = await this.getAdapter().executeQuery(query);
     if (!result.success) {
-      throw new ForjaError(
-        `Internal update failed for ${model}: ${result.error.message}`,
-        "QUERY_FAILED",
-      );
+      throwQueryExecutionError("update", model, query, result.error);
     }
   }
 
@@ -677,9 +657,15 @@ export class CrudOperations implements IRawCrud {
           normalized[key] = { connect: { id: value } };
         } else if (Array.isArray(value)) {
           // Shortcut: products: [1, 2] -> { set: value.map((id) => ({ id })) }
-          const isRelationInput = value.length > 0 && typeof value[0] === 'object' && value[0] !== null && 'id' in value[0];
+          const isRelationInput =
+            value.length > 0 &&
+            typeof value[0] === "object" &&
+            value[0] !== null &&
+            "id" in value[0];
           if (!isRelationInput) {
-            normalized[key] = { set: (value as (string | number)[]).map((id) => ({ id })) };
+            normalized[key] = {
+              set: (value as (string | number)[]).map((id) => ({ id })),
+            };
           }
         }
       }
@@ -712,9 +698,15 @@ export class CrudOperations implements IRawCrud {
           let inlinedId: string | number | null | undefined = undefined;
 
           if (relData.connect) {
-            inlinedId = Array.isArray(relData.connect) ? relData.connect[0]?.id : relData.connect.id;
+            inlinedId =
+              Array.isArray(relData.connect) ?
+                relData.connect[0]?.id
+                : relData.connect.id;
           } else if (relData.set) {
-            inlinedId = Array.isArray(relData.set) ? relData.set[0]?.id : (relData.set as any)?.id;
+            inlinedId =
+              Array.isArray(relData.set) ?
+                relData.set[0]?.id
+                : (relData.set as any)?.id;
           } else if (relData.disconnect) {
             inlinedId = null;
           }
@@ -761,8 +753,8 @@ export class CrudOperations implements IRawCrud {
 
     // belongsTo / hasOne → Update THIS record's foreign key
     if (relation.kind === "belongsTo" || relation.kind === "hasOne") {
-      // If this relation was already inlined into scalars, we might still be here 
-      // if there are nested create/update ops. For simple connect/set, 
+      // If this relation was already inlined into scalars, we might still be here
+      // if there are nested create/update ops. For simple connect/set,
       // the key is already updated in the main INSERT/UPDATE.
 
       const updateData: Record<string, unknown> = {};
@@ -780,15 +772,16 @@ export class CrudOperations implements IRawCrud {
         updateData[foreignKey] = null;
       }
       if (relData.set) {
-        const setId = Array.isArray(relData.set) ?
-          relData.set[0]?.id
-          : (relData.set as { id: string | number })?.id;
+        const setId =
+          Array.isArray(relData.set) ?
+            relData.set[0]?.id
+            : (relData.set as { id: string | number })?.id;
         updateData[foreignKey] = setId ?? null;
       }
 
-      // Only fire update if we have data and it wasn't already handled by inlining 
-      // (Actually, firing it again doesn't hurt much with internalUpdate, 
-      // but inlining handles most cases. We only need internalUpdate if 
+      // Only fire update if we have data and it wasn't already handled by inlining
+      // (Actually, firing it again doesn't hurt much with internalUpdate,
+      // but inlining handles most cases. We only need internalUpdate if
       // there were other logic involved or we want to be safe)
       if (Object.keys(updateData).length > 0) {
         await this.internalUpdate(model, recordId, updateData);
@@ -850,9 +843,10 @@ export class CrudOperations implements IRawCrud {
 
     // manyToMany → TODO: Junction table insert/delete
     if (relation.kind === "manyToMany") {
-      throw new ForjaError(
-        "manyToMany relations not yet implemented",
-        "NOT_IMPLEMENTED",
+      throwNotImplementedError(
+        "create",
+        model,
+        "manyToMany relations",
       );
     }
   }
@@ -874,10 +868,7 @@ export class CrudOperations implements IRawCrud {
 
     for (const field of RESERVED_FIELDS) {
       if (field in data) {
-        throw new ForjaError(
-          `Cannot set reserved field '${field}'. Use forja.raw.create() or forja.raw.update() for manual control.`,
-          "RESERVED_FIELD_WRITE",
-        );
+        throwReservedFieldError(field, "unknown");
       }
     }
   }
@@ -898,7 +889,6 @@ export class CrudOperations implements IRawCrud {
     T extends ForjaEntry = ForjaEntry,
     P extends boolean = false,
   >(
-    model: string,
     data: Record<string, unknown>,
     schema: SchemaDefinition,
     partial: P,
@@ -941,23 +931,16 @@ export class CrudOperations implements IRawCrud {
     }
 
     // 3. Schema validation (with timestamps already present)
-    const validationFn = partial ? validatePartial : validateSchema;
-    const result = validationFn(dataWithTimestamps, schema, {
+    const options = {
       strict: true,
       stripUnknown: false,
       abortEarly: false,
-    });
+    };
 
-    if (!result.success) {
-      const errorMessages = result.error
-        .map((e) => `${e.field}: ${e.message}`)
-        .join(", ");
-      throw new ForjaError(
-        `Validation failed for ${model}: ${errorMessages}`,
-        "VALIDATION_FAILED",
-      );
+    if (partial) {
+      return validatePartialOrThrow<T>(dataWithTimestamps, schema, options) as any;
     }
 
-    return result.data as P extends true ? Partial<T> : T;
+    return validateOrThrow<T>(dataWithTimestamps, schema, options) as any;
   }
 }

@@ -5,12 +5,18 @@
  * Extends ForjaError with parser-specific fields.
  */
 
-import { ForjaError, type SerializedForjaError } from "./base";
+import { ForjaError, type SerializedForjaError } from "../forja-error";
 
 /**
  * Which parser generated the error
  */
-export type ParserType = "where" | "populate" | "fields" | "sort" | "pagination" | "query";
+export type ParserType =
+  | "where"
+  | "populate"
+  | "fields"
+  | "sort"
+  | "pagination"
+  | "query";
 
 /**
  * Error location with full path tracking
@@ -18,9 +24,9 @@ export type ParserType = "where" | "populate" | "fields" | "sort" | "pagination"
 export interface ErrorLocation {
   readonly path: string;
   readonly parts: readonly string[];
-  readonly queryParam?: string;
-  readonly index?: number;
-  readonly depth?: number;
+  readonly queryParam?: string | undefined;
+  readonly index?: number | undefined;
+  readonly depth?: number | undefined;
 }
 
 /**
@@ -143,7 +149,7 @@ export interface SerializedParserError extends SerializedForjaError {
  * Specialized ForjaError for query/URL parsing errors.
  * Includes parser-specific fields: parser type and location tracking.
  */
-export class ParserError extends ForjaError {
+export class ParserError extends ForjaError<ParserErrorContext> {
   readonly parser: ParserType;
   readonly location: ErrorLocation;
 
@@ -208,10 +214,10 @@ export class ParserError extends ForjaError {
 export function buildErrorLocation(
   parts: string[],
   options?: {
-    queryParam?: string;
-    index?: number;
-    depth?: number;
-  }
+    queryParam?: string | undefined;
+    index?: number | undefined;
+    depth?: number | undefined;
+  },
 ): ErrorLocation {
   return {
     path: parts.join("."),

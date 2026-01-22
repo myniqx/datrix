@@ -3,8 +3,9 @@ import { ParsedQuery } from "./api/parser";
 import { DevConfig, ForjaConfig, MigrationConfig } from "./config";
 import { WhereClause } from "./core/query-builder";
 import { ForjaEntry, SchemaRegistry } from "./core/schema";
+import { ForjaError } from "./errors/forja-error";
 import { ForjaPlugin } from "./plugin";
-import { ForjaError, Result } from "./utils";
+import { Result } from "./utils";
 
 /**
  * Raw CRUD operations interface (bypasses plugin hooks)

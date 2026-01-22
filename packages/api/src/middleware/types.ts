@@ -8,7 +8,8 @@ import type { ParsedQuery } from "forja-types/api/parser";
 import type { SchemaDefinition } from "forja-types/core/schema";
 import type { PermissionAction } from "forja-types/core/permission";
 import type { Forja } from "forja-core";
-import type { IApiPlugin, AuthenticatedUser } from "../interface";
+import type { IApiPlugin } from "../interface";
+import { AuthenticatedUser } from "forja-types/api/auth";
 
 /**
  * HTTP Methods

@@ -1,0 +1,254 @@
+/**
+ * Query Builder Error Helpers
+ *
+ * Centralized error creation for query builder operations.
+ * Covers: builder, where, select, populate, pagination components.
+ */
+
+import {
+  ForjaQueryBuilderError,
+  type QueryBuilderComponent,
+  type QueryBuilderErrorCode,
+} from "forja-types/errors";
+
+/**
+ * Throw invalid field error
+ *
+ * @param component - Query builder component
+ * @param field - Field name
+ * @param availableFields - List of valid fields
+ *
+ * @example
+ * ```ts
+ * throwInvalidField('select', 'invalidField', ['id', 'name', 'email']);
+ * ```
+ */
+export function throwInvalidField(
+  component: QueryBuilderComponent,
+  field: string,
+  availableFields?: readonly string[],
+): never {
+  throw new ForjaQueryBuilderError(
+    `Invalid field '${field}' in ${component} clause`,
+    {
+      code: "INVALID_FIELD",
+      component,
+      field,
+      context: availableFields ? { availableFields } : undefined,
+      suggestion: availableFields
+        ? `Use one of: ${availableFields.join(", ")}`
+        : `Check that '${field}' exists in the schema`,
+      expected: availableFields ? availableFields.join(" | ") : undefined,
+      received: field,
+    },
+  );
+}
+
+/**
+ * Throw invalid operator error
+ *
+ * @param field - Field name
+ * @param operator - Invalid operator
+ * @param validOperators - List of valid operators
+ *
+ * @example
+ * ```ts
+ * throwInvalidOperator('age', '$invalid', ['$eq', '$ne', '$gt', '$lt']);
+ * ```
+ */
+export function throwInvalidOperator(
+  field: string,
+  operator: string,
+  validOperators: readonly string[],
+): never {
+  throw new ForjaQueryBuilderError(
+    `Invalid operator '${operator}' for field '${field}'`,
+    {
+      code: "INVALID_OPERATOR",
+      component: "where",
+      field,
+      context: { operator, validOperators },
+      suggestion: `Use one of: ${validOperators.join(", ")}`,
+      expected: validOperators.join(" | "),
+      received: operator,
+    },
+  );
+}
+
+/**
+ * Throw invalid value error
+ *
+ * @param component - Query builder component
+ * @param field - Field name
+ * @param value - Invalid value
+ * @param expectedType - Expected type
+ *
+ * @example
+ * ```ts
+ * throwInvalidValue('where', 'age', 'invalid', 'number');
+ * ```
+ */
+export function throwInvalidValue(
+  component: QueryBuilderComponent,
+  field: string,
+  value: unknown,
+  expectedType: string,
+): never {
+  const receivedType = Array.isArray(value)
+    ? "array"
+    : value === null
+      ? "null"
+      : typeof value;
+
+  throw new ForjaQueryBuilderError(
+    `Invalid value for field '${field}'. Expected ${expectedType}, got ${receivedType}`,
+    {
+      code: "INVALID_VALUE",
+      component,
+      field,
+      context: { value, expectedType, receivedType },
+      suggestion: `Provide a ${expectedType} value for '${field}'`,
+      expected: expectedType,
+      received: value,
+    },
+  );
+}
+
+/**
+ * Throw max depth exceeded error
+ *
+ * @param component - Query builder component
+ * @param currentDepth - Current nesting depth
+ * @param maxDepth - Maximum allowed depth
+ *
+ * @example
+ * ```ts
+ * throwMaxDepthExceeded('where', 11, 10);
+ * ```
+ */
+export function throwMaxDepthExceeded(
+  component: QueryBuilderComponent,
+  currentDepth: number,
+  maxDepth: number,
+): never {
+  throw new ForjaQueryBuilderError(
+    `Maximum nesting depth exceeded in ${component} clause. Depth: ${currentDepth}, Max: ${maxDepth}`,
+    {
+      code: "MAX_DEPTH_EXCEEDED",
+      component,
+      context: { depth: currentDepth, maxDepth },
+      suggestion: `Reduce nesting depth to ${maxDepth} or less`,
+      expected: `depth <= ${maxDepth}`,
+      received: currentDepth,
+    },
+  );
+}
+
+/**
+ * Throw empty clause error
+ *
+ * @param component - Query builder component
+ *
+ * @example
+ * ```ts
+ * throwEmptyClause('select');
+ * ```
+ */
+export function throwEmptyClause(component: QueryBuilderComponent): never {
+  throw new ForjaQueryBuilderError(`Empty ${component} clause`, {
+    code: "EMPTY_CLAUSE",
+    component,
+    suggestion: `Provide at least one item in ${component} clause`,
+  });
+}
+
+/**
+ * Throw duplicate field error
+ *
+ * @param component - Query builder component
+ * @param field - Duplicate field name
+ *
+ * @example
+ * ```ts
+ * throwDuplicateField('select', 'email');
+ * ```
+ */
+export function throwDuplicateField(
+  component: QueryBuilderComponent,
+  field: string,
+): never {
+  throw new ForjaQueryBuilderError(
+    `Duplicate field '${field}' in ${component} clause`,
+    {
+      code: "DUPLICATE_FIELD",
+      component,
+      field,
+      suggestion: `Remove duplicate '${field}' field`,
+    },
+  );
+}
+
+/**
+ * Throw missing table error
+ *
+ * @example
+ * ```ts
+ * throwMissingTable();
+ * ```
+ */
+export function throwMissingTable(): never {
+  throw new ForjaQueryBuilderError("Query must have a table name", {
+    code: "MISSING_TABLE",
+    component: "builder",
+    suggestion: "Call .from('tableName') or .table('tableName') before building",
+  });
+}
+
+/**
+ * Throw invalid query type error
+ *
+ * @param receivedType - Received query type
+ *
+ * @example
+ * ```ts
+ * throwInvalidQueryType('invalid');
+ * ```
+ */
+export function throwInvalidQueryType(receivedType: unknown): never {
+  throw new ForjaQueryBuilderError(
+    `Invalid query type: ${receivedType}`,
+    {
+      code: "INVALID_QUERY_TYPE",
+      component: "builder",
+      suggestion: "Use one of: select, insert, update, delete",
+      expected: "select | insert | update | delete",
+      received: receivedType,
+    },
+  );
+}
+
+/**
+ * Throw unknown field error
+ *
+ * @param component - Query builder component
+ * @param field - Unknown field name
+ *
+ * @example
+ * ```ts
+ * throwUnknownField('select', 'unknownField');
+ * ```
+ */
+export function throwUnknownField(
+  component: QueryBuilderComponent,
+  field: string,
+): never {
+  throw new ForjaQueryBuilderError(
+    `Unknown field '${field}' in ${component} clause`,
+    {
+      code: "UNKNOWN_FIELD",
+      component,
+      field,
+      suggestion: `Check that '${field}' exists in the schema`,
+    },
+  );
+}

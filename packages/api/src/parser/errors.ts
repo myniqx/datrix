@@ -13,7 +13,6 @@ import {
   type PopulateErrorContext,
   type FieldsErrorContext,
   type PaginationErrorContext,
-  type SortErrorContext,
 } from "forja-types/api/parser";
 import {
   MAX_WHERE_VALUE_LENGTH,
@@ -29,7 +28,7 @@ export const whereError = {
   invalidOperator(
     operator: string,
     path: string[],
-    context?: Partial<WhereErrorContext>
+    context?: Partial<WhereErrorContext>,
   ): ErrorResult {
     return {
       success: false,
@@ -40,9 +39,9 @@ export const whereError = {
           queryParam: context?.operatorPath,
         }),
         received: operator,
-        expected: "One of: $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin, $contains, $startsWith, $endsWith, $like, $ilike, $null, $notNull, $and, $or, $not",
-        suggestion:
-          "Use a valid WHERE operator. See documentation for full list.",
+        expected:
+          "One of: $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin, $contains, $startsWith, $endsWith, $like, $ilike, $null, $notNull, $and, $or, $not",
+        suggestion: "Use a valid WHERE operator. See documentation for full list.",
         context: {
           operator,
           ...context,
@@ -54,26 +53,24 @@ export const whereError = {
   invalidFieldName(
     fieldName: string,
     path: string[],
-    context?: Partial<WhereErrorContext>
+    context?: Partial<WhereErrorContext>,
   ): ErrorResult {
     return {
       success: false,
-      error: new ParserError(
-        `Invalid field name in WHERE clause: ${fieldName}`,
-        {
-          code: "INVALID_FIELD_NAME",
-          parser: "where",
-          location: buildErrorLocation(["where", ...path]),
-          received: fieldName,
-          expected:
-            "Field name must start with letter/underscore and contain only alphanumeric characters, underscores, and dots",
-          suggestion: "Use valid field names (e.g., 'name', 'user_id', 'profile.age')",
-          context: {
-            operator: fieldName,
-            ...context,
-          },
-        }
-      ),
+      error: new ParserError(`Invalid field name in WHERE clause: ${fieldName}`, {
+        code: "INVALID_FIELD_NAME",
+        parser: "where",
+        location: buildErrorLocation(["where", ...path]),
+        received: fieldName,
+        expected:
+          "Field name must start with letter/underscore and contain only alphanumeric characters, underscores, and dots",
+        suggestion:
+          "Use valid field names (e.g., 'name', 'user_id', 'profile.age')",
+        context: {
+          operator: fieldName,
+          ...context,
+        },
+      }),
     };
   },
 
@@ -81,7 +78,7 @@ export const whereError = {
     index: string,
     operator: string,
     path: string[],
-    context?: Partial<WhereErrorContext>
+    context?: Partial<WhereErrorContext>,
   ): ErrorResult {
     return {
       success: false,
@@ -102,7 +99,7 @@ export const whereError = {
             arrayIndex: parseInt(index, 10),
             ...context,
           },
-        }
+        },
       ),
     };
   },
@@ -120,11 +117,12 @@ export const whereError = {
           }),
           received: index,
           expected: "Field name or operator before array index",
-          suggestion: "WHERE clause must start with a field name, not an array index",
+          suggestion:
+            "WHERE clause must start with a field name, not an array index",
           context: {
             arrayIndex: parseInt(index, 10),
           },
-        }
+        },
       ),
     };
   },
@@ -132,7 +130,7 @@ export const whereError = {
   invalidArrayIndexFormat(
     index: string,
     operator: string,
-    path: string[]
+    path: string[],
   ): ErrorResult {
     return {
       success: false,
@@ -149,7 +147,7 @@ export const whereError = {
             operator,
             arrayIndex: NaN,
           },
-        }
+        },
       ),
     };
   },
@@ -157,7 +155,7 @@ export const whereError = {
   arrayIndexNotStartingFromZero(
     firstIndex: number,
     operator: string,
-    path: string[]
+    path: string[],
   ): ErrorResult {
     return {
       success: false,
@@ -176,7 +174,7 @@ export const whereError = {
             operator,
             arrayIndex: firstIndex,
           },
-        }
+        },
       ),
     };
   },
@@ -184,7 +182,7 @@ export const whereError = {
   arrayIndexNotConsecutive(
     missingIndex: number,
     operator: string,
-    path: string[]
+    path: string[],
   ): ErrorResult {
     return {
       success: false,
@@ -203,7 +201,7 @@ export const whereError = {
             operator,
             arrayIndex: missingIndex,
           },
-        }
+        },
       ),
     };
   },
@@ -219,11 +217,12 @@ export const whereError = {
           location: buildErrorLocation(["where", ...path]),
           received: `${actualLength} characters`,
           expected: `Maximum ${MAX_WHERE_VALUE_LENGTH} characters`,
-          suggestion: "Reduce the length of your query value or use a different approach",
+          suggestion:
+            "Reduce the length of your query value or use a different approach",
           context: {
             operator: "value_length",
           },
-        }
+        },
       ),
     };
   },
@@ -245,7 +244,7 @@ export const whereError = {
           context: {
             operator: "nesting_depth",
           },
-        }
+        },
       ),
     };
   },
@@ -265,7 +264,7 @@ export const whereError = {
           context: {
             operator,
           },
-        }
+        },
       ),
     };
   },
@@ -290,7 +289,7 @@ export const whereError = {
   invalidOperatorValue(
     operator: string,
     valueType: string,
-    path: string[]
+    path: string[],
   ): ErrorResult {
     return {
       success: false,
@@ -316,7 +315,7 @@ export const populateError = {
   invalidRelation(
     relation: string,
     path: string[],
-    context?: Partial<PopulateErrorContext>
+    context?: Partial<PopulateErrorContext>,
   ): ErrorResult {
     return {
       success: false,
@@ -342,7 +341,7 @@ export const populateError = {
     depth: number,
     maxDepth: number,
     path: string[],
-    context?: Partial<PopulateErrorContext>
+    context?: Partial<PopulateErrorContext>,
   ): ErrorResult {
     return {
       success: false,
@@ -404,26 +403,24 @@ export const fieldsError = {
   invalidFieldNames(
     invalidFields: readonly string[],
     path: string[],
-    context?: Partial<FieldsErrorContext>
+    context?: Partial<FieldsErrorContext>,
   ): ErrorResult {
     return {
       success: false,
-      error: new ParserError(
-        `Invalid field names: ${invalidFields.join(", ")}`,
-        {
-          code: "INVALID_FIELD_NAME",
-          parser: "fields",
-          location: buildErrorLocation(["fields", ...path]),
-          received: invalidFields,
-          expected:
-            "Field names must start with letter/underscore and contain only alphanumeric characters, underscores, and dots",
-          suggestion: "Use valid field names (e.g., 'name', 'user_id', 'profile.age')",
-          context: {
-            invalidFields: invalidFields as string[],
-            ...context,
-          },
-        }
-      ),
+      error: new ParserError(`Invalid field names: ${invalidFields.join(", ")}`, {
+        code: "INVALID_FIELD_NAME",
+        parser: "fields",
+        location: buildErrorLocation(["fields", ...path]),
+        received: invalidFields,
+        expected:
+          "Field names must start with letter/underscore and contain only alphanumeric characters, underscores, and dots",
+        suggestion:
+          "Use valid field names (e.g., 'name', 'user_id', 'profile.age')",
+        context: {
+          invalidFields: invalidFields as string[],
+          ...context,
+        },
+      }),
     };
   },
 
@@ -438,33 +435,29 @@ export const fieldsError = {
           location: buildErrorLocation(["fields", ...path]),
           received: "empty string",
           expected: "Field name(s) or wildcard (*)",
-          suggestion: "Provide field names (e.g., 'name,email') or use * for all fields",
+          suggestion:
+            "Provide field names (e.g., 'name,email') or use * for all fields",
           context: {},
-        }
+        },
       ),
     };
   },
 
-  suspiciousParams(
-    params: readonly string[],
-    path: string[]
-  ): ErrorResult {
+  suspiciousParams(params: readonly string[], path: string[]): ErrorResult {
     return {
       success: false,
-      error: new ParserError(
-        `Unknown fields parameters: ${params.join(", ")}`,
-        {
-          code: "UNKNOWN_PARAMETER",
-          parser: "fields",
-          location: buildErrorLocation(["fields", ...path]),
-          received: params,
-          expected: "fields or fields[N] format",
-          suggestion: "Use 'fields=name,email' or 'fields[0]=name&fields[1]=email' format",
-          context: {
-            suspiciousParams: params as string[],
-          },
-        }
-      ),
+      error: new ParserError(`Unknown fields parameters: ${params.join(", ")}`, {
+        code: "UNKNOWN_PARAMETER",
+        parser: "fields",
+        location: buildErrorLocation(["fields", ...path]),
+        received: params,
+        expected: "fields or fields[N] format",
+        suggestion:
+          "Use 'fields=name,email' or 'fields[0]=name&fields[1]=email' format",
+        context: {
+          suspiciousParams: params as string[],
+        },
+      }),
     };
   },
 
@@ -491,7 +484,7 @@ export const paginationError = {
   invalidLimit(
     value: string | number,
     path: string[],
-    context?: Partial<PaginationErrorContext>
+    context?: Partial<PaginationErrorContext>,
   ): ErrorResult {
     return {
       success: false,
@@ -513,7 +506,7 @@ export const paginationError = {
   invalidOffset(
     value: string | number,
     path: string[],
-    context?: Partial<PaginationErrorContext>
+    context?: Partial<PaginationErrorContext>,
   ): ErrorResult {
     return {
       success: false,
@@ -535,7 +528,7 @@ export const paginationError = {
   invalidPage(
     value: string | number,
     path: string[],
-    context?: Partial<PaginationErrorContext>
+    context?: Partial<PaginationErrorContext>,
   ): ErrorResult {
     return {
       success: false,
@@ -558,51 +551,41 @@ export const paginationError = {
   invalidPageSize(
     value: string | number,
     path: string[],
-    context?: Partial<PaginationErrorContext>
+    context?: Partial<PaginationErrorContext>,
   ): ErrorResult {
     return {
       success: false,
-      error: new ParserError(
-        `Invalid pageSize value: "${value}" (must be >= 1)`,
-        {
-          code: "INVALID_PAGINATION",
-          parser: "pagination",
-          location: buildErrorLocation(["pagination", ...path]),
-          received: value,
-          expected: "Integer >= 1",
-          suggestion: "Provide a positive integer for pageSize (e.g., pageSize=25)",
-          context: {
-            parameter: "pageSize",
-            minValue: 1,
-            ...context,
-          },
-        }
-      ),
+      error: new ParserError(`Invalid pageSize value: "${value}" (must be >= 1)`, {
+        code: "INVALID_PAGINATION",
+        parser: "pagination",
+        location: buildErrorLocation(["pagination", ...path]),
+        received: value,
+        expected: "Integer >= 1",
+        suggestion: "Provide a positive integer for pageSize (e.g., pageSize=25)",
+        context: {
+          parameter: "pageSize",
+          minValue: 1,
+          ...context,
+        },
+      }),
     };
   },
 
-  maxPageSizeExceeded(
-    value: number,
-    max: number,
-    path: string[]
-  ): ErrorResult {
+  maxPageSizeExceeded(value: number, max: number, path: string[]): ErrorResult {
     return {
       success: false,
-      error: new ParserError(
-        `Page size exceeds maximum (${max})`,
-        {
-          code: "MAX_VALUE_VIOLATION",
-          parser: "pagination",
-          location: buildErrorLocation(["pagination", ...path]),
-          received: value,
-          expected: `Maximum: ${max}`,
-          suggestion: `Reduce pageSize to ${max} or less`,
-          context: {
-            parameter: "pageSize",
-            maxValue: max,
-          },
-        }
-      ),
+      error: new ParserError(`Page size exceeds maximum (${max})`, {
+        code: "MAX_VALUE_VIOLATION",
+        parser: "pagination",
+        location: buildErrorLocation(["pagination", ...path]),
+        received: value,
+        expected: `Maximum: ${max}`,
+        suggestion: `Reduce pageSize to ${max} or less`,
+        context: {
+          parameter: "pageSize",
+          maxValue: max,
+        },
+      }),
     };
   },
 
@@ -624,7 +607,11 @@ export const paginationError = {
     };
   },
 
-  maxPageNumberExceeded(value: number, max: number, path: string[]): ErrorResult {
+  maxPageNumberExceeded(
+    value: number,
+    max: number,
+    path: string[],
+  ): ErrorResult {
     return {
       success: false,
       error: new ParserError(`Page number exceeds maximum (${max})`, {
@@ -656,7 +643,8 @@ export const sortError = {
         location: buildErrorLocation(["sort", ...path]),
         received: "empty string",
         expected: "Field name(s) with optional direction",
-        suggestion: "Provide field names (e.g., 'name' or '-createdAt' for descending)",
+        suggestion:
+          "Provide field names (e.g., 'name' or '-createdAt' for descending)",
         context: {},
       }),
     };
@@ -672,7 +660,8 @@ export const sortError = {
         received: field,
         expected:
           "Field name must start with letter/underscore and contain only alphanumeric characters, underscores, and dots. Use '-' prefix for descending order.",
-        suggestion: "Use valid field names (e.g., 'name', '-createdAt', 'user.age')",
+        suggestion:
+          "Use valid field names (e.g., 'name', '-createdAt', 'user.age')",
         context: {
           sortField: field,
         },

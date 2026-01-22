@@ -8,7 +8,6 @@
 import type { DatabaseAdapter } from "./adapter";
 import type { ForjaPlugin } from "./plugin";
 import type { SchemaDefinition } from "./core/schema";
-import { ForjaError } from "./utils";
 
 /**
  * Main Forja Configuration
@@ -146,60 +145,22 @@ export interface LoadConfigOptions {
 }
 
 /**
- * Config validation error
+ * @deprecated Use ForjaConfigError from 'forja-types/errors' instead
+ * This is kept for backward compatibility
  */
-export class ConfigError extends ForjaError {
-  constructor(message: string, details?: unknown) {
-    super(message, { code: "CONFIG_ERROR", details });
-    this.name = "ConfigError";
-  }
-}
+export { ForjaConfigError as ConfigError } from "./errors/core/config";
 
 /**
- * Config not found error
+ * @deprecated Use throwConfigNotFound from config error helpers instead
+ * This is kept for backward compatibility
  */
-export class ConfigNotFoundError extends ConfigError {
-  constructor(path: string) {
-    super(`Config file not found: ${path}`, { code: "CONFIG_NOT_FOUND" });
-    this.name = "ConfigNotFoundError";
-  }
-}
+export { ForjaConfigError as ConfigNotFoundError } from "./errors/core/config";
 
 /**
- * Config validation failed error
+ * @deprecated Use ForjaConfigValidationError from 'forja-types/errors' instead
+ * This is kept for backward compatibility
  */
-export class ConfigValidationError extends ConfigError {
-  readonly errors: readonly string[];
-
-  constructor(errors: readonly string[]) {
-    super(
-      `Config validation failed:\n${errors.map((e) => `  - ${e}`).join("\n")}`,
-      { code: "CONFIG_VALIDATION_FAILED", details: { errors } },
-    );
-    this.name = "ConfigValidationError";
-    this.errors = errors;
-  }
-}
-
-/**
- * TypeScript config requires compilation error
- */
-export class TypeScriptConfigError extends ConfigError {
-  constructor(configPath: string) {
-    super(
-      `TypeScript config found but not compiled.\n\n` +
-      `Config file: ${configPath}\n\n` +
-      `Option 1: Compile your config:\n` +
-      `  tsc ${configPath}\n\n` +
-      `Option 2: Install tsx for automatic TS support:\n` +
-      `  npm install -D tsx\n\n` +
-      `Option 3: Use JavaScript config instead:\n` +
-      `  Rename to forja.config.js`,
-      { code: "TYPESCRIPT_CONFIG_NOT_COMPILED" },
-    );
-    this.name = "TypeScriptConfigError";
-  }
-}
+export { ForjaConfigValidationError as ConfigValidationError } from "./errors/core/config";
 
 /**
  * Type guard for ForjaConfig

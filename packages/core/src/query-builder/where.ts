@@ -8,29 +8,18 @@
 import type { ComparisonOperators, QueryPrimitive, WhereClause } from "forja-types/core/query-builder";
 import type { FieldType, SchemaDefinition } from "forja-types/core/schema";
 import type { Result } from "forja-types/utils";
+import {
+  throwInvalidOperator,
+  throwInvalidValue,
+  throwMaxDepthExceeded,
+  throwInvalidField,
+} from "./error-helper";
+import { ForjaQueryBuilderError } from "forja-types/errors";
 
 /**
  * Maximum nesting depth for WHERE clauses to prevent stack overflow
  */
 const MAX_WHERE_DEPTH = 10;
-
-/**
- * Where builder error
- */
-export class WhereBuilderError extends Error {
-  constructor(
-    message: string,
-    public readonly code: string = 'WHERE_BUILD_ERROR',
-    public readonly details?: {
-      field?: string;
-      operator?: string;
-      value?: unknown;
-    }
-  ) {
-    super(message);
-    this.name = 'WhereBuilderError';
-  }
-}
 
 /**
  * Check if value is a comparison operator object
@@ -72,13 +61,14 @@ export function isLogicalOperator(key: string): boolean {
 
 /**
  * Validate comparison operator value
+ * @throws {ForjaQueryBuilderError} If operator or value is invalid
  */
 export function validateComparisonOperator(
   field: string,
   operator: string,
   value: unknown,
   _fieldType: FieldType
-): Result<void, WhereBuilderError> {
+): void {
   switch (operator) {
     case '$eq':
     case '$ne':
@@ -90,14 +80,7 @@ export function validateComparisonOperator(
         value !== null &&
         !(value instanceof Date)
       ) {
-        return {
-          success: false,
-          error: new WhereBuilderError(
-            `Invalid value for ${operator}: expected primitive value`,
-            'INVALID_VALUE',
-            { field, operator, value }
-          )
-        };
+        throwInvalidValue('where', field, value, 'primitive value');
       }
       break;
 
@@ -107,14 +90,7 @@ export function validateComparisonOperator(
     case '$lte':
       // Only numbers and dates
       if (typeof value !== 'number' && !(value instanceof Date)) {
-        return {
-          success: false,
-          error: new WhereBuilderError(
-            `Invalid value for ${operator}: expected number or Date`,
-            'INVALID_VALUE',
-            { field, operator, value }
-          )
-        };
+        throwInvalidValue('where', field, value, 'number or Date');
       }
       break;
 
@@ -122,14 +98,7 @@ export function validateComparisonOperator(
     case '$nin':
       // Array of primitives
       if (!Array.isArray(value)) {
-        return {
-          success: false,
-          error: new WhereBuilderError(
-            `Invalid value for ${operator}: expected array`,
-            'INVALID_VALUE',
-            { field, operator, value }
-          )
-        };
+        throwInvalidValue('where', field, value, 'array');
       }
       break;
 
@@ -139,28 +108,14 @@ export function validateComparisonOperator(
     case '$icontains':
       // String only
       if (typeof value !== 'string') {
-        return {
-          success: false,
-          error: new WhereBuilderError(
-            `Invalid value for ${operator}: expected string`,
-            'INVALID_VALUE',
-            { field, operator, value }
-          )
-        };
+        throwInvalidValue('where', field, value, 'string');
       }
       break;
 
     case '$regex':
       // RegExp or string
       if (!(value instanceof RegExp) && typeof value !== 'string') {
-        return {
-          success: false,
-          error: new WhereBuilderError(
-            `Invalid value for ${operator}: expected RegExp or string`,
-            'INVALID_VALUE',
-            { field, operator, value }
-          )
-        };
+        throwInvalidValue('where', field, value, 'RegExp or string');
       }
       break;
 
@@ -168,47 +123,31 @@ export function validateComparisonOperator(
     case '$null':
       // Boolean only
       if (typeof value !== 'boolean') {
-        return {
-          success: false,
-          error: new WhereBuilderError(
-            `Invalid value for ${operator}: expected boolean`,
-            'INVALID_VALUE',
-            { field, operator, value }
-          )
-        };
+        throwInvalidValue('where', field, value, 'boolean');
       }
       break;
 
     default:
-      return {
-        success: false,
-        error: new WhereBuilderError(`Unknown operator: ${operator}`, 'INVALID_OPERATOR', {
-          field,
-          operator
-        })
-      };
+      throwInvalidOperator(field, operator, [
+        '$eq', '$ne', '$gt', '$gte', '$lt', '$lte',
+        '$in', '$nin', '$like', '$ilike', '$contains',
+        '$icontains', '$regex', '$exists', '$null'
+      ]);
   }
-
-  return { success: true, data: undefined };
 }
 
 /**
  * Validate where clause against schema
+ * @throws {ForjaQueryBuilderError} If where clause is invalid
  */
 export function validateWhereClause(
   where: WhereClause,
   schema: SchemaDefinition,
   depth = 0
-): Result<void, WhereBuilderError> {
+): void {
   // Check depth limit
   if (depth > MAX_WHERE_DEPTH) {
-    return {
-      success: false,
-      error: new WhereBuilderError(
-        `WHERE clause exceeds maximum nesting depth of ${MAX_WHERE_DEPTH}`,
-        'MAX_DEPTH_EXCEEDED'
-      )
-    };
+    throwMaxDepthExceeded('where', depth, MAX_WHERE_DEPTH);
   }
 
   const availableFields = Object.keys(schema.fields);
@@ -218,43 +157,23 @@ export function validateWhereClause(
     if (isLogicalOperator(key)) {
       if (key === '$and' || key === '$or') {
         if (!Array.isArray(value)) {
-          return {
-            success: false,
-            error: new WhereBuilderError(
-              `${key} operator requires an array of conditions`,
-              'INVALID_VALUE',
-              { operator: key, value }
-            )
-          };
+          throwInvalidValue('where', key, value, 'array of conditions');
         }
 
         // Recursively validate each condition
         for (const condition of value as readonly WhereClause[]) {
-          const result = validateWhereClause(condition, schema, depth + 1);
-          if (!result.success) {
-            return result;
-          }
+          validateWhereClause(condition, schema, depth + 1);
         }
       } else if (key === '$not') {
         // Recursively validate nested condition
-        const result = validateWhereClause(value as WhereClause, schema, depth + 1);
-        if (!result.success) {
-          return result;
-        }
+        validateWhereClause(value as WhereClause, schema, depth + 1);
       }
       continue;
     }
 
     // Check field exists in schema
     if (!availableFields.includes(key)) {
-      return {
-        success: false,
-        error: new WhereBuilderError(
-          `Field '${key}' does not exist in schema '${schema.name}'`,
-          'INVALID_FIELD',
-          { field: key }
-        )
-      };
+      throwInvalidField('where', key, availableFields);
     }
 
     const fieldDef = schema.fields[key];
@@ -264,15 +183,7 @@ export function validateWhereClause(
     if (isComparisonOperators(value)) {
       const ops = value as ComparisonOperators;
       for (const [operator, opValue] of Object.entries(ops)) {
-        const result = validateComparisonOperator(
-          key,
-          operator,
-          opValue,
-          fieldDef.type
-        );
-        if (!result.success) {
-          return result;
-        }
+        validateComparisonOperator(key, operator, opValue, fieldDef.type);
       }
     }
     // Simple equality check
@@ -285,19 +196,10 @@ export function validateWhereClause(
         value !== null &&
         !(value instanceof Date)
       ) {
-        return {
-          success: false,
-          error: new WhereBuilderError(
-            `Invalid value for field '${key}': expected primitive value`,
-            'INVALID_VALUE',
-            { field: key, value }
-          )
-        };
+        throwInvalidValue('where', key, value, 'primitive value');
       }
     }
   }
-
-  return { success: true, data: undefined };
 }
 
 /**

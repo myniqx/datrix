@@ -9,7 +9,31 @@
 export { validateField } from './field-validator';
 
 // Export schema validator
-export { validateSchema, validatePartial } from './schema-validator';
+export {
+  validateSchema,
+  validatePartial,
+  validateOrThrow,
+  validatePartialOrThrow,
+  isValid,
+  assertSchema,
+} from './schema-validator';
 
 // Export validation errors
-export { createValidationError } from './errors';
+export {
+  createValidationError,
+  validationError,
+  throwValidationMultiple,
+  throwValidationSingle,
+  throwValidationRequired,
+  throwValidationTypeMismatch,
+  throwValidationPattern,
+  throwValidationMinLength,
+  throwValidationMaxLength,
+  throwValidationMinValue,
+  throwValidationMaxValue,
+  throwValidationEnum,
+  throwValidationMinItems,
+  throwValidationMaxItems,
+  throwValidationDate,
+  throwValidationCustom,
+} from './errors';

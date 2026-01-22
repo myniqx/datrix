@@ -5,15 +5,21 @@
  */
 
 import { Result } from "forja-types/utils";
-import {
-  ForjaConfig,
-  ConfigError,
-  ConfigValidationError,
-  MigrationConfig,
-  DevConfig,
-} from "forja-types/config";
+import { ForjaConfig, MigrationConfig, DevConfig } from "forja-types/config";
 import { isDatabaseAdapter } from "forja-types/adapter";
 import { isForjaPlugin } from "forja-types/plugin";
+import { ForjaConfigError } from "forja-types/errors";
+import {
+  throwConfigInvalidType,
+  throwConfigRequired,
+  throwConfigInvalidValue,
+  throwConfigEmpty,
+  throwConfigArrayItem,
+  throwConfigMultiple,
+  throwConfigFieldType,
+  throwConfigBooleanField,
+  throwConfigStringField,
+} from "./error-helper";
 
 const isObject = (obj: unknown): boolean =>
   typeof obj === "object" && obj !== null;
@@ -23,15 +29,12 @@ const isObject = (obj: unknown): boolean =>
  */
 export function validateConfig(
   config: unknown,
-): Result<ForjaConfig, ConfigError> {
+): Result<ForjaConfig, ForjaConfigError> {
   const errors: string[] = [];
 
   // 1. Check if object
   if (typeof config !== "object" || config === null) {
-    return {
-      success: false,
-      error: new ConfigValidationError(["Config must be an object"]),
-    };
+    throwConfigInvalidType("root", "object", config);
   }
 
   // 2. Validate adapter (required)
@@ -79,10 +82,7 @@ export function validateConfig(
 
   // Return validation result
   if (errors.length > 0) {
-    return {
-      success: false,
-      error: new ConfigValidationError(errors),
-    };
+    throwConfigMultiple(errors);
   }
 
   return { success: true, data: config as unknown as ForjaConfig };
@@ -91,49 +91,38 @@ export function validateConfig(
 /**
  * Validate schemas array
  */
-function validateSchemas(schemas: unknown): Result<void, ConfigError> {
+function validateSchemas(schemas: unknown): Result<void, ForjaConfigError> {
   if (!Array.isArray(schemas)) {
-    return {
-      success: false,
-      error: new ConfigError("Config.schemas must be an array"),
-    };
+    throwConfigFieldType("schemas", "array", schemas);
   }
 
   if (schemas.length === 0) {
-    return {
-      success: false,
-      error: new ConfigError(
-        "Config.schemas cannot be empty. Add at least one schema.",
-      ),
-    };
+    throwConfigEmpty("schemas");
   }
 
   for (let i = 0; i < schemas.length; i++) {
     const schema = schemas[i];
 
     if (!isObject(schema)) {
-      return {
-        success: false,
-        error: new ConfigError(`Config.schemas[${i}] must be an object`),
-      };
+      throwConfigArrayItem("schemas", i, "must be an object", schema);
     }
 
     if (!("name" in schema) || typeof schema["name"] !== "string") {
-      return {
-        success: false,
-        error: new ConfigError(
-          `Config.schemas[${i}] must have a "name" property (string)`,
-        ),
-      };
+      throwConfigArrayItem(
+        "schemas",
+        i,
+        'must have a "name" property (string)',
+        schema,
+      );
     }
 
     if (!("fields" in schema) || !isObject(schema["fields"])) {
-      return {
-        success: false,
-        error: new ConfigError(
-          `Config.schemas[${i}] (${schema["name"]}) must have a "fields" property (object)`,
-        ),
-      };
+      throwConfigArrayItem(
+        "schemas",
+        i,
+        `(${schema["name"]}) must have a "fields" property (object)`,
+        schema,
+      );
     }
   }
 
@@ -143,24 +132,21 @@ function validateSchemas(schemas: unknown): Result<void, ConfigError> {
 /**
  * Validate plugins array
  */
-function validatePlugins(plugins: unknown): Result<void, ConfigError> {
+function validatePlugins(plugins: unknown): Result<void, ForjaConfigError> {
   if (!Array.isArray(plugins)) {
-    return {
-      success: false,
-      error: new ConfigError("Config.plugins must be an array"),
-    };
+    throwConfigFieldType("plugins", "array", plugins);
   }
 
   for (let i = 0; i < plugins.length; i++) {
     const plugin = plugins[i];
 
     if (!isForjaPlugin(plugin)) {
-      return {
-        success: false,
-        error: new ConfigError(
-          `Config.plugins[${i}] must be a valid ForjaPlugin instance`,
-        ),
-      };
+      throwConfigArrayItem(
+        "plugins",
+        i,
+        "must be a valid ForjaPlugin instance",
+        plugin,
+      );
     }
   }
 
@@ -172,36 +158,24 @@ function validatePlugins(plugins: unknown): Result<void, ConfigError> {
  */
 function validateMigrationConfig(
   migration: unknown,
-): Result<MigrationConfig, ConfigError> {
+): Result<MigrationConfig, ForjaConfigError> {
   if (typeof migration !== "object" || migration === null) {
-    return {
-      success: false,
-      error: new ConfigError("Config.migration must be an object"),
-    };
+    throwConfigFieldType("migration", "object", migration);
   }
 
   // Validate auto
   if ("auto" in migration && typeof migration["auto"] !== "boolean") {
-    return {
-      success: false,
-      error: new ConfigError("Config.migration.auto must be a boolean"),
-    };
+    throwConfigBooleanField("migration.auto", migration["auto"]);
   }
 
   // Validate directory
   if ("directory" in migration) {
     if (typeof migration["directory"] !== "string") {
-      return {
-        success: false,
-        error: new ConfigError("Config.migration.directory must be a string"),
-      };
+      throwConfigStringField("migration.directory", migration["directory"]);
     }
 
     if ((migration["directory"] as string).trim() === "") {
-      return {
-        success: false,
-        error: new ConfigError("Config.migration.directory cannot be empty"),
-      };
+      throwConfigEmpty("migration.directory");
     }
   }
 
@@ -211,36 +185,24 @@ function validateMigrationConfig(
 /**
  * Validate dev config
  */
-function validateDevConfig(dev: unknown): Result<DevConfig, ConfigError> {
+function validateDevConfig(dev: unknown): Result<DevConfig, ForjaConfigError> {
   if (typeof dev !== "object" || dev === null) {
-    return {
-      success: false,
-      error: new ConfigError("Config.dev must be an object"),
-    };
+    throwConfigFieldType("dev", "object", dev);
   }
 
   // Validate logging
   if ("logging" in dev && typeof dev["logging"] !== "boolean") {
-    return {
-      success: false,
-      error: new ConfigError("Config.dev.logging must be a boolean"),
-    };
+    throwConfigBooleanField("dev.logging", dev["logging"]);
   }
 
   // Validate validateQueries
   if ("validateQueries" in dev && typeof dev["validateQueries"] !== "boolean") {
-    return {
-      success: false,
-      error: new ConfigError("Config.dev.validateQueries must be a boolean"),
-    };
+    throwConfigBooleanField("dev.validateQueries", dev["validateQueries"]);
   }
 
   // Validate prettyErrors
   if ("prettyErrors" in dev && typeof dev["prettyErrors"] !== "boolean") {
-    return {
-      success: false,
-      error: new ConfigError("Config.dev.prettyErrors must be a boolean"),
-    };
+    throwConfigBooleanField("dev.prettyErrors", dev["prettyErrors"]);
   }
 
   return { success: true, data: dev as unknown as DevConfig };

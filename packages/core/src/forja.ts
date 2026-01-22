@@ -28,6 +28,7 @@ import { PluginRegistry } from "forja-types/plugin";
 import { SchemaRegistry } from "./schema";
 import { ParsedQuery, ForjaEntry } from "forja-types";
 import { IForja } from "forja-types/forja";
+import { ForjaError } from "forja-types/errors";
 
 /**
  * Forja initialization options
@@ -94,7 +95,7 @@ export class Forja implements IForja {
               success: false,
               error: new ForjaError(
                 `Failed to register plugin '${plugin.name}': ${registerResult.error.message}`,
-                "PLUGIN_REGISTRATION_FAILED",
+                { code: "PLUGIN_REGISTRATION_FAILED" },
               ),
             };
           }
@@ -112,7 +113,7 @@ export class Forja implements IForja {
             success: false,
             error: new ForjaError(
               `Failed to connect to database: ${connectResult.error.message}`,
-              "ADAPTER_CONNECTION_FAILED",
+              { code: "ADAPTER_CONNECTION_FAILED" },
             ),
           };
         }
@@ -127,7 +128,7 @@ export class Forja implements IForja {
               success: false,
               error: new ForjaError(
                 `Failed to register schema '${schema.name}': ${registerResult.error.message}`,
-                "SCHEMA_REGISTRATION_FAILED",
+                { code: "SCHEMA_REGISTRATION_FAILED" },
               ),
             };
           }
@@ -146,7 +147,7 @@ export class Forja implements IForja {
                   success: false,
                   error: new ForjaError(
                     `Failed to register schema '${schema.name}' from plugin '${plugin.name}': ${registerResult.error.message}`,
-                    "PLUGIN_SCHEMA_REGISTRATION_FAILED",
+                    { code: "PLUGIN_SCHEMA_REGISTRATION_FAILED" },
                   ),
                 };
               }
@@ -170,7 +171,7 @@ export class Forja implements IForja {
                 success: false,
                 error: new ForjaError(
                   `Failed to apply schema extensions from plugin '${plugin.name}': ${applyResult.error.message}`,
-                  "SCHEMA_EXTENSION_FAILED",
+                  { code: "SCHEMA_EXTENSION_FAILED" },
                 ),
               };
             }
@@ -185,7 +186,7 @@ export class Forja implements IForja {
           success: false,
           error: new ForjaError(
             `Failed to finalize schema registry: ${finalizeResult.error.message}`,
-            "SCHEMA_FINALIZATION_FAILED",
+            { code: "SCHEMA_FINALIZATION_FAILED" },
           ),
         };
       }
@@ -217,7 +218,7 @@ export class Forja implements IForja {
             success: false,
             error: new ForjaError(
               `Failed to initialize plugins: ${initResult.error.message}`,
-              "PLUGIN_INIT_FAILED",
+              { code: "PLUGIN_INIT_FAILED" },
             ),
           };
         }
@@ -235,7 +236,7 @@ export class Forja implements IForja {
         success: false,
         error: new ForjaError(
           `Initialization failed: ${error instanceof Error ? error.message : String(error)}`,
-          "INIT_FAILED",
+          { code: "INIT_FAILED" },
         ),
       };
     }
@@ -253,7 +254,7 @@ export class Forja implements IForja {
           success: false,
           error: new ForjaError(
             `Failed to destroy plugins: ${destroyResult.error.message}`,
-            "PLUGIN_DESTROY_FAILED",
+            { code: "PLUGIN_DESTROY_FAILED" },
           ),
         };
       }
@@ -272,7 +273,7 @@ export class Forja implements IForja {
         success: false,
         error: new ForjaError(
           `Shutdown failed: ${error instanceof Error ? error.message : String(error)}`,
-          "SHUTDOWN_FAILED",
+          { code: "SHUTDOWN_FAILED" },
         ),
       };
     }
@@ -464,7 +465,7 @@ export class Forja implements IForja {
     if (!this.initialized) {
       throw new ForjaError(
         "Forja not initialized. Use defineConfig() and call the returned function first.",
-        "NOT_INITIALIZED",
+        { code: "NOT_INITIALIZED" },
       );
     }
   }
@@ -480,7 +481,7 @@ export class Forja implements IForja {
           success: false,
           error: new ForjaError(
             `Cannot extend schema '${extension.targetSchema}': schema not found`,
-            "SCHEMA_NOT_FOUND",
+            { code: "SCHEMA_NOT_FOUND" },
           ),
         };
       }

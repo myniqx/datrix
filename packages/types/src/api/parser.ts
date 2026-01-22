@@ -12,7 +12,7 @@ import {
   SelectClause,
   WhereClause,
 } from "../core/query-builder";
-import { ParserError } from "../errors/parser";
+import { ParserError } from "../errors/api/parser";
 import { Result } from "../utils";
 
 /**
@@ -64,9 +64,9 @@ export type {
   ErrorLocation,
   ParserErrorOptions,
   SerializedParserError,
-} from "../errors/parser";
+} from "../errors/api/parser";
 
-export { ParserError, buildErrorLocation } from "../errors/parser";
+export { ParserError, buildErrorLocation } from "../errors/api/parser";
 
 /**
  * Field parser result

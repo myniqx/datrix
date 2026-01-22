@@ -16,6 +16,7 @@ import type { ForjaConfig } from "./config";
 import { Result } from "./utils";
 import { QueryObject } from "./core/query-builder";
 import { IForja } from "./forja";
+import { AuthenticatedUser } from "./api/auth";
 
 export type { SchemaDefinition } from "./core/schema";
 
@@ -41,6 +42,7 @@ export interface QueryContext {
   readonly table: string;
   readonly forja: IForja;
   readonly metadata: Record<string, unknown>;
+  user?: AuthenticatedUser | undefined;
 }
 
 /**

@@ -10,50 +10,8 @@ import type { Result } from "forja-types/utils";
 import { PasswordManager, type PasswordHash } from "./password";
 import { JwtStrategy } from "./jwt";
 import { SessionStrategy } from "./session";
-import { AuthConfig } from "./types";
-
-/**
- * Auth error
- */
-export class AuthError extends Error {
-  readonly code: string;
-  readonly details?: unknown;
-
-  constructor(message: string, code: string, details?: unknown) {
-    super(message);
-    this.name = "AuthError";
-    this.code = code;
-    this.details = details;
-  }
-}
-
-/**
- * Authenticated user
- */
-export interface AuthUser {
-  readonly id: number;
-  readonly email: string;
-  readonly role: string;
-  readonly [key: string]: unknown;
-}
-
-/**
- * Login result
- */
-export interface LoginResult {
-  readonly user: AuthUser;
-  readonly token?: string;
-  readonly sessionId?: string;
-}
-
-/**
- * Auth context (attached to request)
- */
-export interface AuthContext {
-  readonly user: AuthUser;
-  readonly token?: string;
-  readonly sessionId?: string;
-}
+import { AuthConfig, AuthContext, AuthUser, LoginResult } from "./types";
+import { AuthError } from "forja-types";
 
 /**
  * Auth Manager

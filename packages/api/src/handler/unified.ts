@@ -23,7 +23,7 @@ import {
   forjaErrorResponse,
 } from "./utils";
 import { handlerError } from "../errors/api-error";
-import { ForjaError } from "forja-types/errors/base";
+import { ForjaError, ForjaValidationError } from "forja-types/errors";
 import type { ForjaEntry } from "forja-types/core/schema";
 
 /**
@@ -105,7 +105,7 @@ async function handleGet(ctx: RequestContext): Promise<Response> {
       });
     }
   } catch (error) {
-    if (error instanceof ForjaError) {
+    if (error instanceof ForjaValidationError || error instanceof ForjaError) {
       return forjaErrorResponse({ success: false, error });
     }
     const message =
@@ -162,7 +162,7 @@ async function handlePost(ctx: RequestContext): Promise<Response> {
 
     return jsonResponse({ data: result }, 201);
   } catch (error) {
-    if (error instanceof ForjaError) {
+    if (error instanceof ForjaValidationError || error instanceof ForjaError) {
       return forjaErrorResponse({ success: false, error });
     }
     const message =
@@ -250,7 +250,7 @@ async function handleUpdate(ctx: RequestContext): Promise<Response> {
 
     return jsonResponse({ data: result });
   } catch (error) {
-    if (error instanceof ForjaError) {
+    if (error instanceof ForjaValidationError || error instanceof ForjaError) {
       return forjaErrorResponse({ success: false, error });
     }
     const message =
@@ -299,7 +299,7 @@ async function handleDelete(ctx: RequestContext): Promise<Response> {
 
     return jsonResponse({ data: { id, deleted: true } });
   } catch (error) {
-    if (error instanceof ForjaError) {
+    if (error instanceof ForjaValidationError || error instanceof ForjaError) {
       return forjaErrorResponse({ success: false, error });
     }
     const message =
@@ -371,7 +371,7 @@ export async function handleRequest<TRole extends string = string>(
     }
   } catch (error) {
     // Handle parser errors and other ForjaErrors with rich context
-    if (error instanceof ForjaError) {
+    if (error instanceof ForjaValidationError || error instanceof ForjaError) {
       return forjaErrorResponse({ success: false, error });
     }
 
