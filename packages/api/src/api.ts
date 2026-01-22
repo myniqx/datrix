@@ -161,7 +161,6 @@ export class ApiPlugin<TRole extends string = string>
           required: true,
           kind: "belongsTo",
           model: this.userSchemaName,
-          foreignKey: "userId",
         },
         email: {
           type: "string",

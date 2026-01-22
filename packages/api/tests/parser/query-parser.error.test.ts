@@ -137,7 +137,7 @@ describe("QueryParser - Error Path", () => {
 
       const error = expectFailureError(parseQuery(specialCharsSort));
 
-      expect(error.code).toBe("INVALID_SYNTAX");
+      expect(error.code).toBe("INVALID_FIELD_NAME");
       expect(error.field).toBe("sort");
     });
 
@@ -147,7 +147,7 @@ describe("QueryParser - Error Path", () => {
 
       const error = expectFailureError(parseQuery(digitStartSort));
 
-      expect(error.code).toBe("INVALID_SYNTAX");
+      expect(error.code).toBe("INVALID_FIELD_NAME");
       expect(error.field).toBe("sort");
     });
 
@@ -157,7 +157,7 @@ describe("QueryParser - Error Path", () => {
 
       const error = expectFailureError(parseQuery(spacesSort));
 
-      expect(error.code).toBe("INVALID_SYNTAX");
+      expect(error.code).toBe("INVALID_FIELD_NAME");
       expect(error.field).toBe("sort");
     });
 
@@ -167,7 +167,7 @@ describe("QueryParser - Error Path", () => {
 
       const error = expectFailureError(parseQuery(pathTraversalSort));
 
-      expect(error.code).toBe("INVALID_SYNTAX");
+      expect(error.code).toBe("INVALID_FIELD_NAME");
       expect(error.field).toBe("sort");
     });
 
@@ -176,7 +176,7 @@ describe("QueryParser - Error Path", () => {
 
       const error = expectFailureError(parseQuery(xssSort));
 
-      expect(error.code).toBe("INVALID_SYNTAX");
+      expect(error.code).toBe("INVALID_FIELD_NAME");
       expect(error.field).toBe("sort");
     });
 
@@ -186,7 +186,7 @@ describe("QueryParser - Error Path", () => {
 
       const error = expectFailureError(parseQuery(longSort));
 
-      expect(error.code).toBe("INVALID_SYNTAX");
+      expect(error.code).toBe("INVALID_FIELD_NAME");
       expect(error.field).toBe("sort");
     });
 
@@ -195,7 +195,7 @@ describe("QueryParser - Error Path", () => {
 
       const error = expectFailureError(parseQuery(emptySort));
 
-      expect(error.code).toBe("INVALID_SYNTAX");
+      expect(error.code).toBe("EMPTY_VALUE");
     });
 
     it("should reject sort with only minus sign", () => {
@@ -203,7 +203,7 @@ describe("QueryParser - Error Path", () => {
 
       const error = expectFailureError(parseQuery(onlyMinus));
 
-      expect(error.code).toBe("INVALID_SYNTAX");
+      expect(error.code).toBe("INVALID_FIELD_NAME");
       expect(error.field).toBe("sort");
     });
   });
@@ -216,7 +216,7 @@ describe("QueryParser - Error Path", () => {
 
       const error = expectFailureError(parseQuery(invalidFields));
 
-      expect(error.code).toBe("INVALID_SYNTAX");
+      expect(error.code).toBe("INVALID_FIELD_NAME");
     });
 
     it("should propagate where parser errors", () => {
@@ -245,7 +245,7 @@ describe("QueryParser - Error Path", () => {
       const error = expectFailureError(parseQuery(multipleErrors));
 
       // Should fail on fields first
-      expect(error.code).toBe("INVALID_SYNTAX");
+      expect(error.code).toBe("INVALID_FIELD_NAME");
     });
 
     it("should stop at first error (pagination before sort)", () => {

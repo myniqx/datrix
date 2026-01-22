@@ -20,7 +20,7 @@ describe("FieldsParser - Error Path", () => {
 
       const error = expectFailureError(parseFields(digitStartField));
 
-      expect(error.code).toBe("INVALID_SYNTAX");
+      expect(error.code).toBe("INVALID_FIELD_NAME");
       expect(error.details).toBeDefined();
     });
 
@@ -31,7 +31,7 @@ describe("FieldsParser - Error Path", () => {
 
       const error = expectFailureError(parseFields(fieldWithSpaces));
 
-      expect(error.code).toBe("INVALID_SYNTAX");
+      expect(error.code).toBe("INVALID_FIELD_NAME");
     });
 
     it("should reject field with special characters", () => {
@@ -41,7 +41,7 @@ describe("FieldsParser - Error Path", () => {
 
       const error = expectFailureError(parseFields(fieldWithSpecialChars));
 
-      expect(error.code).toBe("INVALID_SYNTAX");
+      expect(error.code).toBe("INVALID_FIELD_NAME");
     });
 
     it("should reject multiple invalid fields in comma-separated list", () => {
@@ -51,7 +51,7 @@ describe("FieldsParser - Error Path", () => {
 
       const error = expectFailureError(parseFields(multipleInvalidFields));
 
-      expect(error.code).toBe("INVALID_SYNTAX");
+      expect(error.code).toBe("INVALID_FIELD_NAME");
       expect(error.details).toBeDefined();
     });
   });
@@ -64,7 +64,7 @@ describe("FieldsParser - Error Path", () => {
 
       const error = expectFailureError(parseFields(sqlInjectionField));
 
-      expect(error.code).toBe("INVALID_SYNTAX");
+      expect(error.code).toBe("INVALID_FIELD_NAME");
     });
 
     it("should reject SQL injection with quotes", () => {
@@ -74,7 +74,7 @@ describe("FieldsParser - Error Path", () => {
 
       const error = expectFailureError(parseFields(sqlInjectionWithQuotes));
 
-      expect(error.code).toBe("INVALID_SYNTAX");
+      expect(error.code).toBe("INVALID_FIELD_NAME");
     });
 
     it("should reject SQL injection in comma-separated list", () => {
@@ -84,7 +84,7 @@ describe("FieldsParser - Error Path", () => {
 
       const error = expectFailureError(parseFields(mixedSqlInjection));
 
-      expect(error.code).toBe("INVALID_SYNTAX");
+      expect(error.code).toBe("INVALID_FIELD_NAME");
     });
 
     it("should reject SQL injection in array format", () => {
@@ -94,7 +94,7 @@ describe("FieldsParser - Error Path", () => {
 
       const error = expectFailureError(parseFields(sqlInjectionArray));
 
-      expect(error.code).toBe("INVALID_SYNTAX");
+      expect(error.code).toBe("INVALID_FIELD_NAME");
     });
   });
 
@@ -106,7 +106,7 @@ describe("FieldsParser - Error Path", () => {
 
       const error = expectFailureError(parseFields(xssScriptField));
 
-      expect(error.code).toBe("INVALID_SYNTAX");
+      expect(error.code).toBe("INVALID_FIELD_NAME");
     });
 
     it("should reject XSS img tag in field name", () => {
@@ -116,7 +116,7 @@ describe("FieldsParser - Error Path", () => {
 
       const error = expectFailureError(parseFields(xssImgField));
 
-      expect(error.code).toBe("INVALID_SYNTAX");
+      expect(error.code).toBe("INVALID_FIELD_NAME");
     });
   });
 
@@ -128,7 +128,7 @@ describe("FieldsParser - Error Path", () => {
 
       const error = expectFailureError(parseFields(pathTraversalField));
 
-      expect(error.code).toBe("INVALID_SYNTAX");
+      expect(error.code).toBe("INVALID_FIELD_NAME");
     });
   });
 
@@ -140,7 +140,7 @@ describe("FieldsParser - Error Path", () => {
 
       const error = expectFailureError(parseFields(commandInjectionField));
 
-      expect(error.code).toBe("INVALID_SYNTAX");
+      expect(error.code).toBe("INVALID_FIELD_NAME");
     });
   });
 
@@ -152,7 +152,7 @@ describe("FieldsParser - Error Path", () => {
 
       const error = expectFailureError(parseFields(nullByteField));
 
-      expect(error.code).toBe("INVALID_SYNTAX");
+      expect(error.code).toBe("INVALID_FIELD_NAME");
     });
 
     it("should reject control characters", () => {
@@ -162,7 +162,7 @@ describe("FieldsParser - Error Path", () => {
 
       const error = expectFailureError(parseFields(controlCharsField));
 
-      expect(error.code).toBe("INVALID_SYNTAX");
+      expect(error.code).toBe("INVALID_FIELD_NAME");
     });
   });
 
@@ -174,7 +174,7 @@ describe("FieldsParser - Error Path", () => {
 
       const error = expectFailureError(parseFields(unicodeTricksField));
 
-      expect(error.code).toBe("INVALID_SYNTAX");
+      expect(error.code).toBe("INVALID_FIELD_NAME");
     });
   });
 
@@ -186,7 +186,7 @@ describe("FieldsParser - Error Path", () => {
 
       const error = expectFailureError(parseFields(excessivelyLongField));
 
-      expect(error.code).toBe("INVALID_SYNTAX");
+      expect(error.code).toBe("INVALID_FIELD_NAME");
     });
   });
 
@@ -198,7 +198,7 @@ describe("FieldsParser - Error Path", () => {
 
       const error = expectFailureError(parseFields(numericLikeField));
 
-      expect(error.code).toBe("INVALID_SYNTAX");
+      expect(error.code).toBe("INVALID_FIELD_NAME");
     });
 
     it("should reject field with only whitespace", () => {
@@ -208,7 +208,7 @@ describe("FieldsParser - Error Path", () => {
 
       const error = expectFailureError(parseFields(whitespaceOnlyField));
 
-      expect(error.code).toBe("INVALID_SYNTAX");
+      expect(error.code).toBe("EMPTY_VALUE");
     });
 
     it("should reject empty string after trimming", () => {
@@ -218,7 +218,7 @@ describe("FieldsParser - Error Path", () => {
 
       const error = expectFailureError(parseFields(emptyAfterTrim));
 
-      expect(error.code).toBe("INVALID_SYNTAX");
+      expect(error.code).toBe("EMPTY_VALUE");
     });
   });
 
@@ -232,7 +232,7 @@ describe("FieldsParser - Error Path", () => {
 
       expect(error).toHaveProperty("code");
       expect(error).toHaveProperty("message");
-      expect(error.code).toBe("INVALID_SYNTAX");
+      expect(error.code).toBe("INVALID_FIELD_NAME");
       expect(typeof error.message).toBe("string");
     });
 
@@ -257,7 +257,7 @@ describe("FieldsParser - Error Path", () => {
 
       const error = expectFailureError(parseFields(unknownParams));
 
-      expect(error.code).toBe("INVALID_SYNTAX");
+      expect(error.code).toBe("UNKNOWN_PARAMETER");
     });
   });
 
@@ -274,7 +274,7 @@ describe("FieldsParser - Error Path", () => {
       const error2 = expectFailureError(parseFields(invalidParams));
       expectFailureError(parseFields(invalidParams));
 
-      expect(error2.code).toBe("INVALID_SYNTAX");
+      expect(error2.code).toBe("INVALID_FIELD_NAME");
     });
   });
 });
