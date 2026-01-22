@@ -5,6 +5,7 @@
  */
 
 import { ParsedQuery, RawQueryParams } from 'forja-types/api/parser';
+import { WhereClause, PopulateClause, PopulateOptions, QueryPrimitive } from 'forja-types/core/query-builder';
 
 /**
  * Serialize ParsedQuery into RawQueryParams (Strapi-style)
@@ -56,7 +57,7 @@ export function serializeQuery(query: ParsedQuery): RawQueryParams {
 /**
  * Recursive helper to serialize where clause
  */
-function serializeWhere(where: any, prefix: string, params: Record<string, any>) {
+function serializeWhere(where: WhereClause | QueryPrimitive | readonly WhereClause[], prefix: string, params: Record<string, string | string[]>) {
   if (where === null || typeof where !== 'object') {
     params[prefix] = String(where);
     return;
@@ -88,7 +89,7 @@ function serializeWhere(where: any, prefix: string, params: Record<string, any>)
 /**
  * Recursive helper to serialize populate clause
  */
-function serializePopulate(populate: any, prefix: string, params: Record<string, any>) {
+function serializePopulate(populate: PopulateClause | '*', prefix: string, params: Record<string, string | string[]>) {
   if (populate === '*') {
     params[prefix] = '*';
     return;
@@ -102,7 +103,7 @@ function serializePopulate(populate: any, prefix: string, params: Record<string,
     if (options === '*') {
       params[relPrefix] = '*';
     } else if (typeof options === 'object') {
-      const opts = options as any;
+      const opts = options as PopulateOptions;
 
       // select fields in populate
       if (opts.select) {

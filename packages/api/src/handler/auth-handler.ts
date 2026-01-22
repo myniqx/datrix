@@ -15,7 +15,10 @@ import type { Forja } from "forja-core";
 import { DEFAULT_API_AUTH_CONFIG } from "forja-types/config";
 import { AuthManager, type AuthUser } from "../auth/manager";
 import type { AuthConfig } from "../auth/types";
-import { jsonResponse, errorResponse, extractSessionId } from "./utils";
+import { jsonResponse, extractSessionId, forjaErrorResponse } from "./utils";
+import { authError } from "../errors/auth-error";
+import { handlerError } from "../errors/api-error";
+import { ForjaError } from "forja-types/errors/base";
 
 /**
  * Auth Handler Configuration
@@ -53,11 +56,8 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
     try {
       // Check if registration is disabled
       if (authConfig.endpoints?.disableRegister) {
-        return errorResponse(
-          "Registration is disabled",
-          "REGISTRATION_DISABLED",
-          403,
-        );
+        const result = handlerError.permissionDenied("Registration is disabled");
+        return forjaErrorResponse(result);
       }
 
       // Parse request body
@@ -66,36 +66,35 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
 
       // Validate required fields
       if (!email || typeof email !== "string") {
-        return errorResponse("Email is required", "VALIDATION_ERROR", 400);
+        const result = handlerError.invalidBody("Email is required");
+        return forjaErrorResponse(result);
       }
 
       if (!password || typeof password !== "string") {
-        return errorResponse("Password is required", "VALIDATION_ERROR", 400);
+        const result = handlerError.invalidBody("Password is required");
+        return forjaErrorResponse(result);
       }
 
       // Check if auth record already exists (email must be unique)
-      const existingAuth = await forja.raw.findOne(authSchemaName, {
+      const existingAuth = (await forja.raw.findOne(authSchemaName, {
         email: email,
-      });
+      })) as Record<string, unknown> | null;
 
       if (existingAuth) {
-        return errorResponse(
-          "User with this email already exists",
-          "USER_EXISTS",
-          409,
-        );
+        const result = handlerError.internalError("User with this email already exists");
+        return forjaErrorResponse(result);
       }
 
       // Hash password
       const hashResult = await authManager.hashPassword(password);
       if (!hashResult.success) {
-        return errorResponse(hashResult.error.message, hashResult.error.code, 400);
+        const err = handlerError.internalError(hashResult.error.message, hashResult.error);
+        return forjaErrorResponse(err);
       }
 
       const { hash, salt } = hashResult.data;
 
       // Create user record first (without password)
-      // Extra data (name, phone, etc.) will be validated by user schema
       const userData: Record<string, unknown> = {
         [userEmailField]: email,
         ...extraData,
@@ -103,19 +102,21 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
 
       let user: Record<string, unknown>;
       try {
-        user = (await forja.raw.create(userSchemaName, userData)) as Record<
+        const createdUser = (await forja.raw.create(userSchemaName, userData)) as unknown as Record<
           string,
           unknown
-        >;
+        > | null;
+
+        if (!createdUser) {
+          const result = handlerError.internalError("Failed to create user record");
+          return forjaErrorResponse(result);
+        }
+        user = createdUser;
       } catch (error) {
-        // Validation errors from user schema will be caught here
         const message =
           error instanceof Error ? error.message : "Failed to create user";
-        return errorResponse(message, "VALIDATION_ERROR", 400);
-      }
-
-      if (!user) {
-        return errorResponse("Failed to create user", "USER_CREATE_ERROR", 500);
+        const result = handlerError.invalidBody(message);
+        return forjaErrorResponse(result);
       }
 
       // Create authentication record
@@ -131,37 +132,29 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
 
       if (!authRecord) {
         // Rollback: delete user if auth creation fails
-        await forja.raw.delete(userSchemaName, user["id"] as string | number);
-        return errorResponse(
-          "Failed to create authentication record",
-          "AUTH_CREATE_ERROR",
-          500,
-        );
+        await forja.raw.delete(userSchemaName, String(user["id"]));
+        const result = handlerError.internalError("Failed to create authentication record");
+        return forjaErrorResponse(result);
       }
 
       // Login user (create token/session)
       const authUser: AuthUser = {
         id: String(user["id"]),
         email: email,
-        role: defaultRole,
+        role: defaultRole || "user",
       };
 
       const loginResult = await authManager.login(authUser);
 
       if (!loginResult.success) {
-        return errorResponse(
-          loginResult.error.message,
-          loginResult.error.code,
-          500,
-        );
+        const err = handlerError.internalError(loginResult.error.message, loginResult.error);
+        return forjaErrorResponse(err);
       }
 
       // Build response (no sensitive data)
-      const safeUser = { ...user };
-
-      const response = {
+      const responseBody = {
         data: {
-          user: safeUser,
+          user: user,
           token: loginResult.data.token,
           sessionId: loginResult.data.sessionId,
         },
@@ -169,7 +162,7 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
 
       // Set session cookie if session was created
       if (loginResult.data.sessionId) {
-        return new Response(JSON.stringify(response), {
+        return new Response(JSON.stringify(responseBody), {
           status: 201,
           headers: {
             "Content-Type": "application/json",
@@ -178,11 +171,15 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
         });
       }
 
-      return jsonResponse(response, 201);
+      return jsonResponse(responseBody, 201);
     } catch (error) {
+      if (error instanceof ForjaError) {
+        return forjaErrorResponse({ success: false, error });
+      }
       const message =
         error instanceof Error ? error.message : "Internal server error";
-      return errorResponse(message, "INTERNAL_ERROR", 500);
+      const result = handlerError.internalError(message, error instanceof Error ? error : undefined);
+      return forjaErrorResponse(result);
     }
   }
 
@@ -199,11 +196,13 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
 
       // Validate required fields
       if (!email || typeof email !== "string") {
-        return errorResponse("Email is required", "VALIDATION_ERROR", 400);
+        const result = handlerError.invalidBody("Email is required");
+        return forjaErrorResponse(result);
       }
 
       if (!password || typeof password !== "string") {
-        return errorResponse("Password is required", "VALIDATION_ERROR", 400);
+        const result = handlerError.invalidBody("Password is required");
+        return forjaErrorResponse(result);
       }
 
       // Find auth record by email
@@ -212,7 +211,8 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
       })) as Record<string, unknown> | null;
 
       if (!authRecord) {
-        return errorResponse("Invalid credentials", "INVALID_CREDENTIALS", 401);
+        const result = authError.invalidCredentials();
+        return forjaErrorResponse(result);
       }
 
       // Verify password
@@ -223,7 +223,8 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
       );
 
       if (!verifyResult.success || !verifyResult.data) {
-        return errorResponse("Invalid credentials", "INVALID_CREDENTIALS", 401);
+        const result = authError.invalidCredentials();
+        return forjaErrorResponse(result);
       }
 
       // Fetch user data
@@ -233,7 +234,8 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
       )) as Record<string, unknown> | null;
 
       if (!user) {
-        return errorResponse("User not found", "USER_NOT_FOUND", 404);
+        const result = handlerError.recordNotFound(userSchemaName, String(authRecord["user"]));
+        return forjaErrorResponse(result);
       }
 
       // Login user (create token/session)
@@ -246,19 +248,14 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
       const loginResult = await authManager.login(authUser);
 
       if (!loginResult.success) {
-        return errorResponse(
-          loginResult.error.message,
-          loginResult.error.code,
-          500,
-        );
+        const result = handlerError.internalError(loginResult.error.message, loginResult.error);
+        return forjaErrorResponse(result);
       }
 
       // Build response (no sensitive data)
-      const safeUser = { ...user };
-
-      const response = {
+      const responseBody = {
         data: {
-          user: safeUser,
+          user,
           token: loginResult.data.token,
           sessionId: loginResult.data.sessionId,
         },
@@ -266,7 +263,7 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
 
       // Set session cookie if session was created
       if (loginResult.data.sessionId) {
-        return new Response(JSON.stringify(response), {
+        return new Response(JSON.stringify(responseBody), {
           status: 200,
           headers: {
             "Content-Type": "application/json",
@@ -275,11 +272,15 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
         });
       }
 
-      return jsonResponse(response);
+      return jsonResponse(responseBody);
     } catch (error) {
+      if (error instanceof ForjaError) {
+        return forjaErrorResponse({ success: false, error });
+      }
       const message =
         error instanceof Error ? error.message : "Internal server error";
-      return errorResponse(message, "INTERNAL_ERROR", 500);
+      const result = handlerError.internalError(message, error instanceof Error ? error : undefined);
+      return forjaErrorResponse(result);
     }
   }
 
@@ -291,17 +292,15 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
       const sessionId = extractSessionId(request);
 
       if (!sessionId) {
-        return errorResponse("No session found", "NO_SESSION", 400);
+        const result = handlerError.internalError("No session found");
+        return forjaErrorResponse(result);
       }
 
       const logoutResult = await authManager.logout(sessionId);
 
       if (!logoutResult.success) {
-        return errorResponse(
-          logoutResult.error.message,
-          logoutResult.error.code,
-          500,
-        );
+        const result = handlerError.internalError(logoutResult.error.message, logoutResult.error);
+        return forjaErrorResponse(result);
       }
 
       // Clear session cookie
@@ -313,9 +312,13 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
         },
       });
     } catch (error) {
+      if (error instanceof ForjaError) {
+        return forjaErrorResponse({ success: false, error });
+      }
       const message =
         error instanceof Error ? error.message : "Internal server error";
-      return errorResponse(message, "INTERNAL_ERROR", 500);
+      const result = handlerError.internalError(message, error instanceof Error ? error : undefined);
+      return forjaErrorResponse(result);
     }
   }
 
@@ -328,7 +331,8 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
       const authContext = await authManager.authenticate(request);
 
       if (!authContext) {
-        return errorResponse("Unauthorized", "UNAUTHORIZED", 401);
+        const result = authError.invalidToken();
+        return forjaErrorResponse(result);
       }
 
       // Fetch full user data from database
@@ -338,17 +342,19 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
       )) as Record<string, unknown> | null;
 
       if (!user) {
-        return errorResponse("User not found", "USER_NOT_FOUND", 404);
+        const result = handlerError.recordNotFound(userSchemaName, String(authContext.user.id));
+        return forjaErrorResponse(result);
       }
 
-      // Build response
-      const safeUser = { ...user };
-
-      return jsonResponse({ data: safeUser });
+      return jsonResponse({ data: user });
     } catch (error) {
+      if (error instanceof ForjaError) {
+        return forjaErrorResponse({ success: false, error });
+      }
       const message =
         error instanceof Error ? error.message : "Internal server error";
-      return errorResponse(message, "INTERNAL_ERROR", 500);
+      const result = handlerError.internalError(message, error instanceof Error ? error : undefined);
+      return forjaErrorResponse(result);
     }
   }
 
@@ -400,6 +406,7 @@ export function createUnifiedAuthHandler(config: AuthHandlerConfig) {
     }
 
     // No matching route
-    return errorResponse("Not found", "NOT_FOUND", 404);
+    const res = handlerError.recordNotFound("Auth Route", url.pathname);
+    return forjaErrorResponse(res);
   };
 }

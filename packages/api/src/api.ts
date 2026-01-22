@@ -18,10 +18,12 @@ import { DefaultPermission, defineSchema } from "forja-types/core/schema";
 import { AuthManager } from "./auth/manager";
 import { createAuthHandlers } from "./handler/auth-handler";
 import { handleRequest as handleCrudRequest } from "./handler/unified";
-import { errorResponse } from "./handler/utils";
+import { forjaErrorResponse } from "./handler/utils";
+import { handlerError } from "./errors/api-error";
 import { ApiConfig } from "./types";
 import { Forja } from "forja-core";
 import type { IApiPlugin, AuthenticatedUser } from "./interface";
+import type { ForjaEntry } from "forja-types/core/schema";
 
 export class ApiPlugin<TRole extends string = string>
   extends BasePlugin<ApiConfig<TRole>>
@@ -277,19 +279,17 @@ export class ApiPlugin<TRole extends string = string>
     const emailField = this.userSchemaEmailField;
 
     const authData = {
-      userId: user["id"] as string,
+      user: String(user["id"]),
       email: user[emailField] as string,
       password: (user["password"] as string) || "",
       passwordSalt: (user["passwordSalt"] as string) || "",
       role: (user["role"] as string) || this.authConfig?.defaultRole || "user",
     };
 
-    const schema = this.forjaInstance?.getSchema(this.authSchemaName);
-
     const query: QueryObject = {
       type: "insert",
-      table: schema?.tableName || this.authSchemaName,
-      data: authData,
+      table: this.authSchemaName,
+      data: authData as unknown as Partial<ForjaEntry>,
     };
 
     await context.adapter.executeQuery(query);
@@ -331,7 +331,8 @@ export class ApiPlugin<TRole extends string = string>
    */
   async handleRequest(request: Request, forja: Forja): Promise<Response> {
     if (!this.isInitialized()) {
-      return errorResponse("API plugin not initialized", "NOT_INITIALIZED", 500);
+      const result = handlerError.internalError("API plugin not initialized");
+      return forjaErrorResponse(result);
     }
 
     this.forjaInstance = forja;
@@ -340,7 +341,8 @@ export class ApiPlugin<TRole extends string = string>
     const prefix = this.apiConfig.prefix ?? "/api";
 
     if (!url.pathname.startsWith(prefix)) {
-      return errorResponse("Invalid API prefix", "INVALID_PREFIX", 400);
+      const result = handlerError.internalError("Invalid API prefix");
+      return forjaErrorResponse(result);
     }
 
     const pathAfterPrefix = url.pathname.slice(prefix.length);
@@ -364,11 +366,8 @@ export class ApiPlugin<TRole extends string = string>
     forja: Forja,
   ): Promise<Response> {
     if (!this.authManager) {
-      return errorResponse(
-        "Authentication not configured",
-        "AUTH_NOT_CONFIGURED",
-        500,
-      );
+      const result = handlerError.internalError("Authentication not configured");
+      return forjaErrorResponse(result);
     }
 
     const authHandlers = createAuthHandlers({
@@ -393,7 +392,8 @@ export class ApiPlugin<TRole extends string = string>
       return authHandlers.me(request);
     }
 
-    return errorResponse("Not found", "NOT_FOUND", 404);
+    const res = handlerError.recordNotFound("Auth Route", url.pathname);
+    return forjaErrorResponse(res);
   }
 
   /**

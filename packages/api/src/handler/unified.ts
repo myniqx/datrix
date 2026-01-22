@@ -11,14 +11,20 @@ import type {
   ContextBuilderOptions,
 } from "../middleware/types";
 import type { IApiPlugin } from "../interface";
-import { buildRequestContext, ContextBuildError } from "../middleware/context";
+import { buildRequestContext } from "../middleware/context";
 import {
   checkSchemaPermission,
   checkFieldsForWrite,
   filterFieldsForRead,
   filterRecordsForRead,
 } from "../middleware/permission";
-import { jsonResponse, errorResponse, parserErrorResponse } from "./utils";
+import {
+  jsonResponse,
+  forjaErrorResponse,
+} from "./utils";
+import { handlerError } from "../errors/api-error";
+import { ForjaError } from "forja-types/errors/base";
+import type { ForjaEntry } from "forja-types/core/schema";
 
 /**
  * Handle GET request
@@ -27,7 +33,8 @@ async function handleGet(ctx: RequestContext): Promise<Response> {
   const { forja, schema, authEnabled } = ctx;
 
   if (!schema) {
-    return errorResponse("Schema not found", "SCHEMA_NOT_FOUND", 404);
+    const result = handlerError.schemaNotFound(ctx.url.pathname);
+    return forjaErrorResponse(result);
   }
 
   try {
@@ -39,14 +46,15 @@ async function handleGet(ctx: RequestContext): Promise<Response> {
       });
 
       if (!result) {
-        return errorResponse("Not found", "NOT_FOUND", 404);
+        const errResult = handlerError.recordNotFound(schema.name, ctx.id);
+        return forjaErrorResponse(errResult);
       }
 
       // Filter fields based on permission (only if auth enabled)
       if (authEnabled) {
         const { data: filteredResult } = await filterFieldsForRead(
           schema,
-          result as Record<string, unknown>,
+          result as unknown as ForjaEntry,
           ctx,
         );
         return jsonResponse({ data: filteredResult });
@@ -71,7 +79,7 @@ async function handleGet(ctx: RequestContext): Promise<Response> {
       if (authEnabled) {
         const filteredResults = await filterRecordsForRead(
           schema,
-          result as Record<string, unknown>[],
+          result as unknown as Record<string, unknown>[],
           ctx,
         );
 
@@ -97,9 +105,13 @@ async function handleGet(ctx: RequestContext): Promise<Response> {
       });
     }
   } catch (error) {
+    if (error instanceof ForjaError) {
+      return forjaErrorResponse({ success: false, error });
+    }
     const message =
       error instanceof Error ? error.message : "Internal server error";
-    return errorResponse(message, "INTERNAL_ERROR", 500);
+    const result = handlerError.internalError(message, error instanceof Error ? error : undefined);
+    return forjaErrorResponse(result);
   }
 }
 
@@ -110,11 +122,13 @@ async function handlePost(ctx: RequestContext): Promise<Response> {
   const { forja, schema, authEnabled, body, query } = ctx;
 
   if (!schema) {
-    return errorResponse("Schema not found", "SCHEMA_NOT_FOUND", 404);
+    const result = handlerError.schemaNotFound(ctx.url.pathname);
+    return forjaErrorResponse(result);
   }
 
   if (!body || typeof body !== "object" || Array.isArray(body)) {
-    return errorResponse("Invalid request body", "INVALID_BODY", 400);
+    const result = handlerError.invalidBody();
+    return forjaErrorResponse(result);
   }
 
   try {
@@ -123,11 +137,11 @@ async function handlePost(ctx: RequestContext): Promise<Response> {
       const fieldCheck = await checkFieldsForWrite(schema, ctx);
 
       if (!fieldCheck.allowed) {
-        return errorResponse(
+        const result = handlerError.permissionDenied(
           `Permission denied for fields: ${fieldCheck.deniedFields?.join(", ")}`,
-          "FIELD_PERMISSION_DENIED",
-          403,
+          { deniedFields: fieldCheck.deniedFields }
         );
+        return forjaErrorResponse(result);
       }
     }
 
@@ -140,7 +154,7 @@ async function handlePost(ctx: RequestContext): Promise<Response> {
     if (authEnabled) {
       const { data: filteredResult } = await filterFieldsForRead(
         schema,
-        result,
+        result as unknown as ForjaEntry,
         ctx,
       );
       return jsonResponse({ data: filteredResult }, 201);
@@ -148,84 +162,9 @@ async function handlePost(ctx: RequestContext): Promise<Response> {
 
     return jsonResponse({ data: result }, 201);
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Internal server error";
-    const code = // TODO: error codeları için merkezi bir dosya hazırla. tüm projede unified bir errorbase sınıfından tüm errorlar extends edilsin.
-      ((error as Record<string, unknown>)?.["code"] as string) || "INTERNAL_ERROR";
-
-    // Validation and constraint errors should return 400
-    if (
-      code === "VALIDATION_FAILED" ||
-      message.toLowerCase().includes("duplicate") ||
-      message.toLowerCase().includes("unique")
-    ) {
-      return errorResponse(message, code, 400);
+    if (error instanceof ForjaError) {
+      return forjaErrorResponse({ success: false, error });
     }
-
-    return errorResponse(message, code, 500);
-  }
-}
-
-/**
- * Handle PATCH/PUT request (update)
- */
-async function handleUpdate(ctx: RequestContext): Promise<Response> {
-  const { forja, schema, authEnabled, body, id } = ctx;
-
-  if (!schema) {
-    return errorResponse("Schema not found", "SCHEMA_NOT_FOUND", 404);
-  }
-
-  if (!id) {
-    return errorResponse("ID is required for update", "MISSING_ID", 400);
-  }
-
-  if (!body || typeof body !== "object" || Array.isArray(body)) {
-    return errorResponse("Invalid request body", "INVALID_BODY", 400);
-  }
-
-  try {
-    // Get existing record for permission context
-    const existingRecord = await forja.findById(schema.name, id);
-
-    if (!existingRecord) {
-      return errorResponse("Not found", "NOT_FOUND", 404);
-    }
-
-    // Check field-level write permissions (only if auth enabled)
-    if (authEnabled) {
-      const fieldCheck = await checkFieldsForWrite(schema, ctx);
-
-      if (!fieldCheck.allowed) {
-        return errorResponse(
-          `Permission denied for fields: ${fieldCheck.deniedFields?.join(", ")}`,
-          "FIELD_PERMISSION_DENIED",
-          403,
-        );
-      }
-    }
-
-    const result = await forja.update(schema.name, id, body, {
-      select: ctx.query?.select,
-      populate: ctx.query?.populate,
-    });
-
-    if (!result) {
-      return errorResponse("Not found", "NOT_FOUND", 404);
-    }
-
-    // Filter response fields (only if auth enabled)
-    if (authEnabled) {
-      const { data: filteredResult } = await filterFieldsForRead(
-        schema,
-        result as Record<string, unknown>,
-        ctx,
-      );
-      return jsonResponse({ data: filteredResult });
-    }
-
-    return jsonResponse({ data: result });
-  } catch (error) {
     const message =
       error instanceof Error ? error.message : "Internal server error";
     const code =
@@ -237,10 +176,100 @@ async function handleUpdate(ctx: RequestContext): Promise<Response> {
       message.toLowerCase().includes("duplicate") ||
       message.toLowerCase().includes("unique")
     ) {
-      return errorResponse(message, code, 400);
+      const result = handlerError.invalidBody(message); // Re-wrap validation as 400
+      return forjaErrorResponse(result);
     }
 
-    return errorResponse(message, code, 500);
+    const result = handlerError.internalError(message, error instanceof Error ? error : undefined);
+    return forjaErrorResponse(result);
+  }
+}
+
+/**
+ * Handle PATCH/PUT request (update)
+ */
+async function handleUpdate(ctx: RequestContext): Promise<Response> {
+  const { forja, schema, authEnabled, body, id } = ctx;
+
+  if (!schema) {
+    const result = handlerError.schemaNotFound(ctx.url.pathname);
+    return forjaErrorResponse(result);
+  }
+
+  if (!id) {
+    const result = handlerError.missingId("update");
+    return forjaErrorResponse(result);
+  }
+
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    const result = handlerError.invalidBody();
+    return forjaErrorResponse(result);
+  }
+
+  try {
+    // Get existing record for permission context
+    const existingRecord = await forja.findById(schema.name, id);
+
+    if (!existingRecord) {
+      const result = handlerError.recordNotFound(schema.name, id);
+      return forjaErrorResponse(result);
+    }
+
+    // Check field-level write permissions (only if auth enabled)
+    if (authEnabled) {
+      const fieldCheck = await checkFieldsForWrite(schema, ctx);
+
+      if (!fieldCheck.allowed) {
+        const result = handlerError.permissionDenied(
+          `Permission denied for fields: ${fieldCheck.deniedFields?.join(", ")}`,
+          { deniedFields: fieldCheck.deniedFields }
+        );
+        return forjaErrorResponse(result);
+      }
+    }
+
+    const result = await forja.update(schema.name, id, body, {
+      select: ctx.query?.select,
+      populate: ctx.query?.populate,
+    });
+
+    if (!result) {
+      const resultNotFound = handlerError.recordNotFound(schema.name, id);
+      return forjaErrorResponse(resultNotFound);
+    }
+
+    // Filter response fields (only if auth enabled)
+    if (authEnabled) {
+      const { data: filteredResult } = await filterFieldsForRead(
+        schema,
+        result as unknown as ForjaEntry,
+        ctx,
+      );
+      return jsonResponse({ data: filteredResult });
+    }
+
+    return jsonResponse({ data: result });
+  } catch (error) {
+    if (error instanceof ForjaError) {
+      return forjaErrorResponse({ success: false, error });
+    }
+    const message =
+      error instanceof Error ? error.message : "Internal server error";
+    const code =
+      ((error as Record<string, unknown>)?.["code"] as string) || "INTERNAL_ERROR";
+
+    // Validation and constraint errors should return 400
+    if (
+      code === "VALIDATION_FAILED" ||
+      message.toLowerCase().includes("duplicate") ||
+      message.toLowerCase().includes("unique")
+    ) {
+      const result = handlerError.invalidBody(message);
+      return forjaErrorResponse(result);
+    }
+
+    const errResult = handlerError.internalError(message, error instanceof Error ? error : undefined);
+    return forjaErrorResponse(errResult);
   }
 }
 
@@ -251,25 +280,32 @@ async function handleDelete(ctx: RequestContext): Promise<Response> {
   const { forja, schema, id } = ctx;
 
   if (!schema) {
-    return errorResponse("Schema not found", "SCHEMA_NOT_FOUND", 404);
+    const result = handlerError.schemaNotFound(ctx.url.pathname);
+    return forjaErrorResponse(result);
   }
 
   if (!id) {
-    return errorResponse("ID is required for delete", "MISSING_ID", 400);
+    const result = handlerError.missingId("delete");
+    return forjaErrorResponse(result);
   }
 
   try {
     const deleted = await forja.delete(schema.name, id);
 
     if (!deleted) {
-      return errorResponse("Not found", "NOT_FOUND", 404);
+      const result = handlerError.recordNotFound(schema.name, id);
+      return forjaErrorResponse(result);
     }
 
     return jsonResponse({ data: { id, deleted: true } });
   } catch (error) {
+    if (error instanceof ForjaError) {
+      return forjaErrorResponse({ success: false, error });
+    }
     const message =
       error instanceof Error ? error.message : "Internal server error";
-    return errorResponse(message, "INTERNAL_ERROR", 500);
+    const result = handlerError.internalError(message, error instanceof Error ? error : undefined);
+    return forjaErrorResponse(result);
   }
 }
 
@@ -294,7 +330,8 @@ export async function handleRequest<TRole extends string = string>(
     const ctx = await buildRequestContext(request, forja, api, options);
 
     if (!ctx.schema) {
-      return errorResponse("Model not specified", "MODEL_NOT_SPECIFIED", 400);
+      const result = handlerError.modelNotSpecified();
+      return forjaErrorResponse(result);
     }
 
     // 2️⃣ PERMISSION CHECK (Schema-level) - Only if auth is enabled
@@ -306,11 +343,10 @@ export async function handleRequest<TRole extends string = string>(
       );
 
       if (!permissionResult.allowed) {
-        return errorResponse(
-          ctx.user ? "Forbidden" : "Unauthorized",
-          ctx.user ? "FORBIDDEN" : "UNAUTHORIZED",
-          ctx.user ? 403 : 401,
-        );
+        const result = ctx.user
+          ? handlerError.permissionDenied("Schema scope permission denied")
+          : handlerError.unauthorized();
+        return forjaErrorResponse(result);
       }
     }
 
@@ -328,23 +364,22 @@ export async function handleRequest<TRole extends string = string>(
         return handleUpdate(ctx);
       case "DELETE":
         return handleDelete(ctx);
-      default:
-        return errorResponse(
-          `Method ${ctx.method} not allowed`,
-          "METHOD_NOT_ALLOWED",
-          405,
-        );
+      default: {
+        const result = handlerError.methodNotAllowed(ctx.method);
+        return forjaErrorResponse(result);
+      }
     }
   } catch (error) {
-    // Handle parser errors with rich context
-    if (error instanceof ContextBuildError) {
-      return parserErrorResponse(error.parserError);
+    // Handle parser errors and other ForjaErrors with rich context
+    if (error instanceof ForjaError) {
+      return forjaErrorResponse({ success: false, error });
     }
 
     // Generic error handling
     console.error("Unified Handler Error:", error);
     const message =
       error instanceof Error ? error.message : "Internal server error";
-    return errorResponse(message, "INTERNAL_ERROR", 500);
+    const errResult = handlerError.internalError(message, error instanceof Error ? error : undefined);
+    return forjaErrorResponse(errResult);
   }
 }
