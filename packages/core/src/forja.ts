@@ -30,19 +30,6 @@ import { ParsedQuery, ForjaEntry } from "forja-types";
 import { IForja } from "forja-types/forja";
 
 /**
- * Forja initialization error
- */
-export class ForjaError extends Error {
-  constructor(
-    message: string,
-    public readonly code: string,
-  ) {
-    super(message);
-    this.name = "ForjaError";
-  }
-}
-
-/**
  * Forja initialization options
  */
 export interface ForjaInitOptions {

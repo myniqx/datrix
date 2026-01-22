@@ -9,6 +9,7 @@ export * from './plugin';
 export * from './config';
 export * from './utils';
 export * from './cli';
+export * from './errors';
 
 // API types - explicit to avoid conflicts with plugin Middleware
 export {
