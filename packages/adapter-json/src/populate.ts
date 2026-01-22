@@ -1,6 +1,6 @@
 import { QueryObject } from "forja-types/core/query-builder";
 import type { JsonAdapter } from "./adapter";
-import { Forja, ForjaError } from "forja-core";
+import { Forja } from "forja-core";
 import type { RelationField } from "forja-types/core/schema";
 
 export class JsonPopulator {

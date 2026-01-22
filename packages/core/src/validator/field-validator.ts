@@ -99,6 +99,8 @@ export function validateField<T = unknown>(
       return validateArray(value, field as ArrayField, fieldName, depth) as FieldValidationResult<T>;
     case 'json':
       return validateJSON(value, fieldName) as FieldValidationResult<T>;
+    case 'relation':
+      return validateRelation(value, fieldName) as FieldValidationResult<T>;
     default:
       return { success: true, data: value as T };
   }
@@ -527,4 +529,84 @@ function validateJSON(
   }
 
   return { success: true, data: value };
+}
+
+/**
+ * Validate relation field
+ * Supports both shortcut (ID) and RelationInput object
+ */
+function validateRelation(
+  value: unknown,
+  fieldName: string
+): FieldValidationResult<unknown> {
+  // 1. Shortcut: ID (string or number)
+  if (typeof value === 'string' || typeof value === 'number') {
+    return { success: true, data: value };
+  }
+
+  // 2. RelationInput object: { connect, disconnect, set, create, update, delete }
+  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    const input = value as Record<string, unknown>;
+    const validKeys = ['connect', 'disconnect', 'set', 'create', 'update', 'delete'];
+
+    // Check if at least one valid key exists
+    const hasValidKey = validKeys.some(key => key in input);
+    if (!hasValidKey) {
+      return {
+        success: false,
+        error: [
+          createValidationError(
+            fieldName,
+            'INVALID_FORMAT',
+            `Relation field '${fieldName}' must be an ID or a valid RelationInput object`,
+            { value }
+          )
+        ]
+      };
+    }
+
+    // Structural validation for common keys (shallow)
+    if (input['connect']) {
+      const connect = input['connect'];
+      if (Array.isArray(connect)) {
+        if (!connect.every(item => typeof item === 'object' && item !== null && 'id' in item)) {
+          return {
+            success: false,
+            error: [createValidationError(fieldName, 'INVALID_FORMAT', 'connect must be an object or array of objects with id')]
+          };
+        }
+      } else if (typeof connect !== 'object' || connect === null || !('id' in connect)) {
+        return {
+          success: false,
+          error: [createValidationError(fieldName, 'INVALID_FORMAT', 'connect must be an object or array of objects with id')]
+        };
+      }
+    }
+
+    // If 'set' is provided, it must be an array of objects with id
+    if (input['set']) {
+      if (!Array.isArray(input['set']) || !(input['set'] as unknown[]).every(item => typeof item === 'object' && item !== null && 'id' in item)) {
+        return {
+          success: false,
+          error: [createValidationError(fieldName, 'INVALID_FORMAT', 'set must be an array of objects with id')]
+        };
+      }
+    }
+
+    return { success: true, data: value };
+  }
+
+  return {
+    success: false,
+    error: [
+      createValidationError(
+        fieldName,
+        'TYPE_MISMATCH',
+        formatErrorMessage('TYPE_MISMATCH', fieldName, {
+          expected: 'ID or RelationInput object',
+          actual: typeof value
+        })
+      )
+    ]
+  };
 }

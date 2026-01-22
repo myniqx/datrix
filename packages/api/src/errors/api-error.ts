@@ -100,11 +100,11 @@ export const handlerError = {
   invalidBody(reason?: string): ErrorResult {
     return {
       success: false,
-      error: new ApiError("Invalid request body", {
+      error: new ApiError(reason ? `Invalid request body: ${reason}` : "Invalid request body", {
         code: "INVALID_BODY",
         status: 400,
         context: { reason },
-        suggestion: "Ensure the request body is a valid JSON object.",
+        suggestion: "Ensure the request body is a valid JSON object and contains all required fields.",
       }),
     };
   },
@@ -163,6 +163,18 @@ export const handlerError = {
         code: "INTERNAL_ERROR",
         status: 500,
         ...(cause && { cause }),
+      }),
+    };
+  },
+
+  conflict(reason: string, context?: Record<string, unknown>): ErrorResult {
+    return {
+      success: false,
+      error: new ApiError(reason, {
+        code: "CONFLICT",
+        status: 409,
+        ...(context && { context }),
+        suggestion: "Ensure the resource you are trying to create does not already exist.",
       }),
     };
   },

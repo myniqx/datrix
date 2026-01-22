@@ -258,7 +258,6 @@ describe("API CRUD Integration Tests", () => {
       expect(data.data).not.toHaveProperty("stock");
       expect(data.data).not.toHaveProperty("sku");
     });
-
   });
 
   describe("COMPLEX QUERY Operations", () => {
@@ -391,5 +390,4 @@ describe("API CRUD Integration Tests", () => {
       }
     });
   });
-
 });

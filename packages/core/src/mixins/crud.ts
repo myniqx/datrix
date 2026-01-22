@@ -21,11 +21,10 @@ import {
   PopulateClause,
 } from "forja-types/core/query-builder";
 import { QueryAction } from "forja-types/plugin";
-import { ForjaError } from "../forja";
 import { Dispatcher } from "../dispatcher";
 import { validateSchema, validatePartial } from "../validator";
 import { IRawCrud } from "forja-types/forja";
-import { ParsedQuery } from "forja-types";
+import { ForjaError, ParsedQuery } from "forja-types";
 
 /**
  * CRUD Operations Class
@@ -245,24 +244,28 @@ export class CrudOperations implements IRawCrud {
   ): Promise<T> {
     const schema = this.getSchema(model);
 
-    // Separate scalar fields from relations
-    const { scalars, relations } = this.separateRelations(data, schema);
+    // 1. Normalize shortcuts (id -> RelationInput)
+    const normalizedData = this.normalizeRelations(data, schema);
 
-    // Validate scalar data against schema (full validation, timestamps added inside)
-    const finalData = this.validateData<T, false>(
+    // 2. Validate EVERYTHING (scalars + relations)
+    // This solves the "required relation" problem because Validator now sees RelationInput
+    const validatedData = this.validateData<T, false>(
       model,
-      scalars,
+      normalizedData,
       schema,
       false,
       true,
     );
 
-    // INSERT query - adapter returns insertedId
+    // 3. Separate scalars from async relations
+    // Inlines local FKs (belongsTo) into scalars
+    const { scalars, relations } = this.separateRelations(validatedData as Record<string, unknown>, schema);
+
+    // INSERT query - now contains local FKs
     const query: QueryObject = {
       type: "insert",
       table: schema.tableName!,
-      data: finalData,
-      // Don't use returning - adapters should return insertedId in metadata
+      data: scalars,
     };
 
     const insertedId = await this.execute<number | string>(
@@ -329,25 +332,28 @@ export class CrudOperations implements IRawCrud {
   ): Promise<T> {
     const schema = this.getSchema(model);
 
-    // Separate scalar fields from relations
-    const { scalars, relations } = this.separateRelations(data, schema);
+    // 1. Normalize shortcuts
+    const normalizedData = this.normalizeRelations(data, schema);
 
-    // Validate scalar data against schema (partial validation, timestamps added inside)
-    const finalData = this.validateData<T, true>(
+    // 2. Validate everything (partial)
+    const validatedData = this.validateData<T, true>(
       model,
-      scalars,
+      normalizedData,
       schema,
       true,
       false,
     );
 
+    // 3. Separate and inline
+    const { scalars, relations } = this.separateRelations(validatedData as Record<string, unknown>, schema);
+
     // UPDATE query (only if there are scalar fields to update)
-    if (Object.keys(finalData).length > 0) {
+    if (Object.keys(scalars).length > 0) {
       const query: QueryObject = {
         type: "update",
         table: schema.tableName!,
         where: { id },
-        data: finalData,
+        data: scalars,
       };
 
       await this.execute<void>(
@@ -628,8 +634,63 @@ export class CrudOperations implements IRawCrud {
   }
 
   /**
+   * Internal update that bypasses dispatcher and findById
+   * Used for relation processing to reduce overhead
+   */
+  private async internalUpdate(
+    model: string,
+    id: string | number,
+    data: Record<string, unknown>,
+  ): Promise<void> {
+    const { tableName } = this.getSchema(model);
+    const query: QueryObject = {
+      type: "update",
+      table: tableName!,
+      where: { id },
+      data,
+    };
+
+    const result = await this.getAdapter().executeQuery(query);
+    if (!result.success) {
+      throw new ForjaError(
+        `Internal update failed for ${model}: ${result.error.message}`,
+        "QUERY_FAILED",
+      );
+    }
+  }
+
+  /**
+   * Normalize relation shortcuts (id -> { connect: { id } })
+   */
+  private normalizeRelations(
+    data: Record<string, unknown>,
+    schema: SchemaDefinition,
+  ): Record<string, unknown> {
+    const normalized = { ...data };
+
+    for (const [key, value] of Object.entries(data)) {
+      const field = schema.fields[key];
+
+      if (field?.type === "relation") {
+        if (typeof value === "number" || typeof value === "string") {
+          // Shortcut: category: 5 -> { connect: { id: value } }
+          normalized[key] = { connect: { id: value } };
+        } else if (Array.isArray(value)) {
+          // Shortcut: products: [1, 2] -> { set: value.map((id) => ({ id })) }
+          const isRelationInput = value.length > 0 && typeof value[0] === 'object' && value[0] !== null && 'id' in value[0];
+          if (!isRelationInput) {
+            normalized[key] = { set: (value as (string | number)[]).map((id) => ({ id })) };
+          }
+        }
+      }
+    }
+
+    return normalized;
+  }
+
+  /**
    * Separate scalar fields from relation fields
-   * Normalizes relation shortcuts (id → { connect: { id } })
+   * Inlines local foreign keys (belongsTo/hasOne) into scalars
    */
   private separateRelations(
     data: Record<string, unknown>,
@@ -642,15 +703,33 @@ export class CrudOperations implements IRawCrud {
       const field = schema.fields[key];
 
       if (field?.type === "relation") {
-        // Normalize shortcuts
-        if (typeof value === "number" || typeof value === "string") {
-          // Shortcut: category: 5 → { connect: { id: 5 } }
-          relations[key] = { connect: { id: value } };
-        } else if (Array.isArray(value)) {
-          // Shortcut: products: [1, 2] → { set: [{ id: 1 }, { id: 2 }] }
-          relations[key] = { set: value.map((id) => ({ id })) };
+        const relation = field as RelationField;
+        const relData = value as RelationInput;
+
+        // Check if this relation can be inlined (belongsTo or hasOne with local FK)
+        if (relation.kind === "belongsTo" || relation.kind === "hasOne") {
+          const foreignKey = relation.foreignKey!;
+          let inlinedId: string | number | null | undefined = undefined;
+
+          if (relData.connect) {
+            inlinedId = Array.isArray(relData.connect) ? relData.connect[0]?.id : relData.connect.id;
+          } else if (relData.set) {
+            inlinedId = Array.isArray(relData.set) ? relData.set[0]?.id : (relData.set as any)?.id;
+          } else if (relData.disconnect) {
+            inlinedId = null;
+          }
+
+          if (inlinedId !== undefined) {
+            scalars[foreignKey] = inlinedId;
+            // Also keep in relations if there are other operations like 'create' or 'update'
+            const hasOtherOps = relData.create || relData.update || relData.delete;
+            if (hasOtherOps) {
+              relations[key] = value;
+            }
+          } else {
+            relations[key] = value;
+          }
         } else {
-          // Full API: { connect, disconnect, set }
           relations[key] = value;
         }
       } else {
@@ -682,27 +761,40 @@ export class CrudOperations implements IRawCrud {
 
     // belongsTo / hasOne → Update THIS record's foreign key
     if (relation.kind === "belongsTo" || relation.kind === "hasOne") {
+      // If this relation was already inlined into scalars, we might still be here 
+      // if there are nested create/update ops. For simple connect/set, 
+      // the key is already updated in the main INSERT/UPDATE.
+
+      const updateData: Record<string, unknown> = {};
+
       if (relData.connect) {
         const connectId =
           Array.isArray(relData.connect) ?
             relData.connect[0]?.id
             : relData.connect.id;
         if (connectId !== undefined) {
-          await this.update(model, recordId, { [foreignKey]: connectId });
+          updateData[foreignKey] = connectId;
         }
       }
       if (relData.disconnect) {
-        await this.update(model, recordId, { [foreignKey]: null });
+        updateData[foreignKey] = null;
       }
       if (relData.set) {
-        // set can be array or single object for belongsTo/hasOne
         const setId = Array.isArray(relData.set) ?
           relData.set[0]?.id
           : (relData.set as { id: string | number })?.id;
-        await this.update(model, recordId, {
-          [foreignKey]: setId ?? null,
-        });
+        updateData[foreignKey] = setId ?? null;
       }
+
+      // Only fire update if we have data and it wasn't already handled by inlining 
+      // (Actually, firing it again doesn't hurt much with internalUpdate, 
+      // but inlining handles most cases. We only need internalUpdate if 
+      // there were other logic involved or we want to be safe)
+      if (Object.keys(updateData).length > 0) {
+        await this.internalUpdate(model, recordId, updateData);
+      }
+
+      // Handle nested create/update if implemented in future
     }
 
     // hasMany → Update TARGET records' foreign key

@@ -7,20 +7,9 @@
  * @template TRole - Union type of valid role names
  */
 
-import type { DefaultPermission } from 'forja-types/core/permission';
-import type { Forja } from 'forja-core';
-import type { AuthManager } from './auth/manager';
-
-/**
- * Authenticated User (from token/session)
- * Defined here to avoid circular dependencies
- */
-export interface AuthenticatedUser {
-  readonly id: string;
-  readonly role: string;
-  readonly email?: string;
-  readonly [key: string]: unknown;
-}
+import type { DefaultPermission } from "forja-types/core/permission";
+import type { Forja } from "forja-core";
+import type { AuthManager } from "./auth/manager";
 
 /**
  * API Plugin Interface

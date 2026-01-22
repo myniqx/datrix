@@ -25,12 +25,12 @@ export type {
 /**
  * JWT algorithm types
  */
-export type JwtAlgorithm = 'HS256' | 'HS512';
+export type JwtAlgorithm = "HS256" | "HS512";
 
 /**
  * Time unit for expiration
  */
-export type TimeUnit = 's' | 'm' | 'h' | 'd';
+export type TimeUnit = "s" | "m" | "h" | "d";
 
 /**
  * Expiry string format (e.g., "1h", "7d", "30m")
@@ -75,13 +75,13 @@ export interface JwtToken {
  */
 export interface JwtHeader {
   readonly alg: JwtAlgorithm;
-  readonly typ: 'JWT';
+  readonly typ: "JWT";
 }
 
 /**
  * Session storage type
  */
-export type SessionStoreType = 'memory' | 'redis' | 'database';
+export type SessionStoreType = "memory" | "redis" | "database";
 
 /**
  * Session configuration
@@ -113,10 +113,7 @@ export interface SessionStore {
   readonly name: SessionStoreType;
 
   get(sessionId: string): Promise<Result<SessionData | undefined, AuthError>>;
-  set(
-    sessionId: string,
-    data: SessionData
-  ): Promise<Result<void, AuthError>>;
+  set(sessionId: string, data: SessionData): Promise<Result<void, AuthError>>;
   delete(sessionId: string): Promise<Result<void, AuthError>>;
   cleanup(): Promise<Result<number, AuthError>>; // Returns number of deleted sessions
   clear(): Promise<Result<void, AuthError>>;
@@ -239,26 +236,25 @@ export interface AuthContext {
   readonly token?: string;
 }
 
-
 /**
  * Type guard for JWT payload
  */
 export function isJwtPayload(value: unknown): value is JwtPayload {
-  if (typeof value !== 'object' || value === null) {
+  if (typeof value !== "object" || value === null) {
     return false;
   }
 
   const obj = value as Record<string, unknown>;
 
   return (
-    'userId' in obj &&
-    'role' in obj &&
-    'iat' in obj &&
-    'exp' in obj &&
-    typeof obj['userId'] === 'string' &&
-    typeof obj['role'] === 'string' &&
-    typeof obj['iat'] === 'number' &&
-    typeof obj['exp'] === 'number'
+    "userId" in obj &&
+    "role" in obj &&
+    "iat" in obj &&
+    "exp" in obj &&
+    typeof obj["userId"] === "number" &&
+    typeof obj["role"] === "string" &&
+    typeof obj["iat"] === "number" &&
+    typeof obj["exp"] === "number"
   );
 }
 
@@ -266,25 +262,25 @@ export function isJwtPayload(value: unknown): value is JwtPayload {
  * Type guard for session data
  */
 export function isSessionData(value: unknown): value is SessionData {
-  if (typeof value !== 'object' || value === null) {
+  if (typeof value !== "object" || value === null) {
     return false;
   }
 
   const obj = value as Record<string, unknown>;
 
   return (
-    'id' in obj &&
-    'userId' in obj &&
-    'role' in obj &&
-    'createdAt' in obj &&
-    'expiresAt' in obj &&
-    'lastAccessedAt' in obj &&
-    typeof obj['id'] === 'string' &&
-    typeof obj['userId'] === 'string' &&
-    typeof obj['role'] === 'string' &&
-    obj['createdAt'] instanceof Date &&
-    obj['expiresAt'] instanceof Date &&
-    obj['lastAccessedAt'] instanceof Date
+    "id" in obj &&
+    "userId" in obj &&
+    "role" in obj &&
+    "createdAt" in obj &&
+    "expiresAt" in obj &&
+    "lastAccessedAt" in obj &&
+    typeof obj["id"] === "string" &&
+    typeof obj["userId"] === "string" &&
+    typeof obj["role"] === "string" &&
+    obj["createdAt"] instanceof Date &&
+    obj["expiresAt"] instanceof Date &&
+    obj["lastAccessedAt"] instanceof Date
   );
 }
 
@@ -296,39 +292,37 @@ const MIN_JWT_SECRET_LENGTH = 32;
 /**
  * Type guard for auth config
  */
-export function isAuthConfig(
-  value: unknown
-): value is AuthConfig<string> {
-  if (typeof value !== 'object' || value === null) {
+export function isAuthConfig(value: unknown): value is AuthConfig<string> {
+  if (typeof value !== "object" || value === null) {
     return false;
   }
 
   const opts = value as Record<string, unknown>;
 
   // roles and defaultRole are required
-  if (!('roles' in opts) || !Array.isArray(opts['roles'])) {
+  if (!("roles" in opts) || !Array.isArray(opts["roles"])) {
     return false;
   }
 
-  if (!('defaultRole' in opts) || typeof opts['defaultRole'] !== 'string') {
+  if (!("defaultRole" in opts) || typeof opts["defaultRole"] !== "string") {
     return false;
   }
 
   // At least one auth strategy must be configured
-  if (!('jwt' in opts) && !('session' in opts)) {
+  if (!("jwt" in opts) && !("session" in opts)) {
     return false;
   }
 
   // Validate JWT config if present
-  if ('jwt' in opts && opts['jwt'] !== undefined) {
-    if (typeof opts['jwt'] !== 'object' || opts['jwt'] === null) {
+  if ("jwt" in opts && opts["jwt"] !== undefined) {
+    if (typeof opts["jwt"] !== "object" || opts["jwt"] === null) {
       return false;
     }
-    const jwt = opts['jwt'] as Record<string, unknown>;
+    const jwt = opts["jwt"] as Record<string, unknown>;
     if (
-      !('secret' in jwt) ||
-      typeof jwt['secret'] !== 'string' ||
-      jwt['secret'].length < MIN_JWT_SECRET_LENGTH
+      !("secret" in jwt) ||
+      typeof jwt["secret"] !== "string" ||
+      jwt["secret"].length < MIN_JWT_SECRET_LENGTH
     ) {
       return false;
     }
@@ -341,4 +335,3 @@ export function isAuthConfig(
  * @deprecated Use isAuthConfig instead
  */
 export const isAuthPluginOptions = isAuthConfig;
-

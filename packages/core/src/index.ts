@@ -5,7 +5,7 @@
  */
 
 // Re-export Forja singleton (main entry point)
-export { Forja, defineConfig, ForjaError } from './forja';
+export { Forja, defineConfig } from './forja';
 export type { ForjaInitOptions, ConfigFactory } from './forja';
 
 // Re-export schema system

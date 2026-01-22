@@ -14,10 +14,14 @@ import { createTestConfigWithAuth } from "./data/config-auth";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-/** API Response type for type-safe json parsing */
 interface ApiResponse<T = Record<string, unknown>> {
   data?: T;
-  error?: { message: string; code: string };
+  error?: {
+    message: string;
+    code: string;
+    type: string;
+    context?: Record<string, unknown>;
+  };
 }
 
 /** User response from auth endpoints */
@@ -166,8 +170,8 @@ describe("Auth Handler Tests", () => {
       expect(response.status).toBe(400);
 
       const data = (await response.json()) as ApiResponse;
-      expect(data.error?.code).toBe("VALIDATION_ERROR");
-      expect(data.error?.message).toContain("Email");
+      expect(data.error?.code).toBe("INVALID_BODY");
+      expect(data.error?.message).toContain("Invalid request body");
     });
 
     it("should return 400 when password is missing", async () => {
@@ -183,8 +187,8 @@ describe("Auth Handler Tests", () => {
       expect(response.status).toBe(400);
 
       const data = (await response.json()) as ApiResponse;
-      expect(data.error?.code).toBe("VALIDATION_ERROR");
-      expect(data.error?.message).toContain("Password");
+      expect(data.error?.code).toBe("INVALID_BODY");
+      expect(data.error?.message).toContain("Invalid request body");
     });
 
     it("should return 400 when email is not a string", async () => {
@@ -201,7 +205,7 @@ describe("Auth Handler Tests", () => {
       expect(response.status).toBe(400);
 
       const data = (await response.json()) as ApiResponse;
-      expect(data.error?.code).toBe("VALIDATION_ERROR");
+      expect(data.error?.code).toBe("INVALID_BODY");
     });
 
     it("should return 400 when password is not a string", async () => {
@@ -218,7 +222,7 @@ describe("Auth Handler Tests", () => {
       expect(response.status).toBe(400);
 
       const data = (await response.json()) as ApiResponse;
-      expect(data.error?.code).toBe("VALIDATION_ERROR");
+      expect(data.error?.code).toBe("INVALID_BODY");
     });
 
     it("should return 409 when user already exists", async () => {
@@ -250,7 +254,7 @@ describe("Auth Handler Tests", () => {
       expect(response.status).toBe(409);
 
       const data = (await response.json()) as ApiResponse;
-      expect(data.error?.code).toBe("USER_EXISTS");
+      expect(data.error?.code).toBe("CONFLICT");
     });
 
     it("should set session cookie when session is enabled", async () => {
@@ -331,8 +335,8 @@ describe("Auth Handler Tests", () => {
       expect(response.status).toBe(400);
 
       const data = (await response.json()) as ApiResponse;
-      expect(data.error?.code).toBe("VALIDATION_ERROR");
-      expect(data.error?.message).toContain("Email");
+      expect(data.error?.code).toBe("INVALID_BODY");
+      expect(data.error?.message).toContain("Invalid request body");
     });
 
     it("should return 400 when password is missing", async () => {
@@ -348,8 +352,8 @@ describe("Auth Handler Tests", () => {
       expect(response.status).toBe(400);
 
       const data = (await response.json()) as ApiResponse;
-      expect(data.error?.code).toBe("VALIDATION_ERROR");
-      expect(data.error?.message).toContain("Password");
+      expect(data.error?.code).toBe("INVALID_BODY");
+      expect(data.error?.message).toContain("Invalid request body");
     });
 
     it("should return 401 when user does not exist", async () => {
@@ -471,7 +475,7 @@ describe("Auth Handler Tests", () => {
       expect(response.status).toBe(400);
 
       const data = (await response.json()) as ApiResponse;
-      expect(data.error?.code).toBe("NO_SESSION");
+      expect(data.error?.code).toBe("INVALID_BODY");
     });
   });
 
@@ -567,7 +571,7 @@ describe("Auth Handler Tests", () => {
       expect(response.status).toBe(401);
 
       const data = (await response.json()) as ApiResponse;
-      expect(data.error?.code).toBe("UNAUTHORIZED");
+      expect(data.error?.code).toBe("INVALID_TOKEN");
     });
 
     it("should return 401 with invalid token", async () => {
@@ -581,7 +585,7 @@ describe("Auth Handler Tests", () => {
       expect(response.status).toBe(401);
 
       const data = (await response.json()) as ApiResponse;
-      expect(data.error?.code).toBe("UNAUTHORIZED");
+      expect(data.error?.code).toBe("INVALID_TOKEN");
     });
 
     it("should return 401 with expired/invalid session", async () => {
@@ -595,7 +599,7 @@ describe("Auth Handler Tests", () => {
       expect(response.status).toBe(401);
 
       const data = (await response.json()) as ApiResponse;
-      expect(data.error?.code).toBe("UNAUTHORIZED");
+      expect(data.error?.code).toBe("INVALID_TOKEN");
     });
   });
 

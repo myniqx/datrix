@@ -31,7 +31,7 @@ export class AuthError extends Error {
  * Authenticated user
  */
 export interface AuthUser {
-  readonly id: string;
+  readonly id: number;
   readonly email: string;
   readonly role: string;
   readonly [key: string]: unknown;

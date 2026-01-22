@@ -5,7 +5,7 @@
  * Extends ForjaError with parser-specific fields.
  */
 
-import { ForjaError, type ForjaErrorOptions, type SerializedForjaError } from "./base";
+import { ForjaError, type SerializedForjaError } from "./base";
 
 /**
  * Which parser generated the error

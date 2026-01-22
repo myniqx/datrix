@@ -76,6 +76,12 @@ export function validateSchema<T extends ForjaEntry>(
 
     const value = inputData[fieldName];
 
+    // Skip hidden fields if not provided - these are typically auto-managed (like FKs)
+    // and will be filled later in the CRUD flow or by the database.
+    if (fieldDef.hidden && value === undefined) {
+      continue;
+    }
+
     // Validate field
     const result = validateField(value, fieldDef, fieldName);
 
