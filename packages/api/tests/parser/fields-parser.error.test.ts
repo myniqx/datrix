@@ -2,7 +2,8 @@
 /**
  * API Parser - Fields Parser Tests (Error Path)
  *
- * Tests error handling, validation, and security for fields parsing
+ * Tests error handling, validation, and security for fields parsing.
+ * Uses Result pattern - parseFields returns Result<T, E>, NOT throws.
  */
 
 import { describe, it, expect } from "vitest";
@@ -11,258 +12,281 @@ import { RawQueryParams } from "../../../types/src/api/parser";
 import { parserTestData } from "../../../types/src/test/fixtures";
 import { expectFailureError } from "../../../types/src/test/helpers";
 
-describe("FieldsParser - Error Path", () => {
+describe("FieldsParser - Error Path (Result Pattern)", () => {
   describe("Invalid field names", () => {
-    it("should reject field starting with digit", () => {
-      const digitStartField: RawQueryParams = {
+    it("should return error for field starting with digit", () => {
+      const result = parseFields({
         fields: parserTestData.invalidFieldNames.startsWithDigit,
-      };
+      });
 
-      const error = expectFailureError(parseFields(digitStartField));
-
+      const error = expectFailureError(result);
       expect(error.code).toBe("INVALID_FIELD_NAME");
-      expect(error.details).toBeDefined();
+      expect(error.context).toBeDefined();
+      expect(error.message).toContain("Invalid field name");
     });
 
-    it("should reject field with spaces", () => {
-      const fieldWithSpaces: RawQueryParams = {
+    it("should return error for field with spaces", () => {
+      const result = parseFields({
         fields: parserTestData.invalidFieldNames.withSpaces,
-      };
+      });
 
-      const error = expectFailureError(parseFields(fieldWithSpaces));
-
+      const error = expectFailureError(result);
       expect(error.code).toBe("INVALID_FIELD_NAME");
+      expect(typeof error.message).toBe("string");
     });
 
-    it("should reject field with special characters", () => {
-      const fieldWithSpecialChars: RawQueryParams = {
+    it("should return error for field with special characters", () => {
+      const result = parseFields({
         fields: parserTestData.invalidFieldNames.withSpecialChars,
-      };
+      });
 
-      const error = expectFailureError(parseFields(fieldWithSpecialChars));
-
+      const error = expectFailureError(result);
       expect(error.code).toBe("INVALID_FIELD_NAME");
     });
 
-    it("should reject multiple invalid fields in comma-separated list", () => {
-      const multipleInvalidFields: RawQueryParams = {
+    it("should return error for multiple invalid fields in comma-separated list", () => {
+      const result = parseFields({
         fields: "id,name!,user space,1invalid",
-      };
+      });
 
-      const error = expectFailureError(parseFields(multipleInvalidFields));
-
+      const error = expectFailureError(result);
       expect(error.code).toBe("INVALID_FIELD_NAME");
-      expect(error.details).toBeDefined();
+      expect(error.context).toBeDefined();
     });
   });
 
   describe("Security: SQL Injection", () => {
     it("should reject SQL injection attempt in field name", () => {
-      const sqlInjectionField: RawQueryParams = {
+      const result = parseFields({
         fields: parserTestData.invalidFieldNames.sqlInjection,
-      };
+      });
 
-      const error = expectFailureError(parseFields(sqlInjectionField));
-
+      const error = expectFailureError(result);
       expect(error.code).toBe("INVALID_FIELD_NAME");
     });
 
     it("should reject SQL injection with quotes", () => {
-      const sqlInjectionWithQuotes: RawQueryParams = {
+      const result = parseFields({
         fields: parserTestData.invalidFieldNames.sqlInjectionWithQuotes,
-      };
+      });
 
-      const error = expectFailureError(parseFields(sqlInjectionWithQuotes));
-
+      const error = expectFailureError(result);
       expect(error.code).toBe("INVALID_FIELD_NAME");
     });
 
     it("should reject SQL injection in comma-separated list", () => {
-      const mixedSqlInjection: RawQueryParams = {
+      const result = parseFields({
         fields: `id,${parserTestData.invalidFieldNames.sqlInjection},name`,
-      };
+      });
 
-      const error = expectFailureError(parseFields(mixedSqlInjection));
-
+      const error = expectFailureError(result);
       expect(error.code).toBe("INVALID_FIELD_NAME");
     });
 
     it("should reject SQL injection in array format", () => {
-      const sqlInjectionArray: RawQueryParams = {
+      const result = parseFields({
         fields: ["id", parserTestData.invalidFieldNames.sqlInjection, "name"],
-      };
+      });
 
-      const error = expectFailureError(parseFields(sqlInjectionArray));
-
+      const error = expectFailureError(result);
       expect(error.code).toBe("INVALID_FIELD_NAME");
     });
   });
 
   describe("Security: XSS Protection", () => {
     it("should reject XSS script tag in field name", () => {
-      const xssScriptField: RawQueryParams = {
+      const result = parseFields({
         fields: parserTestData.invalidFieldNames.xssScript,
-      };
+      });
 
-      const error = expectFailureError(parseFields(xssScriptField));
-
+      const error = expectFailureError(result);
       expect(error.code).toBe("INVALID_FIELD_NAME");
     });
 
     it("should reject XSS img tag in field name", () => {
-      const xssImgField: RawQueryParams = {
+      const result = parseFields({
         fields: parserTestData.invalidFieldNames.xssImgTag,
-      };
+      });
 
-      const error = expectFailureError(parseFields(xssImgField));
-
+      const error = expectFailureError(result);
       expect(error.code).toBe("INVALID_FIELD_NAME");
     });
   });
 
   describe("Security: Path Traversal", () => {
     it("should reject path traversal attempt", () => {
-      const pathTraversalField: RawQueryParams = {
+      const result = parseFields({
         fields: parserTestData.invalidFieldNames.pathTraversal,
-      };
+      });
 
-      const error = expectFailureError(parseFields(pathTraversalField));
-
+      const error = expectFailureError(result);
       expect(error.code).toBe("INVALID_FIELD_NAME");
     });
   });
 
   describe("Security: Command Injection", () => {
     it("should reject command injection attempt", () => {
-      const commandInjectionField: RawQueryParams = {
+      const result = parseFields({
         fields: parserTestData.invalidFieldNames.commandInjection,
-      };
+      });
 
-      const error = expectFailureError(parseFields(commandInjectionField));
-
+      const error = expectFailureError(result);
       expect(error.code).toBe("INVALID_FIELD_NAME");
     });
   });
 
   describe("Security: Null Byte Injection", () => {
     it("should reject null byte injection", () => {
-      const nullByteField: RawQueryParams = {
+      const result = parseFields({
         fields: parserTestData.invalidFieldNames.nullByteInjection,
-      };
+      });
 
-      const error = expectFailureError(parseFields(nullByteField));
-
+      const error = expectFailureError(result);
       expect(error.code).toBe("INVALID_FIELD_NAME");
     });
 
     it("should reject control characters", () => {
-      const controlCharsField: RawQueryParams = {
+      const result = parseFields({
         fields: parserTestData.invalidFieldNames.controlChars,
-      };
+      });
 
-      const error = expectFailureError(parseFields(controlCharsField));
-
+      const error = expectFailureError(result);
       expect(error.code).toBe("INVALID_FIELD_NAME");
     });
   });
 
   describe("Security: Unicode Tricks", () => {
     it("should reject unicode directional override tricks", () => {
-      const unicodeTricksField: RawQueryParams = {
+      const result = parseFields({
         fields: parserTestData.invalidFieldNames.unicodeTricks,
-      };
+      });
 
-      const error = expectFailureError(parseFields(unicodeTricksField));
-
+      const error = expectFailureError(result);
       expect(error.code).toBe("INVALID_FIELD_NAME");
     });
   });
 
   describe("Boundary Safety", () => {
     it("should reject excessively long field names", () => {
-      const excessivelyLongField: RawQueryParams = {
+      const result = parseFields({
         fields: parserTestData.invalidFieldNames.excessivelyLong,
-      };
+      });
 
-      const error = expectFailureError(parseFields(excessivelyLongField));
-
+      const error = expectFailureError(result);
       expect(error.code).toBe("INVALID_FIELD_NAME");
     });
   });
 
   describe("Invalid-But-Plausible Input", () => {
     it("should reject numeric string that looks like field name", () => {
-      const numericLikeField: RawQueryParams = {
+      const result = parseFields({
         fields: parserTestData.invalidFieldNames.startsWithDigitComplex,
-      };
+      });
 
-      const error = expectFailureError(parseFields(numericLikeField));
-
+      const error = expectFailureError(result);
       expect(error.code).toBe("INVALID_FIELD_NAME");
     });
 
     it("should reject field with only whitespace", () => {
-      const whitespaceOnlyField: RawQueryParams = {
+      const result = parseFields({
         fields: "   ",
-      };
+      });
 
-      const error = expectFailureError(parseFields(whitespaceOnlyField));
-
+      const error = expectFailureError(result);
       expect(error.code).toBe("EMPTY_VALUE");
     });
 
     it("should reject empty string after trimming", () => {
-      const emptyAfterTrim: RawQueryParams = {
+      const result = parseFields({
         fields: " , , ",
-      };
+      });
 
-      const error = expectFailureError(parseFields(emptyAfterTrim));
-
+      const error = expectFailureError(result);
       expect(error.code).toBe("EMPTY_VALUE");
     });
   });
 
-  describe("Explicit Failure Messages", () => {
-    it("should return consistent error structure", () => {
-      const invalidField: RawQueryParams = {
+  describe("Error Structure Validation", () => {
+    it("should return consistent ParserError structure", () => {
+      const result = parseFields({
         fields: parserTestData.invalidFieldNames.withSpecialChars,
-      };
+      });
 
-      const error = expectFailureError(parseFields(invalidField));
+      const error = expectFailureError(result);
 
+      // ParserError should have these properties
       expect(error).toHaveProperty("code");
       expect(error).toHaveProperty("message");
+      expect(error).toHaveProperty("parser");
       expect(error.code).toBe("INVALID_FIELD_NAME");
+      expect(error.parser).toBe("fields");
       expect(typeof error.message).toBe("string");
     });
 
     it("should provide details about invalid field", () => {
-      const invalidField: RawQueryParams = {
+      const result = parseFields({
         fields: "id,invalid!field,name",
-      };
+      });
 
-      const error = expectFailureError(parseFields(invalidField));
+      const error = expectFailureError(result);
+      expect(error.context).toBeDefined();
+    });
 
-      expect(error.details).toBeDefined();
+    it("should include location information", () => {
+      const result = parseFields({
+        fields: "id,invalid!field",
+      });
+
+      const error = expectFailureError(result);
+      expect(error.location).toBeDefined();
     });
   });
 
-  describe("Negative Space Coverage", () => {
+  describe("Suspicious Parameters Detection", () => {
     it("should reject unknown query parameters that look like fields", () => {
-      const unknownParams: RawQueryParams = {
+      const result = parseFields({
         fields: "id,name",
         "fields[extra]": "malicious",
         fields_injection: "attack",
-      };
+      });
 
-      const error = expectFailureError(parseFields(unknownParams));
-
+      const error = expectFailureError(result);
       expect(error.code).toBe("UNKNOWN_PARAMETER");
+      expect(error.parser).toBe("fields");
+    });
+
+    it("should allow valid array format fields[0], fields[1]", () => {
+      const result = parseFields({
+        "fields[0]": "id",
+        "fields[1]": "name",
+      });
+
+      // This should succeed, not error
+      expect(result.success).toBe(true);
     });
   });
 
-  describe("State Isolation", () => {
+  describe("State Isolation & Consistency", () => {
     it("should not affect subsequent calls after error", () => {
+      const invalidParams: RawQueryParams = {
+        fields: parserTestData.invalidFieldNames.sqlInjection,
+      };
+
+      // Multiple calls should produce identical results
+      const result1 = parseFields(invalidParams);
+      const result2 = parseFields(invalidParams);
+      const result3 = parseFields(invalidParams);
+
+      const error1 = expectFailureError(result1);
+      const error2 = expectFailureError(result2);
+      const error3 = expectFailureError(result3);
+
+      expect(error1.code).toBe("INVALID_FIELD_NAME");
+      expect(error2.code).toBe("INVALID_FIELD_NAME");
+      expect(error3.code).toBe("INVALID_FIELD_NAME");
+    });
+
+    it("should produce valid results after error", () => {
       const invalidParams: RawQueryParams = {
         fields: parserTestData.invalidFieldNames.sqlInjection,
       };
@@ -270,11 +294,11 @@ describe("FieldsParser - Error Path", () => {
         fields: "id,name",
       };
 
-      expectFailureError(parseFields(invalidParams));
-      const error2 = expectFailureError(parseFields(invalidParams));
+      // Error shouldn't affect subsequent valid calls
       expectFailureError(parseFields(invalidParams));
 
-      expect(error2.code).toBe("INVALID_FIELD_NAME");
+      const validResult = parseFields(validParams);
+      expect(validResult.success).toBe(true);
     });
   });
 });
