@@ -197,30 +197,154 @@ export interface RelationField<
 }
 
 /**
+ * Flexible ID reference for relations
+ * Accepts: number, string, or object with id property
+ *
+ * @example
+ * ```ts
+ * // All valid:
+ * 5
+ * "uuid-123"
+ * { id: 5 }
+ * { id: "uuid-123", name: "Test" } // extra fields ignored, id extracted
+ * ```
+ */
+export type RelationIdRef = string | number | { id: string | number };
+
+/**
+ * Flexible ID references (single or array)
+ * Accepts any combination of RelationIdRef
+ *
+ * @example
+ * ```ts
+ * // All valid:
+ * 5
+ * [1, 2, 3]
+ * { id: 5 }
+ * [{ id: 1 }, { id: 2 }]
+ * [1, { id: 2 }, "uuid-3"] // mixed
+ * ```
+ */
+export type RelationIdRefs = RelationIdRef | RelationIdRef[];
+
+/**
  * Relation input for create/update operations
- * Supports Prisma-style relation API
+ * Supports Prisma-style relation API with flexible ID formats
+ *
+ * @example
+ * ```ts
+ * // All these are equivalent for connect:
+ * { connect: 5 }
+ * { connect: { id: 5 } }
+ * { connect: [5] }
+ * { connect: [{ id: 5 }] }
+ *
+ * // Mixed formats work too:
+ * { connect: [1, { id: 2 }, "uuid-3"] }
+ * ```
  */
 export type RelationInput<T = Record<string, unknown>> = {
-  // Connect existing records by ID
-  connect?: { id: string | number } | { id: string | number }[];
+  // Connect existing records by ID (flexible format)
+  connect?: RelationIdRefs;
 
-  // Disconnect records by ID
-  disconnect?: { id: string | number } | { id: string | number }[];
+  // Disconnect records by ID (flexible format)
+  disconnect?: RelationIdRefs;
 
-  // Replace all relations (set)
-  set?: { id: string | number }[];
+  // Replace all relations (flexible format)
+  set?: RelationIdRefs;
 
   // Create new records and connect
   create?: Partial<T> | Partial<T>[];
 
   // Update existing related records
   update?:
-  | { where: { id: string | number }; data: Partial<T> }
-  | { where: { id: string | number }; data: Partial<T> }[];
+    | { where: { id: string | number }; data: Partial<T> }
+    | { where: { id: string | number }; data: Partial<T> }[];
 
-  // Delete related records
-  delete?: { id: string | number } | { id: string | number }[];
+  // Delete related records (flexible format)
+  delete?: RelationIdRefs;
 };
+
+/**
+ * Normalized relation ID (always { id } format)
+ */
+export type NormalizedRelationId = { id: string | number };
+
+/**
+ * Normalize a single RelationIdRef to { id } format
+ *
+ * @param ref - ID reference (number, string, or object with id)
+ * @returns Normalized { id } object
+ *
+ * @example
+ * ```ts
+ * normalizeRelationId(5)           // { id: 5 }
+ * normalizeRelationId("uuid")      // { id: "uuid" }
+ * normalizeRelationId({ id: 5 })   // { id: 5 }
+ * normalizeRelationId({ id: 5, name: "Test" }) // { id: 5 }
+ * ```
+ */
+export function normalizeRelationId(ref: RelationIdRef): NormalizedRelationId {
+  if (typeof ref === "number" || typeof ref === "string") {
+    return { id: ref };
+  }
+  return { id: ref.id };
+}
+
+/**
+ * Normalize RelationIdRefs to array of { id } format
+ *
+ * @param refs - Single or array of ID references
+ * @returns Array of normalized { id } objects
+ *
+ * @example
+ * ```ts
+ * normalizeRelationIds(5)                    // [{ id: 5 }]
+ * normalizeRelationIds([1, 2])               // [{ id: 1 }, { id: 2 }]
+ * normalizeRelationIds({ id: 5 })            // [{ id: 5 }]
+ * normalizeRelationIds([1, { id: 2 }])       // [{ id: 1 }, { id: 2 }]
+ * ```
+ */
+export function normalizeRelationIds(
+  refs: RelationIdRefs,
+): NormalizedRelationId[] {
+  if (Array.isArray(refs)) {
+    return refs.map(normalizeRelationId);
+  }
+  return [normalizeRelationId(refs)];
+}
+
+/**
+ * Check if value is a valid RelationIdRef
+ */
+export function isRelationIdRef(value: unknown): value is RelationIdRef {
+  if (typeof value === "number" || typeof value === "string") {
+    return true;
+  }
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    "id" in value &&
+    (typeof (value as { id: unknown }).id === "number" ||
+      typeof (value as { id: unknown }).id === "string")
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Check if value is valid RelationIdRefs
+ */
+export function isRelationIdRefs(value: unknown): value is RelationIdRefs {
+  if (isRelationIdRef(value)) {
+    return true;
+  }
+  if (Array.isArray(value) && value.every(isRelationIdRef)) {
+    return true;
+  }
+  return false;
+}
 
 /**
  * File field definition

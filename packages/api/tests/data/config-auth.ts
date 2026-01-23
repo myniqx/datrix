@@ -87,14 +87,14 @@ export function createTestConfigWithAuth(tmpDir: string) {
  * Used in tests to simulate authenticated requests
  */
 export interface TestUser {
-  readonly id: string;
+  readonly id: number;
   readonly email: string;
   readonly role: TestRoles;
 }
 
 export const testUsers: Record<TestRoles, TestUser> = {
-  admin: { id: "1", email: "admin@test.com", role: "admin" },
-  editor: { id: "2", email: "editor@test.com", role: "editor" },
-  user: { id: "3", email: "user@test.com", role: "user" },
-  guest: { id: "4", email: "guest@test.com", role: "guest" },
+  admin: { id: 1, email: "admin@test.com", role: "admin" },
+  editor: { id: 2, email: "editor@test.com", role: "editor" },
+  user: { id: 3, email: "user@test.com", role: "user" },
+  guest: { id: 4, email: "guest@test.com", role: "guest" },
 };

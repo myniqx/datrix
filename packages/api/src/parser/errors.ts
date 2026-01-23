@@ -664,6 +664,7 @@ export const sortError = {
           "Use valid field names (e.g., 'name', '-createdAt', 'user.age')",
         context: {
           sortField: field,
+          parameter: "sort",
         },
       }),
     };

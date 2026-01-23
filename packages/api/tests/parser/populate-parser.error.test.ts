@@ -19,7 +19,7 @@ describe("PopulateParser - Error Path", () => {
       const error = expectFailureError(parsePopulate(depth6Params));
 
       expect(error.code).toBe("MAX_DEPTH_EXCEEDED");
-      expect(error.message).toContain("5");
+      expect(error.expected).toContain("5");
     });
 
     it("should reject populate exceeding custom max depth", () => {
@@ -28,7 +28,7 @@ describe("PopulateParser - Error Path", () => {
       const error = expectFailureError(parsePopulate(depth3Params, 2));
 
       expect(error.code).toBe("MAX_DEPTH_EXCEEDED");
-      expect(error.message).toContain("2");
+      expect(error.expected).toContain("2");
     });
 
     it("should reject depth 2 when max depth is 1", () => {
@@ -281,7 +281,7 @@ describe("PopulateParser - Error Path", () => {
 
       const error = expectFailureError(parsePopulate(depth6Params));
 
-      expect(error).toHaveProperty("field");
+      expect(error.location).toHaveProperty("parts");
     });
   });
 

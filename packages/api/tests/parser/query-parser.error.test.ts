@@ -21,7 +21,7 @@ describe("QueryParser - Error Path", () => {
       const error = expectFailureError(parseQuery(negativeLimit));
 
       expect(error.code).toBe("INVALID_PAGINATION");
-      expect(error.field).toBe("limit");
+      expect(error.context?.parameter).toBe("limit");
     });
 
     it("should reject negative offset", () => {
@@ -31,7 +31,7 @@ describe("QueryParser - Error Path", () => {
       const error = expectFailureError(parseQuery(negativeOffset));
 
       expect(error.code).toBe("INVALID_PAGINATION");
-      expect(error.field).toBe("offset");
+      expect(error.context?.parameter).toBe("offset");
     });
 
     it("should reject zero page", () => {
@@ -41,7 +41,7 @@ describe("QueryParser - Error Path", () => {
       const error = expectFailureError(parseQuery(zeroPage));
 
       expect(error.code).toBe("INVALID_PAGINATION");
-      expect(error.field).toBe("page");
+      expect(error.context?.parameter).toBe("page");
       expect(error.message).toContain(">= 1");
     });
 
@@ -52,7 +52,7 @@ describe("QueryParser - Error Path", () => {
       const error = expectFailureError(parseQuery(negativePage));
 
       expect(error.code).toBe("INVALID_PAGINATION");
-      expect(error.field).toBe("page");
+      expect(error.context?.parameter).toBe("page");
     });
 
     it("should reject zero pageSize", () => {
@@ -62,7 +62,7 @@ describe("QueryParser - Error Path", () => {
       const error = expectFailureError(parseQuery(zeroPageSize));
 
       expect(error.code).toBe("INVALID_PAGINATION");
-      expect(error.field).toBe("pageSize");
+      expect(error.context?.parameter).toBe("pageSize");
     });
 
     it("should reject negative pageSize", () => {
@@ -72,7 +72,7 @@ describe("QueryParser - Error Path", () => {
       const error = expectFailureError(parseQuery(negativePageSize));
 
       expect(error.code).toBe("INVALID_PAGINATION");
-      expect(error.field).toBe("pageSize");
+      expect(error.context?.parameter).toBe("pageSize");
     });
 
     it("should reject limit exceeding maxPageSize", () => {
@@ -82,8 +82,8 @@ describe("QueryParser - Error Path", () => {
 
       const error = expectFailureError(parseQuery(exceedsMax, options));
 
-      expect(error.code).toBe("INVALID_PAGINATION");
-      expect(error.field).toBe("limit");
+      expect(error.code).toBe("MAX_VALUE_VIOLATION");
+      expect(error.context?.parameter).toBe("limit");
       expect(error.message).toContain("exceeds maximum");
       expect(error.message).toContain("100");
     });
@@ -94,8 +94,8 @@ describe("QueryParser - Error Path", () => {
 
       const error = expectFailureError(parseQuery(exceedsPageSize, options));
 
-      expect(error.code).toBe("INVALID_PAGINATION");
-      expect(error.field).toBe("pageSize");
+      expect(error.code).toBe("MAX_VALUE_VIOLATION");
+      expect(error.context?.parameter).toBe("pageSize");
       expect(error.message).toContain("exceeds maximum");
     });
 
@@ -106,7 +106,7 @@ describe("QueryParser - Error Path", () => {
       const error = expectFailureError(parseQuery(nonNumericLimit));
 
       expect(error.code).toBe("INVALID_PAGINATION");
-      expect(error.field).toBe("limit");
+      expect(error.context?.parameter).toBe("limit");
     });
 
     it("should reject non-numeric page", () => {
@@ -116,7 +116,7 @@ describe("QueryParser - Error Path", () => {
       const error = expectFailureError(parseQuery(nonNumericPage));
 
       expect(error.code).toBe("INVALID_PAGINATION");
-      expect(error.field).toBe("page");
+      expect(error.context?.parameter).toBe("page");
     });
   });
 
@@ -127,8 +127,8 @@ describe("QueryParser - Error Path", () => {
 
       const error = expectFailureError(parseQuery(sqlInjectionSort));
 
-      expect(error.code).toBe("INVALID_SYNTAX");
-      expect(error.field).toBe("sort");
+      expect(error.code).toBe("INVALID_FIELD_NAME");
+      expect(error.context?.parameter).toBe("sort");
     });
 
     it("should reject sort field with special characters", () => {
@@ -138,7 +138,7 @@ describe("QueryParser - Error Path", () => {
       const error = expectFailureError(parseQuery(specialCharsSort));
 
       expect(error.code).toBe("INVALID_FIELD_NAME");
-      expect(error.field).toBe("sort");
+      expect(error.context?.parameter).toBe("sort");
     });
 
     it("should reject sort field starting with digit", () => {
@@ -148,7 +148,7 @@ describe("QueryParser - Error Path", () => {
       const error = expectFailureError(parseQuery(digitStartSort));
 
       expect(error.code).toBe("INVALID_FIELD_NAME");
-      expect(error.field).toBe("sort");
+      expect(error.context?.parameter).toBe("sort");
     });
 
     it("should reject sort field with spaces", () => {
@@ -158,7 +158,7 @@ describe("QueryParser - Error Path", () => {
       const error = expectFailureError(parseQuery(spacesSort));
 
       expect(error.code).toBe("INVALID_FIELD_NAME");
-      expect(error.field).toBe("sort");
+      expect(error.context?.parameter).toBe("sort");
     });
 
     it("should reject path traversal in sort", () => {
@@ -168,7 +168,7 @@ describe("QueryParser - Error Path", () => {
       const error = expectFailureError(parseQuery(pathTraversalSort));
 
       expect(error.code).toBe("INVALID_FIELD_NAME");
-      expect(error.field).toBe("sort");
+      expect(error.context?.parameter).toBe("sort");
     });
 
     it("should reject XSS in sort field", () => {
@@ -177,7 +177,7 @@ describe("QueryParser - Error Path", () => {
       const error = expectFailureError(parseQuery(xssSort));
 
       expect(error.code).toBe("INVALID_FIELD_NAME");
-      expect(error.field).toBe("sort");
+      expect(error.context?.parameter).toBe("sort");
     });
 
     it("should reject excessively long sort field", () => {
@@ -187,7 +187,7 @@ describe("QueryParser - Error Path", () => {
       const error = expectFailureError(parseQuery(longSort));
 
       expect(error.code).toBe("INVALID_FIELD_NAME");
-      expect(error.field).toBe("sort");
+      expect(error.context?.parameter).toBe("sort");
     });
 
     it("should reject empty sort field", () => {
@@ -204,7 +204,7 @@ describe("QueryParser - Error Path", () => {
       const error = expectFailureError(parseQuery(onlyMinus));
 
       expect(error.code).toBe("INVALID_FIELD_NAME");
-      expect(error.field).toBe("sort");
+      expect(error.context?.parameter).toBe("sort");
     });
   });
 
@@ -269,7 +269,7 @@ describe("QueryParser - Error Path", () => {
 
       expect(error).toHaveProperty("code");
       expect(error).toHaveProperty("message");
-      expect(error).toHaveProperty("field");
+      expect(error.location).toHaveProperty("path");
       expect(typeof error.code).toBe("string");
       expect(typeof error.message).toBe("string");
       expect(error.message.length).toBeGreaterThan(0);
@@ -282,8 +282,8 @@ describe("QueryParser - Error Path", () => {
 
       expect(error).toHaveProperty("code");
       expect(error).toHaveProperty("message");
-      expect(error).toHaveProperty("field");
-      expect(error.field).toBe("sort");
+      expect(error.location).toHaveProperty("path");
+      expect(error.context?.parameter).toBe("sort");
     });
 
     it("should include helpful message for maxPageSize exceeded", () => {
@@ -305,7 +305,7 @@ describe("QueryParser - Error Path", () => {
 
       const error = expectFailureError(parseQuery(largePage));
 
-      expect(error.code).toBe("INVALID_PAGINATION");
+      expect(error.code).toBe("PAGE_OUT_OF_RANGE");
     });
 
     it("should reject extremely large limit", () => {
@@ -314,7 +314,7 @@ describe("QueryParser - Error Path", () => {
 
       const error = expectFailureError(parseQuery(largeLimit, options));
 
-      expect(error.code).toBe("INVALID_PAGINATION");
+      expect(error.code).toBe("MAX_VALUE_VIOLATION");
     });
   });
 

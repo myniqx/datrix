@@ -299,8 +299,8 @@ describe("WhereParser - Error Path", () => {
 
 			const error = expectFailureError(parseWhere(invalidOperatorParams));
 
-			expect(error).toHaveProperty("field");
-			expect(error.field).toContain("price");
+			expect(error.location).toHaveProperty("path");
+			expect(error.location.path).toContain("price");
 		});
 
 		it("should include operator information for invalid operator error", () => {

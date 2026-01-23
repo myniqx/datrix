@@ -517,6 +517,8 @@ describe("Populate Integration Tests", () => {
           stock: 50,
           sku: "MS-2024-001",
           isAvailable: true,
+          category: { connect: { id: 1 } }, // Full API instead of shortcut
+          supplier: { connect: { id: 1 } },
         }),
       });
 
@@ -554,6 +556,7 @@ describe("Populate Integration Tests", () => {
           price: 79.99,
           stock: 20,
           category: 1,
+          supplier: { connect: { id: 1 } },
           sku: "HS-2024-001",
           isAvailable: true,
         }),
@@ -592,6 +595,7 @@ describe("Populate Integration Tests", () => {
           price: 199.99,
           stock: 15,
           category: 1,
+          supplier: { connect: { id: 1 } },
           sku: "SP-2024-001",
           isAvailable: true,
         }),

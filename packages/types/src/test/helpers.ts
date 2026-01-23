@@ -330,3 +330,198 @@ export async function expectCompleteErrorAsync(options: {
 
   return error;
 }
+
+// ============================================================================
+// HTTP API Test Helpers (for Response-based API testing)
+// ============================================================================
+
+/**
+ * API Response structure
+ */
+export interface ApiSuccessResponse<T = unknown> {
+  data: T;
+  meta?: {
+    total?: number;
+    count?: number;
+    limit?: number;
+    offset?: number;
+  };
+}
+
+export interface ApiErrorResponse {
+  error: {
+    code: string;
+    message: string;
+    suggestion?: string;
+    context?: Record<string, unknown>;
+  };
+}
+
+/**
+ * Assert API success response and return data
+ *
+ * @example
+ * const user = await expectApiSuccess<User>(response);
+ * expect(user.name).toBe('John');
+ *
+ * @example
+ * const user = await expectApiSuccess<User>(response, 201); // For POST
+ */
+export async function expectApiSuccess<T = unknown>(
+  response: Response,
+  expectedStatus = 200,
+): Promise<T> {
+  expect(response.status).toBe(expectedStatus);
+
+  const json = (await response.json()) as ApiSuccessResponse<T>;
+  expect(json.data).toBeDefined();
+
+  return json.data;
+}
+
+/**
+ * Assert API success response with meta information
+ *
+ * @example
+ * const { data, meta } = await expectApiSuccessWithMeta<User[]>(response);
+ * expect(meta.total).toBe(10);
+ */
+export async function expectApiSuccessWithMeta<T = unknown>(
+  response: Response,
+  expectedStatus = 200,
+): Promise<ApiSuccessResponse<T>> {
+  expect(response.status).toBe(expectedStatus);
+
+  const json = (await response.json()) as ApiSuccessResponse<T>;
+  expect(json.data).toBeDefined();
+
+  return json;
+}
+
+/**
+ * Assert API error response and return error details
+ *
+ * @example
+ * const error = await expectApiError(response, 404);
+ * expect(error.code).toBe('RECORD_NOT_FOUND');
+ *
+ * @example
+ * await expectApiError(response, 403, 'PERMISSION_DENIED');
+ */
+export async function expectApiError(
+  response: Response,
+  expectedStatus: number,
+  expectedCode?: string,
+): Promise<ApiErrorResponse['error']> {
+  expect(response.status).toBe(expectedStatus);
+
+  const json = (await response.json()) as ApiErrorResponse;
+  expect(json.error).toBeDefined();
+  expect(json.error.code).toBeDefined();
+  expect(json.error.message).toBeDefined();
+
+  if (expectedCode) {
+    expect(json.error.code).toBe(expectedCode);
+  }
+
+  return json.error;
+}
+
+/**
+ * Assert API unauthorized error (401)
+ *
+ * @example
+ * await expectApiUnauthorized(response);
+ */
+export async function expectApiUnauthorized(
+  response: Response,
+): Promise<ApiErrorResponse['error']> {
+  return expectApiError(response, 401, 'UNAUTHORIZED');
+}
+
+/**
+ * Assert API forbidden/permission denied error (403)
+ *
+ * @example
+ * await expectApiForbidden(response);
+ */
+export async function expectApiForbidden(
+  response: Response,
+): Promise<ApiErrorResponse['error']> {
+  return expectApiError(response, 403, 'PERMISSION_DENIED');
+}
+
+/**
+ * Assert API not found error (404)
+ *
+ * @example
+ * await expectApiNotFound(response);
+ */
+export async function expectApiNotFound(
+  response: Response,
+): Promise<ApiErrorResponse['error']> {
+  return expectApiError(response, 404);
+}
+
+/**
+ * Assert API validation error (400)
+ *
+ * @example
+ * await expectApiValidationError(response);
+ */
+export async function expectApiValidationError(
+  response: Response,
+): Promise<ApiErrorResponse['error']> {
+  return expectApiError(response, 400);
+}
+
+/**
+ * Complete API error assertion with all checks
+ *
+ * @example
+ * await expectCompleteApiError(response, {
+ *   status: 403,
+ *   code: 'PERMISSION_DENIED',
+ *   message: /permission denied/i,
+ *   context: { schema: 'user', action: 'create' }
+ * });
+ */
+export async function expectCompleteApiError(
+  response: Response,
+  options: {
+    status: number;
+    code?: string;
+    message?: string | RegExp;
+    suggestion?: string | RegExp;
+    context?: Record<string, unknown>;
+  },
+): Promise<ApiErrorResponse['error']> {
+  const error = await expectApiError(response, options.status, options.code);
+
+  if (options.message) {
+    if (typeof options.message === 'string') {
+      expect(error.message).toContain(options.message);
+    } else {
+      expect(error.message).toMatch(options.message);
+    }
+  }
+
+  if (options.suggestion) {
+    expect(error.suggestion).toBeDefined();
+    if (typeof options.suggestion === 'string') {
+      expect(error.suggestion).toContain(options.suggestion);
+    } else {
+      expect(error.suggestion).toMatch(options.suggestion);
+    }
+  }
+
+  if (options.context) {
+    expect(error.context).toBeDefined();
+    for (const [key, value] of Object.entries(options.context)) {
+      expect(error.context).toHaveProperty(key);
+      expect(error.context![key]).toEqual(value);
+    }
+  }
+
+  return error;
+}

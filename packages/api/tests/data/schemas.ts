@@ -196,7 +196,7 @@ export const productSchema = defineSchema({
         >("product", ctx.id!);
 
         console.log(record);
-        return ctx.user?.["id"] === record?.["createdBy"];
+        return ctx.user?.id.toString() === record?.["createdBy"];
       },
     ],
     delete: ["admin"] as readonly TestRoles[],

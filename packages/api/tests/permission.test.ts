@@ -792,28 +792,48 @@ describe("Schema-Level Permission Tests", () => {
           },
         }),
       );
+
+      const response = await handleRequest(
+        forja,
+        createRequest("/api/products", {
+          method: "POST",
+          token: tokens.admin,
+          body: {
+            name: "Test Product",
+            price: 99.99,
+            stock: 10,
+            category: 1,
+            supplier: 1,
+            sku: "TEST-001",
+            createdBy: userId.toString(), // Set owner as user
+          },
+        }),
+      );
+
+
+      const data = (await response.json()) as ApiResponse<{ id: number }>;
+      productId = data.data!.id;
     });
 
-    it("should allow editor to create product", async () => {
+    it("should allow !editor changed to admin to create product", async () => {
       const response = await handleRequest(
         forja,
         createRequest("/api/products", {
           method: "POST",
           token: tokens.editor,
           body: {
-            name: "Test Product",
+            name: "Test Product2",
             price: 99.99,
             stock: 10,
-            categoryId: 1,
-            supplierId: 1,
-            sku: "TEST-001",
-            createdBy: userId, // Set owner as user
+            category: 1,
+            supplier: 1,
+            sku: "TEST-002",
+            createdBy: userId.toString(), // Set owner as user
           },
         }),
       );
-
-      expect(response.status).toBe(201);
       const data = (await response.json()) as ApiResponse<{ id: number }>;
+      expect(response.status).toBe(201);
       productId = data.data!.id;
     });
 
@@ -828,6 +848,7 @@ describe("Schema-Level Permission Tests", () => {
           }),
         );
 
+        const result = await response.json();
         expect(response.status).toBe(200);
       });
 

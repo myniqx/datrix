@@ -9,10 +9,7 @@ import { DatabaseAdapter } from "forja-types/adapter";
 import {
   SchemaRegistry,
   SchemaDefinition,
-  RESERVED_FIELDS,
   ForjaEntry,
-  RelationField,
-  RelationInput,
 } from "forja-types/core/schema";
 import {
   QueryObject,
@@ -22,16 +19,19 @@ import {
 } from "forja-types/core/query-builder";
 import { QueryAction } from "forja-types/plugin";
 import { Dispatcher } from "../dispatcher";
-import { validateOrThrow, validatePartialOrThrow } from "../validator";
 import { IRawCrud } from "forja-types/forja";
 import { ParsedQuery } from "forja-types";
 import {
   throwQueryExecutionError,
   throwSchemaNotFoundError,
-  throwInvalidPopulateError,
-  throwReservedFieldError,
-  throwNotImplementedError,
 } from "./error-helper";
+import {
+  normalizeRelations,
+  separateRelations,
+  validateData,
+  processPopulate,
+  processRelation,
+} from "./crud-helpers";
 
 /**
  * CRUD Operations Class
@@ -44,7 +44,16 @@ export class CrudOperations implements IRawCrud {
     private readonly schemas: SchemaRegistry,
     private readonly getAdapter: () => DatabaseAdapter,
     private readonly getDispatcher: (() => Dispatcher) | null = null,
-  ) { }
+  ) {}
+
+  /** Dependencies for helper functions */
+  private get populateDeps() {
+    return {
+      getSchema: (model: string) => this.getSchema(model),
+      processSelect: (model: string, select?: SelectClause) =>
+        this.processSelect(model, select),
+    };
+  }
 
   /**
    * Execute a query with optional plugin hooks
@@ -105,7 +114,7 @@ export class CrudOperations implements IRawCrud {
       table: tableName!,
       where,
       select: this.processSelect(model, options?.select),
-      populate: this.processPopulate(model, options?.populate),
+      populate: processPopulate(model, options?.populate, this.populateDeps),
       limit: 1,
     };
 
@@ -174,7 +183,7 @@ export class CrudOperations implements IRawCrud {
       table: tableName!,
       where: options?.where,
       select: this.processSelect(model, options?.select),
-      populate: this.processPopulate(model, options?.populate),
+      populate: processPopulate(model, options?.populate, this.populateDeps),
       orderBy: options?.orderBy,
       limit: options?.limit,
       offset: options?.offset,
@@ -243,20 +252,19 @@ export class CrudOperations implements IRawCrud {
     const schema = this.getSchema(model);
 
     // 1. Normalize shortcuts (id -> RelationInput)
-    const normalizedData = this.normalizeRelations(data, schema);
+    const normalizedData = normalizeRelations(data, schema);
 
     // 2. Validate EVERYTHING (scalars + relations)
     // This solves the "required relation" problem because Validator now sees RelationInput
-    const validatedData = this.validateData<T, false>(
-      normalizedData,
-      schema,
-      false,
-      true,
-    );
+    const validatedData = validateData<T, false>(normalizedData, schema, {
+      partial: false,
+      isCreate: true,
+      isRawMode: this.getDispatcher === null,
+    });
 
     // 3. Separate scalars from async relations
     // Inlines local FKs (belongsTo) into scalars
-    const { scalars, relations } = this.separateRelations(
+    const { scalars, relations } = separateRelations(
       validatedData as Record<string, unknown>,
       schema,
     );
@@ -284,13 +292,15 @@ export class CrudOperations implements IRawCrud {
     );
 
     // Process relations (connect/disconnect/set)
+    const internalUpdate = this.internalUpdate.bind(this);
     for (const [fieldName, relationData] of Object.entries(relations)) {
-      await this.processRelation(
+      await processRelation(
         model,
         insertedId,
         fieldName,
         relationData,
         schema,
+        internalUpdate,
       );
     }
 
@@ -299,7 +309,7 @@ export class CrudOperations implements IRawCrud {
       options ?
         {
           select: this.processSelect(model, options.select),
-          populate: this.processPopulate(model, options.populate),
+          populate: processPopulate(model, options.populate, this.populateDeps),
         }
         : undefined;
 
@@ -330,18 +340,17 @@ export class CrudOperations implements IRawCrud {
     const schema = this.getSchema(model);
 
     // 1. Normalize shortcuts
-    const normalizedData = this.normalizeRelations(data, schema);
+    const normalizedData = normalizeRelations(data, schema);
 
     // 2. Validate everything (partial)
-    const validatedData = this.validateData<T, true>(
-      normalizedData,
-      schema,
-      true,
-      false,
-    );
+    const validatedData = validateData<T, true>(normalizedData, schema, {
+      partial: true,
+      isCreate: false,
+      isRawMode: this.getDispatcher === null,
+    });
 
     // 3. Separate and inline
-    const { scalars, relations } = this.separateRelations(
+    const { scalars, relations } = separateRelations(
       validatedData as Record<string, unknown>,
       schema,
     );
@@ -370,8 +379,9 @@ export class CrudOperations implements IRawCrud {
     }
 
     // Process relations (connect/disconnect/set)
+    const internalUpdate = this.internalUpdate.bind(this);
     for (const [fieldName, relationData] of Object.entries(relations)) {
-      await this.processRelation(model, id, fieldName, relationData, schema);
+      await processRelation(model, id, fieldName, relationData, schema, internalUpdate);
     }
 
     // Fetch updated record with options applied (process select and populate)
@@ -379,7 +389,7 @@ export class CrudOperations implements IRawCrud {
       options ?
         {
           select: this.processSelect(model, options.select),
-          populate: this.processPopulate(model, options.populate),
+          populate: processPopulate(model, options.populate, this.populateDeps),
         }
         : undefined;
 
@@ -410,12 +420,11 @@ export class CrudOperations implements IRawCrud {
     const schema = this.getSchema(model);
 
     // Validate data against schema (partial validation, timestamps added inside)
-    const finalData = this.validateData<ForjaEntry, true>(
-      data,
-      schema,
-      true,
-      false,
-    );
+    const finalData = validateData<ForjaEntry, true>(data, schema, {
+      partial: true,
+      isCreate: false,
+      isRawMode: this.getDispatcher === null,
+    });
 
     const query: QueryObject = {
       type: "update",
@@ -554,82 +563,36 @@ export class CrudOperations implements IRawCrud {
   }
 
   /**
-   * Process populate object (nested support)
-   * - Converts populate[relation]=true to populate[relation]={select: [...]}
-   * - Recursively processes nested populate
-   * - Uses SchemaRegistry to resolve clean field lists
+   * Internal update that bypasses dispatcher
+   * Used for relation processing to avoid triggering hooks
    *
-   * @param model - Current model name
-   * @param populate - Populate configuration
-   * @returns Processed populate object
-   */
-  private processPopulate(
-    model: string,
-    populate?: PopulateClause,
-  ): PopulateClause | undefined {
-    if (!populate) {
-      return populate;
-    }
-
-    const schema = this.getSchema(model);
-    const result: Record<string, object> = {};
-
-    for (const [relationName, value] of Object.entries(populate)) {
-      const field = schema.fields[relationName];
-      if (!field || field.type !== "relation") {
-        // Skip non-relation fields
-        continue;
-      }
-
-      const relationField = field as RelationField;
-      const targetModel = relationField.model;
-
-      if (typeof value === "boolean") {
-        // populate[category]=true → convert to { select: [...] }
-        result[relationName] = {
-          select: this.processSelect(targetModel, "*"),
-        };
-      } else if (typeof value === "object") {
-        // populate[category]={ select: [...], populate: {...} }
-        result[relationName] = {
-          ...value,
-          // Process select for this level
-          select: this.processSelect(targetModel, value.select),
-          // Recursively process nested populate
-          populate:
-            value.populate ?
-              this.processPopulate(targetModel, value.populate)
-              : value.populate,
-        };
-      } else if (value === "*") {
-        // populate[category]=* → convert to { select: [...] }
-        result[relationName] = {
-          select: this.processSelect(targetModel, "*"),
-        };
-      } else {
-        // Invalid value
-        throwInvalidPopulateError(model, relationName, value);
-      }
-    }
-
-    // Return populated object
-    return result;
-  }
-
-  /**
-   * Internal update that bypasses dispatcher and findById
-   * Used for relation processing to reduce overhead
+   * @param model - Model name
+   * @param where - Where clause (supports both single and multi-record updates)
+   * @param data - Data to update
+   * @returns Number of affected rows
+   *
+   * @example
+   * ```ts
+   * // Single record
+   * await this.internalUpdate('Post', { id: 5 }, { categoryId: 3 });
+   *
+   * // Multiple records by ID
+   * await this.internalUpdate('Post', { id: { $in: [1, 2, 3] } }, { authorId: 5 });
+   *
+   * // Multiple records by foreign key
+   * await this.internalUpdate('Post', { authorId: 5 }, { authorId: null });
+   * ```
    */
   private async internalUpdate(
     model: string,
-    id: string | number,
+    where: WhereClause,
     data: Record<string, unknown>,
-  ): Promise<void> {
+  ): Promise<number> {
     const { tableName } = this.getSchema(model);
     const query: QueryObject = {
       type: "update",
       table: tableName!,
-      where: { id },
+      where,
       data,
     };
 
@@ -637,310 +600,6 @@ export class CrudOperations implements IRawCrud {
     if (!result.success) {
       throwQueryExecutionError("update", model, query, result.error);
     }
-  }
-
-  /**
-   * Normalize relation shortcuts (id -> { connect: { id } })
-   */
-  private normalizeRelations(
-    data: Record<string, unknown>,
-    schema: SchemaDefinition,
-  ): Record<string, unknown> {
-    const normalized = { ...data };
-
-    for (const [key, value] of Object.entries(data)) {
-      const field = schema.fields[key];
-
-      if (field?.type === "relation") {
-        if (typeof value === "number" || typeof value === "string") {
-          // Shortcut: category: 5 -> { connect: { id: value } }
-          normalized[key] = { connect: { id: value } };
-        } else if (Array.isArray(value)) {
-          // Shortcut: products: [1, 2] -> { set: value.map((id) => ({ id })) }
-          const isRelationInput =
-            value.length > 0 &&
-            typeof value[0] === "object" &&
-            value[0] !== null &&
-            "id" in value[0];
-          if (!isRelationInput) {
-            normalized[key] = {
-              set: (value as (string | number)[]).map((id) => ({ id })),
-            };
-          }
-        }
-      }
-    }
-
-    return normalized;
-  }
-
-  /**
-   * Separate scalar fields from relation fields
-   * Inlines local foreign keys (belongsTo/hasOne) into scalars
-   */
-  private separateRelations(
-    data: Record<string, unknown>,
-    schema: SchemaDefinition,
-  ): { scalars: Record<string, unknown>; relations: Record<string, unknown> } {
-    const scalars: Record<string, unknown> = {};
-    const relations: Record<string, unknown> = {};
-
-    for (const [key, value] of Object.entries(data)) {
-      const field = schema.fields[key];
-
-      if (field?.type === "relation") {
-        const relation = field as RelationField;
-        const relData = value as RelationInput;
-
-        // Check if this relation can be inlined (belongsTo or hasOne with local FK)
-        if (relation.kind === "belongsTo" || relation.kind === "hasOne") {
-          const foreignKey = relation.foreignKey!;
-          let inlinedId: string | number | null | undefined = undefined;
-
-          if (relData.connect) {
-            inlinedId =
-              Array.isArray(relData.connect) ?
-                relData.connect[0]?.id
-                : relData.connect.id;
-          } else if (relData.set) {
-            inlinedId =
-              Array.isArray(relData.set) ?
-                relData.set[0]?.id
-                : (relData.set as any)?.id;
-          } else if (relData.disconnect) {
-            inlinedId = null;
-          }
-
-          if (inlinedId !== undefined) {
-            scalars[foreignKey] = inlinedId;
-            // Also keep in relations if there are other operations like 'create' or 'update'
-            const hasOtherOps = relData.create || relData.update || relData.delete;
-            if (hasOtherOps) {
-              relations[key] = value;
-            }
-          } else {
-            relations[key] = value;
-          }
-        } else {
-          relations[key] = value;
-        }
-      } else {
-        scalars[key] = value;
-      }
-    }
-
-    return { scalars, relations };
-  }
-
-  /**
-   * Process a single relation (connect/disconnect/set)
-   */
-  private async processRelation(
-    model: string,
-    recordId: number | string,
-    fieldName: string,
-    relationData: unknown,
-    schema: SchemaDefinition,
-  ): Promise<void> {
-    const field = schema.fields[fieldName];
-    if (!field || field.type !== "relation") {
-      return;
-    }
-
-    const relation = field as RelationField;
-    const relData = relationData as RelationInput;
-    const foreignKey = relation.foreignKey ?? `${fieldName}Id`;
-
-    // belongsTo / hasOne → Update THIS record's foreign key
-    if (relation.kind === "belongsTo" || relation.kind === "hasOne") {
-      // If this relation was already inlined into scalars, we might still be here
-      // if there are nested create/update ops. For simple connect/set,
-      // the key is already updated in the main INSERT/UPDATE.
-
-      const updateData: Record<string, unknown> = {};
-
-      if (relData.connect) {
-        const connectId =
-          Array.isArray(relData.connect) ?
-            relData.connect[0]?.id
-            : relData.connect.id;
-        if (connectId !== undefined) {
-          updateData[foreignKey] = connectId;
-        }
-      }
-      if (relData.disconnect) {
-        updateData[foreignKey] = null;
-      }
-      if (relData.set) {
-        const setId =
-          Array.isArray(relData.set) ?
-            relData.set[0]?.id
-            : (relData.set as { id: string | number })?.id;
-        updateData[foreignKey] = setId ?? null;
-      }
-
-      // Only fire update if we have data and it wasn't already handled by inlining
-      // (Actually, firing it again doesn't hurt much with internalUpdate,
-      // but inlining handles most cases. We only need internalUpdate if
-      // there were other logic involved or we want to be safe)
-      if (Object.keys(updateData).length > 0) {
-        await this.internalUpdate(model, recordId, updateData);
-      }
-
-      // Handle nested create/update if implemented in future
-    }
-
-    // hasMany → Update TARGET records' foreign key
-    if (relation.kind === "hasMany") {
-      const reverseForeignKey = relation.foreignKey ?? `${model}Id`;
-
-      if (relData.connect) {
-        const ids =
-          Array.isArray(relData.connect) ?
-            relData.connect.map((c) => c.id)
-            : [relData.connect.id];
-        if (ids.length > 0) {
-          await this.updateMany(
-            relation.model,
-            { id: { $in: ids } },
-            { [reverseForeignKey]: recordId },
-          );
-        }
-      }
-
-      if (relData.disconnect) {
-        const ids =
-          Array.isArray(relData.disconnect) ?
-            relData.disconnect.map((c) => c.id)
-            : [relData.disconnect.id];
-        if (ids.length > 0) {
-          await this.updateMany(
-            relation.model,
-            { id: { $in: ids } },
-            { [reverseForeignKey]: null },
-          );
-        }
-      }
-
-      if (relData.set) {
-        // 1. Disconnect all current
-        await this.updateMany(
-          relation.model,
-          { [reverseForeignKey]: recordId },
-          { [reverseForeignKey]: null },
-        );
-        // 2. Connect new ones
-        const ids = relData.set.map((item) => item.id);
-        if (ids.length > 0) {
-          await this.updateMany(
-            relation.model,
-            { id: { $in: ids } },
-            { [reverseForeignKey]: recordId },
-          );
-        }
-      }
-    }
-
-    // manyToMany → TODO: Junction table insert/delete
-    if (relation.kind === "manyToMany") {
-      throwNotImplementedError(
-        "create",
-        model,
-        "manyToMany relations",
-      );
-    }
-  }
-
-  /**
-   * Check for reserved fields in user data (internal helper)
-   *
-   * Reserved fields (id, createdAt, updatedAt) are automatically managed
-   * and cannot be set manually in normal mode. Use forja.raw for manual control.
-   *
-   * @param data - Data to check
-   * @throws ForjaError if reserved field is found in normal mode
-   */
-  private checkReservedFields(data: Record<string, unknown>): void {
-    // Skip check in raw mode (dispatcher is null)
-    if (this.getDispatcher === null) {
-      return;
-    }
-
-    for (const field of RESERVED_FIELDS) {
-      if (field in data) {
-        throwReservedFieldError(field, "unknown");
-      }
-    }
-  }
-
-  /**
-   * Validate data against schema (internal helper)
-   * Used by create/update methods to ensure data integrity
-   *
-   * @param model - Model name (for error messages)
-   * @param data - Data to validate
-   * @param schema - Schema definition
-   * @param partial - If true, use partial validation (for updates)
-   * @param isCreate - If true, this is a create operation (affects timestamp handling)
-   * @returns Validated data
-   * @throws ForjaError if validation fails
-   */
-  private validateData<
-    T extends ForjaEntry = ForjaEntry,
-    P extends boolean = false,
-  >(
-    data: Record<string, unknown>,
-    schema: SchemaDefinition,
-    partial: P,
-    isCreate: boolean = false,
-  ): P extends true ? Partial<T> : T {
-    const isRawMode = this.getDispatcher === null;
-
-    // 1. Check for reserved fields (only in normal mode)
-    this.checkReservedFields(data);
-
-    // 2. Add timestamps BEFORE validation so they're present during validation
-    const now = new Date();
-    const dataWithTimestamps: Record<string, unknown> = { ...data };
-
-    if (isCreate) {
-      if (isRawMode) {
-        // Raw mode: Smart defaults (only if not provided)
-        if (!("createdAt" in dataWithTimestamps)) {
-          dataWithTimestamps["createdAt"] = now;
-        }
-        if (!("updatedAt" in dataWithTimestamps)) {
-          dataWithTimestamps["updatedAt"] = dataWithTimestamps["createdAt"];
-        }
-      } else {
-        // Normal mode: Always add timestamps
-        dataWithTimestamps["createdAt"] = now;
-        dataWithTimestamps["updatedAt"] = now;
-      }
-    } else {
-      // Update operation
-      if (isRawMode) {
-        // Raw mode: Add updatedAt only if not provided
-        if (!("updatedAt" in dataWithTimestamps)) {
-          dataWithTimestamps["updatedAt"] = now;
-        }
-      } else {
-        // Normal mode: Always update timestamp
-        dataWithTimestamps["updatedAt"] = now;
-      }
-    }
-
-    // 3. Schema validation (with timestamps already present)
-    const options = {
-      strict: true,
-      stripUnknown: false,
-      abortEarly: false,
-    };
-
-    if (partial) {
-      return validatePartialOrThrow<T>(dataWithTimestamps, schema, options) as any;
-    }
-
-    return validateOrThrow<T>(dataWithTimestamps, schema, options) as any;
+    return result.data.metadata?.rowCount ?? 0;
   }
 }
