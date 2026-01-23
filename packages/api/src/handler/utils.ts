@@ -42,8 +42,8 @@ export function forjaErrorResponse(errResult: ErrorResult<never>): Response {
   return jsonResponse(
     {
       error: {
-        type: error.name,
         ...serialized,
+        type: error.name,
       },
     },
     status,

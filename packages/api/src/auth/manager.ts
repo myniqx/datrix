@@ -9,8 +9,9 @@
 import { PasswordManager, type PasswordHash } from "./password";
 import { JwtStrategy } from "./jwt";
 import { SessionStrategy } from "./session";
-import { AuthConfig, AuthContext, AuthUser, LoginResult } from "./types";
+import { AuthConfig, AuthContext, LoginResult } from "./types";
 import { throwSessionNotConfigured } from "./error-helper";
+import { AuthUser } from "forja-types/api";
 
 /**
  * Auth Manager

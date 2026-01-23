@@ -4,8 +4,8 @@
  * Handles authentication from JWT token or session cookie
  */
 
+import { AuthUser } from "forja-types/api";
 import type { AuthManager } from "../auth/manager";
-import { AuthUser } from "forja-api/auth/types";
 
 /**
  * Authenticate request
@@ -24,7 +24,7 @@ export async function authenticate(
   // Use auth manager's authenticate method
   const authContext = await authManager.authenticate(request);
 
-  if (!authContext) {
+  if (!authContext || !authContext.user) {
     return null;
   }
 

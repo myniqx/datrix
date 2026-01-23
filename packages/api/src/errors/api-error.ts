@@ -5,7 +5,7 @@
  * extending ForjaError with HTTP status handling and helpful context.
  */
 
-import { ForjaError } from "forja-types/errors/base";
+import { ForjaError } from "forja-types/errors";
 import type { Result } from "forja-types/utils";
 
 /**

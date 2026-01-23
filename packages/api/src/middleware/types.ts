@@ -9,7 +9,7 @@ import type { SchemaDefinition } from "forja-types/core/schema";
 import type { PermissionAction } from "forja-types/core/permission";
 import type { Forja } from "forja-core";
 import type { IApiPlugin } from "../interface";
-import { AuthenticatedUser } from "forja-types/api/auth";
+import { AuthUser } from "forja-types/api";
 
 /**
  * HTTP Methods
@@ -72,7 +72,7 @@ export interface RequestContext<TRole extends string = string> {
   /**
    * Authenticated user (null if not authenticated or auth disabled)
    */
-  readonly user: AuthenticatedUser<TRole> | null;
+  readonly user: AuthUser | null;
 
   /**
    * Forja instance for database operations

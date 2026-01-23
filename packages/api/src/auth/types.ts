@@ -9,18 +9,33 @@ import type { Result } from "forja-types/utils";
 import type { DefaultPermission } from "forja-types/core/permission";
 import type { PasswordConfig } from "./password";
 import type { ForjaAuthError } from "forja-types/errors";
+import { AuthUser } from "forja-types/api";
 
-// Re-export permission types from the new location
-export type {
-  PermissionAction,
-  SchemaPermission,
-  FieldPermission,
-  PermissionValue,
-  PermissionContext,
-  PermissionFn,
-  PermissionCheckResult,
-  DefaultPermission,
-} from "forja-types/core/permission";
+/**
+ * JWT payload (base)
+ */
+export interface JwtPayload {
+  readonly userId: number;
+  readonly role: string;
+  readonly iat: number;
+  readonly exp: number;
+  readonly iss?: string;
+  readonly aud?: string;
+  readonly [key: string]: unknown;
+}
+
+/**
+ * Session data
+ */
+export interface SessionData {
+  readonly id: string;
+  readonly userId: number;
+  readonly role: string;
+  readonly createdAt: Date;
+  readonly expiresAt: Date;
+  readonly lastAccessedAt: Date;
+  readonly [key: string]: unknown;
+}
 
 /**
  * JWT algorithm types
@@ -46,19 +61,6 @@ export interface JwtConfig {
   readonly algorithm?: JwtAlgorithm;
   readonly issuer?: string;
   readonly audience?: string;
-}
-
-/**
- * JWT payload (base)
- */
-export interface JwtPayload {
-  readonly userId: string;
-  readonly role: string;
-  readonly iat: number;
-  readonly exp: number;
-  readonly iss?: string;
-  readonly aud?: string;
-  readonly [key: string]: unknown;
 }
 
 /**
@@ -94,26 +96,18 @@ export interface SessionConfig {
 }
 
 /**
- * Session data
- */
-export interface SessionData {
-  readonly id: string;
-  readonly userId: string;
-  readonly role: string;
-  readonly createdAt: Date;
-  readonly expiresAt: Date;
-  readonly lastAccessedAt: Date;
-  readonly [key: string]: unknown;
-}
-
-/**
  * Session store interface
  */
 export interface SessionStore {
   readonly name: SessionStoreType;
 
-  get(sessionId: string): Promise<Result<SessionData | undefined, ForjaAuthError>>;
-  set(sessionId: string, data: SessionData): Promise<Result<void, ForjaAuthError>>;
+  get(
+    sessionId: string,
+  ): Promise<Result<SessionData | undefined, ForjaAuthError>>;
+  set(
+    sessionId: string,
+    data: SessionData,
+  ): Promise<Result<void, ForjaAuthError>>;
   delete(sessionId: string): Promise<Result<void, ForjaAuthError>>;
   cleanup(): Promise<Result<number, ForjaAuthError>>; // Returns number of deleted sessions
   clear(): Promise<Result<void, ForjaAuthError>>;
@@ -191,16 +185,6 @@ export interface AuthConfig<TRole extends string = string> {
  * @deprecated Use AuthConfig instead
  */
 export type AuthPluginOptions = AuthConfig<string>;
-
-/**
- * Authenticated user
- */
-export interface AuthUser {
-  readonly id: number;
-  readonly email: string;
-  readonly role: string;
-  readonly [key: string]: unknown;
-}
 
 /**
  * Login credentials

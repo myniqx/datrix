@@ -16,7 +16,7 @@ import type { ForjaConfig } from "./config";
 import { Result } from "./utils";
 import { QueryObject } from "./core/query-builder";
 import { IForja } from "./forja";
-import { AuthenticatedUser } from "./api/auth";
+import { AuthUser } from "./api";
 
 export type { SchemaDefinition } from "./core/schema";
 
@@ -42,7 +42,7 @@ export interface QueryContext {
   readonly table: string;
   readonly forja: IForja;
   readonly metadata: Record<string, unknown>;
-  user?: AuthenticatedUser | undefined;
+  user?: AuthUser | undefined;
 }
 
 /**
@@ -173,68 +173,6 @@ export interface LifecycleHooks<T = Record<string, unknown>> {
 /**
  * Auth plugin types
  */
-
-/**
- * JWT payload
- */
-export interface JwtPayload {
-  readonly userId: string;
-  readonly role: string;
-  readonly iat: number;
-  readonly exp: number;
-  readonly [key: string]: unknown;
-}
-
-/**
- * Session data
- */
-export interface SessionData {
-  readonly id: string;
-  readonly userId: string;
-  readonly role: string;
-  readonly createdAt: Date;
-  readonly expiresAt: Date;
-  readonly [key: string]: unknown;
-}
-
-/**
- * Auth user
- */
-export interface AuthUser {
-  readonly id: string;
-  readonly email: string;
-  readonly role: string;
-  readonly [key: string]: unknown;
-}
-
-/**
- * Auth error
- *
- * @deprecated Use ForjaAuthError from 'forja-types/errors' instead.
- * This class is kept for backwards compatibility only.
- *
- * @example
- * ```ts
- * // Old (deprecated)
- * throw new AuthError('Invalid credentials', { userId: '123' });
- *
- * // New (recommended)
- * import { throwInvalidCredentials } from '@forja/api/auth/error-helper';
- * throwInvalidCredentials();
- * ```
- */
-export class AuthError extends PluginError {
-  constructor(
-    message: string,
-    options?: { code?: string; details?: unknown },
-  ) {
-    super(message, {
-      code: options?.code ?? "AUTH_ERROR",
-      details: options?.details,
-    });
-    this.name = "AuthError";
-  }
-}
 
 // Permission types are now in core/permission.ts
 // Re-export for backwards compatibility
@@ -440,29 +378,6 @@ export type Middleware<TRequest = unknown, TResponse = unknown> = (
   request: TRequest,
   next: () => Promise<TResponse>,
 ) => Promise<TResponse>;
-
-/**
- * Plugin options validator
- */
-export type OptionsValidator<T> = (options: unknown) => Result<T, PluginError>;
-
-/**
- * Create options validator helper
- */
-export function createOptionsValidator<T>(
-  validator: (options: unknown) => options is T,
-  errorMessage: string,
-): OptionsValidator<T> {
-  return (options: unknown): Result<T, PluginError> => {
-    if (validator(options)) {
-      return { success: true, data: options };
-    }
-    return {
-      success: false,
-      error: new PluginError(errorMessage, { code: "INVALID_OPTIONS" }),
-    };
-  };
-}
 
 /**
  * Schema extension definition

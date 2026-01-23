@@ -14,13 +14,14 @@
 import type { Forja } from "forja-core";
 import { DEFAULT_API_AUTH_CONFIG } from "forja-types/config";
 import { AuthManager } from "../auth/manager";
-import type { AuthConfig, AuthUser } from "../auth/types";
+import type { AuthConfig } from "../auth/types";
 import { jsonResponse, extractSessionId, forjaErrorResponse } from "./utils";
 import { authError } from "../errors/auth-error";
 import { handlerError } from "../errors/api-error";
 import { ForjaError } from "forja-types/errors";
 import { AuthenticatedUser } from "forja-types/api/auth";
 import { ForjaEntry } from "forja-types";
+import { AuthUser } from "forja-types/api";
 
 /**
  * Auth Handler Configuration
@@ -318,7 +319,7 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
       // Authenticate request
       const authContext = await authManager.authenticate(request);
 
-      if (!authContext) {
+      if (!authContext || !authContext.user) {
         const result = authError.invalidToken();
         return forjaErrorResponse(result);
       }
@@ -328,7 +329,7 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
         authSchemaName,
         authContext.user.id,
         {
-          populate: { user: true },
+          populate: { user: "*" },
         },
       );
 

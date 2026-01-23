@@ -1,6 +1,6 @@
-
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { throwLockTimeout } from './error-helper';
 
 export class SimpleLock {
   private lockPath: string;
@@ -41,7 +41,7 @@ export class SimpleLock {
 
         // Check timeout
         if (Date.now() - start > this.lockTimeout) {
-          throw new Error(`Could not acquire lock within ${this.lockTimeout}ms`);
+          throwLockTimeout(this.lockTimeout);
         }
 
         // Wait a bit before retrying

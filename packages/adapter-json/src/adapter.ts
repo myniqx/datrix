@@ -706,8 +706,8 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
       for (const [relationName, options] of Object.entries(populate)) {
         if (typeof options === "boolean") continue;
 
-        const nestedSelect = options.select;
-        const nestedPopulate = options.populate;
+        const nestedSelect = options === "*" ? "*" : options.select;
+        const nestedPopulate = options === "*" ? undefined : options.populate;
 
         for (const row of result) {
           const relationValue = row[relationName];

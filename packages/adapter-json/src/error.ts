@@ -62,12 +62,12 @@ export interface JsonAdapterErrorContext {
  */
 export interface ForjaJsonAdapterErrorOptions {
   readonly code: JsonAdapterErrorCode;
-  readonly operation?: JsonAdapterOperation;
-  readonly context?: JsonAdapterErrorContext;
-  readonly cause?: Error;
-  readonly suggestion?: string;
-  readonly expected?: string;
-  readonly received?: unknown;
+  readonly operation?: JsonAdapterOperation | undefined;
+  readonly context?: JsonAdapterErrorContext | undefined;
+  readonly cause?: Error | undefined;
+  readonly suggestion?: string | undefined;
+  readonly expected?: string | undefined;
+  readonly received?: unknown | undefined;
 }
 
 /**
@@ -94,14 +94,13 @@ export interface SerializedForjaJsonAdapterError extends SerializedForjaError {
  * ```
  */
 export class ForjaJsonAdapterError extends ForjaError<JsonAdapterErrorContext> {
-  readonly adapterOperation?: JsonAdapterOperation;
+  readonly adapterOperation?: JsonAdapterOperation | undefined;
 
   constructor(message: string, options: ForjaJsonAdapterErrorOptions) {
     super(message, {
       code: options.code,
-      operation: options.operation
-        ? `adapter:json:${options.operation}`
-        : "adapter:json",
+      operation:
+        options.operation ? `adapter:json:${options.operation}` : "adapter:json",
       context: options.context,
       cause: options.cause,
       suggestion: options.suggestion,

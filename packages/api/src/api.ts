@@ -24,7 +24,7 @@ import { Forja } from "forja-core";
 import type { IApiPlugin } from "./interface";
 import type { ForjaEntry } from "forja-types/core/schema";
 import { forjaErrorResponse } from "./handler/utils";
-import { AuthenticatedUser } from "forja-types/api/auth";
+import { AuthUser } from "forja-types/api";
 
 export class ApiPlugin<TRole extends string = string>
   extends BasePlugin<ApiConfig<TRole>>
@@ -33,14 +33,14 @@ export class ApiPlugin<TRole extends string = string>
   readonly version = "1.0.0";
 
   public authManager?: AuthManager;
-  public user: AuthenticatedUser | null = null;
+  public user: AuthUser | null = null;
   private forjaInstance?: Forja;
 
   public get forja(): Forja {
     return this.forjaInstance as Forja;
   }
 
-  public setUser(user: AuthenticatedUser | null) {
+  public setUser(user: AuthUser | null) {
     this.user = user;
   }
 

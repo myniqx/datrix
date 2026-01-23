@@ -5,21 +5,28 @@
  * This is the SINGLE PLACE where all request preprocessing happens
  */
 
-import type { RequestContext, HttpMethod, ContextBuilderOptions } from './types';
-import type { Forja } from 'forja-core';
-import type { IApiPlugin } from '../interface';
-import { ParserError } from 'forja-types/api/parser';
-import { methodToAction } from './permission';
-import { parseQuery } from '../parser';
+import type {
+  RequestContext,
+  HttpMethod,
+  ContextBuilderOptions,
+} from "./types";
+import type { Forja } from "forja-core";
+import type { IApiPlugin } from "../interface";
+import { ParserError } from "forja-types/api/parser";
+import { methodToAction } from "./permission";
+import { parseQuery } from "../parser";
 
 /**
  * Extract table name from URL path
  * /api/users -> 'users'
  * /api/users/123 -> 'users'
  */
-function extractTableNameFromPath(pathname: string, prefix: string): string | null {
-  const segments = pathname.split('/').filter(Boolean);
-  const prefixSegments = prefix.split('/').filter(Boolean);
+function extractTableNameFromPath(
+  pathname: string,
+  prefix: string,
+): string | null {
+  const segments = pathname.split("/").filter(Boolean);
+  const prefixSegments = prefix.split("/").filter(Boolean);
   const pathSegments = segments.slice(prefixSegments.length);
 
   if (pathSegments.length === 0) {
@@ -35,8 +42,8 @@ function extractTableNameFromPath(pathname: string, prefix: string): string | nu
  * /api/user -> null
  */
 function extractIdFromPath(pathname: string, prefix: string): string | null {
-  const segments = pathname.split('/').filter(Boolean);
-  const prefixSegments = prefix.split('/').filter(Boolean);
+  const segments = pathname.split("/").filter(Boolean);
+  const prefixSegments = prefix.split("/").filter(Boolean);
   const pathSegments = segments.slice(prefixSegments.length);
 
   if (pathSegments.length < 2) {
@@ -77,9 +84,9 @@ export async function buildRequestContext<TRole extends string = string>(
   request: Request,
   forja: Forja,
   api: IApiPlugin<TRole>,
-  options: ContextBuilderOptions = {}
+  options: ContextBuilderOptions = {},
 ): Promise<RequestContext<TRole>> {
-  const apiPrefix = options.apiPrefix ?? '/api';
+  const apiPrefix = options.apiPrefix ?? "/api";
   const url = new URL(request.url);
   const method = request.method as HttpMethod;
   const authEnabled = api.isAuthEnabled();
@@ -87,7 +94,7 @@ export async function buildRequestContext<TRole extends string = string>(
   // 1. RESOLVE SCHEMA from URL
   const tableName = extractTableNameFromPath(url.pathname, apiPrefix);
   const modelName = forja.getSchemas().findModelByTableName(tableName);
-  const schema = modelName ? forja.getSchema(modelName) ?? null : null;
+  const schema = modelName ? (forja.getSchema(modelName) ?? null) : null;
 
   // 2. DERIVE ACTION from HTTP method
   const action = methodToAction(method);
@@ -131,11 +138,11 @@ export async function buildRequestContext<TRole extends string = string>(
 
   // 6. PARSE BODY (for POST/PATCH/PUT requests)
   let body = null;
-  if (['POST', 'PATCH', 'PUT'].includes(method)) {
+  if (["POST", "PATCH", "PUT"].includes(method)) {
     try {
-      const contentType = request.headers.get('content-type');
-      if (contentType?.includes('application/json')) {
-        body = await request.json() as Record<string, unknown>;
+      const contentType = request.headers.get("content-type");
+      if (contentType?.includes("application/json")) {
+        body = (await request.json()) as Record<string, unknown>;
       }
     } catch {
       // Invalid JSON, body stays null

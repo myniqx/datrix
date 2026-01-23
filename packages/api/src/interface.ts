@@ -10,7 +10,7 @@
 import type { DefaultPermission } from "forja-types/core/permission";
 import type { Forja } from "forja-core";
 import type { AuthManager } from "./auth/manager";
-import { AuthenticatedUser } from "forja-types/api/auth";
+import { AuthUser } from "forja-types/api";
 
 /**
  * API Plugin Interface
@@ -37,7 +37,7 @@ export interface IApiPlugin<TRole extends string = string> {
   /**
    * Currently authenticated user (null if not authenticated)
    */
-  readonly user: AuthenticatedUser | null;
+  readonly user: AuthUser | null;
 
   /**
    * Forja instance
@@ -67,7 +67,7 @@ export interface IApiPlugin<TRole extends string = string> {
   /**
    * Set the authenticated user for the current request
    */
-  setUser(user: AuthenticatedUser | null): void;
+  setUser(user: AuthUser | null): void;
 
   /**
    * Get the auth manager instance

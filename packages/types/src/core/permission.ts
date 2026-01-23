@@ -5,7 +5,7 @@
  * and field-level access control.
  */
 
-import { AuthenticatedUser } from "forja-types/api/auth";
+import { AuthUser } from "../api";
 import { ForjaEntry } from "./schema";
 
 /**
@@ -25,7 +25,7 @@ export type FieldPermissionAction = "read" | "write";
  */
 export interface PermissionContext<TRecord extends ForjaEntry = ForjaEntry> {
   /** Current authenticated user (undefined if not authenticated) */
-  readonly user: AuthenticatedUser | undefined;
+  readonly user: AuthUser | undefined;
   /** Current record (for update/delete operations) */
   readonly record?: TRecord;
   /** Input data (for create/update operations) */

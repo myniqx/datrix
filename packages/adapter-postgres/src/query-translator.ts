@@ -10,12 +10,12 @@ import type {
   WhereClause,
   SelectClause,
   ComparisonOperators,
-  OrderByItem
-} from 'forja-types/core/query-builder';
-import type { QueryTranslator } from 'forja-types/adapter';
-import { QueryError } from 'forja-types/adapter';
-import type { SchemaRegistry } from 'forja-core/schema';
-import type { RelationField } from 'forja-types/core/schema';
+  OrderByItem,
+} from "forja-types/core/query-builder";
+import type { QueryTranslator } from "forja-types/adapter";
+import { QueryError } from "forja-types/adapter";
+import type { SchemaRegistry } from "forja-core/schema";
+import type { RelationField } from "forja-types/core/schema";
 
 /**
  * Maximum nesting depth for WHERE clauses to prevent stack overflow
@@ -63,8 +63,8 @@ export class PostgresQueryTranslator implements QueryTranslator {
    */
   escapeIdentifier(identifier: string): string {
     // Handle wildcard
-    if (identifier === '*') {
-      return '*';
+    if (identifier === "*") {
+      return "*";
     }
 
     // Validate identifier format (PostgreSQL naming rules)
@@ -74,13 +74,13 @@ export class PostgresQueryTranslator implements QueryTranslator {
 
     if (!validIdentifierPattern.test(identifier)) {
       throw new QueryError(
-        `Invalid identifier '${identifier}': must start with letter or underscore, contain only alphanumeric characters and underscores`
+        `Invalid identifier '${identifier}': must start with letter or underscore, contain only alphanumeric characters and underscores`,
       );
     }
 
     if (identifier.length > 63) {
       throw new QueryError(
-        `Invalid identifier '${identifier}': exceeds PostgreSQL maximum length of 63 characters`
+        `Invalid identifier '${identifier}': exceeds PostgreSQL maximum length of 63 characters`,
       );
     }
 
@@ -93,19 +93,19 @@ export class PostgresQueryTranslator implements QueryTranslator {
    */
   escapeValue(value: unknown): string {
     if (value === null || value === undefined) {
-      return 'NULL';
+      return "NULL";
     }
 
-    if (typeof value === 'string') {
+    if (typeof value === "string") {
       return `'${value.replace(/'/g, "''")}'`;
     }
 
-    if (typeof value === 'number') {
+    if (typeof value === "number") {
       return String(value);
     }
 
-    if (typeof value === 'boolean') {
-      return value ? 'TRUE' : 'FALSE';
+    if (typeof value === "boolean") {
+      return value ? "TRUE" : "FALSE";
     }
 
     if (value instanceof Date) {
@@ -113,7 +113,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
     }
 
     if (Array.isArray(value)) {
-      return `ARRAY[${value.map((v) => this.escapeValue(v)).join(', ')}]`;
+      return `ARRAY[${value.map((v) => this.escapeValue(v)).join(", ")}]`;
     }
 
     // Objects as JSONB
@@ -133,26 +133,28 @@ export class PostgresQueryTranslator implements QueryTranslator {
       let sql: string;
 
       switch (query.type) {
-        case 'select':
-        case 'count':
+        case "select":
+        case "count":
           sql = this.translateSelect(query);
           break;
-        case 'insert':
+        case "insert":
           sql = this.translateInsert(query);
           break;
-        case 'update':
+        case "update":
           sql = this.translateUpdate(query);
           break;
-        case 'delete':
+        case "delete":
           sql = this.translateDelete(query);
           break;
         default:
-          throw new QueryError(`Unsupported query type: ${String((query as { type: string }).type)}`);
+          throw new QueryError(
+            `Unsupported query type: ${String((query as { type: string }).type)}`,
+          );
       }
 
       return {
         sql,
-        params: [...this.params]
+        params: [...this.params],
       };
     } catch (error) {
       if (error instanceof QueryError) {
@@ -160,7 +162,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
       }
       throw new QueryError(
         `Query translation failed: ${error instanceof Error ? error.message : String(error)}`,
-        { query: query as QueryObject }
+        { query: query as QueryObject },
       );
     }
   }
@@ -172,16 +174,18 @@ export class PostgresQueryTranslator implements QueryTranslator {
     const parts: string[] = [];
 
     // SELECT clause
-    if (query.type === 'count') {
-      parts.push('SELECT COUNT(*)');
+    if (query.type === "count") {
+      parts.push("SELECT COUNT(*)");
     } else {
       // Use table name as alias to resolve ambiguity with joins
-      parts.push(`SELECT ${this.translateSelectClause(query.select, query.table)}`);
+      parts.push(
+        `SELECT ${this.translateSelectClause(query.select, query.table)}`,
+      );
     }
 
     // DISTINCT
-    if ('distinct' in query && query.distinct) {
-      parts[0] = parts[0]!.replace('SELECT', 'SELECT DISTINCT');
+    if ("distinct" in query && query.distinct) {
+      parts[0] = parts[0]!.replace("SELECT", "SELECT DISTINCT");
     }
 
     // FROM clause
@@ -204,15 +208,15 @@ export class PostgresQueryTranslator implements QueryTranslator {
     }
 
     // GROUP BY
-    if ('groupBy' in query && query.groupBy && query.groupBy.length > 0) {
+    if ("groupBy" in query && query.groupBy && query.groupBy.length > 0) {
       const groupByFields = query.groupBy
         .map((field) => this.escapeIdentifier(field))
-        .join(', ');
+        .join(", ");
       parts.push(`GROUP BY ${groupByFields}`);
     }
 
     // HAVING
-    if ('having' in query && query.having) {
+    if ("having" in query && query.having) {
       const havingResult = this.translateWhere(query.having, this.paramIndex);
       parts.push(`HAVING ${havingResult.sql}`);
       this.paramIndex += havingResult.params.length;
@@ -234,21 +238,28 @@ export class PostgresQueryTranslator implements QueryTranslator {
       parts.push(`OFFSET ${this.addParam(query.offset)}`);
     }
 
-    return parts.join(' ');
+    return parts.join(" ");
   }
 
   /**
    * Translate SELECT fields with aliases
    */
-  private translateSelectClause(select: SelectClause | undefined, tableAlias?: string): string {
-    if (!select || select === '*') {
-      return tableAlias ? `${this.escapeIdentifier(tableAlias)}.*` : '*';
+  private translateSelectClause(
+    select: SelectClause | undefined,
+    tableAlias?: string,
+  ): string {
+    if (!select || select === "*") {
+      return tableAlias ? `${this.escapeIdentifier(tableAlias)}.*` : "*";
     }
 
-    return select.map((field) => {
-      const escaped = this.escapeIdentifier(field);
-      return tableAlias ? `${this.escapeIdentifier(tableAlias)}.${escaped}` : escaped;
-    }).join(', ');
+    return select
+      .map((field) => {
+        const escaped = this.escapeIdentifier(field);
+        return tableAlias ?
+          `${this.escapeIdentifier(tableAlias)}.${escaped}`
+          : escaped;
+      })
+      .join(", ");
   }
 
   /**
@@ -262,11 +273,13 @@ export class PostgresQueryTranslator implements QueryTranslator {
    */
   private generateJoins(query: QueryObject): string {
     if (!query.populate) {
-      return '';
+      return "";
     }
 
     // Find current schema from table name
-    const currentModelName = this.schemaRegistry.findModelByTableName(query.table);
+    const currentModelName = this.schemaRegistry.findModelByTableName(
+      query.table,
+    );
     if (!currentModelName) {
       throw new QueryError(`Model not found for table: ${query.table}`);
     }
@@ -282,40 +295,52 @@ export class PostgresQueryTranslator implements QueryTranslator {
       // Get relation field from current schema
       const relationField = currentSchema.fields[relationName];
       if (!relationField) {
-        throw new QueryError(`Relation field '${relationName}' not found in schema '${currentSchema.name}'`);
+        throw new QueryError(
+          `Relation field '${relationName}' not found in schema '${currentSchema.name}'`,
+        );
       }
 
-      if (relationField.type !== 'relation') {
-        throw new QueryError(`Field '${relationName}' is not a relation field in schema '${currentSchema.name}'`);
+      if (relationField.type !== "relation") {
+        throw new QueryError(
+          `Field '${relationName}' is not a relation field in schema '${currentSchema.name}'`,
+        );
       }
 
       const relField = relationField as RelationField;
       const targetModelName = relField.model;
-      const foreignKey = relField.foreignKey;
+      const foreignKey = relField.foreignKey!;
       const kind = relField.kind;
 
       // Get target schema
       const targetSchema = this.schemaRegistry.get(targetModelName);
       if (!targetSchema) {
-        throw new QueryError(`Target model '${targetModelName}' not found for relation '${relationName}'`);
+        throw new QueryError(
+          `Target model '${targetModelName}' not found for relation '${relationName}'`,
+        );
       }
 
-      const targetTable = this.escapeIdentifier(targetSchema.tableName ?? targetModelName.toLowerCase());
+      const targetTable = this.escapeIdentifier(
+        targetSchema.tableName ?? targetModelName.toLowerCase(),
+      );
       const sourceTable = this.escapeIdentifier(query.table);
       const fk = this.escapeIdentifier(foreignKey);
 
       // Generate JOIN based on relation kind
-      if (kind === 'belongsTo') {
+      if (kind === "belongsTo") {
         // Source has FK: source.foreignKey = target.id
-        parts.push(`LEFT JOIN ${targetTable} ON ${sourceTable}.${fk} = ${targetTable}."id"`);
-      } else if (kind === 'hasOne' || kind === 'hasMany') {
+        parts.push(
+          `LEFT JOIN ${targetTable} ON ${sourceTable}.${fk} = ${targetTable}."id"`,
+        );
+      } else if (kind === "hasOne" || kind === "hasMany") {
         // Target has FK: source.id = target.foreignKey
-        parts.push(`LEFT JOIN ${targetTable} ON ${sourceTable}."id" = ${targetTable}.${fk}`);
+        parts.push(
+          `LEFT JOIN ${targetTable} ON ${sourceTable}."id" = ${targetTable}.${fk}`,
+        );
       }
       // TODO: Handle manyToMany with join tables
     }
 
-    return parts.join(' ');
+    return parts.join(" ");
   }
 
   /**
@@ -323,7 +348,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
    */
   private translateInsert(query: QueryObject): string {
     if (!query.data || Object.keys(query.data).length === 0) {
-      throw new QueryError('INSERT query requires data');
+      throw new QueryError("INSERT query requires data");
     }
 
     const parts: string[] = [];
@@ -336,8 +361,8 @@ export class PostgresQueryTranslator implements QueryTranslator {
     }
 
     parts.push(`INSERT INTO ${this.escapeIdentifier(query.table)}`);
-    parts.push(`(${columns.join(', ')})`);
-    parts.push(`VALUES (${values.join(', ')})`);
+    parts.push(`(${columns.join(", ")})`);
+    parts.push(`VALUES (${values.join(", ")})`);
 
     // RETURNING clause
     // - If query.returning is specified (raw query), use it
@@ -348,7 +373,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
       parts.push(`RETURNING id`);
     }
 
-    return parts.join(' ');
+    return parts.join(" ");
   }
 
   /**
@@ -356,7 +381,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
    */
   private translateUpdate(query: QueryObject): string {
     if (!query.data || Object.keys(query.data).length === 0) {
-      throw new QueryError('UPDATE query requires data');
+      throw new QueryError("UPDATE query requires data");
     }
 
     const parts: string[] = [];
@@ -368,7 +393,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
       sets.push(`${this.escapeIdentifier(key)} = ${this.addParam(value)}`);
     }
 
-    parts.push(`SET ${sets.join(', ')}`);
+    parts.push(`SET ${sets.join(", ")}`);
 
     // WHERE clause (important for UPDATE!)
     if (query.where) {
@@ -383,7 +408,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
       parts.push(`RETURNING ${this.translateSelectClause(query.returning)}`);
     }
 
-    return parts.join(' ');
+    return parts.join(" ");
   }
 
   /**
@@ -407,7 +432,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
       parts.push(`RETURNING ${this.translateSelectClause(query.returning)}`);
     }
 
-    return parts.join(' ');
+    return parts.join(" ");
   }
 
   /**
@@ -427,7 +452,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
         }
         return sql;
       })
-      .join(', ');
+      .join(", ");
   }
 
   /**
@@ -435,7 +460,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
    */
   translateWhere(
     where: WhereClause,
-    startIndex: number
+    startIndex: number,
   ): {
     readonly sql: string;
     readonly params: readonly unknown[];
@@ -470,7 +495,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
     // Check depth limit to prevent stack overflow
     if (depth > MAX_WHERE_DEPTH) {
       throw new QueryError(
-        `WHERE clause exceeds maximum nesting depth of ${MAX_WHERE_DEPTH}`
+        `WHERE clause exceeds maximum nesting depth of ${MAX_WHERE_DEPTH}`,
       );
     }
 
@@ -478,24 +503,31 @@ export class PostgresQueryTranslator implements QueryTranslator {
 
     for (const [key, value] of Object.entries(where)) {
       // Handle logical operators
-      if (key === '$and') {
+      if (key === "$and") {
         const andConditions = (value as readonly WhereClause[])
-          .map((condition) => `(${this.translateWhereConditions(condition, depth + 1)})`)
-          .join(' AND ');
+          .map(
+            (condition) => `(${this.translateWhereConditions(condition, depth + 1)})`,
+          )
+          .join(" AND ");
         conditions.push(`(${andConditions})`);
         continue;
       }
 
-      if (key === '$or') {
+      if (key === "$or") {
         const orConditions = (value as readonly WhereClause[])
-          .map((condition) => `(${this.translateWhereConditions(condition, depth + 1)})`)
-          .join(' OR ');
+          .map(
+            (condition) => `(${this.translateWhereConditions(condition, depth + 1)})`,
+          )
+          .join(" OR ");
         conditions.push(`(${orConditions})`);
         continue;
       }
 
-      if (key === '$not') {
-        const notCondition = this.translateWhereConditions(value as WhereClause, depth + 1);
+      if (key === "$not") {
+        const notCondition = this.translateWhereConditions(
+          value as WhereClause,
+          depth + 1,
+        );
         conditions.push(`NOT (${notCondition})`);
         continue;
       }
@@ -504,10 +536,17 @@ export class PostgresQueryTranslator implements QueryTranslator {
       const fieldName = this.escapeIdentifier(key);
 
       // Handle comparison operators
-      if (typeof value === 'object' && value !== null && !Array.isArray(value) && !(value instanceof Date)) {
+      if (
+        typeof value === "object" &&
+        value !== null &&
+        !Array.isArray(value) &&
+        !(value instanceof Date)
+      ) {
         const ops = value as ComparisonOperators;
         for (const [operator, opValue] of Object.entries(ops)) {
-          conditions.push(this.translateComparisonOperator(fieldName, operator, opValue));
+          conditions.push(
+            this.translateComparisonOperator(fieldName, operator, opValue),
+          );
         }
       } else {
         // Simple equality
@@ -519,7 +558,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
       }
     }
 
-    return conditions.length > 0 ? conditions.join(' AND ') : 'TRUE';
+    return conditions.length > 0 ? conditions.join(" AND ") : "TRUE";
   }
 
   /**
@@ -528,74 +567,74 @@ export class PostgresQueryTranslator implements QueryTranslator {
   private translateComparisonOperator(
     fieldName: string,
     operator: string,
-    value: unknown
+    value: unknown,
   ): string {
     switch (operator) {
-      case '$eq':
-        return value === null
-          ? `${fieldName} IS NULL`
+      case "$eq":
+        return value === null ?
+          `${fieldName} IS NULL`
           : `${fieldName} = ${this.addParam(value)}`;
 
-      case '$ne':
-        return value === null
-          ? `${fieldName} IS NOT NULL`
+      case "$ne":
+        return value === null ?
+          `${fieldName} IS NOT NULL`
           : `${fieldName} <> ${this.addParam(value)}`;
 
-      case '$gt':
+      case "$gt":
         return `${fieldName} > ${this.addParam(value)}`;
 
-      case '$gte':
+      case "$gte":
         return `${fieldName} >= ${this.addParam(value)}`;
 
-      case '$lt':
+      case "$lt":
         return `${fieldName} < ${this.addParam(value)}`;
 
-      case '$lte':
+      case "$lte":
         return `${fieldName} <= ${this.addParam(value)}`;
 
-      case '$in':
+      case "$in":
         if (!Array.isArray(value)) {
           throw new QueryError(`$in operator requires array value`);
         }
         if (value.length === 0) {
-          return 'FALSE';
+          return "FALSE";
         }
-        return `${fieldName} IN (${value.map((v) => this.addParam(v)).join(', ')})`;
+        return `${fieldName} IN (${value.map((v) => this.addParam(v)).join(", ")})`;
 
-      case '$nin':
+      case "$nin":
         if (!Array.isArray(value)) {
           throw new QueryError(`$nin operator requires array value`);
         }
         if (value.length === 0) {
-          return 'TRUE';
+          return "TRUE";
         }
-        return `${fieldName} NOT IN (${value.map((v) => this.addParam(v)).join(', ')})`;
+        return `${fieldName} NOT IN (${value.map((v) => this.addParam(v)).join(", ")})`;
 
-      case '$like':
+      case "$like":
         return `${fieldName} LIKE ${this.addParam(value)}`;
 
-      case '$ilike':
+      case "$ilike":
         return `${fieldName} ILIKE ${this.addParam(value)}`;
 
-      case '$contains':
+      case "$contains":
         return `${fieldName} ILIKE ${this.addParam(`%${String(value)}%`)}`;
 
-      case '$startsWith':
+      case "$startsWith":
         return `${fieldName} ILIKE ${this.addParam(`${String(value)}%`)}`;
 
-      case '$endsWith':
+      case "$endsWith":
         return `${fieldName} ILIKE ${this.addParam(`%${String(value)}`)}`;
 
-      case '$regex':
+      case "$regex":
         if (value instanceof RegExp) {
           return `${fieldName} ~ ${this.addParam(value.source)}`;
         }
         return `${fieldName} ~ ${this.addParam(value)}`;
 
-      case '$exists':
+      case "$exists":
         return value ? `${fieldName} IS NOT NULL` : `${fieldName} IS NULL`;
 
-      case '$null':
+      case "$null":
         return value ? `${fieldName} IS NULL` : `${fieldName} IS NOT NULL`;
 
       default:
@@ -607,6 +646,8 @@ export class PostgresQueryTranslator implements QueryTranslator {
 /**
  * Create a new PostgreSQL query translator
  */
-export function createPostgresTranslator(schemaRegistry: SchemaRegistry): PostgresQueryTranslator {
+export function createPostgresTranslator(
+  schemaRegistry: SchemaRegistry,
+): PostgresQueryTranslator {
   return new PostgresQueryTranslator(schemaRegistry);
 }

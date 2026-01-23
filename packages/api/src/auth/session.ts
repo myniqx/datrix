@@ -36,7 +36,7 @@ export class SessionStrategy {
    * Create a new session
    */
   async create(
-    userId: string,
+    userId: number,
     role: string,
     data?: Record<string, unknown>,
   ): Promise<SessionData> {

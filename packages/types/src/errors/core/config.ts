@@ -37,12 +37,12 @@ export interface ConfigErrorContext {
  */
 export interface ForjaConfigErrorOptions {
   readonly code: ConfigErrorCode;
-  readonly field?: string;
-  readonly context?: ConfigErrorContext;
-  readonly cause?: Error;
-  readonly suggestion?: string;
-  readonly expected?: string;
-  readonly received?: unknown;
+  readonly field?: string | undefined;
+  readonly context?: ConfigErrorContext | undefined;
+  readonly cause?: Error | undefined;
+  readonly suggestion?: string | undefined;
+  readonly expected?: string | undefined;
+  readonly received?: unknown | undefined;
 }
 
 /**

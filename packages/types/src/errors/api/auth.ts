@@ -52,20 +52,20 @@ export type AuthErrorCode =
  * Auth error context
  */
 export interface AuthErrorContext {
-  readonly strategy?: AuthStrategy;
-  readonly userId?: string;
-  readonly role?: string;
-  readonly sessionId?: string;
-  readonly action?: string;
-  readonly resource?: string;
-  readonly field?: string;
-  readonly exp?: number;
-  readonly iat?: number;
-  readonly now?: number;
-  readonly minLength?: number;
-  readonly maxLength?: number;
-  readonly receivedType?: string;
-  readonly expectedType?: string;
+  readonly strategy?: AuthStrategy | undefined;
+  readonly userId?: string | undefined;
+  readonly role?: string | undefined;
+  readonly sessionId?: string | undefined;
+  readonly action?: string | undefined;
+  readonly resource?: string | undefined;
+  readonly field?: string | undefined;
+  readonly exp?: number | undefined;
+  readonly iat?: number | undefined;
+  readonly now?: number | undefined;
+  readonly minLength?: number | undefined;
+  readonly maxLength?: number | undefined;
+  readonly receivedType?: string | undefined;
+  readonly expectedType?: string | undefined;
   readonly [key: string]: unknown;
 }
 

@@ -11,8 +11,6 @@ import { isForjaPlugin } from "forja-types/plugin";
 import { ForjaConfigError } from "forja-types/errors";
 import {
   throwConfigInvalidType,
-  throwConfigRequired,
-  throwConfigInvalidValue,
   throwConfigEmpty,
   throwConfigArrayItem,
   throwConfigMultiple,

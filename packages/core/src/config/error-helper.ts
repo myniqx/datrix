@@ -8,7 +8,6 @@
 import {
   ForjaConfigError,
   ForjaConfigValidationError,
-  type ConfigErrorCode,
 } from "forja-types/errors";
 
 /**
@@ -103,9 +102,10 @@ export function throwConfigInvalidValue(
     code: "CONFIG_INVALID_VALUE",
     field,
     context: validOptions ? { validOptions } : undefined,
-    suggestion: validOptions
-      ? `Use one of: ${validOptions.join(", ")}`
-      : `Fix the value for Config.${field}`,
+    suggestion:
+      validOptions ?
+        `Use one of: ${validOptions.join(", ")}`
+        : `Fix the value for Config.${field}`,
     received,
   });
 }
@@ -196,11 +196,10 @@ export function throwConfigFieldType(
   expectedType: "object" | "array" | "string" | "boolean" | "number",
   received: unknown,
 ): never {
-  const receivedType = Array.isArray(received)
-    ? "array"
-    : received === null
-      ? "null"
-      : typeof received;
+  const receivedType =
+    Array.isArray(received) ? "array"
+      : received === null ? "null"
+        : typeof received;
 
   throw new ForjaConfigError(`Config.${field} must be ${expectedType}`, {
     code: "CONFIG_INVALID_TYPE",
@@ -223,7 +222,10 @@ export function throwConfigFieldType(
  * throwConfigBooleanField('migration.auto', 'yes');
  * ```
  */
-export function throwConfigBooleanField(field: string, received: unknown): never {
+export function throwConfigBooleanField(
+  field: string,
+  received: unknown,
+): never {
   throwConfigFieldType(field, "boolean", received);
 }
 
@@ -238,6 +240,9 @@ export function throwConfigBooleanField(field: string, received: unknown): never
  * throwConfigStringField('migration.directory', 123);
  * ```
  */
-export function throwConfigStringField(field: string, received: unknown): never {
+export function throwConfigStringField(
+  field: string,
+  received: unknown,
+): never {
   throwConfigFieldType(field, "string", received);
 }

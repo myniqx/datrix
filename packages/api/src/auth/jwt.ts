@@ -5,7 +5,7 @@
  * No external dependencies (no jsonwebtoken library).
  */
 
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, timingSafeEqual } from "node:crypto";
 import type {
   JwtConfig,
   JwtPayload,
@@ -13,8 +13,8 @@ import type {
   JwtAlgorithm,
   TimeUnit,
   ExpiryString,
-} from './types';
-import { isJwtPayload } from './types';
+} from "./types";
+import { isJwtPayload } from "./types";
 import {
   throwJwtSignError,
   throwJwtVerifyError,
@@ -27,7 +27,7 @@ import {
   throwJwtInvalidIat,
   throwJwtInvalidIssuer,
   throwJwtInvalidAudience,
-} from './error-helper';
+} from "./error-helper";
 
 /**
  * JWT Strategy
@@ -43,8 +43,8 @@ export class JwtStrategy {
 
   constructor(config: JwtConfig) {
     this.secret = config.secret;
-    this.expiresIn = this.parseExpiry(config.expiresIn ?? '1h');
-    this.algorithm = config.algorithm ?? 'HS256';
+    this.expiresIn = this.parseExpiry(config.expiresIn ?? "1h");
+    this.algorithm = config.algorithm ?? "HS256";
     this.issuer = config.issuer;
     this.audience = config.audience;
   }
@@ -52,15 +52,15 @@ export class JwtStrategy {
   /**
    * Sign a JWT token
    */
-  sign(payload: Omit<JwtPayload, 'iat' | 'exp' | 'iss' | 'aud'>): string {
+  sign(payload: Omit<JwtPayload, "iat" | "exp" | "iss" | "aud">): string {
     try {
       const now = Math.floor(Date.now() / 1000);
       const exp = now + this.expiresIn;
 
       const basePayload = payload as Record<string, unknown>;
       const fullPayload: JwtPayload = {
-        userId: basePayload['userId'] as string,
-        role: basePayload['role'] as string,
+        userId: basePayload["userId"] as number,
+        role: basePayload["role"] as string,
         iat: now,
         exp,
         ...(this.issuer && { iss: this.issuer }),
@@ -82,7 +82,7 @@ export class JwtStrategy {
   verify(token: string): JwtPayload {
     try {
       // Split token into parts
-      const parts = token.split('.');
+      const parts = token.split(".");
       if (parts.length !== 3) {
         throwJwtInvalidFormat();
       }
@@ -97,7 +97,7 @@ export class JwtStrategy {
 
       // Verify signature
       const expectedSignature = this.signData(
-        `${encodedHeader}.${encodedPayload}`
+        `${encodedHeader}.${encodedPayload}`,
       );
 
       if (!this.constantTimeCompare(signature, expectedSignature)) {
@@ -106,7 +106,7 @@ export class JwtStrategy {
 
       // Decode and validate header
       const header = this.decodeBase64Url<JwtHeader>(encodedHeader);
-      if (!header || header.typ !== 'JWT' || header.alg !== this.algorithm) {
+      if (!header || header.typ !== "JWT" || header.alg !== this.algorithm) {
         throwJwtInvalidHeader();
       }
 
@@ -140,7 +140,7 @@ export class JwtStrategy {
 
       return payload;
     } catch (error) {
-      if (error instanceof Error && error.name === 'ForjaAuthError') {
+      if (error instanceof Error && error.name === "ForjaAuthError") {
         throw error;
       }
       throwJwtVerifyError(error instanceof Error ? error : undefined);
@@ -168,7 +168,7 @@ export class JwtStrategy {
    */
   decode(token: string): JwtPayload {
     try {
-      const parts = token.split('.');
+      const parts = token.split(".");
       if (parts.length !== 3) {
         throwJwtInvalidFormat();
       }
@@ -185,7 +185,7 @@ export class JwtStrategy {
 
       return payload;
     } catch (error) {
-      if (error instanceof Error && error.name === 'ForjaAuthError') {
+      if (error instanceof Error && error.name === "ForjaAuthError") {
         throw error;
       }
       throwJwtDecodeError(error instanceof Error ? error : undefined);
@@ -198,7 +198,7 @@ export class JwtStrategy {
   private createToken(payload: JwtPayload): string {
     const header: JwtHeader = {
       alg: this.algorithm,
-      typ: 'JWT',
+      typ: "JWT",
     };
 
     const encodedHeader = this.encodeBase64Url(JSON.stringify(header));
@@ -213,10 +213,10 @@ export class JwtStrategy {
    * Sign data using HMAC
    */
   private signData(data: string): string {
-    const algorithm = this.algorithm === 'HS256' ? 'sha256' : 'sha512';
+    const algorithm = this.algorithm === "HS256" ? "sha256" : "sha512";
     const hmac = createHmac(algorithm, this.secret);
     hmac.update(data);
-    return this.encodeBase64Url(hmac.digest('base64'));
+    return this.encodeBase64Url(hmac.digest("base64"));
   }
 
   /**
@@ -224,10 +224,10 @@ export class JwtStrategy {
    */
   private encodeBase64Url(str: string): string {
     return Buffer.from(str)
-      .toString('base64')
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=/g, '');
+      .toString("base64")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=/g, "");
   }
 
   /**
@@ -238,13 +238,13 @@ export class JwtStrategy {
       // Add padding if needed
       let padded = str;
       while (padded.length % 4 !== 0) {
-        padded += '=';
+        padded += "=";
       }
 
       // Replace URL-safe characters
-      const base64 = padded.replace(/-/g, '+').replace(/_/g, '/');
+      const base64 = padded.replace(/-/g, "+").replace(/_/g, "/");
 
-      const decoded = Buffer.from(base64, 'base64').toString('utf8');
+      const decoded = Buffer.from(base64, "base64").toString("utf8");
       return JSON.parse(decoded) as T;
     } catch {
       return undefined;
@@ -272,7 +272,7 @@ export class JwtStrategy {
    * Parse expiry string or number to seconds
    */
   private parseExpiry(expiry: ExpiryString | number): number {
-    if (typeof expiry === 'number') {
+    if (typeof expiry === "number") {
       return expiry;
     }
 
