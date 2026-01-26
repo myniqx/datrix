@@ -324,11 +324,13 @@ describe("Query Operators Integration Tests", () => {
 
       it("should find products where boolean is not equal", async () => {
         const results = await queryProducts({ isAvailable: { $ne: true } });
+        expect(results.length).toBeGreaterThan(0);
         expect(results.every((p) => p.isAvailable === false)).toBe(true);
       });
 
       it("should exclude specific category", async () => {
-        const results = await queryProducts({ category: { $ne: 1 } });
+        const results = await queryProducts({ category: { id: { $ne: 1 } } });
+        expect(results.length).toBeGreaterThan(0);
         expect(results.every((p) => p.category !== 1)).toBe(true);
       });
     });
@@ -342,6 +344,7 @@ describe("Query Operators Integration Tests", () => {
 
       it("should find products with stock greater than 50", async () => {
         const results = await queryProducts({ stock: { $gt: 50 } });
+        expect(results.length).toBeGreaterThan(0);
         expect(results.every((p) => p.stock > 50)).toBe(true);
       });
 
@@ -378,6 +381,7 @@ describe("Query Operators Integration Tests", () => {
 
       it("should find products with low stock", async () => {
         const results = await queryProducts({ stock: { $lt: 10 } });
+        expect(results.length).toBeGreaterThan(0);
         expect(results.every((p) => p.stock < 10)).toBe(true);
       });
     });
@@ -591,6 +595,7 @@ describe("Query Operators Integration Tests", () => {
 
       it.fails("should exclude multiple categories", async () => {
         const results = await queryProducts({ category: { $nin: [1, 3] } });
+        expect(results.length).toBeGreaterThan(0);
         expect(results.every((p) => p.category === 2)).toBe(true);
       });
 
@@ -664,10 +669,16 @@ describe("Query Operators Integration Tests", () => {
       });
 
       it("should combine multiple field conditions", async () => {
-        const results = await queryProducts({
-          $and: [{ category: 1 }, { stock: { $gt: 100 } }],
-        });
-        expect(results.every((p) => p.category === 1 && p.stock > 100)).toBe(true);
+        const results = await queryProducts(
+          {
+            $and: [{ category: { id: { $eq: 1 } } }, { stock: { $gt: 100 } }],
+          },
+          { category: "*" },
+        );
+        expect(results.length).toBeGreaterThan(0);
+        expect(results.every((p) => p.category.id === 1 && p.stock > 100)).toBe(
+          true,
+        );
       });
 
       it("should return empty when conditions conflict", async () => {
@@ -691,6 +702,7 @@ describe("Query Operators Integration Tests", () => {
         const results = await queryProducts({
           $or: [{ category: 2 }, { stock: { $eq: 0 } }],
         });
+        expect(results.length).toBeGreaterThan(0);
         expect(results.every((p) => p.category === 2 || p.stock === 0)).toBe(true);
       });
 
@@ -709,17 +721,20 @@ describe("Query Operators Integration Tests", () => {
     describe("$not - Logical NOT", () => {
       it("should exclude products matching condition", async () => {
         const results = await queryProducts({
-          $not: { category: 1 },  // $not takes single object, not array
+          $not: { category: 1 }, // $not takes single object, not array
         });
+        expect(results.length).toBeGreaterThan(0); // Ensure not empty
         expect(results.every((p) => p.category !== 1)).toBe(true);
       });
 
       it("should negate complex conditions", async () => {
         const results = await queryProducts({
-          $not: {  // $not takes single object, not array
+          $not: {
+            // $not takes single object, not array
             $and: [{ price: { $gte: 100 } }, { stock: { $lte: 10 } }],
           },
         });
+        expect(results.length).toBeGreaterThan(0); // Ensure not empty
         expect(results.every((p) => !(p.price >= 100 && p.stock <= 10))).toBe(true);
       });
     });
@@ -746,17 +761,26 @@ describe("Query Operators Integration Tests", () => {
       });
 
       it("should handle $or inside $and", async () => {
-        const results = await queryProducts({
-          $and: [
-            { isAvailable: true },
-            {
-              $or: [{ category: 1 }, { category: 2 }],
-            },
-          ],
-        });
+        const results = await queryProducts(
+          {
+            $and: [
+              { isAvailable: true },
+              {
+                $or: [
+                  { category: { id: { $eq: 1 } } },
+                  { category: { id: { $eq: 2 } } },
+                ],
+              },
+            ],
+          },
+          { category: "*" },
+        );
+
+        expect(results.length).toBeGreaterThan(0);
         expect(
           results.every(
-            (p) => p.isAvailable === true && (p.category === 1 || p.category === 2),
+            (p) =>
+              p.isAvailable === true && (p.category.id === 1 || p.category.id === 2),
           ),
         ).toBe(true);
       });
@@ -787,19 +811,26 @@ describe("Query Operators Integration Tests", () => {
   describe("Operator Combinations", () => {
     it("should combine comparison with string operators", async () => {
       const results = await queryProducts({
-        $and: [{ price: { $gte: 20 } }, { name: { $contains: "Book" } }],
+        $and: [{ price: { $gte: 20 } }, { name: { $contains: "Gue" } }],
       });
-      expect(results.every((p) => p.price >= 20 && p.name.includes("Book"))).toBe(
+
+      expect(results.length).toBeGreaterThan(0);
+      expect(results.every((p) => p.price >= 20 && p.name.includes("Gue"))).toBe(
         true,
       );
     });
 
     it("should combine array with comparison operators", async () => {
-      const results = await queryProducts({
-        $and: [{ category: { $in: [1, 2] } }, { price: { $lte: 50 } }],
-      });
+      const results = await queryProducts(
+        {
+          $and: [{ category: { id: { $in: [1, 2] } } }, { price: { $lte: 50 } }],
+        },
+        { category: "*" },
+      );
+
+      expect(results.length).toBeGreaterThan(0);
       expect(
-        results.every((p) => [1, 2].includes(p.category) && p.price <= 50),
+        results.every((p) => [1, 2].includes(p.category.id) && p.price <= 50),
       ).toBe(true);
     });
 
@@ -807,6 +838,8 @@ describe("Query Operators Integration Tests", () => {
       const results = await queryProducts({
         $and: [{ description: { $notNull: true } }, { price: { $lt: 100 } }],
       });
+
+      expect(results.length).toBeGreaterThan(0);
       expect(results.every((p) => p.description !== null && p.price < 100)).toBe(
         true,
       );
@@ -819,6 +852,8 @@ describe("Query Operators Integration Tests", () => {
           $lte: 100,
         },
       });
+
+      expect(results.length).toBeGreaterThan(0);
       expect(results.every((p) => p.price >= 20 && p.price <= 100)).toBe(true);
     });
 
@@ -827,14 +862,16 @@ describe("Query Operators Integration Tests", () => {
         $and: [
           { price: { $gte: 15, $lte: 50 } },
           { name: { $notContains: "Premium" } },
-          { category: { $in: [1, 2] } },
+          { category: { id: { $in: [1, 2] } } },
           { description: { $notNull: true } },
           {
             $or: [{ stock: { $gte: 10 } }, { isAvailable: false }],
           },
         ],
       });
+
       expect(Array.isArray(results)).toBe(true);
+      expect(results.length).toBeGreaterThan(0);
     });
   });
 
@@ -850,7 +887,7 @@ describe("Query Operators Integration Tests", () => {
             category: { name: { $eq: "Electronics" } }, // Filter by related category name
           },
           {
-            category: "*", // Populate to verify
+            category: "*",
           },
         );
         expect(results.length).toBeGreaterThan(0);

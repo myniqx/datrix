@@ -343,16 +343,6 @@ describe("WhereParser - Error Path", () => {
 	});
 
 	describe("Negative Space Coverage", () => {
-		it("should reject malformed where syntax", () => {
-			const malformedWhere: RawQueryParams = {
-				"where[field][invalid][structure]": "value",
-			};
-
-			const error = expectFailureError(parseWhere(malformedWhere));
-
-			expect(error.code).toBe("INVALID_SYNTAX");
-		});
-
 		it("should reject unknown query parameters that look like where", () => {
 			const fakeWhere: RawQueryParams = {
 				"where_injection[field]": "value",

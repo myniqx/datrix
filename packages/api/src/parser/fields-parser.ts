@@ -134,6 +134,3 @@ function validateAndReturn(fields: readonly string[]): FieldsParserResult {
 
   return { success: true, data: fields };
 }
-
-// Field validation is now centralized in forja-types/core/constants
-// isValidFieldName() is imported from there

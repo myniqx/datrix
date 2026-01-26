@@ -182,6 +182,15 @@ export const FIELD_NAME_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_.]*$/;
 export const CONTROL_CHARS_PATTERN = /[\x00-\x1F\x7F]/;
 
 /**
+ * Reserved field names (prototype pollution protection)
+ */
+export const RESERVED_FIELD_NAMES = [
+  '__proto__',
+  'constructor',
+  'prototype',
+] as const;
+
+/**
  * Validate field name against universal rules
  *
  * @param fieldName - Field name to validate
@@ -195,6 +204,11 @@ export function isValidFieldName(fieldName: string): boolean {
 
   // Length check
   if (fieldName.length > MAX_FIELD_NAME_LENGTH) {
+    return false;
+  }
+
+  // Reserved fields check (prototype pollution protection)
+  if (RESERVED_FIELD_NAMES.includes(fieldName as typeof RESERVED_FIELD_NAMES[number])) {
     return false;
   }
 
