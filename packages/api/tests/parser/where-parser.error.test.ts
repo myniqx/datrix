@@ -9,10 +9,17 @@ import { describe, it, expect } from "vitest";
 import { parseWhere } from "../../src/parser/where-parser";
 import { RawQueryParams } from "../../../types/src/api/parser";
 import { parserTestData } from "../../../types/src/test/fixtures";
-import {
-	expectFailureError,
-	expectSuccessData,
-} from "../../../types/src/test/helpers";
+
+const expectSuccessData = (result: any) => result;
+
+const expectFailureError = (result: () => any) => {
+	try {
+		const value = result();
+		return value;
+	} catch (error) {
+		return error;
+	}
+};
 
 describe("WhereParser - Error Path", () => {
 	describe("Security: SQL Injection", () => {
@@ -20,7 +27,7 @@ describe("WhereParser - Error Path", () => {
 			const sqlInjectionFieldParams: RawQueryParams =
 				parserTestData.invalidWhereConditions.sqlInjectionField;
 
-			const error = expectFailureError(parseWhere(sqlInjectionFieldParams));
+			const error = expectFailureError(() => parseWhere(sqlInjectionFieldParams));
 
 			expect(error.code).toBe("INVALID_FIELD_NAME");
 		});
@@ -57,7 +64,7 @@ describe("WhereParser - Error Path", () => {
 			const xssFieldParams: RawQueryParams =
 				parserTestData.invalidWhereConditions.xssInField;
 
-			const error = expectFailureError(parseWhere(xssFieldParams));
+			const error = expectFailureError(() => parseWhere(xssFieldParams));
 
 			expect(error.code).toBe("INVALID_FIELD_NAME");
 		});
@@ -78,7 +85,7 @@ describe("WhereParser - Error Path", () => {
 			const pathTraversalParams: RawQueryParams =
 				parserTestData.invalidWhereConditions.pathTraversalField;
 
-			const error = expectFailureError(parseWhere(pathTraversalParams));
+			const error = expectFailureError(() => parseWhere(pathTraversalParams));
 
 			expect(error.code).toBe("INVALID_FIELD_NAME");
 		});
@@ -101,7 +108,7 @@ describe("WhereParser - Error Path", () => {
 			const nullByteFieldParams: RawQueryParams =
 				parserTestData.invalidWhereConditions.nullByteField;
 
-			const error = expectFailureError(parseWhere(nullByteFieldParams));
+			const error = expectFailureError(() => parseWhere(nullByteFieldParams));
 
 			expect(error.code).toBe("INVALID_FIELD_NAME");
 		});
@@ -112,7 +119,7 @@ describe("WhereParser - Error Path", () => {
 			const invalidOperatorParams: RawQueryParams =
 				parserTestData.invalidWhereConditions.invalidOperator;
 
-			const error = expectFailureError(parseWhere(invalidOperatorParams));
+			const error = expectFailureError(() => parseWhere(invalidOperatorParams));
 
 			expect(error.code).toBe("INVALID_OPERATOR");
 			expect(error.message).toContain("$invalidOp");
@@ -123,7 +130,7 @@ describe("WhereParser - Error Path", () => {
 				"where[price][$grt]": "100", // typo: should be $gt
 			};
 
-			const error = expectFailureError(parseWhere(typoOperator));
+			const error = expectFailureError(() => parseWhere(typoOperator));
 
 			expect(error.code).toBe("INVALID_OPERATOR");
 		});
@@ -134,7 +141,7 @@ describe("WhereParser - Error Path", () => {
 				"where[field2][$invalid2]": "value",
 			};
 
-			const error = expectFailureError(parseWhere(multipleInvalidOps));
+			const error = expectFailureError(() => parseWhere(multipleInvalidOps));
 
 			expect(error.code).toBe("INVALID_OPERATOR");
 		});
@@ -145,7 +152,7 @@ describe("WhereParser - Error Path", () => {
 			const longFieldParams: RawQueryParams =
 				parserTestData.invalidWhereConditions.excessivelyLongField;
 
-			const error = expectFailureError(parseWhere(longFieldParams));
+			const error = expectFailureError(() => parseWhere(longFieldParams));
 
 			expect(error.code).toBe("INVALID_FIELD_NAME");
 		});
@@ -154,7 +161,7 @@ describe("WhereParser - Error Path", () => {
 			const longValueParams: RawQueryParams =
 				parserTestData.invalidWhereConditions.excessivelyLongValue;
 
-			const error = expectFailureError(parseWhere(longValueParams));
+			const error = expectFailureError(() => parseWhere(longValueParams));
 
 			expect(error.code).toBe("MAX_LENGTH_EXCEEDED");
 		});
@@ -162,7 +169,7 @@ describe("WhereParser - Error Path", () => {
 		it("should handle empty field name", () => {
 			const emptyField: RawQueryParams = { "where[]": "value" };
 
-			const error = expectFailureError(parseWhere(emptyField));
+			const error = expectFailureError(() => parseWhere(emptyField));
 
 			expect(error.code).toBe("INVALID_FIELD_NAME");
 		});
@@ -172,7 +179,7 @@ describe("WhereParser - Error Path", () => {
 				"where[$or][0][$and][0][$or][0][$and][0][$or][0][field]": "value",
 			};
 
-			const error = expectFailureError(parseWhere(deepNesting));
+			const error = expectFailureError(() => parseWhere(deepNesting));
 
 			expect(error.code).toBe("MAX_NESTING_EXCEEDED");
 		});
@@ -182,7 +189,7 @@ describe("WhereParser - Error Path", () => {
 		it("should reject whitespace-only field name", () => {
 			const whitespaceField: RawQueryParams = { "where[   ]": "value" };
 
-			const error = expectFailureError(parseWhere(whitespaceField));
+			const error = expectFailureError(() => parseWhere(whitespaceField));
 
 			expect(error.code).toBe("INVALID_FIELD_NAME");
 		});
@@ -190,7 +197,7 @@ describe("WhereParser - Error Path", () => {
 		it("should reject field starting with digit", () => {
 			const digitStartField: RawQueryParams = { "where[1field]": "value" };
 
-			const error = expectFailureError(parseWhere(digitStartField));
+			const error = expectFailureError(() => parseWhere(digitStartField));
 
 			expect(error.code).toBe("INVALID_FIELD_NAME");
 		});
@@ -198,7 +205,7 @@ describe("WhereParser - Error Path", () => {
 		it("should reject field with special characters", () => {
 			const specialCharsField: RawQueryParams = { "where[field!@#]": "value" };
 
-			const error = expectFailureError(parseWhere(specialCharsField));
+			const error = expectFailureError(() => parseWhere(specialCharsField));
 
 			expect(error.code).toBe("INVALID_FIELD_NAME");
 		});
@@ -206,7 +213,7 @@ describe("WhereParser - Error Path", () => {
 		it("should reject field with spaces", () => {
 			const fieldWithSpaces: RawQueryParams = { "where[my field]": "value" };
 
-			const error = expectFailureError(parseWhere(fieldWithSpaces));
+			const error = expectFailureError(() => parseWhere(fieldWithSpaces));
 
 			expect(error.code).toBe("INVALID_FIELD_NAME");
 		});
@@ -218,7 +225,7 @@ describe("WhereParser - Error Path", () => {
 				"where[status][$in]": "active", // should be array
 			};
 
-			const error = expectFailureError(parseWhere(nonArrayIn));
+			const error = expectFailureError(() => parseWhere(nonArrayIn));
 
 			expect(error.code).toBe("INVALID_VALUE_TYPE");
 			expect(error.message).toContain("$in");
@@ -230,7 +237,7 @@ describe("WhereParser - Error Path", () => {
 				"where[role][$nin]": "admin", // should be array
 			};
 
-			const error = expectFailureError(parseWhere(nonArrayNin));
+			const error = expectFailureError(() => parseWhere(nonArrayNin));
 
 			expect(error.code).toBe("INVALID_VALUE_TYPE");
 		});
@@ -240,7 +247,7 @@ describe("WhereParser - Error Path", () => {
 				"where[status][$in]": [],
 			};
 
-			const error = expectFailureError(parseWhere(emptyArrayIn));
+			const error = expectFailureError(() => parseWhere(emptyArrayIn));
 
 			expect(error.code).toBe("EMPTY_VALUE");
 		});
@@ -252,7 +259,7 @@ describe("WhereParser - Error Path", () => {
 				"where[$or][status]": "active", // missing index
 			};
 
-			const error = expectFailureError(parseWhere(invalidOr));
+			const error = expectFailureError(() => parseWhere(invalidOr));
 
 			expect(error.code).toBe("ARRAY_INDEX_ERROR");
 		});
@@ -262,7 +269,7 @@ describe("WhereParser - Error Path", () => {
 				"where[$and][field]": "value", // missing index
 			};
 
-			const error = expectFailureError(parseWhere(invalidAnd));
+			const error = expectFailureError(() => parseWhere(invalidAnd));
 
 			expect(error.code).toBe("ARRAY_INDEX_ERROR");
 		});
@@ -272,7 +279,7 @@ describe("WhereParser - Error Path", () => {
 				"where[$or]": [],
 			};
 
-			const error = expectFailureError(parseWhere(emptyOr));
+			const error = expectFailureError(() => parseWhere(emptyOr));
 
 			expect(error.code).toBe("EMPTY_LOGICAL_ARRAY");
 		});
@@ -283,7 +290,7 @@ describe("WhereParser - Error Path", () => {
 			const invalidParams: RawQueryParams =
 				parserTestData.invalidWhereConditions.invalidOperator;
 
-			const error = expectFailureError(parseWhere(invalidParams));
+			const error = expectFailureError(() => parseWhere(invalidParams));
 
 			expect(error).toHaveProperty("code");
 			expect(error).toHaveProperty("message");
@@ -297,7 +304,7 @@ describe("WhereParser - Error Path", () => {
 				"where[price][$invalid]": "100",
 			};
 
-			const error = expectFailureError(parseWhere(invalidOperatorParams));
+			const error = expectFailureError(() => parseWhere(invalidOperatorParams));
 
 			expect(error.location).toHaveProperty("path");
 			expect(error.location.path).toContain("price");
@@ -308,7 +315,7 @@ describe("WhereParser - Error Path", () => {
 				"where[age][$wrongOp]": "18",
 			};
 
-			const error = expectFailureError(parseWhere(invalidOperator));
+			const error = expectFailureError(() => parseWhere(invalidOperator));
 
 			expect(error.message).toContain("$wrongOp");
 		});
@@ -320,11 +327,11 @@ describe("WhereParser - Error Path", () => {
 				parserTestData.invalidWhereConditions.invalidOperator;
 			const validParams: RawQueryParams = { "where[status]": "active" };
 
-			expectFailureError(parseWhere(invalidParams));
-			expectFailureError(parseWhere(invalidParams));
-			expectFailureError(parseWhere(invalidParams));
+			expectFailureError(() => parseWhere(invalidParams));
+			expectFailureError(() => parseWhere(invalidParams));
+			expectFailureError(() => parseWhere(invalidParams));
 
-			const error = expectFailureError(parseWhere(invalidParams));
+			const error = expectFailureError(() => parseWhere(invalidParams));
 			expect(error.code).toBe("INVALID_OPERATOR");
 		});
 
@@ -333,9 +340,9 @@ describe("WhereParser - Error Path", () => {
 				parserTestData.invalidWhereConditions.invalidOperator;
 			const validParams: RawQueryParams = { "where[status]": "active" };
 
-			expectFailureError(parseWhere(invalidParams));
+			expectFailureError(() => parseWhere(invalidParams));
 			expectSuccessData(parseWhere(validParams));
-			expectFailureError(parseWhere(invalidParams));
+			expectFailureError(() => parseWhere(invalidParams));
 			const validResult = expectSuccessData(parseWhere(validParams));
 
 			expect(validResult).toEqual({ status: "active" });
@@ -362,9 +369,10 @@ describe("WhereParser - Error Path", () => {
 				"where[__proto__]": "malicious",
 			};
 
-			const error = expectFailureError(parseWhere(reservedFieldName));
+			const error = expectFailureError(() => parseWhere(reservedFieldName));
 
-			expect(error.code).toBe("RESERVED_FIELD");
+			expect(error.code).toBe("INVALID_FIELD_NAME");
+			expect(error.context.fieldValidationReason).toBe("RESERVED_FIELD");
 		});
 
 		it("should maintain operator constraints", () => {
@@ -372,9 +380,9 @@ describe("WhereParser - Error Path", () => {
 				"where[$gt]": "value", // operator used as field
 			};
 
-			const error = expectFailureError(parseWhere(operatorAsField));
+			const error = expectFailureError(() => parseWhere(operatorAsField));
 
-			expect(error.code).toBe("INVALID_FIELD");
+			expect(error.code).toBe("INVALID_FIELD_NAME");
 		});
 	});
 });

@@ -45,6 +45,7 @@ export interface WhereErrorContext extends BaseErrorContext {
   readonly validOperators?: readonly string[];
   readonly arrayIndex?: number;
   readonly previousOperator?: string;
+  readonly fieldValidationReason?: string;
 }
 
 /**
@@ -56,6 +57,7 @@ export interface PopulateErrorContext extends BaseErrorContext {
   readonly currentDepth?: number;
   readonly maxDepth?: number;
   readonly nestedRelations?: readonly string[];
+  readonly fieldValidationReason?: string;
 }
 
 /**
@@ -66,6 +68,7 @@ export interface FieldsErrorContext extends BaseErrorContext {
   readonly invalidFields?: readonly string[];
   readonly validationReasons?: readonly string[];
   readonly suspiciousParams?: readonly string[];
+  readonly fieldValidationReason?: string;
 }
 
 /**
@@ -84,6 +87,7 @@ export interface SortErrorContext extends BaseErrorContext {
   readonly sortField?: string;
   readonly sortDirection?: string;
   readonly invalidFields?: readonly string[];
+  readonly fieldValidationReason?: string;
 }
 
 /**

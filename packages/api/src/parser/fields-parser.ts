@@ -7,20 +7,21 @@
  *   ?fields=name,email
  */
 
-import type {
-  RawQueryParams,
-  FieldsParserResult,
-} from "forja-types/api/parser";
-import { MAX_ARRAY_INDEX, isValidFieldName } from "forja-types/core/constants";
+import type { RawQueryParams } from "forja-types/api/parser";
+import { MAX_ARRAY_INDEX, validateFieldName } from "forja-types/core/constants";
 import { fieldsError } from "./errors";
 
 /**
  * Parse fields parameter
+ * Throws ParserError on validation failure
  *
  * @param params - Raw query parameters
- * @returns Result with SelectClause or ParserError
+ * @returns SelectClause (string[] | '*' | undefined)
+ * @throws {ParserError} When validation fails
  */
-export function parseFields(params: RawQueryParams): FieldsParserResult {
+export function parseFields(
+  params: RawQueryParams,
+): string[] | "*" | undefined {
   // Check for suspicious parameters (fields[extra], fields_injection, etc.)
   const suspiciousParams = Object.keys(params).filter(
     (key) =>
@@ -30,7 +31,7 @@ export function parseFields(params: RawQueryParams): FieldsParserResult {
   );
 
   if (suspiciousParams.length > 0) {
-    return fieldsError.suspiciousParams(suspiciousParams, []);
+    fieldsError.suspiciousParams(suspiciousParams, []);
   }
 
   // Handle array format: fields[0]=name&fields[2]=email (sparse arrays allowed)
@@ -43,13 +44,13 @@ export function parseFields(params: RawQueryParams): FieldsParserResult {
   const fieldsParam = params["fields"];
 
   if (fieldsParam === undefined) {
-    // No fields specified, return success with undefined (will select all)
-    return { success: true, data: "*" };
+    // No fields specified, return wildcard (will select all)
+    return "*";
   }
 
   // Handle wildcard
   if (fieldsParam === "*") {
-    return { success: true, data: "*" };
+    return "*";
   }
 
   // Handle comma-separated format: fields=name,email
@@ -61,7 +62,7 @@ export function parseFields(params: RawQueryParams): FieldsParserResult {
 
     // Reject if all fields are empty after trimming
     if (fields.length === 0) {
-      return fieldsError.emptyValue([]);
+      fieldsError.emptyValue([]);
     }
 
     return validateAndReturn(fields);
@@ -73,14 +74,16 @@ export function parseFields(params: RawQueryParams): FieldsParserResult {
 
     // Reject if all fields are empty after trimming
     if (fields.length === 0) {
-      return fieldsError.emptyValue([]);
+      fieldsError.emptyValue([]);
     }
 
     return validateAndReturn(fields);
   }
 
   // Invalid format
-  return fieldsError.invalidFormat([]);
+  fieldsError.invalidFormat([]);
+
+  return undefined;
 }
 
 /**
@@ -120,17 +123,29 @@ function extractArrayFields(params: RawQueryParams): string[] {
 /**
  * Validate field names and return result
  */
-function validateAndReturn(fields: readonly string[]): FieldsParserResult {
+function validateAndReturn(fields: readonly string[]): string[] | "*" {
   if (fields.length === 0) {
-    return { success: true, data: "*" };
+    return "*";
   }
 
   // Validate field names (alphanumeric, underscores, dots for nested fields)
-  const invalidFields = fields.filter((field) => !isValidFieldName(field));
+  const invalidFieldsWithReasons: Array<{ field: string; reason: string }> = [];
 
-  if (invalidFields.length > 0) {
-    return fieldsError.invalidFieldNames(invalidFields, []);
+  for (const field of fields) {
+    const validation = validateFieldName(field);
+    if (!validation.valid) {
+      invalidFieldsWithReasons.push({ field, reason: validation.reason });
+    }
   }
 
-  return { success: true, data: fields };
+  if (invalidFieldsWithReasons.length > 0) {
+    const invalidFields = invalidFieldsWithReasons.map((item) => item.field);
+    const reasons = invalidFieldsWithReasons.map((item) => item.reason);
+
+    fieldsError.invalidFieldNames(invalidFields, [], {
+      validationReasons: reasons,
+    });
+  }
+
+  return fields as string[];
 }

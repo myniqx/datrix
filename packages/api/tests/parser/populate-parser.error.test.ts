@@ -9,14 +9,22 @@ import { describe, it, expect } from "vitest";
 import { parsePopulate } from "../../src/parser/populate-parser";
 import { RawQueryParams } from "../../../types/src/api/parser";
 import { parserTestData } from "../../../types/src/test/fixtures";
-import { expectFailureError } from "../../../types/src/test/helpers";
+
+const expectFailureError = (result: () => any) => {
+  try {
+    const value = result();
+    return value;
+  } catch (error) {
+    return error;
+  }
+};
 
 describe("PopulateParser - Error Path", () => {
   describe("Max depth exceeded", () => {
     it("should reject populate exceeding default max depth (5)", () => {
       const depth6Params: RawQueryParams = parserTestData.maxDepthPopulate.depth6;
 
-      const error = expectFailureError(parsePopulate(depth6Params));
+      const error = expectFailureError(() => parsePopulate(depth6Params));
 
       expect(error.code).toBe("MAX_DEPTH_EXCEEDED");
       expect(error.expected).toContain("5");
@@ -25,7 +33,7 @@ describe("PopulateParser - Error Path", () => {
     it("should reject populate exceeding custom max depth", () => {
       const depth3Params: RawQueryParams = parserTestData.maxDepthPopulate.depth3;
 
-      const error = expectFailureError(parsePopulate(depth3Params, 2));
+      const error = expectFailureError(() => parsePopulate(depth3Params, 2));
 
       expect(error.code).toBe("MAX_DEPTH_EXCEEDED");
       expect(error.expected).toContain("2");
@@ -34,7 +42,7 @@ describe("PopulateParser - Error Path", () => {
     it("should reject depth 2 when max depth is 1", () => {
       const depth2Params: RawQueryParams = parserTestData.maxDepthPopulate.depth2;
 
-      const error = expectFailureError(parsePopulate(depth2Params, 1));
+      const error = expectFailureError(() => parsePopulate(depth2Params, 1));
 
       expect(error.code).toBe("MAX_DEPTH_EXCEEDED");
     });
@@ -45,7 +53,7 @@ describe("PopulateParser - Error Path", () => {
           "*",
       };
 
-      const error = expectFailureError(parsePopulate(complexDeepParams, 4));
+      const error = expectFailureError(() => parsePopulate(complexDeepParams, 4));
 
       expect(error.code).toBe("MAX_DEPTH_EXCEEDED");
     });
@@ -57,7 +65,7 @@ describe("PopulateParser - Error Path", () => {
         populate: parserTestData.invalidRelationNames.sqlInjection,
       };
 
-      const error = expectFailureError(parsePopulate(sqlInjectionRelation));
+      const error = expectFailureError(() => parsePopulate(sqlInjectionRelation));
 
       expect(error.code).toBe("INVALID_FIELD_NAME");
     });
@@ -67,7 +75,9 @@ describe("PopulateParser - Error Path", () => {
         populate: parserTestData.invalidRelationNames.sqlInjectionWithQuotes,
       };
 
-      const error = expectFailureError(parsePopulate(sqlInjectionWithQuotes));
+      const error = expectFailureError(() =>
+        parsePopulate(sqlInjectionWithQuotes),
+      );
 
       expect(error.code).toBe("INVALID_FIELD_NAME");
     });
@@ -77,7 +87,9 @@ describe("PopulateParser - Error Path", () => {
         [`populate[${parserTestData.invalidRelationNames.sqlInjection}]`]: "*",
       };
 
-      const error = expectFailureError(parsePopulate(sqlInjectionObjectStyle));
+      const error = expectFailureError(() =>
+        parsePopulate(sqlInjectionObjectStyle),
+      );
 
       expect(error.code).toBe("INVALID_FIELD_NAME");
     });
@@ -88,7 +100,7 @@ describe("PopulateParser - Error Path", () => {
           parserTestData.invalidRelationNames.sqlInjection,
       };
 
-      const error = expectFailureError(parsePopulate(sqlInjectionNested));
+      const error = expectFailureError(() => parsePopulate(sqlInjectionNested));
 
       expect(error.code).toBe("INVALID_FIELD_NAME");
     });
@@ -100,7 +112,7 @@ describe("PopulateParser - Error Path", () => {
         populate: parserTestData.invalidRelationNames.xssScript,
       };
 
-      const error = expectFailureError(parsePopulate(xssScriptRelation));
+      const error = expectFailureError(() => parsePopulate(xssScriptRelation));
 
       expect(error.code).toBe("INVALID_FIELD_NAME");
     });
@@ -110,7 +122,7 @@ describe("PopulateParser - Error Path", () => {
         [`populate[${parserTestData.invalidRelationNames.xssScript}]`]: "*",
       };
 
-      const error = expectFailureError(parsePopulate(xssNestedRelation));
+      const error = expectFailureError(() => parsePopulate(xssNestedRelation));
 
       expect(error.code).toBe("INVALID_FIELD_NAME");
     });
@@ -122,7 +134,7 @@ describe("PopulateParser - Error Path", () => {
         populate: parserTestData.invalidRelationNames.pathTraversal,
       };
 
-      const error = expectFailureError(parsePopulate(pathTraversalRelation));
+      const error = expectFailureError(() => parsePopulate(pathTraversalRelation));
 
       expect(error.code).toBe("INVALID_FIELD_NAME");
     });
@@ -134,7 +146,9 @@ describe("PopulateParser - Error Path", () => {
         populate: parserTestData.invalidRelationNames.commandInjection,
       };
 
-      const error = expectFailureError(parsePopulate(commandInjectionRelation));
+      const error = expectFailureError(() =>
+        parsePopulate(commandInjectionRelation),
+      );
 
       expect(error.code).toBe("INVALID_FIELD_NAME");
     });
@@ -146,7 +160,7 @@ describe("PopulateParser - Error Path", () => {
         populate: parserTestData.invalidRelationNames.nullByteInjection,
       };
 
-      const error = expectFailureError(parsePopulate(nullByteRelation));
+      const error = expectFailureError(() => parsePopulate(nullByteRelation));
 
       expect(error.code).toBe("INVALID_FIELD_NAME");
     });
@@ -156,7 +170,7 @@ describe("PopulateParser - Error Path", () => {
         populate: parserTestData.invalidRelationNames.controlChars,
       };
 
-      const error = expectFailureError(parsePopulate(controlCharsRelation));
+      const error = expectFailureError(() => parsePopulate(controlCharsRelation));
 
       expect(error.code).toBe("INVALID_FIELD_NAME");
     });
@@ -168,7 +182,7 @@ describe("PopulateParser - Error Path", () => {
         populate: parserTestData.invalidRelationNames.startsWithDigit,
       };
 
-      const error = expectFailureError(parsePopulate(digitStartRelation));
+      const error = expectFailureError(() => parsePopulate(digitStartRelation));
 
       expect(error.code).toBe("INVALID_FIELD_NAME");
     });
@@ -178,7 +192,7 @@ describe("PopulateParser - Error Path", () => {
         populate: parserTestData.invalidRelationNames.withSpaces,
       };
 
-      const error = expectFailureError(parsePopulate(relationWithSpaces));
+      const error = expectFailureError(() => parsePopulate(relationWithSpaces));
 
       expect(error.code).toBe("INVALID_FIELD_NAME");
     });
@@ -188,7 +202,9 @@ describe("PopulateParser - Error Path", () => {
         populate: parserTestData.invalidRelationNames.withSpecialChars,
       };
 
-      const error = expectFailureError(parsePopulate(relationWithSpecialChars));
+      const error = expectFailureError(() =>
+        parsePopulate(relationWithSpecialChars),
+      );
 
       expect(error.code).toBe("INVALID_FIELD_NAME");
     });
@@ -200,7 +216,9 @@ describe("PopulateParser - Error Path", () => {
         populate: parserTestData.invalidRelationNames.excessivelyLong,
       };
 
-      const error = expectFailureError(parsePopulate(excessivelyLongRelation));
+      const error = expectFailureError(() =>
+        parsePopulate(excessivelyLongRelation),
+      );
 
       expect(error.code).toBe("INVALID_FIELD_NAME");
     });
@@ -208,7 +226,7 @@ describe("PopulateParser - Error Path", () => {
     it("should reject zero max depth", () => {
       const simpleRelation: RawQueryParams = { populate: "author" };
 
-      const error = expectFailureError(parsePopulate(simpleRelation, 0));
+      const error = expectFailureError(() => parsePopulate(simpleRelation, 0));
 
       expect(error.code).toBe("MAX_DEPTH_EXCEEDED");
     });
@@ -216,7 +234,7 @@ describe("PopulateParser - Error Path", () => {
     it("should reject negative max depth", () => {
       const simpleRelation: RawQueryParams = { populate: "author" };
 
-      const error = expectFailureError(parsePopulate(simpleRelation, -1));
+      const error = expectFailureError(() => parsePopulate(simpleRelation, -1));
 
       expect(error.code).toBe("MAX_DEPTH_EXCEEDED");
     });
@@ -226,7 +244,7 @@ describe("PopulateParser - Error Path", () => {
     it("should reject empty string relation", () => {
       const emptyStringRelation: RawQueryParams = { populate: "" };
 
-      const error = expectFailureError(parsePopulate(emptyStringRelation));
+      const error = expectFailureError(() => parsePopulate(emptyStringRelation));
 
       expect(error.code).toBe("EMPTY_VALUE");
     });
@@ -234,7 +252,7 @@ describe("PopulateParser - Error Path", () => {
     it("should reject whitespace-only relation", () => {
       const whitespaceRelation: RawQueryParams = { populate: "   " };
 
-      const error = expectFailureError(parsePopulate(whitespaceRelation));
+      const error = expectFailureError(() => parsePopulate(whitespaceRelation));
 
       expect(error.code).toBe("EMPTY_VALUE");
     });
@@ -244,7 +262,7 @@ describe("PopulateParser - Error Path", () => {
         populate: `author,${parserTestData.invalidRelationNames.sqlInjection},comments`,
       };
 
-      const error = expectFailureError(parsePopulate(mixedValidInvalid));
+      const error = expectFailureError(() => parsePopulate(mixedValidInvalid));
 
       expect(error.code).toBe("INVALID_FIELD_NAME");
     });
@@ -254,7 +272,7 @@ describe("PopulateParser - Error Path", () => {
     it("should return consistent error structure for max depth", () => {
       const depth6Params: RawQueryParams = parserTestData.maxDepthPopulate.depth6;
 
-      const error = expectFailureError(parsePopulate(depth6Params));
+      const error = expectFailureError(() => parsePopulate(depth6Params));
 
       expect(error).toHaveProperty("code");
       expect(error).toHaveProperty("message");
@@ -268,7 +286,7 @@ describe("PopulateParser - Error Path", () => {
         populate: parserTestData.invalidRelationNames.sqlInjection,
       };
 
-      const error = expectFailureError(parsePopulate(invalidRelation));
+      const error = expectFailureError(() => parsePopulate(invalidRelation));
 
       expect(error).toHaveProperty("code");
       expect(error).toHaveProperty("message");
@@ -279,7 +297,7 @@ describe("PopulateParser - Error Path", () => {
     it("should include field information in error", () => {
       const depth6Params: RawQueryParams = parserTestData.maxDepthPopulate.depth6;
 
-      const error = expectFailureError(parsePopulate(depth6Params));
+      const error = expectFailureError(() => parsePopulate(depth6Params));
 
       expect(error.location).toHaveProperty("parts");
     });
@@ -292,11 +310,11 @@ describe("PopulateParser - Error Path", () => {
       };
       const validParams: RawQueryParams = { populate: "author" };
 
-      expectFailureError(parsePopulate(invalidParams));
-      expectFailureError(parsePopulate(invalidParams));
-      expectFailureError(parsePopulate(invalidParams));
+      expectFailureError(() => parsePopulate(invalidParams));
+      expectFailureError(() => parsePopulate(invalidParams));
+      expectFailureError(() => parsePopulate(invalidParams));
 
-      const error = expectFailureError(parsePopulate(invalidParams));
+      const error = expectFailureError(() => parsePopulate(invalidParams));
       expect(error.code).toBe("INVALID_FIELD_NAME");
     });
 
@@ -304,8 +322,8 @@ describe("PopulateParser - Error Path", () => {
       const invalidParams: RawQueryParams = parserTestData.maxDepthPopulate.depth6;
       const validParams: RawQueryParams = parserTestData.maxDepthPopulate.depth5;
 
-      expectFailureError(parsePopulate(invalidParams));
-      const error = expectFailureError(parsePopulate(invalidParams));
+      expectFailureError(() => parsePopulate(invalidParams));
+      const error = expectFailureError(() => parsePopulate(invalidParams));
 
       expect(error.code).toBe("MAX_DEPTH_EXCEEDED");
     });
@@ -315,7 +333,7 @@ describe("PopulateParser - Error Path", () => {
     it("should reject invalid populate parameter types", () => {
       const numericPopulate: RawQueryParams = { populate: 123 as any };
 
-      const error = expectFailureError(parsePopulate(numericPopulate));
+      const error = expectFailureError(() => parsePopulate(numericPopulate));
 
       expect(error.code).toBe("INVALID_VALUE_TYPE");
     });
@@ -325,7 +343,7 @@ describe("PopulateParser - Error Path", () => {
         populate: { invalid: "structure" } as any,
       };
 
-      const error = expectFailureError(parsePopulate(objectPopulate));
+      const error = expectFailureError(() => parsePopulate(objectPopulate));
 
       expect(error.code).toBe("INVALID_VALUE_TYPE");
     });

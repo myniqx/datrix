@@ -9,10 +9,10 @@
  *   ?populate[posts][populate][comments]=*         -> nested populate
  */
 
-import type { RawQueryParams, PopulateParserResult } from 'forja-types/api/parser';
-import { PopulateOptions } from 'forja-types/core/query-builder';
-import { isValidFieldName } from 'forja-types/core/constants';
-import { populateError } from './errors';
+import type { RawQueryParams } from "forja-types/api/parser";
+import { PopulateOptions } from "forja-types/core/query-builder";
+import { validateFieldName } from "forja-types/core/constants";
+import { populateError } from "./errors";
 
 /**
  * Default max populate depth
@@ -21,64 +21,75 @@ const DEFAULT_MAX_DEPTH = 5;
 
 /**
  * Parse populate parameter
+ * Throws ParserError on validation failure
  *
  * @param params - Raw query parameters
  * @param maxDepth - Maximum nesting depth (default: 5)
- * @returns Result with PopulateClause or ParserError
+ * @returns PopulateClause or undefined
+ * @throws {ParserError} When validation fails
  */
 export function parsePopulate(
   params: RawQueryParams,
-  maxDepth: number = DEFAULT_MAX_DEPTH
-): PopulateParserResult {
+  maxDepth: number = DEFAULT_MAX_DEPTH,
+): Record<string, PopulateOptions | "*"> | { "*": "*" } | undefined {
   // Validate maxDepth
   if (maxDepth <= 0) {
-    return populateError.maxDepthExceeded(maxDepth, maxDepth, ['config'], {
+    populateError.maxDepthExceeded(maxDepth, maxDepth, ["config"], {
       maxDepth,
     });
   }
 
   // Build populate clause
-  const populateClause: Record<string, PopulateOptions | '*'> = {};
+  const populateClause: Record<string, PopulateOptions | "*"> = {};
 
   // Check for simple populate parameter (string)
-  const mainPopulate = params['populate'];
+  const mainPopulate = params["populate"];
   if (mainPopulate !== undefined) {
-    if (mainPopulate === '*') {
+    if (mainPopulate === "*") {
       // Return wildcard - handler will populate all relations
-      return { success: true, data: { '*': '*' } };
+      return { "*": "*" };
     }
 
-    if (typeof mainPopulate === 'string') {
+    if (typeof mainPopulate === "string") {
       // Handle empty or whitespace-only string
       const trimmed = mainPopulate.trim();
-      if (trimmed === '') {
-        return populateError.emptyValue([]);
+      if (trimmed === "") {
+        populateError.emptyValue([]);
       }
 
       // Handle comma-separated: populate=author,comments
-      const relations = mainPopulate.split(',').map((r) => r.trim()).filter(Boolean);
+      const relations = mainPopulate
+        .split(",")
+        .map((r) => r.trim())
+        .filter(Boolean);
       for (const rel of relations) {
         // Validate relation name
-        if (!isValidFieldName(rel)) {
-          return populateError.invalidRelation(rel, [rel]);
+        const validation = validateFieldName(rel);
+        if (!validation.valid) {
+          populateError.invalidRelation(rel, [rel], {
+            fieldValidationReason: validation.reason,
+          });
         }
-        populateClause[rel] = '*';
+        populateClause[rel] = "*";
       }
     } else if (Array.isArray(mainPopulate)) {
       // Handle array: populate[]=author&populate[]=comments
       for (const rel of mainPopulate) {
-        if (rel && typeof rel === 'string') {
+        if (rel && typeof rel === "string") {
           const trimmed = rel.trim();
           // Validate relation name
-          if (!isValidFieldName(trimmed)) {
-            return populateError.invalidRelation(trimmed, [trimmed]);
+          const validation = validateFieldName(trimmed);
+          if (!validation.valid) {
+            populateError.invalidRelation(trimmed, [trimmed], {
+              fieldValidationReason: validation.reason,
+            });
           }
-          populateClause[trimmed] = '*';
+          populateClause[trimmed] = "*";
         }
       }
     } else {
       // Invalid type (number, object, etc.)
-      return populateError.invalidType(typeof mainPopulate, []);
+      populateError.invalidType(typeof mainPopulate, []);
     }
   }
 
@@ -88,19 +99,15 @@ export function parsePopulate(
   // Parse each relation
   for (const [relation, relationParams] of Object.entries(populateParams)) {
     const parseResult = parseRelation(relation, relationParams, 1, maxDepth);
-    if (!parseResult.success) {
-      return parseResult;
-    }
-
-    populateClause[relation] = parseResult.data;
+    populateClause[relation] = parseResult;
   }
 
   // If no populate parameters found at all, return undefined
   if (Object.keys(populateClause).length === 0) {
-    return { success: true, data: undefined };
+    return undefined;
   }
 
-  return { success: true, data: populateClause };
+  return populateClause;
 }
 
 /**
@@ -115,11 +122,13 @@ interface RelationParams {
 /**
  * Extract populate parameters grouped by relation
  */
-function extractPopulateParams(params: RawQueryParams): Record<string, RelationParams> {
+function extractPopulateParams(
+  params: RawQueryParams,
+): Record<string, RelationParams> {
   const relations: Record<string, Record<string, unknown>> = {};
 
   for (const [key, value] of Object.entries(params)) {
-    if (!key.startsWith('populate[')) {
+    if (!key.startsWith("populate[")) {
       continue;
     }
 
@@ -142,8 +151,8 @@ function extractPopulateParams(params: RawQueryParams): Record<string, RelationP
     }
 
     // Check if this is a wildcard: populate[relation]=*
-    if (rest === '' && value === '*') {
-      relations[relation]['isWildcard'] = true;
+    if (rest === "" && value === "*") {
+      relations[relation]["isWildcard"] = true;
       continue;
     }
 
@@ -162,8 +171,12 @@ function extractPopulateParams(params: RawQueryParams): Record<string, RelationP
  *   [fields][0] -> add to fields array
  *   [populate][comments] -> nested populate
  */
-function parseRelationPath(relationData: Record<string, unknown>, path: string, value: string | readonly string[] | undefined): void {
-  if (path === '') {
+function parseRelationPath(
+  relationData: Record<string, unknown>,
+  path: string,
+  value: string | readonly string[] | undefined,
+): void {
+  if (path === "") {
     return;
   }
 
@@ -176,51 +189,77 @@ function parseRelationPath(relationData: Record<string, unknown>, path: string, 
   const key = match[1];
   const rest = match[2];
 
-  if (key === 'fields') {
+  if (key === "fields") {
     // Handle fields array
-    if (relationData['fields'] === undefined) {
-      relationData['fields'] = [];
+    if (relationData["fields"] === undefined) {
+      relationData["fields"] = [];
     }
 
-    const fieldsArray = Array.isArray(relationData['fields']) ? relationData['fields'] : [];
+    const fieldsArray =
+      Array.isArray(relationData["fields"]) ? relationData["fields"] : [];
 
-    if (rest === '') {
+    if (rest === "") {
       // populate[relation][fields]=* or comma-separated
-      if (value === '*') {
-        relationData['fields'] = '*';
-      } else if (typeof value === 'string') {
-        fieldsArray.push(...value.split(',').map((f) => f.trim()));
+      if (value === "*") {
+        relationData["fields"] = "*";
+      } else if (typeof value === "string") {
+        const fields = value.split(",").map((f) => f.trim());
+        // Validate each field
+        for (const field of fields) {
+          const validation = validateFieldName(field);
+          if (!validation.valid) {
+            populateError.invalidFieldName(field, ["fields"], {
+              fieldValidationReason: validation.reason,
+            });
+          }
+        }
+        fieldsArray.push(...fields);
       }
     } else if (rest !== undefined) {
       // populate[relation][fields][0]=name
       const indexMatch = rest.match(/^\[(\d+)\]$/);
-      if (indexMatch && typeof value === 'string') {
-        fieldsArray.push(value.trim());
+      if (indexMatch && typeof value === "string") {
+        const field = value.trim();
+        // Validate field name
+        const validation = validateFieldName(field);
+        if (!validation.valid) {
+          populateError.invalidFieldName(field, ["fields"], {
+            fieldValidationReason: validation.reason,
+          });
+        }
+        fieldsArray.push(field);
       }
     }
-  } else if (key === 'populate') {
+  } else if (key === "populate") {
     // Handle nested populate
-    if (relationData['populate'] === undefined) {
-      relationData['populate'] = {};
+    if (relationData["populate"] === undefined) {
+      relationData["populate"] = {};
     }
 
-    const populateObj = typeof relationData['populate'] === 'object' && !Array.isArray(relationData['populate'])
-      ? relationData['populate'] as Record<string, Record<string, unknown>>
-      : {};
+    const populateObj =
+      (
+        typeof relationData["populate"] === "object" &&
+        !Array.isArray(relationData["populate"])
+      ) ?
+        (relationData["populate"] as Record<string, Record<string, unknown>>)
+        : {};
 
-    relationData['populate'] = populateObj;
+    relationData["populate"] = populateObj;
 
     // Handle instructions for the current relation's populates
-    if (rest === '') {
-      if (value === '*') {
+    if (rest === "") {
+      if (value === "*") {
         // populate[relation][populate]=*
-        relationData['isWildcard'] = true;
-      } else if (typeof value === 'string') {
+        relationData["isWildcard"] = true;
+      } else if (typeof value === "string") {
         // populate[relation][populate]=profile,comments
-        const relations = value.split(',').map((r) => r.trim()).filter(Boolean);
+        const relations = value
+          .split(",")
+          .map((r) => r.trim())
+          .filter(Boolean);
         for (const rel of relations) {
-          if (rel === '*') {
-            relationData['isWildcard'] = true;
+          if (rel === "*") {
+            relationData["isWildcard"] = true;
           } else if (populateObj[rel] === undefined) {
             populateObj[rel] = { isWildcard: true };
           }
@@ -238,8 +277,8 @@ function parseRelationPath(relationData: Record<string, unknown>, path: string, 
             populateObj[nestedRelation] = {};
           }
 
-          if (nestedRest === '' && value === '*') {
-            populateObj[nestedRelation]['isWildcard'] = true;
+          if (nestedRest === "" && value === "*") {
+            populateObj[nestedRelation]["isWildcard"] = true;
           } else if (nestedRest !== undefined) {
             parseRelationPath(populateObj[nestedRelation], nestedRest, value);
           }
@@ -252,19 +291,27 @@ function parseRelationPath(relationData: Record<string, unknown>, path: string, 
 /**
  * Parse a single relation into PopulateOptions
  */
-function parseRelation(relation: string, params: RelationParams, currentDepth: number, maxDepth: number, path: string[] = []): { success: false; error: import("forja-types/api/parser").ParserError } | { success: true; data: PopulateOptions | '*' } {
+function parseRelation(
+  relation: string,
+  params: RelationParams,
+  currentDepth: number,
+  maxDepth: number,
+  path: string[] = [],
+): PopulateOptions | "*" {
   // Validate relation name
-  if (!isValidFieldName(relation)) {
-    return populateError.invalidRelation(relation, [...path, relation], {
-      relationPath: [...path, relation].join('.'),
+  const validation = validateFieldName(relation);
+  if (!validation.valid) {
+    populateError.invalidRelation(relation, [...path, relation], {
+      relationPath: [...path, relation].join("."),
+      fieldValidationReason: validation.reason,
     });
   }
 
   // Check depth
   if (currentDepth > maxDepth) {
-    return populateError.maxDepthExceeded(currentDepth, maxDepth, [...path, relation], {
+    populateError.maxDepthExceeded(currentDepth, maxDepth, [...path, relation], {
       relation,
-      relationPath: [...path, relation].join('.'),
+      relationPath: [...path, relation].join("."),
       currentDepth,
       nestedRelations: [...path, relation],
     });
@@ -272,49 +319,45 @@ function parseRelation(relation: string, params: RelationParams, currentDepth: n
 
   // Handle wildcard
   if (params.isWildcard) {
-    return { success: true, data: '*' };
+    return "*";
   }
 
   const options: Record<string, unknown> = {};
 
   // Add fields if specified
   if (params.fields !== undefined) {
-    if (typeof params.fields === 'string' && params.fields === '*') {
-      options['select'] = '*';
+    if (typeof params.fields === "string" && params.fields === "*") {
+      options["select"] = "*";
     } else if (Array.isArray(params.fields) && params.fields.length > 0) {
-      options['select'] = params.fields;
+      options["select"] = params.fields;
     }
   }
 
   // Add nested populates
   if (params.populate !== undefined) {
-    const nestedPopulate: Record<string, PopulateOptions | '*'> = {};
+    const nestedPopulate: Record<string, PopulateOptions | "*"> = {};
 
-    for (const [nestedRelation, nestedParams] of Object.entries(params.populate)) {
-      const parseResult = parseRelation(
+    for (const [nestedRelation, nestedParams] of Object.entries(
+      params.populate,
+    )) {
+      nestedPopulate[nestedRelation] = parseRelation(
         nestedRelation,
         nestedParams,
         currentDepth + 1,
         maxDepth,
-        [...path, relation]
+        [...path, relation],
       );
-
-      if (!parseResult.success) {
-        return parseResult;
-      }
-
-      nestedPopulate[nestedRelation] = parseResult.data;
     }
 
     if (Object.keys(nestedPopulate).length > 0) {
-      options['populate'] = nestedPopulate;
+      options["populate"] = nestedPopulate;
     }
   }
 
   // If no options specified, return wildcard
   if (Object.keys(options).length === 0) {
-    return { success: true, data: '*' };
+    return "*";
   }
 
-  return { success: true, data: options };
+  return options as PopulateOptions;
 }

@@ -16,8 +16,9 @@ import type {
   ParsedPagination,
   ParsedSort,
   ParsedQuery,
+  ParserError,
 } from "forja-types/api/parser";
-import { isValidFieldName } from "forja-types/core/constants";
+import { validateFieldName } from "forja-types/core/constants";
 import { parseFields } from "./fields-parser";
 import { parseWhere } from "./where-parser";
 import { parsePopulate } from "./populate-parser";
@@ -45,99 +46,91 @@ export function parseQuery(
   params: RawQueryParams,
   options?: Partial<ParserOptions>,
 ): QueryParserResult {
-  const opts: Required<ParserOptions> = {
-    ...DEFAULT_OPTIONS,
-    ...options,
-  };
+  try {
+    const opts: Required<ParserOptions> = {
+      ...DEFAULT_OPTIONS,
+      ...options,
+    };
 
-  // Build result as mutable object
-  const result: {
-    select?: ParsedQuery["select"];
-    where?: ParsedQuery["where"];
-    populate?: ParsedQuery["populate"];
-    orderBy?: ParsedQuery["orderBy"];
-    limit?: number;
-    offset?: number;
-    page?: number;
-    pageSize?: number;
-  } = {};
+    // Build result as mutable object
+    const result: {
+      select?: ParsedQuery["select"];
+      where?: ParsedQuery["where"];
+      populate?: ParsedQuery["populate"];
+      orderBy?: ParsedQuery["orderBy"];
+      limit?: number;
+      offset?: number;
+      page?: number;
+      pageSize?: number;
+    } = {};
 
-  // Parse fields
-  const fieldsResult = parseFields(params);
-  if (!fieldsResult.success) {
-    return fieldsResult;
-  }
-  if (fieldsResult.data !== undefined && fieldsResult.data !== "*") {
-    result.select = fieldsResult.data;
-  }
-
-  // Parse where
-  const whereResult = parseWhere(params);
-  if (!whereResult.success) {
-    return whereResult;
-  }
-  if (whereResult.data !== undefined) {
-    result.where = whereResult.data;
-  }
-
-  // Parse populate
-  const populateResult = parsePopulate(params, opts.maxPopulateDepth);
-  if (!populateResult.success) {
-    return populateResult;
-  }
-  if (populateResult.data !== undefined) {
-    result.populate = populateResult.data;
-  }
-
-  // Parse pagination
-  const paginationResult = parsePagination(params, opts);
-  if (!paginationResult.success) {
-    return paginationResult;
-  }
-  if (paginationResult.data !== undefined) {
-    const { limit, offset } = paginationResult.data;
-    if (limit !== undefined) {
-      result.limit = limit;
-    }
-    if (offset !== undefined) {
-      result.offset = offset;
+    // Parse fields - throws on error
+    const fields = parseFields(params);
+    if (fields !== undefined && fields !== "*") {
+      result.select = fields;
     }
 
-    // Calculate page/pageSize if possible
-    if (params["page"] !== undefined || params["pageSize"] !== undefined) {
-      const page = parseInt(String(params["page"] ?? "1"), 10);
-      const pageSize = parseInt(
-        String(params["pageSize"] ?? opts.defaultPageSize),
-        10,
-      );
-      result.page = page;
-      result.pageSize = pageSize;
+    // Parse where - throws on error
+    const where = parseWhere(params);
+    if (where !== undefined) {
+      result.where = where;
     }
-  }
 
-  // Parse sorting
-  const sortResult = parseSort(params);
-  if (!sortResult.success) {
-    return sortResult;
-  }
-  if (sortResult.data !== undefined) {
-    const sortData = sortResult.data;
-    if (Array.isArray(sortData) && sortData.length > 0) {
-      result.orderBy = sortData;
+    // Parse populate - throws on error
+    const populate = parsePopulate(params, opts.maxPopulateDepth);
+    if (populate !== undefined) {
+      result.populate = populate;
     }
-  }
 
-  // Return result as ParsedQuery - all fields are optional and properly typed
-  return { success: true, data: result as ParsedQuery };
+    // Parse pagination - throws on error
+    const pagination = parsePagination(params, opts);
+    if (pagination !== undefined) {
+      const { limit, offset } = pagination;
+      if (limit !== undefined) {
+        result.limit = limit;
+      }
+      if (offset !== undefined) {
+        result.offset = offset;
+      }
+
+      // Calculate page/pageSize if possible
+      if (params["page"] !== undefined || params["pageSize"] !== undefined) {
+        const page = parseInt(String(params["page"] ?? "1"), 10);
+        const pageSize = parseInt(
+          String(params["pageSize"] ?? opts.defaultPageSize),
+          10,
+        );
+        result.page = page;
+        result.pageSize = pageSize;
+      }
+    }
+
+    // Parse sorting - throws on error
+    const sort = parseSort(params);
+    if (sort !== undefined && Array.isArray(sort) && sort.length > 0) {
+      result.orderBy = sort;
+    }
+
+    // Return result as ParsedQuery - all fields are optional and properly typed
+    return { success: true, data: result as ParsedQuery };
+  } catch (error) {
+    // Catch ParserError thrown by helper functions
+    if (error && typeof error === "object" && "code" in error) {
+      return { success: false, error: error as ParserError };
+    }
+    // Re-throw unexpected errors
+    throw error;
+  }
 }
 
 /**
  * Parse pagination parameters
+ * Throws ParserError on validation failure
  */
 function parsePagination(
   params: RawQueryParams,
   options: Required<ParserOptions>,
-): QueryParserResult | { success: true; data: ParsedPagination | undefined } {
+): ParsedPagination | undefined {
   const { page, pageSize, limit, offset } = params;
 
   // If no pagination params, use defaults
@@ -148,11 +141,8 @@ function parsePagination(
     offset === undefined
   ) {
     return {
-      success: true,
-      data: {
-        limit: options.defaultPageSize,
-        offset: 0,
-      },
+      limit: options.defaultPageSize,
+      offset: 0,
     };
   }
 
@@ -164,26 +154,23 @@ function parsePagination(
 
     // Validate
     if (isNaN(parsedLimit) || parsedLimit < 0) {
-      return paginationError.invalidLimit(limit ?? "", ["limit"]);
+      paginationError.invalidLimit(limit ?? "", ["limit"]);
     }
 
     if (isNaN(parsedOffset) || parsedOffset < 0) {
-      return paginationError.invalidOffset(offset ?? "", ["offset"]);
+      paginationError.invalidOffset(offset ?? "", ["offset"]);
     }
 
     // Check max page size
     if (parsedLimit > options.maxPageSize) {
-      return paginationError.maxLimitExceeded(parsedLimit, options.maxPageSize, [
+      paginationError.maxLimitExceeded(parsedLimit, options.maxPageSize, [
         "limit",
       ]);
     }
 
     return {
-      success: true,
-      data: {
-        limit: parsedLimit,
-        offset: parsedOffset,
-      },
+      limit: parsedLimit,
+      offset: parsedOffset,
     };
   }
 
@@ -199,26 +186,22 @@ function parsePagination(
 
   // Validate
   if (isNaN(parsedPage) || parsedPage < 1) {
-    return paginationError.invalidPage(page ?? "", ["page"]);
+    paginationError.invalidPage(page ?? "", ["page"]);
   }
 
   if (parsedPage > MAX_PAGE_NUMBER) {
-    return paginationError.maxPageNumberExceeded(parsedPage, MAX_PAGE_NUMBER, [
-      "page",
-    ]);
+    paginationError.maxPageNumberExceeded(parsedPage, MAX_PAGE_NUMBER, ["page"]);
   }
 
   if (isNaN(parsedPageSize) || parsedPageSize < 1) {
-    return paginationError.invalidPageSize(pageSize ?? "", ["pageSize"]);
+    paginationError.invalidPageSize(pageSize ?? "", ["pageSize"]);
   }
 
   // Check max page size
   if (parsedPageSize > options.maxPageSize) {
-    return paginationError.maxPageSizeExceeded(
-      parsedPageSize,
-      options.maxPageSize,
-      ["pageSize"],
-    );
+    paginationError.maxPageSizeExceeded(parsedPageSize, options.maxPageSize, [
+      "pageSize",
+    ]);
   }
 
   // Convert page/pageSize to limit/offset
@@ -226,33 +209,30 @@ function parsePagination(
   const resultOffset = (parsedPage - 1) * parsedPageSize;
 
   return {
-    success: true,
-    data: {
-      limit: resultLimit,
-      offset: resultOffset,
-    },
+    limit: resultLimit,
+    offset: resultOffset,
   };
 }
 
 /**
  * Parse sort parameters
+ * Throws ParserError on validation failure
+ *
  * Examples:
  *   ?sort=name              -> orderBy: [{ field: 'name', direction: 'asc' }]
  *   ?sort=-createdAt        -> orderBy: [{ field: 'createdAt', direction: 'desc' }]
  *   ?sort=name,-createdAt   -> multiple sorts
  */
-function parseSort(
-  params: RawQueryParams,
-): QueryParserResult | { success: true; data: ParsedSort | undefined } {
+function parseSort(params: RawQueryParams): ParsedSort | undefined {
   const sortParam = params["sort"];
 
   if (sortParam === undefined) {
-    return { success: true, data: undefined };
+    return undefined;
   }
 
   // Handle empty or whitespace-only sort
   if (typeof sortParam === "string" && sortParam.trim() === "") {
-    return sortError.emptyValue([]);
+    sortError.emptyValue([]);
   }
 
   const sorts: OrderByItem[] = [];
@@ -272,13 +252,20 @@ function parseSort(
     const isDescending = sortStr.startsWith("-");
     const field = isDescending ? sortStr.slice(1) : sortStr;
 
-    if (!field || !isValidFieldName(field)) {
-      return sortError.invalidFieldName(sortStr, [sortStr]);
+    if (!field) {
+      sortError.invalidFieldName(sortStr, [sortStr]);
+    }
+
+    const validation = validateFieldName(field);
+    if (!validation.valid) {
+      sortError.invalidFieldName(sortStr, [sortStr], {
+        fieldValidationReason: validation.reason,
+      });
     }
 
     const direction: OrderDirection = isDescending ? "desc" : "asc";
     sorts.push({ field, direction });
   }
 
-  return { success: true, data: sorts.length > 0 ? sorts : undefined };
+  return sorts.length > 0 ? sorts : undefined;
 }

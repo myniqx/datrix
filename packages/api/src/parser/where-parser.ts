@@ -13,7 +13,7 @@ import type { RawQueryParams } from "forja-types/api/parser";
 import { ParserError } from "forja-types/api/parser";
 import type { Result } from "forja-types/utils";
 import {
-  isValidFieldName,
+  validateFieldName,
   isValidWhereOperator,
   isLogicalOperator,
   getOperatorValueType,
@@ -21,30 +21,14 @@ import {
 import { whereError } from "./errors";
 
 /**
- * Type guard for parser error results
- */
-function isParserErrorResult(
-  value: unknown,
-): value is Result<never, ParserError> {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "success" in value &&
-    value.success === false &&
-    "error" in value &&
-    value.error instanceof ParserError
-  );
-}
-
-/**
  * Parse where parameter
+ * Throws ParserError on validation failure
  *
  * @param params - Raw query parameters
- * @returns Result with WhereClause or ParserError
+ * @returns WhereClause or undefined
+ * @throws {ParserError} When validation fails
  */
-export function parseWhere(
-  params: RawQueryParams,
-): Result<WhereClause | undefined, ParserError> {
+export function parseWhere(params: RawQueryParams): WhereClause | undefined {
   const whereClause: Record<string, unknown> = {};
 
   // Find all where[...] parameters
@@ -69,35 +53,38 @@ export function parseWhere(
       if (part.startsWith("$")) {
         // Validate operator
         if (!isValidWhereOperator(part)) {
-          return whereError.invalidOperator(part, parts.slice(0, i), {
+          whereError.invalidOperator(part, parts.slice(0, i), {
             operatorPath: key,
+          });
+        }
+
+        // Operators cannot be at the start (i=0) unless they are logical operators
+        if (i === 0 && !isLogicalOperator(part)) {
+          whereError.invalidFieldName(part, [], {
+            fieldValidationReason: 'INVALID_FORMAT',
           });
         }
       } else if (/^\d+$/.test(part)) {
         // It's a numeric index - validate context
         // Index can only appear after logical operators ($or, $and)
         if (i === 0) {
-          return whereError.arrayIndexAtStart(part, []);
+          whereError.arrayIndexAtStart(part, []);
         }
 
         const previousPart = parts[i - 1]!;
-        // Allow array index after array operators ($or, $and, $in, $nin)
-        // NOTE: $not is excluded - it takes a single object, not an array
         if (!["$or", "$and", "$in", "$nin"].includes(previousPart)) {
-          return whereError.invalidArrayIndex(
-            part,
-            previousPart,
-            parts.slice(0, i),
-            {
-              previousOperator: previousPart,
-              operatorPath: key,
-            },
-          );
+          whereError.invalidArrayIndex(part, previousPart, parts.slice(0, i), {
+            previousOperator: previousPart,
+            operatorPath: key,
+          });
         }
       } else {
         // It's a field name - validate it
-        if (!isValidFieldName(part)) {
-          return whereError.invalidFieldName(part, parts.slice(0, i));
+        const validation = validateFieldName(part);
+        if (!validation.valid) {
+          whereError.invalidFieldName(part, parts.slice(0, i), {
+            fieldValidationReason: validation.reason,
+          });
         }
       }
     }
@@ -130,18 +117,10 @@ export function parseWhere(
         // Parse the value with operator context
         const parsedValue = parseValue(value, operatorContext);
 
-        // Check if parseValue returned an error
-        if (isParserErrorResult(parsedValue)) {
-          return parsedValue;
-        }
-
         // Validate operator value type only when operator itself is the last part
         // (not for array indices like $in[0], $nin[1])
         if (part.startsWith("$") && !isArrayIndex) {
-          const validation = validateOperatorValue(part, parsedValue, pathParts);
-          if (!validation.success) {
-            return validation;
-          }
+          validateOperatorValue(part, parsedValue, pathParts);
         }
 
         current[part] = parsedValue;
@@ -156,32 +135,25 @@ export function parseWhere(
 
   // Transform into Final WhereClause
   const transformResult = transformToFinalWhere(whereClause);
-  if (!transformResult.success) {
-    return transformResult;
-  }
-
-  const finalClause = transformResult.data as WhereClause;
+  const finalClause = transformResult as WhereClause;
 
   // If no where parameters found, return undefined
   if (Object.keys(finalClause).length === 0) {
-    return { success: true, data: undefined };
+    return undefined;
   }
 
   // Validate nesting depth
-  const depthValidation = validateNestingDepth(finalClause);
-  if (!depthValidation.success) {
-    return depthValidation;
-  }
+  validateNestingDepth(finalClause);
 
-  return { success: true, data: finalClause };
+  return finalClause;
 }
 
 /**
  * Post-process the object to handle logical operators which should be arrays
  */
-function transformToFinalWhere(obj: unknown): Result<unknown, ParserError> {
+function transformToFinalWhere(obj: unknown): unknown {
   if (obj === null || typeof obj !== "object" || Array.isArray(obj)) {
-    return { success: true, data: obj };
+    return obj;
   }
 
   const typedObj = obj as Record<string, unknown>;
@@ -203,7 +175,7 @@ function transformToFinalWhere(obj: unknown): Result<unknown, ParserError> {
         for (const k of keys) {
           const num = Number(k);
           if (isNaN(num) || !Number.isInteger(num) || num < 0) {
-            return whereError.invalidArrayIndexFormat(k, key, [key]);
+            whereError.invalidArrayIndexFormat(k, key, [key]);
           }
           numericKeys.push(num);
         }
@@ -212,14 +184,12 @@ function transformToFinalWhere(obj: unknown): Result<unknown, ParserError> {
         const sortedKeys = numericKeys.sort((a, b) => a - b);
 
         if (sortedKeys.length > 0 && sortedKeys[0] !== 0) {
-          return whereError.arrayIndexNotStartingFromZero(sortedKeys[0]!, key, [
-            key,
-          ]);
+          whereError.arrayIndexNotStartingFromZero(sortedKeys[0]!, key, [key]);
         }
 
         for (let i = 0; i < sortedKeys.length; i++) {
           if (sortedKeys[i] !== i) {
-            return whereError.arrayIndexNotConsecutive(i, key, [key]);
+            whereError.arrayIndexNotConsecutive(i, key, [key], sortedKeys);
           }
         }
 
@@ -231,30 +201,21 @@ function transformToFinalWhere(obj: unknown): Result<unknown, ParserError> {
           const transformed: unknown[] = [];
           for (const idx of sortedKeys) {
             const transformResult = transformToFinalWhere(valueObj[String(idx)]);
-            if (!transformResult.success) {
-              return transformResult;
-            }
-            transformed.push(transformResult.data);
+            transformed.push(transformResult);
           }
           result[key] = transformed;
         }
       } else {
         const transformResult = transformToFinalWhere(value);
-        if (!transformResult.success) {
-          return transformResult;
-        }
-        result[key] = transformResult.data;
+        result[key] = transformResult;
       }
     } else {
       const transformResult = transformToFinalWhere(value);
-      if (!transformResult.success) {
-        return transformResult;
-      }
-      result[key] = transformResult.data;
+      result[key] = transformResult;
     }
   }
 
-  return { success: true, data: result };
+  return result;
 }
 
 /**
@@ -313,7 +274,7 @@ function parseSingleValue(
 
   // Check value length first - reject instead of truncate
   if (value.length > MAX_WHERE_VALUE_LENGTH) {
-    return whereError.maxValueLength(value.length, []);
+    whereError.maxValueLength(value.length, []);
   }
 
   // If operator expects string, return as-is (no type coercion)
@@ -356,29 +317,25 @@ function validateOperatorValue(
   operator: string,
   value: unknown,
   path: string[],
-): Result<void, ParserError> {
+): void {
   const expectedType = getOperatorValueType(operator);
 
   if (!expectedType) {
     // Unknown operator (shouldn't happen, already validated)
-    return { success: true, data: undefined };
+    return;
   }
 
   // Check type-specific requirements
   if (expectedType === "array") {
     if (!Array.isArray(value)) {
-      return whereError.invalidOperatorValue(operator, typeof value, path);
+      whereError.invalidOperatorValue(operator, typeof value, path, value);
     }
 
     // Check if array is empty
-    if (value.length === 0) {
-      return whereError.emptyArrayOperator(operator, path);
+    if ((value as []).length === 0) {
+      whereError.emptyArrayOperator(operator, path);
     }
   }
-
-  // 'any' and other types are acceptable for now
-  // Schema validation in QueryBuilder will check actual field types
-  return { success: true, data: undefined };
 }
 
 /**
@@ -388,11 +345,11 @@ function validateNestingDepth(
   clause: WhereClause,
   depth: number = 0,
   path: string[] = [],
-): Result<void, ParserError> {
+): void {
   const MAX_LOGICAL_NESTING_DEPTH = 10;
 
   if (depth > MAX_LOGICAL_NESTING_DEPTH) {
-    return whereError.maxDepthExceeded(depth, path);
+    whereError.maxDepthExceeded(depth, path);
   }
 
   // Check nested logical operators
@@ -400,19 +357,13 @@ function validateNestingDepth(
     if (isLogicalOperator(key) && Array.isArray(value)) {
       // Validate that logical operators have array of conditions
       if (value.length === 0) {
-        return whereError.emptyLogicalOperator(key, [...path, key]);
+        whereError.emptyLogicalOperator(key, [...path, key]);
       }
 
       // Recursively check each condition
       for (const condition of value) {
         if (typeof condition === "object" && condition !== null) {
-          const result = validateNestingDepth(condition as WhereClause, depth + 1, [
-            ...path,
-            key,
-          ]);
-          if (!result.success) {
-            return result;
-          }
+          validateNestingDepth(condition as WhereClause, depth + 1, [...path, key]);
         }
       }
     } else if (
@@ -421,15 +372,7 @@ function validateNestingDepth(
       !Array.isArray(value)
     ) {
       // Recursively check nested objects
-      const result = validateNestingDepth(value as WhereClause, depth, [
-        ...path,
-        key,
-      ]);
-      if (!result.success) {
-        return result;
-      }
+      validateNestingDepth(value as WhereClause, depth, [...path, key]);
     }
   }
-
-  return { success: true, data: undefined };
 }
