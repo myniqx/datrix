@@ -6,7 +6,7 @@
  */
 
 import { Result } from "../utils";
-import { ForjaEntry, SchemaDefinition } from "./schema";
+import { ForjaEntry, ForjaRecord, SchemaDefinition, Relation } from "./schema";
 
 /**
  * Primitive values that can be used in queries
@@ -15,47 +15,149 @@ import { ForjaEntry, SchemaDefinition } from "./schema";
 export type QueryPrimitive = string | number | boolean | null | Date;
 
 /**
+ * Scalar value types (for type-safe WHERE conditions)
+ */
+export type ScalarValue = string | number | boolean | Date;
+
+/**
  * Query operation types
  */
 export type QueryType = "select" | "insert" | "update" | "delete" | "count";
 
 /**
- * Comparison operators
+ * Type-safe comparison operators
+ *
+ * Operators are type-aware based on the field type:
+ * - String fields: All string operators ($like, $regex, etc.)
+ * - Number/Date fields: Comparison operators ($gt, $gte, etc.)
+ * - All fields: Equality and existence operators
+ *
+ * @template T - The field value type
+ *
+ * @example
+ * ```ts
+ * // String field
+ * const nameOp: ComparisonOperators<string> = { $like: 'John%' };  // ✅
+ * const nameOp2: ComparisonOperators<string> = { $gt: 5 };         // ❌ Type error
+ *
+ * // Number field
+ * const ageOp: ComparisonOperators<number> = { $gte: 18 };         // ✅
+ * const ageOp2: ComparisonOperators<number> = { $like: 'x' };      // ❌ Type error
+ * ```
  */
-export interface ComparisonOperators {
-  readonly $eq?: QueryPrimitive;
-  readonly $ne?: QueryPrimitive;
-  readonly $gt?: number | Date;
-  readonly $gte?: number | Date;
-  readonly $lt?: number | Date;
-  readonly $lte?: number | Date;
-  readonly $in?: readonly QueryPrimitive[];
-  readonly $nin?: readonly QueryPrimitive[];
-  readonly $like?: string;
-  readonly $ilike?: string; // Case-insensitive LIKE
-  readonly $regex?: RegExp;
-  readonly $exists?: boolean; // Field exists
-  readonly $null?: boolean; // Is null
-}
+export type ComparisonOperators<T = QueryPrimitive> = {
+  readonly $eq?: T;
+  readonly $ne?: T;
+  readonly $gt?: T extends number | Date ? T : never;
+  readonly $gte?: T extends number | Date ? T : never;
+  readonly $lt?: T extends number | Date ? T : never;
+  readonly $lte?: T extends number | Date ? T : never;
+  readonly $in?: readonly T[];
+  readonly $nin?: readonly T[];
+  readonly $like?: T extends string ? string : never;
+  readonly $ilike?: T extends string ? string : never;
+  readonly $regex?: T extends string ? RegExp : never;
+  readonly $exists?: boolean;
+  readonly $null?: boolean;
+};
 
 /**
- * Logical operators
+ * Type-safe logical operators
+ *
+ * Logical operators ($and, $or, $not) are now type-aware and preserve
+ * the type information through nested conditions.
+ *
+ * @template T - The entity type (extends ForjaEntry)
+ *
+ * @example
+ * ```ts
+ * const condition: LogicalOperators<Post> = {
+ *   $and: [
+ *     { title: { $like: 'Hello%' } },
+ *     { author: { name: { $eq: 'John' } } }
+ *   ]
+ * };
+ * ```
  */
-export interface LogicalOperators {
-  readonly $and?: readonly WhereClause[];
-  readonly $or?: readonly WhereClause[];
-  readonly $not?: WhereClause;
-}
+export type LogicalOperators<T extends ForjaEntry = ForjaEntry> = {
+  readonly $and?: readonly WhereClause<T>[];
+  readonly $or?: readonly WhereClause<T>[];
+  readonly $not?: WhereClause<T>;
+};
 
 /**
- * WHERE clause type
+ * Type-safe WHERE clause with nested relation support
+ *
+ * **Design Philosophy:**
+ * - Default type: `ForjaEntry & Record<string, unknown>` (flexible but safe)
+ * - Custom type: Full type safety with autocomplete
+ * - Relation fields: Automatically supports nested WHERE conditions
+ * - Foreign keys: Not exposed (internal implementation detail)
+ *
+ * **Type Inference:**
+ * - Scalar fields → Direct value or ComparisonOperators
+ * - Relation fields (branded as Relation<T>) → Nested WhereClause<T>
+ * - Unknown fields → Fallback to `unknown` for flexibility
+ *
+ * @template T - The entity type (default: ForjaRecord)
+ *
+ * @example
+ * ```ts
+ * // 1. Without type (flexible, works with any field)
+ * const where: WhereClause = {
+ *   id: 5,
+ *   anyField: 'value'
+ * };
+ *
+ * // 2. With type (type-safe, autocomplete enabled)
+ * type Post = {
+ *   id: number;
+ *   title: string;
+ *   price: number;
+ *   author: Relation<User>;
+ * };
+ *
+ * const where: WhereClause<Post> = {
+ *   title: { $like: 'Hello%' },        // ✅ String operators
+ *   price: { $gte: 10 },               // ✅ Number operators
+ *   author: {                          // ✅ Nested relation WHERE
+ *     name: { $eq: 'John' },
+ *     verified: { $eq: true }
+ *   }
+ * };
+ *
+ * // 3. Complex nested queries
+ * const complexWhere: WhereClause<Post> = {
+ *   $and: [
+ *     { price: { $gt: 10 } },
+ *     {
+ *       author: {
+ *         company: {                   // ✅ Deep nesting
+ *           country: {
+ *             name: { $eq: 'Turkey' }
+ *           }
+ *         }
+ *       }
+ *     }
+ *   ]
+ * };
+ *
+ * // ❌ Type errors (when using typed version)
+ * const invalid: WhereClause<Post> = {
+ *   title: { $gt: 5 },                 // ❌ $gt not valid for strings
+ *   price: { $like: 'x' },             // ❌ $like not valid for numbers
+ *   author: 5                          // ❌ Must use nested WHERE, not direct ID
+ * };
+ * ```
  */
-export type WhereClause = {
-  readonly [field: string]:
-  | QueryPrimitive
-  | ComparisonOperators
-  | readonly WhereClause[];
-} & Partial<LogicalOperators>;
+export type WhereClause<T extends ForjaEntry = ForjaRecord> = {
+  [K in keyof T]?: // Relation fields → Nested WhereClause
+  T[K] extends Relation<infer R> ? WhereClause<R>
+  : // Scalar fields → Value or operators
+  T[K] extends ScalarValue ? T[K] | ComparisonOperators<T[K]>
+  : // Unknown/complex types → Flexible fallback
+  unknown;
+} & LogicalOperators<T>;
 
 /**
  * SELECT clause (fields to select)
@@ -165,7 +267,7 @@ export interface QueryObject<T extends ForjaEntry = ForjaEntry> {
   readonly type: QueryType;
   readonly table: string;
   readonly select?: SelectClause | undefined;
-  readonly where?: WhereClause | undefined;
+  readonly where?: WhereClause<T> | undefined;
   readonly populate?: PopulateClause | undefined;
   readonly orderBy?: OrderBy | undefined;
   readonly limit?: number | undefined;
@@ -180,8 +282,24 @@ export interface QueryObject<T extends ForjaEntry = ForjaEntry> {
 
 /**
  * Query builder interface
+ *
+ * Generic type TSchema allows for type-safe query building when schema type is known.
+ * If TSchema extends ForjaEntry, WHERE conditions will be fully type-checked.
+ *
+ * @template TSchema - Entity type for type-safe queries (default: Record<string, unknown>)
+ *
+ * @example
+ * ```ts
+ * // Type-safe builder
+ * const builder: QueryBuilder<Post> = createQueryBuilder('posts');
+ * builder.where({ title: { $like: 'Hello%' } });  // ✅ Type-checked
+ *
+ * // Generic builder (backward compatible)
+ * const builder2: QueryBuilder = createQueryBuilder('users');
+ * builder2.where({ anyField: 'value' });  // ✅ Works but no type checking
+ * ```
  */
-export interface QueryBuilder<TSchema = Record<string, unknown>> {
+export interface QueryBuilder<TSchema extends ForjaEntry = ForjaRecord> {
   /**
    * Set query type
    */
@@ -198,19 +316,19 @@ export interface QueryBuilder<TSchema = Record<string, unknown>> {
   select(fields: SelectClause): QueryBuilder<TSchema>;
 
   /**
-   * Add WHERE conditions
+   * Add WHERE conditions (type-safe when TSchema is provided)
    */
-  where(conditions: WhereClause): QueryBuilder<TSchema>;
+  where(conditions: WhereClause<TSchema>): QueryBuilder<TSchema>;
 
   /**
-   * Add AND condition
+   * Add AND condition (type-safe when TSchema is provided)
    */
-  andWhere(conditions: WhereClause): QueryBuilder<TSchema>;
+  andWhere(conditions: WhereClause<TSchema>): QueryBuilder<TSchema>;
 
   /**
-   * Add OR condition
+   * Add OR condition (type-safe when TSchema is provided)
    */
-  orWhere(conditions: WhereClause): QueryBuilder<TSchema>;
+  orWhere(conditions: WhereClause<TSchema>): QueryBuilder<TSchema>;
 
   /**
    * Add populate (relations)
@@ -253,9 +371,9 @@ export interface QueryBuilder<TSchema = Record<string, unknown>> {
   groupBy(fields: readonly string[]): QueryBuilder<TSchema>;
 
   /**
-   * Set having clause
+   * Set having clause (type-safe when TSchema is provided)
    */
-  having(conditions: WhereClause): QueryBuilder<TSchema>;
+  having(conditions: WhereClause<TSchema>): QueryBuilder<TSchema>;
 
   /**
    * Build final query object
@@ -279,32 +397,36 @@ export type QueryBuilderFactory = <TSchema = Record<string, unknown>>(
 
 /**
  * WHERE builder for complex conditions
+ *
+ * Generic type support for type-safe condition building.
+ *
+ * @template T - Entity type for type-safe queries
  */
-export interface WhereBuilder {
+export interface WhereBuilder<T extends ForjaEntry = ForjaRecord> {
   /**
    * Build WHERE clause
    */
-  build(conditions: WhereClause): WhereClause;
+  build(conditions: WhereClause<T>): WhereClause<T>;
 
   /**
    * Combine conditions with AND
    */
-  and(conditions: readonly WhereClause[]): WhereClause;
+  and(conditions: readonly WhereClause<T>[]): WhereClause<T>;
 
   /**
    * Combine conditions with OR
    */
-  or(conditions: readonly WhereClause[]): WhereClause;
+  or(conditions: readonly WhereClause<T>[]): WhereClause<T>;
 
   /**
    * Negate condition
    */
-  not(condition: WhereClause): WhereClause;
+  not(condition: WhereClause<T>): WhereClause<T>;
 
   /**
    * Validate WHERE clause
    */
-  validate(where: WhereClause): Result<WhereClause, QueryBuilderError>;
+  validate(where: WhereClause<T>): Result<WhereClause<T>, QueryBuilderError>;
 }
 
 /**
@@ -403,60 +525,6 @@ export class QueryBuilderError extends Error {
     this.details = options?.details;
   }
 }
-
-/**
- * Query optimization hints
- */
-export interface QueryHints {
-  readonly useIndex?: string; // Index name to use
-  readonly forceIndex?: string; // Force specific index
-  readonly ignoreIndex?: string; // Ignore specific index
-  readonly maxExecutionTime?: number; // Max query execution time (ms)
-}
-
-/**
- * Query with hints
- */
-export interface QueryWithHints extends QueryObject {
-  readonly hints?: QueryHints;
-}
-
-/**
- * Query builder context
- */
-export interface QueryBuilderContext {
-  readonly schema?: SchemaDefinition;
-  readonly table: string;
-  readonly strict?: boolean; // Validate against schema
-  readonly maxDepth?: number; // Max populate depth
-}
-
-/**
- * Type-safe query builder (infers types from schema)
- */
-export type TypedQueryBuilder<T> = {
-  select<K extends keyof T>(
-    fields: readonly K[] | "*",
-  ): TypedQueryBuilder<Pick<T, K>>;
-  where(conditions: Partial<WhereConditions<T>>): TypedQueryBuilder<T>;
-  orderBy<K extends keyof T>(
-    field: K,
-    direction?: OrderDirection,
-  ): TypedQueryBuilder<T>;
-  limit(limit: number): TypedQueryBuilder<T>;
-  offset(offset: number): TypedQueryBuilder<T>;
-  build(): QueryObject;
-};
-
-/**
- * Type-safe WHERE conditions
- */
-export type WhereConditions<T> = {
-  readonly [K in keyof T]?:
-  | T[K]
-  | (T[K] extends number | Date ? ComparisonOperators : never)
-  | (T[K] extends string ? { readonly $like?: string } : never);
-};
 
 /**
  * Helper functions for type-safe metadata access

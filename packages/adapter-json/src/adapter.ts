@@ -365,7 +365,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
         tableData.data = [];
       }
 
-      const runner = new JsonQueryRunner(tableData);
+      const runner = new JsonQueryRunner(tableData, this);
 
       let rows: Record<string, unknown>[] = [];
       const metadata: {
@@ -380,10 +380,10 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
         case "count": {
           // Step 1: Filter and sort (WITHOUT projection - keep all fields for populate)
           if (query.type === "select" && query.populate) {
-            rows = runner.filterAndSort(query);
+            rows = await runner.filterAndSort(query);
           } else {
             // No populate - use normal flow with projection
-            rows = runner.run(query);
+            rows = await runner.run(query);
           }
 
           // Step 2: Populate (all fields available)
@@ -452,7 +452,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
             offset: undefined,
             orderBy: undefined,
           } as QueryObject;
-          const rowsToUpdate = runner.run(updateQuery);
+          const rowsToUpdate = await runner.run(updateQuery);
 
           // Check unique constraints for each row being updated
           for (const row of rowsToUpdate) {
@@ -482,7 +482,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
             offset: undefined,
             orderBy: undefined,
           } as QueryObject;
-          const rowsToDelete = runner.run(deleteQuery);
+          const rowsToDelete = await runner.run(deleteQuery);
           const idsToDelete = new Set(rowsToDelete.map((r) => r["id"]));
 
           const originalLength = tableData.data.length;

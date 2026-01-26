@@ -40,6 +40,8 @@ export const RESERVED_FIELDS = ["id", "createdAt", "updatedAt"] as const;
  */
 export type ReservedFieldName = (typeof RESERVED_FIELDS)[number];
 
+export type ForjaID = number | string;
+
 /**
  * Base type for all database entries
  *
@@ -49,10 +51,33 @@ export type ReservedFieldName = (typeof RESERVED_FIELDS)[number];
  * - updatedAt: Timestamp when record was last updated
  */
 export interface ForjaEntry {
-  readonly id: number;
+  readonly id: ForjaID;
   readonly createdAt: Date;
   readonly updatedAt: Date;
 }
+
+/**
+ * Flexible record type for type-safe queries
+ *
+ * Combines ForjaEntry (reserved fields) with Record<string, unknown> (any additional fields).
+ * Used as default generic constraint throughout the type system.
+ *
+ * This allows:
+ * - Type safety for reserved fields (id, createdAt, updatedAt)
+ * - Flexibility for custom fields
+ * - Progressive type enhancement (start loose, add types later)
+ *
+ * @example
+ * ```ts
+ * // Without specific type - uses ForjaRecord
+ * const where: WhereClause = { id: 5, anyField: 'value' };
+ *
+ * // With specific type - full type safety
+ * type Post = { id: number; title: string; ... };
+ * const where: WhereClause<Post> = { title: 'Hello' };
+ * ```
+ */
+export type ForjaRecord = ForjaEntry & Record<string, unknown>;
 
 /**
  * Primitive field types
@@ -258,8 +283,8 @@ export type RelationInput<T = Record<string, unknown>> = {
 
   // Update existing related records
   update?:
-    | { where: { id: string | number }; data: Partial<T> }
-    | { where: { id: string | number }; data: Partial<T> }[];
+  | { where: { id: string | number }; data: Partial<T> }
+  | { where: { id: string | number }; data: Partial<T> }[];
 
   // Delete related records (flexible format)
   delete?: RelationIdRefs;
@@ -451,6 +476,59 @@ export interface SchemaDefinition<
 }
 
 /**
+ * Relation brand symbol (compile-time only, zero runtime cost)
+ * Used to distinguish relation fields from scalar fields in the type system
+ */
+declare const __relationBrand: unique symbol;
+
+/**
+ * Branded type for relation fields
+ *
+ * At runtime: Contains the ID (string | number)
+ * At type level: Represents the full related entity
+ *
+ * This allows type-safe nested WHERE queries while keeping runtime simple.
+ *
+ * @template T - The related entity type
+ *
+ * @example
+ * ```ts
+ * type Post = {
+ *   id: number;
+ *   title: string;
+ *   author: Relation<User>;  // Runtime: number, Type: User
+ * };
+ *
+ * // Type-safe nested WHERE
+ * const where: WhereClause<Post> = {
+ *   author: {  // ✅ Knows this is User
+ *     name: { $like: 'John%' }
+ *   }
+ * };
+ * ```
+ */
+export type Relation<T extends ForjaEntry> = T & {
+  readonly [__relationBrand]: true;
+};
+
+/**
+ * Check if a type is a Relation brand
+ * Utility type for conditional type logic
+ */
+export type IsRelation<T> = T extends Relation<infer _R> ? true : false;
+
+/**
+ * Extract the inner type from a Relation brand
+ *
+ * @example
+ * ```ts
+ * type AuthorRelation = Relation<User>;
+ * type InnerType = UnwrapRelation<AuthorRelation>;  // User
+ * ```
+ */
+export type UnwrapRelation<T> = T extends Relation<infer R> ? R : never;
+
+/**
  * Infer TypeScript type from field definition
  */
 export type InferFieldType<F extends FieldDefinition<string>> =
@@ -468,7 +546,7 @@ export type InferFieldType<F extends FieldDefinition<string>> =
   : F extends { type: "array"; items: infer I extends FieldDefinition<string> } ?
   Array<InferFieldType<I>>
   : F extends { type: "relation"; model: string } ?
-  string // Just the ID for relations
+  string // Just the ID for relations (runtime representation)
   : F extends { type: "file" } ?
   string // File URL/path
   : never;
@@ -478,6 +556,10 @@ export type InferFieldType<F extends FieldDefinition<string>> =
  *
  * Automatically includes ForjaEntry fields (id, createdAt, updatedAt)
  * along with user-defined fields from the schema.
+ *
+ * **IMPORTANT:** Relation fields are branded as `Relation<T>` for type-safe
+ * nested WHERE queries. At runtime they contain the ID, but at type-level
+ * they represent the full related entity.
  *
  * @template S - Schema definition
  * @returns Type that combines ForjaEntry with inferred field types
@@ -494,6 +576,19 @@ export type InferFieldType<F extends FieldDefinition<string>> =
  *
  * type User = InferSchemaType<typeof userSchema>;
  * // → { id: number; createdAt: Date; updatedAt: Date; name: string; email?: string }
+ *
+ * const postSchema = defineSchema({
+ *   name: 'Post',
+ *   fields: {
+ *     title: { type: 'string', required: true },
+ *     author: { type: 'relation', model: 'User', kind: 'belongsTo' }
+ *   }
+ * } as const);
+ *
+ * type Post = InferSchemaType<typeof postSchema>;
+ * // → { id: number; ...; title: string; author?: Relation<User> }
+ * //                                              ^^^^^^^^^^^^^^^^
+ * //                                              Branded for type-safe WHERE!
  * ```
  */
 export type InferSchemaType<S extends SchemaDefinition<string>> = ForjaEntry & {

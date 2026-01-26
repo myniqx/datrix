@@ -45,6 +45,11 @@ export {
   RESERVED_FIELDS,
   type ReservedFieldName,
   type ForjaEntry,
+  type ForjaRecord,
+  // Relation types
+  type Relation,
+  type IsRelation,
+  type UnwrapRelation,
   // Field types
   type FieldType,
   type StringField,
@@ -79,3 +84,34 @@ export {
 
 // Permission types
 export * from "./core/permission";
+
+// Query builder types
+export {
+  type QueryPrimitive,
+  type ScalarValue,
+  type QueryType,
+  type ComparisonOperators,
+  type LogicalOperators,
+  type WhereClause,
+  type SelectClause,
+  type PopulateOptions,
+  type PopulateClause,
+  type OrderDirection,
+  type OrderByItem,
+  type OrderBy,
+  type RelationMetadata,
+  type QueryMetadata,
+  type QueryObject,
+  type QueryBuilder,
+  type QueryBuilderFactory,
+  type WhereBuilder,
+  type SelectBuilder,
+  type PopulateBuilder,
+  type PaginationBuilder,
+  QueryBuilderError,
+  getRelationMetadata,
+  getAllRelationMetadata,
+  hasRelationMetadata,
+  getMetadataValue,
+  hasMetadata,
+} from "./core/query-builder";

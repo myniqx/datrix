@@ -5,6 +5,7 @@
  * Supports: populate, fields, where, pagination, sorting
  */
 
+import { ForjaEntry, ForjaRecord } from "forja-types/core/schema";
 import {
   OrderByItem,
   PopulateClause,
@@ -28,13 +29,13 @@ export type RawQueryParams = Record<
  * Parsed query result
  */
 
-export interface ParsedQuery {
-  readonly select?: QueryObject["select"];
-  readonly where?: QueryObject["where"];
-  readonly populate?: QueryObject["populate"];
-  readonly orderBy?: QueryObject["orderBy"];
-  readonly limit?: QueryObject["limit"];
-  readonly offset?: QueryObject["offset"];
+export interface ParsedQuery<T extends ForjaEntry = ForjaRecord> {
+  readonly select?: QueryObject<T>["select"];
+  readonly where?: QueryObject<T>["where"];
+  readonly populate?: QueryObject<T>["populate"];
+  readonly orderBy?: QueryObject<T>["orderBy"];
+  readonly limit?: QueryObject<T>["limit"];
+  readonly offset?: QueryObject<T>["offset"];
   readonly page?: number | undefined;
   readonly pageSize?: number | undefined;
 }

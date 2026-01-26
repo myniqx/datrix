@@ -4,17 +4,26 @@ import {
   OrderByItem,
   ComparisonOperators,
 } from "forja-types/core/query-builder";
+import { RelationField, SchemaDefinition } from "forja-types/core/schema";
 import { JsonTableFile } from "./types";
+import type { JsonAdapter } from "./adapter";
+import { Forja } from "forja-core";
 
 export class JsonQueryRunner {
-  constructor(private table: JsonTableFile) { }
+  constructor(
+    private table: JsonTableFile,
+    private adapter: JsonAdapter,
+  ) { }
 
-  run<T = Record<string, unknown>>(query: QueryObject): T[] {
+  async run<T = Record<string, unknown>>(query: QueryObject): Promise<T[]> {
     let result = this.table.data as T[];
 
-    // 1. Filter
+    // 1. Filter (async for nested relation WHERE support)
     if (query.where) {
-      result = result.filter((item) => this.match(item, query.where!));
+      const matchResults = await Promise.all(
+        result.map((item) => this.match(item, query.where!))
+      );
+      result = result.filter((_, i) => matchResults[i]);
     } else if (query.orderBy && query.orderBy.length > 0) {
       // No filter but need sort - must copy to avoid mutating original
       result = [...result];
@@ -46,12 +55,15 @@ export class JsonQueryRunner {
    * Run query without projection (for populate workflow)
    * Applies WHERE, ORDER BY, OFFSET, LIMIT but keeps all fields
    */
-  filterAndSort<T = Record<string, unknown>>(query: QueryObject): T[] {
+  async filterAndSort<T = Record<string, unknown>>(query: QueryObject): Promise<T[]> {
     let result = this.table.data as T[];
 
-    // 1. Filter
+    // 1. Filter (async for nested relation WHERE support)
     if (query.where) {
-      result = result.filter((item) => this.match(item, query.where!));
+      const matchResults = await Promise.all(
+        result.map((item) => this.match(item, query.where!))
+      );
+      result = result.filter((_, i) => matchResults[i]);
     } else if (query.orderBy && query.orderBy.length > 0) {
       // No filter but need sort - must copy to avoid mutating original
       result = [...result];
@@ -117,24 +129,69 @@ export class JsonQueryRunner {
     return result;
   }
 
-  private match(item: any, where: WhereClause): boolean {
+  /**
+   * Match WHERE clause against an item
+   *
+   * **NEW:** Now supports nested relation WHERE queries!
+   *
+   * @param item - The record to match against
+   * @param where - WHERE clause (may contain nested relation conditions)
+   * @returns True if item matches all conditions
+   *
+   * @example
+   * ```ts
+   * // Simple WHERE
+   * await match(item, { price: { $gt: 10 } })
+   *
+   * // Nested relation WHERE
+   * await match(item, {
+   *   author: {  // Relation field
+   *     verified: { $eq: true }
+   *   }
+   * })
+   * ```
+   */
+  private async match(item: any, where: WhereClause): Promise<boolean> {
+    const schema = this.table.schema;
+
     for (const [key, value] of Object.entries(where)) {
+      // Handle logical operators
       if (key === "$and") {
-        if (!(value as WhereClause[]).every((cond) => this.match(item, cond)))
-          return false;
+        const results = await Promise.all(
+          (value as WhereClause[]).map((cond) => this.match(item, cond))
+        );
+        if (!results.every((r) => r)) return false;
         continue;
       }
       if (key === "$or") {
-        if (!(value as WhereClause[]).some((cond) => this.match(item, cond)))
-          return false;
+        const results = await Promise.all(
+          (value as WhereClause[]).map((cond) => this.match(item, cond))
+        );
+        if (!results.some((r) => r)) return false;
         continue;
       }
       if (key === "$not") {
-        if (this.match(item, value as WhereClause)) return false;
+        if (await this.match(item, value as WhereClause)) return false;
         continue;
       }
 
-      // Field check
+      // ✨ NEW: Check if this field is a RELATION
+      const fieldDef = schema?.fields?.[key];
+      if (fieldDef?.type === "relation") {
+        // This is a nested relation WHERE!
+        const matched = await this.matchRelation(
+          item,
+          key,
+          value as WhereClause,
+          fieldDef as RelationField
+        );
+        if (!matched) {
+          return false;
+        }
+        continue;
+      }
+
+      // Regular field matching (existing logic)
       const itemValue = item[key];
 
       if (value === null) {
@@ -144,15 +201,106 @@ export class JsonQueryRunner {
         !Array.isArray(value) &&
         !(value instanceof Date)
       ) {
-        // Operators
-        if (!this.matchOperators(itemValue, value as ComparisonOperators, key))
-          return false;
+        // Check if this is a ComparisonOperators object or nested WHERE
+        // If it has operator keys ($eq, $gt, etc.), it's operators
+        const isOperators = Object.keys(value).some((k) => k.startsWith("$"));
+        if (isOperators) {
+          // Operators
+          if (!this.matchOperators(itemValue, value as ComparisonOperators, key))
+            return false;
+        } else {
+          // Not operators and not a relation - treat as direct equality
+          if (!this.compareValues(itemValue, value, key)) return false;
+        }
       } else {
         // Direct equality - type-aware comparison
         if (!this.compareValues(itemValue, value, key)) return false;
       }
     }
     return true;
+  }
+
+  /**
+   * Match nested relation WHERE
+   *
+   * Loads the related record(s) and recursively matches the nested WHERE clause.
+   *
+   * @param item - Current record
+   * @param relationName - Name of the relation field
+   * @param relationWhere - Nested WHERE clause for the relation
+   * @param relationField - Relation field definition
+   * @returns True if relation matches
+   */
+  private async matchRelation(
+    item: any,
+    relationName: string,
+    relationWhere: WhereClause,
+    relationField: RelationField,
+  ): Promise<boolean> {
+    const foreignKey = relationField.foreignKey!;
+    const targetModelName = relationField.model;
+    const kind = relationField.kind;
+
+    // Get related ID(s) from current record
+    if (kind === "belongsTo" || kind === "hasOne") {
+      // Single relation - check FK value
+      const relatedId = item[foreignKey];
+      if (relatedId === null || relatedId === undefined) {
+        // No relation - doesn't match
+        return false;
+      }
+
+      // Load related record
+      const relatedRecord = await this.loadRelatedRecord(targetModelName, relatedId);
+      if (!relatedRecord) {
+        return false;
+      }
+
+      // Recursively match nested WHERE on related record
+      return await this.match(relatedRecord, relationWhere);
+    }
+
+    // TODO: hasMany and manyToMany support
+    // For now, these are not supported in WHERE (only in populate)
+    return false;
+  }
+
+  /**
+   * Load a related record from adapter's cache
+   *
+   * Uses getCachedTable which reads from cache or disk if needed.
+   *
+   * @param modelName - Target model name
+   * @param id - Record ID to load
+   * @returns Related record or null
+   */
+  private async loadRelatedRecord(
+    modelName: string,
+    id: string | number,
+  ): Promise<Record<string, unknown> | null> {
+    try {
+      const schemaRegistry = Forja.getInstance().getSchemas();
+      const targetSchema = schemaRegistry.get(modelName);
+      if (!targetSchema) {
+        return null;
+      }
+
+      const targetTable = targetSchema.tableName ?? modelName.toLowerCase();
+
+      // Get table data from adapter's cache (async - reads from disk if cache stale)
+      const tableData = await this.adapter.getCachedTable(targetTable);
+      if (!tableData) {
+        return null;
+      }
+
+      // Find record by ID
+      const relatedData = tableData.data as Record<string, unknown>[];
+      const record = relatedData.find((r) => r["id"] === id);
+
+      return record ?? null;
+    } catch {
+      return null;
+    }
   }
 
   private compareValues(

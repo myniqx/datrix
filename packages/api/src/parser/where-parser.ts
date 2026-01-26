@@ -81,8 +81,9 @@ export function parseWhere(
         }
 
         const previousPart = parts[i - 1]!;
-        // Allow array index after logical operators ($or, $and, $not) and array operators ($in, $nin)
-        if (!["$or", "$and", "$not", "$in", "$nin"].includes(previousPart)) {
+        // Allow array index after array operators ($or, $and, $in, $nin)
+        // NOTE: $not is excluded - it takes a single object, not an array
+        if (!["$or", "$and", "$in", "$nin"].includes(previousPart)) {
           return whereError.invalidArrayIndex(
             part,
             previousPart,
@@ -188,7 +189,8 @@ function transformToFinalWhere(obj: unknown): Result<unknown, ParserError> {
 
   for (const [key, value] of Object.entries(typedObj)) {
     // Operators that require array transformation
-    const arrayOperators = ["$or", "$and", "$not", "$in", "$nin"];
+    // NOTE: $not is NOT an array operator - it takes a single object, not an array
+    const arrayOperators = ["$or", "$and", "$in", "$nin"];
 
     if (arrayOperators.includes(key)) {
       // Transform object with numeric keys into array

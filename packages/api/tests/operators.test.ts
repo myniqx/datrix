@@ -262,8 +262,9 @@ describe("Query Operators Integration Tests", () => {
    */
   async function queryProducts(
     where: Record<string, unknown>,
+    populate?: PopulateOptions,
   ): Promise<unknown[]> {
-    const query = { where };
+    const query = { where, populate };
     const serialized = serializeQuery(query);
     const queryParams = new URLSearchParams(serialized as Record<string, string>);
 
@@ -280,7 +281,7 @@ describe("Query Operators Integration Tests", () => {
     expect(response.status).toBe(200);
     expect(data).toHaveProperty("data");
     expect(Array.isArray(data.data)).toBe(true);
-    console.log({ query: where, response: data.data });
+    console.log({ query: where, response: JSON.stringify(data.data, null, 2) });
     return data.data;
   }
 
@@ -666,9 +667,7 @@ describe("Query Operators Integration Tests", () => {
         const results = await queryProducts({
           $and: [{ category: 1 }, { stock: { $gt: 100 } }],
         });
-        expect(results.every((p) => p.category === 1 && p.stock > 100)).toBe(
-          true,
-        );
+        expect(results.every((p) => p.category === 1 && p.stock > 100)).toBe(true);
       });
 
       it("should return empty when conditions conflict", async () => {
@@ -692,9 +691,7 @@ describe("Query Operators Integration Tests", () => {
         const results = await queryProducts({
           $or: [{ category: 2 }, { stock: { $eq: 0 } }],
         });
-        expect(results.every((p) => p.category === 2 || p.stock === 0)).toBe(
-          true,
-        );
+        expect(results.every((p) => p.category === 2 || p.stock === 0)).toBe(true);
       });
 
       it("should handle multiple OR conditions", async () => {
@@ -712,18 +709,16 @@ describe("Query Operators Integration Tests", () => {
     describe("$not - Logical NOT", () => {
       it("should exclude products matching condition", async () => {
         const results = await queryProducts({
-          $not: [{ category: 1 }],
+          $not: { category: 1 },  // $not takes single object, not array
         });
         expect(results.every((p) => p.category !== 1)).toBe(true);
       });
 
       it("should negate complex conditions", async () => {
         const results = await queryProducts({
-          $not: [
-            {
-              $and: [{ price: { $gte: 100 } }, { stock: { $lte: 10 } }],
-            },
-          ],
+          $not: {  // $not takes single object, not array
+            $and: [{ price: { $gte: 100 } }, { stock: { $lte: 10 } }],
+          },
         });
         expect(results.every((p) => !(p.price >= 100 && p.stock <= 10))).toBe(true);
       });
@@ -761,8 +756,7 @@ describe("Query Operators Integration Tests", () => {
         });
         expect(
           results.every(
-            (p) =>
-              p.isAvailable === true && (p.category === 1 || p.category === 2),
+            (p) => p.isAvailable === true && (p.category === 1 || p.category === 2),
           ),
         ).toBe(true);
       });
@@ -841,6 +835,365 @@ describe("Query Operators Integration Tests", () => {
         ],
       });
       expect(Array.isArray(results)).toBe(true);
+    });
+  });
+
+  // ============================================================================
+  // NESTED RELATION WHERE (NEW FEATURE)
+  // ============================================================================
+
+  describe("Nested Relation WHERE Queries", () => {
+    describe("Basic Relation WHERE", () => {
+      it("should filter products by category name", async () => {
+        const results = await queryProducts(
+          {
+            category: { name: { $eq: "Electronics" } }, // Filter by related category name
+          },
+          {
+            category: "*", // Populate to verify
+          },
+        );
+        expect(results.length).toBeGreaterThan(0);
+        expect(results.every((p) => p.category.name === "Electronics")).toBe(true);
+      });
+
+      it("should filter products by supplier country", async () => {
+        const results = await queryProducts(
+          {
+            supplier: { country: { $eq: "USA" } },
+          },
+          {
+            supplier: "*",
+          },
+        );
+        expect(results.length).toBeGreaterThan(0);
+        expect(results.every((p) => p.supplier.country === "USA")).toBe(true);
+      });
+
+      it("should filter products by supplier rating", async () => {
+        const results = await queryProducts(
+          {
+            supplier: { rating: { $gte: 4.5 } },
+          },
+          {
+            supplier: "*",
+          },
+        );
+        expect(results.length).toBeGreaterThan(0);
+        expect(results.every((p) => p.supplier.rating >= 4.5)).toBe(true);
+      });
+
+      it("should filter products by category isActive status", async () => {
+        const results = await queryProducts(
+          {
+            category: { isActive: { $eq: false } },
+          },
+          {
+            category: "*",
+          },
+        );
+        expect(results.length).toBeGreaterThan(0);
+        expect(results.every((p) => p.category.isActive === false)).toBe(true);
+      });
+
+      it("should filter products by supplier verification status", async () => {
+        const results = await queryProducts(
+          {
+            supplier: { isVerified: { $eq: false } },
+          },
+          {
+            supplier: "*",
+          },
+        );
+        expect(results.length).toBeGreaterThan(0);
+        expect(results.every((p) => p.supplier.isVerified === false)).toBe(true);
+      });
+    });
+
+    describe("Relation WHERE with String Operators", () => {
+      it("should use $like on relation field", async () => {
+        const results = await queryProducts(
+          {
+            category: { name: { $like: "%Book%" } },
+          },
+          {
+            category: "*",
+          },
+        );
+        expect(results.length).toBeGreaterThan(0);
+        expect(results.every((p) => p.category.name.includes("Book"))).toBe(true);
+      });
+
+      it("should use $contains on relation field", async () => {
+        const results = await queryProducts(
+          {
+            supplier: { name: { $contains: "Tech" } },
+          },
+          {
+            supplier: "*",
+          },
+        );
+        expect(results.length).toBeGreaterThan(0);
+        expect(results.every((p) => p.supplier.name.includes("Tech"))).toBe(true);
+      });
+
+      it("should use $startsWith on relation field", async () => {
+        const results = await queryProducts(
+          {
+            supplier: { name: { $startsWith: "Book" } },
+          },
+          {
+            supplier: "*",
+          },
+        );
+        expect(results.length).toBeGreaterThan(0);
+        expect(results.every((p) => p.supplier.name.startsWith("Book"))).toBe(true);
+      });
+    });
+
+    describe("Relation WHERE with Comparison Operators", () => {
+      it("should use $gt on relation numeric field", async () => {
+        const results = await queryProducts(
+          {
+            supplier: { rating: { $gt: 4.0 } },
+          },
+          {
+            supplier: "*",
+          },
+        );
+        expect(results.length).toBeGreaterThan(0);
+        expect(results.every((p) => p.supplier.rating > 4.0)).toBe(true);
+      });
+
+      it("should use $lt on relation numeric field", async () => {
+        const results = await queryProducts(
+          {
+            supplier: { rating: { $lt: 4.0 } },
+          },
+          {
+            supplier: "*",
+          },
+        );
+        expect(results.length).toBeGreaterThan(0);
+        expect(results.every((p) => p.supplier.rating < 4.0)).toBe(true);
+      });
+
+      it("should use $ne on relation field", async () => {
+        const results = await queryProducts(
+          {
+            category: { name: { $ne: "Electronics" } },
+          },
+          {
+            category: "*",
+          },
+        );
+        expect(results.length).toBeGreaterThan(0);
+        expect(results.every((p) => p.category.name !== "Electronics")).toBe(true);
+      });
+    });
+
+    describe("Relation WHERE with Null Operators", () => {
+      it("should use $notNull on relation field", async () => {
+        const results = await queryProducts(
+          {
+            category: { description: { $notNull: true } },
+          },
+          {
+            category: "*",
+          },
+        );
+        expect(results.length).toBeGreaterThan(0);
+        expect(results.every((p) => p.category.description !== null)).toBe(true);
+      });
+
+      it("should use $null on relation field", async () => {
+        const results = await queryProducts(
+          {
+            category: { description: { $null: true } },
+          },
+          {
+            category: "*",
+          },
+        );
+        expect(results.length).toBeGreaterThan(0);
+        expect(results.every((p) => p.category.description === null)).toBe(true);
+      });
+    });
+
+    describe("Complex Relation WHERE Combinations", () => {
+      it("should combine relation WHERE with scalar WHERE using $and", async () => {
+        const results = await queryProducts(
+          {
+            $and: [
+              { price: { $gte: 100 } },
+              { supplier: { isVerified: { $eq: true } } },
+            ],
+          },
+          {
+            supplier: "*",
+          },
+        );
+        expect(results.length).toBeGreaterThan(0);
+        expect(
+          results.every((p) => p.price >= 100 && p.supplier.isVerified === true),
+        ).toBe(true);
+      });
+
+      it("should combine multiple relation WHEREs", async () => {
+        const results = await queryProducts(
+          {
+            $and: [
+              { category: { isActive: { $eq: true } } },
+              { supplier: { isVerified: { $eq: true } } },
+            ],
+          },
+          {
+            category: "*",
+            supplier: "*",
+          },
+        );
+        expect(results.length).toBeGreaterThan(0);
+        expect(
+          results.every(
+            (p) => p.category.isActive === true && p.supplier.isVerified === true,
+          ),
+        ).toBe(true);
+      });
+
+      it("should use $or with relation WHERE", async () => {
+        const results = await queryProducts(
+          {
+            $or: [
+              { supplier: { country: { $eq: "USA" } } },
+              { supplier: { country: { $eq: "UK" } } },
+            ],
+          },
+          {
+            supplier: "*",
+          },
+        );
+        expect(results.length).toBeGreaterThan(0);
+        expect(
+          results.every((p) => ["USA", "UK"].includes(p.supplier.country)),
+        ).toBe(true);
+      });
+
+      it("should use $not with relation WHERE", async () => {
+        const results = await queryProducts(
+          {
+            $not: { category: { name: { $eq: "Electronics" } } },
+          },
+          {
+            category: "*",
+          },
+        );
+        expect(results.length).toBeGreaterThan(0);
+        expect(results.every((p) => p.category.name !== "Electronics")).toBe(true);
+      });
+
+      it("should combine relation WHERE with complex logical operators", async () => {
+        const results = await queryProducts(
+          {
+            $and: [
+              {
+                $or: [
+                  { category: { name: { $eq: "Electronics" } } },
+                  { category: { name: { $eq: "Books" } } },
+                ],
+              },
+              {
+                $and: [
+                  { price: { $gte: 20 } },
+                  { supplier: { isVerified: { $eq: true } } },
+                ],
+              },
+            ],
+          },
+          {
+            category: "*",
+            supplier: "*",
+          },
+        );
+        expect(results.length).toBeGreaterThan(0);
+        expect(
+          results.every(
+            (p) =>
+              ["Electronics", "Books"].includes(p.category.name) &&
+              p.price >= 20 &&
+              p.supplier.isVerified === true,
+          ),
+        ).toBe(true);
+      });
+
+      it("should handle relation WHERE with multiple operators on same relation", async () => {
+        const results = await queryProducts(
+          {
+            supplier: {
+              $and: [
+                { rating: { $gte: 4.0 } },
+                { isVerified: { $eq: true } },
+                { country: { $ne: "France" } },
+              ],
+            },
+          },
+          {
+            supplier: "*",
+          },
+        );
+        expect(results.length).toBeGreaterThan(0);
+        expect(
+          results.every(
+            (p) =>
+              p.supplier.rating >= 4.0 &&
+              p.supplier.isVerified === true &&
+              p.supplier.country !== "France",
+          ),
+        ).toBe(true);
+      });
+    });
+
+    describe("Edge Cases", () => {
+      it("should return empty when relation condition doesn't match", async () => {
+        const results = await queryProducts({
+          category: { name: { $eq: "NonExistentCategory" } },
+        });
+        expect(results).toHaveLength(0);
+      });
+
+      it("should handle null relation gracefully", async () => {
+        // Test that existing products with valid relations work
+        const results = await queryProducts(
+          {
+            category: { isActive: { $eq: true } },
+          },
+          {
+            category: "*",
+          },
+        );
+        expect(Array.isArray(results)).toBe(true);
+        expect(results.length).toBeGreaterThan(0);
+        expect(results.every((p) => p.category.isActive === true)).toBe(true);
+      });
+
+      it("should combine scalar and relation WHERE with same field name patterns", async () => {
+        const results = await queryProducts(
+          {
+            $and: [
+              { isAvailable: { $eq: true } },
+              { category: { isActive: { $eq: true } } },
+            ],
+          },
+          {
+            category: "*",
+          },
+        );
+        expect(results.length).toBeGreaterThan(0);
+        expect(
+          results.every(
+            (p) => p.isAvailable === true && p.category.isActive === true,
+          ),
+        ).toBe(true);
+      });
     });
   });
 });

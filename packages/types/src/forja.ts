@@ -16,7 +16,7 @@ import { Result } from "./utils";
 export interface IRawCrud {
   findOne<T extends ForjaEntry = ForjaEntry>(
     model: string,
-    where: WhereClause,
+    where: WhereClause<T>,
     options?: Pick<ParsedQuery, "select" | "populate">,
   ): Promise<T | null>;
   findById<T extends ForjaEntry = ForjaEntry>(
@@ -31,7 +31,10 @@ export interface IRawCrud {
       "where" | "select" | "populate" | "orderBy" | "limit" | "offset"
     >,
   ): Promise<T[]>;
-  count(model: string, where?: WhereClause): Promise<number>;
+  count<T extends ForjaEntry = ForjaEntry>(
+    model: string,
+    where?: WhereClause<T>,
+  ): Promise<number>;
   create<T extends ForjaEntry = ForjaEntry>(
     model: string,
     data: Record<string, unknown>,
@@ -43,9 +46,9 @@ export interface IRawCrud {
     data: Record<string, unknown>,
     options?: Pick<ParsedQuery, "select" | "populate">,
   ): Promise<T>;
-  updateMany(
+  updateMany<T extends ForjaEntry = ForjaEntry>(
     model: string,
-    where: WhereClause,
+    where: WhereClause<T>,
     data: Record<string, unknown>,
   ): Promise<number>;
   delete(
@@ -53,7 +56,10 @@ export interface IRawCrud {
     id: string | number,
     options?: Pick<ParsedQuery, "select" | "populate">,
   ): Promise<boolean>;
-  deleteMany(model: string, where: WhereClause): Promise<number>;
+  deleteMany<T extends ForjaEntry = ForjaEntry>(
+    model: string,
+    where: WhereClause<T>,
+  ): Promise<number>;
 }
 
 /**

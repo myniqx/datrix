@@ -14,6 +14,7 @@ import {
   RelationIdRefs,
   RESERVED_FIELDS,
   ForjaEntry,
+  ForjaRecord,
 } from "forja-types/core/schema";
 import {
   SelectClause,
@@ -105,8 +106,7 @@ export function normalizeRelations(
       // Case 2: Array shortcut (tags: [1, 2, 3])
       if (Array.isArray(value)) {
         // Check if it's already a RelationInput array vs raw ID array
-        const isRawIdArray =
-          value.length === 0 || !isRelationInputObject(value[0]);
+        const isRawIdArray = value.length === 0 || !isRelationInputObject(value[0]);
         if (isRawIdArray) {
           normalized[key] = {
             set: normalizeRelationIds(value as RelationIdRefs),
@@ -192,8 +192,8 @@ export interface SeparatedFields {
  * }
  * ```
  */
-export function separateRelations(
-  data: Record<string, unknown>,
+export function separateRelations<T extends ForjaEntry = ForjaRecord>(
+  data: T,
   schema: SchemaDefinition,
 ): SeparatedFields {
   const scalars: Record<string, unknown> = {};
@@ -213,13 +213,13 @@ export function separateRelations(
 
         if (relData.connect) {
           inlinedId =
-            Array.isArray(relData.connect)
-              ? relData.connect[0]?.id
+            Array.isArray(relData.connect) ?
+              relData.connect[0]?.id
               : relData.connect.id;
         } else if (relData.set) {
           inlinedId =
-            Array.isArray(relData.set)
-              ? relData.set[0]?.id
+            Array.isArray(relData.set) ?
+              relData.set[0]?.id
               : (relData.set as { id: string | number })?.id;
         } else if (relData.disconnect) {
           inlinedId = null;
@@ -439,9 +439,10 @@ export function processPopulate(
         // Process select for this level
         select: deps.processSelect(targetModel, value.select),
         // Recursively process nested populate
-        populate: value.populate
-          ? processPopulate(targetModel, value.populate, deps)
-          : value.populate,
+        populate:
+          value.populate ?
+            processPopulate(targetModel, value.populate, deps)
+            : value.populate,
       };
     } else if (value === "*") {
       // populate[category]=* → convert to { select: [...] }
@@ -537,9 +538,10 @@ export async function processRelation(
     const updateData: Record<string, unknown> = {};
 
     if (relData.connect) {
-      const connectId = Array.isArray(relData.connect)
-        ? relData.connect[0]?.id
-        : relData.connect.id;
+      const connectId =
+        Array.isArray(relData.connect) ?
+          relData.connect[0]?.id
+          : relData.connect.id;
       if (connectId !== undefined) {
         updateData[foreignKey] = connectId;
       }
@@ -548,9 +550,10 @@ export async function processRelation(
       updateData[foreignKey] = null;
     }
     if (relData.set) {
-      const setId = Array.isArray(relData.set)
-        ? relData.set[0]?.id
-        : (relData.set as { id: string | number })?.id;
+      const setId =
+        Array.isArray(relData.set) ?
+          relData.set[0]?.id
+          : (relData.set as { id: string | number })?.id;
       updateData[foreignKey] = setId ?? null;
     }
 
@@ -565,9 +568,10 @@ export async function processRelation(
     const reverseForeignKey = relation.foreignKey ?? `${model}Id`;
 
     if (relData.connect) {
-      const ids = Array.isArray(relData.connect)
-        ? relData.connect.map((c) => c.id)
-        : [relData.connect.id];
+      const ids =
+        Array.isArray(relData.connect) ?
+          relData.connect.map((c) => c.id)
+          : [relData.connect.id];
       if (ids.length > 0) {
         await internalUpdate(
           relation.model,
@@ -578,9 +582,10 @@ export async function processRelation(
     }
 
     if (relData.disconnect) {
-      const ids = Array.isArray(relData.disconnect)
-        ? relData.disconnect.map((c) => c.id)
-        : [relData.disconnect.id];
+      const ids =
+        Array.isArray(relData.disconnect) ?
+          relData.disconnect.map((c) => c.id)
+          : [relData.disconnect.id];
       if (ids.length > 0) {
         await internalUpdate(
           relation.model,
@@ -617,9 +622,10 @@ export async function processRelation(
 
     // Connect → INSERT INTO junction table
     if (relData.connect) {
-      const ids = Array.isArray(relData.connect)
-        ? relData.connect.map((c) => c.id)
-        : [relData.connect.id];
+      const ids =
+        Array.isArray(relData.connect) ?
+          relData.connect.map((c) => c.id)
+          : [relData.connect.id];
 
       for (const targetId of ids) {
         await internalInsert(junctionTable, {
@@ -631,9 +637,10 @@ export async function processRelation(
 
     // Disconnect → DELETE FROM junction table
     if (relData.disconnect) {
-      const ids = Array.isArray(relData.disconnect)
-        ? relData.disconnect.map((c) => c.id)
-        : [relData.disconnect.id];
+      const ids =
+        Array.isArray(relData.disconnect) ?
+          relData.disconnect.map((c) => c.id)
+          : [relData.disconnect.id];
 
       if (ids.length > 0) {
         await internalDelete(junctionTable, {

@@ -11,6 +11,8 @@ import {
   SchemaDefinition,
   ForjaEntry,
   RelationField,
+  ForjaRecord,
+  ForjaID,
 } from "forja-types/core/schema";
 import {
   QueryObject,
@@ -45,7 +47,7 @@ export class CrudOperations implements IRawCrud {
     private readonly schemas: SchemaRegistry,
     private readonly getAdapter: () => DatabaseAdapter,
     private readonly getDispatcher: (() => Dispatcher) | null = null,
-  ) {}
+  ) { }
 
   /** Dependencies for helper functions */
   private get populateDeps() {
@@ -91,26 +93,43 @@ export class CrudOperations implements IRawCrud {
   /**
    * Find one record by criteria
    *
+   * **NEW:** Now supports type-safe nested relation WHERE queries!
+   *
    * @param model - Model name (e.g., 'User')
-   * @param where - Filter criteria
+   * @param where - Filter criteria (now supports nested relations)
    * @param options - Query options (select, populate)
    * @returns Record or null if not found
    *
    * @example
    * ```ts
+   * // Basic WHERE
    * const user = await crud.findOne('User', { email: 'test@example.com' });
-   * const post = await crud.findOne('Post', { slug: 'hello-world' }, {
-   *   populate: { author: { select: ['name', 'email'] } }
+   *
+   * // Nested relation WHERE
+   * const post = await crud.findOne('Post', {
+   *   title: { $like: 'Hello%' },
+   *   author: {  // ✅ NEW: Nested WHERE on relations!
+   *     verified: { $eq: true },
+   *     company: {
+   *       country: { name: { $eq: 'Turkey' } }
+   *     }
+   *   }
+   * });
+   *
+   * // With type safety
+   * type Post = { id: number; title: string; author: Relation<User>; };
+   * const typedPost = await crud.findOne<Post>('Post', {
+   *   author: { name: { $like: 'John%' } }  // ✅ Type-checked
    * });
    * ```
    */
   async findOne<T extends ForjaEntry = ForjaEntry>(
     model: string,
-    where: WhereClause,
+    where: WhereClause<T>,
     options?: Pick<ParsedQuery, "select" | "populate">,
   ): Promise<T | null> {
     const { tableName } = this.getSchema(model);
-    const query: QueryObject = {
+    const query: QueryObject<T> = {
       type: "select",
       table: tableName!,
       where,
@@ -147,9 +166,9 @@ export class CrudOperations implements IRawCrud {
    * const user = await crud.findById('User', '123');
    * ```
    */
-  async findById<T extends ForjaEntry = ForjaEntry>(
+  async findById<T extends ForjaEntry = ForjaRecord>(
     model: string,
-    id: string | number,
+    id: ForjaID,
     options?: Pick<ParsedQuery, "select" | "populate">,
   ): Promise<T | null> {
     return this.findOne<T>(model, { id }, options);
@@ -158,16 +177,29 @@ export class CrudOperations implements IRawCrud {
   /**
    * Find multiple records
    *
+   * **NEW:** Now supports type-safe nested relation WHERE queries!
+   *
    * @param model - Model name
-   * @param options - Query options
+   * @param options - Query options (with nested relation WHERE support)
    * @returns Array of records
    *
    * @example
    * ```ts
+   * // Basic query
    * const users = await crud.findMany('User', {
    *   where: { role: 'admin' },
    *   limit: 10,
    *   orderBy: [{ field: 'createdAt', direction: 'desc' }]
+   * });
+   *
+   * // With nested relation WHERE
+   * const posts = await crud.findMany('Post', {
+   *   where: {
+   *     $and: [
+   *       { published: true },
+   *       { author: { verified: { $eq: true } } }  // ✅ Nested relation
+   *     ]
+   *   }
    * });
    * ```
    */
@@ -179,7 +211,7 @@ export class CrudOperations implements IRawCrud {
     >,
   ): Promise<T[]> {
     const { tableName } = this.getSchema(model);
-    const query: QueryObject = {
+    const query: QueryObject<T> = {
       type: "select",
       table: tableName!,
       where: options?.where,
@@ -202,19 +234,29 @@ export class CrudOperations implements IRawCrud {
   /**
    * Count records
    *
+   * **NEW:** Now supports type-safe nested relation WHERE queries!
+   *
    * @param model - Model name
-   * @param where - Filter criteria
+   * @param where - Filter criteria (supports nested relations)
    * @returns Number of matching records
    *
    * @example
    * ```ts
    * const totalUsers = await crud.count('User');
    * const adminCount = await crud.count('User', { role: 'admin' });
+   *
+   * // With nested relation WHERE
+   * const verifiedPosts = await crud.count('Post', {
+   *   author: { verified: { $eq: true } }
+   * });
    * ```
    */
-  async count(model: string, where?: WhereClause): Promise<number> {
+  async count<T extends ForjaEntry = ForjaRecord>(
+    model: string,
+    where?: WhereClause<T>,
+  ): Promise<number> {
     const { tableName } = this.getSchema(model);
-    const query: QueryObject = {
+    const query: QueryObject<T> = {
       type: "count",
       table: tableName!,
       where,
@@ -245,7 +287,7 @@ export class CrudOperations implements IRawCrud {
    * });
    * ```
    */
-  async create<T extends ForjaEntry = ForjaEntry>(
+  async create<T extends ForjaEntry = ForjaRecord>(
     model: string,
     data: Record<string, unknown>,
     options?: Pick<ParsedQuery, "select" | "populate">,
@@ -265,13 +307,10 @@ export class CrudOperations implements IRawCrud {
 
     // 3. Separate scalars from async relations
     // Inlines local FKs (belongsTo) into scalars
-    const { scalars, relations } = separateRelations(
-      validatedData as Record<string, unknown>,
-      schema,
-    );
+    const { scalars, relations } = separateRelations(validatedData, schema);
 
     // INSERT query - now contains local FKs
-    const query: QueryObject = {
+    const query: QueryObject<T> = {
       type: "insert",
       table: schema.tableName!,
       data: scalars,
@@ -336,7 +375,7 @@ export class CrudOperations implements IRawCrud {
    * });
    * ```
    */
-  async update<T extends ForjaEntry = ForjaEntry>(
+  async update<T extends ForjaEntry = ForjaRecord>(
     model: string,
     id: string | number,
     data: Record<string, unknown>,
@@ -355,14 +394,11 @@ export class CrudOperations implements IRawCrud {
     });
 
     // 3. Separate and inline
-    const { scalars, relations } = separateRelations(
-      validatedData as Record<string, unknown>,
-      schema,
-    );
+    const { scalars, relations } = separateRelations(validatedData, schema);
 
     // UPDATE query (only if there are scalar fields to update)
     if (Object.keys(scalars).length > 0) {
-      const query: QueryObject = {
+      const query: QueryObject<T> = {
         type: "update",
         table: schema.tableName!,
         where: { id },
@@ -415,23 +451,32 @@ export class CrudOperations implements IRawCrud {
   /**
    * Update multiple records
    *
+   * **NEW:** Now supports type-safe nested relation WHERE queries!
+   *
    * @param model - Model name
-   * @param where - Filter criteria
+   * @param where - Filter criteria (supports nested relations)
    * @param data - Updated data
    * @returns Number of updated records
    *
    * @example
    * ```ts
+   * // Basic WHERE
    * const count = await crud.updateMany('User',
    *   { role: 'user' },
    *   { verified: true }
    * );
+   *
+   * // With nested relation WHERE
+   * const count2 = await crud.updateMany('Post',
+   *   { author: { verified: { $eq: true } } },  // ✅ NEW: Nested relation
+   *   { featured: true }
+   * );
    * ```
    */
-  async updateMany(
+  async updateMany<T extends ForjaEntry = ForjaRecord>(
     model: string,
-    where: WhereClause,
-    data: Record<string, unknown>,
+    where: WhereClause<T>,
+    data: Partial<T>,
   ): Promise<number> {
     const schema = this.getSchema(model);
 
@@ -442,7 +487,7 @@ export class CrudOperations implements IRawCrud {
       isRawMode: this.getDispatcher === null,
     });
 
-    const query: QueryObject = {
+    const query: QueryObject<T> = {
       type: "update",
       table: schema.tableName!,
       where,
@@ -476,7 +521,7 @@ export class CrudOperations implements IRawCrud {
    * const deleted = await crud.delete('User', '123');
    * ```
    */
-  async delete(
+  async delete<T extends ForjaEntry = ForjaRecord>(
     model: string,
     id: string | number,
     options?: Pick<ParsedQuery, "select" | "populate">,
@@ -486,8 +531,7 @@ export class CrudOperations implements IRawCrud {
     // CASCADE DELETE: Clean up junction tables for manyToMany relations
     const m2mRelations = Object.entries(schema.fields).filter(
       ([_, field]) =>
-        field.type === "relation" &&
-        (field as RelationField).kind === "manyToMany",
+        field.type === "relation" && (field as RelationField).kind === "manyToMany",
     );
 
     for (const [_, field] of m2mRelations) {
@@ -502,7 +546,7 @@ export class CrudOperations implements IRawCrud {
     }
 
     // DELETE query
-    const query: QueryObject = {
+    const query: QueryObject<T> = {
       type: "delete",
       table: schema.tableName!,
       where: { id },
@@ -526,29 +570,39 @@ export class CrudOperations implements IRawCrud {
   /**
    * Delete multiple records
    *
+   * **NEW:** Now supports type-safe nested relation WHERE queries!
+   *
    * @param model - Model name
-   * @param where - Filter criteria
+   * @param where - Filter criteria (supports nested relations)
    * @returns Number of deleted records
    *
    * @example
    * ```ts
+   * // Basic WHERE
    * const count = await crud.deleteMany('User', { verified: false });
+   *
+   * // With nested relation WHERE
+   * const count2 = await crud.deleteMany('Post', {
+   *   author: { id: { $eq: userId } }  // ✅ NEW: Use relation WHERE instead of authorId
+   * });
    * ```
    */
-  async deleteMany(model: string, where: WhereClause): Promise<number> {
+  async deleteMany<T extends ForjaEntry = ForjaRecord>(
+    model: string,
+    where: WhereClause<T>,
+  ): Promise<number> {
     const schema = this.getSchema(model);
 
     // Find IDs to delete (needed for junction table cascade)
     const m2mRelations = Object.entries(schema.fields).filter(
       ([_, field]) =>
-        field.type === "relation" &&
-        (field as RelationField).kind === "manyToMany",
+        field.type === "relation" && (field as RelationField).kind === "manyToMany",
     );
 
     // Only fetch IDs if we have manyToMany relations
     let idsToDelete: (string | number)[] = [];
     if (m2mRelations.length > 0) {
-      const toDelete = await this.findMany<ForjaEntry>(model, {
+      const toDelete = await this.findMany<T>(model, {
         where,
         select: ["id"],
       });
@@ -567,7 +621,7 @@ export class CrudOperations implements IRawCrud {
       }
     }
 
-    const query: QueryObject = {
+    const query: QueryObject<T> = {
       type: "delete",
       table: schema.tableName!,
       where,
