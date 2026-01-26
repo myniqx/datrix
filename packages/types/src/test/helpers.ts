@@ -4,10 +4,9 @@
  * Utility functions to simplify test writing
  */
 
-import { Result } from 'forja-types/utils';
-import { expect } from 'vitest';
-import { ForjaError } from '../errors/forja-error';
-
+import { Result } from "forja-types/utils";
+import { expect } from "vitest";
+import { ForjaError } from "../errors/forja-error";
 
 /**
  * Assert Result success and return data (RECOMMENDED)
@@ -21,7 +20,9 @@ import { ForjaError } from '../errors/forja-error';
 export function expectSuccessData<T, E = unknown>(result: Result<T, E>): T {
   expect(result.success).toBe(true);
   if (!result.success) {
-    throw new Error(`Expected success but got error: ${JSON.stringify(result.error)}`);
+    throw new Error(
+      `Expected success but got error: ${JSON.stringify(result.error)}`,
+    );
   }
   return result.data;
 }
@@ -38,7 +39,9 @@ export function expectSuccessData<T, E = unknown>(result: Result<T, E>): T {
 export function expectFailureError<T, E = unknown>(result: Result<T, E>): E {
   expect(result.success).toBe(false);
   if (result.success) {
-    throw new Error(`Expected failure but got success with data: ${JSON.stringify(result.data)}`);
+    throw new Error(
+      `Expected failure but got success with data: ${JSON.stringify(result.data)}`,
+    );
   }
   return result.error;
 }
@@ -51,7 +54,7 @@ export function expectFailureError<T, E = unknown>(result: Result<T, E>): E {
  */
 export async function expectWithinTimeLimit<T>(
   fn: () => T | Promise<T>,
-  maxMs: number
+  maxMs: number,
 ): Promise<T> {
   const start = performance.now();
   const result = await fn();
@@ -69,8 +72,10 @@ export async function expectWithinTimeLimit<T>(
  * const randomName = randomString(10);
  */
 export function randomString(length: number): string {
-  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  return Array.from({ length }, () => chars.charAt(Math.floor(Math.random() * chars.length))).join('');
+  const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  return Array.from({ length }, () =>
+    chars.charAt(Math.floor(Math.random() * chars.length)),
+  ).join("");
 }
 
 /**
@@ -105,7 +110,7 @@ export function expectForjaError(
   try {
     const result = fn();
     if (result instanceof Promise) {
-      throw new Error('Use expectForjaErrorAsync for async functions');
+      throw new Error("Use expectForjaErrorAsync for async functions");
     }
   } catch (error) {
     caughtError = error;
@@ -157,7 +162,7 @@ export function expectErrorMessage(
   error: ForjaError,
   messagePattern: string | RegExp,
 ): void {
-  if (typeof messagePattern === 'string') {
+  if (typeof messagePattern === "string") {
     expect(error.message).toContain(messagePattern);
   } else {
     expect(error.message).toMatch(messagePattern);
@@ -178,7 +183,7 @@ export function expectErrorSuggestion(
   expect(error.suggestion).toBeDefined();
 
   if (suggestionPattern) {
-    if (typeof suggestionPattern === 'string') {
+    if (typeof suggestionPattern === "string") {
       expect(error.suggestion).toContain(suggestionPattern);
     } else {
       expect(error.suggestion).toMatch(suggestionPattern);
@@ -371,6 +376,12 @@ export async function expectApiSuccess<T = unknown>(
   response: Response,
   expectedStatus = 200,
 ): Promise<T> {
+  if (response.status !== expectedStatus) {
+    console.log(
+      "Error response:",
+      JSON.stringify(await response.json(), null, 2),
+    );
+  }
   expect(response.status).toBe(expectedStatus);
 
   const json = (await response.json()) as ApiSuccessResponse<T>;
@@ -412,7 +423,7 @@ export async function expectApiError(
   response: Response,
   expectedStatus: number,
   expectedCode?: string,
-): Promise<ApiErrorResponse['error']> {
+): Promise<ApiErrorResponse["error"]> {
   expect(response.status).toBe(expectedStatus);
 
   const json = (await response.json()) as ApiErrorResponse;
@@ -435,8 +446,8 @@ export async function expectApiError(
  */
 export async function expectApiUnauthorized(
   response: Response,
-): Promise<ApiErrorResponse['error']> {
-  return expectApiError(response, 401, 'UNAUTHORIZED');
+): Promise<ApiErrorResponse["error"]> {
+  return expectApiError(response, 401, "UNAUTHORIZED");
 }
 
 /**
@@ -447,8 +458,8 @@ export async function expectApiUnauthorized(
  */
 export async function expectApiForbidden(
   response: Response,
-): Promise<ApiErrorResponse['error']> {
-  return expectApiError(response, 403, 'PERMISSION_DENIED');
+): Promise<ApiErrorResponse["error"]> {
+  return expectApiError(response, 403, "PERMISSION_DENIED");
 }
 
 /**
@@ -459,7 +470,7 @@ export async function expectApiForbidden(
  */
 export async function expectApiNotFound(
   response: Response,
-): Promise<ApiErrorResponse['error']> {
+): Promise<ApiErrorResponse["error"]> {
   return expectApiError(response, 404);
 }
 
@@ -471,7 +482,7 @@ export async function expectApiNotFound(
  */
 export async function expectApiValidationError(
   response: Response,
-): Promise<ApiErrorResponse['error']> {
+): Promise<ApiErrorResponse["error"]> {
   return expectApiError(response, 400);
 }
 
@@ -495,11 +506,11 @@ export async function expectCompleteApiError(
     suggestion?: string | RegExp;
     context?: Record<string, unknown>;
   },
-): Promise<ApiErrorResponse['error']> {
+): Promise<ApiErrorResponse["error"]> {
   const error = await expectApiError(response, options.status, options.code);
 
   if (options.message) {
-    if (typeof options.message === 'string') {
+    if (typeof options.message === "string") {
       expect(error.message).toContain(options.message);
     } else {
       expect(error.message).toMatch(options.message);
@@ -508,7 +519,7 @@ export async function expectCompleteApiError(
 
   if (options.suggestion) {
     expect(error.suggestion).toBeDefined();
-    if (typeof options.suggestion === 'string') {
+    if (typeof options.suggestion === "string") {
       expect(error.suggestion).toContain(options.suggestion);
     } else {
       expect(error.suggestion).toMatch(options.suggestion);

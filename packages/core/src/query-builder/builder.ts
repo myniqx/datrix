@@ -20,7 +20,11 @@ import { mergeWhereClauses } from "./where";
 import { mergePopulateClauses } from "./populate";
 import { normalizeSelectClause, validateSelectFields } from "./select";
 import { validateWhereClause } from "./where";
-import type { SchemaDefinition } from "forja-types/core/schema";
+import type {
+  ForjaEntry,
+  ForjaRecord,
+  SchemaDefinition,
+} from "forja-types/core/schema";
 import {
   throwMissingTable,
   throwInvalidQueryType,
@@ -81,7 +85,7 @@ interface MutableQueryState {
  * Query builder implementation
  */
 export class ForjaQueryBuilder<
-  TSchema = Record<string, unknown>,
+  TSchema extends ForjaEntry = ForjaRecord,
 > implements QueryBuilder<TSchema> {
   private query: MutableQueryState = {};
   private readonly _schema: SchemaDefinition | undefined;

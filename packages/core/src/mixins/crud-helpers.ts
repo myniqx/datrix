@@ -25,7 +25,6 @@ import { validateOrThrow, validatePartialOrThrow } from "../validator";
 import {
   throwReservedFieldError,
   throwInvalidPopulateError,
-  throwNotImplementedError,
 } from "./error-helper";
 
 /**
@@ -99,7 +98,7 @@ export function normalizeRelations(
     if (field?.type === "relation") {
       // Case 1: Direct ID shortcut (category: 5)
       if (typeof value === "number" || typeof value === "string") {
-        normalized[key] = { connect: [normalizeRelationId(value)] };
+        normalized[key] = { set: [normalizeRelationId(value)] };
         continue;
       }
 

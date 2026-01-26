@@ -191,32 +191,67 @@ export const RESERVED_FIELD_NAMES = [
 ] as const;
 
 /**
- * Validate field name against universal rules
+ * Field validation failure reasons
+ */
+export type FieldInvalidReason =
+  | 'EMPTY'
+  | 'TOO_LONG'
+  | 'RESERVED_FIELD'
+  | 'CONTROL_CHARS'
+  | 'INVALID_FORMAT';
+
+/**
+ * Field validation result with detailed reason
+ */
+export type FieldValidationResult =
+  | { valid: true }
+  | { valid: false; reason: FieldInvalidReason; detail?: string };
+
+/**
+ * Validate field name with detailed reason on failure
+ *
+ * @param fieldName - Field name to validate
+ * @returns Validation result with reason if invalid
+ */
+export function validateFieldName(fieldName: string): FieldValidationResult {
+  // Empty or whitespace-only
+  if (!fieldName || fieldName.trim() === '') {
+    return { valid: false, reason: 'EMPTY' };
+  }
+
+  // Length check
+  if (fieldName.length > MAX_FIELD_NAME_LENGTH) {
+    return {
+      valid: false,
+      reason: 'TOO_LONG',
+      detail: `Max ${MAX_FIELD_NAME_LENGTH} characters`,
+    };
+  }
+
+  // Reserved fields check (prototype pollution protection)
+  if (RESERVED_FIELD_NAMES.includes(fieldName as typeof RESERVED_FIELD_NAMES[number])) {
+    return { valid: false, reason: 'RESERVED_FIELD', detail: fieldName };
+  }
+
+  // Control characters check
+  if (CONTROL_CHARS_PATTERN.test(fieldName)) {
+    return { valid: false, reason: 'CONTROL_CHARS' };
+  }
+
+  // Format check
+  if (!FIELD_NAME_PATTERN.test(fieldName)) {
+    return { valid: false, reason: 'INVALID_FORMAT' };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Validate field name against universal rules (simple boolean)
  *
  * @param fieldName - Field name to validate
  * @returns True if valid, false otherwise
  */
 export function isValidFieldName(fieldName: string): boolean {
-  // Empty or whitespace-only
-  if (!fieldName || fieldName.trim() === '') {
-    return false;
-  }
-
-  // Length check
-  if (fieldName.length > MAX_FIELD_NAME_LENGTH) {
-    return false;
-  }
-
-  // Reserved fields check (prototype pollution protection)
-  if (RESERVED_FIELD_NAMES.includes(fieldName as typeof RESERVED_FIELD_NAMES[number])) {
-    return false;
-  }
-
-  // Control characters check
-  if (CONTROL_CHARS_PATTERN.test(fieldName)) {
-    return false;
-  }
-
-  // Format check
-  return FIELD_NAME_PATTERN.test(fieldName);
+  return validateFieldName(fieldName).valid;
 }

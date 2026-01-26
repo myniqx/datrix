@@ -96,7 +96,7 @@ export function validateSchema<T extends ForjaEntry>(
       if (opts.abortEarly) {
         return { success: false, error: [...errors.getAll()] };
       }
-    } else {
+    } else if (result.data !== undefined) {
       validatedData[fieldName] = result.data;
     }
   }

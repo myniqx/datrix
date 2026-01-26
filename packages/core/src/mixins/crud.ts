@@ -699,7 +699,7 @@ export class CrudOperations implements IRawCrud {
       data,
     };
 
-    const result = await this.getAdapter().executeQuery(query);
+    const result = await this.getAdapter().executeQuery<ForjaEntry>(query);
     if (!result.success) {
       throwQueryExecutionError("insert", model, query, result.error);
     }

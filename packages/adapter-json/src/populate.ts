@@ -147,8 +147,8 @@ export class JsonPopulator {
         if (sourceIds.length === 0) continue;
 
         // Use Runner for schema-aware filtering (handles string/number coercion)
-        const junctionRunner = new JsonQueryRunner(junctionData);
-        const relevantJunctions = junctionRunner.run({
+        const junctionRunner = new JsonQueryRunner(junctionData, this.adapter);
+        const relevantJunctions = await junctionRunner.run({
           type: "select",
           table: junctionTableName,
           where: { [sourceFK]: { $in: sourceIds } },
@@ -162,8 +162,10 @@ export class JsonPopulator {
           const tgtId = junction[targetFK];
 
           // Normalize to number
-          const normalizedSrcId = typeof srcId === "string" ? Number(srcId) : (srcId as number);
-          const normalizedTgtId = typeof tgtId === "string" ? Number(tgtId) : (tgtId as number);
+          const normalizedSrcId =
+            typeof srcId === "string" ? Number(srcId) : (srcId as number);
+          const normalizedTgtId =
+            typeof tgtId === "string" ? Number(tgtId) : (tgtId as number);
 
           const existing = mapping.get(normalizedSrcId) ?? [];
           existing.push(normalizedTgtId);
@@ -181,8 +183,8 @@ export class JsonPopulator {
         const targetDataForRunner = await this.adapter.getCachedTable(targetTable);
         if (!targetDataForRunner) continue;
 
-        const targetRunner = new JsonQueryRunner(targetDataForRunner);
-        const targetRecords = targetRunner.run({
+        const targetRunner = new JsonQueryRunner(targetDataForRunner, this.adapter);
+        const targetRecords = await targetRunner.run({
           type: "select",
           table: targetTable,
           where: { id: { $in: Array.from(allTargetIds) } },
@@ -191,13 +193,15 @@ export class JsonPopulator {
         // Map to result rows
         for (const row of result) {
           const rowId = row["id"];
-          const normalizedRowId = typeof rowId === "string" ? Number(rowId) : (rowId as number);
+          const normalizedRowId =
+            typeof rowId === "string" ? Number(rowId) : (rowId as number);
           const targetIds = mapping.get(normalizedRowId) ?? [];
 
           // Filter using normalized IDs
           const relatedRecords = targetRecords.filter((r) => {
             const rID = r["id"];
-            const normalizedRID = typeof rID === "string" ? Number(rID) : (rID as number);
+            const normalizedRID =
+              typeof rID === "string" ? Number(rID) : (rID as number);
             return targetIds.includes(normalizedRID);
           });
 

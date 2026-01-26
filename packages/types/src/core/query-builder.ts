@@ -151,8 +151,7 @@ export type LogicalOperators<T extends ForjaEntry = ForjaEntry> = {
  * ```
  */
 export type WhereClause<T extends ForjaEntry = ForjaRecord> = {
-  [K in keyof T]?: // Relation fields → Nested WhereClause
-  T[K] extends Relation<infer R> ? WhereClause<R>
+  [K in keyof T]?: T[K] extends Relation<infer R> ? WhereClause<R> // Relation fields → Nested WhereClause
   : // Scalar fields → Value or operators
   T[K] extends ScalarValue ? T[K] | ComparisonOperators<T[K]>
   : // Unknown/complex types → Flexible fallback
@@ -390,7 +389,7 @@ export interface QueryBuilder<TSchema extends ForjaEntry = ForjaRecord> {
 /**
  * Query builder factory
  */
-export type QueryBuilderFactory = <TSchema = Record<string, unknown>>(
+export type QueryBuilderFactory = <TSchema extends ForjaEntry>(
   table: string,
   schema?: SchemaDefinition,
 ) => QueryBuilder<TSchema>;
