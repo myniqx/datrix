@@ -290,6 +290,94 @@ export const userSchema = defineSchema({
   indexes: [{ fields: ["email"], unique: true }],
 } as const);
 
+/**
+ * Test Schema: Post (ManyToMany Tests)
+ *
+ * Blog post with manyToMany relation to tags
+ */
+export const postSchema = defineSchema({
+  name: "post",
+  fields: {
+    title: {
+      type: "string",
+      required: true,
+      minLength: 3,
+      maxLength: 200,
+    },
+    content: {
+      type: "string",
+      required: true,
+    },
+    author: {
+      type: "relation",
+      kind: "belongsTo",
+      model: "author",
+    },
+    tags: {
+      type: "relation",
+      kind: "manyToMany",
+      model: "tag",
+    },
+  },
+  permission: {
+    create: true,
+    read: true,
+    update: true,
+    delete: true,
+  },
+} as const);
+
+/**
+ * Test Schema: Tag (ManyToMany Tests)
+ *
+ * Tags that can be attached to multiple posts
+ */
+export const tagSchema = defineSchema({
+  name: "tag",
+  fields: {
+    name: {
+      type: "string",
+      required: true,
+      minLength: 2,
+      maxLength: 50,
+    },
+  },
+  indexes: [{ fields: ["name"], unique: true }],
+  permission: {
+    create: true,
+    read: true,
+    update: true,
+    delete: true,
+  },
+} as const);
+
+/**
+ * Test Schema: Author (ManyToMany Tests)
+ *
+ * Post author (separate from user for testing)
+ */
+export const authorSchema = defineSchema({
+  name: "author",
+  fields: {
+    name: {
+      type: "string",
+      required: true,
+    },
+    email: {
+      type: "string",
+      required: true,
+      pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+    },
+  },
+  indexes: [{ fields: ["email"], unique: true }],
+  permission: {
+    create: true,
+    read: true,
+    update: true,
+    delete: true,
+  },
+} as const);
+
 export const testSchemas = [
   categorySchema,
   supplierSchema,
@@ -298,4 +386,7 @@ export const testSchemas = [
   publicSchema,
   restrictedSchema,
   userSchema,
+  postSchema,
+  tagSchema,
+  authorSchema,
 ];

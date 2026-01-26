@@ -9,6 +9,7 @@ import {
   throwInvalidRelationType,
   throwTargetModelNotFound,
 } from "./error-helper";
+import { JsonQueryRunner } from "./runner";
 
 export class JsonPopulator {
   constructor(private adapter: JsonAdapter) { }
@@ -59,11 +60,7 @@ export class JsonPopulator {
       // Get target schema
       const targetSchema = schemaRegistry.get(targetModelName);
       if (!targetSchema) {
-        throwTargetModelNotFound(
-          targetModelName,
-          relationName,
-          currentSchema.name,
-        );
+        throwTargetModelNotFound(targetModelName, relationName, currentSchema.name);
       }
 
       const targetTable = targetSchema.tableName ?? targetModelName.toLowerCase();
@@ -131,6 +128,80 @@ export class JsonPopulator {
           } else {
             row[relationName] = group;
           }
+        }
+      } else if (kind === "manyToMany") {
+        // ManyToMany uses junction table (e.g. Post <-> Tag via post_tag)
+        const junctionTableName = relField.through!;
+        const sourceFK = `${currentModelName}Id`;
+        const targetFK = `${targetModelName}Id`;
+
+        // Load junction table using adapter cache
+        const junctionData = await this.adapter.getCachedTable(junctionTableName);
+        if (!junctionData) continue;
+
+        // Collect source IDs
+        const sourceIds = result
+          .map((r) => r["id"])
+          .filter((id): id is string | number => id !== null && id !== undefined);
+
+        if (sourceIds.length === 0) continue;
+
+        // Use Runner for schema-aware filtering (handles string/number coercion)
+        const junctionRunner = new JsonQueryRunner(junctionData);
+        const relevantJunctions = junctionRunner.run({
+          type: "select",
+          table: junctionTableName,
+          where: { [sourceFK]: { $in: sourceIds } },
+        });
+
+        // Build mapping: sourceId -> targetIds[]
+        // Normalize all IDs to number for consistent comparison
+        const mapping = new Map<number, number[]>();
+        for (const junction of relevantJunctions) {
+          const srcId = junction[sourceFK];
+          const tgtId = junction[targetFK];
+
+          // Normalize to number
+          const normalizedSrcId = typeof srcId === "string" ? Number(srcId) : (srcId as number);
+          const normalizedTgtId = typeof tgtId === "string" ? Number(tgtId) : (tgtId as number);
+
+          const existing = mapping.get(normalizedSrcId) ?? [];
+          existing.push(normalizedTgtId);
+          mapping.set(normalizedSrcId, existing);
+        }
+
+        // Collect all unique target IDs
+        const allTargetIds = new Set<number>();
+        for (const ids of mapping.values()) {
+          ids.forEach((id) => allTargetIds.add(id));
+        }
+
+        // Filter target records directly from relatedData (already loaded)
+        // Use runner for schema-aware ID comparison
+        const targetDataForRunner = await this.adapter.getCachedTable(targetTable);
+        if (!targetDataForRunner) continue;
+
+        const targetRunner = new JsonQueryRunner(targetDataForRunner);
+        const targetRecords = targetRunner.run({
+          type: "select",
+          table: targetTable,
+          where: { id: { $in: Array.from(allTargetIds) } },
+        });
+
+        // Map to result rows
+        for (const row of result) {
+          const rowId = row["id"];
+          const normalizedRowId = typeof rowId === "string" ? Number(rowId) : (rowId as number);
+          const targetIds = mapping.get(normalizedRowId) ?? [];
+
+          // Filter using normalized IDs
+          const relatedRecords = targetRecords.filter((r) => {
+            const rID = r["id"];
+            const normalizedRID = typeof rID === "string" ? Number(rID) : (rID as number);
+            return targetIds.includes(normalizedRID);
+          });
+
+          row[relationName] = relatedRecords;
         }
       }
 

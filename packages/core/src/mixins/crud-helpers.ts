@@ -467,12 +467,28 @@ export type InternalUpdateFn = (
 ) => Promise<number>;
 
 /**
+ * Internal insert function signature
+ */
+export type InternalInsertFn = (
+  model: string,
+  data: Record<string, unknown>,
+) => Promise<number | string>;
+
+/**
+ * Internal delete function signature
+ */
+export type InternalDeleteFn = (
+  model: string,
+  where: WhereClause,
+) => Promise<number>;
+
+/**
  * Process a single relation (connect/disconnect/set)
  *
  * Handles relation operations by updating foreign keys:
  * - belongsTo/hasOne: Updates the source record's FK
  * - hasMany: Updates target records' FK
- * - manyToMany: Not yet implemented
+ * - manyToMany: Junction table insert/delete operations
  *
  * @param model - Source model name
  * @param recordId - Source record ID
@@ -480,6 +496,8 @@ export type InternalUpdateFn = (
  * @param relationData - Relation input data (connect/disconnect/set)
  * @param schema - Schema definition
  * @param internalUpdate - Function to perform silent updates
+ * @param internalInsert - Function to perform silent inserts
+ * @param internalDelete - Function to perform silent deletes
  *
  * @example
  * ```ts
@@ -489,7 +507,9 @@ export type InternalUpdateFn = (
  *   'tags',
  *   { connect: [{ id: 1 }, { id: 2 }] },
  *   postSchema,
- *   internalUpdate
+ *   internalUpdate,
+ *   internalInsert,
+ *   internalDelete
  * );
  * ```
  */
@@ -500,6 +520,8 @@ export async function processRelation(
   relationData: unknown,
   schema: SchemaDefinition,
   internalUpdate: InternalUpdateFn,
+  internalInsert: InternalInsertFn,
+  internalDelete: InternalDeleteFn,
 ): Promise<void> {
   const field = schema.fields[fieldName];
   if (!field || field.type !== "relation") {
@@ -587,8 +609,53 @@ export async function processRelation(
     }
   }
 
-  // manyToMany → TODO: Junction table insert/delete
+  // manyToMany → Junction table insert/delete
   if (relation.kind === "manyToMany") {
-    throwNotImplementedError("create", model, "manyToMany relations");
+    const junctionTable = relation.through!;
+    const sourceFK = `${model}Id`;
+    const targetFK = `${relation.model}Id`;
+
+    // Connect → INSERT INTO junction table
+    if (relData.connect) {
+      const ids = Array.isArray(relData.connect)
+        ? relData.connect.map((c) => c.id)
+        : [relData.connect.id];
+
+      for (const targetId of ids) {
+        await internalInsert(junctionTable, {
+          [sourceFK]: recordId,
+          [targetFK]: targetId,
+        });
+      }
+    }
+
+    // Disconnect → DELETE FROM junction table
+    if (relData.disconnect) {
+      const ids = Array.isArray(relData.disconnect)
+        ? relData.disconnect.map((c) => c.id)
+        : [relData.disconnect.id];
+
+      if (ids.length > 0) {
+        await internalDelete(junctionTable, {
+          [sourceFK]: recordId,
+          [targetFK]: { $in: ids },
+        });
+      }
+    }
+
+    // Set → DELETE all + INSERT new
+    if (relData.set) {
+      // 1. Delete all existing relations for this record
+      await internalDelete(junctionTable, { [sourceFK]: recordId });
+
+      // 2. Insert new relations
+      const ids = relData.set.map((item) => item.id);
+      for (const targetId of ids) {
+        await internalInsert(junctionTable, {
+          [sourceFK]: recordId,
+          [targetFK]: targetId,
+        });
+      }
+    }
   }
 }

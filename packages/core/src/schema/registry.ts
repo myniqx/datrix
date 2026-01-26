@@ -681,14 +681,24 @@ export class SchemaRegistry {
 
         // manyToMany → Create junction table
         if (relation.kind === "manyToMany") {
+          const junctionTableName =
+            relation.through ?? this.getJunctionTableName(schemaName, relation.model);
+
           const junctionResult = this.createJunctionTable(
             schemaName,
             fieldName,
             relation,
+            junctionTableName,
           );
           if (!junctionResult.success) {
             return junctionResult;
           }
+
+          // Update relation definition with junction table name
+          enhancedFields[fieldName] = {
+            ...relation,
+            through: junctionTableName,
+          };
         }
       }
 
@@ -709,10 +719,8 @@ export class SchemaRegistry {
     schemaName: string,
     _fieldName: string,
     relation: RelationField,
+    junctionTableName: string,
   ): Result<void, SchemaRegistryError> {
-    const junctionTableName =
-      relation.through ?? this.getJunctionTableName(schemaName, relation.model);
-
     // Check if junction table already exists
     if (this.schemas.has(junctionTableName)) {
       return { success: true, data: undefined };

@@ -10,6 +10,7 @@ import {
   SchemaRegistry,
   SchemaDefinition,
   ForjaEntry,
+  RelationField,
 } from "forja-types/core/schema";
 import {
   QueryObject,
@@ -293,6 +294,8 @@ export class CrudOperations implements IRawCrud {
 
     // Process relations (connect/disconnect/set)
     const internalUpdate = this.internalUpdate.bind(this);
+    const internalInsert = this.internalInsert.bind(this);
+    const internalDelete = this.internalDelete.bind(this);
     for (const [fieldName, relationData] of Object.entries(relations)) {
       await processRelation(
         model,
@@ -301,6 +304,8 @@ export class CrudOperations implements IRawCrud {
         relationData,
         schema,
         internalUpdate,
+        internalInsert,
+        internalDelete,
       );
     }
 
@@ -380,8 +385,19 @@ export class CrudOperations implements IRawCrud {
 
     // Process relations (connect/disconnect/set)
     const internalUpdate = this.internalUpdate.bind(this);
+    const internalInsert = this.internalInsert.bind(this);
+    const internalDelete = this.internalDelete.bind(this);
     for (const [fieldName, relationData] of Object.entries(relations)) {
-      await processRelation(model, id, fieldName, relationData, schema, internalUpdate);
+      await processRelation(
+        model,
+        id,
+        fieldName,
+        relationData,
+        schema,
+        internalUpdate,
+        internalInsert,
+        internalDelete,
+      );
     }
 
     // Fetch updated record with options applied (process select and populate)
@@ -465,7 +481,19 @@ export class CrudOperations implements IRawCrud {
     id: string | number,
     options?: Pick<ParsedQuery, "select" | "populate">,
   ): Promise<boolean> {
-    const { tableName } = this.getSchema(model);
+    const schema = this.getSchema(model);
+
+    // CASCADE DELETE: Clean up junction tables for manyToMany relations
+    const m2mRelations = Object.entries(schema.fields).filter(
+      ([_, field]) =>
+        field.type === "relation" &&
+        (field as RelationField).kind === "manyToMany",
+    );
+
+    for (const [_, field] of m2mRelations) {
+      const relation = field as RelationField;
+      await this.internalDelete(relation.through!, { [`${model}Id`]: id });
+    }
 
     // If options provided, fetch record before deleting
     // (to return it with select/populate applied)
@@ -476,14 +504,14 @@ export class CrudOperations implements IRawCrud {
     // DELETE query
     const query: QueryObject = {
       type: "delete",
-      table: tableName!,
+      table: schema.tableName!,
       where: { id },
     };
 
     return this.execute<boolean>(
       "delete",
       model,
-      tableName!,
+      schema.tableName!,
       query,
       async (q) => {
         const result = await this.getAdapter().executeQuery<unknown>(q);
@@ -508,17 +536,47 @@ export class CrudOperations implements IRawCrud {
    * ```
    */
   async deleteMany(model: string, where: WhereClause): Promise<number> {
-    const { tableName } = this.getSchema(model);
+    const schema = this.getSchema(model);
+
+    // Find IDs to delete (needed for junction table cascade)
+    const m2mRelations = Object.entries(schema.fields).filter(
+      ([_, field]) =>
+        field.type === "relation" &&
+        (field as RelationField).kind === "manyToMany",
+    );
+
+    // Only fetch IDs if we have manyToMany relations
+    let idsToDelete: (string | number)[] = [];
+    if (m2mRelations.length > 0) {
+      const toDelete = await this.findMany<ForjaEntry>(model, {
+        where,
+        select: ["id"],
+      });
+      idsToDelete = toDelete.map((r) => r.id);
+
+      if (idsToDelete.length === 0) {
+        return 0; // Nothing to delete
+      }
+
+      // CASCADE DELETE: Clean up junction tables
+      for (const [_, field] of m2mRelations) {
+        const relation = field as RelationField;
+        await this.internalDelete(relation.through!, {
+          [`${model}Id`]: { $in: idsToDelete },
+        });
+      }
+    }
+
     const query: QueryObject = {
       type: "delete",
-      table: tableName!,
+      table: schema.tableName!,
       where,
     };
 
     return this.execute<number>(
       "deleteMany",
       model,
-      tableName!,
+      schema.tableName!,
       query,
       async (q) => {
         const result = await this.getAdapter().executeQuery<unknown>(q);
@@ -560,6 +618,70 @@ export class CrudOperations implements IRawCrud {
    */
   private processSelect(model: string, select?: SelectClause): SelectClause {
     return this.schemas.getSelectFieldsFor(model, select);
+  }
+
+  /**
+   * Internal insert that bypasses dispatcher
+   * Used for relation processing (junction tables) to avoid triggering hooks
+   *
+   * @param model - Model name
+   * @param data - Data to insert
+   * @returns Inserted record ID
+   *
+   * @example
+   * ```ts
+   * // Insert junction record
+   * await this.internalInsert('Post_Tag', { postId: 1, tagId: 5 });
+   * ```
+   */
+  private async internalInsert(
+    model: string,
+    data: Record<string, unknown>,
+  ): Promise<number | string> {
+    const { tableName } = this.getSchema(model);
+    const query: QueryObject = {
+      type: "insert",
+      table: tableName!,
+      data,
+    };
+
+    const result = await this.getAdapter().executeQuery(query);
+    if (!result.success) {
+      throwQueryExecutionError("insert", model, query, result.error);
+    }
+    return result.data.metadata?.insertId ?? result.data.rows?.[0]?.id!;
+  }
+
+  /**
+   * Internal delete that bypasses dispatcher
+   * Used for relation processing (junction tables) to avoid triggering hooks
+   *
+   * @param model - Model name
+   * @param where - Where clause
+   * @returns Number of deleted rows
+   *
+   * @example
+   * ```ts
+   * // Delete junction records
+   * await this.internalDelete('Post_Tag', { postId: 1, tagId: { $in: [1, 2, 3] } });
+   * ```
+   */
+  private async internalDelete(
+    model: string,
+    where: WhereClause,
+  ): Promise<number> {
+    const { tableName } = this.getSchema(model);
+    const query: QueryObject = {
+      type: "delete",
+      table: tableName!,
+      where,
+    };
+
+    const result = await this.getAdapter().executeQuery(query);
+    if (!result.success) {
+      throwQueryExecutionError("delete", model, query, result.error);
+    }
+    return result.data.metadata?.rowCount ?? 0;
   }
 
   /**
