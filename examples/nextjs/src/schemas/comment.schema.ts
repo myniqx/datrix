@@ -26,5 +26,23 @@ export const commentSchema = defineSchema({
       foreignKey: 'topicId',
       required: true,
     },
+    parent: {
+      type: 'relation',
+      model: 'comment',
+      kind: 'belongsTo',
+      foreignKey: 'parentId',
+    },
+    replies: {
+      type: 'relation',
+      model: 'comment',
+      kind: 'hasMany',
+      foreignKey: 'parentId',
+    },
+    likes: {
+      type: 'relation',
+      model: 'like',
+      kind: 'hasMany',
+      foreignKey: 'commentId',
+    },
   },
 });

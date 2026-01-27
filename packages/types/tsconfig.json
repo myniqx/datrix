@@ -5,11 +5,7 @@
     "rootDir": "./src"
   },
   "include": [
-    "src/**/*",
-    "../../src/core/validator",
-    "../../src/core/schema",
-    "../../src/core/query-builder",
-    "../../src/core/migration"
+    "src/**/*"
   ],
   "exclude": [
     "node_modules",

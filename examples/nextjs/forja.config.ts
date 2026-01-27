@@ -7,7 +7,6 @@
 import { defineConfig } from "forja-core";
 import { JsonAdapter } from "forja-adapter-json";
 import { UploadPlugin, LocalStorageProvider } from "forja-plugin-upload";
-import { HooksPlugin } from "forja-plugin-hooks";
 
 // Import schema definitions
 import { userSchema } from "./src/schemas/user.schema";
@@ -30,7 +29,6 @@ export default defineConfig(() => {
         enabled: true,
         prefix: "/api",
       }),
-      new HooksPlugin(), // Initialize hooks first
       new UploadPlugin({
         provider: new LocalStorageProvider({
           basePath: process.env.UPLOAD_DIR || "./public/uploads",

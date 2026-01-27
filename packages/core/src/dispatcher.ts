@@ -7,9 +7,9 @@
 
 import { QueryObject } from "forja-types/core/query-builder";
 import { PluginRegistry, QueryAction, QueryContext } from "forja-types/plugin";
-import { validateQueryObject } from "./utils/query";
 import { SchemaRegistry } from "forja-types/core/schema";
 import type { Forja } from "./forja";
+import { validateQueryObject } from "forja-types/utils/query";
 
 /**
  * Create a new query context

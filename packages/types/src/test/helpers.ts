@@ -4,7 +4,7 @@
  * Utility functions to simplify test writing
  */
 
-import { Result } from "forja-types/utils";
+import { Result } from "../utils";
 import { expect } from "vitest";
 import { ForjaError } from "../errors/forja-error";
 

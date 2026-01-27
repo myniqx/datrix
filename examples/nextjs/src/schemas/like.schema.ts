@@ -20,7 +20,12 @@ export const likeSchema = defineSchema({
       model: 'topic',
       kind: 'belongsTo',
       foreignKey: 'topicId',
-      required: true,
+    },
+    comment: {
+      type: 'relation',
+      model: 'comment',
+      kind: 'belongsTo',
+      foreignKey: 'commentId',
     },
   },
 });

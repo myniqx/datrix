@@ -1,13 +1,19 @@
 {
   "meta": {
     "version": 1,
-    "updatedAt": "2026-01-18T22:35:03.893Z",
+    "updatedAt": "2026-01-27T17:18:09.808Z",
     "name": "like"
   },
   "schema": {
     "name": "like",
     "timestamps": true,
     "fields": {
+      "id": {
+        "type": "number",
+        "primary": true,
+        "autoIncrement": true,
+        "required": true
+      },
       "user": {
         "type": "relation",
         "model": "user",
@@ -19,8 +25,36 @@
         "type": "relation",
         "model": "topic",
         "kind": "belongsTo",
-        "foreignKey": "topicId",
+        "foreignKey": "topicId"
+      },
+      "comment": {
+        "type": "relation",
+        "model": "comment",
+        "kind": "belongsTo",
+        "foreignKey": "commentId"
+      },
+      "createdAt": {
+        "type": "date",
         "required": true
+      },
+      "updatedAt": {
+        "type": "date",
+        "required": true
+      },
+      "userId": {
+        "type": "number",
+        "required": false,
+        "hidden": true
+      },
+      "topicId": {
+        "type": "number",
+        "required": false,
+        "hidden": true
+      },
+      "commentId": {
+        "type": "number",
+        "required": false,
+        "hidden": true
       }
     },
     "tableName": "likes"

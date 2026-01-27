@@ -1,13 +1,19 @@
 {
   "meta": {
     "version": 1,
-    "updatedAt": "2026-01-18T22:35:03.889Z",
+    "updatedAt": "2026-01-27T17:18:09.806Z",
     "name": "comment"
   },
   "schema": {
     "name": "comment",
     "timestamps": true,
     "fields": {
+      "id": {
+        "type": "number",
+        "primary": true,
+        "autoIncrement": true,
+        "required": true
+      },
       "content": {
         "type": "string",
         "required": true
@@ -25,6 +31,47 @@
         "kind": "belongsTo",
         "foreignKey": "topicId",
         "required": true
+      },
+      "parent": {
+        "type": "relation",
+        "model": "comment",
+        "kind": "belongsTo",
+        "foreignKey": "parentId"
+      },
+      "replies": {
+        "type": "relation",
+        "model": "comment",
+        "kind": "hasMany",
+        "foreignKey": "parentId"
+      },
+      "likes": {
+        "type": "relation",
+        "model": "like",
+        "kind": "hasMany",
+        "foreignKey": "commentId"
+      },
+      "createdAt": {
+        "type": "date",
+        "required": true
+      },
+      "updatedAt": {
+        "type": "date",
+        "required": true
+      },
+      "authorId": {
+        "type": "number",
+        "required": false,
+        "hidden": true
+      },
+      "topicId": {
+        "type": "number",
+        "required": false,
+        "hidden": true
+      },
+      "parentId": {
+        "type": "number",
+        "required": false,
+        "hidden": true
       }
     },
     "tableName": "comments"

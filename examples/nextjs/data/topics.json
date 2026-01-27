@@ -1,13 +1,19 @@
 {
   "meta": {
     "version": 1,
-    "updatedAt": "2026-01-18T22:35:03.886Z",
+    "updatedAt": "2026-01-27T17:18:09.803Z",
     "name": "topic"
   },
   "schema": {
     "name": "topic",
     "timestamps": true,
     "fields": {
+      "id": {
+        "type": "number",
+        "primary": true,
+        "autoIncrement": true,
+        "required": true
+      },
       "title": {
         "type": "string",
         "required": true,
@@ -35,6 +41,19 @@
         "model": "like",
         "kind": "hasMany",
         "foreignKey": "topicId"
+      },
+      "createdAt": {
+        "type": "date",
+        "required": true
+      },
+      "updatedAt": {
+        "type": "date",
+        "required": true
+      },
+      "authorId": {
+        "type": "number",
+        "required": false,
+        "hidden": true
       }
     },
     "tableName": "topics"

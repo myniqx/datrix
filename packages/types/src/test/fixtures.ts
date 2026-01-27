@@ -4,7 +4,7 @@
  * Sample schemas, field definitions, and test data for use in tests
  */
 
-import { FieldDefinition } from "forja-types/core/schema";
+import { FieldDefinition } from "../core/schema";
 
 
 /**

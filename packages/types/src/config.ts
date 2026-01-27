@@ -145,24 +145,6 @@ export interface LoadConfigOptions {
 }
 
 /**
- * @deprecated Use ForjaConfigError from 'forja-types/errors' instead
- * This is kept for backward compatibility
- */
-export { ForjaConfigError as ConfigError } from "./errors/core/config";
-
-/**
- * @deprecated Use throwConfigNotFound from config error helpers instead
- * This is kept for backward compatibility
- */
-export { ForjaConfigError as ConfigNotFoundError } from "./errors/core/config";
-
-/**
- * @deprecated Use ForjaConfigValidationError from 'forja-types/errors' instead
- * This is kept for backward compatibility
- */
-export { ForjaConfigValidationError as ConfigValidationError } from "./errors/core/config";
-
-/**
  * Type guard for ForjaConfig
  */
 export function isForjaConfig(value: unknown): value is ForjaConfig {

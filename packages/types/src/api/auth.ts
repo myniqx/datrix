@@ -1,4 +1,4 @@
-import { ForjaEntry } from "forja-types/core/schema";
+import { ForjaEntry } from "../core/schema";
 
 export interface AuthenticatedUser<
   TRoles extends string = string,

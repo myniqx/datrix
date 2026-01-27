@@ -3,19 +3,46 @@
 import { useState, useEffect } from 'react';
 import { useForja } from '../hooks/useForja';
 import { faker } from '@faker-js/faker';
+import { generateBulkFakeComments } from '../utils/faker';
+import CommentTree from './CommentTree';
 
-export default function TopicSection() {
+interface TopicSectionProps {
+  globalSearch?: string;
+}
+
+export default function TopicSection({ globalSearch }: TopicSectionProps) {
   const { data: topics, loading, error, fetchAll, create } = useForja('topic');
   const { data: users, fetchAll: fetchUsers } = useForja('user');
+  const { create: createComment } = useForja('comment');
+  const { create: createLike, remove: removeLike } = useForja('like');
   const [isCreating, setIsCreating] = useState(false);
+  const [expandedTopic, setExpandedTopic] = useState<string | null>(null);
+  const [bulkCreating, setBulkCreating] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchAll({
-      populate: { author: true, comments: { populate: { author: true } } },
+    const query: any = {
+      populate: {
+        author: true,
+        comments: { populate: { author: true, likes: { populate: { user: true } } } },
+        likes: { populate: { user: true } }
+      },
       orderBy: [{ field: 'createdAt', direction: 'desc' }]
-    });
+    };
+
+    if (globalSearch && globalSearch.trim()) {
+      query.where = {
+        $or: [
+          { title: { $contains: globalSearch } },
+          { content: { $contains: globalSearch } },
+          { comments: { content: { $contains: globalSearch } } },
+          { author: { name: { $contains: globalSearch } } }
+        ]
+      };
+    }
+
+    fetchAll(query);
     fetchUsers();
-  }, [fetchAll, fetchUsers]);
+  }, [fetchAll, fetchUsers, globalSearch]);
 
   const handleAddTopic = async () => {
     if (!users.length) return;
@@ -26,11 +53,49 @@ export default function TopicSection() {
         title: faker.lorem.sentence(),
         content: faker.lorem.paragraphs(2),
         author: randomUser.id,
-        createdAt: new Date().toISOString(),
       });
     } finally {
       setIsCreating(false);
     }
+  };
+
+  const handleBulkAddComments = async (topicId: string) => {
+    if (!users.length) return;
+    setBulkCreating(topicId);
+    try {
+      await generateBulkFakeComments(topicId, users, 5, createComment);
+      await fetchAll({
+        populate: {
+          author: true,
+          comments: { populate: { author: true, likes: { populate: { user: true } } } },
+          likes: { populate: { user: true } }
+        },
+        orderBy: [{ field: 'createdAt', direction: 'desc' }]
+      });
+    } finally {
+      setBulkCreating(null);
+    }
+  };
+
+  const handleToggleTopicLike = async (topic: any) => {
+    if (!users.length) return;
+    const activeUser = users[0];
+    const existingLike = topic.likes?.find((l: any) => l.user?.id === activeUser.id);
+
+    if (existingLike) {
+      await removeLike(existingLike.id);
+    } else {
+      await createLike({ userId: activeUser.id, topicId: topic.id });
+    }
+
+    await fetchAll({
+      populate: {
+        author: true,
+        comments: { populate: { author: true, likes: { populate: { user: true } } } },
+        likes: { populate: { user: true } }
+      },
+      orderBy: [{ field: 'createdAt', direction: 'desc' }]
+    });
   };
 
   return (
@@ -99,17 +164,64 @@ export default function TopicSection() {
 
                 <div className="flex items-center justify-between pt-4 border-t border-slate-100">
                   <div className="flex items-center gap-4">
-                    <button className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-indigo-600 transition-colors">
+                    <button
+                      onClick={() => setExpandedTopic(expandedTopic === topic.id ? null : topic.id)}
+                      className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-indigo-600 transition-colors"
+                    >
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                       </svg>
                       {topic.comments?.length || 0} Comments
                     </button>
-                    <button className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-rose-600 transition-colors">
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                      </svg>
-                      Like
+
+                    <div className="relative group/likes">
+                      <button
+                        onClick={() => handleToggleTopicLike(topic)}
+                        className={`flex items-center gap-1.5 text-xs font-bold transition-colors ${
+                          topic.likes?.some((l: any) => l.user?.id === users[0]?.id)
+                            ? 'text-rose-600'
+                            : 'text-slate-500 hover:text-rose-600'
+                        }`}
+                      >
+                        <svg className={`w-4 h-4 ${topic.likes?.some((l: any) => l.user?.id === users[0]?.id) ? 'fill-rose-600' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                        </svg>
+                        {topic.likes?.length || 0}
+                      </button>
+
+                      {topic.likes?.length > 0 && (
+                        <div className="absolute bottom-full left-0 mb-2 hidden group-hover/likes:block z-10 w-48">
+                          <div className="bg-slate-900 text-white text-xs rounded-lg p-2 shadow-lg">
+                            <div className="font-semibold mb-1">Liked by:</div>
+                            <div className="space-y-1">
+                              {topic.likes.slice(0, 5).map((like: any) => (
+                                <div key={like.id} className="flex items-center gap-2">
+                                  <img src={like.user?.avatar} className="w-4 h-4 rounded-full" />
+                                  <span>{like.user?.name}</span>
+                                </div>
+                              ))}
+                              {topic.likes.length > 5 && (
+                                <div className="text-slate-400">+{topic.likes.length - 5} more</div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={() => handleBulkAddComments(topic.id)}
+                      disabled={bulkCreating === topic.id}
+                      className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-indigo-600 transition-colors disabled:opacity-50"
+                    >
+                      {bulkCreating === topic.id ? (
+                        <span className="w-3 h-3 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+                      ) : (
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                      )}
+                      Add 5 Comments
                     </button>
                   </div>
 
@@ -129,6 +241,24 @@ export default function TopicSection() {
                     )}
                   </div>
                 </div>
+
+                {expandedTopic === topic.id && (
+                  <div className="mt-6 pt-6 border-t border-slate-100 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <CommentTree
+                      comments={topic.comments || []}
+                      topicId={topic.id}
+                      users={users}
+                      onUpdate={() => fetchAll({
+                        populate: {
+                          author: true,
+                          comments: { populate: { author: true, likes: { populate: { user: true } } } },
+                          likes: { populate: { user: true } }
+                        },
+                        orderBy: [{ field: 'createdAt', direction: 'desc' }]
+                      })}
+                    />
+                  </div>
+                )}
               </article>
             ))}
 

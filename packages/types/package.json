@@ -1,32 +1,35 @@
 {
-  "name": "forja-types",
-  "version": "0.1.0",
-  "description": "Shared TypeScript types for Forja framework",
-  "author": "Forja Contributors",
-  "license": "MIT",
-  "main": "./src/adapter.ts",
-  "types": "./src/adapter.ts",
-  "exports": {
-    ".": "./src/index.ts",
-    "./*": "./src/*.ts"
-  },
-  "typesVersions": {
-    "*": {
-      "*": ["./src/*.ts"]
-    }
-  },
-  "files": [
-    "dist"
-  ],
-  "sideEffects": false,
-  "scripts": {
-    "build": "tsup",
-    "dev": "tsup --watch",
-    "type-check": "tsc --noEmit",
-    "clean": "rm -rf dist"
-  },
-  "devDependencies": {
-    "tsup": "^8.0.2",
-    "typescript": "^5.3.3"
-  }
+	"name": "forja-types",
+	"version": "0.1.0",
+	"description": "Shared TypeScript types for Forja framework",
+	"author": "Forja Contributors",
+	"license": "MIT",
+	"main": "./src/adapter.ts",
+	"types": "./src/adapter.ts",
+	"exports": {
+		".": "./src/index.ts",
+		"./errors": "./src/errors/index.ts",
+		"./*": "./src/*.ts"
+	},
+	"typesVersions": {
+		"*": {
+			"*": [
+				"./src/*.ts"
+			]
+		}
+	},
+	"files": [
+		"dist"
+	],
+	"sideEffects": false,
+	"scripts": {
+		"build": "tsup",
+		"dev": "tsup --watch",
+		"type-check": "tsc --noEmit",
+		"clean": "rm -rf dist"
+	},
+	"devDependencies": {
+		"tsup": "^8.0.2",
+		"typescript": "^5.3.3"
+	}
 }

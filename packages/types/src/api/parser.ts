@@ -5,7 +5,7 @@
  * Supports: populate, fields, where, pagination, sorting
  */
 
-import { ForjaEntry, ForjaRecord } from "forja-types/core/schema";
+import { ForjaEntry, ForjaRecord } from "../core/schema";
 import {
   OrderByItem,
   PopulateClause,

@@ -1,111 +1,109 @@
 {
-	"meta": {
-		"version": 1,
-		"updatedAt": "2026-01-19T08:18:44.071Z",
-		"name": "user",
-		"lastInsertId": 8
-	},
-	"schema": {
-		"name": "user",
-		"timestamps": true,
-		"fields": {
-			"name": {
-				"type": "string",
-				"required": true,
-				"minLength": 2
-			},
-			"email": {
-				"type": "string",
-				"required": true,
-				"unique": true
-			},
-			"avatar": {
-				"type": "string",
-				"required": false
-			},
-			"role": {
-				"type": "enum",
-				"values": ["admin", "moderator", "user"],
-				"default": "user",
-				"required": true
-			},
-			"topics": {
-				"type": "relation",
-				"model": "topic",
-				"kind": "hasMany",
-				"foreignKey": "authorId"
-			},
-			"comments": {
-				"type": "relation",
-				"model": "comment",
-				"kind": "hasMany",
-				"foreignKey": "authorId"
-			},
-			"likes": {
-				"type": "relation",
-				"model": "like",
-				"kind": "hasMany",
-				"foreignKey": "userId"
-			}
-		},
-		"tableName": "users"
-	},
-	"data": [
-		{
-			"name": "Roger Farrell",
-			"email": "Rebeka.Herzog@hotmail.com",
-			"avatar": "https://avatars.githubusercontent.com/u/46939326",
-			"role": "user",
-			"id": 1
-		},
-		{
-			"name": "Edmond Christiansen PhD",
-			"email": "Rogelio.Koepp@gmail.com",
-			"avatar": "https://cdn.jsdelivr.net/gh/faker-js/assets-person-portrait/female/512/74.jpg",
-			"role": "user",
-			"id": 2
-		},
-		{
-			"name": "Mark Koss",
-			"email": "Zachariah22@yahoo.com",
-			"avatar": "https://avatars.githubusercontent.com/u/99807146",
-			"role": "user",
-			"id": 3
-		},
-		{
-			"name": "Christy Bergstrom",
-			"email": "Audie.Runolfsdottir59@hotmail.com",
-			"avatar": "https://cdn.jsdelivr.net/gh/faker-js/assets-person-portrait/male/512/95.jpg",
-			"role": "user",
-			"id": 4
-		},
-		{
-			"name": "Carmen Carter IV",
-			"email": "Brett_Romaguera@hotmail.com",
-			"avatar": "https://avatars.githubusercontent.com/u/35687561",
-			"role": "user",
-			"id": 5
-		},
-		{
-			"name": "Earl Ryan",
-			"email": "Brenden21@gmail.com",
-			"avatar": "https://cdn.jsdelivr.net/gh/faker-js/assets-person-portrait/female/512/13.jpg",
-			"role": "user",
-			"id": 6
-		},
-		{
-			"name": "Margaret Metz",
-			"email": "Dorthy60@hotmail.com",
-			"avatar": "https://avatars.githubusercontent.com/u/84630794",
-			"role": "user",
-			"id": 7
-		},
-		{
-			"name": "Geneva Lindgren-Reinger",
-			"email": "Demetrius_Abshire47@gmail.com",
-			"avatar": "https://avatars.githubusercontent.com/u/12433376",
-			"role": "user",
-			"id": 8
-		}
-	]
+  "meta": {
+    "version": 1,
+    "updatedAt": "2026-01-27T17:18:19.825Z",
+    "name": "user",
+    "lastInsertId": 4
+  },
+  "schema": {
+    "name": "user",
+    "timestamps": true,
+    "fields": {
+      "id": {
+        "type": "number",
+        "primary": true,
+        "autoIncrement": true,
+        "required": true
+      },
+      "name": {
+        "type": "string",
+        "required": true,
+        "minLength": 2
+      },
+      "email": {
+        "type": "string",
+        "required": true,
+        "unique": true
+      },
+      "avatar": {
+        "type": "string",
+        "required": false
+      },
+      "role": {
+        "type": "enum",
+        "values": [
+          "admin",
+          "moderator",
+          "user"
+        ],
+        "default": "user",
+        "required": true
+      },
+      "topics": {
+        "type": "relation",
+        "model": "topic",
+        "kind": "hasMany",
+        "foreignKey": "authorId"
+      },
+      "comments": {
+        "type": "relation",
+        "model": "comment",
+        "kind": "hasMany",
+        "foreignKey": "authorId"
+      },
+      "likes": {
+        "type": "relation",
+        "model": "like",
+        "kind": "hasMany",
+        "foreignKey": "userId"
+      },
+      "createdAt": {
+        "type": "date",
+        "required": true
+      },
+      "updatedAt": {
+        "type": "date",
+        "required": true
+      }
+    },
+    "tableName": "users"
+  },
+  "data": [
+    {
+      "name": "Freda Goyette",
+      "email": "Kennith.Beahan@hotmail.com",
+      "avatar": "https://avatars.githubusercontent.com/u/16904809",
+      "role": "user",
+      "createdAt": "2026-01-27T17:18:17.399Z",
+      "updatedAt": "2026-01-27T17:18:17.399Z",
+      "id": 1
+    },
+    {
+      "name": "Kim West",
+      "email": "Destiney72@hotmail.com",
+      "avatar": "https://avatars.githubusercontent.com/u/98358044",
+      "role": "user",
+      "createdAt": "2026-01-27T17:18:18.776Z",
+      "updatedAt": "2026-01-27T17:18:18.776Z",
+      "id": 2
+    },
+    {
+      "name": "Herbert Harvey I",
+      "email": "Louisa35@hotmail.com",
+      "avatar": "https://avatars.githubusercontent.com/u/38991129",
+      "role": "user",
+      "createdAt": "2026-01-27T17:18:19.338Z",
+      "updatedAt": "2026-01-27T17:18:19.338Z",
+      "id": 3
+    },
+    {
+      "name": "Eva Beer",
+      "email": "Lon_Klocko86@gmail.com",
+      "avatar": "https://avatars.githubusercontent.com/u/33925822",
+      "role": "user",
+      "createdAt": "2026-01-27T17:18:19.824Z",
+      "updatedAt": "2026-01-27T17:18:19.824Z",
+      "id": 4
+    }
+  ]
 }
