@@ -25,7 +25,7 @@ import {
   TransactionError
 } from 'forja-types/adapter';
 import { Result } from 'forja-types/utils';
-import { validateQueryObject } from 'forja-core/utils/query';
+import { validateQueryObject } from 'forja-types/utils/query';
 import { FieldDefinition, FieldType, IndexDefinition, SchemaDefinition } from 'forja-types/core/schema';
 import { Forja } from 'forja-core';
 

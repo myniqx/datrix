@@ -121,27 +121,41 @@ describe("JsonAdapter - Advanced Features Error/Edge Cases", () => {
   });
 
   describe("Populate", () => {
-    it("should handle broken relation links (target table missing)", async () => {
-      // Relation metadata points to 'missing_table'
+    it("should throw when relation target model not found", async () => {
+      // Create table with relation to non-existent model
+      await adapter.createTable({
+        name: "UserWithProfile",
+        tableName: "users_with_profile",
+        fields: {
+          name: { type: "string", required: true },
+          profile: {
+            type: "relation",
+            kind: "hasOne",
+            model: "NonExistentProfile",
+            foreignKey: "userId",
+          },
+        },
+      });
+
+      await adapter.executeQuery({
+        type: "insert",
+        table: "users_with_profile",
+        data: { name: "Test User" },
+      });
+
       const query: QueryObject = {
         type: "select",
-        table: "users",
+        table: "users_with_profile",
         populate: { profile: {} },
       };
 
-      // Should not crash, just not populate
-      const result = expectSuccessData(await adapter.executeQuery(query));
-      expect((result.rows[0] as any).profile).toBeUndefined();
-    });
-
-    it("should handle type mismatch in foreign keys", async () => {
-      // If FK is string "1" but ID is number 1, map lookup might fail if not careful.
-      // JsonAdapter typically stores generic JSON types.
-      // Ideally we should test if '1' == 1 behavior is desired or strict.
-      // Map uses SameValueZero algorithm (strict for primitives).
-      // Setup: User with string ID (if possible? schema says number, but JSON fits all)
-      // Let's coerce manual write to test adaptation?
-      // Or just standard usage.
+      // Should throw error for broken relation
+      const result = await adapter.executeQuery(query);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.code).toBe("QUERY_ERROR");
+        expect(result.error.message.toLowerCase()).toMatch(/not found|nonexistent/);
+      }
     });
   });
 
@@ -202,30 +216,70 @@ describe("JsonAdapter - Advanced Features Error/Edge Cases", () => {
 
     it("should handle deeply nested populate gracefully", async () => {
       await adapter.createTable({
-        name: "a",
-        fields: { name: { type: "string", required: true } },
-      });
-      await adapter.createTable({
-        name: "b",
+        name: "A",
+        tableName: "a",
         fields: {
           name: { type: "string", required: true },
-          aId: { type: "number", required: true },
+          b: {
+            type: "relation",
+            kind: "hasMany",
+            model: "B",
+            foreignKey: "aId",
+          },
         },
       });
       await adapter.createTable({
-        name: "c",
+        name: "B",
+        tableName: "b",
+        fields: {
+          name: { type: "string", required: true },
+          aId: { type: "number", required: true },
+          a: {
+            type: "relation",
+            kind: "belongsTo",
+            model: "A",
+            foreignKey: "aId",
+          },
+          c: {
+            type: "relation",
+            kind: "hasMany",
+            model: "C",
+            foreignKey: "bId",
+          },
+        },
+      });
+      await adapter.createTable({
+        name: "C",
         tableName: "c",
         fields: {
           name: { type: "string", required: true },
           bId: { type: "number", required: true },
+          b: {
+            type: "relation",
+            kind: "belongsTo",
+            model: "B",
+            foreignKey: "bId",
+          },
+          d: {
+            type: "relation",
+            kind: "hasMany",
+            model: "D",
+            foreignKey: "cId",
+          },
         },
       });
       await adapter.createTable({
-        name: "d",
+        name: "D",
         tableName: "d",
         fields: {
           name: { type: "string", required: true },
           cId: { type: "number", required: true },
+          c: {
+            type: "relation",
+            kind: "belongsTo",
+            model: "C",
+            foreignKey: "cId",
+          },
         },
       });
 
@@ -266,11 +320,14 @@ describe("JsonAdapter - Advanced Features Error/Edge Cases", () => {
         },
       };
 
-      const result = await adapter.executeQuery(deepQuery);
+      // This should work - 4 level nesting is supported
+      const result = expectSuccessData(await adapter.executeQuery(deepQuery));
+      const a = result.rows[0] as any;
 
-      if (!result.success) {
-        expect(result.error.code).toBe("QUERY_ERROR");
-        expect(result.error.message.toLowerCase()).toMatch(/depth|nest/);
+      expect(a.b).toBeDefined();
+      expect(Array.isArray(a.b)).toBe(true);
+      if (a.b.length > 0) {
+        expect(a.b[0].c).toBeDefined();
       }
     });
 

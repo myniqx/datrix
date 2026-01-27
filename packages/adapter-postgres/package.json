@@ -25,7 +25,6 @@
 		"clean": "rm -rf dist"
 	},
 	"dependencies": {
-		"forja-core": "workspace:*",
 		"pg": "^8.11.3",
 		"forja-types": "workspace:*"
 	},

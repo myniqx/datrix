@@ -16,30 +16,60 @@ describe("JsonAdapter - Advanced Features", () => {
 
     // Setup Tables
     await adapter.createTable({
-      name: "users",
+      name: "User",
       tableName: "users",
       fields: {
         name: { type: "string", required: true },
         age: { type: "number", required: false },
         role: { type: "string", required: true },
+        posts: {
+          type: "relation",
+          kind: "hasMany",
+          model: "Post",
+          foreignKey: "authorId",
+        },
       },
     });
     await adapter.createTable({
-      name: "posts",
+      name: "Post",
       tableName: "posts",
       fields: {
         title: { type: "string", required: true },
         authorId: { type: "number", required: true },
         views: { type: "number", required: false },
+        author: {
+          type: "relation",
+          kind: "belongsTo",
+          model: "User",
+          foreignKey: "authorId",
+        },
+        comments: {
+          type: "relation",
+          kind: "hasMany",
+          model: "Comment",
+          foreignKey: "postId",
+        },
       },
     });
     await adapter.createTable({
-      name: "comments",
+      name: "Comment",
       tableName: "comments",
       fields: {
         content: { type: "string", required: true },
         postId: { type: "number", required: true },
         userId: { type: "number", required: true },
+        post: {
+          type: "relation",
+          kind: "belongsTo",
+          model: "Post",
+          foreignKey: "postId",
+        },
+        user: {
+          type: "relation",
+          kind: "belongsTo",
+          model: "User",
+          foreignKey: "userId",
+        },
       },
     });
   });
@@ -247,7 +277,7 @@ describe("JsonAdapter - Advanced Features", () => {
       populate: {
         post: {
           populate: {
-            author: {},
+            author: "*",
           },
         },
       },
@@ -284,7 +314,7 @@ describe("JsonAdapter - Advanced Features", () => {
       table: "users",
       where: { id: 1 },
       populate: {
-        posts: {},
+        posts: "*",
       },
     };
 

@@ -15,16 +15,25 @@ describe("JsonAdapter Populate - Error Handling", () => {
     await adapter.connect();
 
     await adapter.createTable({
-      name: "users",
+      name: "User",
       tableName: "users",
-      fields: { name: { type: "string", required: true } },
+      fields: {
+        name: { type: "string", required: true },
+      },
     });
+
     await adapter.createTable({
-      name: "posts",
+      name: "Post",
       tableName: "posts",
       fields: {
         title: { type: "string", required: true },
         authorId: { type: "number", required: false },
+        author: {
+          type: "relation",
+          kind: "belongsTo",
+          model: "User",
+          foreignKey: "authorId",
+        },
       },
     });
   });
@@ -34,13 +43,168 @@ describe("JsonAdapter Populate - Error Handling", () => {
     await fs.rm(root, { recursive: true, force: true });
   });
 
+  describe("Schema Validation Errors", () => {
+    it("should throw when table schema not found", async () => {
+      const query: QueryObject = {
+        type: "select",
+        table: "nonexistent_table",
+        populate: { author: {} },
+      };
+
+      const result = await adapter.executeQuery(query);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.message).toContain("not found");
+      }
+    });
+
+    it("should throw when relation field not found in schema", async () => {
+      await adapter.createTable({
+        name: "SimplePost",
+        tableName: "simple_posts",
+        fields: {
+          title: { type: "string", required: true },
+          authorId: { type: "number", required: false },
+        },
+      });
+
+      await adapter.executeQuery({
+        type: "insert",
+        table: "simple_posts",
+        data: { title: "Test", authorId: 1 },
+      });
+
+      const query: QueryObject = {
+        type: "select",
+        table: "simple_posts",
+        populate: { author: {} },
+      };
+
+      const result = await adapter.executeQuery(query);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.message).toContain("not found");
+      }
+    });
+
+    it("should throw when field is not a relation type", async () => {
+      await adapter.createTable({
+        name: "InvalidPost",
+        tableName: "invalid_posts",
+        fields: {
+          title: { type: "string", required: true },
+          author: { type: "string", required: false },
+        },
+      });
+
+      await adapter.executeQuery({
+        type: "insert",
+        table: "invalid_posts",
+        data: { title: "Test", author: "John" },
+      });
+
+      const query: QueryObject = {
+        type: "select",
+        table: "invalid_posts",
+        populate: { author: {} },
+      };
+
+      const result = await adapter.executeQuery(query);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.message).toContain("not a relation");
+      }
+    });
+
+    it("should throw when target model schema not found", async () => {
+      await adapter.createTable({
+        name: "PostWithBadRelation",
+        tableName: "bad_posts",
+        fields: {
+          title: { type: "string", required: true },
+          author: {
+            type: "relation",
+            kind: "belongsTo",
+            model: "NonExistentUser",
+            foreignKey: "authorId",
+          },
+        },
+      });
+
+      await adapter.executeQuery({
+        type: "insert",
+        table: "bad_posts",
+        data: { title: "Test" },
+      });
+
+      const query: QueryObject = {
+        type: "select",
+        table: "bad_posts",
+        populate: { author: {} },
+      };
+
+      const result = await adapter.executeQuery(query);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.message).toContain("not found");
+      }
+    });
+
+    it("should throw when junction table not found (manyToMany)", async () => {
+      await adapter.createTable({
+        name: "PostWithBadJunction",
+        tableName: "posts_bad_junction",
+        fields: {
+          title: { type: "string", required: true },
+          tags: {
+            type: "relation",
+            kind: "manyToMany",
+            model: "Tag",
+            through: "nonexistent_junction",
+          },
+        },
+      });
+
+      await adapter.createTable({
+        name: "Tag",
+        tableName: "tags",
+        fields: {
+          name: { type: "string", required: true },
+        },
+      });
+
+      await adapter.executeQuery({
+        type: "insert",
+        table: "posts_bad_junction",
+        data: { title: "Test" },
+      });
+
+      const query: QueryObject = {
+        type: "select",
+        table: "posts_bad_junction",
+        populate: { tags: "*" },
+      };
+
+      // Should throw error when junction table doesn't exist
+      const result = await adapter.executeQuery(query);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.code).toBe("QUERY_ERROR");
+        expect(result.error.message.toLowerCase()).toMatch(/junction|through|not found/);
+      }
+    });
+  });
+
   describe("Missing Target Table", () => {
-    it("should gracefully handle non-existent target table", async () => {
+    it("should throw when target table file is deleted (data corruption)", async () => {
       await adapter.executeQuery({
         type: "insert",
         table: "posts",
         data: { title: "Test Post", authorId: 1 },
       });
+
+      // Delete the target table file (simulates data corruption)
+      await fs.unlink(path.join(root, "users.json"));
 
       const query: QueryObject = {
         type: "select",
@@ -48,43 +212,85 @@ describe("JsonAdapter Populate - Error Handling", () => {
         populate: { author: "*" },
       };
 
-      const result = expectSuccessData(await adapter.executeQuery(query));
-      const post = result.rows[0] as any;
-
-      // Should not crash, just skip the populate
-      expect(post.title).toBe("Test Post");
-      expect(post.author).toBeUndefined();
+      // Should throw error because target model exists in schema but file is missing
+      const result = await adapter.executeQuery(query);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.code).toBe("QUERY_ERROR");
+        expect(result.error.message.toLowerCase()).toContain("not found");
+      }
     });
 
-    it("should handle missing target table for hasMany", async () => {
+    it("should throw when target model doesn't exist (hasMany)", async () => {
+      await adapter.createTable({
+        name: "UserMissingPosts",
+        tableName: "users_missing_posts",
+        fields: {
+          name: { type: "string", required: true },
+          posts: {
+            type: "relation",
+            kind: "hasMany",
+            model: "NonExistentPost",
+            foreignKey: "authorId",
+          },
+        },
+      });
+
       await adapter.executeQuery({
         type: "insert",
-        table: "users",
+        table: "users_missing_posts",
         data: { name: "Alice" },
       });
 
       const query: QueryObject = {
         type: "select",
-        table: "users",
+        table: "users_missing_posts",
         populate: { posts: {} },
-        // @ts-ignore
-        meta: {
-          relations: {
-            posts: {
-              kind: "hasMany",
-              model: "Post",
-              targetTable: "nonexistent_posts",
-              foreignKey: "authorId",
-            },
-          },
-        },
       };
 
-      const result = expectSuccessData(await adapter.executeQuery(query));
-      const user = result.rows[0] as any;
+      // Should throw error for non-existent target model
+      const result = await adapter.executeQuery(query);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.code).toBe("QUERY_ERROR");
+        expect(result.error.message.toLowerCase()).toMatch(/not found|nonexistent/);
+      }
+    });
 
-      expect(user.name).toBe("Alice");
-      expect(user.posts).toBeUndefined();
+    it("should throw when target model doesn't exist (hasOne)", async () => {
+      await adapter.createTable({
+        name: "UserMissingProfile",
+        tableName: "users_missing_profile",
+        fields: {
+          name: { type: "string", required: true },
+          profile: {
+            type: "relation",
+            kind: "hasOne",
+            model: "NonExistentProfile",
+            foreignKey: "userId",
+          },
+        },
+      });
+
+      await adapter.executeQuery({
+        type: "insert",
+        table: "users_missing_profile",
+        data: { name: "Alice" },
+      });
+
+      const query: QueryObject = {
+        type: "select",
+        table: "users_missing_profile",
+        populate: { profile: {} },
+      };
+
+      // Should throw error for non-existent target model
+      const result = await adapter.executeQuery(query);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.code).toBe("QUERY_ERROR");
+        expect(result.error.message.toLowerCase()).toMatch(/not found|nonexistent/);
+      }
     });
   });
 
@@ -96,7 +302,6 @@ describe("JsonAdapter Populate - Error Handling", () => {
         data: { title: "Test Post", authorId: 1 },
       });
 
-      // Corrupt the users.json file
       const usersPath = path.join(root, "users.json");
       await fs.writeFile(usersPath, "{ invalid json }");
 
@@ -106,15 +311,12 @@ describe("JsonAdapter Populate - Error Handling", () => {
         populate: { author: {} },
       };
 
-      // Should not crash - either skip populate or handle gracefully
       const result = await adapter.executeQuery(query);
 
-      // Accepting either: success with undefined author, or error
       if (result.success) {
         const post = (result as any).data.rows[0];
         expect(post.title).toBe("Test Post");
       } else {
-        // Error is also acceptable behavior
         expect(result.success).toBe(false);
       }
     });
@@ -126,308 +328,158 @@ describe("JsonAdapter Populate - Error Handling", () => {
         data: { title: "Test Post", authorId: 1 },
       });
 
-      // Create malformed users.json (valid JSON but missing structure)
       const usersPath = path.join(root, "users.json");
-      await fs.writeFile(usersPath, JSON.stringify({ meta: { version: 1 } }));
+      await fs.writeFile(
+        usersPath,
+        JSON.stringify({
+          meta: { version: 1, name: "users", updatedAt: new Date().toISOString() },
+          schema: {
+            name: "User",
+            tableName: "users",
+            fields: { name: { type: "string" } },
+          },
+        }),
+      );
 
       const query: QueryObject = {
         type: "select",
         table: "posts",
         populate: { author: {} },
-        // @ts-ignore
-        meta: {
-          relations: {
-            author: {
-              kind: "belongsTo",
-              model: "User",
-              targetTable: "users",
-              foreignKey: "authorId",
-            },
-          },
-        },
       };
 
       const result = await adapter.executeQuery(query);
 
-      // Should handle gracefully (either skip or error)
       if (result.success) {
         const post = (result as any).data.rows[0];
         expect(post.title).toBe("Test Post");
       }
     });
-  });
 
-  describe("Invalid Relation Metadata", () => {
-    it("should skip populate when no relation metadata", async () => {
-      await adapter.executeQuery({
-        type: "insert",
-        table: "users",
-        data: { name: "Alice" },
-      });
-      await adapter.executeQuery({
-        type: "insert",
-        table: "posts",
-        data: { title: "Test", authorId: 1 },
-      });
-
-      const query: QueryObject = {
-        type: "select",
-        table: "posts",
-        populate: { author: {} },
-        // No meta.relations!
-      };
-
-      const result = expectSuccessData(await adapter.executeQuery(query));
-      const post = result.rows[0] as any;
-
-      // Should not crash, populate should be skipped
-      expect(post.title).toBe("Test");
-      expect(post.author).toBeUndefined();
-    });
-
-    it("should handle missing foreignKey in metadata", async () => {
-      await adapter.executeQuery({
-        type: "insert",
-        table: "posts",
-        data: { title: "Test", authorId: 1 },
-      });
-
-      const query: QueryObject = {
-        type: "select",
-        table: "posts",
-        populate: { author: {} },
-        // @ts-ignore - intentionally incomplete metadata
-        meta: {
-          relations: {
-            author: {
-              kind: "belongsTo",
-              model: "User",
-              targetTable: "users",
-              // Missing foreignKey!
-            },
+    it("should handle corrupted junction table (manyToMany)", async () => {
+      await adapter.createTable({
+        name: "PostManyToMany",
+        tableName: "posts_m2m",
+        fields: {
+          title: { type: "string", required: true },
+          tags: {
+            type: "relation",
+            kind: "manyToMany",
+            model: "Tag",
+            through: "post_tags",
           },
         },
+      });
+
+      await adapter.createTable({
+        name: "Tag",
+        tableName: "tags",
+        fields: {
+          name: { type: "string", required: true },
+        },
+      });
+
+      await adapter.createTable({
+        name: "PostTag",
+        tableName: "post_tags",
+        fields: {
+          PostManyToManyId: { type: "number", required: true },
+          TagId: { type: "number", required: true },
+        },
+      });
+
+      await adapter.executeQuery({
+        type: "insert",
+        table: "posts_m2m",
+        data: { title: "Test Post" },
+      });
+
+      const junctionPath = path.join(root, "post_tags.json");
+      await fs.writeFile(junctionPath, "{ corrupted json }");
+
+      const query: QueryObject = {
+        type: "select",
+        table: "posts_m2m",
+        populate: { tags: {} },
       };
 
       const result = await adapter.executeQuery(query);
 
-      // Should either skip or handle gracefully
       if (result.success) {
-        const post = (result as any).data.rows[0];
-        expect(post.title).toBe("Test");
+        const post = result.data.rows[0] as any;
+        expect(post.title).toBe("Test Post");
       }
     });
-
-    it("should handle invalid relation kind", async () => {
-      await adapter.executeQuery({
-        type: "insert",
-        table: "posts",
-        data: { title: "Test", authorId: 1 },
-      });
-
-      const query: QueryObject = {
-        type: "select",
-        table: "posts",
-        populate: { author: {} },
-        // @ts-ignore - invalid kind
-        meta: {
-          relations: {
-            author: {
-              kind: "invalidKind",
-              model: "User",
-              targetTable: "users",
-              foreignKey: "authorId",
-            },
-          },
-        },
-      };
-
-      const result = expectSuccessData(await adapter.executeQuery(query));
-      const post = result.rows[0] as any;
-
-      // Should skip unsupported relation types
-      expect(post.title).toBe("Test");
-      expect(post.author).toBeUndefined();
-    });
-  });
-
-  describe("Performance & Resource Issues", () => {
-    it("should handle large datasets without memory issues", async () => {
-      // Create 100 users
-      for (let i = 0; i < 100; i++) {
-        await adapter.executeQuery({
-          type: "insert",
-          table: "users",
-          data: { name: `User${i}` },
-        });
-      }
-
-      // Create 100 posts, each referencing random users
-      for (let i = 0; i < 100; i++) {
-        await adapter.executeQuery({
-          type: "insert",
-          table: "posts",
-          data: { title: `Post${i}`, authorId: (i % 100) + 1 },
-        });
-      }
-
-      const query: QueryObject = {
-        type: "select",
-        table: "posts",
-        populate: { author: {} },
-        // @ts-ignore
-        meta: {
-          relations: {
-            author: {
-              kind: "belongsTo",
-              model: "User",
-              targetTable: "users",
-              foreignKey: "authorId",
-            },
-          },
-        },
-      };
-
-      const initialMemory = process.memoryUsage().heapUsed;
-      const result = expectSuccessData(await adapter.executeQuery(query));
-      const memoryUsed = process.memoryUsage().heapUsed - initialMemory;
-
-      expect(result.rows).toHaveLength(100);
-      expect(result.rows[0]).toHaveProperty("author");
-
-      // Should not use excessive memory (less than 50MB for 100 records)
-      expect(memoryUsed).toBeLessThan(50 * 1024 * 1024);
-    }, 30000);
-
-    it("should handle missing FK values in large dataset", async () => {
-      // Create 50 posts with valid FK, 50 with null FK
-      for (let i = 0; i < 50; i++) {
-        await adapter.executeQuery({
-          type: "insert",
-          table: "posts",
-          data: { title: `Post${i}`, authorId: 1 },
-        });
-      }
-      for (let i = 50; i < 100; i++) {
-        await adapter.executeQuery({
-          type: "insert",
-          table: "posts",
-          data: { title: `Post${i}`, authorId: null },
-        });
-      }
-
-      // Create one user
-      await adapter.executeQuery({
-        type: "insert",
-        table: "users",
-        data: { name: "OnlyUser" },
-      });
-
-      const query: QueryObject = {
-        type: "select",
-        table: "posts",
-        populate: { author: {} },
-        // @ts-ignore
-        meta: {
-          relations: {
-            author: {
-              kind: "belongsTo",
-              model: "User",
-              targetTable: "users",
-              foreignKey: "authorId",
-            },
-          },
-        },
-      };
-
-      const result = expectSuccessData(await adapter.executeQuery(query));
-
-      // First 50 should have author, last 50 should be null
-      const withAuthor = result.rows.filter((r: any) => r.author !== null);
-      const withoutAuthor = result.rows.filter((r: any) => r.author === null);
-
-      expect(withAuthor.length).toBeGreaterThanOrEqual(45);
-      expect(withoutAuthor.length).toBeGreaterThanOrEqual(45);
-    }, 30000);
   });
 
   describe("Circular Reference Prevention", () => {
-    it("should handle potential circular references gracefully", async () => {
-      // This tests if nested populate could cause infinite loops
-      // Post -> Author -> Posts -> Author...
+    it("should handle nested populate without infinite loops", async () => {
+      await adapter.createTable({
+        name: "UserWithPosts",
+        tableName: "users_circular",
+        fields: {
+          name: { type: "string", required: true },
+          posts: {
+            type: "relation",
+            kind: "hasMany",
+            model: "PostCircular",
+            foreignKey: "authorId",
+          },
+        },
+      });
+
+      await adapter.createTable({
+        name: "PostCircular",
+        tableName: "posts_circular",
+        fields: {
+          title: { type: "string", required: true },
+          authorId: { type: "number", required: false },
+          author: {
+            type: "relation",
+            kind: "belongsTo",
+            model: "UserWithPosts",
+            foreignKey: "authorId",
+          },
+        },
+      });
 
       await adapter.executeQuery({
         type: "insert",
-        table: "users",
+        table: "users_circular",
         data: { name: "Alice" },
       });
 
       await adapter.executeQuery({
         type: "insert",
-        table: "posts",
+        table: "posts_circular",
         data: { title: "Post 1", authorId: 1 },
       });
 
-      // Nested populate that could theoretically loop
       const query: QueryObject = {
         type: "select",
-        table: "posts",
+        table: "posts_circular",
         populate: {
           author: {
             populate: {
-              posts: {
-                // If this tried to populate author again, it would loop
-                // But the implementation doesn't support 3+ levels
-              },
-            },
-          },
-        },
-        // @ts-ignore
-        meta: {
-          relations: {
-            author: {
-              kind: "belongsTo",
-              model: "User",
-              targetTable: "users",
-              foreignKey: "authorId",
-            },
-            posts: {
-              kind: "hasMany",
-              model: "Post",
-              targetTable: "posts",
-              foreignKey: "authorId",
+              posts: {},
             },
           },
         },
       };
 
-      // Should not crash or timeout
       const result = expectSuccessData(await adapter.executeQuery(query));
       const post = result.rows[0] as any;
 
       expect(post.author).toBeDefined();
       expect(post.author.posts).toBeDefined();
-      // Third level should not be populated (preventing infinite loop)
     });
   });
 
-  describe("Empty and Edge Case Data", () => {
+  describe("Edge Cases", () => {
     it("should handle populate on empty table", async () => {
       const query: QueryObject = {
         type: "select",
         table: "posts",
         populate: { author: {} },
-        // @ts-ignore
-        meta: {
-          relations: {
-            author: {
-              kind: "belongsTo",
-              model: "User",
-              targetTable: "users",
-              foreignKey: "authorId",
-            },
-          },
-        },
       };
 
       const result = expectSuccessData(await adapter.executeQuery(query));
@@ -435,18 +487,26 @@ describe("JsonAdapter Populate - Error Handling", () => {
     });
 
     it("should handle undefined foreign key field", async () => {
-      // Insert post without authorId field at all
       const postsPath = path.join(root, "posts.json");
       const content = {
         meta: {
           version: 1,
           updatedAt: new Date().toISOString(),
-          name: "posts",
+          name: "Post",
           lastInsertId: 1,
         },
         schema: {
-          name: "posts",
-          fields: { title: { type: "string", required: true } },
+          name: "Post",
+          tableName: "posts",
+          fields: {
+            title: { type: "string", required: true },
+            author: {
+              type: "relation",
+              kind: "belongsTo",
+              model: "User",
+              foreignKey: "authorId",
+            },
+          },
         },
         data: [{ id: 1, title: "Post without FK field" }],
       };
@@ -456,17 +516,6 @@ describe("JsonAdapter Populate - Error Handling", () => {
         type: "select",
         table: "posts",
         populate: { author: {} },
-        // @ts-ignore
-        meta: {
-          relations: {
-            author: {
-              kind: "belongsTo",
-              model: "User",
-              targetTable: "users",
-              foreignKey: "authorId",
-            },
-          },
-        },
       };
 
       const result = expectSuccessData(await adapter.executeQuery(query));
@@ -477,27 +526,32 @@ describe("JsonAdapter Populate - Error Handling", () => {
     });
 
     it("should handle string foreign key values", async () => {
-      // Some implementations might use string IDs
       await adapter.executeQuery({
         type: "insert",
         table: "users",
         data: { name: "Alice" },
       });
 
-      // Manually create post with string FK
       const postsPath = path.join(root, "posts.json");
       const content = {
         meta: {
           version: 1,
           updatedAt: new Date().toISOString(),
-          name: "posts",
+          name: "Post",
           lastInsertId: 1,
         },
         schema: {
-          name: "posts",
+          name: "Post",
+          tableName: "posts",
           fields: {
             title: { type: "string", required: true },
             authorId: { type: "number", required: false },
+            author: {
+              type: "relation",
+              kind: "belongsTo",
+              model: "User",
+              foreignKey: "authorId",
+            },
           },
         },
         data: [{ id: 1, title: "Post", authorId: "1" }],
@@ -508,25 +562,113 @@ describe("JsonAdapter Populate - Error Handling", () => {
         type: "select",
         table: "posts",
         populate: { author: {} },
-        // @ts-ignore
-        meta: {
-          relations: {
-            author: {
-              kind: "belongsTo",
-              model: "User",
-              targetTable: "users",
-              foreignKey: "authorId",
-            },
-          },
-        },
       };
 
       const result = expectSuccessData(await adapter.executeQuery(query));
       const post = result.rows[0] as any;
 
-      // Should still work due to loose equality or fail gracefully
       expect(post.title).toBe("Post");
-      // author might be null or found depending on implementation
+    });
+
+    it("should handle orphaned junction table records (manyToMany)", async () => {
+      await adapter.createTable({
+        name: "PostM2M",
+        tableName: "posts_orphan_test",
+        fields: {
+          title: { type: "string", required: true },
+          tags: {
+            type: "relation",
+            kind: "manyToMany",
+            model: "TagM2M",
+            through: "post_tag_orphan",
+          },
+        },
+      });
+
+      await adapter.createTable({
+        name: "TagM2M",
+        tableName: "tags_orphan_test",
+        fields: {
+          name: { type: "string", required: true },
+        },
+      });
+
+      await adapter.createTable({
+        name: "PostTagOrphan",
+        tableName: "post_tag_orphan",
+        fields: {
+          PostM2MId: { type: "number", required: true },
+          TagM2MId: { type: "number", required: true },
+        },
+      });
+
+      await adapter.executeQuery({
+        type: "insert",
+        table: "posts_orphan_test",
+        data: { title: "Post 1" },
+      });
+
+      await adapter.executeQuery({
+        type: "insert",
+        table: "post_tag_orphan",
+        data: { PostM2MId: 1, TagM2MId: 999 },
+      });
+
+      const query: QueryObject = {
+        type: "select",
+        table: "posts_orphan_test",
+        populate: { tags: {} },
+      };
+
+      const result = expectSuccessData(await adapter.executeQuery(query));
+      const post = result.rows[0] as any;
+
+      expect(post.tags).toHaveLength(0);
+    });
+
+    it("should handle FK type mismatch (string vs number)", async () => {
+      await adapter.executeQuery({
+        type: "insert",
+        table: "users",
+        data: { name: "Alice" },
+      });
+
+      const postsPath = path.join(root, "posts.json");
+      const content = {
+        meta: {
+          version: 1,
+          updatedAt: new Date().toISOString(),
+          name: "Post",
+          lastInsertId: 1,
+        },
+        schema: {
+          name: "Post",
+          tableName: "posts",
+          fields: {
+            title: { type: "string", required: true },
+            authorId: { type: "string", required: false },
+            author: {
+              type: "relation",
+              kind: "belongsTo",
+              model: "User",
+              foreignKey: "authorId",
+            },
+          },
+        },
+        data: [{ id: 1, title: "Post", authorId: "not-a-number" }],
+      };
+      await fs.writeFile(postsPath, JSON.stringify(content, null, 2));
+
+      const query: QueryObject = {
+        type: "select",
+        table: "posts",
+        populate: { author: {} },
+      };
+
+      const result = expectSuccessData(await adapter.executeQuery(query));
+      const post = result.rows[0] as any;
+
+      expect(post.author).toBeNull();
     });
   });
 });

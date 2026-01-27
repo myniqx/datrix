@@ -18,6 +18,9 @@ import { ForjaError } from "../errors/forja-error";
  * expect(data.operator).toBe('$eq'); // ✅ No lint error
  */
 export function expectSuccessData<T, E = unknown>(result: Result<T, E>): T {
+  if (result.success === false) {
+    console.log("Error", JSON.stringify(result.error, null, 2));
+  }
   expect(result.success).toBe(true);
   if (!result.success) {
     throw new Error(

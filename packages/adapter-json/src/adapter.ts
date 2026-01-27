@@ -14,7 +14,7 @@ import {
 import { QueryObject } from "forja-types/core/query-builder";
 import { IndexDefinition, SchemaDefinition } from "forja-types/core/schema";
 import { Result } from "forja-types/utils";
-import { validateQueryObject } from "forja-core/utils/query";
+import { validateQueryObject } from "forja-types/utils/query";
 import { JsonAdapterConfig, JsonTableFile } from "./types";
 import { JsonQueryRunner } from "./runner";
 import { SimpleLock } from "./lock";
@@ -168,6 +168,60 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * Get schema directly from table file (cache-aware)
+   * This is faster than going through Forja registry and ensures consistency
+   *
+   * @param tableName - Table name (e.g., "users")
+   * @returns Schema definition or null if not found
+   */
+  async getSchemaByTableName(
+    tableName: string,
+  ): Promise<SchemaDefinition | null> {
+    const tableData = await this.getCachedTable(tableName);
+    return tableData?.schema ?? null;
+  }
+
+  /**
+   * Get schema by model name
+   * Requires scanning all tables to find matching schema.name
+   * Prefer getSchemaByTableName when table name is known (faster)
+   *
+   * @param modelName - Model name from schema (e.g., "User")
+   * @returns Schema definition or null if not found
+   */
+  async getSchemaByModelName(
+    modelName: string,
+  ): Promise<SchemaDefinition | null> {
+    try {
+      const tablesResult = await this.getTables();
+      if (!tablesResult.success) {
+        return null;
+      }
+
+      for (const tableName of tablesResult.data) {
+        const schema = await this.getSchemaByTableName(tableName);
+        if (schema?.name === modelName) {
+          return schema;
+        }
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Find table name by schema model name
+   *
+   * @param modelName - Model name (e.g., "User")
+   * @returns Table name or null if not found
+   */
+  async findTableNameByModelName(modelName: string): Promise<string | null> {
+    const schema = await this.getSchemaByModelName(modelName);
+    return schema?.tableName ?? null;
   }
 
   /**

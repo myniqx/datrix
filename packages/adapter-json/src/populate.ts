@@ -1,9 +1,7 @@
 import { QueryObject } from "forja-types/core/query-builder";
 import type { JsonAdapter } from "./adapter";
-import { Forja } from "forja-core";
 import type { RelationField } from "forja-types/core/schema";
 import {
-  throwModelNotFound,
   throwSchemaNotFound,
   throwRelationNotFound,
   throwInvalidRelationType,
@@ -22,18 +20,12 @@ export class JsonPopulator {
       return rows;
     }
 
-    const schemaRegistry = Forja.getInstance().getSchemas();
-
-    // Find current schema from table name
-    const currentModelName = schemaRegistry.findModelByTableName(query.table);
-    if (!currentModelName) {
-      throwModelNotFound(query.table);
-    }
-
-    const currentSchema = schemaRegistry.get(currentModelName);
+    // Get current schema directly from table file (cache-aware, O(1) lookup)
+    const currentSchema = await this.adapter.getSchemaByTableName(query.table);
     if (!currentSchema) {
-      throwSchemaNotFound(currentModelName);
+      throwSchemaNotFound(query.table);
     }
+    const currentModelName = currentSchema.name;
 
     const result = [...rows];
 
@@ -57,8 +49,9 @@ export class JsonPopulator {
       const foreignKey = relField.foreignKey!;
       const kind = relField.kind;
 
-      // Get target schema
-      const targetSchema = schemaRegistry.get(targetModelName);
+      // Get target schema from adapter (cache-aware)
+      const targetSchema =
+        await this.adapter.getSchemaByModelName(targetModelName);
       if (!targetSchema) {
         throwTargetModelNotFound(targetModelName, relationName, currentSchema.name);
       }
@@ -137,7 +130,11 @@ export class JsonPopulator {
 
         // Load junction table using adapter cache
         const junctionData = await this.adapter.getCachedTable(junctionTableName);
-        if (!junctionData) continue;
+        if (!junctionData) {
+          throw new Error(
+            `Junction table '${junctionTableName}' not found for manyToMany relation '${relationName}' in schema '${currentSchema.name}'`,
+          );
+        }
 
         // Collect source IDs
         const sourceIds = result

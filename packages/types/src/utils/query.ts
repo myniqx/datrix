@@ -4,53 +4,54 @@
  * Provides runtime validation for QueryObject structure.
  */
 
-import { QueryObject } from "forja-types/core/query-builder";
-import { Result } from "forja-types/utils";
-import { ForjaError } from "forja-types/errors";
-
+import { QueryObject } from "../core/query-builder";
+import { ForjaError } from "../errors";
+import { Result } from "../utils";
 
 /**
  * Valid keys for a QueryObject
  */
 const VALID_QUERY_KEYS = new Set([
-  'type',
-  'table',
-  'select',
-  'where',
-  'populate',
-  'orderBy',
-  'limit',
-  'offset',
-  'data',
-  'returning',
-  'distinct',
-  'groupBy',
-  'having',
-  'meta',
-  '__meta__'
+  "type",
+  "table",
+  "select",
+  "where",
+  "populate",
+  "orderBy",
+  "limit",
+  "offset",
+  "data",
+  "returning",
+  "distinct",
+  "groupBy",
+  "having",
+  "meta",
+  "__meta__",
 ]);
 
 /**
  * Common mistakes to watch out for
  */
 const FORBIDDEN_KEYS_MAPPING: Record<string, string> = {
-  'fields': 'select',
+  fields: "select",
 };
 
 /**
  * Validates that a QueryObject contains only allowed keys.
  * This is a runtime check to catch errors from plugins or dynamic query construction.
  */
-export function validateQueryObject(query: unknown): Result<QueryObject, ForjaError> {
-  if (typeof query !== 'object' || query === null) {
+export function validateQueryObject(
+  query: unknown,
+): Result<QueryObject, ForjaError> {
+  if (typeof query !== "object" || query === null) {
     return {
       success: false,
-      error: new ForjaError('Query must be an object', {
-        code: 'INVALID_QUERY_TYPE',
-        operation: 'query:validate',
+      error: new ForjaError("Query must be an object", {
+        code: "INVALID_QUERY_TYPE",
+        operation: "query:validate",
         context: { receivedType: typeof query },
-        suggestion: 'Provide a valid QueryObject',
-        expected: 'object',
+        suggestion: "Provide a valid QueryObject",
+        expected: "object",
         received: query,
       }),
     };
@@ -73,23 +74,28 @@ export function validateQueryObject(query: unknown): Result<QueryObject, ForjaEr
   }
 
   if (invalidKeys.length > 0) {
-    const keyList = invalidKeys.map((key) => {
-      const alt = FORBIDDEN_KEYS_MAPPING[key];
-      return alt ? `'${key}' (use '${alt}' instead)` : `'${key}'`;
-    }).join(', ');
+    const keyList = invalidKeys
+      .map((key) => {
+        const alt = FORBIDDEN_KEYS_MAPPING[key];
+        return alt ? `'${key}' (use '${alt}' instead)` : `'${key}'`;
+      })
+      .join(", ");
 
     return {
       success: false,
       error: new ForjaError(`Invalid keys found in QueryObject: ${keyList}`, {
-        code: 'INVALID_QUERY_KEYS',
-        operation: 'query:validate',
+        code: "INVALID_QUERY_KEYS",
+        operation: "query:validate",
         context: {
           invalidKeys,
           validKeys: Array.from(VALID_QUERY_KEYS),
           query,
         },
-        suggestion: suggestions.length > 0 ? suggestions.join('; ') : 'Remove invalid keys from QueryObject',
-        expected: `Valid keys: ${Array.from(VALID_QUERY_KEYS).join(', ')}`,
+        suggestion:
+          suggestions.length > 0 ?
+            suggestions.join("; ")
+            : "Remove invalid keys from QueryObject",
+        expected: `Valid keys: ${Array.from(VALID_QUERY_KEYS).join(", ")}`,
       }),
     };
   }
@@ -99,11 +105,12 @@ export function validateQueryObject(query: unknown): Result<QueryObject, ForjaEr
   if (!q.type) {
     return {
       success: false,
-      error: new ForjaError('QueryObject is missing required field: type', {
-        code: 'MISSING_QUERY_FIELD',
-        operation: 'query:validate',
+      error: new ForjaError("QueryObject is missing required field: type", {
+        code: "MISSING_QUERY_FIELD",
+        operation: "query:validate",
         context: { query },
-        suggestion: "Add 'type' field to QueryObject (e.g., 'select', 'insert', 'update', 'delete')",
+        suggestion:
+          "Add 'type' field to QueryObject (e.g., 'select', 'insert', 'update', 'delete')",
         expected: "type: 'select' | 'insert' | 'update' | 'delete'",
       }),
     };
@@ -111,12 +118,12 @@ export function validateQueryObject(query: unknown): Result<QueryObject, ForjaEr
   if (!q.table) {
     return {
       success: false,
-      error: new ForjaError('QueryObject is missing required field: table', {
-        code: 'MISSING_QUERY_FIELD',
-        operation: 'query:validate',
+      error: new ForjaError("QueryObject is missing required field: table", {
+        code: "MISSING_QUERY_FIELD",
+        operation: "query:validate",
         context: { query },
         suggestion: "Add 'table' field to QueryObject with the target table name",
-        expected: 'table: string',
+        expected: "table: string",
       }),
     };
   }

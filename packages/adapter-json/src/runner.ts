@@ -4,10 +4,9 @@ import {
   OrderByItem,
   ComparisonOperators,
 } from "forja-types/core/query-builder";
-import { RelationField, SchemaDefinition } from "forja-types/core/schema";
+import { RelationField } from "forja-types/core/schema";
 import { JsonTableFile } from "./types";
 import type { JsonAdapter } from "./adapter";
-import { Forja } from "forja-core";
 
 export class JsonQueryRunner {
   constructor(
@@ -21,7 +20,7 @@ export class JsonQueryRunner {
     // 1. Filter (async for nested relation WHERE support)
     if (query.where) {
       const matchResults = await Promise.all(
-        result.map((item) => this.match(item, query.where!))
+        result.map((item) => this.match(item, query.where!)),
       );
       result = result.filter((_, i) => matchResults[i]);
     } else if (query.orderBy && query.orderBy.length > 0) {
@@ -55,13 +54,15 @@ export class JsonQueryRunner {
    * Run query without projection (for populate workflow)
    * Applies WHERE, ORDER BY, OFFSET, LIMIT but keeps all fields
    */
-  async filterAndSort<T = Record<string, unknown>>(query: QueryObject): Promise<T[]> {
+  async filterAndSort<T = Record<string, unknown>>(
+    query: QueryObject,
+  ): Promise<T[]> {
     let result = this.table.data as T[];
 
     // 1. Filter (async for nested relation WHERE support)
     if (query.where) {
       const matchResults = await Promise.all(
-        result.map((item) => this.match(item, query.where!))
+        result.map((item) => this.match(item, query.where!)),
       );
       result = result.filter((_, i) => matchResults[i]);
     } else if (query.orderBy && query.orderBy.length > 0) {
@@ -158,14 +159,14 @@ export class JsonQueryRunner {
       // Handle logical operators
       if (key === "$and") {
         const results = await Promise.all(
-          (value as WhereClause[]).map((cond) => this.match(item, cond))
+          (value as WhereClause[]).map((cond) => this.match(item, cond)),
         );
         if (!results.every((r) => r)) return false;
         continue;
       }
       if (key === "$or") {
         const results = await Promise.all(
-          (value as WhereClause[]).map((cond) => this.match(item, cond))
+          (value as WhereClause[]).map((cond) => this.match(item, cond)),
         );
         if (!results.some((r) => r)) return false;
         continue;
@@ -183,7 +184,7 @@ export class JsonQueryRunner {
           item,
           key,
           value as WhereClause,
-          fieldDef as RelationField
+          fieldDef as RelationField,
         );
         if (!matched) {
           return false;
@@ -251,7 +252,10 @@ export class JsonQueryRunner {
       }
 
       // Load related record
-      const relatedRecord = await this.loadRelatedRecord(targetModelName, relatedId);
+      const relatedRecord = await this.loadRelatedRecord(
+        targetModelName,
+        relatedId,
+      );
       if (!relatedRecord) {
         return false;
       }
@@ -279,8 +283,8 @@ export class JsonQueryRunner {
     id: string | number,
   ): Promise<Record<string, unknown> | null> {
     try {
-      const schemaRegistry = Forja.getInstance().getSchemas();
-      const targetSchema = schemaRegistry.get(modelName);
+      // Get target schema from adapter (cache-aware, no Forja dependency)
+      const targetSchema = await this.adapter.getSchemaByModelName(modelName);
       if (!targetSchema) {
         return null;
       }

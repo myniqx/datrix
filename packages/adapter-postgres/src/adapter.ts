@@ -5,28 +5,44 @@
  * Handles connection pooling, query execution, transactions, and schema operations.
  */
 
-import type { Pool, PoolClient } from 'pg';
-import { Pool as PgPool } from 'pg';
+import type { Pool, PoolClient } from "pg";
+import { Pool as PgPool } from "pg";
 
-import { PostgresQueryTranslator } from './query-translator';
-import type { PostgresConfig } from './types';
-import { getPostgresTypeWithModifiers } from './types';
-import { QueryObject } from 'forja-types/core/query-builder';
-import { AlterOperation, ConnectionError, ConnectionState, DatabaseAdapter, MigrationError, QueryError, QueryMetadata, QueryResult, Transaction, TransactionError } from 'forja-types/adapter';
-import { Result } from 'forja-types/utils';
-import { validateQueryObject } from 'forja-core/utils/query';
-import { FieldDefinition, FieldType, IndexDefinition, SchemaDefinition } from 'forja-types/core/schema';
-import { Forja } from 'forja-core';
+import { PostgresQueryTranslator } from "./query-translator";
+import type { PostgresConfig } from "./types";
+import { getPostgresTypeWithModifiers } from "./types";
+import { QueryObject } from "forja-types/core/query-builder";
+import {
+  AlterOperation,
+  ConnectionError,
+  ConnectionState,
+  DatabaseAdapter,
+  MigrationError,
+  QueryError,
+  QueryMetadata,
+  QueryResult,
+  Transaction,
+  TransactionError,
+} from "forja-types/adapter";
+import { Result } from "forja-types/utils";
+import { validateQueryObject } from "forja-types/utils/query";
+import {
+  FieldDefinition,
+  FieldType,
+  IndexDefinition,
+  SchemaDefinition,
+} from "forja-types/core/schema";
+import { Forja } from "forja-core";
 
 /**
  * PostgreSQL adapter implementation
  */
 export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
-  readonly name = 'postgres';
+  readonly name = "postgres";
   readonly config: PostgresConfig;
 
   private pool: Pool | undefined;
-  private state: ConnectionState = 'disconnected';
+  private state: ConnectionState = "disconnected";
   private readonly translator: PostgresQueryTranslator;
 
   constructor(config: PostgresConfig) {
@@ -39,11 +55,11 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
    * Connect to PostgreSQL
    */
   async connect(): Promise<Result<void, ConnectionError>> {
-    if (this.state === 'connected') {
+    if (this.state === "connected") {
       return { success: true, data: undefined };
     }
 
-    this.state = 'connecting';
+    this.state = "connecting";
 
     try {
       this.pool = new PgPool({
@@ -57,21 +73,24 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
         idleTimeoutMillis: this.config.idleTimeoutMillis ?? 30000,
         max: this.config.max ?? 10,
         min: this.config.min ?? 2,
-        application_name: this.config.applicationName ?? 'forja'
+        application_name: this.config.applicationName ?? "forja",
       });
 
       // Test connection
       const client = await this.pool.connect();
       client.release();
 
-      this.state = 'connected';
+      this.state = "connected";
       return { success: true, data: undefined };
     } catch (error) {
-      this.state = 'error';
+      this.state = "error";
       const message = error instanceof Error ? error.message : String(error);
       return {
         success: false,
-        error: new ConnectionError(`Failed to connect to PostgreSQL: ${message}`, error)
+        error: new ConnectionError(
+          `Failed to connect to PostgreSQL: ${message}`,
+          error,
+        ),
       };
     }
   }
@@ -80,7 +99,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
    * Disconnect from PostgreSQL
    */
   async disconnect(): Promise<Result<void, ConnectionError>> {
-    if (this.state === 'disconnected') {
+    if (this.state === "disconnected") {
       return { success: true, data: undefined };
     }
 
@@ -90,13 +109,16 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
         this.pool = undefined;
       }
 
-      this.state = 'disconnected';
+      this.state = "disconnected";
       return { success: true, data: undefined };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return {
         success: false,
-        error: new ConnectionError(`Failed to disconnect from PostgreSQL: ${message}`, error)
+        error: new ConnectionError(
+          `Failed to disconnect from PostgreSQL: ${message}`,
+          error,
+        ),
       };
     }
   }
@@ -105,7 +127,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
    * Check if connected
    */
   isConnected(): boolean {
-    return this.state === 'connected' && this.pool !== undefined;
+    return this.state === "connected" && this.pool !== undefined;
   }
 
   /**
@@ -119,21 +141,26 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
    * Execute query
    */
   async executeQuery<TResult>(
-    query: QueryObject
+    query: QueryObject,
   ): Promise<Result<QueryResult<TResult>, QueryError>> {
     // Runtime validation of QueryObject structure
     const validation = validateQueryObject(query);
     if (!validation.success) {
       return {
         success: false,
-        error: new QueryError(`Invalid QueryObject: ${validation.error.message}`, { query })
+        error: new QueryError(`Invalid QueryObject: ${validation.error.message}`, {
+          query,
+        }),
       };
     }
 
     if (!this.pool) {
       return {
         success: false,
-        error: new QueryError('Not connected to database', { code: 'CONNECTION_ERROR', query })
+        error: new QueryError("Not connected to database", {
+          code: "CONNECTION_ERROR",
+          query,
+        }),
       };
     }
 
@@ -151,28 +178,28 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
       let insertId: string | number | undefined;
 
       // Handle INSERT with RETURNING
-      if (query.type === 'insert' && result.rows.length > 0) {
+      if (query.type === "insert" && result.rows.length > 0) {
         const firstRow = result.rows[0] as Record<string, unknown>;
-        insertId = firstRow['id'] as string | number;
+        insertId = firstRow["id"] as string | number;
       }
 
       const metadata: QueryMetadata = {
         rowCount: result.rowCount ?? 0,
         affectedRows: result.rowCount ?? 0,
-        ...(insertId !== undefined && { insertId })
+        ...(insertId !== undefined && { insertId }),
       };
 
       return {
         success: true,
         data: {
           rows: result.rows as readonly TResult[],
-          metadata
-        }
+          metadata,
+        },
       };
     } catch (error) {
       return {
         success: false,
-        error: this.mapPostgresError(error, query, lastSql)
+        error: this.mapPostgresError(error, query, lastSql),
       };
     }
   }
@@ -180,28 +207,37 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
   /**
    * Map Postgres errors to standardized QueryError
    */
-  private mapPostgresError(error: unknown, query?: QueryObject, sql?: string): QueryError {
+  private mapPostgresError(
+    error: unknown,
+    query?: QueryObject,
+    sql?: string,
+  ): QueryError {
     const message = error instanceof Error ? error.message : String(error);
-    const details = error as { code?: string; severity?: string; detail?: string; hint?: string };
-    let code = 'QUERY_ERROR';
+    const details = error as {
+      code?: string;
+      severity?: string;
+      detail?: string;
+      hint?: string;
+    };
+    let code = "QUERY_ERROR";
 
     // Postgres error codes (https://www.postgresql.org/docs/current/errcodes-appendix.html)
-    if (details && typeof details.code === 'string') {
+    if (details && typeof details.code === "string") {
       switch (details.code) {
-        case '23505': // unique_violation
-          code = 'UNIQUE_VIOLATION';
+        case "23505": // unique_violation
+          code = "UNIQUE_VIOLATION";
           break;
-        case '23503': // foreign_key_violation
-          code = 'FOREIGN_KEY_VIOLATION';
+        case "23503": // foreign_key_violation
+          code = "FOREIGN_KEY_VIOLATION";
           break;
-        case '23502': // not_null_violation
-          code = 'NOT_NULL_VIOLATION';
+        case "23502": // not_null_violation
+          code = "NOT_NULL_VIOLATION";
           break;
-        case '42P01': // undefined_table
-          code = 'TABLE_NOT_FOUND';
+        case "42P01": // undefined_table
+          code = "TABLE_NOT_FOUND";
           break;
-        case '42703': // undefined_column
-          code = 'COLUMN_NOT_FOUND';
+        case "42703": // undefined_column
+          code = "COLUMN_NOT_FOUND";
           break;
       }
     }
@@ -210,7 +246,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
       code,
       query,
       sql,
-      details: error
+      details: error,
     });
   }
 
@@ -219,12 +255,15 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
    */
   async executeRawQuery<TResult>(
     sql: string,
-    params: readonly unknown[]
+    params: readonly unknown[],
   ): Promise<Result<QueryResult<TResult>, QueryError>> {
     if (!this.pool) {
       return {
         success: false,
-        error: new QueryError('Not connected to database', { code: 'CONNECTION_ERROR', sql })
+        error: new QueryError("Not connected to database", {
+          code: "CONNECTION_ERROR",
+          sql,
+        }),
       };
     }
 
@@ -233,20 +272,20 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 
       const metadata: QueryMetadata = {
         rowCount: result.rowCount ?? 0,
-        affectedRows: result.rowCount ?? 0
+        affectedRows: result.rowCount ?? 0,
       };
 
       return {
         success: true,
         data: {
           rows: result.rows as readonly TResult[],
-          metadata
-        }
+          metadata,
+        },
       };
     } catch (error) {
       return {
         success: false,
-        error: this.mapPostgresError(error, undefined, sql)
+        error: this.mapPostgresError(error, undefined, sql),
       };
     }
   }
@@ -258,19 +297,19 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
     if (!this.pool) {
       return {
         success: false,
-        error: new TransactionError('Not connected to database')
+        error: new TransactionError("Not connected to database"),
       };
     }
 
     try {
       const client = await this.pool.connect();
-      await client.query('BEGIN');
+      await client.query("BEGIN");
 
       const transaction = new PostgresTransaction(
         client,
         this.translator,
         this.mapPostgresError.bind(this),
-        `tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+        `tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
       );
 
       return { success: true, data: transaction };
@@ -278,7 +317,10 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
       const message = error instanceof Error ? error.message : String(error);
       return {
         success: false,
-        error: new TransactionError(`Failed to begin transaction: ${message}`, error)
+        error: new TransactionError(
+          `Failed to begin transaction: ${message}`,
+          error,
+        ),
       };
     }
   }
@@ -287,12 +329,12 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
    * Create table from schema
    */
   async createTable(
-    schema: SchemaDefinition
+    schema: SchemaDefinition,
   ): Promise<Result<void, MigrationError>> {
     if (!this.pool) {
       return {
         success: false,
-        error: new MigrationError('Not connected to database')
+        error: new MigrationError("Not connected to database"),
       };
     }
 
@@ -307,7 +349,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 
       // Build CREATE TABLE statement
       const tableName = this.translator.escapeIdentifier(schema.tableName!);
-      const sql = `CREATE TABLE ${tableName} (\n  ${columns.join(',\n  ')}\n)`;
+      const sql = `CREATE TABLE ${tableName} (\n  ${columns.join(",\n  ")}\n)`;
 
       await this.pool.query(sql);
 
@@ -316,7 +358,10 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
       const message = error instanceof Error ? error.message : String(error);
       return {
         success: false,
-        error: new MigrationError(`Failed to create table '${schema.name}': ${message}`, error)
+        error: new MigrationError(
+          `Failed to create table '${schema.name}': ${message}`,
+          error,
+        ),
       };
     }
   }
@@ -328,7 +373,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
     if (!this.pool) {
       return {
         success: false,
-        error: new MigrationError('Not connected to database')
+        error: new MigrationError("Not connected to database"),
       };
     }
 
@@ -341,7 +386,10 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
       const message = error instanceof Error ? error.message : String(error);
       return {
         success: false,
-        error: new MigrationError(`Failed to drop table '${tableName}': ${message}`, error)
+        error: new MigrationError(
+          `Failed to drop table '${tableName}': ${message}`,
+          error,
+        ),
       };
     }
   }
@@ -351,12 +399,12 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
    */
   async alterTable(
     tableName: string,
-    operations: readonly AlterOperation[]
+    operations: readonly AlterOperation[],
   ): Promise<Result<void, MigrationError>> {
     if (!this.pool) {
       return {
         success: false,
-        error: new MigrationError('Not connected to database')
+        error: new MigrationError("Not connected to database"),
       };
     }
 
@@ -364,25 +412,22 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
       const escapedTable = this.translator.escapeIdentifier(tableName);
 
       for (const op of operations) {
-        let sql = '';
+        let sql = "";
 
         switch (op.type) {
-          case 'addColumn': {
-            const columnDef = this.buildColumnDefinition(
-              op.column,
-              op.definition
-            );
+          case "addColumn": {
+            const columnDef = this.buildColumnDefinition(op.column, op.definition);
             sql = `ALTER TABLE ${escapedTable} ADD COLUMN ${columnDef}`;
             break;
           }
 
-          case 'dropColumn': {
+          case "dropColumn": {
             const columnName = this.translator.escapeIdentifier(op.column);
             sql = `ALTER TABLE ${escapedTable} DROP COLUMN ${columnName}`;
             break;
           }
 
-          case 'modifyColumn': {
+          case "modifyColumn": {
             // PostgreSQL uses ALTER COLUMN for modifications
             const columnName = this.translator.escapeIdentifier(op.column);
             const pgType = getPostgresTypeWithModifiers(op.newDefinition.type);
@@ -390,7 +435,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
             break;
           }
 
-          case 'renameColumn': {
+          case "renameColumn": {
             const fromColumn = this.translator.escapeIdentifier(op.from);
             const toColumn = this.translator.escapeIdentifier(op.to);
             sql = `ALTER TABLE ${escapedTable} RENAME COLUMN ${fromColumn} TO ${toColumn}`;
@@ -408,7 +453,10 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
       const message = error instanceof Error ? error.message : String(error);
       return {
         success: false,
-        error: new MigrationError(`Failed to alter table '${tableName}': ${message}`, error)
+        error: new MigrationError(
+          `Failed to alter table '${tableName}': ${message}`,
+          error,
+        ),
       };
     }
   }
@@ -418,26 +466,25 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
    */
   async addIndex(
     tableNameParam: string,
-    index: IndexDefinition
+    index: IndexDefinition,
   ): Promise<Result<void, MigrationError>> {
     if (!this.pool) {
       return {
         success: false,
-        error: new MigrationError('Not connected to database')
+        error: new MigrationError("Not connected to database"),
       };
     }
 
     try {
       const tableName = tableNameParam;
       const escapedTable = this.translator.escapeIdentifier(tableName);
-      const indexName =
-        index.name ?? `idx_${tableName}_${index.fields.join('_')}`;
+      const indexName = index.name ?? `idx_${tableName}_${index.fields.join("_")}`;
       const escapedIndexName = this.translator.escapeIdentifier(indexName);
       const fields = index.fields
         .map((f) => this.translator.escapeIdentifier(f))
-        .join(', ');
-      const unique = index.unique ? 'UNIQUE ' : '';
-      const using = index.type ? ` USING ${index.type.toUpperCase()}` : '';
+        .join(", ");
+      const unique = index.unique ? "UNIQUE " : "";
+      const using = index.type ? ` USING ${index.type.toUpperCase()}` : "";
       const sql = `CREATE ${unique}INDEX ${escapedIndexName} ON ${escapedTable}${using} (${fields})`;
       await this.pool.query(sql);
       return { success: true, data: undefined };
@@ -445,7 +492,10 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
       const message = error instanceof Error ? error.message : String(error);
       return {
         success: false,
-        error: new MigrationError(`Failed to add index on table '${tableNameParam}': ${message}`, error)
+        error: new MigrationError(
+          `Failed to add index on table '${tableNameParam}': ${message}`,
+          error,
+        ),
       };
     }
   }
@@ -455,12 +505,12 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
    */
   async dropIndex(
     _tableName: string,
-    indexName: string
+    indexName: string,
   ): Promise<Result<void, MigrationError>> {
     if (!this.pool) {
       return {
         success: false,
-        error: new MigrationError('Not connected to database')
+        error: new MigrationError("Not connected to database"),
       };
     }
 
@@ -473,7 +523,10 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
       const message = error instanceof Error ? error.message : String(error);
       return {
         success: false,
-        error: new MigrationError(`Failed to drop index '${indexName}': ${message}`, error)
+        error: new MigrationError(
+          `Failed to drop index '${indexName}': ${message}`,
+          error,
+        ),
       };
     }
   }
@@ -485,22 +538,28 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
     if (!this.pool) {
       return {
         success: false,
-        error: new QueryError('Not connected to database', { code: 'CONNECTION_ERROR' })
+        error: new QueryError("Not connected to database", {
+          code: "CONNECTION_ERROR",
+        }),
       };
     }
 
     try {
       const result = await this.pool.query<{ tablename: string }>(
-        `SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename`
+        `SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename`,
       );
 
-      const tables = result.rows.map((row: { tablename: string }) => row.tablename);
+      const tables = result.rows.map(
+        (row: { tablename: string }) => row.tablename,
+      );
       return { success: true, data: tables };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return {
         success: false,
-        error: new QueryError(`Failed to get tables: ${message}`, { details: error })
+        error: new QueryError(`Failed to get tables: ${message}`, {
+          details: error,
+        }),
       };
     }
   }
@@ -509,12 +568,14 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
    * Get table schema (introspection)
    */
   async getTableSchema(
-    tableName: string
+    tableName: string,
   ): Promise<Result<SchemaDefinition, QueryError>> {
     if (!this.pool) {
       return {
         success: false,
-        error: new QueryError('Not connected to database', { code: 'CONNECTION_ERROR' })
+        error: new QueryError("Not connected to database", {
+          code: "CONNECTION_ERROR",
+        }),
       };
     }
 
@@ -532,27 +593,32 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
          WHERE table_schema = 'public'
          AND table_name = $1
          ORDER BY ordinal_position`,
-        [tableName]
+        [tableName],
       );
 
       if (columnResult.rows.length === 0) {
         return {
           success: false,
-          error: new QueryError(`Table '${tableName}' not found`, { code: 'TABLE_NOT_FOUND' })
+          error: new QueryError(`Table '${tableName}' not found`, {
+            code: "TABLE_NOT_FOUND",
+          }),
         };
       }
 
       const fields: Record<string, FieldDefinition> = {};
 
       for (const row of columnResult.rows) {
-        const fieldType = this.mapPostgresTypeToFieldType(row.data_type, row.udt_name);
+        const fieldType = this.mapPostgresTypeToFieldType(
+          row.data_type,
+          row.udt_name,
+        );
 
         const fieldDef = {
           type: fieldType,
-          required: row.is_nullable === 'NO',
+          required: row.is_nullable === "NO",
           ...(row.column_default !== null && {
-            default: this.parsePostgresDefault(row.column_default)
-          })
+            default: this.parsePostgresDefault(row.column_default),
+          }),
         } as FieldDefinition;
 
         fields[row.column_name] = fieldDef;
@@ -562,14 +628,17 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
         success: true,
         data: {
           name: tableName,
-          fields
-        }
+          fields,
+        },
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return {
         success: false,
-        error: new QueryError(`Failed to get table schema for '${tableName}': ${message}`, { details: error })
+        error: new QueryError(
+          `Failed to get table schema for '${tableName}': ${message}`,
+          { details: error },
+        ),
       };
     }
   }
@@ -577,29 +646,49 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
   /**
    * Map Postgres data type to Forja FieldType
    */
-  private mapPostgresTypeToFieldType(_dataType: string, udtName: string): FieldType {
+  private mapPostgresTypeToFieldType(
+    _dataType: string,
+    udtName: string,
+  ): FieldType {
     const type = udtName.toLowerCase();
 
-    if (type.includes('int') || type.includes('float') || type.includes('double') || type.includes('numeric') || type.includes('decimal') || type.includes('real')) {
-      return 'number';
+    if (
+      type.includes("int") ||
+      type.includes("float") ||
+      type.includes("double") ||
+      type.includes("numeric") ||
+      type.includes("decimal") ||
+      type.includes("real")
+    ) {
+      return "number";
     }
-    if (type.includes('bool')) {
-      return 'boolean';
+    if (type.includes("bool")) {
+      return "boolean";
     }
-    if (type.includes('timestamp') || type.includes('date') || type.includes('time')) {
-      return 'date';
+    if (
+      type.includes("timestamp") ||
+      type.includes("date") ||
+      type.includes("time")
+    ) {
+      return "date";
     }
-    if (type.includes('json')) {
-      return 'json';
+    if (type.includes("json")) {
+      return "json";
     }
-    if (type.startsWith('_')) {
-      return 'array';
+    if (type.startsWith("_")) {
+      return "array";
     }
-    if (type === 'uuid' || type === 'text' || type === 'varchar' || type === 'char' || type === 'bpchar') {
-      return 'string';
+    if (
+      type === "uuid" ||
+      type === "text" ||
+      type === "varchar" ||
+      type === "char" ||
+      type === "bpchar"
+    ) {
+      return "string";
     }
 
-    return 'string'; // Default to string
+    return "string"; // Default to string
   }
 
   /**
@@ -609,7 +698,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
     if (defaultValue === null) return undefined;
 
     // Remove type cast (e.g., 'active'::character varying -> 'active')
-    let cleaned = defaultValue.split('::')[0];
+    let cleaned = defaultValue.split("::")[0];
 
     // Remove single quotes for strings
     if (cleaned && cleaned.startsWith("'") && cleaned.endsWith("'")) {
@@ -617,16 +706,20 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
     }
 
     // Common function defaults
-    if (cleaned && (cleaned.toUpperCase().includes('NOW()') || cleaned.toUpperCase().includes('CURRENT_TIMESTAMP'))) {
-      return 'NOW()';
+    if (
+      cleaned &&
+      (cleaned.toUpperCase().includes("NOW()") ||
+        cleaned.toUpperCase().includes("CURRENT_TIMESTAMP"))
+    ) {
+      return "NOW()";
     }
 
     // Numeric and boolean defaults
-    if (cleaned === 'true') return true;
-    if (cleaned === 'false') return false;
+    if (cleaned === "true") return true;
+    if (cleaned === "false") return false;
 
     const num = Number(cleaned);
-    if (!isNaN(num) && cleaned !== '') return num;
+    if (!isNaN(num) && cleaned !== "") return num;
 
     return cleaned;
   }
@@ -646,7 +739,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
           WHERE schemaname = 'public'
           AND tablename = $1
         ) as exists`,
-        [tableName]
+        [tableName],
       );
 
       return result.rows[0]?.exists ?? false;
@@ -660,14 +753,15 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
    */
   private buildColumnDefinition(
     fieldName: string,
-    field: FieldDefinition
+    field: FieldDefinition,
   ): string {
     const columnName = this.translator.escapeIdentifier(fieldName);
     const pgType = getPostgresTypeWithModifiers(field.type);
-    const nullable = field.required ? ' NOT NULL' : '';
-    const defaultValue = field.default !== undefined
-      ? ` DEFAULT ${this.translator.escapeValue(field.default)}`
-      : '';
+    const nullable = field.required ? " NOT NULL" : "";
+    const defaultValue =
+      field.default !== undefined ?
+        ` DEFAULT ${this.translator.escapeValue(field.default)}`
+        : "";
 
     return `${columnName} ${pgType}${nullable}${defaultValue}`;
   }
@@ -680,7 +774,11 @@ class PostgresTransaction implements Transaction {
   readonly id: string;
   private client: PoolClient;
   private translator: PostgresQueryTranslator;
-  private errorMapper: (error: unknown, query?: QueryObject, sql?: string) => QueryError;
+  private errorMapper: (
+    error: unknown,
+    query?: QueryObject,
+    sql?: string,
+  ) => QueryError;
   private committed = false;
   private rolledBack = false;
   private aborted = false;
@@ -688,8 +786,12 @@ class PostgresTransaction implements Transaction {
   constructor(
     client: PoolClient,
     translator: PostgresQueryTranslator,
-    errorMapper: (error: unknown, query?: QueryObject, sql?: string) => QueryError,
-    id: string
+    errorMapper: (
+      error: unknown,
+      query?: QueryObject,
+      sql?: string,
+    ) => QueryError,
+    id: string,
   ) {
     this.client = client;
     this.translator = translator;
@@ -701,19 +803,22 @@ class PostgresTransaction implements Transaction {
    * Execute query within transaction
    */
   async query<TResult>(
-    query: QueryObject
+    query: QueryObject,
   ): Promise<Result<QueryResult<TResult>, QueryError>> {
     if (this.committed || this.rolledBack) {
       return {
         success: false,
-        error: new QueryError('Transaction already completed', { query })
+        error: new QueryError("Transaction already completed", { query }),
       };
     }
 
     if (this.aborted) {
       return {
         success: false,
-        error: new QueryError('current transaction is aborted, commands ignored until end of transaction block', { query })
+        error: new QueryError(
+          "current transaction is aborted, commands ignored until end of transaction block",
+          { query },
+        ),
       };
     }
 
@@ -726,21 +831,21 @@ class PostgresTransaction implements Transaction {
 
       const metadata: QueryMetadata = {
         rowCount: result.rowCount ?? 0,
-        affectedRows: result.rowCount ?? 0
+        affectedRows: result.rowCount ?? 0,
       };
 
       return {
         success: true,
         data: {
           rows: result.rows as readonly TResult[],
-          metadata
-        }
+          metadata,
+        },
       };
     } catch (error) {
       this.aborted = true;
       return {
         success: false,
-        error: this.errorMapper(error, query, lastSql)
+        error: this.errorMapper(error, query, lastSql),
       };
     }
   }
@@ -750,19 +855,22 @@ class PostgresTransaction implements Transaction {
    */
   async rawQuery<TResult>(
     sql: string,
-    params: readonly unknown[]
+    params: readonly unknown[],
   ): Promise<Result<QueryResult<TResult>, QueryError>> {
     if (this.committed || this.rolledBack) {
       return {
         success: false,
-        error: new QueryError('Transaction already completed', { sql })
+        error: new QueryError("Transaction already completed", { sql }),
       };
     }
 
     if (this.aborted) {
       return {
         success: false,
-        error: new QueryError('current transaction is aborted, commands ignored until end of transaction block', { sql })
+        error: new QueryError(
+          "current transaction is aborted, commands ignored until end of transaction block",
+          { sql },
+        ),
       };
     }
 
@@ -771,21 +879,21 @@ class PostgresTransaction implements Transaction {
 
       const metadata: QueryMetadata = {
         rowCount: result.rowCount ?? 0,
-        affectedRows: result.rowCount ?? 0
+        affectedRows: result.rowCount ?? 0,
       };
 
       return {
         success: true,
         data: {
           rows: result.rows as readonly TResult[],
-          metadata
-        }
+          metadata,
+        },
       };
     } catch (error) {
       this.aborted = true;
       return {
         success: false,
-        error: this.errorMapper(error, undefined, sql)
+        error: this.errorMapper(error, undefined, sql),
       };
     }
   }
@@ -797,19 +905,19 @@ class PostgresTransaction implements Transaction {
     if (this.committed) {
       return {
         success: false,
-        error: new TransactionError('Transaction already committed')
+        error: new TransactionError("Transaction already committed"),
       };
     }
 
     if (this.rolledBack) {
       return {
         success: false,
-        error: new TransactionError('Transaction already rolled back')
+        error: new TransactionError("Transaction already rolled back"),
       };
     }
 
     try {
-      await this.client.query('COMMIT');
+      await this.client.query("COMMIT");
       this.committed = true;
       this.client.release();
 
@@ -818,7 +926,10 @@ class PostgresTransaction implements Transaction {
       const message = error instanceof Error ? error.message : String(error);
       return {
         success: false,
-        error: new TransactionError(`Failed to commit transaction: ${message}`, error)
+        error: new TransactionError(
+          `Failed to commit transaction: ${message}`,
+          error,
+        ),
       };
     }
   }
@@ -830,19 +941,19 @@ class PostgresTransaction implements Transaction {
     if (this.committed) {
       return {
         success: false,
-        error: new TransactionError('Transaction already committed')
+        error: new TransactionError("Transaction already committed"),
       };
     }
 
     if (this.rolledBack) {
       return {
         success: false,
-        error: new TransactionError('Transaction already rolled back')
+        error: new TransactionError("Transaction already rolled back"),
       };
     }
 
     try {
-      await this.client.query('ROLLBACK');
+      await this.client.query("ROLLBACK");
       this.rolledBack = true;
       this.client.release();
 
@@ -851,7 +962,10 @@ class PostgresTransaction implements Transaction {
       const message = error instanceof Error ? error.message : String(error);
       return {
         success: false,
-        error: new TransactionError(`Failed to rollback transaction: ${message}`, error)
+        error: new TransactionError(
+          `Failed to rollback transaction: ${message}`,
+          error,
+        ),
       };
     }
   }
@@ -868,7 +982,10 @@ class PostgresTransaction implements Transaction {
       const message = error instanceof Error ? error.message : String(error);
       return {
         success: false,
-        error: new TransactionError(`Failed to create savepoint '${name}': ${message}`, error)
+        error: new TransactionError(
+          `Failed to create savepoint '${name}': ${message}`,
+          error,
+        ),
       };
     }
   }
@@ -886,7 +1003,10 @@ class PostgresTransaction implements Transaction {
       const message = error instanceof Error ? error.message : String(error);
       return {
         success: false,
-        error: new TransactionError(`Failed to rollback to savepoint '${name}': ${message}`, error)
+        error: new TransactionError(
+          `Failed to rollback to savepoint '${name}': ${message}`,
+          error,
+        ),
       };
     }
   }
@@ -903,7 +1023,10 @@ class PostgresTransaction implements Transaction {
       const message = error instanceof Error ? error.message : String(error);
       return {
         success: false,
-        error: new TransactionError(`Failed to release savepoint '${name}': ${message}`, error)
+        error: new TransactionError(
+          `Failed to release savepoint '${name}': ${message}`,
+          error,
+        ),
       };
     }
   }
@@ -912,8 +1035,6 @@ class PostgresTransaction implements Transaction {
 /**
  * Create PostgreSQL adapter
  */
-export function createPostgresAdapter(
-  config: PostgresConfig
-): PostgresAdapter {
+export function createPostgresAdapter(config: PostgresConfig): PostgresAdapter {
   return new PostgresAdapter(config);
 }

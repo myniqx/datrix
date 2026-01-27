@@ -18,7 +18,6 @@
 		"clean": "rm -rf dist"
 	},
 	"dependencies": {
-		"forja-core": "workspace:*",
 		"forja-types": "workspace:*"
 	},
 	"peerDependencies": {

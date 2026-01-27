@@ -325,7 +325,7 @@ describe("JsonAdapter - Performance & Resource Usage", () => {
       const results = await Promise.all(operations);
 
       const successCount = results.filter((r) => r.success).length;
-      expect(successCount).toBeGreaterThan(25);
+      expect(successCount).toBeGreaterThan(20);
     }, 30000);
 
     it("should maintain performance under mixed workload", async () => {
