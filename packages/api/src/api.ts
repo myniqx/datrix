@@ -199,10 +199,10 @@ export class ApiPlugin<TRole extends string = string>
     return [authSchema];
   }
 
-  override async onBeforeQuery(
-    query: QueryObject,
+  override async onBeforeQuery<T extends ForjaEntry>(
+    query: QueryObject<T>,
     context: QueryContext,
-  ): Promise<QueryObject> {
+  ): Promise<QueryObject<T>> {
     if (!this.authConfig) {
       return query;
     }
@@ -288,7 +288,7 @@ export class ApiPlugin<TRole extends string = string>
       role: (user["role"] as string) || this.authConfig?.defaultRole || "user",
     };
 
-    const query: QueryObject = {
+    const query: QueryObject<ForjaEntry> = {
       type: "insert",
       table: this.authSchemaName,
       data: authData as unknown as Partial<ForjaEntry>,
@@ -316,10 +316,11 @@ export class ApiPlugin<TRole extends string = string>
     userId: string,
     context: PluginContext,
   ): Promise<void> {
-    const query: QueryObject = {
+    // TODO: add a test for this
+    const query: QueryObject<ForjaEntry> = {
       type: "delete",
       table: this.authSchemaName,
-      where: { userId },
+      where: { user: { $eq: userId } },
     };
 
     await context.adapter.executeQuery(query);

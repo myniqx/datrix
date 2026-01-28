@@ -11,6 +11,7 @@ import type {
   ContextBuilderOptions,
 } from "../middleware/types";
 import type { IApiPlugin } from "../interface";
+import type { PaginatedResponse } from "../types";
 import { buildRequestContext } from "../middleware/context";
 import {
   checkSchemaPermission,
@@ -51,7 +52,7 @@ async function handleGet(ctx: RequestContext): Promise<Response> {
       if (authEnabled) {
         const { data: filteredResult } = await filterFieldsForRead(
           schema,
-          result as unknown as ForjaEntry,
+          result,
           ctx,
         );
         return jsonResponse({ data: filteredResult });
@@ -59,43 +60,53 @@ async function handleGet(ctx: RequestContext): Promise<Response> {
 
       return jsonResponse({ data: result });
     } else {
-      // findMany
+      // findMany - convert page/pageSize to limit/offset for database query
+      const page = ctx.query?.page ?? 1;
+      const pageSize = ctx.query?.pageSize ?? 25;
+      const limit = pageSize;
+      const offset = (page - 1) * pageSize;
+
       const result = await forja.findMany(schema.name, {
         where: ctx.query?.where,
         select: ctx.query?.select,
         populate: ctx.query?.populate,
         orderBy: ctx.query?.orderBy,
-        limit: ctx.query?.limit,
-        offset: ctx.query?.offset,
+        limit,
+        offset,
       });
 
       // Get total count
       const total = await forja.count(schema.name, ctx.query?.where);
+      const totalPages = Math.ceil(total / pageSize);
 
       // Filter fields for each record (only if auth enabled)
       if (authEnabled) {
         const filteredResults = await filterRecordsForRead(schema, result, ctx);
 
-        return jsonResponse({
+        const response: PaginatedResponse<ForjaEntry> = {
           data: filteredResults,
           meta: {
             total,
-            count: filteredResults.length,
-            limit: ctx.query?.limit,
-            offset: ctx.query?.offset,
+            page,
+            pageSize,
+            totalPages,
           },
-        });
+        };
+
+        return jsonResponse(response);
       }
 
-      return jsonResponse({
-        data: result,
+      const response: PaginatedResponse<ForjaEntry> = {
+        data: result as ForjaEntry[],
         meta: {
           total,
-          count: (result as unknown[]).length,
-          limit: ctx.query?.limit,
-          offset: ctx.query?.offset,
+          page,
+          pageSize,
+          totalPages,
         },
-      });
+      };
+
+      return jsonResponse(response);
     }
   } catch (error) {
     if (error instanceof ForjaValidationError || error instanceof ForjaError) {

@@ -58,8 +58,6 @@ export function parseQuery(
       where?: ParsedQuery["where"];
       populate?: ParsedQuery["populate"];
       orderBy?: ParsedQuery["orderBy"];
-      limit?: number;
-      offset?: number;
       page?: number;
       pageSize?: number;
     } = {};
@@ -85,24 +83,8 @@ export function parseQuery(
     // Parse pagination - throws on error
     const pagination = parsePagination(params, opts);
     if (pagination !== undefined) {
-      const { limit, offset } = pagination;
-      if (limit !== undefined) {
-        result.limit = limit;
-      }
-      if (offset !== undefined) {
-        result.offset = offset;
-      }
-
-      // Calculate page/pageSize if possible
-      if (params["page"] !== undefined || params["pageSize"] !== undefined) {
-        const page = parseInt(String(params["page"] ?? "1"), 10);
-        const pageSize = parseInt(
-          String(params["pageSize"] ?? opts.defaultPageSize),
-          10,
-        );
-        result.page = page;
-        result.pageSize = pageSize;
-      }
+      result.page = pagination.page ?? 1;
+      result.pageSize = pagination.pageSize ?? opts.defaultPageSize;
     }
 
     // Parse sorting - throws on error
@@ -131,50 +113,9 @@ function parsePagination(
   params: RawQueryParams,
   options: Required<ParserOptions>,
 ): ParsedPagination | undefined {
-  const { page, pageSize, limit, offset } = params;
+  const { page, pageSize } = params;
 
-  // If no pagination params, use defaults
-  if (
-    page === undefined &&
-    pageSize === undefined &&
-    limit === undefined &&
-    offset === undefined
-  ) {
-    return {
-      limit: options.defaultPageSize,
-      offset: 0,
-    };
-  }
-
-  // Parse limit/offset directly
-  if (limit !== undefined || offset !== undefined) {
-    const parsedLimit =
-      limit !== undefined ? parseInt(String(limit), 10) : options.defaultPageSize;
-    const parsedOffset = offset !== undefined ? parseInt(String(offset), 10) : 0;
-
-    // Validate
-    if (isNaN(parsedLimit) || parsedLimit < 0) {
-      paginationError.invalidLimit(limit ?? "", ["limit"]);
-    }
-
-    if (isNaN(parsedOffset) || parsedOffset < 0) {
-      paginationError.invalidOffset(offset ?? "", ["offset"]);
-    }
-
-    // Check max page size
-    if (parsedLimit > options.maxPageSize) {
-      paginationError.maxLimitExceeded(parsedLimit, options.maxPageSize, [
-        "limit",
-      ]);
-    }
-
-    return {
-      limit: parsedLimit,
-      offset: parsedOffset,
-    };
-  }
-
-  // Parse page/pageSize
+  // Parse page/pageSize with defaults
   const parsedPage = page !== undefined ? parseInt(String(page), 10) : 1;
   const parsedPageSize =
     pageSize !== undefined ?
@@ -184,7 +125,7 @@ function parsePagination(
   // Maximum safe page number to prevent overflow
   const MAX_PAGE_NUMBER = 1000000;
 
-  // Validate
+  // Validate page
   if (isNaN(parsedPage) || parsedPage < 1) {
     paginationError.invalidPage(page ?? "", ["page"]);
   }
@@ -193,24 +134,20 @@ function parsePagination(
     paginationError.maxPageNumberExceeded(parsedPage, MAX_PAGE_NUMBER, ["page"]);
   }
 
+  // Validate pageSize
   if (isNaN(parsedPageSize) || parsedPageSize < 1) {
     paginationError.invalidPageSize(pageSize ?? "", ["pageSize"]);
   }
 
-  // Check max page size
   if (parsedPageSize > options.maxPageSize) {
     paginationError.maxPageSizeExceeded(parsedPageSize, options.maxPageSize, [
       "pageSize",
     ]);
   }
 
-  // Convert page/pageSize to limit/offset
-  const resultLimit = parsedPageSize;
-  const resultOffset = (parsedPage - 1) * parsedPageSize;
-
   return {
-    limit: resultLimit,
-    offset: resultOffset,
+    page: parsedPage,
+    pageSize: parsedPageSize,
   };
 }
 

@@ -37,7 +37,7 @@ export interface RequestContext<TRole extends string = string> {
   /**
    * Record ID (for single record operations)
    */
-  readonly id: string | null;
+  readonly id: number | null;
 
   /**
    * HTTP method

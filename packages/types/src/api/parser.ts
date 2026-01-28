@@ -34,10 +34,8 @@ export interface ParsedQuery<T extends ForjaEntry = ForjaRecord> {
   readonly where?: QueryObject<T>["where"];
   readonly populate?: QueryObject<T>["populate"];
   readonly orderBy?: QueryObject<T>["orderBy"];
-  readonly limit?: QueryObject<T>["limit"];
-  readonly offset?: QueryObject<T>["offset"];
-  readonly page?: number | undefined;
-  readonly pageSize?: number | undefined;
+  readonly page?: number;
+  readonly pageSize?: number;
 }
 
 /**
@@ -135,16 +133,14 @@ export function isWhereOperator(value: string): value is WhereOperator {
 export interface PaginationParams {
   readonly page?: number;
   readonly pageSize?: number;
-  readonly limit?: number;
-  readonly offset?: number;
 }
 
 /**
  * Parse pagination result
  */
 export interface ParsedPagination {
-  readonly limit: number;
-  readonly offset: number;
+  readonly page: number;
+  readonly pageSize: number;
 }
 
 /**

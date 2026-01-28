@@ -86,7 +86,7 @@ export const handlerError = {
     };
   },
 
-  recordNotFound(modelName: string, id: string): ErrorResult {
+  recordNotFound(modelName: string, id: number): ErrorResult {
     return {
       success: false,
       error: new ApiError(`${modelName} record not found with ID: ${id}`, {
