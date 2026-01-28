@@ -1,8 +1,8 @@
 import { defineConfig } from "forja-core";
-import { JsonAdapter } from "../../../adapter-json/src/index";
 import { ApiPlugin } from "../../src/api";
 import { testSchemas } from "./schemas";
 import { ForjaConfig } from "forja-types";
+import { getAdapter, getAdapterType } from './adapter';
 
 /**
  * Test Roles
@@ -22,19 +22,20 @@ export const testJwtSecret = "test-jwt-secret-key-for-unit-tests-32-chars-min";
 /**
  * Test Configuration with Authentication
  *
- * Uses JsonAdapter with temporary directory for testing
+ * Uses configurable adapter (json or postgres)
  * API plugin enabled WITH authentication and permission system
+ *
+ * Switch adapter via environment variable:
+ * - ADAPTER=json npm test (default, fast in-memory)
+ * - ADAPTER=postgres npm test (real database)
  */
 export function createTestConfigWithAuth(tmpDir: string) {
   return defineConfig(() => {
-    const config: ForjaConfig<JsonAdapter> = {
-      adapter: new JsonAdapter({
-        root: tmpDir,
-        cache: true,
-        readLock: false,
-        lockTimeout: 5000,
-        staleTimeout: 10000,
-      }),
+    const adapterType = getAdapterType();
+    const adapter = getAdapter(adapterType, tmpDir);
+
+    const config: ForjaConfig = {
+      adapter,
 
       schemas: testSchemas,
 

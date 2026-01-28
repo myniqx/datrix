@@ -286,6 +286,9 @@ export const userSchema = defineSchema({
     name: {
       type: "string",
     },
+    age: {
+      type: "number",
+    }
   },
   indexes: [{ fields: ["email"], unique: true }],
 } as const);

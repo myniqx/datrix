@@ -33,6 +33,7 @@ import {
   SchemaDefinition,
 } from "forja-types/core/schema";
 import { Forja } from "forja-core";
+import { PostgresPopulator } from "./populate";
 
 /**
  * PostgreSQL adapter implementation
@@ -43,12 +44,18 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 
   private pool: Pool | undefined;
   private state: ConnectionState = "disconnected";
-  private readonly translator: PostgresQueryTranslator;
+  private _translator: PostgresQueryTranslator | undefined;
+
+  getTranslator(): PostgresQueryTranslator {
+    if (!this._translator) {
+      const schemaRegistry = Forja.getInstance().getSchemas();
+      this._translator = new PostgresQueryTranslator(schemaRegistry);
+    }
+    return this._translator;
+  }
 
   constructor(config: PostgresConfig) {
     this.config = config;
-    const schemaRegistry = Forja.getInstance().getSchemas();
-    this.translator = new PostgresQueryTranslator(schemaRegistry);
   }
 
   /**
@@ -58,7 +65,6 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
     if (this.state === "connected") {
       return { success: true, data: undefined };
     }
-
     this.state = "connecting";
 
     try {
@@ -141,7 +147,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
    * Execute query
    */
   async executeQuery<TResult>(
-    query: QueryObject,
+    query: QueryObject<TResult>,
   ): Promise<Result<QueryResult<TResult>, QueryError>> {
     // Runtime validation of QueryObject structure
     const validation = validateQueryObject(query);
@@ -167,32 +173,42 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
     let lastSql: string | undefined;
 
     try {
-      // Translate query to SQL
-      const { sql, params } = this.translator.translate(query);
-      lastSql = sql;
+      let rows: readonly TResult[];
 
-      // Execute query
-      const result = await this.pool.query(sql, params as unknown[]);
+      if (query.populate && query.type === "select") {
+        const schemaRegistry = Forja.getInstance().getSchemas();
+        const populator = new PostgresPopulator(
+          this.pool,
+          this.getTranslator(),
+          schemaRegistry,
+        );
 
-      // Build metadata
-      let insertId: string | number | undefined;
+        rows = await populator.populate<TResult>(query);
+      } else {
+        const { sql, params } = this.getTranslator().translate(query);
+        lastSql = sql;
 
-      // Handle INSERT with RETURNING
-      if (query.type === "insert" && result.rows.length > 0) {
-        const firstRow = result.rows[0] as Record<string, unknown>;
-        insertId = firstRow["id"] as string | number;
+        const result = await this.pool.query(sql, params as unknown[]);
+        rows = result.rows as readonly TResult[];
+      }
+
+      let insertId: number | undefined;
+
+      if (query.type === "insert" && rows.length > 0) {
+        const firstRow = rows[0] as Record<string, unknown>;
+        insertId = firstRow["id"] as number;
       }
 
       const metadata: QueryMetadata = {
-        rowCount: result.rowCount ?? 0,
-        affectedRows: result.rowCount ?? 0,
+        rowCount: rows.length,
+        affectedRows: rows.length,
         ...(insertId !== undefined && { insertId }),
       };
 
       return {
         success: true,
         data: {
-          rows: result.rows as readonly TResult[],
+          rows,
           metadata,
         },
       };
@@ -307,7 +323,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 
       const transaction = new PostgresTransaction(
         client,
-        this.translator,
+        this.getTranslator(),
         this.mapPostgresError.bind(this),
         `tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
       );
@@ -348,7 +364,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
       }
 
       // Build CREATE TABLE statement
-      const tableName = this.translator.escapeIdentifier(schema.tableName!);
+      const tableName = this.getTranslator().escapeIdentifier(schema.tableName!);
       const sql = `CREATE TABLE ${tableName} (\n  ${columns.join(",\n  ")}\n)`;
 
       await this.pool.query(sql);
@@ -378,7 +394,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
     }
 
     try {
-      const escapedTable = this.translator.escapeIdentifier(tableName);
+      const escapedTable = this.getTranslator().escapeIdentifier(tableName);
       await this.pool.query(`DROP TABLE IF EXISTS ${escapedTable}`);
 
       return { success: true, data: undefined };
@@ -409,7 +425,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
     }
 
     try {
-      const escapedTable = this.translator.escapeIdentifier(tableName);
+      const escapedTable = this.getTranslator().escapeIdentifier(tableName);
 
       for (const op of operations) {
         let sql = "";
@@ -422,22 +438,22 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
           }
 
           case "dropColumn": {
-            const columnName = this.translator.escapeIdentifier(op.column);
+            const columnName = this.getTranslator().escapeIdentifier(op.column);
             sql = `ALTER TABLE ${escapedTable} DROP COLUMN ${columnName}`;
             break;
           }
 
           case "modifyColumn": {
             // PostgreSQL uses ALTER COLUMN for modifications
-            const columnName = this.translator.escapeIdentifier(op.column);
+            const columnName = this.getTranslator().escapeIdentifier(op.column);
             const pgType = getPostgresTypeWithModifiers(op.newDefinition.type);
             sql = `ALTER TABLE ${escapedTable} ALTER COLUMN ${columnName} TYPE ${pgType}`;
             break;
           }
 
           case "renameColumn": {
-            const fromColumn = this.translator.escapeIdentifier(op.from);
-            const toColumn = this.translator.escapeIdentifier(op.to);
+            const fromColumn = this.getTranslator().escapeIdentifier(op.from);
+            const toColumn = this.getTranslator().escapeIdentifier(op.to);
             sql = `ALTER TABLE ${escapedTable} RENAME COLUMN ${fromColumn} TO ${toColumn}`;
             break;
           }
@@ -477,11 +493,11 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 
     try {
       const tableName = tableNameParam;
-      const escapedTable = this.translator.escapeIdentifier(tableName);
+      const escapedTable = this.getTranslator().escapeIdentifier(tableName);
       const indexName = index.name ?? `idx_${tableName}_${index.fields.join("_")}`;
-      const escapedIndexName = this.translator.escapeIdentifier(indexName);
+      const escapedIndexName = this.getTranslator().escapeIdentifier(indexName);
       const fields = index.fields
-        .map((f) => this.translator.escapeIdentifier(f))
+        .map((f) => this.getTranslator().escapeIdentifier(f))
         .join(", ");
       const unique = index.unique ? "UNIQUE " : "";
       const using = index.type ? ` USING ${index.type.toUpperCase()}` : "";
@@ -515,7 +531,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
     }
 
     try {
-      const escapedIndexName = this.translator.escapeIdentifier(indexName);
+      const escapedIndexName = this.getTranslator().escapeIdentifier(indexName);
       await this.pool.query(`DROP INDEX IF EXISTS ${escapedIndexName}`);
 
       return { success: true, data: undefined };
@@ -755,12 +771,12 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
     fieldName: string,
     field: FieldDefinition,
   ): string {
-    const columnName = this.translator.escapeIdentifier(fieldName);
+    const columnName = this.getTranslator().escapeIdentifier(fieldName);
     const pgType = getPostgresTypeWithModifiers(field.type);
     const nullable = field.required ? " NOT NULL" : "";
     const defaultValue =
       field.default !== undefined ?
-        ` DEFAULT ${this.translator.escapeValue(field.default)}`
+        ` DEFAULT ${this.getTranslator().escapeValue(field.default)}`
         : "";
 
     return `${columnName} ${pgType}${nullable}${defaultValue}`;

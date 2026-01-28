@@ -18,3 +18,27 @@ export {
   toPostgresValue,
   fromPostgresValue
 } from './types';
+
+export {
+  PostgresPopulator,
+  JoinBuilder,
+  AggregationBuilder,
+  ResultProcessor,
+} from './populate';
+
+export type {
+  PopulateStrategy,
+  JoinClause,
+  AggregationClause,
+  ProcessedResult,
+} from './populate';
+
+export {
+  ForjaPostgresAdapterError,
+} from './error';
+
+export type {
+  PostgresAdapterOperation,
+  PostgresAdapterErrorCode,
+  PostgresAdapterErrorContext,
+} from './error';

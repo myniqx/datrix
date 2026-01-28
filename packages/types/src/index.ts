@@ -19,7 +19,7 @@ export {
   type ContextBuilderOptions,
   type HttpMethod,
   type RequestContext,
-  type ResponseData,
+  type ResponseMultiData as ResponseData,
   type ResponseMeta,
   type HandlerResponse,
   type ErrorResponse,

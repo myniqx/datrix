@@ -15,7 +15,6 @@ import type {
 import type { QueryTranslator } from "forja-types/adapter";
 import { QueryError } from "forja-types/adapter";
 import type { SchemaRegistry } from "forja-core/schema";
-import type { RelationField } from "forja-types/core/schema";
 
 /**
  * Maximum nesting depth for WHERE clauses to prevent stack overflow
@@ -177,10 +176,16 @@ export class PostgresQueryTranslator implements QueryTranslator {
     if (query.type === "count") {
       parts.push("SELECT COUNT(*)");
     } else {
-      // Use table name as alias to resolve ambiguity with joins
-      parts.push(
-        `SELECT ${this.translateSelectClause(query.select, query.table)}`,
-      );
+      const baseSelect = this.translateSelectClause(query.select, query.table);
+
+      const metadata = query._metadata as Record<string, unknown> | undefined;
+      const populateAggregations = metadata?.populateAggregations as string | undefined;
+
+      if (populateAggregations) {
+        parts.push(`SELECT ${baseSelect}, ${populateAggregations}`);
+      } else {
+        parts.push(`SELECT ${baseSelect}`);
+      }
     }
 
     // DISTINCT
@@ -191,24 +196,27 @@ export class PostgresQueryTranslator implements QueryTranslator {
     // FROM clause
     parts.push(`FROM ${this.escapeIdentifier(query.table)}`);
 
-    // KEY CHANGE: Add JOINs
-    const joins = this.generateJoins(query);
-    if (joins) {
-      parts.push(joins);
+    const metadata = query._metadata as Record<string, unknown> | undefined;
+    const populateJoins = metadata?.populateJoins as string | undefined;
+
+    if (populateJoins) {
+      parts.push(populateJoins);
     }
 
     // WHERE clause
     if (query.where) {
       const whereResult = this.translateWhere(query.where, this.paramIndex);
-      // Ensure we qualify table names in WHERE if joins are present
-      // For now, simpler implementation:
       parts.push(`WHERE ${whereResult.sql}`);
       this.paramIndex += whereResult.params.length;
       this.params.push(...whereResult.params);
     }
 
-    // GROUP BY
-    if ("groupBy" in query && query.groupBy && query.groupBy.length > 0) {
+    // GROUP BY (required for json_agg aggregations)
+    const hasAggregations = metadata?.populateAggregations;
+    if (hasAggregations) {
+      const tableEsc = this.escapeIdentifier(query.table);
+      parts.push(`GROUP BY ${tableEsc}."id"`);
+    } else if ("groupBy" in query && query.groupBy && query.groupBy.length > 0) {
       const groupByFields = query.groupBy
         .map((field) => this.escapeIdentifier(field))
         .join(", ");
@@ -262,86 +270,6 @@ export class PostgresQueryTranslator implements QueryTranslator {
       .join(", ");
   }
 
-  /**
-   * Generate JOIN clauses from populate and relation metadata
-   *
-   * Reads relation metadata injected by QueryBuilder during build()
-   * @see packages/core/src/query-builder/builder.ts - Where metadata is generated
-   *
-   * @param query - Query object with populate and metadata
-   * @returns SQL JOIN clauses
-   */
-  private generateJoins(query: QueryObject): string {
-    if (!query.populate) {
-      return "";
-    }
-
-    // Find current schema from table name
-    const currentModelName = this.schemaRegistry.findModelByTableName(
-      query.table,
-    );
-    if (!currentModelName) {
-      throw new QueryError(`Model not found for table: ${query.table}`);
-    }
-
-    const currentSchema = this.schemaRegistry.get(currentModelName);
-    if (!currentSchema) {
-      throw new QueryError(`Schema not found for model: ${currentModelName}`);
-    }
-
-    const parts: string[] = [];
-
-    for (const [relationName, _options] of Object.entries(query.populate)) {
-      // Get relation field from current schema
-      const relationField = currentSchema.fields[relationName];
-      if (!relationField) {
-        throw new QueryError(
-          `Relation field '${relationName}' not found in schema '${currentSchema.name}'`,
-        );
-      }
-
-      if (relationField.type !== "relation") {
-        throw new QueryError(
-          `Field '${relationName}' is not a relation field in schema '${currentSchema.name}'`,
-        );
-      }
-
-      const relField = relationField as RelationField;
-      const targetModelName = relField.model;
-      const foreignKey = relField.foreignKey!;
-      const kind = relField.kind;
-
-      // Get target schema
-      const targetSchema = this.schemaRegistry.get(targetModelName);
-      if (!targetSchema) {
-        throw new QueryError(
-          `Target model '${targetModelName}' not found for relation '${relationName}'`,
-        );
-      }
-
-      const targetTable = this.escapeIdentifier(
-        targetSchema.tableName ?? targetModelName.toLowerCase(),
-      );
-      const sourceTable = this.escapeIdentifier(query.table);
-      const fk = this.escapeIdentifier(foreignKey);
-
-      // Generate JOIN based on relation kind
-      if (kind === "belongsTo") {
-        // Source has FK: source.foreignKey = target.id
-        parts.push(
-          `LEFT JOIN ${targetTable} ON ${sourceTable}.${fk} = ${targetTable}."id"`,
-        );
-      } else if (kind === "hasOne" || kind === "hasMany") {
-        // Target has FK: source.id = target.foreignKey
-        parts.push(
-          `LEFT JOIN ${targetTable} ON ${sourceTable}."id" = ${targetTable}.${fk}`,
-        );
-      }
-      // TODO: Handle manyToMany with join tables
-    }
-
-    return parts.join(" ");
-  }
 
   /**
    * Translate INSERT query

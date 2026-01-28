@@ -1,38 +1,4 @@
 import type { AuthConfig } from "./auth/types";
-import type { ForjaEntry } from "forja-types/core/schema";
-
-/**
- * Pagination metadata for list responses
- */
-export interface PaginationMeta {
-  readonly total: number;
-  readonly page: number;
-  readonly pageSize: number;
-  readonly totalPages: number;
-}
-
-/**
- * Paginated API response
- *
- * @template T - Entry type extending ForjaEntry
- *
- * @example
- * ```ts
- * const response: PaginatedResponse<User> = {
- *   data: [{ id: 1, name: 'John' }],
- *   meta: {
- *     total: 156,
- *     page: 2,
- *     pageSize: 25,
- *     totalPages: 7
- *   }
- * };
- * ```
- */
-export interface PaginatedResponse<T extends ForjaEntry> {
-  readonly data: readonly Partial<T>[];
-  readonly meta: PaginationMeta;
-}
 
 /**
  * API Configuration

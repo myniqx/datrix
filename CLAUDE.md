@@ -69,6 +69,53 @@ function parseUser(data: unknown): Result<User, ValidationError> {
 }
 ```
 
+### 4. Debug-Friendly Code Style
+
+**ALWAYS break nested function calls into intermediate variables for easier debugging.**
+
+This makes it easier to inspect values step-by-step in debugger and understand data flow.
+
+```typescript
+// ❌ BAD - Nested calls, hard to debug
+const result = processData(transformInput(validateUser(parseJson(rawData))));
+
+// ✅ GOOD - Step by step, easy to debug
+const parsed = parseJson(rawData);
+const validated = validateUser(parsed);
+const transformed = transformInput(validated);
+const result = processData(transformed);
+```
+
+```typescript
+// ❌ BAD - Complex inline expression
+return jsonResponse({
+  data: await filterRecordsForRead(
+    schema,
+    await forja.findMany(schema.name, buildQuery(ctx)),
+    ctx
+  )
+});
+
+// ✅ GOOD - Break into steps
+const query = buildQuery(ctx);
+const records = await forja.findMany(schema.name, query);
+const filteredRecords = await filterRecordsForRead(schema, records, ctx);
+return jsonResponse({ data: filteredRecords });
+```
+
+**Benefits:**
+- Set breakpoints on each line
+- Inspect intermediate values in debugger
+- Understand data transformations clearly
+- Easier to add logging/error handling
+- Better stack traces
+
+**When to apply:**
+- Functions with 2+ nested calls
+- Complex async operations
+- Data transformation pipelines
+- Anywhere debugging might be needed
+
 ---
 
 ## 📐 Code Architecture Principles

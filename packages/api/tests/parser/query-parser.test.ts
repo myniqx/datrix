@@ -19,8 +19,8 @@ describe("QueryParser - Happy Path", () => {
 
       const parsedQuery = expectSuccessData(parseQuery(emptyParams));
 
-      expect(parsedQuery.limit).toBe(25);
-      expect(parsedQuery.offset).toBe(0);
+      expect(parsedQuery.page).toBe(1);
+      expect(parsedQuery.pageSize).toBe(25);
       expect(parsedQuery.select).toBeUndefined();
       expect(parsedQuery.where).toBeUndefined();
       expect(parsedQuery.populate).toBeUndefined();
@@ -29,24 +29,12 @@ describe("QueryParser - Happy Path", () => {
   });
 
   describe("Pagination", () => {
-    it("should parse limit and offset directly", () => {
-      const limitOffsetParams: RawQueryParams =
-        parserTestData.paginationParams.limitOffset;
-
-      const parsedQuery = expectSuccessData(parseQuery(limitOffsetParams));
-
-      expect(parsedQuery.limit).toBe(10);
-      expect(parsedQuery.offset).toBe(20);
-    });
-
     it("should parse page and pageSize", () => {
       const pagePageSizeParams: RawQueryParams =
         parserTestData.paginationParams.pagePageSize;
 
       const parsedQuery = expectSuccessData(parseQuery(pagePageSizeParams));
 
-      expect(parsedQuery.limit).toBe(15);
-      expect(parsedQuery.offset).toBe(15); // (page-1) * pageSize = (2-1) * 15 = 15
       expect(parsedQuery.page).toBe(2);
       expect(parsedQuery.pageSize).toBe(15);
     });
@@ -57,10 +45,8 @@ describe("QueryParser - Happy Path", () => {
 
       const parsedQuery = expectSuccessData(parseQuery(pageOnlyParams));
 
-      expect(parsedQuery.limit).toBe(25); // default pageSize
-      expect(parsedQuery.offset).toBe(50); // (3-1) * 25 = 50
       expect(parsedQuery.page).toBe(3);
-      expect(parsedQuery.pageSize).toBe(25);
+      expect(parsedQuery.pageSize).toBe(25); // default pageSize
     });
 
     it("should handle pageSize without page", () => {
@@ -69,9 +55,7 @@ describe("QueryParser - Happy Path", () => {
 
       const parsedQuery = expectSuccessData(parseQuery(pageSizeOnlyParams));
 
-      expect(parsedQuery.limit).toBe(50);
-      expect(parsedQuery.offset).toBe(0); // default page is 1
-      expect(parsedQuery.page).toBe(1);
+      expect(parsedQuery.page).toBe(1); // default page
       expect(parsedQuery.pageSize).toBe(50);
     });
 
@@ -81,9 +65,8 @@ describe("QueryParser - Happy Path", () => {
 
       const parsedQuery = expectSuccessData(parseQuery(largePageParams));
 
-      expect(parsedQuery.limit).toBe(25);
-      expect(parsedQuery.offset).toBe(2475); // (100-1) * 25
       expect(parsedQuery.page).toBe(100);
+      expect(parsedQuery.pageSize).toBe(25);
     });
 
     it("should respect custom defaultPageSize option", () => {
@@ -94,17 +77,17 @@ describe("QueryParser - Happy Path", () => {
         parseQuery(emptyParams, customOptions),
       );
 
-      expect(parsedQuery.limit).toBe(50);
-      expect(parsedQuery.offset).toBe(0);
+      expect(parsedQuery.page).toBe(1);
+      expect(parsedQuery.pageSize).toBe(50);
     });
 
     it("should respect custom maxPageSize option", () => {
-      const params: RawQueryParams = { limit: "30" };
+      const params: RawQueryParams = { pageSize: "30" };
       const customOptions: ParserOptions = { maxPageSize: 50 };
 
       const parsedQuery = expectSuccessData(parseQuery(params, customOptions));
 
-      expect(parsedQuery.limit).toBe(30);
+      expect(parsedQuery.pageSize).toBe(30);
     });
   });
 
@@ -211,7 +194,7 @@ describe("QueryParser - Happy Path", () => {
       expect(parsedQuery.where).toEqual({ status: "active" });
       expect(parsedQuery.populate).toEqual({ author: "*" });
       expect(parsedQuery.orderBy).toEqual([{ field: "id", direction: "desc" }]);
-      expect(parsedQuery.limit).toBe(5);
+      expect(parsedQuery.pageSize).toBe(5);
     });
   });
 
@@ -236,8 +219,6 @@ describe("QueryParser - Happy Path", () => {
       ]);
       expect(parsedQuery.page).toBe(2);
       expect(parsedQuery.pageSize).toBe(20);
-      expect(parsedQuery.limit).toBe(20);
-      expect(parsedQuery.offset).toBe(20);
     });
 
     it("should handle fields with where operators", () => {
@@ -247,7 +228,7 @@ describe("QueryParser - Happy Path", () => {
         "where[price][$lte]": "100",
         "where[category][$in]": ["tech", "science"],
         sort: "-price,title",
-        limit: "20",
+        pageSize: "20",
       };
 
       const parsedQuery = expectSuccessData(parseQuery(params));
@@ -261,7 +242,7 @@ describe("QueryParser - Happy Path", () => {
         { field: "price", direction: "desc" },
         { field: "title", direction: "asc" },
       ]);
-      expect(parsedQuery.limit).toBe(20);
+      expect(parsedQuery.pageSize).toBe(20);
     });
 
     it("should handle deeply nested populate with fields", () => {
@@ -294,7 +275,7 @@ describe("QueryParser - Happy Path", () => {
       const identicalParams: RawQueryParams = {
         fields: "id,name",
         "where[status]": "active",
-        limit: "10",
+        pageSize: "10",
       };
 
       const firstParse = expectSuccessData(parseQuery(identicalParams));
@@ -306,14 +287,14 @@ describe("QueryParser - Happy Path", () => {
     it("should return same result regardless of input mutation", () => {
       const mutableParams: RawQueryParams = {
         fields: "id,name",
-        limit: "10",
+        pageSize: "10",
       };
       const firstParse = expectSuccessData(parseQuery(mutableParams));
 
       mutableParams.fields = "email";
-      mutableParams.limit = "20";
+      mutableParams.pageSize = "20";
       const secondParse = expectSuccessData(
-        parseQuery({ fields: "id,name", limit: "10" }),
+        parseQuery({ fields: "id,name", pageSize: "10" }),
       );
 
       expect(firstParse).toEqual(secondParse);
@@ -327,7 +308,7 @@ describe("QueryParser - Happy Path", () => {
         "where[status]": "active",
         populate: "author",
         sort: "name",
-        limit: "10",
+        pageSize: "10",
       };
       const paramsCopy = JSON.parse(JSON.stringify(originalParams));
 
@@ -337,7 +318,7 @@ describe("QueryParser - Happy Path", () => {
     });
 
     it("should not mutate options object", () => {
-      const params: RawQueryParams = { limit: "10" };
+      const params: RawQueryParams = { pageSize: "10" };
       const options: ParserOptions = { maxPageSize: 50, defaultPageSize: 25 };
       const optionsCopy = { ...options };
 
@@ -365,8 +346,8 @@ describe("QueryParser - Happy Path", () => {
 
       const parsedQuery = expectSuccessData(parseQuery(params, partialOptions));
 
-      expect(parsedQuery.limit).toBe(10);
-      expect(parsedQuery.offset).toBe(0);
+      expect(parsedQuery.page).toBe(1);
+      expect(parsedQuery.pageSize).toBe(10);
     });
   });
 });

@@ -7,6 +7,8 @@
 import { Result } from "../utils";
 import { expect } from "vitest";
 import { ForjaError } from "../errors/forja-error";
+import { ResponseMultiData } from "../api";
+import { ForjaEntry, ForjaRecord } from "forja-types/core/schema";
 
 /**
  * Assert Result success and return data (RECOMMENDED)
@@ -343,97 +345,223 @@ export async function expectCompleteErrorAsync(options: {
 // HTTP API Test Helpers (for Response-based API testing)
 // ============================================================================
 
+import type { SerializedForjaError } from "../errors/forja-error";
+import type { PaginationMeta } from "../api";
+
 /**
- * API Response structure
+ * Single record API response
  */
-export interface ApiSuccessResponse<T = unknown> {
-  data: T;
-  meta?: {
-    total?: number;
-    count?: number;
-    limit?: number;
-    offset?: number;
-  };
-}
-
-export interface ApiErrorResponse {
-  error: {
-    code: string;
-    message: string;
-    suggestion?: string;
-    context?: Record<string, unknown>;
-  };
+export interface ResponseSingleData<T extends ForjaEntry> {
+  readonly data: Partial<T>;
 }
 
 /**
- * Assert API success response and return data
+ * Multiple records API response (with pagination)
+ */
+export interface ResponseMultiData<T extends ForjaEntry> {
+  readonly data: Partial<T>[];
+  readonly meta: PaginationMeta;
+}
+
+/**
+ * API error response with full ForjaError serialization
+ */
+export interface ApiErrorResponse {
+  error: SerializedForjaError;
+}
+
+/**
+ * Assert API success for single record and return data
  *
  * @example
- * const user = await expectApiSuccess<User>(response);
+ * const user = await expectApiSingle<User>(response);
  * expect(user.name).toBe('John');
  *
  * @example
- * const user = await expectApiSuccess<User>(response, 201); // For POST
+ * const user = await expectApiSingle<User>(response, 201); // For POST
  */
-export async function expectApiSuccess<T = unknown>(
+export async function expectApiSingle<T extends ForjaEntry = ForjaRecord>(
   response: Response,
   expectedStatus = 200,
-): Promise<T> {
+): Promise<Partial<T>> {
+  // Debug: Log response if status doesn't match
   if (response.status !== expectedStatus) {
-    console.log(
-      "Error response:",
-      JSON.stringify(await response.json(), null, 2),
-    );
+    const clonedResponse = response.clone();
+    const body = await clonedResponse.json();
+    console.log("❌ Unexpected status!");
+    console.log("Expected:", expectedStatus);
+    console.log("Received:", response.status);
+    console.log("Response body:", JSON.stringify(body, null, 2));
   }
+
   expect(response.status).toBe(expectedStatus);
 
-  const json = (await response.json()) as ApiSuccessResponse<T>;
+  const json = (await response.json()) as ResponseSingleData<T>;
   expect(json.data).toBeDefined();
+  expect(json.data).toBeTypeOf("object");
+  expect(Array.isArray(json.data)).toBe(false);
 
   return json.data;
 }
 
 /**
- * Assert API success response with meta information
+ * Assert API success for multiple records with pagination meta
  *
  * @example
- * const { data, meta } = await expectApiSuccessWithMeta<User[]>(response);
- * expect(meta.total).toBe(10);
+ * const { data, meta } = await expectApiMulti<User>(response);
+ * expect(data).toHaveLength(10);
+ * expect(meta.page).toBe(2);
+ * expect(meta.totalPages).toBe(7);
  */
-export async function expectApiSuccessWithMeta<T = unknown>(
+export async function expectApiMulti<T extends ForjaEntry = ForjaRecord>(
   response: Response,
   expectedStatus = 200,
-): Promise<ApiSuccessResponse<T>> {
+): Promise<ResponseMultiData<T>> {
+  // Debug: Log response if status doesn't match
+  if (response.status !== expectedStatus) {
+    const clonedResponse = response.clone();
+    const body = await clonedResponse.json();
+    console.log("❌ Unexpected status!");
+    console.log("Expected:", expectedStatus);
+    console.log("Received:", response.status);
+    console.log("Response body:", JSON.stringify(body, null, 2));
+  }
+
   expect(response.status).toBe(expectedStatus);
 
-  const json = (await response.json()) as ApiSuccessResponse<T>;
+  const json = (await response.json()) as ResponseMultiData<T>;
+
+  // Validate data array
   expect(json.data).toBeDefined();
+  expect(Array.isArray(json.data)).toBe(true);
+
+  // Validate pagination meta
+  expect(json.meta).toBeDefined();
+  expect(json.meta.total).toBeTypeOf("number");
+  expect(json.meta.page).toBeTypeOf("number");
+  expect(json.meta.pageSize).toBeTypeOf("number");
+  expect(json.meta.totalPages).toBeTypeOf("number");
 
   return json;
 }
 
 /**
- * Assert API error response and return error details
+ * Validate pagination meta matches expected values
+ *
+ * @example
+ * expectPaginationMeta(meta, {
+ *   page: 2,
+ *   pageSize: 25,
+ *   total: 156
+ * });
+ */
+export function expectPaginationMeta(
+  meta: PaginationMeta,
+  expected: Partial<PaginationMeta>,
+): void {
+  if (expected.total !== undefined) {
+    expect(meta.total).toBe(expected.total);
+  }
+  if (expected.page !== undefined) {
+    expect(meta.page).toBe(expected.page);
+  }
+  if (expected.pageSize !== undefined) {
+    expect(meta.pageSize).toBe(expected.pageSize);
+  }
+  if (expected.totalPages !== undefined) {
+    expect(meta.totalPages).toBe(expected.totalPages);
+  }
+}
+
+/**
+ * Validate ForjaError structure has all required fields
+ *
+ * Required fields: type, message, code, timestamp
+ * Optional fields: operation, context, suggestion, expected, received, documentation, cause
+ */
+function validateForjaErrorStructure(error: SerializedForjaError): void {
+  // Required fields
+  expect(error.type).toBeDefined();
+  expect(error.type).toBeTypeOf("string");
+
+  expect(error.message).toBeDefined();
+  expect(error.message).toBeTypeOf("string");
+  expect(error.message.length).toBeGreaterThan(0);
+
+  expect(error.code).toBeDefined();
+  expect(error.code).toBeTypeOf("string");
+  expect(error.code.length).toBeGreaterThan(0);
+
+  expect(error.timestamp).toBeDefined();
+  expect(error.timestamp).toBeTypeOf("string");
+  // Validate ISO 8601 date format
+  expect(error.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+
+  // Optional fields validation (if present)
+  if (error.operation !== undefined) {
+    expect(error.operation).toBeTypeOf("string");
+  }
+
+  if (error.context !== undefined) {
+    expect(error.context).toBeTypeOf("object");
+  }
+
+  if (error.suggestion !== undefined) {
+    expect(error.suggestion).toBeTypeOf("string");
+  }
+
+  if (error.expected !== undefined) {
+    expect(error.expected).toBeTypeOf("string");
+  }
+
+  if (error.documentation !== undefined) {
+    expect(error.documentation).toBeTypeOf("string");
+  }
+
+  if (error.cause !== undefined) {
+    expect(error.cause).toBeTypeOf("object");
+    expect(error.cause.message).toBeDefined();
+    expect(error.cause.name).toBeDefined();
+  }
+}
+
+/**
+ * Assert API error response and return validated error details
+ *
+ * Validates ALL required ForjaError fields and returns the error object.
  *
  * @example
  * const error = await expectApiError(response, 404);
  * expect(error.code).toBe('RECORD_NOT_FOUND');
  *
  * @example
- * await expectApiError(response, 403, 'PERMISSION_DENIED');
+ * const error = await expectApiError(response, 403, 'PERMISSION_DENIED');
+ * expect(error.suggestion).toBeDefined();
  */
 export async function expectApiError(
   response: Response,
   expectedStatus: number,
   expectedCode?: string,
-): Promise<ApiErrorResponse["error"]> {
+): Promise<SerializedForjaError> {
+  // Debug: Log response if status doesn't match
+  if (response.status !== expectedStatus) {
+    const clonedResponse = response.clone();
+    const body = await clonedResponse.json();
+    console.log("❌ Unexpected error status!");
+    console.log("Expected:", expectedStatus);
+    console.log("Received:", response.status);
+    console.log("Error body:", JSON.stringify(body, null, 2));
+  }
+
   expect(response.status).toBe(expectedStatus);
 
   const json = (await response.json()) as ApiErrorResponse;
   expect(json.error).toBeDefined();
-  expect(json.error.code).toBeDefined();
-  expect(json.error.message).toBeDefined();
 
+  // Validate ForjaError structure
+  validateForjaErrorStructure(json.error);
+
+  // Check expected code if provided
   if (expectedCode) {
     expect(json.error.code).toBe(expectedCode);
   }
@@ -445,11 +573,12 @@ export async function expectApiError(
  * Assert API unauthorized error (401)
  *
  * @example
- * await expectApiUnauthorized(response);
+ * const error = await expectApiUnauthorized(response);
+ * expect(error.code).toBe('UNAUTHORIZED');
  */
 export async function expectApiUnauthorized(
   response: Response,
-): Promise<ApiErrorResponse["error"]> {
+): Promise<SerializedForjaError> {
   return expectApiError(response, 401, "UNAUTHORIZED");
 }
 
@@ -457,11 +586,12 @@ export async function expectApiUnauthorized(
  * Assert API forbidden/permission denied error (403)
  *
  * @example
- * await expectApiForbidden(response);
+ * const error = await expectApiForbidden(response);
+ * expect(error.code).toBe('PERMISSION_DENIED');
  */
 export async function expectApiForbidden(
   response: Response,
-): Promise<ApiErrorResponse["error"]> {
+): Promise<SerializedForjaError> {
   return expectApiError(response, 403, "PERMISSION_DENIED");
 }
 
@@ -469,11 +599,12 @@ export async function expectApiForbidden(
  * Assert API not found error (404)
  *
  * @example
- * await expectApiNotFound(response);
+ * const error = await expectApiNotFound(response);
+ * expect(error.message).toContain('not found');
  */
 export async function expectApiNotFound(
   response: Response,
-): Promise<ApiErrorResponse["error"]> {
+): Promise<SerializedForjaError> {
   return expectApiError(response, 404);
 }
 
@@ -481,11 +612,12 @@ export async function expectApiNotFound(
  * Assert API validation error (400)
  *
  * @example
- * await expectApiValidationError(response);
+ * const error = await expectApiValidationError(response);
+ * expect(error.code).toBe('VALIDATION_FAILED');
  */
 export async function expectApiValidationError(
   response: Response,
-): Promise<ApiErrorResponse["error"]> {
+): Promise<SerializedForjaError> {
   return expectApiError(response, 400);
 }
 
@@ -509,7 +641,7 @@ export async function expectCompleteApiError(
     suggestion?: string | RegExp;
     context?: Record<string, unknown>;
   },
-): Promise<ApiErrorResponse["error"]> {
+): Promise<SerializedForjaError> {
   const error = await expectApiError(response, options.status, options.code);
 
   if (options.message) {
@@ -538,4 +670,50 @@ export async function expectCompleteApiError(
   }
 
   return error;
+}
+
+// ============================================================================
+// Query Builder Helper (uses serializer)
+// ============================================================================
+
+import type { ParsedQuery } from "../api/parser";
+
+/**
+ * Build query string from ParsedQuery object
+ *
+ * Converts structured query objects into URL query strings for API requests.
+ * This makes tests more readable and maintainable.
+ *
+ * NOTE: To use this in tests, import queryToParams from '@forja/api/serializer'
+ * This placeholder exists to document the pattern.
+ *
+ * @example
+ * import { queryToParams } from '@forja/api/serializer';
+ *
+ * const queryString = queryToParams({
+ *   where: { status: 'active', age: { $gte: 18 } },
+ *   page: 2,
+ *   pageSize: 25,
+ *   orderBy: [{ field: 'name', direction: 'asc' }]
+ * });
+ *
+ * const response = await fetch(`/api/users?${queryString}`);
+ * // Result: /api/users?where[status]=active&where[age][$gte]=18&page=2&pageSize=25&sort=name
+ *
+ * @example
+ * // Simple pagination
+ * const queryString = queryToParams({
+ *   page: 1,
+ *   pageSize: 10
+ * });
+ * // Result: page=1&pageSize=10
+ */
+export function buildQueryString<T extends ForjaEntry = ForjaRecord>(
+  query: ParsedQuery<T>,
+): string {
+  // This is a placeholder function for documentation purposes
+  // In actual tests, use: import { queryToParams } from '@forja/api/serializer'
+  throw new Error(
+    "Use queryToParams from '@forja/api/serializer' instead of this placeholder"
+  );
 }

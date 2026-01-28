@@ -17,7 +17,6 @@ import {
 import {
   MAX_WHERE_VALUE_LENGTH,
   MAX_LOGICAL_NESTING_DEPTH,
-  type FieldInvalidReason,
 } from "forja-types/core/constants";
 
 /**

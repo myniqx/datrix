@@ -37,6 +37,9 @@ describe("API CRUD Integration Tests", () => {
     // Create tables manually for JsonAdapter
     const adapter = forja.getAdapter();
     for (const schema of forja.getSchemas().getAll()) {
+      try {
+        await adapter.dropTable(schema.tableName!)
+      } catch { }
       const result = await adapter.createTable(schema);
       if (!result.success) {
         throw new Error(

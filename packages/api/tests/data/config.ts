@@ -1,27 +1,27 @@
 import { defineConfig } from 'forja-core';
-import { JsonAdapter } from '../../../adapter-json/src/index';
 import { ApiPlugin } from '../../src/api';
 import { testSchemas } from './schemas';
 import path from 'node:path';
 import { ForjaConfig } from 'forja-types';
+import { getAdapter, getAdapterType } from './adapter';
 
 /**
  * Test Configuration
  *
- * Uses JsonAdapter with temporary directory for testing
+ * Uses configurable adapter (json or postgres)
  * API plugin enabled WITHOUT authentication
+ *
+ * Switch adapter via environment variable:
+ * - ADAPTER=json npm test (default, fast in-memory)
+ * - ADAPTER=postgres npm test (real database)
  */
 export function createTestConfig(tmpDir: string) {
   return defineConfig(() => {
+    const adapterType = getAdapterType();
+    const adapter = getAdapter(adapterType, tmpDir);
 
-    const config: ForjaConfig<JsonAdapter> = {
-      adapter: new JsonAdapter({
-        root: tmpDir,
-        cache: true,
-        readLock: false,
-        lockTimeout: 5000,
-        staleTimeout: 10000,
-      }),
+    const config: ForjaConfig = {
+      adapter,
 
       schemas: testSchemas,
 

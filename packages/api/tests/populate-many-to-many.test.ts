@@ -15,7 +15,7 @@ import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import { Forja } from "forja-core";
 import { handleRequest } from "../src/helper";
 import { createTestConfig, getTmpDir } from "./data";
-import { expectApiSuccess } from "forja-types/test/helpers";
+import { expectApiSingle, expectApiMulti } from "forja-types/test/helpers";
 import fs from "node:fs/promises";
 
 describe("ManyToMany Populate Integration Tests", () => {
@@ -42,6 +42,9 @@ describe("ManyToMany Populate Integration Tests", () => {
     // Create tables manually for JsonAdapter
     const adapter = forja.getAdapter();
     for (const schema of forja.getSchemas().getAll()) {
+      try {
+        await adapter.dropTable(schema.tableName!)
+      } catch { }
       const result = await adapter.createTable(schema);
       if (!result.success) {
         throw new Error(
@@ -113,7 +116,7 @@ describe("ManyToMany Populate Integration Tests", () => {
       );
 
       const response = await handleRequest(forja, request);
-      const post = await expectApiSuccess(response, 201);
+      const post = await expectApiSingle(response, 201);
 
       expect(post).toHaveProperty("tags");
       expect(post.tags).toHaveLength(2);
@@ -140,7 +143,7 @@ describe("ManyToMany Populate Integration Tests", () => {
       );
 
       const response = await handleRequest(forja, request);
-      const post = await expectApiSuccess(response, 201);
+      const post = await expectApiSingle(response, 201);
 
       expect(post.tags).toHaveLength(2);
       expect(post.tags.map((t) => t.name)).toEqual(
@@ -163,7 +166,7 @@ describe("ManyToMany Populate Integration Tests", () => {
         }),
       });
       const createRes = await handleRequest(forja, createReq);
-      const createdPost = await expectApiSuccess(createRes, 201);
+      const createdPost = await expectApiSingle(createRes, 201);
 
       // Update: add TS and JS tags
       const updateReq = new Request(
@@ -178,7 +181,7 @@ describe("ManyToMany Populate Integration Tests", () => {
       );
 
       const updateRes = await handleRequest(forja, updateReq);
-      const updatedPost = await expectApiSuccess(updateRes);
+      const updatedPost = await expectApiSingle(updateRes);
 
       expect(updatedPost.tags).toHaveLength(3); // node + js + ts
       expect(updatedPost.tags.map((t) => t.name)).toEqual(
@@ -209,7 +212,7 @@ describe("ManyToMany Populate Integration Tests", () => {
         }),
       });
       const createRes = await handleRequest(forja, createReq);
-      const createdPost = await expectApiSuccess(createRes, 201);
+      const createdPost = await expectApiSingle(createRes, 201);
 
       // Disconnect JS and React tags
       const updateReq = new Request(
@@ -224,7 +227,7 @@ describe("ManyToMany Populate Integration Tests", () => {
       );
 
       const updateRes = await handleRequest(forja, updateReq);
-      const updatedPost = await expectApiSuccess(updateRes);
+      const updatedPost = await expectApiSingle(updateRes);
 
       expect(updatedPost.tags).toHaveLength(1);
       expect(updatedPost.tags[0].name).toBe("TypeScript");
@@ -245,7 +248,7 @@ describe("ManyToMany Populate Integration Tests", () => {
         }),
       });
       const createRes = await handleRequest(forja, createReq);
-      const createdPost = await expectApiSuccess(createRes, 201);
+      const createdPost = await expectApiSingle(createRes, 201);
 
       // Disconnect all tags
       const updateReq = new Request(
@@ -260,7 +263,7 @@ describe("ManyToMany Populate Integration Tests", () => {
       );
 
       const updateRes = await handleRequest(forja, updateReq);
-      const updatedPost = await expectApiSuccess(updateRes);
+      const updatedPost = await expectApiSingle(updateRes);
 
       expect(updatedPost.tags).toHaveLength(0);
     });
@@ -288,7 +291,7 @@ describe("ManyToMany Populate Integration Tests", () => {
         }),
       });
       const createRes = await handleRequest(forja, createReq);
-      const createdPost = await expectApiSuccess(createRes, 201);
+      const createdPost = await expectApiSingle(createRes, 201);
 
       // Set to React and Node tags (replace all)
       const updateReq = new Request(
@@ -303,7 +306,7 @@ describe("ManyToMany Populate Integration Tests", () => {
       );
 
       const updateRes = await handleRequest(forja, updateReq);
-      const updatedPost = await expectApiSuccess(updateRes);
+      const updatedPost = await expectApiSingle(updateRes);
 
       expect(updatedPost.tags).toHaveLength(2);
       expect(updatedPost.tags.map((t) => t.name)).toEqual(
@@ -328,7 +331,7 @@ describe("ManyToMany Populate Integration Tests", () => {
         }),
       });
       const createRes = await handleRequest(forja, createReq);
-      const createdPost = await expectApiSuccess(createRes, 201);
+      const createdPost = await expectApiSingle(createRes, 201);
 
       // Set to empty array
       const updateReq = new Request(
@@ -343,7 +346,7 @@ describe("ManyToMany Populate Integration Tests", () => {
       );
 
       const updateRes = await handleRequest(forja, updateReq);
-      const updatedPost = await expectApiSuccess(updateRes);
+      const updatedPost = await expectApiSingle(updateRes);
 
       expect(updatedPost.tags).toHaveLength(0);
     });
@@ -373,12 +376,11 @@ describe("ManyToMany Populate Integration Tests", () => {
       );
 
       const response = await handleRequest(forja, request);
-      const data = await response.json();
+      const { data } = await expectApiMulti(response);
 
-      expect(response.status).toBe(200);
-      expect(data.data).toHaveLength(1);
-      expect(data.data[0].tags).toHaveLength(2);
-      expect(data.data[0].tags.map((t) => t.name)).toEqual(
+      expect(data).toHaveLength(1);
+      expect(data[0].tags).toHaveLength(2);
+      expect(data[0].tags.map((t) => t.name)).toEqual(
         expect.arrayContaining(["JavaScript", "React"]),
       );
     });
@@ -399,10 +401,9 @@ describe("ManyToMany Populate Integration Tests", () => {
       );
 
       const response = await handleRequest(forja, request);
-      const data = await response.json();
+      const { data } = await expectApiMulti(response);
 
-      expect(response.status).toBe(200);
-      const post = data.data[0];
+      const post = data[0];
       expect(post.tags).toHaveLength(2);
 
       // Should have selected fields + reserved fields
@@ -429,10 +430,9 @@ describe("ManyToMany Populate Integration Tests", () => {
       );
 
       const response = await handleRequest(forja, request);
-      const data = await response.json();
+      const { data } = await expectApiMulti(response);
 
-      expect(response.status).toBe(200);
-      expect(data.data[0].tags).toEqual([]);
+      expect(data[0].tags).toEqual([]);
     });
   });
 
@@ -458,7 +458,7 @@ describe("ManyToMany Populate Integration Tests", () => {
         }),
       });
       const createRes = await handleRequest(forja, createReq);
-      const createdPost = await expectApiSuccess(createRes, 201);
+      const createdPost = await expectApiSingle(createRes, 201);
 
       // Verify junction table has records
       const junctionBefore = await forja
@@ -541,7 +541,7 @@ describe("ManyToMany Populate Integration Tests", () => {
       );
 
       const response = await handleRequest(forja, request);
-      const post = await expectApiSuccess(response, 201);
+      const post = await expectApiSingle(response, 201);
 
       expect(post.tags).toHaveLength(2);
       expect(post.tags.map((t) => t.name)).toEqual(
@@ -564,7 +564,7 @@ describe("ManyToMany Populate Integration Tests", () => {
         }),
       });
       const createRes = await handleRequest(forja, createReq);
-      const createdPost = await expectApiSuccess(createRes, 201);
+      const createdPost = await expectApiSingle(createRes, 201);
 
       // Delete tags (removes from junction AND deletes the tag record)
       const updateReq = new Request(
@@ -579,7 +579,7 @@ describe("ManyToMany Populate Integration Tests", () => {
       );
 
       const updateRes = await handleRequest(forja, updateReq);
-      const updatedPost = await expectApiSuccess(updateRes);
+      const updatedPost = await expectApiSingle(updateRes);
 
       expect(updatedPost.tags).toHaveLength(1);
       expect(updatedPost.tags[0].name).toBe("TypeScript");
@@ -613,7 +613,7 @@ describe("ManyToMany Populate Integration Tests", () => {
         }),
       });
       const createRes = await handleRequest(forja, createReq);
-      const createdPost = await expectApiSuccess(createRes, 201);
+      const createdPost = await expectApiSingle(createRes, 201);
 
       // Connect React, disconnect JS (should have: TS, React)
       const updateReq = new Request(
@@ -631,7 +631,7 @@ describe("ManyToMany Populate Integration Tests", () => {
       );
 
       const updateRes = await handleRequest(forja, updateReq);
-      const updatedPost = await expectApiSuccess(updateRes);
+      const updatedPost = await expectApiSingle(updateRes);
 
       expect(updatedPost.tags).toHaveLength(2);
       expect(updatedPost.tags.map((t) => t.name)).toEqual(
@@ -658,7 +658,7 @@ describe("ManyToMany Populate Integration Tests", () => {
       );
 
       const response = await handleRequest(forja, request);
-      const post = await expectApiSuccess(response, 201);
+      const post = await expectApiSingle(response, 201);
 
       // Post should not have tagId field (junction FK)
       expect(post).not.toHaveProperty("tagId");

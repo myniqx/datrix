@@ -5,7 +5,8 @@
  * Framework-agnostic - works with Next.js, Express, Fastify, etc.
  */
 
-import { SchemaDefinition } from "../core/schema";
+import { ForjaError } from "forja-types/errors";
+import { ForjaEntry, SchemaDefinition } from "../core/schema";
 import { Result } from "../utils";
 import { ParsedQuery } from "./parser";
 
@@ -89,188 +90,30 @@ export interface RequestContext<TUser = unknown> {
 /**
  * Response data
  */
-export interface ResponseData<T = unknown> {
-  readonly data: T;
-  readonly meta?: ResponseMeta;
+export interface ResponseMultiData<T extends ForjaEntry> {
+  readonly data: Partial<T>[];
+  readonly meta?: PaginationMeta;
+}
+
+export interface ExportSingleData<T extends ForjaEntry> {
+  readonly data: Partial<T>;
 }
 
 /**
- * Response metadata
+ * Pagination metadata for list responses
  */
-export interface ResponseMeta {
-  readonly pagination?: {
-    readonly page: number;
-    readonly pageSize: number;
-    readonly total: number;
-    readonly pageCount: number;
-  };
-  readonly [key: string]: unknown;
+export interface PaginationMeta {
+  readonly total: number;
+  readonly page: number;
+  readonly pageSize: number;
+  readonly totalPages: number;
 }
 
 /**
  * Handler response (framework-agnostic)
  */
-export interface HandlerResponse<T = unknown> {
+export interface HandlerResponse<T extends ForjaEntry> {
   readonly status: number;
-  readonly body: ResponseData<T> | ErrorResponse;
+  readonly body: ResponseMultiData<T> | ForjaError;
   readonly headers?: Record<string, string>;
-}
-
-/**
- * Error response
- */
-export interface ErrorResponse {
-  readonly error: {
-    readonly message: string;
-    readonly code: string;
-    readonly details?: unknown;
-  };
-}
-
-/**
- * Handler function type
- */
-export type HandlerFunction<TUser = unknown> = (
-  context: RequestContext<TUser>
-) => Promise<HandlerResponse>;
-
-/**
- * Middleware function type
- */
-export type Middleware<TUser = unknown> = (
-  context: RequestContext<TUser>,
-  next: () => Promise<HandlerResponse>
-) => Promise<HandlerResponse>;
-
-/**
- * Permission check function
- */
-export type PermissionCheck<TUser = unknown> =
-  | readonly string[] // Array of required roles
-  | ((context: RequestContext<TUser>) => boolean | Promise<boolean>); // Custom function
-
-/**
- * Handler configuration
- */
-export interface HandlerConfig<TUser = unknown> {
-  readonly schema: SchemaDefinition;
-  readonly middleware?: readonly Middleware<TUser>[];
-  readonly permissions?: {
-    readonly read?: PermissionCheck<TUser>;
-    readonly create?: PermissionCheck<TUser>;
-    readonly update?: PermissionCheck<TUser>;
-    readonly delete?: PermissionCheck<TUser>;
-  };
-  readonly hooks?: {
-    readonly beforeFind?: (
-      context: RequestContext<TUser>,
-      query: ParsedQuery
-    ) => Promise<ParsedQuery> | ParsedQuery;
-    readonly afterFind?: <T>(
-      context: RequestContext<TUser>,
-      data: T
-    ) => Promise<T> | T;
-    readonly beforeCreate?: (
-      context: RequestContext<TUser>,
-      data: Record<string, unknown>
-    ) => Promise<Record<string, unknown>> | Record<string, unknown>;
-    readonly afterCreate?: <T>(
-      context: RequestContext<TUser>,
-      data: T
-    ) => Promise<T> | T;
-    readonly beforeUpdate?: (
-      context: RequestContext<TUser>,
-      id: string,
-      data: Record<string, unknown>
-    ) => Promise<Record<string, unknown>> | Record<string, unknown>;
-    readonly afterUpdate?: <T>(
-      context: RequestContext<TUser>,
-      data: T
-    ) => Promise<T> | T;
-    readonly beforeDelete?: (
-      context: RequestContext<TUser>,
-      id: string
-    ) => Promise<void> | void;
-    readonly afterDelete?: (
-      context: RequestContext<TUser>,
-      id: string
-    ) => Promise<void> | void;
-  };
-  readonly options?: {
-    readonly maxPageSize?: number;
-    readonly defaultPageSize?: number;
-    readonly maxPopulateDepth?: number;
-  };
-}
-
-/**
- * CRUD operation type
- */
-export type CrudOperation = 'findMany' | 'findOne' | 'create' | 'update' | 'delete' | 'count';
-
-/**
- * CRUD handler
- */
-export interface CrudHandler<TUser = unknown> {
-  readonly findMany: (context: RequestContext<TUser>) => Promise<HandlerResponse>;
-  readonly findOne: (context: RequestContext<TUser>) => Promise<HandlerResponse>;
-  readonly create: (context: RequestContext<TUser>) => Promise<HandlerResponse>;
-  readonly update: (context: RequestContext<TUser>) => Promise<HandlerResponse>;
-  readonly delete: (context: RequestContext<TUser>) => Promise<HandlerResponse>;
-  readonly count: (context: RequestContext<TUser>) => Promise<HandlerResponse>;
-}
-
-/**
- * Handler error
- */
-export class HandlerError extends Error {
-  readonly status: number;
-  readonly code: string;
-  readonly details: unknown | undefined;
-
-  constructor(
-    message: string,
-    options?: {
-      status?: number;
-      code?: string;
-      details?: unknown;
-    }
-  ) {
-    super(message);
-    this.name = 'HandlerError';
-    this.status = options?.status ?? 500;
-    this.code = options?.code ?? 'INTERNAL_ERROR';
-    this.details = options?.details;
-  }
-}
-
-/**
- * Context builder function
- */
-export type ContextBuilder<TUser = unknown> = (
-  request: unknown
-) => RequestContext<TUser> | Promise<RequestContext<TUser>>;
-
-/**
- * Query execution result
- */
-export type QueryExecutionResult<T = unknown> = Result<T, HandlerError>;
-
-/**
- * Batch operation options
- */
-export interface BatchOptions {
-  readonly atomic?: boolean; // All or nothing
-  readonly continueOnError?: boolean; // Continue even if some fail
-}
-
-/**
- * Batch operation result
- */
-export interface BatchResult<T = unknown> {
-  readonly success: readonly T[];
-  readonly failed: readonly {
-    readonly index: number;
-    readonly error: HandlerError;
-  }[];
 }

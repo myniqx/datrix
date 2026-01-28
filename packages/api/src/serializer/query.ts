@@ -63,9 +63,7 @@ export function serializeQuery<T extends ForjaEntry = ForjaEntry>(query: ParsedQ
     }
   }
 
-  // 5. Pagination
-  if (query.limit !== undefined) params['limit'] = String(query.limit);
-  if (query.offset !== undefined) params['offset'] = String(query.offset);
+  // 5. Pagination (page/pageSize only)
   if (query.page !== undefined) params['page'] = String(query.page);
   if (query.pageSize !== undefined) params['pageSize'] = String(query.pageSize);
 

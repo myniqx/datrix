@@ -14,26 +14,6 @@ import { expectFailureError } from "../../../types/src/test/helpers";
 
 describe("QueryParser - Error Path", () => {
   describe("Pagination errors", () => {
-    it("should reject negative limit", () => {
-      const negativeLimit: RawQueryParams =
-        parserTestData.invalidPaginationParams.negativeLimit;
-
-      const error = expectFailureError(parseQuery(negativeLimit));
-
-      expect(error.code).toBe("INVALID_PAGINATION");
-      expect(error.context?.parameter).toBe("limit");
-    });
-
-    it("should reject negative offset", () => {
-      const negativeOffset: RawQueryParams =
-        parserTestData.invalidPaginationParams.negativeOffset;
-
-      const error = expectFailureError(parseQuery(negativeOffset));
-
-      expect(error.code).toBe("INVALID_PAGINATION");
-      expect(error.context?.parameter).toBe("offset");
-    });
-
     it("should reject zero page", () => {
       const zeroPage: RawQueryParams =
         parserTestData.invalidPaginationParams.zeroPage;
@@ -75,19 +55,6 @@ describe("QueryParser - Error Path", () => {
       expect(error.context?.parameter).toBe("pageSize");
     });
 
-    it("should reject limit exceeding maxPageSize", () => {
-      const exceedsMax: RawQueryParams =
-        parserTestData.invalidPaginationParams.exceedsMaxPageSize;
-      const options: ParserOptions = { maxPageSize: 100 };
-
-      const error = expectFailureError(parseQuery(exceedsMax, options));
-
-      expect(error.code).toBe("MAX_VALUE_VIOLATION");
-      expect(error.context?.parameter).toBe("limit");
-      expect(error.message).toContain("exceeds maximum");
-      expect(error.message).toContain("100");
-    });
-
     it("should reject pageSize exceeding maxPageSize", () => {
       const exceedsPageSize: RawQueryParams = { pageSize: "200" };
       const options: ParserOptions = { maxPageSize: 100 };
@@ -97,16 +64,6 @@ describe("QueryParser - Error Path", () => {
       expect(error.code).toBe("MAX_VALUE_VIOLATION");
       expect(error.context?.parameter).toBe("pageSize");
       expect(error.message).toContain("exceeds maximum");
-    });
-
-    it("should reject non-numeric limit", () => {
-      const nonNumericLimit: RawQueryParams =
-        parserTestData.invalidPaginationParams.nonNumericLimit;
-
-      const error = expectFailureError(parseQuery(nonNumericLimit));
-
-      expect(error.code).toBe("INVALID_PAGINATION");
-      expect(error.context?.parameter).toBe("limit");
     });
 
     it("should reject non-numeric page", () => {
@@ -250,7 +207,7 @@ describe("QueryParser - Error Path", () => {
 
     it("should stop at first error (pagination before sort)", () => {
       const multipleErrors: RawQueryParams = {
-        limit: "-10",
+        pageSize: "-10",
         sort: "invalid!field",
       };
 
@@ -287,7 +244,7 @@ describe("QueryParser - Error Path", () => {
     });
 
     it("should include helpful message for maxPageSize exceeded", () => {
-      const exceedsMax: RawQueryParams = { limit: "200" };
+      const exceedsMax: RawQueryParams = { pageSize: "200" };
       const options: ParserOptions = { maxPageSize: 50 };
 
       const error = expectFailureError(parseQuery(exceedsMax, options));
@@ -308,11 +265,11 @@ describe("QueryParser - Error Path", () => {
       expect(error.code).toBe("PAGE_OUT_OF_RANGE");
     });
 
-    it("should reject extremely large limit", () => {
-      const largeLimit: RawQueryParams = { limit: "999999999" };
+    it("should reject extremely large pageSize", () => {
+      const largePageSize: RawQueryParams = { pageSize: "999999999" };
       const options: ParserOptions = { maxPageSize: 1000 };
 
-      const error = expectFailureError(parseQuery(largeLimit, options));
+      const error = expectFailureError(parseQuery(largePageSize, options));
 
       expect(error.code).toBe("MAX_VALUE_VIOLATION");
     });
@@ -320,8 +277,8 @@ describe("QueryParser - Error Path", () => {
 
   describe("State Isolation", () => {
     it("should not affect subsequent calls after error", () => {
-      const invalidParams: RawQueryParams = { limit: "-10" };
-      const validParams: RawQueryParams = { limit: "10" };
+      const invalidParams: RawQueryParams = { pageSize: "-10" };
+      const validParams: RawQueryParams = { pageSize: "10" };
 
       expectFailureError(parseQuery(invalidParams));
       expectFailureError(parseQuery(invalidParams));

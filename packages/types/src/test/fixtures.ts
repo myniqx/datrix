@@ -601,7 +601,6 @@ export const parserTestData = {
   },
 
   paginationParams: {
-    limitOffset: { limit: '10', offset: '20' },
     pagePageSize: { page: '2', pageSize: '15' },
     pageOnly: { page: '3' },
     pageSizeOnly: { pageSize: '50' },
@@ -610,14 +609,10 @@ export const parserTestData = {
   },
 
   invalidPaginationParams: {
-    negativeLimit: { limit: '-10' },
-    negativeOffset: { offset: '-5' },
     zeroPage: { page: '0' },
     negativePage: { page: '-1' },
     zeroPageSize: { pageSize: '0' },
     negativePageSize: { pageSize: '-10' },
-    exceedsMaxPageSize: { limit: '200' },
-    nonNumericLimit: { limit: 'abc' },
     nonNumericPage: { page: 'xyz' },
   },
 
@@ -646,7 +641,7 @@ export const parserTestData = {
       'where[status]': 'active',
       populate: 'author',
       sort: '-id',
-      limit: '5',
+      pageSize: '5',
     },
     complex: {
       'fields[0]': 'id',

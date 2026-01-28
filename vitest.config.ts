@@ -27,6 +27,12 @@ export default defineConfig({
     },
     include: ['tests/**/*.test.ts', 'packages/**/tests/**/*.test.ts'],
     exclude: ['node_modules/', 'dist/', 'examples/'],
+    pool: 'forks',
+    poolOptions: {
+      forks: {
+        singleFork: true, // Tek process, sıralı
+      }
+    }
   },
   resolve: {
     alias: {

@@ -11,7 +11,6 @@ import type {
   ContextBuilderOptions,
 } from "../middleware/types";
 import type { IApiPlugin } from "../interface";
-import type { PaginatedResponse } from "../types";
 import { buildRequestContext } from "../middleware/context";
 import {
   checkSchemaPermission,
@@ -23,6 +22,7 @@ import { jsonResponse, forjaErrorResponse } from "./utils";
 import { handlerError } from "../errors/api-error";
 import { ForjaError, ForjaValidationError } from "forja-types/errors";
 import type { ForjaEntry } from "forja-types/core/schema";
+import { ResponseData } from "forja-types";
 
 /**
  * Handle GET request
@@ -83,7 +83,7 @@ async function handleGet(ctx: RequestContext): Promise<Response> {
       if (authEnabled) {
         const filteredResults = await filterRecordsForRead(schema, result, ctx);
 
-        const response: PaginatedResponse<ForjaEntry> = {
+        const response: ResponseData<ForjaEntry> = {
           data: filteredResults,
           meta: {
             total,
@@ -96,8 +96,8 @@ async function handleGet(ctx: RequestContext): Promise<Response> {
         return jsonResponse(response);
       }
 
-      const response: PaginatedResponse<ForjaEntry> = {
-        data: result as ForjaEntry[],
+      const response: ResponseData<ForjaEntry> = {
+        data: result,
         meta: {
           total,
           page,
