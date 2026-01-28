@@ -1,55 +1,53 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useForja } from '../hooks/useForja';
 import { faker } from '@faker-js/faker';
 import { generateBulkFakeComments } from '../utils/faker';
 import CommentTree from './CommentTree';
+import type { Topic, User, Comment, Like } from '../schemas';
+import { connect } from 'http2';
 
 interface TopicSectionProps {
   globalSearch?: string;
 }
 
 export default function TopicSection({ globalSearch }: TopicSectionProps) {
-  const { data: topics, loading, error, fetchAll, create } = useForja('topic');
-  const { data: users, fetchAll: fetchUsers } = useForja('user');
-  const { create: createComment } = useForja('comment');
-  const { create: createLike, remove: removeLike } = useForja('like');
-  const [isCreating, setIsCreating] = useState(false);
-  const [expandedTopic, setExpandedTopic] = useState<string | null>(null);
-  const [bulkCreating, setBulkCreating] = useState<string | null>(null);
+  const topicQuery: any = {
+    populate: {
+      author: true,
+      comments: { populate: { author: true, likes: { populate: { user: true } }, replies: { populate: { author: true } } } },
+      likes: { populate: { user: true } }
+    },
+    orderBy: [{ field: 'createdAt', direction: 'desc' }]
+  };
 
-  useEffect(() => {
-    const query: any = {
-      populate: {
-        author: true,
-        comments: { populate: { author: true, likes: { populate: { user: true } } } },
-        likes: { populate: { user: true } }
-      },
-      orderBy: [{ field: 'createdAt', direction: 'desc' }]
+  if (globalSearch && globalSearch.trim()) {
+    topicQuery.where = {
+      $or: [
+        { title: { $contains: globalSearch } },
+        { content: { $contains: globalSearch } },
+        { comments: { content: { $contains: globalSearch } } },
+        { author: { name: { $contains: globalSearch } } }
+      ]
     };
+  }
 
-    if (globalSearch && globalSearch.trim()) {
-      query.where = {
-        $or: [
-          { title: { $contains: globalSearch } },
-          { content: { $contains: globalSearch } },
-          { comments: { content: { $contains: globalSearch } } },
-          { author: { name: { $contains: globalSearch } } }
-        ]
-      };
-    }
+  const { data: topics, isLoading, error, create: createTopic, update: updateTopic, refetch: refetchTopics } = useForja<Topic>('topic', topicQuery);
+  const { data: users } = useForja<User>('user');
+  const { create: createComment } = useForja<Comment>('comment');
+  const { create: createLike, remove: removeLike } = useForja<Like>('like');
 
-    fetchAll(query);
-    fetchUsers();
-  }, [fetchAll, fetchUsers, globalSearch]);
+  const [isCreating, setIsCreating] = useState(false);
+  const [expandedTopic, setExpandedTopic] = useState<number | null>(null);
+  const [bulkCreating, setBulkCreating] = useState<number | null>(null);
 
   const handleAddTopic = async () => {
     if (!users.length) return;
     setIsCreating(true);
     try {
       const randomUser = users[Math.floor(Math.random() * users.length)];
-      await create({
+      await createTopic({
         title: faker.lorem.sentence(),
         content: faker.lorem.paragraphs(2),
         author: randomUser.id,
@@ -59,43 +57,29 @@ export default function TopicSection({ globalSearch }: TopicSectionProps) {
     }
   };
 
-  const handleBulkAddComments = async (topicId: string) => {
+  const handleBulkAddComments = async (topicId: number) => {
     if (!users.length) return;
     setBulkCreating(topicId);
     try {
-      await generateBulkFakeComments(topicId, users, 5, createComment);
-      await fetchAll({
-        populate: {
-          author: true,
-          comments: { populate: { author: true, likes: { populate: { user: true } } } },
-          likes: { populate: { user: true } }
-        },
-        orderBy: [{ field: 'createdAt', direction: 'desc' }]
-      });
+      const comments = await generateBulkFakeComments(topicId, users, 5, createComment);
+      await updateTopic(topicId, { comments: { connect: comments.map((c) => c.id) } });
+      refetchTopics();
     } finally {
       setBulkCreating(null);
     }
   };
 
-  const handleToggleTopicLike = async (topic: any) => {
+  const handleToggleTopicLike = async (topic: Topic) => {
     if (!users.length) return;
     const activeUser = users[0];
-    const existingLike = topic.likes?.find((l: any) => l.user?.id === activeUser.id);
+    const existingLike = topic.likes?.find((l) => l.user?.id === activeUser.id);
 
     if (existingLike) {
       await removeLike(existingLike.id);
     } else {
-      await createLike({ userId: activeUser.id, topicId: topic.id });
+      await createLike({ user: activeUser.id, topic: topic.id });
     }
-
-    await fetchAll({
-      populate: {
-        author: true,
-        comments: { populate: { author: true, likes: { populate: { user: true } } } },
-        likes: { populate: { user: true } }
-      },
-      orderBy: [{ field: 'createdAt', direction: 'desc' }]
-    });
+    refetchTopics();
   };
 
   return (
@@ -107,7 +91,7 @@ export default function TopicSection({ globalSearch }: TopicSectionProps) {
         </div>
         <button
           onClick={handleAddTopic}
-          disabled={loading || isCreating || !users.length}
+          disabled={isLoading || isCreating || !users.length}
           className="px-5 py-2.5 bg-white border border-slate-200 hover:border-indigo-200 hover:bg-indigo-50 text-slate-700 text-sm font-bold rounded-xl shadow-sm transition-all flex items-center gap-2 active:scale-95 disabled:opacity-50"
         >
           {isCreating ? (
@@ -124,11 +108,11 @@ export default function TopicSection({ globalSearch }: TopicSectionProps) {
       <div className="grid grid-cols-1 gap-6">
         {error && (
           <div className="p-4 bg-red-50 border border-red-100 rounded-xl text-red-600 text-sm">
-            {error}
+            {error.message}
           </div>
         )}
 
-        {loading && !topics.length ? (
+        {isLoading && !topics.length ? (
           <div className="space-y-4">
             {[1, 2].map((i) => (
               <div key={i} className="h-48 bg-white border border-slate-100 rounded-2xl animate-pulse" />
@@ -136,7 +120,7 @@ export default function TopicSection({ globalSearch }: TopicSectionProps) {
           </div>
         ) : (
           <div className="space-y-6">
-            {topics.map((topic) => (
+            {topics.map((topic: Topic) => (
               <article
                 key={topic.id}
                 className="group bg-white rounded-2xl border border-slate-200 p-6 shadow-sm hover:shadow-md transition-all relative overflow-hidden"
@@ -144,7 +128,7 @@ export default function TopicSection({ globalSearch }: TopicSectionProps) {
                 <div className="flex gap-4 mb-4">
                   <img
                     src={topic.author?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(topic.author?.name || 'A')}&background=random`}
-                    className="w-10 h-10 rounded-full shrink-0 outline outline-4 outline-slate-50"
+                    className="w-10 h-10 rounded-full shrink-0 outline-4 outline-slate-50"
                   />
                   <div>
                     <h4 className="text-lg font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
@@ -177,31 +161,30 @@ export default function TopicSection({ globalSearch }: TopicSectionProps) {
                     <div className="relative group/likes">
                       <button
                         onClick={() => handleToggleTopicLike(topic)}
-                        className={`flex items-center gap-1.5 text-xs font-bold transition-colors ${
-                          topic.likes?.some((l: any) => l.user?.id === users[0]?.id)
-                            ? 'text-rose-600'
-                            : 'text-slate-500 hover:text-rose-600'
-                        }`}
+                        className={`flex items-center gap-1.5 text-xs font-bold transition-colors ${topic.likes?.some((l) => l.user?.id === users[0]?.id)
+                          ? 'text-rose-600'
+                          : 'text-slate-500 hover:text-rose-600'
+                          }`}
                       >
-                        <svg className={`w-4 h-4 ${topic.likes?.some((l: any) => l.user?.id === users[0]?.id) ? 'fill-rose-600' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg className={`w-4 h-4 ${topic.likes?.some((l) => l.user?.id === users[0]?.id) ? 'fill-rose-600' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                         </svg>
                         {topic.likes?.length || 0}
                       </button>
 
-                      {topic.likes?.length > 0 && (
+                      {(topic.likes ?? []).length > 0 && (
                         <div className="absolute bottom-full left-0 mb-2 hidden group-hover/likes:block z-10 w-48">
                           <div className="bg-slate-900 text-white text-xs rounded-lg p-2 shadow-lg">
                             <div className="font-semibold mb-1">Liked by:</div>
                             <div className="space-y-1">
-                              {topic.likes.slice(0, 5).map((like: any) => (
+                              {topic.likes?.slice(0, 5).map((like) => (
                                 <div key={like.id} className="flex items-center gap-2">
                                   <img src={like.user?.avatar} className="w-4 h-4 rounded-full" />
                                   <span>{like.user?.name}</span>
                                 </div>
                               ))}
-                              {topic.likes.length > 5 && (
-                                <div className="text-slate-400">+{topic.likes.length - 5} more</div>
+                              {(topic.likes ?? []).length > 5 && (
+                                <div className="text-slate-400">+{topic.likes!.length - 5} more</div>
                               )}
                             </div>
                           </div>
@@ -226,7 +209,7 @@ export default function TopicSection({ globalSearch }: TopicSectionProps) {
                   </div>
 
                   <div className="flex -space-x-2">
-                    {topic.comments?.slice(0, 3).map((comment: any, idx: number) => (
+                    {topic.comments?.slice(0, 3).map((comment, idx) => (
                       <img
                         key={idx}
                         src={comment.author?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(comment.author?.name || 'C')}&background=random`}
@@ -248,21 +231,13 @@ export default function TopicSection({ globalSearch }: TopicSectionProps) {
                       comments={topic.comments || []}
                       topicId={topic.id}
                       users={users}
-                      onUpdate={() => fetchAll({
-                        populate: {
-                          author: true,
-                          comments: { populate: { author: true, likes: { populate: { user: true } } } },
-                          likes: { populate: { user: true } }
-                        },
-                        orderBy: [{ field: 'createdAt', direction: 'desc' }]
-                      })}
                     />
                   </div>
                 )}
               </article>
             ))}
 
-            {!topics.length && !loading && (
+            {!topics.length && !isLoading && (
               <div className="py-20 text-center bg-white rounded-3xl border-2 border-dashed border-slate-200">
                 <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-4 text-indigo-200">
                   <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">

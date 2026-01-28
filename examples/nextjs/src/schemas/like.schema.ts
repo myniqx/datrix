@@ -5,7 +5,6 @@ import { defineSchema } from 'forja-types/core/schema';
  */
 export const likeSchema = defineSchema({
   name: 'like',
-  timestamps: true,
   fields: {
     // Relations
     user: {

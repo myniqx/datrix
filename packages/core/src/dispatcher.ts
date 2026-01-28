@@ -7,7 +7,7 @@
 
 import { QueryObject } from "forja-types/core/query-builder";
 import { PluginRegistry, QueryAction, QueryContext } from "forja-types/plugin";
-import { SchemaRegistry } from "forja-types/core/schema";
+import { ForjaEntry, ForjaRecord, SchemaRegistry } from "forja-types/core/schema";
 import type { Forja } from "./forja";
 import { validateQueryObject } from "forja-types/utils/query";
 
@@ -94,13 +94,13 @@ export class Dispatcher {
    * 3. Execute query
    * 4. onAfterQuery hooks
    */
-  async executeQuery<TResult>(
+  async executeQuery<TResult extends ForjaEntry, R = ForjaEntry>(
     action: QueryAction,
     model: string,
     table: string,
-    query: QueryObject,
-    executor: (query: QueryObject) => Promise<TResult>,
-  ): Promise<TResult> {
+    query: QueryObject<TResult>,
+    executor: (query: QueryObject<TResult>) => Promise<R>,
+  ): Promise<R> {
     const context = await this.buildQueryContext(action, model, table);
     const modifiedQuery = await this.dispatchBeforeQuery(query, context);
     const result = await executor(modifiedQuery);
@@ -112,10 +112,10 @@ export class Dispatcher {
    * Dispatch onBeforeQuery hook to all plugins (serial execution)
    * Plugins can modify the query object.
    */
-  private async dispatchBeforeQuery(
-    query: QueryObject,
+  private async dispatchBeforeQuery<TResult extends ForjaEntry = ForjaRecord>(
+    query: QueryObject<TResult>,
     context: QueryContext,
-  ): Promise<QueryObject> {
+  ): Promise<QueryObject<TResult>> {
     const entranceValidation = validateQueryObject(query);
     if (!entranceValidation.success) {
       throw new Error(

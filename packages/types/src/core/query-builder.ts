@@ -150,7 +150,7 @@ export type LogicalOperators<T extends ForjaEntry = ForjaEntry> = {
  * };
  * ```
  */
-export type WhereClause<T extends ForjaEntry = ForjaRecord> = {
+export type WhereClause<T extends ForjaEntry> = {
   [K in keyof T]?: T[K] extends Relation<infer R> ? WhereClause<R> // Relation fields → Nested WhereClause
   : // Scalar fields → Value or operators
   T[K] extends ScalarValue ? T[K] | ComparisonOperators<T[K]>
@@ -166,10 +166,10 @@ export type SelectClause = readonly string[] | "*";
 /**
  * Populate clause (relations to include)
  */
-export type PopulateOptions = {
+export type PopulateOptions<T extends ForjaEntry> = {
   readonly select?: SelectClause;
-  readonly where?: WhereClause;
-  readonly populate?: PopulateClause; // Nested populate
+  readonly where?: WhereClause<T>;
+  readonly populate?: PopulateClause<T>; // Nested populate
   readonly limit?: number;
   readonly offset?: number;
   readonly orderBy?: OrderBy;
@@ -178,10 +178,10 @@ export type PopulateOptions = {
 /**
  * Populate clause type
  */
-export type PopulateClause =
+export type PopulateClause<T extends ForjaEntry> =
   | false
   | {
-    readonly [relation: string]: PopulateOptions | "*";
+    readonly [relation: string]: PopulateOptions<T> | "*" | true;
   };
 
 /**
@@ -262,12 +262,12 @@ export interface QueryMetadata {
 /**
  * Query object (database-agnostic representation)
  */
-export interface QueryObject<T extends ForjaEntry = ForjaEntry> {
+export interface QueryObject<T extends ForjaEntry> {
   readonly type: QueryType;
   readonly table: string;
   readonly select?: SelectClause | undefined;
   readonly where?: WhereClause<T> | undefined;
-  readonly populate?: PopulateClause | undefined;
+  readonly populate?: PopulateClause<T> | undefined;
   readonly orderBy?: OrderBy | undefined;
   readonly limit?: number | undefined;
   readonly offset?: number | undefined;
@@ -275,7 +275,7 @@ export interface QueryObject<T extends ForjaEntry = ForjaEntry> {
   readonly returning?: SelectClause; // Fields to return after INSERT/UPDATE/DELETE
   readonly distinct?: boolean; // SELECT DISTINCT
   readonly groupBy?: readonly string[]; // GROUP BY fields
-  readonly having?: WhereClause; // HAVING clause
+  readonly having?: WhereClause<T>; // HAVING clause
   readonly meta?: QueryMetadata; // For internal adapter/plugin communication
 }
 
@@ -332,7 +332,7 @@ export interface QueryBuilder<TSchema extends ForjaEntry = ForjaRecord> {
   /**
    * Add populate (relations)
    */
-  populate(relations: PopulateClause): QueryBuilder<TSchema>;
+  populate(relations: PopulateClause<TSchema>): QueryBuilder<TSchema>;
 
   /**
    * Add order by
@@ -378,7 +378,7 @@ export interface QueryBuilder<TSchema extends ForjaEntry = ForjaRecord> {
    * Build final query object
    * Returns Result to avoid throwing exceptions
    */
-  build(): QueryObject; // Result<QueryObject, Error>;
+  build(): QueryObject<TSchema>; // Result<QueryObject, Error>;
 
   /**
    * Clone the builder
@@ -454,24 +454,24 @@ export interface SelectBuilder {
 /**
  * POPULATE builder for relations
  */
-export interface PopulateBuilder {
+export interface PopulateBuilder<TSchema extends ForjaEntry> {
   /**
    * Build POPULATE clause
    */
-  build(populate: PopulateClause): PopulateClause;
+  build(populate: PopulateClause<TSchema>): PopulateClause<TSchema>;
 
   /**
    * Validate POPULATE clause
    */
   validate(
-    populate: PopulateClause,
+    populate: PopulateClause<TSchema>,
     schema: SchemaDefinition,
-  ): Result<PopulateClause, QueryBuilderError>;
+  ): Result<PopulateClause<TSchema>, QueryBuilderError>;
 
   /**
    * Resolve nested populates
    */
-  resolveNested(populate: PopulateClause, depth: number): readonly string[];
+  resolveNested(populate: PopulateClause<TSchema>, depth: number): readonly string[];
 }
 
 /**

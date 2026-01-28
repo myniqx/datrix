@@ -12,13 +12,11 @@ import {
   ForjaEntry,
   RelationField,
   ForjaRecord,
-  ForjaID,
 } from "forja-types/core/schema";
 import {
   QueryObject,
   WhereClause,
   SelectClause,
-  PopulateClause,
 } from "forja-types/core/query-builder";
 import { QueryAction } from "forja-types/plugin";
 import { Dispatcher } from "../dispatcher";
@@ -71,13 +69,13 @@ export class CrudOperations implements IRawCrud {
    * @param handler - Function that executes the actual database query
    * @returns Query result
    */
-  private async execute<T>(
+  private async execute<T extends ForjaEntry, R = T>(
     action: QueryAction,
     model: string,
     table: string,
-    query: QueryObject,
-    handler: (q: QueryObject) => Promise<T>,
-  ): Promise<T> {
+    query: QueryObject<T>,
+    handler: (q: QueryObject<T>) => Promise<R>,
+  ): Promise<R> {
     if (!this.getDispatcher) {
       return handler(query);
     }
@@ -126,7 +124,7 @@ export class CrudOperations implements IRawCrud {
   async findOne<T extends ForjaEntry = ForjaEntry>(
     model: string,
     where: WhereClause<T>,
-    options?: Pick<ParsedQuery, "select" | "populate">,
+    options?: Pick<ParsedQuery<T>, "select" | "populate">,
   ): Promise<T | null> {
     const { tableName } = this.getSchema(model);
     const query: QueryObject<T> = {
@@ -138,7 +136,7 @@ export class CrudOperations implements IRawCrud {
       limit: 1,
     };
 
-    return this.execute<T | null>(
+    return this.execute<T>(
       "findOne",
       model,
       tableName!,
@@ -148,7 +146,7 @@ export class CrudOperations implements IRawCrud {
         if (!result.success) {
           throwQueryExecutionError("findOne", model, q, result.error);
         }
-        return result.data.rows[0] ?? null;
+        return result.data.rows[0]!;
       },
     );
   }
@@ -168,7 +166,7 @@ export class CrudOperations implements IRawCrud {
    */
   async findById<T extends ForjaEntry = ForjaRecord>(
     model: string,
-    id: ForjaID,
+    id: number,
     options?: Pick<ParsedQuery, "select" | "populate">,
   ): Promise<T | null> {
     return this.findOne<T>(model, { id }, options);
@@ -203,10 +201,10 @@ export class CrudOperations implements IRawCrud {
    * });
    * ```
    */
-  async findMany<T extends ForjaEntry = ForjaEntry>(
+  async findMany<T extends ForjaEntry = ForjaRecord>(
     model: string,
     options?: Pick<
-      ParsedQuery,
+      ParsedQuery<T>,
       "where" | "select" | "populate" | "orderBy" | "limit" | "offset"
     >,
   ): Promise<T[]> {
@@ -222,7 +220,7 @@ export class CrudOperations implements IRawCrud {
       offset: options?.offset,
     };
 
-    return this.execute<T[]>("findMany", model, tableName!, query, async (q) => {
+    return this.execute<T, T[]>("findMany", model, tableName!, query, async (q) => {
       const result = await this.getAdapter().executeQuery<T>(q);
       if (!result.success) {
         throwQueryExecutionError("findMany", model, q, result.error);
@@ -262,7 +260,7 @@ export class CrudOperations implements IRawCrud {
       where,
     };
 
-    return this.execute<number>("count", model, tableName!, query, async (q) => {
+    return this.execute<T, number>("count", model, tableName!, query, async (q) => {
       const result = await this.getAdapter().executeQuery<{ count: number }>(q);
       if (!result.success) {
         throwQueryExecutionError("count", model, q, result.error);
@@ -316,7 +314,7 @@ export class CrudOperations implements IRawCrud {
       data: scalars,
     };
 
-    const insertedId = await this.execute<number | string>(
+    const insertedId = await this.execute<T, number>(
       "create",
       model,
       schema.tableName!,
@@ -405,7 +403,7 @@ export class CrudOperations implements IRawCrud {
         data: scalars,
       };
 
-      await this.execute<void>(
+      await this.execute<T, void>(
         "update",
         model,
         schema.tableName!,
@@ -481,7 +479,7 @@ export class CrudOperations implements IRawCrud {
     const schema = this.getSchema(model);
 
     // Validate data against schema (partial validation, timestamps added inside)
-    const finalData = validateData<ForjaEntry, true>(data, schema, {
+    const finalData = validateData<T, true>(data, schema, {
       partial: true,
       isCreate: false,
       isRawMode: this.getDispatcher === null,
@@ -494,7 +492,7 @@ export class CrudOperations implements IRawCrud {
       data: finalData,
     };
 
-    return this.execute<number>(
+    return this.execute<T, number>(
       "updateMany",
       model,
       schema.tableName!,
@@ -523,8 +521,8 @@ export class CrudOperations implements IRawCrud {
    */
   async delete<T extends ForjaEntry = ForjaRecord>(
     model: string,
-    id: string | number,
-    options?: Pick<ParsedQuery, "select" | "populate">,
+    id: number,
+    options?: Pick<ParsedQuery<T>, "select" | "populate">,
   ): Promise<boolean> {
     const schema = this.getSchema(model);
 
@@ -552,7 +550,7 @@ export class CrudOperations implements IRawCrud {
       where: { id },
     };
 
-    return this.execute<boolean>(
+    return this.execute<T, boolean>(
       "delete",
       model,
       schema.tableName!,
@@ -627,7 +625,7 @@ export class CrudOperations implements IRawCrud {
       where,
     };
 
-    return this.execute<number>(
+    return this.execute<T, number>(
       "deleteMany",
       model,
       schema.tableName!,

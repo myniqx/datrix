@@ -10,6 +10,8 @@ import type {
   SchemaDefinition,
   FieldDefinition,
   IndexDefinition,
+  ForjaEntry,
+  ForjaRecord,
 } from "./core/schema";
 import type { DatabaseAdapter } from "./adapter";
 import type { ForjaConfig } from "./config";
@@ -59,7 +61,7 @@ export interface PluginContext {
  *
  * ALL plugins MUST implement this interface
  */
-export interface ForjaPlugin<TOptions = Record<string, unknown>> {
+export interface ForjaPlugin<TOptions = Record<string, unknown>, T extends ForjaEntry = ForjaRecord> {
   // Metadata
   readonly name: string;
   readonly version: string;
@@ -77,9 +79,9 @@ export interface ForjaPlugin<TOptions = Record<string, unknown>> {
   onSchemaLoad?(schemas: SchemaRegistry): Promise<void>;
   onCreateQueryContext?(context: QueryContext): Promise<QueryContext>;
   onBeforeQuery?(
-    query: QueryObject,
+    query: QueryObject<T>,
     context: QueryContext,
-  ): Promise<QueryObject>;
+  ): Promise<QueryObject<T>>;
   onAfterQuery?<TResult>(
     result: TResult,
     context: QueryContext,

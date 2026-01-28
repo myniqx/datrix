@@ -5,7 +5,6 @@ import { defineSchema } from 'forja-types/core/schema';
  */
 export const commentSchema = defineSchema({
   name: 'comment',
-  timestamps: true,
   fields: {
     content: {
       type: 'string',

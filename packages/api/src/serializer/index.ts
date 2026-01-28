@@ -12,4 +12,4 @@ export { serializeRecord, serializeCollection } from './json';
 export { serializeRelations } from './relations';
 
 // Export query serializer
-export { serializeQuery } from './query';
+export { serializeQuery, queryToParams } from './query';

@@ -8,6 +8,7 @@
 		"start": "next start"
 	},
 	"dependencies": {
+		"@tanstack/react-query": "^5.90.20",
 		"forja-adapter-json": "workspace:*",
 		"forja-api": "workspace:*",
 		"forja-core": "workspace:*",

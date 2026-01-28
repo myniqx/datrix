@@ -26,7 +26,7 @@ import { SchemaExtensionContextImpl } from "./plugin/schema-extension-context";
 import { Dispatcher, createDispatcher } from "./dispatcher";
 import { PluginRegistry } from "forja-types/plugin";
 import { SchemaRegistry } from "./schema";
-import { ParsedQuery, ForjaEntry } from "forja-types";
+import { ParsedQuery, ForjaEntry, ForjaRecord } from "forja-types";
 import { IForja } from "forja-types/forja";
 import { ForjaError } from "forja-types/errors";
 
@@ -355,10 +355,10 @@ export class Forja implements IForja {
     return this._rawCrud;
   }
 
-  async findOne<T extends ForjaEntry = ForjaEntry>(
+  async findOne<T extends ForjaEntry = ForjaRecord>(
     model: string,
-    where: WhereClause,
-    options?: Pick<ParsedQuery, "select" | "populate">,
+    where: WhereClause<T>,
+    options?: Pick<ParsedQuery<T>, "select" | "populate">,
   ): Promise<T | null> {
     this.ensureInitialized();
     return this._crud.findOne<T>(model, where, options);
@@ -366,8 +366,8 @@ export class Forja implements IForja {
 
   async findById<T extends ForjaEntry = ForjaEntry>(
     model: string,
-    id: string | number,
-    options?: Pick<ParsedQuery, "select" | "populate">,
+    id: number,
+    options?: Pick<ParsedQuery<T>, "select" | "populate">,
   ): Promise<T | null> {
     this.ensureInitialized();
     return this._crud.findById<T>(model, id, options);
@@ -376,7 +376,7 @@ export class Forja implements IForja {
   async findMany<T extends ForjaEntry = ForjaEntry>(
     model: string,
     options?: Pick<
-      ParsedQuery,
+      ParsedQuery<T>,
       "where" | "select" | "populate" | "orderBy" | "limit" | "offset"
     >,
   ): Promise<T[]> {
@@ -384,7 +384,7 @@ export class Forja implements IForja {
     return this._crud.findMany<T>(model, options);
   }
 
-  async count(model: string, where?: WhereClause): Promise<number> {
+  async count<T extends ForjaEntry = ForjaEntry>(model: string, where?: WhereClause<T>): Promise<number> {
     this.ensureInitialized();
     return this._crud.count(model, where);
   }
@@ -392,7 +392,7 @@ export class Forja implements IForja {
   async create<T extends ForjaEntry = ForjaEntry>(
     model: string,
     data: Record<string, unknown>,
-    options?: Pick<ParsedQuery, "select" | "populate">,
+    options?: Pick<ParsedQuery<T>, "select" | "populate">,
   ): Promise<T> {
     this.ensureInitialized();
     return this._crud.create<T>(model, data, options);
@@ -400,33 +400,33 @@ export class Forja implements IForja {
 
   async update<T extends ForjaEntry = ForjaEntry>(
     model: string,
-    id: string | number,
+    id: number,
     data: Record<string, unknown>,
-    options?: Pick<ParsedQuery, "select" | "populate">,
+    options?: Pick<ParsedQuery<T>, "select" | "populate">,
   ): Promise<T> {
     this.ensureInitialized();
     return this._crud.update<T>(model, id, data, options);
   }
 
-  async updateMany(
+  async updateMany<T extends ForjaEntry = ForjaEntry>(
     model: string,
-    where: WhereClause,
-    data: Record<string, unknown>,
+    where: WhereClause<T>,
+    data: Partial<T>,
   ): Promise<number> {
     this.ensureInitialized();
     return this._crud.updateMany(model, where, data);
   }
 
-  async delete(
+  async delete<T extends ForjaEntry = ForjaEntry>(
     model: string,
     id: string | number,
-    options?: Pick<ParsedQuery, "select" | "populate">,
+    options?: Pick<ParsedQuery<T>, "select" | "populate">,
   ): Promise<boolean> {
     this.ensureInitialized();
     return this._crud.delete(model, id, options);
   }
 
-  async deleteMany(model: string, where: WhereClause): Promise<number> {
+  async deleteMany<T extends ForjaEntry = ForjaEntry>(model: string, where: WhereClause<T>): Promise<number> {
     this.ensureInitialized();
     return this._crud.deleteMany(model, where);
   }

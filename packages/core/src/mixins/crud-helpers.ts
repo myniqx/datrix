@@ -158,9 +158,9 @@ export function normalizeRelations(
 /**
  * Result of separating scalar and relation fields
  */
-export interface SeparatedFields {
+export interface SeparatedFields<T extends ForjaEntry> {
   /** Scalar fields (including inlined foreign keys) */
-  scalars: Record<string, unknown>;
+  scalars: Partial<T>;
   /** Relation fields that need async processing */
   relations: Record<string, unknown>;
 }
@@ -192,9 +192,9 @@ export interface SeparatedFields {
  * ```
  */
 export function separateRelations<T extends ForjaEntry = ForjaRecord>(
-  data: T,
+  data: T | Partial<T>,
   schema: SchemaDefinition,
-): SeparatedFields {
+): SeparatedFields<T> {
   const scalars: Record<string, unknown> = {};
   const relations: Record<string, unknown> = {};
 
@@ -242,7 +242,7 @@ export function separateRelations<T extends ForjaEntry = ForjaRecord>(
     }
   }
 
-  return { scalars, relations };
+  return { scalars: scalars as Partial<T>, relations };
 }
 
 /**

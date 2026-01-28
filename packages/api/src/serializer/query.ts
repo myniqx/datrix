@@ -4,8 +4,26 @@
  * Converts ParsedQuery objects into Strapi-style query strings (RawQueryParams).
  */
 
+import { ForjaEntry, ForjaRecord } from 'forja-types';
 import { ParsedQuery, RawQueryParams } from 'forja-types/api/parser';
 import { WhereClause, PopulateClause, PopulateOptions, QueryPrimitive } from 'forja-types/core/query-builder';
+
+export function queryToParams<T extends ForjaEntry = ForjaRecord>(query: ParsedQuery<T> | undefined): string {
+  if (!query) return '';
+
+  const serialized = serializeQuery(query);
+
+  const params = new URLSearchParams();
+  Object.entries(serialized).forEach(([key, value]) => {
+    if (Array.isArray(value)) {
+      value.forEach((v) => params.append(key, v));
+    } else if (value !== undefined) {
+      params.append(key, value as string);
+    }
+  });
+
+  return params.toString();
+}
 
 /**
  * Serialize ParsedQuery into RawQueryParams (Strapi-style)
@@ -13,7 +31,7 @@ import { WhereClause, PopulateClause, PopulateOptions, QueryPrimitive } from 'fo
  * @param query - The parsed query object to serialize
  * @returns Records of query parameters
  */
-export function serializeQuery(query: ParsedQuery): RawQueryParams {
+export function serializeQuery<T extends ForjaEntry = ForjaEntry>(query: ParsedQuery<T>): RawQueryParams {
   const params: Record<string, string | string[]> = {};
 
   // 1. Fields (select)
@@ -57,7 +75,7 @@ export function serializeQuery(query: ParsedQuery): RawQueryParams {
 /**
  * Recursive helper to serialize where clause
  */
-function serializeWhere(where: WhereClause | QueryPrimitive | readonly WhereClause[], prefix: string, params: Record<string, string | string[]>) {
+function serializeWhere<T extends ForjaEntry>(where: WhereClause<T> | QueryPrimitive | readonly WhereClause<T>[], prefix: string, params: Record<string, string | string[]>) {
   if (where === null || typeof where !== 'object') {
     params[prefix] = String(where);
     return;
@@ -100,7 +118,7 @@ function serializePopulate(populate: PopulateClause | '*', prefix: string, param
   for (const [relation, options] of Object.entries(populate)) {
     const relPrefix = `${prefix}[${relation}]`;
 
-    if (options === '*') {
+    if (options === '*' || options === true) {
       params[relPrefix] = '*';
     } else if (typeof options === 'object') {
       const opts = options as PopulateOptions;

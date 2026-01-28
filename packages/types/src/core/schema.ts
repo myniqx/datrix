@@ -40,8 +40,6 @@ export const RESERVED_FIELDS = ["id", "createdAt", "updatedAt"] as const;
  */
 export type ReservedFieldName = (typeof RESERVED_FIELDS)[number];
 
-export type ForjaID = number | string;
-
 /**
  * Base type for all database entries
  *
@@ -51,7 +49,7 @@ export type ForjaID = number | string;
  * - updatedAt: Timestamp when record was last updated
  */
 export interface ForjaEntry {
-  readonly id: ForjaID;
+  readonly id: number;
   readonly createdAt: Date;
   readonly updatedAt: Date;
 }

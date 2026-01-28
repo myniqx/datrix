@@ -1,16 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useForja } from "../hooks/useForja";
 import { faker } from "@faker-js/faker";
+import type { User } from "../schemas";
 
 export default function UserSection() {
-  const { data: users, loading, error, fetchAll, create } = useForja("user");
+  const { data: users, isLoading, error, create } = useForja<User>("user");
   const [isCreating, setIsCreating] = useState(false);
-
-  useEffect(() => {
-    fetchAll();
-  }, [fetchAll]);
 
   const handleAddUser = async () => {
     setIsCreating(true);
@@ -35,7 +32,7 @@ export default function UserSection() {
         </div>
         <button
           onClick={handleAddUser}
-          //   disabled={loading || isCreating}
+          disabled={isLoading || isCreating}
           className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white text-sm font-semibold rounded-xl shadow-sm shadow-indigo-200 transition-all flex items-center gap-2 active:scale-95"
         >
           {isCreating ?
@@ -74,11 +71,11 @@ export default function UserSection() {
                 d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
               />
             </svg>
-            {error}
+            {error.message}
           </div>
         )}
 
-        {loading && !users.length ?
+        {isLoading && !users?.length ?
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {[1, 2, 3].map((i) => (
               <div
@@ -115,7 +112,7 @@ export default function UserSection() {
                 </div>
               </div>
             ))}
-            {!users.length && !loading && (
+            {!users?.length && !isLoading && (
               <div className="col-span-full py-12 text-center">
                 <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-400">
                   <svg

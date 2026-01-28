@@ -15,7 +15,7 @@ import { Result } from "./utils";
 export interface QueryMetadata {
   readonly rowCount?: number;
   readonly affectedRows?: number;
-  readonly insertId?: string | number;
+  readonly insertId?: number;
 }
 
 /**

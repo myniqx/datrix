@@ -5,7 +5,6 @@ import { defineSchema } from 'forja-types/core/schema';
  */
 export const topicSchema = defineSchema({
   name: 'topic',
-  timestamps: true,
   fields: {
     title: {
       type: 'string',

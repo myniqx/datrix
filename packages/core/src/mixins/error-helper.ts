@@ -17,7 +17,7 @@ import type { QueryObject } from "forja-types/core/query-builder";
  * Options for throwing CRUD errors
  */
 export interface ThrowCrudErrorOptions {
-  readonly operation: CrudOperation;
+  readonly operation: CrudOperation | "insert";
   readonly model: string;
   readonly code: CrudErrorCode;
   readonly message?: string;
@@ -122,7 +122,7 @@ function enhanceContext(
  * Most common use case in CRUD operations
  */
 export function throwQueryExecutionError(
-  operation: CrudOperation,
+  operation: CrudOperation | "insert",
   model: string,
   query: QueryObject,
   cause: Error,

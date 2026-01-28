@@ -5,7 +5,6 @@ import { defineSchema } from "forja-types/core/schema";
  */
 export const userSchema = defineSchema({
   name: "user",
-  timestamps: true,
   fields: {
     name: {
       type: "string",
