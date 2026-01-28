@@ -15,6 +15,8 @@ import type {
 import type { QueryTranslator } from "forja-types/adapter";
 import { QueryError } from "forja-types/adapter";
 import type { SchemaRegistry } from "forja-core/schema";
+import { ForjaEntry } from "forja-types";
+import { PostgresQueryObject } from "./types";
 
 /**
  * Maximum nesting depth for WHERE clauses to prevent stack overflow
@@ -53,7 +55,14 @@ export class PostgresQueryTranslator implements QueryTranslator {
    */
   private addParam(value: unknown): string {
     this.paramIndex++;
-    this.params.push(value);
+
+    // Convert arrays and objects to JSON string for PostgreSQL JSONB
+    let processedValue = value;
+    if (Array.isArray(value) || (typeof value === 'object' && value !== null && !(value instanceof Date))) {
+      processedValue = JSON.stringify(value);
+    }
+
+    this.params.push(processedValue);
     return this.getParameterPlaceholder(this.paramIndex);
   }
 
@@ -112,7 +121,8 @@ export class PostgresQueryTranslator implements QueryTranslator {
     }
 
     if (Array.isArray(value)) {
-      return `ARRAY[${value.map((v) => this.escapeValue(v)).join(", ")}]`;
+      // Arrays as JSONB (PostgreSQL JSONB handles arrays natively)
+      return `'${JSON.stringify(value)}'::jsonb`;
     }
 
     // Objects as JSONB
@@ -122,7 +132,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
   /**
    * Translate main query
    */
-  translate(query: QueryObject): {
+  translate<T extends ForjaEntry>(query: PostgresQueryObject<T>): {
     readonly sql: string;
     readonly params: readonly unknown[];
   } {
@@ -169,7 +179,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
   /**
    * Translate SELECT query
    */
-  private translateSelect(query: QueryObject): string {
+  private translateSelect<T extends ForjaEntry>(query: PostgresQueryObject<T>): string {
     const parts: string[] = [];
 
     // SELECT clause
@@ -178,7 +188,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
     } else {
       const baseSelect = this.translateSelectClause(query.select, query.table);
 
-      const metadata = query._metadata as Record<string, unknown> | undefined;
+      const metadata = query._metadata;
       const populateAggregations = metadata?.populateAggregations as string | undefined;
 
       if (populateAggregations) {
@@ -196,7 +206,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
     // FROM clause
     parts.push(`FROM ${this.escapeIdentifier(query.table)}`);
 
-    const metadata = query._metadata as Record<string, unknown> | undefined;
+    const metadata = query._metadata;
     const populateJoins = metadata?.populateJoins as string | undefined;
 
     if (populateJoins) {
@@ -205,7 +215,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
 
     // WHERE clause
     if (query.where) {
-      const whereResult = this.translateWhere(query.where, this.paramIndex);
+      const whereResult = this.translateWhere(query.where, this.paramIndex, query.table);
       parts.push(`WHERE ${whereResult.sql}`);
       this.paramIndex += whereResult.params.length;
       this.params.push(...whereResult.params);
@@ -213,9 +223,18 @@ export class PostgresQueryTranslator implements QueryTranslator {
 
     // GROUP BY (required for json_agg aggregations)
     const hasAggregations = metadata?.populateAggregations;
-    if (hasAggregations) {
+    if (hasAggregations && query.populate) {
       const tableEsc = this.escapeIdentifier(query.table);
-      parts.push(`GROUP BY ${tableEsc}."id"`);
+      const groupByFields: string[] = [`${tableEsc}."id"`];
+
+      // Add all populated relation primary keys to GROUP BY
+      // This is required by PostgreSQL when using row_to_json with JOINs
+      for (const relationName of Object.keys(query.populate)) {
+        const relationAlias = this.escapeIdentifier(relationName);
+        groupByFields.push(`${relationAlias}."id"`);
+      }
+
+      parts.push(`GROUP BY ${groupByFields.join(", ")}`);
     } else if ("groupBy" in query && query.groupBy && query.groupBy.length > 0) {
       const groupByFields = query.groupBy
         .map((field) => this.escapeIdentifier(field))
@@ -274,7 +293,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
   /**
    * Translate INSERT query
    */
-  private translateInsert(query: QueryObject): string {
+  private translateInsert<T extends ForjaEntry>(query: PostgresQueryObject<T>): string {
     if (!query.data || Object.keys(query.data).length === 0) {
       throw new QueryError("INSERT query requires data");
     }
@@ -307,7 +326,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
   /**
    * Translate UPDATE query
    */
-  private translateUpdate(query: QueryObject): string {
+  private translateUpdate<T extends ForjaEntry>(query: PostgresQueryObject<T>): string {
     if (!query.data || Object.keys(query.data).length === 0) {
       throw new QueryError("UPDATE query requires data");
     }
@@ -325,7 +344,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
 
     // WHERE clause (important for UPDATE!)
     if (query.where) {
-      const whereResult = this.translateWhere(query.where, this.paramIndex);
+      const whereResult = this.translateWhere(query.where, this.paramIndex, query.table);
       parts.push(`WHERE ${whereResult.sql}`);
       this.paramIndex += whereResult.params.length;
       this.params.push(...whereResult.params);
@@ -342,14 +361,14 @@ export class PostgresQueryTranslator implements QueryTranslator {
   /**
    * Translate DELETE query
    */
-  private translateDelete(query: QueryObject): string {
+  private translateDelete<T extends ForjaEntry>(query: PostgresQueryObject<T>): string {
     const parts: string[] = [];
 
     parts.push(`DELETE FROM ${this.escapeIdentifier(query.table)}`);
 
     // WHERE clause (important for DELETE!)
     if (query.where) {
-      const whereResult = this.translateWhere(query.where, this.paramIndex);
+      const whereResult = this.translateWhere(query.where, this.paramIndex, query.table);
       parts.push(`WHERE ${whereResult.sql}`);
       this.paramIndex += whereResult.params.length;
       this.params.push(...whereResult.params);
@@ -386,28 +405,31 @@ export class PostgresQueryTranslator implements QueryTranslator {
   /**
    * Translate WHERE clause
    */
-  translateWhere(
-    where: WhereClause,
+  translateWhere<T extends ForjaEntry>(
+    where: WhereClause<T>,
     startIndex: number,
+    tableName?: string,
   ): {
     readonly sql: string;
     readonly params: readonly unknown[];
+    readonly joins: string[];
   } {
     const savedIndex = this.paramIndex;
     const savedParams = [...this.params];
 
     this.paramIndex = startIndex;
     this.params = [];
+    const whereJoins: string[] = [];
 
     try {
-      const sql = this.translateWhereConditions(where);
+      const sql = this.translateWhereConditions(where, 0, tableName, undefined, whereJoins);
       const params = [...this.params];
 
       // Restore state
       this.paramIndex = savedIndex;
       this.params = savedParams;
 
-      return { sql, params };
+      return { sql, params, joins: whereJoins };
     } catch (error) {
       // Restore state on error
       this.paramIndex = savedIndex;
@@ -419,7 +441,13 @@ export class PostgresQueryTranslator implements QueryTranslator {
   /**
    * Translate WHERE conditions recursively
    */
-  private translateWhereConditions(where: WhereClause, depth = 0): string {
+  private translateWhereConditions<T extends ForjaEntry>(
+    where: WhereClause<T>,
+    depth = 0,
+    tableName?: string,
+    tableAlias?: string,
+    joins?: string[],
+  ): string {
     // Check depth limit to prevent stack overflow
     if (depth > MAX_WHERE_DEPTH) {
       throw new QueryError(
@@ -428,13 +456,14 @@ export class PostgresQueryTranslator implements QueryTranslator {
     }
 
     const conditions: string[] = [];
+    const currentTableAlias = tableAlias || tableName;
 
     for (const [key, value] of Object.entries(where)) {
       // Handle logical operators
       if (key === "$and") {
         const andConditions = (value as readonly WhereClause[])
           .map(
-            (condition) => `(${this.translateWhereConditions(condition, depth + 1)})`,
+            (condition) => `(${this.translateWhereConditions(condition, depth + 1, tableName, tableAlias)})`,
           )
           .join(" AND ");
         conditions.push(`(${andConditions})`);
@@ -444,7 +473,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
       if (key === "$or") {
         const orConditions = (value as readonly WhereClause[])
           .map(
-            (condition) => `(${this.translateWhereConditions(condition, depth + 1)})`,
+            (condition) => `(${this.translateWhereConditions(condition, depth + 1, tableName, tableAlias)})`,
           )
           .join(" OR ");
         conditions.push(`(${orConditions})`);
@@ -455,13 +484,108 @@ export class PostgresQueryTranslator implements QueryTranslator {
         const notCondition = this.translateWhereConditions(
           value as WhereClause,
           depth + 1,
+          tableName,
+          tableAlias,
         );
         conditions.push(`NOT (${notCondition})`);
         continue;
       }
 
-      // Handle field conditions
-      const fieldName = this.escapeIdentifier(key);
+      // Check if this is a relation field (needs schema lookup)
+      if (tableName) {
+        const modelName = this.schemaRegistry.findModelByTableName(tableName);
+        if (modelName) {
+          const schema = this.schemaRegistry.get(modelName);
+          if (schema) {
+            const field = schema.fields[key];
+
+            if (field && field.type === "relation") {
+              // Relation field with nested conditions
+              const relationField = field as { foreignKey?: string; model?: string };
+
+              // Case 1: Simple value (number/string) → foreign key equality
+              // { category: 1 } → categoryId = 1
+              if (
+                typeof value === "number" ||
+                typeof value === "string" ||
+                value === null
+              ) {
+                if (relationField.foreignKey) {
+                  const fkFieldName = this.escapeIdentifier(relationField.foreignKey);
+                  const qualifiedFK = currentTableAlias ?
+                    `${this.escapeIdentifier(currentTableAlias)}.${fkFieldName}` :
+                    fkFieldName;
+
+                  if (value === null) {
+                    conditions.push(`${qualifiedFK} IS NULL`);
+                  } else {
+                    conditions.push(`${qualifiedFK} = ${this.addParam(value)}`);
+                  }
+                  continue;
+                }
+              }
+
+              // Case 2: Nested object (relation filtering)
+              if (
+                typeof value === "object" &&
+                value !== null &&
+                !Array.isArray(value) &&
+                !(value instanceof Date)
+              ) {
+                const nestedValue = value as Record<string, unknown>;
+
+                // Check if this is a simple foreign key filter (id with operators)
+                const hasOnlyId = Object.keys(nestedValue).length === 1 && "id" in nestedValue;
+
+                if (hasOnlyId && relationField.foreignKey) {
+                  // Simple case: { category: { id: { $ne: 1 } } } → categoryId <> 1
+                  const idValue = nestedValue["id"];
+                  const fkFieldName = this.escapeIdentifier(relationField.foreignKey);
+                  const qualifiedFK = currentTableAlias ?
+                    `${this.escapeIdentifier(currentTableAlias)}.${fkFieldName}` :
+                    fkFieldName;
+
+                  if (
+                    typeof idValue === "object" &&
+                    idValue !== null &&
+                    !Array.isArray(idValue)
+                  ) {
+                    // Has operators: { id: { $ne: 1 } }
+                    const ops = idValue as ComparisonOperators;
+                    for (const [operator, opValue] of Object.entries(ops)) {
+                      conditions.push(
+                        this.translateComparisonOperator(qualifiedFK, operator, opValue),
+                      );
+                    }
+                  } else {
+                    // Simple equality: { id: 1 }
+                    if (idValue === null) {
+                      conditions.push(`${qualifiedFK} IS NULL`);
+                    } else {
+                      conditions.push(`${qualifiedFK} = ${this.addParam(idValue)}`);
+                    }
+                  }
+                  continue;
+                } else {
+                  // Complex nested relation filtering - needs JOIN
+                  // TODO: This requires dynamic JOIN injection which needs query restructuring
+                  // For now, throw descriptive error
+                  throw new QueryError(
+                    `Nested relation WHERE filtering on '${key}' with fields other than 'id' requires JOIN support. ` +
+                    `This feature is not yet implemented. ` +
+                    `Workaround: Use foreign key directly (e.g., { ${relationField.foreignKey || key + "Id"}: value })`,
+                  );
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Regular field handling
+      const fieldName = currentTableAlias ?
+        `${this.escapeIdentifier(currentTableAlias)}.${this.escapeIdentifier(key)}` :
+        this.escapeIdentifier(key);
 
       // Handle comparison operators
       if (
@@ -547,6 +671,9 @@ export class PostgresQueryTranslator implements QueryTranslator {
       case "$contains":
         return `${fieldName} ILIKE ${this.addParam(`%${String(value)}%`)}`;
 
+      case "$notContains":
+        return `${fieldName} NOT ILIKE ${this.addParam(`%${String(value)}%`)}`;
+
       case "$startsWith":
         return `${fieldName} ILIKE ${this.addParam(`${String(value)}%`)}`;
 
@@ -564,6 +691,9 @@ export class PostgresQueryTranslator implements QueryTranslator {
 
       case "$null":
         return value ? `${fieldName} IS NULL` : `${fieldName} IS NOT NULL`;
+
+      case "$notNull":
+        return value ? `${fieldName} IS NOT NULL` : `${fieldName} IS NULL`;
 
       default:
         throw new QueryError(`Unsupported operator: ${operator}`);

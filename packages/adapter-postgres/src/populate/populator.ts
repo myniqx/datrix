@@ -6,18 +6,19 @@
  */
 
 import type { Pool } from "pg";
-import type { QueryObject, PopulateClause } from "forja-types/core/query-builder";
+import type { PopulateClause } from "forja-types/core/query-builder";
 import type { SchemaRegistry } from "forja-core/schema";
 import type { PostgresQueryTranslator } from "../query-translator";
 import type {
   PopulateStrategy,
   PopulateOptionsAnalysis,
-  ProcessedResult,
 } from "./types";
 import { JoinBuilder } from "./join-builder";
 import { AggregationBuilder } from "./aggregation-builder";
 import { ResultProcessor } from "./result-processor";
 import { throwMaxDepthExceeded } from "../error-helper";
+import { ForjaEntry } from "forja-types";
+import { PostgresQueryObject } from "forja-adapter-postgres/types";
 
 /**
  * Maximum populate nesting depth
@@ -61,8 +62,8 @@ export class PostgresPopulator {
    * @param query - Query object with populate
    * @returns Rows with populated relations
    */
-  async populate<T extends Record<string, unknown>>(
-    query: QueryObject,
+  async populate<T extends ForjaEntry>(
+    query: QueryObject<T>,
   ): Promise<readonly T[]> {
     if (!query.populate) {
       return [] as readonly T[];
@@ -112,8 +113,8 @@ export class PostgresPopulator {
    * GROUP BY posts.id, users.id
    * ```
    */
-  private async executeJsonAggregation<T extends Record<string, unknown>>(
-    query: QueryObject,
+  private async executeJsonAggregation<T extends ForjaEntry>(
+    query: QueryObject<T>,
   ): Promise<readonly T[]> {
     // Build modified query with JOINs and aggregations
     const modifiedQuery = this.buildJsonAggregationQuery(query);
@@ -156,8 +157,8 @@ export class PostgresPopulator {
    * ) related_comments ON true
    * ```
    */
-  private async executeLateralJoins<T extends Record<string, unknown>>(
-    query: QueryObject,
+  private async executeLateralJoins<T extends ForjaEntry>(
+    query: QueryObject<T>,
   ): Promise<readonly T[]> {
     // Build modified query with LATERAL JOINs
     const modifiedQuery = this.buildLateralJoinsQuery(query);
@@ -183,8 +184,8 @@ export class PostgresPopulator {
    *
    * Less performant but more reliable for complex cases.
    */
-  private async executeSeparateQueries<T extends Record<string, unknown>>(
-    query: QueryObject,
+  private async executeSeparateQueries<T extends ForjaEntry>(
+    query: QueryObject<T>,
   ): Promise<readonly T[]> {
     // First, execute main query
     const mainResult = await this.pool.query(
@@ -207,10 +208,10 @@ export class PostgresPopulator {
   /**
    * Populate relations using separate queries (recursive)
    */
-  private async populateSeparately(
-    rows: Record<string, unknown>[],
+  private async populateSeparately<T extends ForjaEntry>(
+    rows: ForjaEntry[],
     tableName: string,
-    populate: PopulateClause,
+    populate: PopulateClause<T>,
     depth = 0,
   ): Promise<void> {
     if (depth > MAX_POPULATE_DEPTH) {
@@ -241,8 +242,9 @@ export class PostgresPopulator {
   /**
    * Build query with JSON aggregation
    */
-  private buildJsonAggregationQuery(query: QueryObject): QueryObject {
-    const joins = this.joinBuilder.buildJoins(query, "json-aggregation");
+  private buildJsonAggregationQuery<T extends ForjaEntry>(query: QueryObject<T>): PostgresQueryObject<T> {
+    const pgQuery = query as PostgresQueryObject<T>;
+    const joins = this.joinBuilder.buildJoins(pgQuery, "json-aggregation");
     const aggregations = this.aggregationBuilder.buildAggregations(
       query.table,
       query.populate!,
@@ -254,25 +256,23 @@ export class PostgresPopulator {
     return {
       ...query,
       _metadata: {
-        ...query._metadata,
         populateJoins: joinSQL,
         populateAggregations: aggregationSQL,
       },
-    };
+    } as PostgresQueryObject<T>;
   }
 
   /**
    * Build query with LATERAL joins
    */
-  private buildLateralJoinsQuery(query: QueryObject): QueryObject {
+  private buildLateralJoinsQuery<T extends ForjaEntry>(query: QueryObject<T>): PostgresQueryObject<T> {
     return {
       ...query,
       _metadata: {
-        ...query._metadata,
         populateStrategy: "lateral-joins" as const,
         populateClause: query.populate,
       },
-    };
+    } as PostgresQueryObject<T>;
   }
 
   /**
@@ -284,12 +284,12 @@ export class PostgresPopulator {
    * - Whether LATERAL joins are needed
    * - Number of relations
    */
-  private analyzePopulate(populate: PopulateClause): PopulateOptionsAnalysis {
+  private analyzePopulate<T extends ForjaEntry>(populate: PopulateClause<T>): PopulateOptionsAnalysis {
     let maxDepth = 1;
     let hasComplexOptions = false;
     let relationCount = 0;
 
-    const analyze = (pop: PopulateClause, depth: number): void => {
+    const analyze = (pop: PopulateClause<T>, depth: number): void => {
       if (depth > maxDepth) {
         maxDepth = depth;
       }
@@ -348,7 +348,7 @@ export class PostgresPopulator {
   /**
    * Build relation path string for error messages
    */
-  private buildRelationPath(populate: PopulateClause, prefix = ""): string {
+  private buildRelationPath<T extends ForjaEntry>(populate: PopulateClause<T>, prefix = ""): string {
     const paths: string[] = [];
 
     for (const [relationName, options] of Object.entries(populate)) {

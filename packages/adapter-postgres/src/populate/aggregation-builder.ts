@@ -7,12 +7,11 @@
 
 import type {
   PopulateClause,
-  SelectClause,
-  WhereClause,
   OrderByItem,
+  PopulateOptions,
 } from "forja-types/core/query-builder";
 import type { SchemaRegistry } from "forja-core/schema";
-import type { RelationField } from "forja-types/core/schema";
+import type { ForjaEntry, RelationField } from "forja-types/core/schema";
 import type { PostgresQueryTranslator } from "../query-translator";
 import type { AggregationClause, PopulateFieldSelection } from "./types";
 import {
@@ -33,7 +32,7 @@ export class AggregationBuilder {
   constructor(
     private translator: PostgresQueryTranslator,
     private schemaRegistry: SchemaRegistry,
-  ) {}
+  ) { }
 
   /**
    * Build all aggregation clauses for a query
@@ -42,9 +41,9 @@ export class AggregationBuilder {
    * @param populate - Populate clause
    * @returns Array of aggregation SQL strings
    */
-  buildAggregations(
+  buildAggregations<T extends ForjaEntry>(
     tableName: string,
-    populate: PopulateClause,
+    populate: PopulateClause<T>,
   ): readonly AggregationClause[] {
     // Get current schema
     const modelName = this.schemaRegistry.findModelByTableName(tableName);
@@ -97,10 +96,10 @@ export class AggregationBuilder {
   /**
    * Build aggregation for a specific relation
    */
-  private buildRelationAggregation(
+  private buildRelationAggregation<T extends ForjaEntry>(
     relationName: string,
     relation: RelationField,
-    options: unknown,
+    options: PopulateOptions<T>,
   ): AggregationClause {
     const relationAlias = this.translator.escapeIdentifier(relationName);
 
@@ -164,11 +163,11 @@ export class AggregationBuilder {
    * ) relation_data ON true
    * ```
    */
-  buildLateralSubquery(
+  buildLateralSubquery<T extends ForjaEntry>(
     sourceTable: string,
     relationName: string,
     relation: RelationField,
-    options: unknown,
+    options: PopulateOptions<T>,
   ): string {
     // Get target schema
     const targetSchema = this.schemaRegistry.get(relation.model);
@@ -253,11 +252,11 @@ export class AggregationBuilder {
   /**
    * Build LATERAL subquery for manyToMany with options
    */
-  buildManyToManyLateralSubquery(
+  buildManyToManyLateralSubquery<T extends ForjaEntry>(
     sourceTable: string,
     relationName: string,
     relation: RelationField,
-    options: unknown,
+    options: PopulateOptions<T>,
   ): string {
     // Get schemas
     const targetSchema = this.schemaRegistry.get(relation.model);
@@ -344,10 +343,10 @@ export class AggregationBuilder {
   /**
    * Build field selection for relation
    */
-  private buildFieldSelection(
+  private buildFieldSelection<T extends ForjaEntry>(
     relationName: string,
     relation: RelationField,
-    options: unknown,
+    options: PopulateOptions<T>,
   ): PopulateFieldSelection {
     const opts = this.parsePopulateOptions(options);
 
@@ -385,14 +384,7 @@ export class AggregationBuilder {
   /**
    * Parse populate options
    */
-  private parsePopulateOptions(options: unknown): {
-    select?: SelectClause;
-    where?: WhereClause;
-    orderBy?: readonly OrderByItem[];
-    limit?: number;
-    offset?: number;
-    populate?: PopulateClause;
-  } {
+  private parsePopulateOptions<T extends ForjaEntry>(options: PopulateOptions<T>): PopulateOptions<T> {
     if (typeof options === "string") {
       return { select: options === "*" ? "*" : [options] };
     }
@@ -401,15 +393,14 @@ export class AggregationBuilder {
       return {};
     }
 
-    const opts = options as Record<string, unknown>;
 
     return {
-      select: opts.select as SelectClause | undefined,
-      where: opts.where as WhereClause | undefined,
-      orderBy: opts.orderBy as readonly OrderByItem[] | undefined,
-      limit: opts.limit as number | undefined,
-      offset: opts.offset as number | undefined,
-      populate: opts.populate as PopulateClause | undefined,
+      select: options.select,
+      where: options.where,
+      orderBy: options.orderBy,
+      limit: options.limit,
+      offset: options.offset,
+      populate: options.populate,
     };
   }
 

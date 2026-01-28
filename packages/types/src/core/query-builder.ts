@@ -150,7 +150,7 @@ export type LogicalOperators<T extends ForjaEntry = ForjaEntry> = {
  * };
  * ```
  */
-export type WhereClause<T extends ForjaEntry> = {
+export type WhereClause<T extends ForjaEntry = ForjaRecord> = {
   [K in keyof T]?: T[K] extends Relation<infer R> ? WhereClause<R> // Relation fields → Nested WhereClause
   : // Scalar fields → Value or operators
   T[K] extends ScalarValue ? T[K] | ComparisonOperators<T[K]>
@@ -167,18 +167,18 @@ export type SelectClause = readonly string[] | "*";
  * Populate clause (relations to include)
  */
 export type PopulateOptions<T extends ForjaEntry> = {
-  readonly select?: SelectClause;
-  readonly where?: WhereClause<T>;
-  readonly populate?: PopulateClause<T>; // Nested populate
-  readonly limit?: number;
-  readonly offset?: number;
-  readonly orderBy?: OrderBy;
+  readonly select?: SelectClause | undefined;
+  readonly where?: WhereClause<T> | undefined;
+  readonly populate?: PopulateClause<T> | undefined; // Nested populate
+  readonly limit?: number | undefined;
+  readonly offset?: number | undefined;
+  readonly orderBy?: OrderBy | undefined;
 };
 
 /**
  * Populate clause type
  */
-export type PopulateClause<T extends ForjaEntry> =
+export type PopulateClause<T extends ForjaEntry = ForjaRecord> =
   | false
   | {
     readonly [relation: string]: PopulateOptions<T> | "*" | true;
@@ -262,7 +262,7 @@ export interface QueryMetadata {
 /**
  * Query object (database-agnostic representation)
  */
-export interface QueryObject<T extends ForjaEntry> {
+export interface QueryObject<T extends ForjaEntry = ForjaRecord> {
   readonly type: QueryType;
   readonly table: string;
   readonly select?: SelectClause | undefined;

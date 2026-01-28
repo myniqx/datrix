@@ -6,7 +6,7 @@
  */
 
 import { QueryObject, WhereClause } from "./core/query-builder";
-import { FieldDefinition, IndexDefinition, SchemaDefinition } from "./core/schema";
+import { FieldDefinition, ForjaEntry, IndexDefinition, SchemaDefinition } from "./core/schema";
 import { Result } from "./utils";
 
 /**
@@ -81,11 +81,11 @@ export interface DatabaseAdapter<TConfig = Record<string, unknown>> {
   getConnectionState(): ConnectionState;
 
   // Query execution
-  executeQuery<TResult>(
-    query: QueryObject
+  executeQuery<TResult extends ForjaEntry>(
+    query: QueryObject<TResult>
   ): Promise<Result<QueryResult<TResult>, QueryError>>;
 
-  executeRawQuery<TResult>(
+  executeRawQuery<TResult extends ForjaEntry>(
     sql: string,
     params: readonly unknown[]
   ): Promise<Result<QueryResult<TResult>, QueryError>>;
@@ -150,13 +150,13 @@ export class ConnectionError extends AdapterError {
 /**
  * Query error
  */
-export class QueryError extends AdapterError {
-  readonly query: QueryObject | undefined;
+export class QueryError<T extends ForjaEntry = ForjaEntry> extends AdapterError {
+  readonly query: QueryObject<T> | undefined;
   readonly sql: string | undefined;
 
   constructor(
     message: string,
-    options?: { code?: string; query?: QueryObject | undefined; sql?: string | undefined; details?: unknown }
+    options?: { code?: string; query?: QueryObject<T> | undefined; sql?: string | undefined; details?: unknown }
   ) {
     super(message, { code: options?.code ?? 'QUERY_ERROR', details: options?.details });
     this.name = 'QueryError';

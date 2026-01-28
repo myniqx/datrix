@@ -7,7 +7,7 @@
 
 import type { PopulateClause } from "forja-types/core/query-builder";
 import type { SchemaRegistry } from "forja-core/schema";
-import type { RelationField } from "forja-types/core/schema";
+import type { ForjaEntry, RelationField } from "forja-types/core/schema";
 import { throwResultProcessingError } from "../error-helper";
 
 /**
@@ -16,7 +16,7 @@ import { throwResultProcessingError } from "../error-helper";
  * Processes flat SQL results into nested structures with populated relations.
  */
 export class ResultProcessor {
-  constructor(private schemaRegistry: SchemaRegistry) {}
+  constructor(private schemaRegistry: SchemaRegistry) { }
 
   /**
    * Process JSON aggregation results
@@ -28,9 +28,9 @@ export class ResultProcessor {
    * @param populate - Populate clause
    * @returns Processed rows with parsed JSON relations
    */
-  processJsonAggregation<T extends Record<string, unknown>>(
+  processJsonAggregation<T extends ForjaEntry>(
     rows: T[],
-    populate: PopulateClause,
+    populate: PopulateClause<T>,
   ): readonly T[] {
     if (rows.length === 0) {
       return rows;
@@ -49,14 +49,14 @@ export class ResultProcessor {
   /**
    * Process a single row
    */
-  private processRow<T extends Record<string, unknown>>(
+  private processRow<T extends ForjaEntry>(
     row: T,
-    populate: PopulateClause,
+    populate: PopulateClause<T>,
   ): T {
     const processed = { ...row };
 
     for (const [relationName, options] of Object.entries(populate)) {
-      const value = processed[relationName];
+      const value = processed[relationName as keyof T];
 
       // Skip if relation field doesn't exist or is already processed
       if (value === undefined) {
@@ -66,7 +66,7 @@ export class ResultProcessor {
       // Parse JSON if it's a string
       if (typeof value === "string") {
         try {
-          processed[relationName] = JSON.parse(value) as unknown;
+          processed[relationName as keyof T] = JSON.parse(value) as T[keyof T];
         } catch {
           // Not JSON, leave as is
         }
@@ -74,28 +74,28 @@ export class ResultProcessor {
 
       // Handle nested populate recursively
       if (typeof options === "object" && options !== null && options.populate) {
-        const relationValue = processed[relationName];
+        const relationValue = processed[relationName as keyof T];
 
         if (Array.isArray(relationValue)) {
           // hasMany or manyToMany: process each item
-          processed[relationName] = relationValue.map((item) =>
-            this.processRow(item as Record<string, unknown>, options.populate!),
-          ) as unknown;
+          processed[relationName as keyof T] = relationValue.map((item) =>
+            this.processRow(item, options.populate!),
+          ) as T[keyof T];
         } else if (relationValue !== null && typeof relationValue === "object") {
           // belongsTo or hasOne: process single item
-          processed[relationName] = this.processRow(
-            relationValue as Record<string, unknown>,
+          processed[relationName as keyof T] = this.processRow(
+            relationValue as T,
             options.populate!,
-          ) as unknown;
+          ) as T[keyof T];
         }
       }
 
       // Clean up null values
-      if (processed[relationName] === null) {
+      if (processed[relationName as keyof T] === null) {
         // For arrays (hasMany/manyToMany), null should be empty array
-        const relValue = row[relationName];
-        if (Array.isArray(relValue) || this.isArrayRelation(relationName, row)) {
-          processed[relationName] = [] as unknown;
+        const relValue = row[relationName as keyof T];
+        if (Array.isArray(relValue) || this.isArrayRelation(relationName as keyof T, row)) {
+          processed[relationName as keyof T] = [] as T[keyof T];
         }
       }
     }
@@ -137,11 +137,11 @@ export class ResultProcessor {
    * ]
    * ```
    */
-  processFlatJoinResults<T extends Record<string, unknown>>(
-    rows: Record<string, unknown>[],
+  processFlatJoinResults<T extends ForjaEntry>(
+    rows: T[],
     tableName: string,
-    populate: PopulateClause,
-    primaryKey = "id",
+    populate: PopulateClause<T>,
+    primaryKey = "id" as keyof T,
   ): readonly T[] {
     if (rows.length === 0) {
       return [] as readonly T[];
@@ -177,10 +177,10 @@ export class ResultProcessor {
   /**
    * Extract main record fields from flat row
    */
-  private extractMainRecord(
-    row: Record<string, unknown>,
+  private extractMainRecord<T extends ForjaEntry>(
+    row: T,
     tableName: string,
-  ): Record<string, unknown> {
+  ): T {
     // Get schema to know which fields belong to main table
     const modelName = this.schemaRegistry.findModelByTableName(tableName);
     if (!modelName) {
@@ -191,33 +191,33 @@ export class ResultProcessor {
           mainRecord[key] = value;
         }
       }
-      return mainRecord;
+      return mainRecord as T;
     }
 
     const schema = this.schemaRegistry.get(modelName);
     if (!schema) {
-      return {};
+      return {} as T;
     }
 
     // Extract only main table fields
     const mainRecord: Record<string, unknown> = {};
     for (const [fieldName, fieldDef] of Object.entries(schema.fields)) {
       if (fieldDef.type !== "relation" && fieldName in row) {
-        mainRecord[fieldName] = row[fieldName];
+        mainRecord[fieldName] = row[fieldName as keyof T];
       }
     }
 
-    return mainRecord;
+    return mainRecord as T;
   }
 
   /**
    * Attach relation data from flat row to main record
    */
-  private attachRelations(
-    record: Record<string, unknown>,
-    row: Record<string, unknown>,
+  private attachRelations<T extends ForjaEntry>(
+    record: Partial<T>,
+    row: T,
     tableName: string,
-    populate: PopulateClause,
+    populate: PopulateClause<T>,
   ): void {
     const modelName = this.schemaRegistry.findModelByTableName(tableName);
     if (!modelName) {
@@ -246,14 +246,14 @@ export class ResultProcessor {
 
       if (kind === "belongsTo" || kind === "hasOne") {
         // Single object
-        record[relationName] = relationData;
+        record[relationName as keyof T] = relationData as T[keyof T];
       } else {
         // Array: hasMany or manyToMany
-        if (!record[relationName]) {
-          record[relationName] = [];
+        if (!record[relationName as keyof T]) {
+          record[relationName as keyof T] = [] as T[keyof T];
         }
 
-        const arr = record[relationName] as Record<string, unknown>[];
+        const arr = record[relationName as keyof T] as T[];
 
         // Check if this relation record already exists (by id)
         const existingIndex = arr.findIndex(
@@ -261,7 +261,7 @@ export class ResultProcessor {
         );
 
         if (existingIndex === -1) {
-          arr.push(relationData);
+          arr.push(relationData as T);
         }
       }
     }
@@ -272,17 +272,17 @@ export class ResultProcessor {
    *
    * Assumes relation fields are prefixed with `relationName_`
    */
-  private extractRelationData(
-    row: Record<string, unknown>,
+  private extractRelationData<T extends ForjaEntry>(
+    row: T,
     relationName: string,
-  ): Record<string, unknown> | null {
+  ): Partial<T> | null {
     const prefix = `${relationName}_`;
-    const relationData: Record<string, unknown> = {};
+    const relationData: Partial<T> = {};
 
     for (const [key, value] of Object.entries(row)) {
       if (key.startsWith(prefix)) {
         const fieldName = key.substring(prefix.length);
-        relationData[fieldName] = value;
+        relationData[fieldName as keyof T] = value;
       }
     }
 
@@ -297,9 +297,9 @@ export class ResultProcessor {
   /**
    * Check if relation is array type (hasMany or manyToMany)
    */
-  private isArrayRelation(
-    relationName: string,
-    row: Record<string, unknown>,
+  private isArrayRelation<T extends ForjaEntry>(
+    relationName: keyof T,
+    row: T,
   ): boolean {
     // Try to infer from schema
     // This is a fallback heuristic
@@ -319,9 +319,9 @@ export class ResultProcessor {
    *
    * LATERAL joins return JSON in a specific column (e.g., `relation_data.data`)
    */
-  processLateralResults<T extends Record<string, unknown>>(
+  processLateralResults<T extends ForjaEntry>(
     rows: T[],
-    populate: PopulateClause,
+    populate: PopulateClause<T>,
   ): readonly T[] {
     if (rows.length === 0) {
       return rows;
@@ -336,16 +336,14 @@ export class ResultProcessor {
           const lateralKey = `${relationName}_data`;
 
           if (lateralKey in processed) {
-            const lateralData = processed[lateralKey] as
-              | Record<string, unknown>
-              | undefined;
+            const lateralData = processed[lateralKey as keyof T] as object
 
             if (lateralData && "data" in lateralData) {
-              processed[relationName] = lateralData["data"] as unknown;
+              processed[relationName as keyof T] = lateralData["data"] as T[keyof T];
             }
 
             // Clean up the lateral key
-            delete processed[lateralKey];
+            delete processed[lateralKey as keyof T];
           }
         }
 

@@ -5,9 +5,8 @@
  * Supports all relation types: belongsTo, hasOne, hasMany, manyToMany.
  */
 
-import type { QueryObject, PopulateClause } from "forja-types/core/query-builder";
 import type { SchemaRegistry } from "forja-core/schema";
-import type { RelationField } from "forja-types/core/schema";
+import type { ForjaEntry, RelationField } from "forja-types/core/schema";
 import type { PostgresQueryTranslator } from "../query-translator";
 import type { JoinClause, PopulateStrategy } from "./types";
 import {
@@ -19,6 +18,7 @@ import {
   throwJoinBuildError,
   throwJunctionTableNotFound,
 } from "../error-helper";
+import { PostgresQueryObject } from "forja-adapter-postgres/types";
 
 /**
  * JOIN Builder Class
@@ -29,7 +29,7 @@ export class JoinBuilder {
   constructor(
     private schemaRegistry: SchemaRegistry,
     private translator: PostgresQueryTranslator,
-  ) {}
+  ) { }
 
   /**
    * Build all JOINs for a query
@@ -38,8 +38,8 @@ export class JoinBuilder {
    * @param strategy - Populate strategy
    * @returns Array of JOIN clauses
    */
-  buildJoins(
-    query: QueryObject,
+  buildJoins<T extends ForjaEntry>(
+    query: PostgresQueryObject<T>,
     strategy: PopulateStrategy,
   ): readonly JoinClause[] {
     if (!query.populate) {
@@ -174,7 +174,6 @@ export class JoinBuilder {
     const foreignKey = relation.foreignKey!;
 
     const sourceTableEsc = this.translator.escapeIdentifier(sourceTable);
-    const targetTableEsc = this.translator.escapeIdentifier(targetTable);
     const foreignKeyEsc = this.translator.escapeIdentifier(foreignKey);
     const relationAlias = this.translator.escapeIdentifier(relationName);
 
@@ -183,8 +182,8 @@ export class JoinBuilder {
     return [
       {
         type: "LEFT JOIN",
-        table: targetTable,
-        alias: relationName,
+        table: targetTable,  // NOT escaped - will be escaped in generateJoinSQL
+        alias: relationName, // NOT escaped - will be escaped in generateJoinSQL
         condition,
         isLateral: false,
       },
@@ -214,7 +213,6 @@ export class JoinBuilder {
     const foreignKey = relation.foreignKey!;
 
     const sourceTableEsc = this.translator.escapeIdentifier(sourceTable);
-    const targetTableEsc = this.translator.escapeIdentifier(targetTable);
     const foreignKeyEsc = this.translator.escapeIdentifier(foreignKey);
     const relationAlias = this.translator.escapeIdentifier(relationName);
 
@@ -223,8 +221,8 @@ export class JoinBuilder {
     return [
       {
         type: "LEFT JOIN",
-        table: targetTable,
-        alias: relationName,
+        table: targetTable,  // NOT escaped
+        alias: relationName, // NOT escaped
         condition,
         isLateral: false,
       },
@@ -283,7 +281,7 @@ export class JoinBuilder {
       {
         type: "LATERAL",
         table: targetTable,
-        alias: `${relationName}_lateral`,
+        alias: `${relationAlias}_lateral`,
         condition,
         isLateral: true,
       },
@@ -354,10 +352,8 @@ export class JoinBuilder {
       throwJunctionTableNotFound(junctionTable, relationName, currentSchema.name);
     }
 
-    // Escape identifiers
+    // Escape identifiers (for condition building only)
     const sourceTableEsc = this.translator.escapeIdentifier(sourceTable);
-    const junctionTableEsc = this.translator.escapeIdentifier(junctionTable);
-    const targetTableEsc = this.translator.escapeIdentifier(targetTable);
     const sourceFKEsc = this.translator.escapeIdentifier(sourceFK);
     const targetFKEsc = this.translator.escapeIdentifier(targetFK);
     const relationAlias = this.translator.escapeIdentifier(relationName);
@@ -369,16 +365,16 @@ export class JoinBuilder {
       // First: source -> junction
       {
         type: "LEFT JOIN",
-        table: junctionTable,
-        alias: junctionAlias,
+        table: junctionTable,  // NOT escaped - will be escaped in generateJoinSQL
+        alias: junctionAlias,   // NOT escaped - will be escaped in generateJoinSQL
         condition: `${sourceTableEsc}."id" = ${junctionAliasEsc}.${sourceFKEsc}`,
         isLateral: false,
       },
       // Second: junction -> target
       {
         type: "LEFT JOIN",
-        table: targetTable,
-        alias: relationName,
+        table: targetTable,    // NOT escaped
+        alias: relationName,   // NOT escaped
         condition: `${junctionAliasEsc}.${targetFKEsc} = ${relationAlias}."id"`,
         isLateral: false,
       },

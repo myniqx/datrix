@@ -29,6 +29,7 @@ import { validateQueryObject } from "forja-types/utils/query";
 import {
   FieldDefinition,
   FieldType,
+  ForjaEntry,
   IndexDefinition,
   SchemaDefinition,
 } from "forja-types/core/schema";
@@ -146,7 +147,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
   /**
    * Execute query
    */
-  async executeQuery<TResult>(
+  async executeQuery<TResult extends ForjaEntry>(
     query: QueryObject<TResult>,
   ): Promise<Result<QueryResult<TResult>, QueryError>> {
     // Runtime validation of QueryObject structure
@@ -195,7 +196,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
       let insertId: number | undefined;
 
       if (query.type === "insert" && rows.length > 0) {
-        const firstRow = rows[0] as Record<string, unknown>;
+        const firstRow = rows[0] as ForjaEntry;
         insertId = firstRow["id"] as number;
       }
 
@@ -359,6 +360,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 
       // Add fields
       for (const [fieldName, field] of Object.entries(schema.fields)) {
+        if (field.type === "relation") continue;
         const columnDef = this.buildColumnDefinition(fieldName, field);
         columns.push(columnDef);
       }
@@ -368,6 +370,16 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
       const sql = `CREATE TABLE ${tableName} (\n  ${columns.join(",\n  ")}\n)`;
 
       await this.pool.query(sql);
+
+      // Create indexes (including unique constraints)
+      if (schema.indexes && schema.indexes.length > 0) {
+        for (const index of schema.indexes) {
+          const indexResult = await this.addIndex(schema.tableName!, index);
+          if (!indexResult.success) {
+            return indexResult;
+          }
+        }
+      }
 
       return { success: true, data: undefined };
     } catch (error) {
@@ -772,6 +784,11 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
     field: FieldDefinition,
   ): string {
     const columnName = this.getTranslator().escapeIdentifier(fieldName);
+
+    if (fieldName === "id") {
+      return `${columnName} SERIAL PRIMARY KEY`;
+    }
+
     const pgType = getPostgresTypeWithModifiers(field.type);
     const nullable = field.required ? " NOT NULL" : "";
     const defaultValue =

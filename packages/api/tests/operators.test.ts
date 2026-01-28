@@ -704,9 +704,11 @@ describe("Query Operators Integration Tests", () => {
       it("should combine different fields", async () => {
         const results = await queryProducts({
           $or: [{ category: 2 }, { stock: { $eq: 0 } }],
+        }, {
+          category: "*",
         });
         expect(results.length).toBeGreaterThan(0);
-        expect(results.every((p) => p.category === 2 || p.stock === 0)).toBe(true);
+        expect(results.every((p) => p.category.id === 2 || p.stock === 0)).toBe(true);
       });
 
       it("should handle multiple OR conditions", async () => {

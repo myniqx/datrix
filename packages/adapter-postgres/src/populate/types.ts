@@ -4,7 +4,7 @@
  * Type definitions for populate functionality.
  */
 
-import type { PopulateClause, SelectClause } from "forja-types/core/query-builder";
+import type { SelectClause } from "forja-types/core/query-builder";
 
 /**
  * Populate strategy selection
