@@ -461,10 +461,12 @@ describe("ManyToMany Populate Integration Tests", () => {
       const createdPost = await expectApiSingle(createRes, 201);
 
       // Verify junction table has records
-      const junctionBefore = await forja
-        .getAdapter()
-        .getCachedTable("post_tag");
-      expect(junctionBefore?.data).toHaveLength(2);
+      const countQueryBefore = { type: "count" as const, table: "post_tag" };
+      const resultBefore = await forja.getAdapter().executeQuery(countQueryBefore);
+      expect(resultBefore.success).toBe(true);
+      if (resultBefore.success) {
+        expect(resultBefore.data.rows[0]?.count).toBe(2);
+      }
 
       // Delete post
       const deleteReq = new Request(
@@ -474,8 +476,12 @@ describe("ManyToMany Populate Integration Tests", () => {
       await handleRequest(forja, deleteReq);
 
       // Verify junction records are deleted
-      const junctionAfter = await forja.getAdapter().getCachedTable("post_tag");
-      expect(junctionAfter?.data).toHaveLength(0);
+      const countQueryAfter = { type: "count" as const, table: "post_tag" };
+      const resultAfter = await forja.getAdapter().executeQuery(countQueryAfter);
+      expect(resultAfter.success).toBe(true);
+      if (resultAfter.success) {
+        expect(resultAfter.data.rows[0]?.count).toBe(0);
+      }
 
       // Tags should still exist
       const tagsAfter = await forja.findMany("tag", {});
@@ -500,17 +506,23 @@ describe("ManyToMany Populate Integration Tests", () => {
       });
 
       // Verify junction table
-      const junctionBefore = await forja
-        .getAdapter()
-        .getCachedTable("post_tag");
-      expect(junctionBefore?.data).toHaveLength(4); // 2 posts × 2 tags
+      const countQueryBefore = { type: "count" as const, table: "post_tag" };
+      const resultBefore = await forja.getAdapter().executeQuery(countQueryBefore);
+      expect(resultBefore.success).toBe(true);
+      if (resultBefore.success) {
+        expect(resultBefore.data.rows[0]?.count).toBe(4); // 2 posts × 2 tags
+      }
 
       // Delete all posts by author
       await forja.deleteMany("post", { author: authors.john.id });
 
       // Verify junction records are deleted
-      const junctionAfter = await forja.getAdapter().getCachedTable("post_tag");
-      expect(junctionAfter?.data).toHaveLength(0);
+      const countQueryAfter = { type: "count" as const, table: "post_tag" };
+      const resultAfter = await forja.getAdapter().executeQuery(countQueryAfter);
+      expect(resultAfter.success).toBe(true);
+      if (resultAfter.success) {
+        expect(resultAfter.data.rows[0]?.count).toBe(0);
+      }
     });
   });
 

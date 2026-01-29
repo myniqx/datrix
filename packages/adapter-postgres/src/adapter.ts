@@ -194,11 +194,20 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
         rows = result.rows as readonly TResult[];
       }
 
+      // PostgreSQL driver returns numbers as strings, parse them
+      if (query.type === "count" && rows.length > 0) {
+        const countRow = rows[0] as unknown as { count: string | number };
+        if (typeof countRow.count === "string") {
+          countRow.count = parseInt(countRow.count, 10);
+        }
+      }
+
       let insertId: number | undefined;
 
       if (query.type === "insert" && rows.length > 0) {
         const firstRow = rows[0] as ForjaEntry;
-        insertId = firstRow["id"] as number;
+        const rawId = firstRow["id"];
+        insertId = typeof rawId === "string" ? parseInt(rawId, 10) : (rawId as number);
       }
 
       const metadata: QueryMetadata = {
@@ -376,7 +385,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
       // Create indexes (including unique constraints)
       if (schema.indexes && schema.indexes.length > 0) {
         for (const index of schema.indexes) {
-          const indexResult = await this.addIndex(schema.tableName!, index);
+          const indexResult = await this.addIndex(schema.tableName!, index, schema);
           if (!indexResult.success) {
             return indexResult;
           }
@@ -497,6 +506,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
   async addIndex(
     tableNameParam: string,
     index: IndexDefinition,
+    schema?: SchemaDefinition,
   ): Promise<Result<void, MigrationError>> {
     if (!this.pool) {
       return {
@@ -510,7 +520,20 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
       const escapedTable = this.getTranslator().escapeIdentifier(tableName);
       const indexName = index.name ?? `idx_${tableName}_${index.fields.join("_")}`;
       const escapedIndexName = this.getTranslator().escapeIdentifier(indexName);
-      const fields = index.fields
+
+      // Map field names: if field is a relation, use foreignKey instead
+      const mappedFields = index.fields.map((fieldName) => {
+        if (schema) {
+          const field = schema.fields[fieldName];
+          if (field && field.type === "relation") {
+            const relationField = field as { foreignKey?: string };
+            return relationField.foreignKey || fieldName;
+          }
+        }
+        return fieldName;
+      });
+
+      const fields = mappedFields
         .map((f) => this.getTranslator().escapeIdentifier(f))
         .join(", ");
       const unique = index.unique ? "UNIQUE " : "";

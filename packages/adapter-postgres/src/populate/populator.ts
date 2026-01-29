@@ -70,7 +70,7 @@ export class PostgresPopulator {
     }
 
     // Analyze populate requirements
-    const analysis = this.analyzePopulate(query.populate);
+    const analysis = this.analyzePopulate(query.populate, query.table);
 
     // Check max depth
     if (analysis.maxDepth > MAX_POPULATE_DEPTH) {
@@ -90,10 +90,8 @@ export class PostgresPopulator {
         return this.executeJsonAggregation<T>(query);
       case "lateral-joins":
         return this.executeLateralJoins<T>(query);
-      case "separate-queries":
-        /* TODO: Bu method sadece edge-case / legacy fallback olsun */
-        /* TODO: Default path olmaktan çıkar */
-        return this.executeSeparateQueries<T>(query);
+      case "batched-queries":
+        return this.executeBatchedQueries<T>(query);
     }
   }
 
@@ -181,66 +179,94 @@ export class PostgresPopulator {
   }
 
   /**
-   * Strategy 3: Separate Queries (Fallback for Deep Nesting)
+   * Strategy 3: Batched Queries (Deep Nesting / High Cardinality)
    *
-   * Executes separate queries for each relation (N+1 pattern).
-   * Fallback for very deep nesting or when other strategies fail.
+   * Executes batched queries for each relation (avoids N+1).
+   * Best for deep nesting (depth > 2) or high cardinality (estimatedCost > 8).
    *
-   * Less performant but more reliable for complex cases.
+   * Example:
+   * 1. Execute main query: SELECT * FROM posts
+   * 2. Batch populate tags: SELECT post_id, jsonb_agg(tags.*) FROM tags ... WHERE post_id = ANY($1) GROUP BY post_id
+   * 3. Map in memory: posts[i].tags = tagsMap.get(posts[i].id)
    */
-  private async executeSeparateQueries<T extends ForjaEntry>(
+  private async executeBatchedQueries<T extends ForjaEntry>(
     query: QueryObject<T>,
   ): Promise<readonly T[]> {
-    // First, execute main query
-    const mainResult = await this.pool.query(
-      this.translator.translate(query).sql,
-      this.translator.translate(query).params as unknown[],
-    );
-
+    const { sql, params } = this.translator.translate(query);
+    const mainResult = await this.pool.query(sql, params as unknown[]);
     const rows = mainResult.rows as T[];
 
     if (rows.length === 0) {
       return rows;
     }
 
-    // Then, populate each relation separately
-    await this.populateSeparately(rows, query.table, query.populate!);
+    const parentIds = rows.map((row) => row.id);
 
-    return rows;
-  }
-
-  /**
-   * Populate relations using separate queries (recursive)
-   */
-  private async populateSeparately<T extends ForjaEntry>(
-    rows: ForjaEntry[],
-    tableName: string,
-    populate: PopulateClause<T>,
-    depth = 0,
-  ): Promise<void> {
-    if (depth > MAX_POPULATE_DEPTH) {
-      throwMaxDepthExceeded(
-        depth,
-        MAX_POPULATE_DEPTH,
-        this.buildRelationPath(populate),
-      );
-    }
-
-    // Get schema
-    const modelName = this.schemaRegistry.findModelByTableName(tableName);
-    if (!modelName) return;
+    const modelName = this.schemaRegistry.findModelByTableName(query.table);
+    if (!modelName) return rows;
 
     const schema = this.schemaRegistry.get(modelName);
-    if (!schema) return;
+    if (!schema) return rows;
 
-    // Process each relation
-    for (const [relationName, options] of Object.entries(populate)) {
+    for (const [relationName, _options] of Object.entries(query.populate!)) {
       const relationField = schema.fields[relationName];
       if (!relationField || relationField.type !== "relation") continue;
 
-      // TODO: Implement separate query logic for each relation type
-      // This is the fallback strategy, similar to JsonAdapter approach
+      const relation = relationField as { kind: string; model: string; foreignKey?: string; through?: string };
+      const targetSchema = this.schemaRegistry.get(relation.model);
+      if (!targetSchema) continue;
+
+      const targetTable = targetSchema.tableName ?? relation.model.toLowerCase();
+
+      let batchQuery: string;
+      let fkColumn: string;
+
+      if (relation.kind === "belongsTo" || relation.kind === "hasOne") {
+        fkColumn = relation.foreignKey!;
+        batchQuery = `
+          SELECT "${fkColumn}" as _fk, row_to_json(t.*) as data
+          FROM ${this.translator.escapeIdentifier(targetTable)} t
+          WHERE t."id" = ANY($1)
+        `;
+      } else if (relation.kind === "hasMany") {
+        fkColumn = relation.foreignKey!;
+        batchQuery = `
+          SELECT "${fkColumn}" as _fk, jsonb_agg(row_to_json(t.*)) as data
+          FROM ${this.translator.escapeIdentifier(targetTable)} t
+          WHERE t."${fkColumn}" = ANY($1)
+          GROUP BY t."${fkColumn}"
+        `;
+      } else if (relation.kind === "manyToMany") {
+        const junctionTable = relation.through!;
+        const sourceFK = `${schema.name}Id`;
+        const targetFK = `${relation.model}Id`;
+
+        batchQuery = `
+          SELECT j."${sourceFK}" as _fk, jsonb_agg(row_to_json(t.*)) as data
+          FROM ${this.translator.escapeIdentifier(targetTable)} t
+          INNER JOIN ${this.translator.escapeIdentifier(junctionTable)} j
+            ON t."id" = j."${targetFK}"
+          WHERE j."${sourceFK}" = ANY($1)
+          GROUP BY j."${sourceFK}"
+        `;
+      } else {
+        continue;
+      }
+
+      const batchResult = await this.pool.query(batchQuery, [parentIds]);
+      const dataMap = new Map(batchResult.rows.map((r) => [r._fk, r.data]));
+
+      for (const row of rows) {
+        if (relation.kind === "belongsTo" || relation.kind === "hasOne") {
+          const fkValue = row[fkColumn as keyof T];
+          row[relationName as keyof T] = (dataMap.get(fkValue) || null) as T[keyof T];
+        } else {
+          row[relationName as keyof T] = (dataMap.get(row.id) || []) as T[keyof T];
+        }
+      }
     }
+
+    return rows;
   }
 
   /**
@@ -287,26 +313,47 @@ export class PostgresPopulator {
    * - Whether complex options are used
    * - Whether LATERAL joins are needed
    * - Number of relations
+   * - One-to-many relation count (cardinality risk)
+   * - Constrained relation count (limit/orderBy)
+   * - Estimated cost for strategy selection
    */
-  private analyzePopulate<T extends ForjaEntry>(populate: PopulateClause<T>): PopulateOptionsAnalysis {
-
-    /* TODO: relation schema'dan 1-N / N-1 ayrımı yap */
-    /* TODO: constrained relation (limit/orderBy) sayısını say */
-    /* TODO: estimatedCost = oneToManyCount * maxDepth */
-
+  private analyzePopulate<T extends ForjaEntry>(
+    populate: PopulateClause<T>,
+    tableName: string,
+  ): PopulateOptionsAnalysis {
     let maxDepth = 1;
     let hasComplexOptions = false;
     let relationCount = 0;
+    let oneToManyCount = 0;
+    let constrainedRelationCount = 0;
 
-    const analyze = (pop: PopulateClause<T>, depth: number): void => {
+    const analyze = (
+      pop: PopulateClause<T>,
+      currentTableName: string,
+      depth: number,
+    ): void => {
       if (depth > maxDepth) {
         maxDepth = depth;
       }
 
-      for (const [_relationName, options] of Object.entries(pop)) {
+      const modelName = this.schemaRegistry.findModelByTableName(currentTableName);
+      if (!modelName) return;
+
+      const schema = this.schemaRegistry.get(modelName);
+      if (!schema) return;
+
+      for (const [relationName, options] of Object.entries(pop)) {
         relationCount++;
 
-        // Check for complex options
+        const relationField = schema.fields[relationName];
+        if (!relationField || relationField.type !== "relation") continue;
+
+        const relation = relationField as { kind: string; model: string };
+
+        if (relation.kind === "hasMany" || relation.kind === "manyToMany") {
+          oneToManyCount++;
+        }
+
         if (typeof options === "object" && options !== null) {
           if (
             "limit" in options ||
@@ -315,17 +362,23 @@ export class PostgresPopulator {
             "orderBy" in options
           ) {
             hasComplexOptions = true;
+            constrainedRelationCount++;
           }
 
-          // Recursive nested populate
           if ("populate" in options && options.populate) {
-            analyze(options.populate, depth + 1);
+            const targetSchema = this.schemaRegistry.get(relation.model);
+            if (targetSchema) {
+              const targetTableName = targetSchema.tableName ?? relation.model.toLowerCase();
+              analyze(options.populate, targetTableName, depth + 1);
+            }
           }
         }
       }
     };
 
-    analyze(populate, 1);
+    analyze(populate, tableName, 1);
+
+    const estimatedCost = oneToManyCount * maxDepth;
 
     return {
       hasComplexOptions,
@@ -333,49 +386,32 @@ export class PostgresPopulator {
       requiresLateral: hasComplexOptions,
       requiresSeparateQueries: maxDepth > 3,
       relationCount,
+      oneToManyCount,
+      constrainedRelationCount,
+      estimatedCost,
     };
   }
 
   /**
    * Select populate strategy based on analysis
+   *
+   * Strategy selection logic:
+   * 1. Complex options (limit/where/orderBy) → lateral-joins
+   * 2. Deep nesting (depth > 2) or high cardinality (estimatedCost > 8) → batched-queries
+   * 3. Default → json-aggregation (subquery-based, no row explosion)
    */
   private selectStrategy(analysis: PopulateOptionsAnalysis): PopulateStrategy {
-
-    /*// TODO: | "batched-queries" >> N+1 yerine batch populate
-     TODO: high cardinality + deep nesting → batched-queries
-    if (analysis.estimatedCost > 8) {
-      return "batched-queries";
-    }
-    
-    than
-
-     TODO: SeparateQueries yerine batch IN-query populate 
-        private async executeBatchedQueries<T extends ForjaEntry>(
-          query: QueryObject<T>,
-        ): Promise<readonly T[]> {
-            >>
-              1. Ana query çalıştır
-              2. Parent id'leri topla
-              3. Her relation için:
-                SELECT fk, jsonb_agg(...) FROM child
-                WHERE fk = ANY($1)
-                GROUP BY fk
-              4. Memory'de map ederek bağla
-            >>
-          }
-    */
-
-    // Deep nesting: use separate queries
-    if (analysis.requiresSeparateQueries) {
-      return "separate-queries";
-    }
-
     // Complex options: use LATERAL joins
-    if (analysis.requiresLateral) {
+    if (analysis.hasComplexOptions) {
       return "lateral-joins";
     }
 
-    // Default: JSON aggregation
+    // Deep nesting or high cardinality: use batched queries
+    if (analysis.maxDepth > 2 || analysis.estimatedCost > 8) {
+      return "batched-queries";
+    }
+
+    // Default: JSON aggregation (subquery-based)
     return "json-aggregation";
   }
 

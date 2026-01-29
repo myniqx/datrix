@@ -16,7 +16,6 @@ import { throwResultProcessingError } from "../error-helper";
  * Processes flat SQL results into nested structures with populated relations.
  */
 export class ResultProcessor {
-  // TODO: eger populate edilen bir field bos dondu ise (populate edilecek field yoksa) objeler null deger arraylar [] olmali. undefined donmemeliler.
   constructor(private schemaRegistry: SchemaRegistry) { }
 
   /**
@@ -73,29 +72,40 @@ export class ResultProcessor {
         }
       }
 
+      // Check if all fields are null (LEFT JOIN with no match)
+      // If so, set relation to null instead of keeping object with all null fields
+      const relationValue = processed[relationName as keyof T];
+      if (relationValue && typeof relationValue === "object" && !Array.isArray(relationValue)) {
+        const allFieldsNull = Object.values(relationValue).every(
+          (v) => v === null || v === undefined
+        );
+        if (allFieldsNull) {
+          processed[relationName as keyof T] = null as T[keyof T];
+        }
+      }
+
       // Handle nested populate recursively
       if (typeof options === "object" && options !== null && options.populate) {
-        const relationValue = processed[relationName as keyof T];
+        const currentValue = processed[relationName as keyof T];
 
-        if (Array.isArray(relationValue)) {
+        if (Array.isArray(currentValue)) {
           // hasMany or manyToMany: process each item
-          processed[relationName as keyof T] = relationValue.map((item) =>
+          processed[relationName as keyof T] = currentValue.map((item) =>
             this.processRow(item, options.populate!),
           ) as T[keyof T];
-        } else if (relationValue !== null && typeof relationValue === "object") {
+        } else if (currentValue !== null && typeof currentValue === "object") {
           // belongsTo or hasOne: process single item
           processed[relationName as keyof T] = this.processRow(
-            relationValue as T,
+            currentValue as T,
             options.populate!,
           ) as T[keyof T];
         }
       }
 
-      // Clean up null values
-      if (processed[relationName as keyof T] === null) {
-        // For arrays (hasMany/manyToMany), null should be empty array
-        const relValue = row[relationName as keyof T];
-        if (Array.isArray(relValue) || this.isArrayRelation(relationName as keyof T, row)) {
+      // Clean up null values - convert to empty array for array relations
+      const finalValue = processed[relationName as keyof T];
+      if (finalValue === null || finalValue === undefined) {
+        if (this.isArrayRelation(relationName, processed)) {
           processed[relationName as keyof T] = [] as T[keyof T];
         }
       }
@@ -299,19 +309,15 @@ export class ResultProcessor {
    * Check if relation is array type (hasMany or manyToMany)
    */
   private isArrayRelation<T extends ForjaEntry>(
-    relationName: keyof T,
+    relationName: string | keyof T,
     row: T,
   ): boolean {
-    // Try to infer from schema
-    // This is a fallback heuristic
-    const value = row[relationName];
+    const value = row[relationName as keyof T];
 
-    // If it's already an array, return true
     if (Array.isArray(value)) {
       return true;
     }
 
-    // Otherwise, assume it's not an array
     return false;
   }
 

@@ -23,13 +23,6 @@ import {
   throwJsonAggregationError,
 } from "../error-helper";
 
-/* TODO:
-  AggregationBuilder prensipleri:
-  - JOIN değil aggregation düşün
-  - DISTINCT yerine subquery
-  - NULL yerine empty json
-  - ORDER BY + pagination deterministik olmalı
-*/
 
 /**
  * Aggregation Builder Class
@@ -37,18 +30,6 @@ import {
  * Generates SQL for JSON aggregation in SELECT clause.
  */
 export class AggregationBuilder {
-  /* TODO: DISTINCT kullanma
-     - json_agg öncesi subquery ile duplicate row'ları kır
-     - JOIN kaynaklı row explosion burada çözülmeli */
-
-  /* TODO: Tüm json_agg sonuçlarını
-     COALESCE(json_agg(...), '[]'::jsonb)
-     ile sarmala (NULL yerine empty array) */
-
-  /* TODO: orderBy kullanılıyorsa
-     - ilgili field için index yoksa
-     - optional dev-time warning üret (runtime throw yok) */
-
   constructor(
     private translator: PostgresQueryTranslator,
     private schemaRegistry: SchemaRegistry,
@@ -56,6 +37,10 @@ export class AggregationBuilder {
 
   /**
    * Build all aggregation clauses for a query
+   *
+   * For json-aggregation strategy:
+   * - belongsTo/hasOne: Uses row_to_json with JOINed table
+   * - hasMany/manyToMany: Uses subquery with json_agg (no JOIN, no row explosion)
    *
    * @param tableName - Source table name
    * @param populate - Populate clause
@@ -65,17 +50,6 @@ export class AggregationBuilder {
     tableName: string,
     populate: PopulateClause<T>,
   ): readonly AggregationClause[] {
-    /* TODO: hasMany / manyToMany için
-       json_agg doğrudan table'dan değil,
-       SELECT DISTINCT id FROM (...) subquery üstünden gelmeli */
-
-    /* TODO: FILTER (WHERE id IS NOT NULL)
-       yerine subquery WHERE ile NULL elimine et */
-
-    /* TODO: json_agg içine ORDER BY desteği ekle
-       (Postgres supports: json_agg(...) ORDER BY ...) */
-
-    // Get current schema
     const modelName = this.schemaRegistry.findModelByTableName(tableName);
     if (!modelName) {
       throwModelNotFound(tableName);
@@ -88,9 +62,7 @@ export class AggregationBuilder {
 
     const aggregations: AggregationClause[] = [];
 
-    // Build aggregation for each relation
     for (const [relationName, options] of Object.entries(populate)) {
-      // Get relation field
       const relationField = schema.fields[relationName];
       if (!relationField) {
         throwRelationNotFound(relationName, schema.name);
@@ -104,6 +76,7 @@ export class AggregationBuilder {
 
       try {
         const aggregation = this.buildRelationAggregation(
+          tableName,
           relationName,
           relField,
           options,
@@ -127,13 +100,12 @@ export class AggregationBuilder {
    * Build aggregation for a specific relation
    */
   private buildRelationAggregation<T extends ForjaEntry>(
+    sourceTable: string,
     relationName: string,
     relation: RelationField,
     options: PopulateOptions<T>,
   ): AggregationClause {
     const relationAlias = this.translator.escapeIdentifier(relationName);
-
-    // Get field selection
     const fieldSelection = this.buildFieldSelection(relationName, relation, options);
 
     let sql: string;
@@ -141,36 +113,21 @@ export class AggregationBuilder {
     switch (relation.kind) {
       case "belongsTo":
       case "hasOne":
-        /* TODO: row_to_json yerine
-          jsonb_build_object ile explicit field mapping opsiyonu ekle
-          (nested populate geldiğinde daha güvenli) */
-        // Single object: row_to_json()
+        // Single object: row_to_json() from JOINed table
         sql = `row_to_json(${relationAlias}.*) AS ${relationAlias}`;
         if (fieldSelection.fields && fieldSelection.fields !== "*") {
-          // If specific fields selected, use ROW constructor
           sql = `row_to_json((SELECT r FROM (SELECT ${fieldSelection.sql}) r)) AS ${relationAlias}`;
         }
         break;
 
       case "hasMany":
+        // Array: use subquery to avoid row explosion
+        sql = this.buildHasManySubquery(sourceTable, relationName, relation, fieldSelection);
+        break;
+
       case "manyToMany":
-        /* TODO: fieldSelection varsa:
-          row_to_json yerine
-          jsonb_build_object(field1, value1, ...)
-          kullan → gereksiz nesting azaltılır */
-
-        /* TODO: empty result için
-           COALESCE(json_agg(...), '[]'::jsonb) */
-
-        // Array of objects: json_agg()
-        // FILTER clause handles NULL values (no related records)
-        // Note: DISTINCT removed - junction table ensures uniqueness and DISTINCT doesn't work with JSON types
-
-        if (fieldSelection.fields && fieldSelection.fields !== "*") {
-          sql = `json_agg(row_to_json((SELECT r FROM (SELECT ${fieldSelection.sql}) r))) FILTER (WHERE ${relationAlias}."id" IS NOT NULL) AS ${relationAlias}`;
-        } else {
-          sql = `json_agg(row_to_json(${relationAlias}.*)) FILTER (WHERE ${relationAlias}."id" IS NOT NULL) AS ${relationAlias}`;
-        }
+        // Array: use subquery with junction table
+        sql = this.buildManyToManySubquery(sourceTable, relationName, relation, fieldSelection);
         break;
 
       default:
@@ -183,6 +140,123 @@ export class AggregationBuilder {
       sql,
       alias: relationName,
     };
+  }
+
+  /**
+   * Build hasMany subquery (no JOIN, no row explosion)
+   *
+   * Generates:
+   * ```sql
+   * (
+   *   SELECT COALESCE(json_agg(row_to_json(t.*)), '[]'::jsonb)
+   *   FROM (
+   *     SELECT target.*
+   *     FROM target_table target
+   *     WHERE target.foreignKey = source_table.id
+   *   ) t
+   * ) AS relationName
+   * ```
+   */
+  private buildHasManySubquery(
+    sourceTable: string,
+    relationName: string,
+    relation: RelationField,
+    fieldSelection: PopulateFieldSelection,
+  ): string {
+    const targetSchema = this.schemaRegistry.get(relation.model);
+    if (!targetSchema) {
+      throwTargetModelNotFound(relation.model, relationName, sourceTable);
+    }
+
+    const targetTable = targetSchema.tableName ?? relation.model.toLowerCase();
+    const foreignKey = relation.foreignKey!;
+
+    const sourceTableEsc = this.translator.escapeIdentifier(sourceTable);
+    const targetTableEsc = this.translator.escapeIdentifier(targetTable);
+    const foreignKeyEsc = this.translator.escapeIdentifier(foreignKey);
+    const relationAlias = this.translator.escapeIdentifier(relationName);
+
+    const selectFields = fieldSelection.sql || `${targetTableEsc}.*`;
+
+    const subquery = `
+      (
+        SELECT COALESCE(jsonb_agg(row_to_json(t.*)), '[]'::jsonb)
+        FROM (
+          SELECT ${selectFields}
+          FROM ${targetTableEsc}
+          WHERE ${targetTableEsc}.${foreignKeyEsc} = ${sourceTableEsc}."id"
+        ) t
+      ) AS ${relationAlias}
+    `.trim().replace(/\s+/g, " ");
+
+    return subquery;
+  }
+
+  /**
+   * Build manyToMany subquery with junction table (no JOIN, no row explosion)
+   *
+   * Generates:
+   * ```sql
+   * (
+   *   SELECT COALESCE(json_agg(row_to_json(t.*)), '[]'::jsonb)
+   *   FROM (
+   *     SELECT target.*
+   *     FROM target_table target
+   *     INNER JOIN junction_table ON target.id = junction_table.TargetId
+   *     WHERE junction_table.SourceId = source_table.id
+   *   ) t
+   * ) AS relationName
+   * ```
+   */
+  private buildManyToManySubquery(
+    sourceTable: string,
+    relationName: string,
+    relation: RelationField,
+    fieldSelection: PopulateFieldSelection,
+  ): string {
+    const targetSchema = this.schemaRegistry.get(relation.model);
+    if (!targetSchema) {
+      throwTargetModelNotFound(relation.model, relationName, sourceTable);
+    }
+
+    const targetTable = targetSchema.tableName ?? relation.model.toLowerCase();
+    const junctionTable = relation.through!;
+
+    const currentModelName = this.schemaRegistry.findModelByTableName(sourceTable);
+    if (!currentModelName) {
+      throwModelNotFound(sourceTable);
+    }
+
+    const currentSchema = this.schemaRegistry.get(currentModelName);
+    if (!currentSchema) {
+      throwSchemaNotFound(currentModelName);
+    }
+
+    const sourceFK = `${currentSchema.name}Id`;
+    const targetFK = `${relation.model}Id`;
+
+    const sourceTableEsc = this.translator.escapeIdentifier(sourceTable);
+    const targetTableEsc = this.translator.escapeIdentifier(targetTable);
+    const junctionTableEsc = this.translator.escapeIdentifier(junctionTable);
+    const sourceFKEsc = this.translator.escapeIdentifier(sourceFK);
+    const targetFKEsc = this.translator.escapeIdentifier(targetFK);
+    const relationAlias = this.translator.escapeIdentifier(relationName);
+
+    const selectFields = fieldSelection.sql || `${targetTableEsc}.*`;
+
+    const subquery = `
+      (
+        SELECT COALESCE(jsonb_agg(row_to_json(t.*)), '[]'::jsonb)
+        FROM (
+          SELECT ${selectFields}
+          FROM ${targetTableEsc}
+          INNER JOIN ${junctionTableEsc} ON ${targetTableEsc}."id" = ${junctionTableEsc}.${targetFKEsc}
+          WHERE ${junctionTableEsc}.${sourceFKEsc} = ${sourceTableEsc}."id"
+        ) t
+      ) AS ${relationAlias}
+    `.trim().replace(/\s+/g, " ");
+
+    return subquery;
   }
 
   /**
@@ -210,16 +284,6 @@ export class AggregationBuilder {
     relation: RelationField,
     options: PopulateOptions<T>,
   ): string {
-    /* TODO: aggregationFunc === json_agg ise
-   ORDER BY subquery içinde zorunlu olsun
-   (pagination deterministik olmalı) */
-
-    /* TODO: belongsTo + limit/offset gelirse
-       otomatik limit 1 enforce et */
-
-    /* TODO: opts.where varsa
-       param index offset'ini translator'dan al
-       (hardcoded 1 kullanımı ileride kırılır) */
 
     // Get target schema
     const targetSchema = this.schemaRegistry.get(relation.model);
@@ -310,12 +374,6 @@ export class AggregationBuilder {
     relation: RelationField,
     options: PopulateOptions<T>,
   ): string {
-    /* TODO: junction table join'i
-        önce source → junction → target şeklinde sabitle
-        (planner için daha stabil) */
-
-    /* TODO: many-to-many'de duplicate target id'leri
-       subquery DISTINCT ile kır */
 
     // Get schemas
     const targetSchema = this.schemaRegistry.get(relation.model);

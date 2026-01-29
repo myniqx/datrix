@@ -26,15 +26,6 @@ import { PostgresQueryObject } from "forja-adapter-postgres/types";
  * Generates optimized JOIN clauses for different populate strategies.
  */
 export class JoinBuilder {
-  /* TODO: hasMany / manyToMany için
-   default JOIN üretme yerine
-   strategy === json-aggregation ise
-   mümkün olduğunca JOIN sayısını azalt
-   (row explosion JOIN aşamasında başlamasın) */
-
-  /* TODO: JOIN üretimi sırasında
-     relation başına estimated cardinality bilgisini
-     (1 / N) future optimizer için bırak */
   constructor(
     private schemaRegistry: SchemaRegistry,
     private translator: PostgresQueryTranslator,
@@ -42,6 +33,13 @@ export class JoinBuilder {
 
   /**
    * Build all JOINs for a query
+   *
+   * For json-aggregation strategy:
+   * - Only generates JOINs for belongsTo and hasOne relations
+   * - hasMany and manyToMany use subqueries (no JOIN to avoid row explosion)
+   *
+   * For lateral-joins strategy:
+   * - Handles all complex populate options via LATERAL subqueries
    *
    * @param query - Query with populate
    * @param strategy - Populate strategy
@@ -51,13 +49,10 @@ export class JoinBuilder {
     query: PostgresQueryObject<T>,
     strategy: PopulateStrategy,
   ): readonly JoinClause[] {
-    /* TODO: populate depth bilgisi buraya inject edilebilir
-   (deep populate → JOIN yerine LATERAL/aggregation zorla) */
     if (!query.populate) {
       return [];
     }
 
-    // Get current schema
     const modelName = this.schemaRegistry.findModelByTableName(query.table);
     if (!modelName) {
       throwModelNotFound(query.table);
@@ -70,9 +65,7 @@ export class JoinBuilder {
 
     const joins: JoinClause[] = [];
 
-    // Build JOIN for each relation
     for (const [relationName, options] of Object.entries(query.populate)) {
-      // Get relation field
       const relationField = schema.fields[relationName];
       if (!relationField) {
         throwRelationNotFound(relationName, schema.name);
@@ -84,16 +77,30 @@ export class JoinBuilder {
 
       const relField = relationField as RelationField;
 
-      // Build JOIN based on strategy and relation kind
-      const joinClauses = this.buildRelationJoin(
-        query.table,
-        relationName,
-        relField,
-        strategy,
-        options,
-      );
-
-      joins.push(...joinClauses);
+      // For json-aggregation strategy: only JOIN belongsTo/hasOne
+      // hasMany/manyToMany will use subqueries in AggregationBuilder
+      if (strategy === "json-aggregation") {
+        if (relField.kind === "belongsTo" || relField.kind === "hasOne") {
+          const joinClauses = this.buildRelationJoin(
+            query.table,
+            relationName,
+            relField,
+            strategy,
+            options,
+          );
+          joins.push(...joinClauses);
+        }
+      } else {
+        // For lateral-joins: build LATERAL JOINs for all relations
+        const joinClauses = this.buildRelationJoin(
+          query.table,
+          relationName,
+          relField,
+          strategy,
+          options,
+        );
+        joins.push(...joinClauses);
+      }
     }
 
     return joins;
@@ -109,10 +116,6 @@ export class JoinBuilder {
     strategy: PopulateStrategy,
     options: unknown,
   ): JoinClause[] {
-    /* TODO: strategy === json-aggregation &&
-   relation.kind === hasMany|manyToMany ise
-   JOIN üretmeyi opsiyonel hale getir
-   (aggregation subquery tek başına yeterli olabilir) */
     try {
       switch (relation.kind) {
         case "belongsTo":

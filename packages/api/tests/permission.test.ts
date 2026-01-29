@@ -25,12 +25,14 @@ import {
 import { JwtStrategy } from "../src/auth/jwt";
 import fs from "node:fs/promises";
 import path from "node:path";
-
-/** API Response type for type-safe json parsing */
-interface ApiResponse<T = Record<string, unknown>> {
-  data?: T;
-  error?: { message: string; code: string };
-}
+import {
+  expectApiSingle,
+  expectApiError,
+  expectApiForbidden,
+  expectApiUnauthorized,
+  expectSuccessData,
+  expectApiMulti,
+} from "forja-types/test/helpers";
 
 describe("Schema-Level Permission Tests", () => {
   let forja: Forja;
@@ -150,7 +152,6 @@ describe("Schema-Level Permission Tests", () => {
     });
 
     it("should create auth record when user is created", async () => {
-      // Create a user
       const createResponse = await handleRequest(
         forja,
         createRequest("/api/users", {
@@ -163,31 +164,25 @@ describe("Schema-Level Permission Tests", () => {
         }),
       );
 
-      const createData = (await createResponse.json()) as ApiResponse<{
-        id: number;
-      }>;
-      expect(createResponse.status).toBe(201);
-      const userId = createData.data!.id;
+      const user = await expectApiSingle<{ id: number }>(createResponse, 201);
+      const userId = user.id!;
 
-      // Verify auth record was created
+      // Verify auth record was created via direct adapter query
       const adapter = forja.getAdapter();
       const authResult = await adapter.executeQuery({
         type: "select",
         table: "authentications",
-        where: { userId: String(userId) },
+        where: { user: { id: { $eq: userId } } },
       });
 
-      expect(authResult.success).toBe(true);
-      if (authResult.success && Array.isArray(authResult.data)) {
-        expect(authResult.data.length).toBe(1);
-        const authRecord = authResult.data[0] as { email: string; userId: string };
-        expect(authRecord.email).toBe("newuser@test.com");
-        expect(authRecord.userId).toBe(String(userId));
-      }
+      const authData = expectSuccessData(authResult);
+      expect(authData.rows).toHaveLength(1);
+      const authRecord = authData.rows[0] as { email: string; user: number };
+      expect(authRecord.email).toBe("newuser@test.com");
+      expect(authRecord.user).toBe(userId);
     });
 
     it("should sync auth email when user email is updated", async () => {
-      // Create a user first
       const createResponse = await handleRequest(
         forja,
         createRequest("/api/users", {
@@ -200,9 +195,8 @@ describe("Schema-Level Permission Tests", () => {
         }),
       );
 
-      const createData = (await createResponse.json()) as { data: { id: number } };
-      expect(createResponse.status).toBe(201);
-      const userId = createData.data.id;
+      const user = await expectApiSingle<{ id: number }>(createResponse, 201);
+      const userId = user.id!;
 
       // Update user email
       const updateResponse = await handleRequest(
@@ -214,29 +208,23 @@ describe("Schema-Level Permission Tests", () => {
         }),
       );
 
-      expect(updateResponse.status).toBe(200);
+      await expectApiSingle(updateResponse, 200);
 
       // Verify auth record was also updated
-      // Query authentication table directly via adapter
       const adapter = forja.getAdapter();
       const authResult = await adapter.executeQuery({
         type: "select",
         table: "authentication",
-        where: { userId: String(userId) },
+        where: { user: { id: { $eq: userId } } },
       });
 
-      if (
-        authResult.success &&
-        Array.isArray(authResult.data) &&
-        authResult.data.length > 0
-      ) {
-        const authRecord = authResult.data[0] as { email: string };
-        expect(authRecord.email).toBe("updated-sync@test.com");
-      }
+      const authData = expectSuccessData(authResult);
+      expect(authData.rows).toHaveLength(1);
+      const authRecord = authData.rows[0] as { email: string };
+      expect(authRecord.email).toBe("updated-sync@test.com");
     });
 
     it("should delete auth record when user is deleted", async () => {
-      // Create a user
       const createResponse = await handleRequest(
         forja,
         createRequest("/api/users", {
@@ -249,8 +237,8 @@ describe("Schema-Level Permission Tests", () => {
         }),
       );
 
-      const createData = (await createResponse.json()) as { data: { id: number } };
-      const userId = createData.data.id;
+      const user = await expectApiSingle<{ id: number }>(createResponse, 201);
+      const userId = user.id!;
 
       // Delete user
       const deleteResponse = await handleRequest(
@@ -261,19 +249,18 @@ describe("Schema-Level Permission Tests", () => {
         }),
       );
 
-      expect(deleteResponse.status).toBe(200);
+      await expectApiSingle(deleteResponse, 200);
 
       // Verify auth record was also deleted
       const adapter = forja.getAdapter();
       const authResult = await adapter.executeQuery({
         type: "select",
         table: "authentication",
-        where: { userId: String(userId) },
+        where: { user: { id: { $eq: userId } } },
       });
 
-      if (authResult.success && Array.isArray(authResult.data)) {
-        expect(authResult.data.length).toBe(0);
-      }
+      const authData = expectSuccessData(authResult);
+      expect(authData.rows).toHaveLength(0);
     });
   });
 
@@ -296,10 +283,8 @@ describe("Schema-Level Permission Tests", () => {
           }),
         );
 
-        const data = (await response.json()) as ApiResponse<{ id: number }>;
-        expect(response.status).toBe(201);
-        expect(data.data).toHaveProperty("id");
-        categoryId = data.data!.id;
+        const category = await expectApiSingle<{ id: number }>(response, 201);
+        categoryId = category.id!;
       });
 
       it("should deny editor from creating (403)", async () => {
@@ -312,7 +297,7 @@ describe("Schema-Level Permission Tests", () => {
           }),
         );
 
-        expect(response.status).toBe(403);
+        await expectApiForbidden(response);
       });
 
       it("should deny user from creating (403)", async () => {
@@ -325,7 +310,7 @@ describe("Schema-Level Permission Tests", () => {
           }),
         );
 
-        expect(response.status).toBe(403);
+        await expectApiForbidden(response);
       });
 
       it("should deny unauthenticated from creating (401)", async () => {
@@ -337,7 +322,7 @@ describe("Schema-Level Permission Tests", () => {
           }),
         );
 
-        expect(response.status).toBe(401);
+        await expectApiUnauthorized(response);
       });
     });
 
@@ -348,9 +333,8 @@ describe("Schema-Level Permission Tests", () => {
           createRequest(`/api/categories/${categoryId}`),
         );
 
-        expect(response.status).toBe(200);
-        const data = (await response.json()) as ApiResponse<{ name: string }>;
-        expect(data.data!.name).toBe("Test Category");
+        const category = await expectApiSingle<{ name: string }>(response, 200);
+        expect(category.name).toBe("Test Category");
       });
 
       it("should allow any role to read list", async () => {
@@ -359,9 +343,8 @@ describe("Schema-Level Permission Tests", () => {
           createRequest("/api/categories", { token: tokens.guest }),
         );
 
-        expect(response.status).toBe(200);
-        const data = (await response.json()) as ApiResponse<unknown[]>;
-        expect(Array.isArray(data.data)).toBe(true);
+        const result = await expectApiMulti(response, 200);
+        expect(Array.isArray(result.data)).toBe(true);
       });
     });
 
@@ -376,7 +359,7 @@ describe("Schema-Level Permission Tests", () => {
           }),
         );
 
-        expect(response.status).toBe(200);
+        await expectApiSingle(response, 200);
       });
 
       it("should allow editor to update", async () => {
@@ -389,7 +372,7 @@ describe("Schema-Level Permission Tests", () => {
           }),
         );
 
-        expect(response.status).toBe(200);
+        await expectApiSingle(response, 200);
       });
 
       it("should deny user from updating (403)", async () => {
@@ -402,7 +385,7 @@ describe("Schema-Level Permission Tests", () => {
           }),
         );
 
-        expect(response.status).toBe(403);
+        await expectApiForbidden(response);
       });
 
       it("should deny unauthenticated from updating (401)", async () => {
@@ -414,7 +397,7 @@ describe("Schema-Level Permission Tests", () => {
           }),
         );
 
-        expect(response.status).toBe(401);
+        await expectApiUnauthorized(response);
       });
     });
 
@@ -428,7 +411,7 @@ describe("Schema-Level Permission Tests", () => {
           }),
         );
 
-        expect(response.status).toBe(403);
+        await expectApiForbidden(response);
       });
 
       it("should deny user from deleting (403)", async () => {
@@ -440,7 +423,7 @@ describe("Schema-Level Permission Tests", () => {
           }),
         );
 
-        expect(response.status).toBe(403);
+        await expectApiForbidden(response);
       });
 
       it("should allow admin to delete", async () => {
@@ -452,7 +435,7 @@ describe("Schema-Level Permission Tests", () => {
           }),
         );
 
-        expect(response.status).toBe(200);
+        await expectApiSingle(response, 200);
       });
     });
   });
@@ -480,8 +463,9 @@ describe("Schema-Level Permission Tests", () => {
           },
         }),
       );
-      const data = (await response.json()) as ApiResponse<{ id: number }>;
-      supplierId = data.data!.id;
+
+      const supplier = await expectApiSingle<{ id: number }>(response, 201);
+      supplierId = supplier.id!;
     });
 
     describe("READ permission (function: authenticated only)", () => {
@@ -491,7 +475,7 @@ describe("Schema-Level Permission Tests", () => {
           createRequest(`/api/suppliers/${supplierId}`),
         );
 
-        expect(response.status).toBe(401);
+        await expectApiUnauthorized(response);
       });
 
       it("should allow any authenticated user to read", async () => {
@@ -500,7 +484,7 @@ describe("Schema-Level Permission Tests", () => {
           createRequest(`/api/suppliers/${supplierId}`, { token: tokens.user }),
         );
 
-        expect(response.status).toBe(200);
+        await expectApiSingle(response, 200);
       });
 
       it("should allow guest (authenticated) to read", async () => {
@@ -509,7 +493,7 @@ describe("Schema-Level Permission Tests", () => {
           createRequest(`/api/suppliers/${supplierId}`, { token: tokens.guest }),
         );
 
-        expect(response.status).toBe(200);
+        await expectApiSingle(response, 200);
       });
     });
 
@@ -528,7 +512,7 @@ describe("Schema-Level Permission Tests", () => {
           }),
         );
 
-        expect(response.status).toBe(201);
+        await expectApiSingle(response, 201);
       });
 
       it("should deny user from creating (403)", async () => {
@@ -545,7 +529,7 @@ describe("Schema-Level Permission Tests", () => {
           }),
         );
 
-        expect(response.status).toBe(403);
+        await expectApiForbidden(response);
       });
     });
   });
@@ -567,9 +551,8 @@ describe("Schema-Level Permission Tests", () => {
         }),
       );
 
-      expect(response.status).toBe(201);
-      const data = (await response.json()) as ApiResponse<{ id: number }>;
-      publicId = data.data!.id;
+      const publicItem = await expectApiSingle<{ id: number }>(response, 201);
+      publicId = publicItem.id!;
     });
 
     it("should allow unauthenticated to read", async () => {
@@ -578,7 +561,7 @@ describe("Schema-Level Permission Tests", () => {
         createRequest(`/api/publics/${publicId}`),
       );
 
-      expect(response.status).toBe(200);
+      await expectApiSingle(response, 200);
     });
 
     it("should allow unauthenticated to update", async () => {
@@ -590,7 +573,7 @@ describe("Schema-Level Permission Tests", () => {
         }),
       );
 
-      expect(response.status).toBe(200);
+      await expectApiSingle(response, 200);
     });
 
     it("should allow unauthenticated to delete", async () => {
@@ -601,7 +584,7 @@ describe("Schema-Level Permission Tests", () => {
         }),
       );
 
-      expect(response.status).toBe(200);
+      await expectApiSingle(response, 200);
     });
   });
 
@@ -624,9 +607,8 @@ describe("Schema-Level Permission Tests", () => {
           }),
         );
 
-        expect(response.status).toBe(201);
-        const data = (await response.json()) as ApiResponse<{ id: number }>;
-        restrictedId = data.data!.id;
+        const restricted = await expectApiSingle<{ id: number }>(response, 201);
+        restrictedId = restricted.id!;
       });
 
       it("should allow admin to read", async () => {
@@ -637,7 +619,7 @@ describe("Schema-Level Permission Tests", () => {
           }),
         );
 
-        expect(response.status).toBe(200);
+        await expectApiSingle(response, 200);
       });
 
       it("should allow admin to update", async () => {
@@ -650,7 +632,7 @@ describe("Schema-Level Permission Tests", () => {
           }),
         );
 
-        expect(response.status).toBe(200);
+        await expectApiSingle(response, 200);
       });
     });
 
@@ -663,7 +645,7 @@ describe("Schema-Level Permission Tests", () => {
           }),
         );
 
-        expect(response.status).toBe(403);
+        await expectApiForbidden(response);
       });
 
       it("should deny user from creating (403)", async () => {
@@ -676,7 +658,7 @@ describe("Schema-Level Permission Tests", () => {
           }),
         );
 
-        expect(response.status).toBe(403);
+        await expectApiForbidden(response);
       });
 
       it("should deny unauthenticated from reading (401)", async () => {
@@ -685,7 +667,7 @@ describe("Schema-Level Permission Tests", () => {
           createRequest(`/api/restricteds/${restrictedId}`),
         );
 
-        expect(response.status).toBe(401);
+        await expectApiUnauthorized(response);
       });
     });
 
@@ -699,7 +681,7 @@ describe("Schema-Level Permission Tests", () => {
           }),
         );
 
-        expect(response.status).toBe(200);
+        await expectApiSingle(response, 200);
       });
     });
   });
@@ -722,9 +704,8 @@ describe("Schema-Level Permission Tests", () => {
         }),
       );
 
-      expect(response.status).toBe(201);
-      const data = (await response.json()) as ApiResponse<{ id: number }>;
-      secretId = data.data!.id;
+      const secret = await expectApiSingle<{ id: number }>(response, 201);
+      secretId = secret.id!;
     });
 
     it("should deny editor from creating (from defaultPermission)", async () => {
@@ -737,7 +718,7 @@ describe("Schema-Level Permission Tests", () => {
         }),
       );
 
-      expect(response.status).toBe(403);
+      await expectApiForbidden(response);
     });
 
     it("should allow unauthenticated to read (defaultPermission read=true)", async () => {
@@ -746,7 +727,7 @@ describe("Schema-Level Permission Tests", () => {
         createRequest(`/api/secrets/${secretId}`),
       );
 
-      expect(response.status).toBe(200);
+      await expectApiSingle(response, 200);
     });
 
     it("should deny user from updating (from defaultPermission)", async () => {
@@ -759,7 +740,7 @@ describe("Schema-Level Permission Tests", () => {
         }),
       );
 
-      expect(response.status).toBe(403);
+      await expectApiForbidden(response);
     });
   });
 
@@ -808,17 +789,16 @@ describe("Schema-Level Permission Tests", () => {
             category: 1,
             supplier: 1,
             sku: "TEST-001",
-            createdBy: userId.toString(), // Set owner as user
+            createdBy: userId.toString(),
           },
         }),
       );
 
-
-      const data = (await response.json()) as ApiResponse<{ id: number }>;
-      productId = data.data!.id;
+      const product = await expectApiSingle<{ id: number }>(response, 201);
+      productId = product.id!;
     });
 
-    it("should allow !editor changed to admin to create product", async () => {
+    it("should allow editor to create product", async () => {
       const response = await handleRequest(
         forja,
         createRequest("/api/products", {
@@ -831,13 +811,13 @@ describe("Schema-Level Permission Tests", () => {
             category: 1,
             supplier: 1,
             sku: "TEST-002",
-            createdBy: userId.toString(), // Set owner as user
+            createdBy: userId.toString(),
           },
         }),
       );
-      const data = (await response.json()) as ApiResponse<{ id: number }>;
-      expect(response.status).toBe(201);
-      productId = data.data!.id;
+
+      const product = await expectApiSingle<{ id: number }>(response, 201);
+      productId = product.id!;
     });
 
     describe("UPDATE with mixed permission (role OR owner)", () => {
@@ -851,8 +831,7 @@ describe("Schema-Level Permission Tests", () => {
           }),
         );
 
-        const result = await response.json();
-        expect(response.status).toBe(200);
+        await expectApiSingle(response, 200);
       });
 
       it("should allow editor to update any product", async () => {
@@ -865,7 +844,7 @@ describe("Schema-Level Permission Tests", () => {
           }),
         );
 
-        expect(response.status).toBe(200);
+        await expectApiSingle(response, 200);
       });
 
       it("should allow owner (user) to update their own product", async () => {
@@ -878,7 +857,7 @@ describe("Schema-Level Permission Tests", () => {
           }),
         );
 
-        expect(response.status).toBe(200);
+        await expectApiSingle(response, 200);
       });
 
       it("should deny guest from updating (not admin/editor/owner)", async () => {
@@ -891,7 +870,7 @@ describe("Schema-Level Permission Tests", () => {
           }),
         );
 
-        expect(response.status).toBe(403);
+        await expectApiForbidden(response);
       });
     });
 
@@ -905,7 +884,7 @@ describe("Schema-Level Permission Tests", () => {
           }),
         );
 
-        expect(response.status).toBe(403);
+        await expectApiForbidden(response);
       });
 
       it("should allow admin to delete", async () => {
@@ -917,7 +896,7 @@ describe("Schema-Level Permission Tests", () => {
           }),
         );
 
-        expect(response.status).toBe(200);
+        await expectApiSingle(response, 200);
       });
     });
   });
