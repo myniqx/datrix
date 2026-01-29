@@ -140,6 +140,7 @@ export interface NumberField<
   readonly max?: number;
   readonly integer?: boolean;
   readonly unique?: boolean;
+  readonly autoIncrement?: boolean;
   readonly validator?: (value: number) => true | string;
 }
 

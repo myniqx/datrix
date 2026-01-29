@@ -26,6 +26,15 @@ import { PostgresQueryObject } from "forja-adapter-postgres/types";
  * Generates optimized JOIN clauses for different populate strategies.
  */
 export class JoinBuilder {
+  /* TODO: hasMany / manyToMany için
+   default JOIN üretme yerine
+   strategy === json-aggregation ise
+   mümkün olduğunca JOIN sayısını azalt
+   (row explosion JOIN aşamasında başlamasın) */
+
+  /* TODO: JOIN üretimi sırasında
+     relation başına estimated cardinality bilgisini
+     (1 / N) future optimizer için bırak */
   constructor(
     private schemaRegistry: SchemaRegistry,
     private translator: PostgresQueryTranslator,
@@ -42,6 +51,8 @@ export class JoinBuilder {
     query: PostgresQueryObject<T>,
     strategy: PopulateStrategy,
   ): readonly JoinClause[] {
+    /* TODO: populate depth bilgisi buraya inject edilebilir
+   (deep populate → JOIN yerine LATERAL/aggregation zorla) */
     if (!query.populate) {
       return [];
     }
@@ -98,6 +109,10 @@ export class JoinBuilder {
     strategy: PopulateStrategy,
     options: unknown,
   ): JoinClause[] {
+    /* TODO: strategy === json-aggregation &&
+   relation.kind === hasMany|manyToMany ise
+   JOIN üretmeyi opsiyonel hale getir
+   (aggregation subquery tek başına yeterli olabilir) */
     try {
       switch (relation.kind) {
         case "belongsTo":

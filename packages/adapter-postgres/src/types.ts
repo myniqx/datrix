@@ -8,6 +8,11 @@ import { PopulateClause, QueryMetadata, QueryObject } from "forja-types";
 import { FieldType, ForjaEntry } from "forja-types/core/schema";
 import { PopulateStrategy } from "./populate";
 
+export interface TranslateResult {
+  readonly sql: string;
+  readonly params: unknown[];
+  readonly needAggregation: boolean;
+}
 
 /**
  * PostgreSQL connection configuration
@@ -291,7 +296,7 @@ export function fromPostgresValue(value: unknown, fieldType: FieldType): unknown
 
 
 export interface PostgresQueryObject<T extends ForjaEntry> extends QueryObject<T> {
-  _metadata: {
+  _metadata?: {
     populateAggregations?: string | undefined;
     populateJoins?: string | undefined;
     populateStrategy?: PopulateStrategy | undefined;

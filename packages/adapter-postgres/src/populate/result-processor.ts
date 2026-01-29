@@ -16,6 +16,7 @@ import { throwResultProcessingError } from "../error-helper";
  * Processes flat SQL results into nested structures with populated relations.
  */
 export class ResultProcessor {
+  // TODO: eger populate edilen bir field bos dondu ise (populate edilecek field yoksa) objeler null deger arraylar [] olmali. undefined donmemeliler.
   constructor(private schemaRegistry: SchemaRegistry) { }
 
   /**

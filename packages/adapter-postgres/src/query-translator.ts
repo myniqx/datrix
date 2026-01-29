@@ -16,7 +16,7 @@ import type { QueryTranslator } from "forja-types/adapter";
 import { QueryError } from "forja-types/adapter";
 import type { SchemaRegistry } from "forja-core/schema";
 import { ForjaEntry } from "forja-types";
-import { PostgresQueryObject } from "./types";
+import { PostgresQueryObject, TranslateResult } from "./types";
 
 /**
  * Maximum nesting depth for WHERE clauses to prevent stack overflow
@@ -60,6 +60,13 @@ export class PostgresQueryTranslator implements QueryTranslator {
     let processedValue = value;
     if (Array.isArray(value) || (typeof value === 'object' && value !== null && !(value instanceof Date))) {
       processedValue = JSON.stringify(value);
+    } else if (typeof value === 'string') {
+      // Try to parse numeric strings to avoid type mismatch with INTEGER columns
+      // This handles cases where API sends "123" instead of 123
+      const numValue = Number(value);
+      if (!isNaN(numValue) && value.trim() !== '') {
+        processedValue = numValue;
+      }
     }
 
     this.params.push(processedValue);
@@ -132,10 +139,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
   /**
    * Translate main query
    */
-  translate<T extends ForjaEntry>(query: PostgresQueryObject<T>): {
-    readonly sql: string;
-    readonly params: readonly unknown[];
-  } {
+  translate<T extends ForjaEntry>(query: PostgresQueryObject<T>): TranslateResult {
     this.reset();
 
     try {
@@ -164,6 +168,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
       return {
         sql,
         params: [...this.params],
+        needAggregation: false
       };
     } catch (error) {
       if (error instanceof QueryError) {
@@ -247,11 +252,25 @@ export class PostgresQueryTranslator implements QueryTranslator {
       const tableEsc = this.escapeIdentifier(query.table);
       const groupByFields: string[] = [`${tableEsc}."id"`];
 
-      // Add all populated relation primary keys to GROUP BY
-      // This is required by PostgreSQL when using row_to_json with JOINs
-      for (const relationName of Object.keys(query.populate)) {
-        const relationAlias = this.escapeIdentifier(relationName);
-        groupByFields.push(`${relationAlias}."id"`);
+      // Add populated relation primary keys to GROUP BY
+      // ONLY for belongsTo and hasOne (single record relations)
+      // NOT for hasMany or manyToMany (array relations with json_agg)
+      const modelName = this.schemaRegistry.findModelByTableName(query.table);
+      if (modelName) {
+        const schema = this.schemaRegistry.get(modelName);
+        if (schema) {
+          for (const relationName of Object.keys(query.populate)) {
+            const field = schema.fields[relationName];
+            if (field && field.type === "relation") {
+              const relKind = (field as any).kind;
+              // Only add to GROUP BY if it's a single-record relation
+              if (relKind === "belongsTo" || relKind === "hasOne") {
+                const relationAlias = this.escapeIdentifier(relationName);
+                groupByFields.push(`${relationAlias}."id"`);
+              }
+            }
+          }
+        }
       }
 
       parts.push(`GROUP BY ${groupByFields.join(", ")}`);

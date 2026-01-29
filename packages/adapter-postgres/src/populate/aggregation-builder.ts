@@ -23,12 +23,32 @@ import {
   throwJsonAggregationError,
 } from "../error-helper";
 
+/* TODO:
+  AggregationBuilder prensipleri:
+  - JOIN değil aggregation düşün
+  - DISTINCT yerine subquery
+  - NULL yerine empty json
+  - ORDER BY + pagination deterministik olmalı
+*/
+
 /**
  * Aggregation Builder Class
  *
  * Generates SQL for JSON aggregation in SELECT clause.
  */
 export class AggregationBuilder {
+  /* TODO: DISTINCT kullanma
+     - json_agg öncesi subquery ile duplicate row'ları kır
+     - JOIN kaynaklı row explosion burada çözülmeli */
+
+  /* TODO: Tüm json_agg sonuçlarını
+     COALESCE(json_agg(...), '[]'::jsonb)
+     ile sarmala (NULL yerine empty array) */
+
+  /* TODO: orderBy kullanılıyorsa
+     - ilgili field için index yoksa
+     - optional dev-time warning üret (runtime throw yok) */
+
   constructor(
     private translator: PostgresQueryTranslator,
     private schemaRegistry: SchemaRegistry,
@@ -45,6 +65,16 @@ export class AggregationBuilder {
     tableName: string,
     populate: PopulateClause<T>,
   ): readonly AggregationClause[] {
+    /* TODO: hasMany / manyToMany için
+       json_agg doğrudan table'dan değil,
+       SELECT DISTINCT id FROM (...) subquery üstünden gelmeli */
+
+    /* TODO: FILTER (WHERE id IS NOT NULL)
+       yerine subquery WHERE ile NULL elimine et */
+
+    /* TODO: json_agg içine ORDER BY desteği ekle
+       (Postgres supports: json_agg(...) ORDER BY ...) */
+
     // Get current schema
     const modelName = this.schemaRegistry.findModelByTableName(tableName);
     if (!modelName) {
@@ -111,6 +141,9 @@ export class AggregationBuilder {
     switch (relation.kind) {
       case "belongsTo":
       case "hasOne":
+        /* TODO: row_to_json yerine
+          jsonb_build_object ile explicit field mapping opsiyonu ekle
+          (nested populate geldiğinde daha güvenli) */
         // Single object: row_to_json()
         sql = `row_to_json(${relationAlias}.*) AS ${relationAlias}`;
         if (fieldSelection.fields && fieldSelection.fields !== "*") {
@@ -121,14 +154,22 @@ export class AggregationBuilder {
 
       case "hasMany":
       case "manyToMany":
+        /* TODO: fieldSelection varsa:
+          row_to_json yerine
+          jsonb_build_object(field1, value1, ...)
+          kullan → gereksiz nesting azaltılır */
+
+        /* TODO: empty result için
+           COALESCE(json_agg(...), '[]'::jsonb) */
+
         // Array of objects: json_agg()
         // FILTER clause handles NULL values (no related records)
-        const distinctClause = relation.kind === "manyToMany" ? "DISTINCT " : "";
+        // Note: DISTINCT removed - junction table ensures uniqueness and DISTINCT doesn't work with JSON types
 
         if (fieldSelection.fields && fieldSelection.fields !== "*") {
-          sql = `json_agg(${distinctClause}row_to_json((SELECT r FROM (SELECT ${fieldSelection.sql}) r))) FILTER (WHERE ${relationAlias}."id" IS NOT NULL) AS ${relationAlias}`;
+          sql = `json_agg(row_to_json((SELECT r FROM (SELECT ${fieldSelection.sql}) r))) FILTER (WHERE ${relationAlias}."id" IS NOT NULL) AS ${relationAlias}`;
         } else {
-          sql = `json_agg(${distinctClause}${relationAlias}.*) FILTER (WHERE ${relationAlias}."id" IS NOT NULL) AS ${relationAlias}`;
+          sql = `json_agg(row_to_json(${relationAlias}.*)) FILTER (WHERE ${relationAlias}."id" IS NOT NULL) AS ${relationAlias}`;
         }
         break;
 
@@ -169,6 +210,17 @@ export class AggregationBuilder {
     relation: RelationField,
     options: PopulateOptions<T>,
   ): string {
+    /* TODO: aggregationFunc === json_agg ise
+   ORDER BY subquery içinde zorunlu olsun
+   (pagination deterministik olmalı) */
+
+    /* TODO: belongsTo + limit/offset gelirse
+       otomatik limit 1 enforce et */
+
+    /* TODO: opts.where varsa
+       param index offset'ini translator'dan al
+       (hardcoded 1 kullanımı ileride kırılır) */
+
     // Get target schema
     const targetSchema = this.schemaRegistry.get(relation.model);
     if (!targetSchema) {
@@ -258,6 +310,13 @@ export class AggregationBuilder {
     relation: RelationField,
     options: PopulateOptions<T>,
   ): string {
+    /* TODO: junction table join'i
+        önce source → junction → target şeklinde sabitle
+        (planner için daha stabil) */
+
+    /* TODO: many-to-many'de duplicate target id'leri
+       subquery DISTINCT ile kır */
+
     // Get schemas
     const targetSchema = this.schemaRegistry.get(relation.model);
     if (!targetSchema) {

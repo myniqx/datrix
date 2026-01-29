@@ -6,7 +6,7 @@
  */
 
 import type { Pool } from "pg";
-import type { PopulateClause } from "forja-types/core/query-builder";
+import type { PopulateClause, QueryObject } from "forja-types/core/query-builder";
 import type { SchemaRegistry } from "forja-core/schema";
 import type { PostgresQueryTranslator } from "../query-translator";
 import type {
@@ -91,6 +91,8 @@ export class PostgresPopulator {
       case "lateral-joins":
         return this.executeLateralJoins<T>(query);
       case "separate-queries":
+        /* TODO: Bu method sadece edge-case / legacy fallback olsun */
+        /* TODO: Default path olmaktan çıkar */
         return this.executeSeparateQueries<T>(query);
     }
   }
@@ -121,6 +123,7 @@ export class PostgresPopulator {
 
     // Execute query
     const { sql, params } = this.translator.translate(modifiedQuery);
+    console.log({ sql, params });
     const result = await this.pool.query(sql, params as unknown[]);
 
     // Process results (parse JSON fields)
@@ -165,6 +168,7 @@ export class PostgresPopulator {
 
     // Execute query
     const { sql, params } = this.translator.translate(modifiedQuery);
+    console.log({ sql, params });
     const result = await this.pool.query(sql, params as unknown[]);
 
     // Process results (parse JSON fields)
@@ -285,6 +289,11 @@ export class PostgresPopulator {
    * - Number of relations
    */
   private analyzePopulate<T extends ForjaEntry>(populate: PopulateClause<T>): PopulateOptionsAnalysis {
+
+    /* TODO: relation schema'dan 1-N / N-1 ayrımı yap */
+    /* TODO: constrained relation (limit/orderBy) sayısını say */
+    /* TODO: estimatedCost = oneToManyCount * maxDepth */
+
     let maxDepth = 1;
     let hasComplexOptions = false;
     let relationCount = 0;
@@ -331,6 +340,31 @@ export class PostgresPopulator {
    * Select populate strategy based on analysis
    */
   private selectStrategy(analysis: PopulateOptionsAnalysis): PopulateStrategy {
+
+    /*// TODO: | "batched-queries" >> N+1 yerine batch populate
+     TODO: high cardinality + deep nesting → batched-queries
+    if (analysis.estimatedCost > 8) {
+      return "batched-queries";
+    }
+    
+    than
+
+     TODO: SeparateQueries yerine batch IN-query populate 
+        private async executeBatchedQueries<T extends ForjaEntry>(
+          query: QueryObject<T>,
+        ): Promise<readonly T[]> {
+            >>
+              1. Ana query çalıştır
+              2. Parent id'leri topla
+              3. Her relation için:
+                SELECT fk, jsonb_agg(...) FROM child
+                WHERE fk = ANY($1)
+                GROUP BY fk
+              4. Memory'de map ederek bağla
+            >>
+          }
+    */
+
     // Deep nesting: use separate queries
     if (analysis.requiresSeparateQueries) {
       return "separate-queries";

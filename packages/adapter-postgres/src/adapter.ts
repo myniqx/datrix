@@ -189,6 +189,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
         const { sql, params } = this.getTranslator().translate(query);
         lastSql = sql;
 
+        console.log({ sql, params });
         const result = await this.pool.query(sql, params as unknown[]);
         rows = result.rows as readonly TResult[];
       }
@@ -369,6 +370,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
       const tableName = this.getTranslator().escapeIdentifier(schema.tableName!);
       const sql = `CREATE TABLE ${tableName} (\n  ${columns.join(",\n  ")}\n)`;
 
+      console.log("Creating Schema", { sql });
       await this.pool.query(sql);
 
       // Create indexes (including unique constraints)
@@ -785,7 +787,11 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
   ): string {
     const columnName = this.getTranslator().escapeIdentifier(fieldName);
 
-    if (fieldName === "id") {
+    // Check if field should be auto-increment
+    const shouldAutoIncrement =
+      field.type === "number" && field.autoIncrement;
+
+    if (shouldAutoIncrement) {
       return `${columnName} SERIAL PRIMARY KEY`;
     }
 

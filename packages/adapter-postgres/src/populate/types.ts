@@ -56,6 +56,15 @@ export interface PopulateOptionsAnalysis {
   readonly requiresLateral: boolean;
   readonly requiresSeparateQueries: boolean;
   readonly relationCount: number;
+
+  /* TODO: populate altındaki 1-N relation sayısı (yüksek cardinality tespiti için) */
+  oneToManyCount: number;
+
+  /* TODO: limit/orderBy olan relation sayısı */
+  constrainedRelationCount: number;
+
+  /* TODO: tahmini row explosion skoru (depth × cardinality) */
+  estimatedCost: number;
 }
 
 /**

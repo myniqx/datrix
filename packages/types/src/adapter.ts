@@ -8,6 +8,7 @@
 import { QueryObject, WhereClause } from "./core/query-builder";
 import { FieldDefinition, ForjaEntry, IndexDefinition, SchemaDefinition } from "./core/schema";
 import { Result } from "./utils";
+import { ForjaError } from "./errors";
 
 /**
  * Query result metadata
@@ -122,18 +123,31 @@ export interface DatabaseAdapter<TConfig = Record<string, unknown>> {
 /**
  * Base error class for adapters
  */
-export class AdapterError extends Error {
-  readonly code: string;
-  readonly details?: unknown;
-
+export class AdapterError<
+  TContext extends Record<string, unknown> = Record<string, unknown>
+> extends ForjaError<TContext> {
   constructor(
     message: string,
-    options?: { code?: string; details?: unknown }
+    options?: {
+      code?: string;
+      details?: unknown;
+      context?: TContext;
+      cause?: Error;
+      suggestion?: string;
+      expected?: string;
+      received?: unknown;
+    }
   ) {
-    super(message);
+    super(message, {
+      code: options?.code ?? 'ADAPTER_ERROR',
+      operation: 'adapter',
+      context: options?.context,
+      cause: options?.cause,
+      suggestion: options?.suggestion,
+      expected: options?.expected,
+      received: options?.received,
+    });
     this.name = 'AdapterError';
-    this.code = options?.code ?? 'UNKNOWN';
-    this.details = options?.details;
   }
 }
 

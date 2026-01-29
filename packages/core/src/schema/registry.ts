@@ -731,6 +731,7 @@ export class SchemaRegistry {
       name: junctionTableName,
       tableName: junctionTableName,
       fields: {
+        id: { type: "number", required: false, autoIncrement: true }, // ✅ EKLE
         [`${schemaName}Id`]: { type: "number", required: true },
         [`${relation.model}Id`]: { type: "number", required: true },
       },
