@@ -10,6 +10,7 @@ import {
   type CrudOperation,
   type CrudErrorCode,
   type CrudErrorContext,
+  ForjaError,
 } from "forja-types/errors";
 import type { QueryObject } from "forja-types/core/query-builder";
 

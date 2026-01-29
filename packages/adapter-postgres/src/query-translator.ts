@@ -206,6 +206,18 @@ export class PostgresQueryTranslator implements QueryTranslator {
     // FROM clause
     parts.push(`FROM ${this.escapeIdentifier(query.table)}`);
 
+    // WHERE clause (must come before adding JOINs to parts, to collect WHERE JOINs)
+    let whereSQL: string | undefined;
+    let whereJoins: string[] = [];
+    if (query.where) {
+      const whereResult = this.translateWhere(query.where, this.paramIndex, query.table);
+      whereSQL = whereResult.sql;
+      whereJoins = whereResult.joins;
+      this.paramIndex += whereResult.params.length;
+      this.params.push(...whereResult.params);
+    }
+
+    // Add populate JOINs
     const metadata = query._metadata;
     const populateJoins = metadata?.populateJoins as string | undefined;
 
@@ -213,12 +225,20 @@ export class PostgresQueryTranslator implements QueryTranslator {
       parts.push(populateJoins);
     }
 
-    // WHERE clause
-    if (query.where) {
-      const whereResult = this.translateWhere(query.where, this.paramIndex, query.table);
-      parts.push(`WHERE ${whereResult.sql}`);
-      this.paramIndex += whereResult.params.length;
-      this.params.push(...whereResult.params);
+    // Add WHERE JOINs (only if not already in populate JOINs)
+    // This prevents duplicate JOINs when WHERE filters on populated relations
+    if (whereJoins.length > 0) {
+      const populateJoinSQL = populateJoins || "";
+      const uniqueWhereJoins = whereJoins.filter(join => !populateJoinSQL.includes(join));
+
+      if (uniqueWhereJoins.length > 0) {
+        parts.push(uniqueWhereJoins.join(" "));
+      }
+    }
+
+    // Add WHERE clause
+    if (whereSQL) {
+      parts.push(`WHERE ${whereSQL}`);
     }
 
     // GROUP BY (required for json_agg aggregations)
@@ -345,6 +365,12 @@ export class PostgresQueryTranslator implements QueryTranslator {
     // WHERE clause (important for UPDATE!)
     if (query.where) {
       const whereResult = this.translateWhere(query.where, this.paramIndex, query.table);
+
+      // Add WHERE JOINs if any
+      if (whereResult.joins.length > 0) {
+        parts.push(whereResult.joins.join(" "));
+      }
+
       parts.push(`WHERE ${whereResult.sql}`);
       this.paramIndex += whereResult.params.length;
       this.params.push(...whereResult.params);
@@ -369,6 +395,12 @@ export class PostgresQueryTranslator implements QueryTranslator {
     // WHERE clause (important for DELETE!)
     if (query.where) {
       const whereResult = this.translateWhere(query.where, this.paramIndex, query.table);
+
+      // Add WHERE JOINs if any
+      if (whereResult.joins.length > 0) {
+        parts.push(whereResult.joins.join(" "));
+      }
+
       parts.push(`WHERE ${whereResult.sql}`);
       this.paramIndex += whereResult.params.length;
       this.params.push(...whereResult.params);
@@ -463,7 +495,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
       if (key === "$and") {
         const andConditions = (value as readonly WhereClause[])
           .map(
-            (condition) => `(${this.translateWhereConditions(condition, depth + 1, tableName, tableAlias)})`,
+            (condition) => `(${this.translateWhereConditions(condition, depth + 1, tableName, tableAlias, joins)})`,
           )
           .join(" AND ");
         conditions.push(`(${andConditions})`);
@@ -473,7 +505,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
       if (key === "$or") {
         const orConditions = (value as readonly WhereClause[])
           .map(
-            (condition) => `(${this.translateWhereConditions(condition, depth + 1, tableName, tableAlias)})`,
+            (condition) => `(${this.translateWhereConditions(condition, depth + 1, tableName, tableAlias, joins)})`,
           )
           .join(" OR ");
         conditions.push(`(${orConditions})`);
@@ -486,6 +518,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
           depth + 1,
           tableName,
           tableAlias,
+          joins,
         );
         conditions.push(`NOT (${notCondition})`);
         continue;
@@ -567,14 +600,50 @@ export class PostgresQueryTranslator implements QueryTranslator {
                   }
                   continue;
                 } else {
-                  // Complex nested relation filtering - needs JOIN
-                  // TODO: This requires dynamic JOIN injection which needs query restructuring
-                  // For now, throw descriptive error
-                  throw new QueryError(
-                    `Nested relation WHERE filtering on '${key}' with fields other than 'id' requires JOIN support. ` +
-                    `This feature is not yet implemented. ` +
-                    `Workaround: Use foreign key directly (e.g., { ${relationField.foreignKey || key + "Id"}: value })`,
+                  // Complex nested relation filtering - requires JOIN
+                  const targetSchema = this.schemaRegistry.get(relationField.model);
+                  if (!targetSchema) {
+                    throw new QueryError(`Target model '${relationField.model}' not found for relation '${key}'`);
+                  }
+
+                  const targetTable = targetSchema.tableName ?? relationField.model.toLowerCase();
+                  const foreignKey = relationField.foreignKey!;
+
+                  const sourceTableEsc = this.escapeIdentifier(currentTableAlias || tableName!);
+                  const targetTableEsc = this.escapeIdentifier(targetTable);
+                  const relationAlias = this.escapeIdentifier(key);
+                  const foreignKeyEsc = this.escapeIdentifier(foreignKey);
+
+                  // Generate JOIN based on relation kind
+                  let joinSQL: string;
+                  const relKind = (relationField as any).kind;
+
+                  if (relKind === "belongsTo") {
+                    // Source has FK: source.foreignKey = target.id
+                    joinSQL = `LEFT JOIN ${targetTableEsc} AS ${relationAlias} ON ${sourceTableEsc}.${foreignKeyEsc} = ${relationAlias}."id"`;
+                  } else if (relKind === "hasOne" || relKind === "hasMany") {
+                    // Target has FK: source.id = target.foreignKey
+                    joinSQL = `LEFT JOIN ${targetTableEsc} AS ${relationAlias} ON ${sourceTableEsc}."id" = ${relationAlias}.${foreignKeyEsc}`;
+                  } else {
+                    throw new QueryError(`Relation kind '${relKind}' not yet supported for nested WHERE filtering`);
+                  }
+
+                  // Add JOIN to collection
+                  if (joins && !joins.includes(joinSQL)) {
+                    joins.push(joinSQL);
+                  }
+
+                  // Recursively translate nested conditions with relation table context
+                  const nestedCondition = this.translateWhereConditions(
+                    nestedValue as WhereClause,
+                    depth + 1,
+                    targetTable,
+                    key, // Use relation name as alias
+                    joins,
                   );
+
+                  conditions.push(nestedCondition);
+                  continue;
                 }
               }
             }

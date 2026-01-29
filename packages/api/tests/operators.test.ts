@@ -281,10 +281,12 @@ describe("Query Operators Integration Tests", () => {
     const response = await handleRequest(forja, request);
     const data = await response.json();
 
+    if (response.status !== 200) {
+      console.log(JSON.stringify(data, null, 2));
+    }
     expect(response.status).toBe(200);
     expect(data).toHaveProperty("data");
     expect(Array.isArray(data.data)).toBe(true);
-    console.log({ query: where, response: JSON.stringify(data.data, null, 2) });
     return data.data;
   }
 
