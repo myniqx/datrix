@@ -276,6 +276,55 @@ export class SchemaRegistry {
   }
 
   /**
+   * Get schema by model name with resolved table name
+   * Combines get() + tableName resolution in one call
+   *
+   * @param modelName - Model name to lookup
+   * @returns Object with schema and tableName, or undefined if not found
+   *
+   * @example
+   * ```ts
+   * const resolved = registry.getWithTableName('Category');
+   * if (resolved) {
+   *   console.log(resolved.tableName); // 'categories'
+   * }
+   * ```
+   */
+  getWithTableName(
+    modelName: string,
+  ): { schema: SchemaDefinition; tableName: string } | undefined {
+    const schema = this.get(modelName);
+    if (!schema) return undefined;
+    return {
+      schema,
+      tableName: schema.tableName ?? this.pluralize(modelName.toLowerCase()),
+    };
+  }
+
+  /**
+   * Get schema by table name with resolved table name
+   * Combines findModelByTableName() + get() + tableName resolution
+   *
+   * @param tableName - Table name to lookup
+   * @returns Object with schema and tableName, or undefined if not found
+   *
+   * @example
+   * ```ts
+   * const resolved = registry.getByTableName('categories');
+   * if (resolved) {
+   *   console.log(resolved.schema.name); // 'Category'
+   * }
+   * ```
+   */
+  getByTableName(
+    tableName: string,
+  ): { schema: SchemaDefinition; tableName: string } | undefined {
+    const modelName = this.findModelByTableName(tableName);
+    if (!modelName) return undefined;
+    return this.getWithTableName(modelName);
+  }
+
+  /**
    * Check if schema exists
    */
   has(name: string): boolean {

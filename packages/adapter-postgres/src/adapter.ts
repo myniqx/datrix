@@ -189,7 +189,6 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
         const { sql, params } = this.getTranslator().translate(query);
         lastSql = sql;
 
-        console.log({ sql, params });
         const result = await this.pool.query(sql, params as unknown[]);
         rows = result.rows as readonly TResult[];
       }

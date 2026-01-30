@@ -650,6 +650,14 @@ export interface SchemaRegistry {
   register(schema: SchemaDefinition): { success: boolean; error?: Error };
   /** Get schema by name */
   get(name: string): SchemaDefinition | undefined;
+  /** Get schema by model name with resolved table name */
+  getWithTableName(
+    modelName: string,
+  ): { schema: SchemaDefinition; tableName: string } | undefined;
+  /** Get schema by table name with resolved table name */
+  getByTableName(
+    tableName: string,
+  ): { schema: SchemaDefinition; tableName: string } | undefined;
   /** Check if schema exists */
   has(name: string): boolean;
   /** Get all schemas */

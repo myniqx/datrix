@@ -16,7 +16,7 @@ import type {
 import { JoinBuilder } from "./join-builder";
 import { AggregationBuilder } from "./aggregation-builder";
 import { ResultProcessor } from "./result-processor";
-import { throwMaxDepthExceeded } from "../error-helper";
+import { throwMaxDepthExceeded, throwPopulateQueryError } from "../error-helper";
 import { ForjaEntry } from "forja-types";
 import { PostgresQueryObject } from "forja-adapter-postgres/types";
 
@@ -121,16 +121,25 @@ export class PostgresPopulator {
 
     // Execute query
     const { sql, params } = this.translator.translate(modifiedQuery);
-    console.log({ sql, params });
-    const result = await this.pool.query(sql, params as unknown[]);
+    try {
+      const result = await this.pool.query(sql, params as unknown[]);
 
-    // Process results (parse JSON fields)
-    const processed = this.resultProcessor.processJsonAggregation<T>(
-      result.rows as T[],
-      query.populate!,
-    );
+      // Process results (parse JSON fields)
+      const processed = this.resultProcessor.processJsonAggregation<T>(
+        result.rows as T[],
+        query.populate!,
+      );
 
-    return processed;
+      return processed;
+    } catch (error) {
+      throwPopulateQueryError(
+        query,
+        sql,
+        error instanceof Error ? error : new Error(String(error)),
+        "json-aggregation",
+        params,
+      );
+    }
   }
 
   /**
@@ -166,16 +175,25 @@ export class PostgresPopulator {
 
     // Execute query
     const { sql, params } = this.translator.translate(modifiedQuery);
-    console.log({ sql, params });
-    const result = await this.pool.query(sql, params as unknown[]);
+    try {
+      const result = await this.pool.query(sql, params as unknown[]);
 
-    // Process results (parse JSON fields)
-    const processed = this.resultProcessor.processJsonAggregation<T>(
-      result.rows as T[],
-      query.populate!,
-    );
+      // Process results (parse JSON fields)
+      const processed = this.resultProcessor.processJsonAggregation<T>(
+        result.rows as T[],
+        query.populate!,
+      );
 
-    return processed;
+      return processed;
+    } catch (error) {
+      throwPopulateQueryError(
+        query,
+        sql,
+        error instanceof Error ? error : new Error(String(error)),
+        "lateral-joins",
+        params,
+      );
+    }
   }
 
   /**
@@ -193,8 +211,20 @@ export class PostgresPopulator {
     query: QueryObject<T>,
   ): Promise<readonly T[]> {
     const { sql, params } = this.translator.translate(query);
-    const mainResult = await this.pool.query(sql, params as unknown[]);
-    const rows = mainResult.rows as T[];
+
+    let rows: T[];
+    try {
+      const mainResult = await this.pool.query(sql, params as unknown[]);
+      rows = mainResult.rows as T[];
+    } catch (error) {
+      throwPopulateQueryError(
+        query,
+        sql,
+        error instanceof Error ? error : new Error(String(error)),
+        "batched-queries",
+        params,
+      );
+    }
 
     if (rows.length === 0) {
       return rows;
@@ -253,7 +283,18 @@ export class PostgresPopulator {
         continue;
       }
 
-      const batchResult = await this.pool.query(batchQuery, [parentIds]);
+      let batchResult;
+      try {
+        batchResult = await this.pool.query(batchQuery, [parentIds]);
+      } catch (error) {
+        throwPopulateQueryError(
+          query,
+          batchQuery,
+          error instanceof Error ? error : new Error(String(error)),
+          "batched-queries",
+          [parentIds],
+        );
+      }
       const dataMap = new Map(batchResult.rows.map((r) => [r._fk, r.data]));
 
       for (const row of rows) {

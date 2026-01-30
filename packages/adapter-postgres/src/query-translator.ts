@@ -15,6 +15,7 @@ import type {
 import type { QueryTranslator } from "forja-types/adapter";
 import { QueryError } from "forja-types/adapter";
 import type { SchemaRegistry } from "forja-core/schema";
+import type { SchemaDefinition, FieldDefinition } from "forja-types/core/schema";
 import { ForjaEntry } from "forja-types";
 import { PostgresQueryObject, TranslateResult } from "./types";
 
@@ -51,26 +52,120 @@ export class PostgresQueryTranslator implements QueryTranslator {
   }
 
   /**
-   * Add parameter and return placeholder
+   * Add parameter and return placeholder with type-aware conversion
+   *
+   * @param value - The value to add
+   * @param currentSchema - Current schema context
+   * @param fieldPath - Field path (e.g., "price", "category.name")
    */
-  private addParam(value: unknown): string {
+  private addParam(
+    value: unknown,
+    currentSchema?: SchemaDefinition,
+    fieldPath?: string
+  ): string {
     this.paramIndex++;
 
-    // Convert arrays and objects to JSON string for PostgreSQL JSONB
     let processedValue = value;
-    if (Array.isArray(value) || (typeof value === 'object' && value !== null && !(value instanceof Date))) {
-      processedValue = JSON.stringify(value);
-    } else if (typeof value === 'string') {
-      // Try to parse numeric strings to avoid type mismatch with INTEGER columns
-      // This handles cases where API sends "123" instead of 123
-      const numValue = Number(value);
-      if (!isNaN(numValue) && value.trim() !== '') {
-        processedValue = numValue;
+
+    // Type-aware conversion based on schema
+    if (currentSchema && fieldPath) {
+      const field = currentSchema.fields[fieldPath];
+
+      if (field) {
+        processedValue = this.convertValueToFieldType(value, field);
+      } else {
+        // Field not in schema - use default conversion
+        processedValue = this.defaultValueConversion(value);
       }
+    } else {
+      // No schema context - use default conversion
+      processedValue = this.defaultValueConversion(value);
     }
 
     this.params.push(processedValue);
     return this.getParameterPlaceholder(this.paramIndex);
+  }
+
+  /**
+   * Convert value to match field type from schema
+   */
+  private convertValueToFieldType(value: unknown, field: FieldDefinition): unknown {
+    // Handle null/undefined
+    if (value === null || value === undefined) {
+      return value;
+    }
+
+    switch (field.type) {
+      case "number": {
+        // Convert to number if it's a numeric string
+        if (typeof value === 'string') {
+          const numValue = Number(value);
+          if (!isNaN(numValue)) {
+            return numValue;
+          }
+        }
+        return value;
+      }
+
+      case "string": {
+        // Keep as string, preserve leading zeros
+        if (typeof value === 'number') {
+          return String(value);
+        }
+        return value;
+      }
+
+      case "boolean": {
+        // Convert string booleans
+        if (typeof value === 'string') {
+          if (value.toLowerCase() === 'true') return true;
+          if (value.toLowerCase() === 'false') return false;
+        }
+        return value;
+      }
+
+      case "date": {
+        // Keep Date objects as-is
+        if (value instanceof Date) {
+          return value;
+        }
+        // Convert string to Date
+        if (typeof value === 'string') {
+          return new Date(value);
+        }
+        return value;
+      }
+
+      case "json":
+      case "array": {
+        // Convert to JSON string for PostgreSQL JSONB
+        if (Array.isArray(value) || (typeof value === 'object' && !(value instanceof Date))) {
+          return JSON.stringify(value);
+        }
+        return value;
+      }
+
+      case "enum": {
+        // Keep as string
+        return String(value);
+      }
+
+      default:
+        return this.defaultValueConversion(value);
+    }
+  }
+
+  /**
+   * Default value conversion (when no schema context)
+   */
+  private defaultValueConversion(value: unknown): unknown {
+    // Convert arrays and objects to JSON string for PostgreSQL JSONB
+    if (Array.isArray(value) || (typeof value === 'object' && value !== null && !(value instanceof Date))) {
+      return JSON.stringify(value);
+    }
+
+    // Keep other values as-is (don't auto-convert strings to numbers)
+    return value;
   }
 
   /**
@@ -187,6 +282,13 @@ export class PostgresQueryTranslator implements QueryTranslator {
   private translateSelect<T extends ForjaEntry>(query: PostgresQueryObject<T>): string {
     const parts: string[] = [];
 
+    // Schema lookup ONCE at the beginning (used by WHERE, GROUP BY, etc.)
+    let currentSchema: SchemaDefinition | undefined;
+    const modelName = this.schemaRegistry.findModelByTableName(query.table);
+    if (modelName) {
+      currentSchema = this.schemaRegistry.get(modelName);
+    }
+
     // SELECT clause
     if (query.type === "count") {
       parts.push("SELECT COUNT(*)");
@@ -255,19 +357,16 @@ export class PostgresQueryTranslator implements QueryTranslator {
       // Add populated relation primary keys to GROUP BY
       // ONLY for belongsTo and hasOne (single record relations)
       // NOT for hasMany or manyToMany (array relations with json_agg)
-      const modelName = this.schemaRegistry.findModelByTableName(query.table);
-      if (modelName) {
-        const schema = this.schemaRegistry.get(modelName);
-        if (schema) {
-          for (const relationName of Object.keys(query.populate)) {
-            const field = schema.fields[relationName];
-            if (field && field.type === "relation") {
-              const relKind = (field as any).kind;
-              // Only add to GROUP BY if it's a single-record relation
-              if (relKind === "belongsTo" || relKind === "hasOne") {
-                const relationAlias = this.escapeIdentifier(relationName);
-                groupByFields.push(`${relationAlias}."id"`);
-              }
+      // Use currentSchema (already looked up at the beginning - no repeated lookup!)
+      if (currentSchema) {
+        for (const relationName of Object.keys(query.populate)) {
+          const field = currentSchema.fields[relationName];
+          if (field && field.type === "relation") {
+            const relKind = (field as any).kind;
+            // Only add to GROUP BY if it's a single-record relation
+            if (relKind === "belongsTo" || relKind === "hasOne") {
+              const relationAlias = this.escapeIdentifier(relationName);
+              groupByFields.push(`${relationAlias}."id"`);
             }
           }
         }
@@ -337,13 +436,20 @@ export class PostgresQueryTranslator implements QueryTranslator {
       throw new QueryError("INSERT query requires data");
     }
 
+    // Schema lookup ONCE
+    let currentSchema: SchemaDefinition | undefined;
+    const modelName = this.schemaRegistry.findModelByTableName(query.table);
+    if (modelName) {
+      currentSchema = this.schemaRegistry.get(modelName);
+    }
+
     const parts: string[] = [];
     const columns: string[] = [];
     const values: string[] = [];
 
     for (const [key, value] of Object.entries(query.data)) {
       columns.push(this.escapeIdentifier(key));
-      values.push(this.addParam(value));
+      values.push(this.addParam(value, currentSchema, key));
     }
 
     parts.push(`INSERT INTO ${this.escapeIdentifier(query.table)}`);
@@ -370,13 +476,20 @@ export class PostgresQueryTranslator implements QueryTranslator {
       throw new QueryError("UPDATE query requires data");
     }
 
+    // Schema lookup ONCE
+    let currentSchema: SchemaDefinition | undefined;
+    const modelName = this.schemaRegistry.findModelByTableName(query.table);
+    if (modelName) {
+      currentSchema = this.schemaRegistry.get(modelName);
+    }
+
     const parts: string[] = [];
     const sets: string[] = [];
 
     parts.push(`UPDATE ${this.escapeIdentifier(query.table)}`);
 
     for (const [key, value] of Object.entries(query.data)) {
-      sets.push(`${this.escapeIdentifier(key)} = ${this.addParam(value)}`);
+      sets.push(`${this.escapeIdentifier(key)} = ${this.addParam(value, currentSchema, key)}`);
     }
 
     parts.push(`SET ${sets.join(", ")}`);
@@ -473,7 +586,16 @@ export class PostgresQueryTranslator implements QueryTranslator {
     const whereJoins: string[] = [];
 
     try {
-      const sql = this.translateWhereConditions(where, 0, tableName, undefined, whereJoins);
+      // Schema lookup - ONLY ONCE at the beginning
+      let currentSchema: SchemaDefinition | undefined;
+      if (tableName) {
+        const modelName = this.schemaRegistry.findModelByTableName(tableName);
+        if (modelName) {
+          currentSchema = this.schemaRegistry.get(modelName);
+        }
+      }
+
+      const sql = this.translateWhereConditions(where, 0, tableName, undefined, whereJoins, currentSchema);
       const params = [...this.params];
 
       // Restore state
@@ -491,6 +613,13 @@ export class PostgresQueryTranslator implements QueryTranslator {
 
   /**
    * Translate WHERE conditions recursively
+   *
+   * @param where - WHERE clause to translate
+   * @param depth - Current nesting depth
+   * @param tableName - Table name (for JOIN generation)
+   * @param tableAlias - Table alias (for qualified field names)
+   * @param joins - Array to collect JOIN clauses
+   * @param currentSchema - Current schema context (passed down, avoids repeated lookups)
    */
   private translateWhereConditions<T extends ForjaEntry>(
     where: WhereClause<T>,
@@ -498,6 +627,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
     tableName?: string,
     tableAlias?: string,
     joins?: string[],
+    currentSchema?: SchemaDefinition,
   ): string {
     // Check depth limit to prevent stack overflow
     if (depth > MAX_WHERE_DEPTH) {
@@ -514,7 +644,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
       if (key === "$and") {
         const andConditions = (value as readonly WhereClause[])
           .map(
-            (condition) => `(${this.translateWhereConditions(condition, depth + 1, tableName, tableAlias, joins)})`,
+            (condition) => `(${this.translateWhereConditions(condition, depth + 1, tableName, tableAlias, joins, currentSchema)})`,
           )
           .join(" AND ");
         conditions.push(`(${andConditions})`);
@@ -524,7 +654,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
       if (key === "$or") {
         const orConditions = (value as readonly WhereClause[])
           .map(
-            (condition) => `(${this.translateWhereConditions(condition, depth + 1, tableName, tableAlias, joins)})`,
+            (condition) => `(${this.translateWhereConditions(condition, depth + 1, tableName, tableAlias, joins, currentSchema)})`,
           )
           .join(" OR ");
         conditions.push(`(${orConditions})`);
@@ -538,18 +668,15 @@ export class PostgresQueryTranslator implements QueryTranslator {
           tableName,
           tableAlias,
           joins,
+          currentSchema,
         );
         conditions.push(`NOT (${notCondition})`);
         continue;
       }
 
-      // Check if this is a relation field (needs schema lookup)
-      if (tableName) {
-        const modelName = this.schemaRegistry.findModelByTableName(tableName);
-        if (modelName) {
-          const schema = this.schemaRegistry.get(modelName);
-          if (schema) {
-            const field = schema.fields[key];
+      // Check if this is a relation field (use currentSchema - no lookup!)
+      if (currentSchema) {
+        const field = currentSchema.fields[key];
 
             if (field && field.type === "relation") {
               // Relation field with nested conditions
@@ -571,7 +698,8 @@ export class PostgresQueryTranslator implements QueryTranslator {
                   if (value === null) {
                     conditions.push(`${qualifiedFK} IS NULL`);
                   } else {
-                    conditions.push(`${qualifiedFK} = ${this.addParam(value)}`);
+                    // Foreign key is always number type
+                    conditions.push(`${qualifiedFK} = ${this.addParam(value, currentSchema, relationField.foreignKey)}`);
                   }
                   continue;
                 }
@@ -614,12 +742,13 @@ export class PostgresQueryTranslator implements QueryTranslator {
                     if (idValue === null) {
                       conditions.push(`${qualifiedFK} IS NULL`);
                     } else {
-                      conditions.push(`${qualifiedFK} = ${this.addParam(idValue)}`);
+                      conditions.push(`${qualifiedFK} = ${this.addParam(idValue, currentSchema, relationField.foreignKey)}`);
                     }
                   }
                   continue;
                 } else {
                   // Complex nested relation filtering - requires JOIN
+                  // Lookup target schema ONCE for nested level
                   const targetSchema = this.schemaRegistry.get(relationField.model);
                   if (!targetSchema) {
                     throw new QueryError(`Target model '${relationField.model}' not found for relation '${key}'`);
@@ -652,13 +781,15 @@ export class PostgresQueryTranslator implements QueryTranslator {
                     joins.push(joinSQL);
                   }
 
-                  // Recursively translate nested conditions with relation table context
+                  // Recursively translate nested conditions with TARGET SCHEMA context
+                  // THIS IS THE KEY: We pass targetSchema for the nested level!
                   const nestedCondition = this.translateWhereConditions(
                     nestedValue as WhereClause,
                     depth + 1,
                     targetTable,
                     key, // Use relation name as alias
                     joins,
+                    targetSchema, // 👈 PASS TARGET SCHEMA!
                   );
 
                   conditions.push(nestedCondition);
@@ -666,8 +797,6 @@ export class PostgresQueryTranslator implements QueryTranslator {
                 }
               }
             }
-          }
-        }
       }
 
       // Regular field handling
@@ -685,7 +814,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
         const ops = value as ComparisonOperators;
         for (const [operator, opValue] of Object.entries(ops)) {
           conditions.push(
-            this.translateComparisonOperator(fieldName, operator, opValue),
+            this.translateComparisonOperator(fieldName, operator, opValue, currentSchema, key),
           );
         }
       } else {
@@ -693,7 +822,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
         if (value === null) {
           conditions.push(`${fieldName} IS NULL`);
         } else {
-          conditions.push(`${fieldName} = ${this.addParam(value)}`);
+          conditions.push(`${fieldName} = ${this.addParam(value, currentSchema, key)}`);
         }
       }
     }
@@ -708,29 +837,31 @@ export class PostgresQueryTranslator implements QueryTranslator {
     fieldName: string,
     operator: string,
     value: unknown,
+    currentSchema?: SchemaDefinition,
+    fieldPath?: string,
   ): string {
     switch (operator) {
       case "$eq":
         return value === null ?
           `${fieldName} IS NULL`
-          : `${fieldName} = ${this.addParam(value)}`;
+          : `${fieldName} = ${this.addParam(value, currentSchema, fieldPath)}`;
 
       case "$ne":
         return value === null ?
           `${fieldName} IS NOT NULL`
-          : `${fieldName} <> ${this.addParam(value)}`;
+          : `${fieldName} <> ${this.addParam(value, currentSchema, fieldPath)}`;
 
       case "$gt":
-        return `${fieldName} > ${this.addParam(value)}`;
+        return `${fieldName} > ${this.addParam(value, currentSchema, fieldPath)}`;
 
       case "$gte":
-        return `${fieldName} >= ${this.addParam(value)}`;
+        return `${fieldName} >= ${this.addParam(value, currentSchema, fieldPath)}`;
 
       case "$lt":
-        return `${fieldName} < ${this.addParam(value)}`;
+        return `${fieldName} < ${this.addParam(value, currentSchema, fieldPath)}`;
 
       case "$lte":
-        return `${fieldName} <= ${this.addParam(value)}`;
+        return `${fieldName} <= ${this.addParam(value, currentSchema, fieldPath)}`;
 
       case "$in":
         if (!Array.isArray(value)) {
@@ -739,7 +870,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
         if (value.length === 0) {
           return "FALSE";
         }
-        return `${fieldName} IN (${value.map((v) => this.addParam(v)).join(", ")})`;
+        return `${fieldName} IN (${value.map((v) => this.addParam(v, currentSchema, fieldPath)).join(", ")})`;
 
       case "$nin":
         if (!Array.isArray(value)) {
@@ -748,31 +879,31 @@ export class PostgresQueryTranslator implements QueryTranslator {
         if (value.length === 0) {
           return "TRUE";
         }
-        return `${fieldName} NOT IN (${value.map((v) => this.addParam(v)).join(", ")})`;
+        return `${fieldName} NOT IN (${value.map((v) => this.addParam(v, currentSchema, fieldPath)).join(", ")})`;
 
       case "$like":
-        return `${fieldName} LIKE ${this.addParam(value)}`;
+        return `${fieldName} LIKE ${this.addParam(value, currentSchema, fieldPath)}`;
 
       case "$ilike":
-        return `${fieldName} ILIKE ${this.addParam(value)}`;
+        return `${fieldName} ILIKE ${this.addParam(value, currentSchema, fieldPath)}`;
 
       case "$contains":
-        return `${fieldName} ILIKE ${this.addParam(`%${String(value)}%`)}`;
+        return `${fieldName} ILIKE ${this.addParam(`%${String(value)}%`, currentSchema, fieldPath)}`;
 
       case "$notContains":
-        return `${fieldName} NOT ILIKE ${this.addParam(`%${String(value)}%`)}`;
+        return `${fieldName} NOT ILIKE ${this.addParam(`%${String(value)}%`, currentSchema, fieldPath)}`;
 
       case "$startsWith":
-        return `${fieldName} ILIKE ${this.addParam(`${String(value)}%`)}`;
+        return `${fieldName} ILIKE ${this.addParam(`${String(value)}%`, currentSchema, fieldPath)}`;
 
       case "$endsWith":
-        return `${fieldName} ILIKE ${this.addParam(`%${String(value)}`)}`;
+        return `${fieldName} ILIKE ${this.addParam(`%${String(value)}`, currentSchema, fieldPath)}`;
 
       case "$regex":
         if (value instanceof RegExp) {
-          return `${fieldName} ~ ${this.addParam(value.source)}`;
+          return `${fieldName} ~ ${this.addParam(value.source, currentSchema, fieldPath)}`;
         }
-        return `${fieldName} ~ ${this.addParam(value)}`;
+        return `${fieldName} ~ ${this.addParam(value, currentSchema, fieldPath)}`;
 
       case "$exists":
         return value ? `${fieldName} IS NOT NULL` : `${fieldName} IS NULL`;

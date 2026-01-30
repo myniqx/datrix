@@ -6,7 +6,24 @@
  */
 
 import { ForjaPostgresAdapterError } from "./error";
+import type { PopulateStrategy } from "./populate/types";
 import type { QueryObject } from "forja-types/core/query-builder";
+
+// ============================================================================
+// SQL Truncation Utility
+// ============================================================================
+
+/**
+ * Truncate SQL for error context
+ * Development: full SQL for debugging
+ * Production: truncated to 500 chars
+ */
+export function truncateSqlForError(sql: string): string {
+  if (process.env.NODE_ENV === "development") {
+    return sql;
+  }
+  return sql.length > 500 ? sql.substring(0, 500) + "..." : sql;
+}
 
 // ============================================================================
 // Populate/Relation Errors
@@ -282,21 +299,27 @@ export function throwResultProcessingError(
  * @param query - Query object
  * @param sql - Generated SQL
  * @param cause - Original database error
+ * @param strategy - Populate strategy used
+ * @param params - Query parameters (optional)
  */
 export function throwPopulateQueryError(
   query: QueryObject,
   sql: string,
   cause: Error,
+  strategy?: PopulateStrategy,
+  params?: readonly unknown[],
 ): never {
   throw new ForjaPostgresAdapterError(
-    `Populate query execution failed for table '${query.table}'`,
+    `Populate query execution failed for table '${query.table}'${strategy ? ` using ${strategy} strategy` : ""}`,
     {
       code: "ADAPTER_POPULATE_ERROR",
       operation: "populate",
       context: {
         table: query.table,
         query: { type: query.type, populate: query.populate },
-        sql: sql.substring(0, 200), // Truncate long SQL
+        sql: truncateSqlForError(sql),
+        params: params,
+        strategy: strategy,
       },
       cause,
       suggestion:
