@@ -12,7 +12,6 @@ import type {
   QueryContext,
   SchemaDefinition,
 } from "forja-types/plugin";
-import type { QueryObject } from "forja-types/core/query-builder";
 import type { Result } from "forja-types/utils";
 import { DefaultPermission, defineSchema } from "forja-types/core/schema";
 import { AuthManager } from "./auth/manager";
@@ -252,9 +251,12 @@ export class ApiPlugin<TRole extends string = string>
     if (
       context.metadata["api:createAuth"] &&
       result &&
-      typeof result === "object"
+      typeof result === "number"
     ) {
-      const user = result as Record<string, unknown>;
+      const user = {
+        ...context.metadata["api:userData"] as Record<string, unknown>,
+        userId: result,
+      }
       await this.createAuthenticationRecord(user, pluginContext.data);
     }
 
@@ -276,54 +278,42 @@ export class ApiPlugin<TRole extends string = string>
 
   private async createAuthenticationRecord(
     user: Record<string, unknown>,
-    context: PluginContext,
+    _context: PluginContext,
   ): Promise<void> {
     const emailField = this.userSchemaEmailField;
 
     const authData = {
-      user: String(user["id"]),
+      user: user["userId"],
       email: user[emailField] as string,
       password: (user["password"] as string) || "",
       passwordSalt: (user["passwordSalt"] as string) || "",
       role: (user["role"] as string) || this.authConfig?.defaultRole || "user",
     };
 
-    const query: QueryObject<ForjaEntry> = {
-      type: "insert",
-      table: this.authSchemaName,
-      data: authData as unknown as Partial<ForjaEntry>,
-    };
-
-    await context.adapter.executeQuery(query);
+    await this.forjaInstance!.raw.create(this.authSchemaName, authData);
   }
 
   private async syncAuthenticationEmail(
     userId: string,
     newEmail: string,
-    context: PluginContext,
+    _context: PluginContext,
   ): Promise<void> {
-    const query: QueryObject<{ email: string } & ForjaEntry> = {
-      type: "update",
-      table: this.authSchemaName,
-      where: { userId },
-      data: { email: newEmail },
-    };
-
-    await context.adapter.executeQuery(query);
+    await this.forja.raw.updateMany(
+      this.authSchemaName,
+      { user: { id: { $eq: userId } } },
+      { email: newEmail }
+    );
   }
 
   private async deleteAuthenticationRecord(
     userId: string,
-    context: PluginContext,
+    _context: PluginContext,
   ): Promise<void> {
     // TODO: add a test for this
-    const query: QueryObject<ForjaEntry> = {
-      type: "delete",
-      table: this.authSchemaName,
-      where: { user: { $eq: userId } },
-    };
-
-    await context.adapter.executeQuery(query);
+    await this.forja.raw.deleteMany(
+      this.authSchemaName,
+      { user: { id: { $eq: userId } } },
+    );
   }
 
   /**

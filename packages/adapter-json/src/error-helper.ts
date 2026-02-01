@@ -119,6 +119,58 @@ export function throwQueryMissingData(
   );
 }
 
+/**
+ * Throw invalid field in WHERE clause error
+ *
+ * @param field - Invalid field name
+ * @param schemaName - Schema name
+ * @param availableFields - List of valid field names
+ */
+export function throwInvalidWhereField(
+  field: string,
+  schemaName: string,
+  availableFields: readonly string[],
+): never {
+  throw new ForjaJsonAdapterError(
+    `Invalid WHERE clause: Field '${field}' does not exist in schema '${schemaName}'`,
+    {
+      code: "ADAPTER_INVALID_WHERE_FIELD",
+      operation: "query",
+      context: { field, schemaName, availableFields: availableFields.join(", ") },
+      suggestion: `Use one of the available fields: ${availableFields.join(", ")}`,
+      expected: `Valid field name from schema '${schemaName}'`,
+      received: field,
+    },
+  );
+}
+
+/**
+ * Throw invalid relation WHERE syntax error
+ *
+ * @param relationName - Relation field name
+ * @param schemaName - Schema name
+ * @param foreignKey - Foreign key field name
+ */
+export function throwInvalidRelationWhereSyntax(
+  relationName: string,
+  schemaName: string,
+  foreignKey: string,
+): never {
+  throw new ForjaJsonAdapterError(
+    `Invalid WHERE clause: Cannot use comparison operators directly on relation field '${relationName}'`,
+    {
+      code: "ADAPTER_INVALID_RELATION_WHERE",
+      operation: "query",
+      context: { relationName, schemaName, foreignKey },
+      suggestion:
+        `Use nested WHERE syntax: { ${relationName}: { <field>: { $eq: <value> } } }\n` +
+        `Or filter by foreign key directly: { ${foreignKey}: { $eq: <value> } }`,
+      expected: `Nested WHERE object with field names (e.g., { id: { $eq: 1 } })`,
+      received: "Comparison operators (e.g., { $eq: 1 })",
+    },
+  );
+}
+
 // ============================================================================
 // Constraint Errors
 // ============================================================================

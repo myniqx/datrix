@@ -12,7 +12,7 @@ import {
   TransactionError,
 } from "forja-types/adapter";
 import { QueryObject } from "forja-types/core/query-builder";
-import { IndexDefinition, SchemaDefinition } from "forja-types/core/schema";
+import { ForjaEntry, IndexDefinition, SchemaDefinition } from "forja-types/core/schema";
 import { Result } from "forja-types/utils";
 import { validateQueryObject } from "forja-types/utils/query";
 import { JsonAdapterConfig, JsonTableFile } from "./types";
@@ -24,6 +24,7 @@ import {
   throwUniqueConstraintField,
   throwUniqueConstraintIndex,
 } from "./error-helper";
+import { ForjaError } from "forja-types/errors";
 
 interface CacheEntry {
   data: JsonTableFile;
@@ -326,8 +327,8 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
     }
   }
 
-  async executeQuery<TResult>(
-    query: QueryObject,
+  async executeQuery<TResult extends ForjaEntry>(
+    query: QueryObject<TResult>,
   ): Promise<Result<QueryResult<TResult>, QueryError>> {
     const validation = validateQueryObject(query);
     if (!validation.success) {
@@ -506,7 +507,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
             offset: undefined,
             orderBy: undefined,
           } as QueryObject;
-          const rowsToUpdate = await runner.run(updateQuery);
+          const rowsToUpdate = await runner.filterAndSort(updateQuery);
 
           // Check unique constraints for each row being updated
           for (const row of rowsToUpdate) {
@@ -536,7 +537,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
             offset: undefined,
             orderBy: undefined,
           } as QueryObject;
-          const rowsToDelete = await runner.run(deleteQuery);
+          const rowsToDelete = await runner.filterAndSort(deleteQuery);
           const idsToDelete = new Set(rowsToDelete.map((r) => r["id"]));
 
           const originalLength = tableData.data.length;
@@ -573,6 +574,13 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
       };
     } catch (error) {
       if (lockAcquired) await this.lock.release();
+
+      // Re-throw ForjaError as-is (already has detailed context)
+      if (error instanceof ForjaError) {
+        throw error;
+      }
+
+      // Wrap unexpected errors
       const message = error instanceof Error ? error.message : String(error);
       return {
         success: false,

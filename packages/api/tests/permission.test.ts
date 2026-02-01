@@ -30,7 +30,6 @@ import {
   expectApiError,
   expectApiForbidden,
   expectApiUnauthorized,
-  expectSuccessData,
   expectApiMulti,
 } from "forja-types/test/helpers";
 
@@ -167,19 +166,18 @@ describe("Schema-Level Permission Tests", () => {
       const user = await expectApiSingle<{ id: number }>(createResponse, 201);
       const userId = user.id!;
 
-      // Verify auth record was created via direct adapter query
-      const adapter = forja.getAdapter();
-      const authResult = await adapter.executeQuery({
-        type: "select",
-        table: "authentications",
-        where: { user: { id: { $eq: userId } } },
-      });
+      // Verify auth record was created via forja raw query
+      const authData = await forja.raw.findOne("authentication",
+        {
+          user: { id: { $eq: userId } }
+        },
+        {
+          populate: { user: true },
+        });
 
-      const authData = expectSuccessData(authResult);
-      expect(authData.rows).toHaveLength(1);
-      const authRecord = authData.rows[0] as { email: string; user: number };
-      expect(authRecord.email).toBe("newuser@test.com");
-      expect(authRecord.user).toBe(userId);
+      expect(authData).not.toBeNull();
+      expect(authData!.email).toBe("newuser@test.com");
+      expect(authData!.user.id).toBe(userId);
     });
 
     it("should sync auth email when user email is updated", async () => {
@@ -211,17 +209,12 @@ describe("Schema-Level Permission Tests", () => {
       await expectApiSingle(updateResponse, 200);
 
       // Verify auth record was also updated
-      const adapter = forja.getAdapter();
-      const authResult = await adapter.executeQuery({
-        type: "select",
-        table: "authentication",
-        where: { user: { id: { $eq: userId } } },
-      });
+      const authRecord = await forja.raw.findOne("authentication",
+        { user: { id: { $eq: userId } } }
+      );
 
-      const authData = expectSuccessData(authResult);
-      expect(authData.rows).toHaveLength(1);
-      const authRecord = authData.rows[0] as { email: string };
-      expect(authRecord.email).toBe("updated-sync@test.com");
+      expect(authRecord).not.toBeNull();
+      expect(authRecord!.email).toBe("updated-sync@test.com");
     });
 
     it("should delete auth record when user is deleted", async () => {
@@ -252,15 +245,11 @@ describe("Schema-Level Permission Tests", () => {
       await expectApiSingle(deleteResponse, 200);
 
       // Verify auth record was also deleted
-      const adapter = forja.getAdapter();
-      const authResult = await adapter.executeQuery({
-        type: "select",
-        table: "authentication",
-        where: { user: { id: { $eq: userId } } },
-      });
+      const authRecords = await forja.raw.findMany("authentication",
+        { where: { user: { id: { $eq: userId } } } }
+      );
 
-      const authData = expectSuccessData(authResult);
-      expect(authData.rows).toHaveLength(0);
+      expect(authRecords).toHaveLength(0);
     });
   });
 

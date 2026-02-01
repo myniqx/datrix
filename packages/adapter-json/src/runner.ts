@@ -4,9 +4,13 @@ import {
   OrderByItem,
   ComparisonOperators,
 } from "forja-types/core/query-builder";
-import { RelationField } from "forja-types/core/schema";
+import { RelationField, SchemaDefinition } from "forja-types/core/schema";
 import { JsonTableFile } from "./types";
 import type { JsonAdapter } from "./adapter";
+import {
+  throwInvalidWhereField,
+  throwInvalidRelationWhereSyntax,
+} from "./error-helper";
 
 export class JsonQueryRunner {
   constructor(
@@ -137,6 +141,7 @@ export class JsonQueryRunner {
    *
    * @param item - The record to match against
    * @param where - WHERE clause (may contain nested relation conditions)
+   * @param overrideSchema - Optional schema to use instead of this.table.schema (for nested relation matching)
    * @returns True if item matches all conditions
    *
    * @example
@@ -152,27 +157,31 @@ export class JsonQueryRunner {
    * })
    * ```
    */
-  private async match(item: any, where: WhereClause): Promise<boolean> {
-    const schema = this.table.schema;
+  private async match(
+    item: any,
+    where: WhereClause,
+    overrideSchema?: SchemaDefinition,
+  ): Promise<boolean> {
+    const schema = overrideSchema ?? this.table.schema;
 
     for (const [key, value] of Object.entries(where)) {
       // Handle logical operators
       if (key === "$and") {
         const results = await Promise.all(
-          (value as WhereClause[]).map((cond) => this.match(item, cond)),
+          (value as WhereClause[]).map((cond) => this.match(item, cond, schema)),
         );
         if (!results.every((r) => r)) return false;
         continue;
       }
       if (key === "$or") {
         const results = await Promise.all(
-          (value as WhereClause[]).map((cond) => this.match(item, cond)),
+          (value as WhereClause[]).map((cond) => this.match(item, cond, schema)),
         );
         if (!results.some((r) => r)) return false;
         continue;
       }
       if (key === "$not") {
-        if (await this.match(item, value as WhereClause)) return false;
+        if (await this.match(item, value as WhereClause, schema)) return false;
         continue;
       }
 
@@ -193,6 +202,15 @@ export class JsonQueryRunner {
       }
 
       // Regular field matching (existing logic)
+      // Validate that field exists in schema (catch typos and invalid fields)
+      if (schema && !schema.fields[key]) {
+        throwInvalidWhereField(
+          key,
+          schema.name,
+          Object.keys(schema.fields),
+        );
+      }
+
       const itemValue = item[key];
 
       if (value === null) {
@@ -242,12 +260,39 @@ export class JsonQueryRunner {
     const targetModelName = relationField.model;
     const kind = relationField.kind;
 
+    // Validate: Ensure relationWhere is not using comparison operators directly
+    // Valid:   { user: { id: { $eq: 1 } } }
+    // Valid:   { user: { $and: [{ id: { $eq: 1 } }] } } (logical operator)
+    // Invalid: { user: { $eq: 1 } } (comparison operator)
+    if (typeof relationWhere === "object" && relationWhere !== null) {
+      const keys = Object.keys(relationWhere);
+      const logicalOps = new Set(["$and", "$or", "$not"]);
+      const hasOnlyComparisonOperators =
+        keys.length > 0 &&
+        keys.every((k) => k.startsWith("$")) &&
+        !keys.some((k) => logicalOps.has(k));
+
+      if (hasOnlyComparisonOperators) {
+        throwInvalidRelationWhereSyntax(
+          relationName,
+          this.table.schema?.name ?? "unknown",
+          foreignKey,
+        );
+      }
+    }
+
     // Get related ID(s) from current record
     if (kind === "belongsTo" || kind === "hasOne") {
       // Single relation - check FK value
       const relatedId = item[foreignKey];
       if (relatedId === null || relatedId === undefined) {
         // No relation - doesn't match
+        return false;
+      }
+
+      // Get target schema for validation
+      const targetSchema = await this.adapter.getSchemaByModelName(targetModelName);
+      if (!targetSchema) {
         return false;
       }
 
@@ -260,8 +305,8 @@ export class JsonQueryRunner {
         return false;
       }
 
-      // Recursively match nested WHERE on related record
-      return await this.match(relatedRecord, relationWhere);
+      // Recursively match nested WHERE on related record with target schema
+      return await this.match(relatedRecord, relationWhere, targetSchema);
     }
 
     // TODO: hasMany and manyToMany support

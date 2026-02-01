@@ -587,12 +587,13 @@ export async function expectApiUnauthorized(
  *
  * @example
  * const error = await expectApiForbidden(response);
- * expect(error.code).toBe('PERMISSION_DENIED');
+ * expect(error.code).toBe('FORBIDDEN');
  */
 export async function expectApiForbidden(
   response: Response,
+  expectedCode = "FORBIDDEN",
 ): Promise<SerializedForjaError> {
-  return expectApiError(response, 403, "PERMISSION_DENIED");
+  return expectApiError(response, 403, expectedCode);
 }
 
 /**
