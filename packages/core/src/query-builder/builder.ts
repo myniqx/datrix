@@ -90,6 +90,14 @@ export class ForjaQueryBuilder<
   private query: MutableQueryState = {};
   private readonly _schema: SchemaDefinition | undefined;
 
+  /**
+   * Constructor for the query builder
+   *
+   * @param schema - Optional schema definition for the query builder
+   *
+   * If a schema is provided, the query builder will be type-safe and enforce
+   * the correct field names and types for the given schema.
+   */
   constructor(schema?: SchemaDefinition) {
     this._schema = schema;
   }
@@ -340,7 +348,7 @@ export class ForjaQueryBuilder<
 /**
  * Create a new query builder
  */
-export function createQueryBuilder<TSchema = Record<string, unknown>>(
+export function createQueryBuilder<TSchema extends ForjaEntry>(
   schema?: SchemaDefinition,
 ): ForjaQueryBuilder<TSchema> {
   return new ForjaQueryBuilder<TSchema>(schema);
@@ -349,7 +357,7 @@ export function createQueryBuilder<TSchema = Record<string, unknown>>(
 /**
  * Create SELECT query builder
  */
-export function selectFrom<TSchema = Record<string, unknown>>(
+export function selectFrom<TSchema extends ForjaEntry>(
   table: string,
   schema?: SchemaDefinition,
 ): ForjaQueryBuilder<TSchema> {
@@ -359,7 +367,7 @@ export function selectFrom<TSchema = Record<string, unknown>>(
 /**
  * Create INSERT query builder
  */
-export function insertInto<TSchema = Record<string, unknown>>(
+export function insertInto<TSchema extends ForjaEntry>(
   table: string,
   data: Record<string, unknown>,
   schema?: SchemaDefinition,
@@ -373,7 +381,7 @@ export function insertInto<TSchema = Record<string, unknown>>(
 /**
  * Create UPDATE query builder
  */
-export function updateTable<TSchema = Record<string, unknown>>(
+export function updateTable<TSchema extends ForjaEntry>(
   table: string,
   data: Record<string, unknown>,
   schema?: SchemaDefinition,
@@ -387,7 +395,7 @@ export function updateTable<TSchema = Record<string, unknown>>(
 /**
  * Create DELETE query builder
  */
-export function deleteFrom<TSchema = Record<string, unknown>>(
+export function deleteFrom<TSchema extends ForjaEntry>(
   table: string,
   schema?: SchemaDefinition,
 ): ForjaQueryBuilder<TSchema> {
@@ -397,7 +405,7 @@ export function deleteFrom<TSchema = Record<string, unknown>>(
 /**
  * Create COUNT query builder
  */
-export function countFrom<TSchema = Record<string, unknown>>(
+export function countFrom<TSchema extends ForjaEntry>(
   table: string,
   schema?: SchemaDefinition,
 ): ForjaQueryBuilder<TSchema> {

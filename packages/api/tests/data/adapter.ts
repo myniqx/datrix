@@ -100,5 +100,5 @@ export function getAdapterType(): AdapterType {
   if (adapterEnv === 'postgres' || adapterEnv === 'json') {
     return adapterEnv;
   }
-  return 'postgres'; // Default
+  return 'json'; // Default
 }

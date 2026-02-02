@@ -206,3 +206,40 @@ export function throwNotImplementedError(
     suggestion: "This feature is planned for a future release",
   });
 }
+
+/**
+ * Helper for non-relation field in populate error
+ */
+export function throwNonRelationFieldInPopulateError(
+  model: string,
+  field: string,
+  fieldType: string,
+): never {
+  throwCrudError({
+    operation: "findOne",
+    model,
+    code: "INVALID_POPULATE_VALUE",
+    message: `Cannot populate non-relation field '${field}' in ${model}`,
+    received: fieldType,
+    expected: "relation field",
+    suggestion: `'${field}' is a ${fieldType} field. Only relation fields can be populated. Available relations: check your schema definition.`,
+  });
+}
+
+/**
+ * Helper for relation field in select error
+ */
+export function throwRelationFieldInSelectError(
+  model: string,
+  field: string,
+): never {
+  throwCrudError({
+    operation: "findOne",
+    model,
+    code: "INVALID_POPULATE_VALUE",
+    message: `Cannot select relation field '${field}' directly in ${model}`,
+    received: field,
+    expected: "scalar field",
+    suggestion: `Use populate to load '${field}' relation. Example: { populate: { ${field}: true } }`,
+  });
+}

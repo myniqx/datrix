@@ -16,7 +16,6 @@ import {
 import {
   QueryObject,
   WhereClause,
-  SelectClause,
 } from "forja-types/core/query-builder";
 import { QueryAction } from "forja-types/plugin";
 import { Dispatcher } from "../dispatcher";
@@ -30,9 +29,9 @@ import {
   normalizeRelations,
   separateRelations,
   validateData,
-  processPopulate,
   processRelation,
 } from "./crud-helpers";
+import { QueryNormalizer } from "./query-normalizer";
 
 /**
  * CRUD Operations Class
@@ -41,19 +40,14 @@ import {
  * Implements IRawCrud interface.
  */
 export class CrudOperations implements IRawCrud {
+  private readonly normalizer: QueryNormalizer;
+
   constructor(
     private readonly schemas: SchemaRegistry,
     private readonly getAdapter: () => DatabaseAdapter,
     private readonly getDispatcher: (() => Dispatcher) | null = null,
-  ) { }
-
-  /** Dependencies for helper functions */
-  private get populateDeps() {
-    return {
-      getSchema: (model: string) => this.getSchema(model),
-      processSelect: (model: string, select?: SelectClause) =>
-        this.processSelect(model, select),
-    };
+  ) {
+    this.normalizer = new QueryNormalizer(schemas);
   }
 
   /**
@@ -126,20 +120,20 @@ export class CrudOperations implements IRawCrud {
     where: WhereClause<T>,
     options?: Pick<ParsedQuery<T>, "select" | "populate">,
   ): Promise<T | null> {
-    const { tableName } = this.getSchema(model);
+    const schema = this.getSchema(model);
     const query: QueryObject<T> = {
       type: "select",
-      table: tableName!,
-      where,
-      select: this.processSelect(model, options?.select),
-      populate: processPopulate(model, options?.populate, this.populateDeps),
-      limit: 1,
+      table: schema.tableName!,
+      where: this.normalizer.normalizeWhere(where, schema),
+      select: this.normalizer.normalizeSelect(options?.select, model),
+      populate: this.normalizer.normalizePopulate(options?.populate, model),
+      limit: this.normalizer.normalizeLimit(1),
     };
 
     return this.execute<T>(
       "findOne",
       model,
-      tableName!,
+      schema.tableName!,
       query,
       async (q) => {
         const result = await this.getAdapter().executeQuery<T>(q);
@@ -167,7 +161,7 @@ export class CrudOperations implements IRawCrud {
   async findById<T extends ForjaEntry = ForjaRecord>(
     model: string,
     id: number,
-    options?: Pick<ParsedQuery, "select" | "populate">,
+    options?: Pick<ParsedQuery<T>, "select" | "populate">,
   ): Promise<T | null> {
     return this.findOne<T>(model, { id }, options);
   }
@@ -208,19 +202,19 @@ export class CrudOperations implements IRawCrud {
       "where" | "select" | "populate" | "orderBy" | "limit" | "offset"
     >,
   ): Promise<T[]> {
-    const { tableName } = this.getSchema(model);
+    const schema = this.getSchema(model);
     const query: QueryObject<T> = {
       type: "select",
-      table: tableName!,
-      where: options?.where,
-      select: this.processSelect(model, options?.select),
-      populate: processPopulate(model, options?.populate, this.populateDeps),
-      orderBy: options?.orderBy,
-      limit: options?.limit,
-      offset: options?.offset,
+      table: schema.tableName!,
+      where: this.normalizer.normalizeWhere(options?.where, schema),
+      select: this.normalizer.normalizeSelect(options?.select, model),
+      populate: this.normalizer.normalizePopulate(options?.populate, model),
+      orderBy: this.normalizer.normalizeOrderBy(options?.orderBy),
+      limit: this.normalizer.normalizeLimit(options?.limit),
+      offset: this.normalizer.normalizeOffset(options?.offset),
     };
 
-    return this.execute<T, T[]>("findMany", model, tableName!, query, async (q) => {
+    return this.execute<T, T[]>("findMany", model, schema.tableName!, query, async (q) => {
       const result = await this.getAdapter().executeQuery<T>(q);
       if (!result.success) {
         throwQueryExecutionError("findMany", model, q, result.error);
@@ -253,14 +247,14 @@ export class CrudOperations implements IRawCrud {
     model: string,
     where?: WhereClause<T>,
   ): Promise<number> {
-    const { tableName } = this.getSchema(model);
+    const schema = this.getSchema(model);
     const query: QueryObject<T> = {
       type: "count",
-      table: tableName!,
-      where,
+      table: schema.tableName!,
+      where: this.normalizer.normalizeWhere(where, schema),
     };
 
-    return this.execute<T, number>("count", model, tableName!, query, async (q) => {
+    return this.execute<T, number>("count", model, schema.tableName!, query, async (q) => {
       const result = await this.getAdapter().executeQuery<{ count: number }>(q);
       if (!result.success) {
         throwQueryExecutionError("count", model, q, result.error);
@@ -288,7 +282,7 @@ export class CrudOperations implements IRawCrud {
   async create<T extends ForjaEntry = ForjaRecord>(
     model: string,
     data: Record<string, unknown>,
-    options?: Pick<ParsedQuery, "select" | "populate">,
+    options?: Pick<ParsedQuery<T>, "select" | "populate">,
   ): Promise<T> {
     const schema = this.getSchema(model);
 
@@ -346,16 +340,8 @@ export class CrudOperations implements IRawCrud {
       );
     }
 
-    // Fetch created record with options applied (process select and populate)
-    const fetchOptions =
-      options ?
-        {
-          select: this.processSelect(model, options.select),
-          populate: processPopulate(model, options.populate, this.populateDeps),
-        }
-        : undefined;
-
-    return (await this.findById<T>(model, insertedId, fetchOptions))!;
+    // Fetch created record with options applied
+    return (await this.findById<T>(model, insertedId, options))!;
   }
 
   /**
@@ -434,16 +420,8 @@ export class CrudOperations implements IRawCrud {
       );
     }
 
-    // Fetch updated record with options applied (process select and populate)
-    const fetchOptions =
-      options ?
-        {
-          select: this.processSelect(model, options.select),
-          populate: processPopulate(model, options.populate, this.populateDeps),
-        }
-        : undefined;
-
-    return (await this.findById<T>(model, id, fetchOptions))!;
+    // Fetch updated record with options applied
+    return (await this.findById<T>(model, id, options))!;
   }
 
   /**
@@ -488,7 +466,7 @@ export class CrudOperations implements IRawCrud {
     const query: QueryObject<T> = {
       type: "update",
       table: schema.tableName!,
-      where,
+      where: this.normalizer.normalizeWhere(where, schema),
       data: finalData,
     };
 
@@ -622,7 +600,7 @@ export class CrudOperations implements IRawCrud {
     const query: QueryObject<T> = {
       type: "delete",
       table: schema.tableName!,
-      where,
+      where: this.normalizer.normalizeWhere(where, schema),
     };
 
     return this.execute<T, number>(
@@ -631,7 +609,7 @@ export class CrudOperations implements IRawCrud {
       schema.tableName!,
       query,
       async (q) => {
-        const result = await this.getAdapter().executeQuery<unknown>(q);
+        const result = await this.getAdapter().executeQuery<ForjaEntry>(q);
         if (!result.success) {
           throwQueryExecutionError("deleteMany", model, q, result.error);
         }
@@ -652,25 +630,6 @@ export class CrudOperations implements IRawCrud {
     return schema;
   }
 
-  /**
-   * Ensure reserved fields are included in select
-   * Reserved fields (id, createdAt, updatedAt) must always be present
-   *
-   * @param select - User-provided select array or "*"
-   * @returns Select with reserved fields guaranteed
-   */
-  /**
-   * Process select clause using SchemaRegistry
-   * - Resolves "*" to clean field list (excludes hidden & relation fields)
-   * - Adds reserved fields to user-provided arrays
-   *
-   * @param model - Model name
-   * @param select - User-provided select clause
-   * @returns Processed select clause
-   */
-  private processSelect(model: string, select?: SelectClause): SelectClause {
-    return this.schemas.getSelectFieldsFor(model, select);
-  }
 
   /**
    * Internal insert that bypasses dispatcher
