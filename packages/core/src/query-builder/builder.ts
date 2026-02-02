@@ -16,21 +16,15 @@ import type {
   OrderDirection,
 } from "forja-types/core/query-builder";
 
-import { mergeWhereClauses } from "./where";
-import { mergePopulateClauses } from "./populate";
-import { normalizeSelectClause, validateSelectFields } from "./select";
-import { validateWhereClause } from "./where";
+import { normalizeWhere } from "./where";
+import { normalizePopulateArray } from "./populate";
+import { normalizeSelect } from "./select";
 import type {
   ForjaEntry,
   ForjaRecord,
+  SchemaRegistry as ISchemaRegistry,
   SchemaDefinition,
 } from "forja-types/core/schema";
-import {
-  throwMissingTable,
-  throwInvalidQueryType,
-  throwInvalidField,
-  throwInvalidValue,
-} from "./error-helper";
 
 /**
  * Deep clone an object (safe for JSON-serializable data)
@@ -65,17 +59,17 @@ function deepClone<T>(obj: T): T {
 /**
  * Mutable query state for building
  */
-interface MutableQueryState {
+interface MutableQueryState<T extends ForjaEntry> {
   type?: QueryType;
   table?: string;
-  select?: SelectClause;
-  where?: WhereClause;
-  populate?: PopulateClause;
+  select?: SelectClause<T>[];
+  where?: WhereClause<T>[];
+  populate?: PopulateClause<T>[];
   orderBy?: OrderByItem[];
   limit?: number;
   offset?: number;
-  data?: Record<string, unknown>;
-  returning?: SelectClause;
+  data?: Partial<T>;
+  returning?: SelectClause<T>[];
   distinct?: boolean;
   groupBy?: string[];
   having?: WhereClause;
@@ -85,21 +79,47 @@ interface MutableQueryState {
  * Query builder implementation
  */
 export class ForjaQueryBuilder<
-  TSchema extends ForjaEntry = ForjaRecord,
+  TSchema extends ForjaEntry,
 > implements QueryBuilder<TSchema> {
-  private query: MutableQueryState = {};
-  private readonly _schema: SchemaDefinition | undefined;
+  private query: MutableQueryState<TSchema>;
+  private readonly _modelName: string;
+  private readonly _schema: SchemaDefinition;
+  private readonly _registry: ISchemaRegistry;
 
   /**
    * Constructor for the query builder
    *
-   * @param schema - Optional schema definition for the query builder
+   * @param modelName - Model name (e.g., 'User', 'Post')
+   * @param schemaRegistry - Schema registry for normalization and relation resolution
    *
-   * If a schema is provided, the query builder will be type-safe and enforce
-   * the correct field names and types for the given schema.
+   * This enables full normalization support:
+   * - SELECT: "*" → expanded to field list, reserved fields added
+   * - WHERE: relation shortcuts normalized (category: 2 → categoryId: { $eq: 2 })
+   * - POPULATE: wildcards, dot notation, nested processing, relation traversal
+   *
+   * @throws {Error} If schema not found in registry
+   *
+   * @example
+   * ```ts
+   * const builder = new ForjaQueryBuilder('User', schemaRegistry);
+   * builder.select('*').where({ role: 'admin' });
+   * ```
    */
-  constructor(schema?: SchemaDefinition) {
+  constructor(modelName: string, schemaRegistry: ISchemaRegistry) {
+    this._modelName = modelName;
+    this._registry = schemaRegistry;
+
+    // Get schema from registry
+    const schema = schemaRegistry.get(modelName);
+    if (!schema) {
+      // TODO: throw SchemaNotFoundError(modelName)
+      throw new Error(`Schema not found for model: ${modelName}`);
+    }
+
     this._schema = schema;
+    this.query = {
+      table: schema.tableName!
+    }
   }
 
   /**
@@ -111,56 +131,47 @@ export class ForjaQueryBuilder<
   }
 
   /**
-   * Set table name
-   */
-  table(name: string): this {
-    this.query.table = name;
-    return this;
-  }
-
-  /**
    * Select fields
    */
-  select(fields: SelectClause): this {
-    this.query.select = normalizeSelectClause(fields);
+  select(fields: SelectClause<TSchema>): this {
+    if (this.query.select === undefined) {
+      this.query.select = [fields];
+    } else {
+      this.query.select.push(fields);
+    }
     return this;
   }
 
   /**
    * Add WHERE conditions
    */
-  where(conditions: WhereClause): this {
-    this.query.where = conditions;
-    return this;
-  }
-
-  /**
-   * Add AND condition
-   */
-  andWhere(conditions: WhereClause): this {
-    const merged = mergeWhereClauses(this.query.where, conditions);
-    if (merged !== undefined) {
-      this.query.where = merged;
+  where(conditions: WhereClause<TSchema>): this {
+    if (this.query.where === undefined) {
+      this.query.where = [conditions];
+    }
+    else {
+      this.query.where.push(conditions);
     }
     return this;
   }
 
-  /**
-   * Add OR condition
-   */
-  orWhere(conditions: WhereClause): this {
-    const existing = this.query.where || ({} as WhereClause);
-    this.query.where = {
-      $or: [existing, conditions],
-    } as WhereClause;
-    return this;
-  }
 
   /**
    * Populate relations
+   *
+   * Supports multiple formats:
+   * - .populate('*') - all relations
+   * - .populate(['author', 'category']) - array
+   * - .populate({ author: true }) - object
+   *
+   * Multiple calls are accumulated and merged in build()
    */
-  populate(relations: PopulateClause): this {
-    this.query.populate = mergePopulateClauses(this.query.populate, relations);
+  populate(relations: PopulateClause | "*" | readonly string[]): this {
+    if (this.query.populate === undefined) {
+      this.query.populate = [relations];
+    } else {
+      this.query.populate.push(relations);
+    }
     return this;
   }
 
@@ -192,7 +203,7 @@ export class ForjaQueryBuilder<
   /**
    * Set data for INSERT/UPDATE
    */
-  data(values: Record<string, unknown>): this {
+  data(values: Partial<TSchema>): this {
     this.query.data = values;
     return this;
   }
@@ -201,7 +212,14 @@ export class ForjaQueryBuilder<
    * Set returning fields (for INSERT/UPDATE/DELETE)
    */
   returning(fields: SelectClause): this {
-    this.query.returning = normalizeSelectClause(fields);
+    // For returning, we wrap in array and normalize
+    const normalized = normalizeSelect(
+      [fields],
+      this._schema,
+      this._modelName,
+      this._registry,
+    );
+    this.query.returning = normalized as SelectClause;
     return this;
   }
 
@@ -231,63 +249,48 @@ export class ForjaQueryBuilder<
 
   /**
    * Build final QueryObject
-   * @throws {ForjaQueryBuilderError} If query is invalid
+   * @throws {Error} If query is invalid
    */
   build(): QueryObject {
     // Validate required fields
     if (!this.query.type) {
-      throwInvalidQueryType(this.query.type);
+      // TODO: throw InvalidQueryTypeError(this.query.type)
+      throw new Error(`Invalid query type: ${this.query.type}`);
     }
 
     if (!this.query.table) {
-      throwMissingTable();
+      // TODO: throw MissingTableError()
+      throw new Error("Query must have a table name");
     }
 
-    // Validate select fields (throws on error)
-    if (this._schema && this.query.select) {
-      validateSelectFields(this.query.select, this._schema);
-    }
+    // Normalize select: merge, validate, add reserved fields
+    const normalizedSelect = normalizeSelect(
+      this.query.select,
+      this._schema,
+      this._modelName,
+      this._registry,
+    );
 
-    // Validate where clause (throws on error)
-    if (this._schema && this.query.where) {
-      validateWhereClause(this.query.where, this._schema);
-    }
+    // Normalize where: merge, validate (including nested), normalize relation shortcuts
+    const normalizedWhere = normalizeWhere(
+      this.query.where,
+      this._schema,
+      this._registry,
+    );
 
-    // Validate populate relations if schema is present
-    if (this._schema && this.query.populate) {
-      for (const relationName of Object.keys(this.query.populate)) {
-        const field = this._schema.fields[relationName];
-
-        if (!field) {
-          throwInvalidField(
-            "populate",
-            relationName,
-            Object.keys(this._schema.fields),
-          );
-        }
-
-        if (field.type !== "relation") {
-          throwInvalidValue("populate", relationName, field, "relation field");
-        }
-
-        // Runtime validation: foreignKey must be defined
-        if (!field.foreignKey) {
-          throwInvalidValue(
-            "populate",
-            relationName,
-            field,
-            "relation with foreignKey",
-          );
-        }
-      }
-    }
+    // Normalize populate: merge, validate, expand wildcards
+    const normalizedPopulate = normalizePopulateArray(
+      this.query.populate,
+      this._modelName,
+      this._registry,
+    );
 
     return {
       type: this.query.type,
       table: this.query.table,
-      ...(this.query.select !== undefined && { select: this.query.select }),
-      ...(this.query.where !== undefined && { where: this.query.where }),
-      ...(this.query.populate !== undefined && { populate: this.query.populate }),
+      select: normalizedSelect,
+      ...(normalizedWhere !== undefined && { where: normalizedWhere }),
+      ...(normalizedPopulate !== undefined && { populate: normalizedPopulate }),
       ...(this.query.orderBy !== undefined && {
         orderBy: this.query.orderBy as readonly OrderByItem[],
       }),
@@ -309,7 +312,7 @@ export class ForjaQueryBuilder<
    * Clone builder (for reusability)
    */
   clone(): QueryBuilder<TSchema> {
-    const cloned = new ForjaQueryBuilder<TSchema>(this._schema);
+    const cloned = new ForjaQueryBuilder<TSchema>(this._modelName, this._registry);
 
     // Deep clone the query state to avoid shared references
     cloned.query = {
@@ -347,67 +350,164 @@ export class ForjaQueryBuilder<
 
 /**
  * Create a new query builder
+ *
+ * @param modelName - Model name (e.g., 'User', 'Post')
+ * @param schemaRegistry - Schema registry
+ * @returns Query builder instance
+ *
+ * @example
+ * ```ts
+ * const builder = createQueryBuilder<User>('User', registry);
+ * ```
  */
 export function createQueryBuilder<TSchema extends ForjaEntry>(
-  schema?: SchemaDefinition,
+  modelName: string,
+  schemaRegistry: ISchemaRegistry,
 ): ForjaQueryBuilder<TSchema> {
-  return new ForjaQueryBuilder<TSchema>(schema);
+  return new ForjaQueryBuilder<TSchema>(modelName, schemaRegistry);
 }
 
 /**
  * Create SELECT query builder
+ *
+ * @param modelName - Model name (e.g., 'User', 'Post')
+ * @param schemaRegistry - Schema registry
+ * @returns Query builder instance with type=select
+ *
+ * @example
+ * ```ts
+ * const query = selectFrom<User>('User', registry)
+ *   .select(['id', 'name'])
+ *   .where({ role: 'admin' })
+ *   .build();
+ * ```
  */
 export function selectFrom<TSchema extends ForjaEntry>(
-  table: string,
-  schema?: SchemaDefinition,
+  modelName: string,
+  schemaRegistry: ISchemaRegistry,
 ): ForjaQueryBuilder<TSchema> {
-  return createQueryBuilder<TSchema>(schema).type("select").table(table);
+  const schema = schemaRegistry.get(modelName);
+  if (!schema) {
+    // TODO: throw SchemaNotFoundError(modelName)
+    throw new Error(`Schema not found for model: ${modelName}`);
+  }
+  return createQueryBuilder<TSchema>(modelName, schemaRegistry)
+    .type("select")
+    .table(schema.tableName!);
 }
 
 /**
  * Create INSERT query builder
+ *
+ * @param modelName - Model name (e.g., 'User', 'Post')
+ * @param data - Data to insert
+ * @param schemaRegistry - Schema registry
+ * @returns Query builder instance with type=insert
+ *
+ * @example
+ * ```ts
+ * const query = insertInto<User>('User', { name: 'John' }, registry).build();
+ * ```
  */
 export function insertInto<TSchema extends ForjaEntry>(
-  table: string,
+  modelName: string,
   data: Record<string, unknown>,
-  schema?: SchemaDefinition,
+  schemaRegistry: ISchemaRegistry,
 ): ForjaQueryBuilder<TSchema> {
-  return createQueryBuilder<TSchema>(schema)
+  const schema = schemaRegistry.get(modelName);
+  if (!schema) {
+    // TODO: throw SchemaNotFoundError(modelName)
+    throw new Error(`Schema not found for model: ${modelName}`);
+  }
+  return createQueryBuilder<TSchema>(modelName, schemaRegistry)
     .type("insert")
-    .table(table)
+    .table(schema.tableName!)
     .data(data);
 }
 
 /**
  * Create UPDATE query builder
+ *
+ * @param modelName - Model name (e.g., 'User', 'Post')
+ * @param data - Data to update
+ * @param schemaRegistry - Schema registry
+ * @returns Query builder instance with type=update
+ *
+ * @example
+ * ```ts
+ * const query = updateTable<User>('User', { name: 'Jane' }, registry)
+ *   .where({ id: 1 })
+ *   .build();
+ * ```
  */
 export function updateTable<TSchema extends ForjaEntry>(
-  table: string,
+  modelName: string,
   data: Record<string, unknown>,
-  schema?: SchemaDefinition,
+  schemaRegistry: ISchemaRegistry,
 ): ForjaQueryBuilder<TSchema> {
-  return createQueryBuilder<TSchema>(schema)
+  const schema = schemaRegistry.get(modelName);
+  if (!schema) {
+    // TODO: throw SchemaNotFoundError(modelName)
+    throw new Error(`Schema not found for model: ${modelName}`);
+  }
+  return createQueryBuilder<TSchema>(modelName, schemaRegistry)
     .type("update")
-    .table(table)
+    .table(schema.tableName!)
     .data(data);
 }
 
 /**
  * Create DELETE query builder
+ *
+ * @param modelName - Model name (e.g., 'User', 'Post')
+ * @param schemaRegistry - Schema registry
+ * @returns Query builder instance with type=delete
+ *
+ * @example
+ * ```ts
+ * const query = deleteFrom<User>('User', registry)
+ *   .where({ id: 1 })
+ *   .build();
+ * ```
  */
 export function deleteFrom<TSchema extends ForjaEntry>(
-  table: string,
-  schema?: SchemaDefinition,
+  modelName: string,
+  schemaRegistry: ISchemaRegistry,
 ): ForjaQueryBuilder<TSchema> {
-  return createQueryBuilder<TSchema>(schema).type("delete").table(table);
+  const schema = schemaRegistry.get(modelName);
+  if (!schema) {
+    // TODO: throw SchemaNotFoundError(modelName)
+    throw new Error(`Schema not found for model: ${modelName}`);
+  }
+  return createQueryBuilder<TSchema>(modelName, schemaRegistry)
+    .type("delete")
+    .table(schema.tableName!);
 }
 
 /**
  * Create COUNT query builder
+ *
+ * @param modelName - Model name (e.g., 'User', 'Post')
+ * @param schemaRegistry - Schema registry
+ * @returns Query builder instance with type=count
+ *
+ * @example
+ * ```ts
+ * const query = countFrom<User>('User', registry)
+ *   .where({ role: 'admin' })
+ *   .build();
+ * ```
  */
 export function countFrom<TSchema extends ForjaEntry>(
-  table: string,
-  schema?: SchemaDefinition,
+  modelName: string,
+  schemaRegistry: ISchemaRegistry,
 ): ForjaQueryBuilder<TSchema> {
-  return createQueryBuilder<TSchema>(schema).type("count").table(table);
+  const schema = schemaRegistry.get(modelName);
+  if (!schema) {
+    // TODO: throw SchemaNotFoundError(modelName)
+    throw new Error(`Schema not found for model: ${modelName}`);
+  }
+  return createQueryBuilder<TSchema>(modelName, schemaRegistry)
+    .type("count")
+    .table(schema.tableName!);
 }

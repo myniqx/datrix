@@ -1,152 +1,111 @@
 /**
- * SELECT/Fields Builder (~60 LOC)
+ * SELECT Utilities
  *
- * Utilities for building and validating SELECT clauses.
- * Handles field selection, validation, and normalization.
+ * All SELECT-related operations: merging, validation, normalization.
  */
 
-import { SelectClause } from "forja-types/core/query-builder";
-import type { SchemaDefinition } from "forja-types/core/schema";
-import { throwInvalidField, throwInvalidValue } from "./error-helper";
+import type { SelectClause } from "forja-types/core/query-builder";
+import type { ForjaEntry, SchemaDefinition, SchemaRegistry } from "forja-types/core/schema";
+import { throwInvalidFields, throwRelationInSelect } from "./error-helper";
 
 /**
- * Parse select clause from various formats
- * @throws {ForjaQueryBuilderError} If input format is invalid
+ * Normalize and validate SELECT arrays
+ *
+ * Complete SELECT processing pipeline:
+ * 1. Merge multiple .select() calls into one
+ * 2. Deduplicate using Set
+ * 3. If any is "*", expand to cached fields from registry
+ * 4. Validate fields exist and are not relations
+ * 5. Add reserved fields (id, createdAt, updatedAt)
+ * 6. Always return array (never "*")
+ *
+ * @param selects - Array of select clauses from multiple .select() calls
+ * @param schema - Schema definition for validation
+ * @param modelName - Model name for error messages and cache lookup
+ * @param registry - Schema registry for wildcard expansion
+ * @returns Normalized, validated field array with reserved fields
+ *
+ * @example
+ * ```ts
+ * // Multiple selects
+ * normalizeSelect([['name'], ['price'], ['name']], schema, 'Product', registry)
+ * // → ['name', 'price', 'id', 'createdAt', 'updatedAt']
+ *
+ * // Wildcard expansion
+ * normalizeSelect([['name'], '*'], schema, 'Product', registry)
+ * // → ['id', 'name', 'price', 'stock', 'createdAt', 'updatedAt'] (from cache)
+ *
+ * // Validation errors
+ * normalizeSelect([['invalidField']], schema, 'Product', registry)
+ * // → throws ForjaQueryBuilderError
+ *
+ * normalizeSelect([['category']], schema, 'Product', registry)
+ * // → throws ForjaQueryBuilderError (relation field)
+ * ```
  */
-export function parseSelectClause(input: unknown): SelectClause {
-  // Handle null/undefined -> select all
-  if (input === null || input === undefined) {
-    return "*";
-  }
-
-  // Handle string
-  if (typeof input === "string") {
-    if (input === "*") {
-      return "*";
-    }
-    // Single field
-    return [input];
-  }
-
-  // Handle array
-  if (Array.isArray(input)) {
-    // Validate all items are strings
-    for (const item of input) {
-      if (typeof item !== "string") {
-        throwInvalidValue("select", "field", item, "string");
-      }
-    }
-    return input as readonly string[];
-  }
-
-  throwInvalidValue("select", "input", input, "string, array, or '*'");
-}
-
-/**
- * Normalize select clause (remove duplicates, preserve order)
- */
-export function normalizeSelectClause(select: SelectClause): SelectClause {
-  if (select === "*") {
-    return "*";
-  }
-
-  // Remove duplicates using Set (preserves insertion order per ES6+)
-  return Array.from(new Set(select));
-}
-
-/**
- * Validate select fields against schema
- * @throws {ForjaQueryBuilderError} If any field doesn't exist in schema
- */
-export function validateSelectFields(
-  select: SelectClause,
+export function normalizeSelect<T extends ForjaEntry>(
+  selects: SelectClause<T>[] | undefined,
   schema: SchemaDefinition,
-): void {
-  // '*' is always valid
-  if (select === "*") {
-    return;
+  modelName: string,
+  registry: SchemaRegistry,
+): readonly (keyof T)[] {
+  // If no selects provided, return cached fields for "*"
+  if (!selects || selects.length === 0) {
+    return registry.getCachedSelectFields<T>(modelName);
   }
 
-  const availableFields = Object.keys(schema.fields);
-
-  // Check each field exists in schema
-  for (const field of select) {
-    if (!availableFields.includes(field)) {
-      throwInvalidField("select", field, availableFields);
-    }
-  }
-}
-
-/**
- * Merge multiple select clauses
- */
-export function mergeSelectClauses(
-  ...selects: readonly SelectClause[]
-): SelectClause {
-  // If any is '*', return '*'
-  if (selects.some((s) => s === "*")) {
-    return "*";
-  }
-
-  // Merge all arrays
-  const allFields: string[] = [];
+  // 1. Flatten and deduplicate using Set (preserves insertion order)
+  const allFields = new Set<keyof T>();
   for (const select of selects) {
-    if (select !== "*") {
-      allFields.push(...select);
+    if (Array.isArray(select)) {
+      select.forEach((field) => allFields.add(field));
     }
   }
 
-  // Remove duplicates and sort
-  return normalizeSelectClause(allFields);
-}
+  const fieldArray = Array.from(allFields);
 
-/**
- * Convert select clause to field list
- * If '*', return all schema fields (preserves schema definition order)
- */
-export function expandSelectClause(
-  select: SelectClause,
-  schema: SchemaDefinition,
-): readonly string[] {
-  if (select === "*") {
-    return Object.keys(schema.fields);
-  }
-  return select;
-}
+  // 2. Validate fields (BEFORE wildcard check)
+  // This ensures invalid fields are caught even if wildcard is present
+  const invalidFields: string[] = [];
+  const relationFields: string[] = [];
 
-/**
- * Check if field is selected
- */
-export function isFieldSelected(field: string, select: SelectClause): boolean {
-  if (select === "*") {
-    return true;
-  }
-  return select.includes(field);
-}
+  for (const fieldName of fieldArray) {
+    const field = schema.fields[fieldName as string];
 
-/**
- * Create select clause from fields
- */
-export function createSelectClause(
-  fields: readonly string[] | "*",
-): SelectClause {
-  return fields === "*" ? "*" : [...fields];
-}
+    // Field doesn't exist in schema
+    if (!field) {
+      invalidFields.push(fieldName as string);
+      continue;
+    }
 
-/**
- * Exclude fields from select clause
- */
-export function excludeFields(
-  select: SelectClause,
-  schema: SchemaDefinition,
-  excludeList: readonly string[],
-): SelectClause {
-  if (select === "*") {
-    // Get all fields except excluded ones (preserves schema definition order)
-    const allFields = Object.keys(schema.fields);
-    return allFields.filter((f) => !excludeList.includes(f));
+    // Field is a relation type
+    if (field.type === "relation") {
+      relationFields.push(fieldName as string);
+    }
   }
 
-  // Filter out excluded fields (preserves original order)
-  return select.filter((f) => !excludeList.includes(f));
+  // Throw if validation failed
+  if (invalidFields.length > 0) {
+    const availableFields = Object.keys(schema.fields).filter(
+      (name) => schema.fields[name]?.type !== "relation",
+    );
+    throwInvalidFields("select", invalidFields, availableFields);
+  }
+
+  if (relationFields.length > 0) {
+    throwRelationInSelect(relationFields, modelName);
+  }
+
+  // 3. Check for wildcard AFTER validation
+  // If any select is "*", return cached fields
+  if (selects.some((s) => s === "*")) {
+    return registry.getCachedSelectFields<T>(modelName);
+  }
+
+  // 4. Add reserved fields
+  allFields.add("id" as keyof T);
+  allFields.add("createdAt" as keyof T);
+  allFields.add("updatedAt" as keyof T);
+
+  return Array.from(allFields);
 }

@@ -6,6 +6,7 @@
  */
 
 import type {
+  ForjaEntry,
   RelationField,
   SchemaDefinition,
   SchemaValidationError,
@@ -478,27 +479,28 @@ export class SchemaRegistry {
   }
 
   /**
-   * Get select fields for a model (with caching)
-   * Resolves "*" to clean field list (excludes hidden and relation fields)
-   * Adds reserved fields to user-provided select arrays
+   * Get cached SELECT fields for a model (wildcard "*" expansion)
+   *
+   * Returns all selectable fields for a model, excluding:
+   * - Hidden fields (e.g., foreign keys)
+   * - Relation fields (use populate for these)
+   *
+   * This is used when SELECT = "*" to expand to actual field list.
+   * Results are cached for performance.
    *
    * @param modelName - Model name
-   * @param userSelect - User-provided select clause ("*", array, or undefined)
-   * @returns Clean select field list
+   * @returns Clean field list (cached)
    *
    * @example
    * ```ts
-   * // userSelect = "*" → ["id", "name", "price", "createdAt", "updatedAt"]
+   * getCachedSelectFields('Product')
+   * // Returns: ["id", "name", "price", "createdAt", "updatedAt"]
    * // (categoryId hidden, category relation excluded)
-   *
-   * // userSelect = ["name", "price"] → ["id", "name", "price", "createdAt", "updatedAt"]
-   * // (reserved fields added)
    * ```
    */
-  getSelectFieldsFor(
+  getCachedSelectFields<T extends ForjaEntry>(
     modelName: string,
-    userSelect?: readonly string[] | "*",
-  ): readonly string[] | "*" {
+  ): (keyof T)[] {
     const schema = this.get(modelName);
     if (!schema) {
       throw new SchemaRegistryError(`Schema not found: ${modelName}`, {
@@ -506,20 +508,8 @@ export class SchemaRegistry {
       });
     }
 
-    // If userSelect is an array, add reserved fields and return
-    if (Array.isArray(userSelect)) {
-      const selectSet = new Set(userSelect);
-      // Add reserved fields
-      selectSet.add("id");
-      selectSet.add("createdAt");
-      selectSet.add("updatedAt");
-      return Array.from(selectSet);
-    }
-
-    // userSelect is "*" or undefined → build clean field list from schema
     // Check cache first
-    const cacheKey = modelName;
-    const cached = this.cache.selectFields.get(cacheKey);
+    const cached = this.cache.selectFields.get(modelName);
     if (cached) {
       return cached;
     }
@@ -541,7 +531,7 @@ export class SchemaRegistry {
     }
 
     // Cache the result
-    this.cache.selectFields.set(cacheKey, cleanFields);
+    this.cache.selectFields.set(modelName, cleanFields);
 
     return cleanFields;
   }

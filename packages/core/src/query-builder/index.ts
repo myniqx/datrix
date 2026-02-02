@@ -12,7 +12,11 @@ export {
   updateTable,
   deleteFrom,
   countFrom,
+  ForjaQueryBuilder,
 } from './builder';
+
+// Export query normalizer (NEW - single source of truth)
+export { QueryNormalizer } from './normalizer';
 
 // Export where clause utilities
 export { mergeWhereClauses } from './where';

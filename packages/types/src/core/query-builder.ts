@@ -80,8 +80,8 @@ export type ComparisonOperators<T = QueryPrimitive> = {
  * ```
  */
 export type LogicalOperators<T extends ForjaEntry = ForjaEntry> = {
-  readonly $and?: readonly WhereClause<T>[];
-  readonly $or?: readonly WhereClause<T>[];
+  readonly $and?: WhereClause<T>[];
+  readonly $or?: WhereClause<T>[];
   readonly $not?: WhereClause<T>;
 };
 
@@ -161,13 +161,13 @@ export type WhereClause<T extends ForjaEntry = ForjaRecord> = {
 /**
  * SELECT clause (fields to select)
  */
-export type SelectClause = readonly string[] | "*";
+export type SelectClause<T extends ForjaEntry> = (keyof T[]) | "*";
 
 /**
  * Populate clause (relations to include)
  */
 export type PopulateOptions<T extends ForjaEntry> = {
-  readonly select?: SelectClause | undefined;
+  readonly select?: SelectClause<T> | undefined;
   readonly where?: WhereClause<T> | undefined;
   readonly populate?: PopulateClause<T> | undefined; // Nested populate
   readonly limit?: number | undefined;
@@ -200,64 +200,7 @@ export type OrderByItem = {
 
 export type OrderBy = readonly OrderByItem[];
 
-/**
- * Relation metadata injected by QueryBuilder for adapters
- *
- * This metadata is automatically generated when populate() is used
- * and provides adapters with the information needed to generate JOIN clauses.
- *
- * @see QueryBuilder.build() - Where this metadata is generated
- * @see DatabaseAdapter.executeQuery() - Where adapters consume this metadata
- *
- * @example
- * ```typescript
- * // When you call:
- * builder.populate({ author: { select: ['name'] } })
- *
- * // QueryBuilder injects:
- * meta: {
- *   relations: {
- *     author: {
- *       model: 'User',
- *       foreignKey: 'authorId',
- *       kind: 'belongsTo',
- *       targetTable: 'users'
- *     }
- *   }
- * }
- * ```
- */
-export interface RelationMetadata {
-  readonly model: string; // Target model name (e.g., 'User')
-  readonly foreignKey: string; // Foreign key field name (e.g., 'authorId')
-  readonly kind: "hasOne" | "hasMany" | "belongsTo" | "manyToMany";
-  readonly targetTable: string; // Target table name (e.g., 'users')
-}
 
-/**
- * Query metadata for internal communication between QueryBuilder and Adapters/Plugins
- *
- * This metadata is NOT part of the public QueryBuilder API.
- * It is automatically injected during build() and consumed by adapters.
- *
- * @see RelationMetadata - Metadata structure for relations
- */
-export interface QueryMetadata {
-  /**
-   * Relation metadata for populate/JOIN operations
-   * Automatically injected by QueryBuilder when populate is used
-   *
-   * @see packages/core/src/query-builder/builder.ts - Injection point
-   * @see packages/adapter-postgres/src/query-translator.ts - Usage example
-   */
-  readonly relations?: Record<string, RelationMetadata>;
-
-  /**
-   * Extensible metadata for plugins
-   * Plugins can add their own metadata here for inter-plugin communication
-   */
-  readonly [key: string]: unknown;
-}
 
 /**
  * Query object (database-agnostic representation)
@@ -265,18 +208,17 @@ export interface QueryMetadata {
 export interface QueryObject<T extends ForjaEntry = ForjaRecord> {
   readonly type: QueryType;
   readonly table: string;
-  readonly select?: SelectClause | undefined;
+  readonly select?: SelectClause<T> | undefined;
   readonly where?: WhereClause<T> | undefined;
   readonly populate?: PopulateClause<T> | undefined;
   readonly orderBy?: OrderBy | undefined;
   readonly limit?: number | undefined;
   readonly offset?: number | undefined;
   readonly data?: Partial<T>; // For INSERT/UPDATE
-  readonly returning?: SelectClause; // Fields to return after INSERT/UPDATE/DELETE
+  readonly returning?: SelectClause<T>; // Fields to return after INSERT/UPDATE/DELETE
   readonly distinct?: boolean; // SELECT DISTINCT
   readonly groupBy?: readonly string[]; // GROUP BY fields
   readonly having?: WhereClause<T>; // HAVING clause
-  readonly meta?: QueryMetadata; // For internal adapter/plugin communication
 }
 
 /**
@@ -298,36 +240,22 @@ export interface QueryObject<T extends ForjaEntry = ForjaRecord> {
  * builder2.where({ anyField: 'value' });  // ✅ Works but no type checking
  * ```
  */
-export interface QueryBuilder<TSchema extends ForjaEntry = ForjaRecord> {
+export interface QueryBuilder<TSchema extends ForjaEntry> {
   /**
    * Set query type
    */
   type(type: QueryType): QueryBuilder<TSchema>;
 
   /**
-   * Set table name
-   */
-  table(name: string): QueryBuilder<TSchema>;
-
-  /**
    * Select fields
    */
-  select(fields: SelectClause): QueryBuilder<TSchema>;
+  select(fields: SelectClause<TSchema>): QueryBuilder<TSchema>;
 
   /**
    * Add WHERE conditions (type-safe when TSchema is provided)
+   * Multiple .where() calls are merged with $and logic
    */
   where(conditions: WhereClause<TSchema>): QueryBuilder<TSchema>;
-
-  /**
-   * Add AND condition (type-safe when TSchema is provided)
-   */
-  andWhere(conditions: WhereClause<TSchema>): QueryBuilder<TSchema>;
-
-  /**
-   * Add OR condition (type-safe when TSchema is provided)
-   */
-  orWhere(conditions: WhereClause<TSchema>): QueryBuilder<TSchema>;
 
   /**
    * Add populate (relations)
@@ -357,7 +285,7 @@ export interface QueryBuilder<TSchema extends ForjaEntry = ForjaRecord> {
   /**
    * Set returning fields
    */
-  returning(fields: SelectClause): QueryBuilder<TSchema>;
+  returning(fields: SelectClause<T>): QueryBuilder<TSchema>;
 
   /**
    * Set distinct
@@ -384,242 +312,4 @@ export interface QueryBuilder<TSchema extends ForjaEntry = ForjaRecord> {
    * Clone the builder
    */
   clone(): QueryBuilder<TSchema>;
-}
-
-/**
- * Query builder factory
- */
-export type QueryBuilderFactory = <TSchema extends ForjaEntry>(
-  table: string,
-  schema?: SchemaDefinition,
-) => QueryBuilder<TSchema>;
-
-/**
- * WHERE builder for complex conditions
- *
- * Generic type support for type-safe condition building.
- *
- * @template T - Entity type for type-safe queries
- */
-export interface WhereBuilder<T extends ForjaEntry = ForjaRecord> {
-  /**
-   * Build WHERE clause
-   */
-  build(conditions: WhereClause<T>): WhereClause<T>;
-
-  /**
-   * Combine conditions with AND
-   */
-  and(conditions: readonly WhereClause<T>[]): WhereClause<T>;
-
-  /**
-   * Combine conditions with OR
-   */
-  or(conditions: readonly WhereClause<T>[]): WhereClause<T>;
-
-  /**
-   * Negate condition
-   */
-  not(condition: WhereClause<T>): WhereClause<T>;
-
-  /**
-   * Validate WHERE clause
-   */
-  validate(where: WhereClause<T>): Result<WhereClause<T>, QueryBuilderError>;
-}
-
-/**
- * SELECT builder for field selection
- */
-export interface SelectBuilder {
-  /**
-   * Build SELECT clause
-   */
-  build(fields: SelectClause): SelectClause;
-
-  /**
-   * Validate SELECT clause
-   */
-  validate(
-    select: SelectClause,
-    schema?: SchemaDefinition,
-  ): Result<SelectClause, QueryBuilderError>;
-
-  /**
-   * Check if field exists in schema
-   */
-  hasField(field: string, schema: SchemaDefinition): boolean;
-}
-
-/**
- * POPULATE builder for relations
- */
-export interface PopulateBuilder<TSchema extends ForjaEntry> {
-  /**
-   * Build POPULATE clause
-   */
-  build(populate: PopulateClause<TSchema>): PopulateClause<TSchema>;
-
-  /**
-   * Validate POPULATE clause
-   */
-  validate(
-    populate: PopulateClause<TSchema>,
-    schema: SchemaDefinition,
-  ): Result<PopulateClause<TSchema>, QueryBuilderError>;
-
-  /**
-   * Resolve nested populates
-   */
-  resolveNested(populate: PopulateClause<TSchema>, depth: number): readonly string[];
-}
-
-/**
- * Pagination builder
- */
-export interface PaginationBuilder {
-  /**
-   * Build pagination (limit/offset)
-   */
-  build(
-    page: number,
-    pageSize: number,
-  ): {
-    readonly limit: number;
-    readonly offset: number;
-  };
-
-  /**
-   * Validate pagination parameters
-   */
-  validate(
-    limit?: number,
-    offset?: number,
-  ): Result<
-    { readonly limit: number; readonly offset: number },
-    QueryBuilderError
-  >;
-}
-
-/**
- * Query builder error
- */
-export class QueryBuilderError extends Error {
-  readonly code: string;
-  readonly field: string | undefined;
-  readonly details: unknown | undefined;
-
-  constructor(
-    message: string,
-    options?: {
-      code?: string;
-      field?: string;
-      details?: unknown;
-    },
-  ) {
-    super(message);
-    this.name = "QueryBuilderError";
-    this.code = options?.code ?? "UNKNOWN";
-    this.field = options?.field;
-    this.details = options?.details;
-  }
-}
-
-/**
- * Helper functions for type-safe metadata access
- */
-
-/**
- * Get relation metadata for a specific relation
- *
- * @param query - Query object containing metadata
- * @param relationName - Name of the relation to retrieve
- * @returns Relation metadata or undefined if not found
- *
- * @example
- * ```typescript
- * const authorMeta = getRelationMetadata(query, 'author');
- * if (authorMeta) {
- *   console.log(authorMeta.foreignKey); // 'authorId'
- *   console.log(authorMeta.targetTable); // 'users'
- * }
- * ```
- */
-export function getRelationMetadata(
-  query: QueryObject,
-  relationName: string,
-): RelationMetadata | undefined {
-  return query.meta?.relations?.[relationName];
-}
-
-/**
- * Get all relation metadata from query
- *
- * @param query - Query object containing metadata
- * @returns Record of all relation metadata or undefined
- *
- * @example
- * ```typescript
- * const relations = getAllRelationMetadata(query);
- * if (relations) {
- *   for (const [name, meta] of Object.entries(relations)) {
- *     console.log(`${name}: ${meta.targetTable}`);
- *   }
- * }
- * ```
- */
-export function getAllRelationMetadata(
-  query: QueryObject,
-): Record<string, RelationMetadata> | undefined {
-  return query.meta?.relations;
-}
-
-/**
- * Check if query has any relation metadata
- *
- * @param query - Query object to check
- * @returns True if query has at least one relation in metadata
- *
- * @example
- * ```typescript
- * if (hasRelationMetadata(query)) {
- *   // Generate JOINs
- * }
- * ```
- */
-export function hasRelationMetadata(query: QueryObject): boolean {
-  const relations = query.meta?.relations;
-  return !!relations && Object.keys(relations).length > 0;
-}
-
-/**
- * Get custom metadata value from query
- *
- * Useful for plugins that inject their own metadata
- *
- * @param query - Query object containing metadata
- * @param key - Metadata key
- * @returns Metadata value or undefined
- *
- * @example
- * ```typescript
- * // A plugin might inject custom metadata
- * const softDeleteEnabled = getMetadataValue(query, 'softDelete');
- * ```
- */
-export function getMetadataValue<T = unknown>(
-  query: QueryObject,
-  key: string,
-): T | undefined {
-  return query.meta?.[key] as T | undefined;
-}
-
-/**
- * Check if query has any metadata
- *
- * @param query - Query object to check
- * @returns True if query has metadata object
- */
-export function hasMetadata(query: QueryObject): boolean {
-  return !!query.meta && Object.keys(query.meta).length > 0;
 }

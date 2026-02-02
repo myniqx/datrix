@@ -1,14 +1,12 @@
 /**
- * JOIN/Populate Builder (~180 LOC)
+ * POPULATE Utilities
  *
- * Utilities for building and validating populate (JOIN) clauses.
- * Handles relation loading, nested populates, and validation.
+ * All POPULATE-related operations: normalization, validation.
+ * Handles relation loading, nested populates, dot notation, wildcard expansion.
  */
 
-import type { PopulateClause, PopulateOptions, SelectClause } from "forja-types/core/query-builder";
-import type { RelationField, SchemaDefinition } from "forja-types/core/schema";
-import type { Result } from "forja-types/utils";
-
+import type { PopulateClause, PopulateOptions, ForjaEntry } from "forja-types/core/query-builder";
+import type { RelationField, SchemaDefinition, SchemaRegistry } from "forja-types/core/schema";
 
 /**
  * Maximum nesting depth for populate clauses to prevent stack overflow
@@ -16,336 +14,314 @@ import type { Result } from "forja-types/utils";
 const MAX_POPULATE_DEPTH = 5;
 
 /**
- * Populate builder error
+ * Normalize and validate POPULATE clause
+ *
+ * Complete POPULATE processing pipeline:
+ * 1. Handle wildcard '*' → expand to all relations
+ * 2. Handle dot notation array → convert to nested object
+ * 3. Handle object format → validate and normalize
+ * 4. Recursively process nested populates
+ * 5. Validate relation fields exist
+ * 6. Check max depth limit
+ *
+ * @param populate - Raw POPULATE clause from user
+ * @param modelName - Model name
+ * @param registry - Schema registry for field expansion and validation
+ * @returns Normalized POPULATE clause
+ * @throws {Error} If validation fails
+ *
+ * @example
+ * ```ts
+ * // Wildcard - all relations
+ * normalizePopulate('*', 'Post', registry)
+ * // → { author: { select: [...] }, category: { select: [...] } }
+ *
+ * // Dot notation array
+ * normalizePopulate(['category', 'author.company'], 'Post', registry)
+ * // → {
+ * //   category: { select: [...] },
+ * //   author: { populate: { company: { select: [...] } } }
+ * // }
+ *
+ * // Object notation
+ * normalizePopulate({ author: true }, 'Post', registry)
+ * // → { author: { select: ['id', 'name', ...] } }
+ *
+ * // Validation errors
+ * normalizePopulate({ invalidField: true }, 'Post', registry)
+ * // → throws Error: Field 'invalidField' does not exist
+ *
+ * normalizePopulate({ title: true }, 'Post', registry)
+ * // → throws Error: Cannot populate non-relation field 'title'
+ * ```
  */
-export class PopulateBuilderError extends Error {
-  constructor(
-    message: string,
-    public readonly details?: {
-      field?: string;
-      relation?: string;
-      availableRelations?: readonly string[];
-    }
-  ) {
-    super(message);
-    this.name = 'PopulateBuilderError';
-  }
-}
-
-/**
- * Get all relation fields from schema
- */
-export function getRelationFields(
-  schema: SchemaDefinition
-): Record<string, RelationField> {
-  const relations: Record<string, RelationField> = {};
-
-  for (const [fieldName, field] of Object.entries(schema.fields)) {
-    if (field.type === 'relation') {
-      relations[fieldName] = field as RelationField;
-    }
+export function normalizePopulate<T extends ForjaEntry>(
+  populate: PopulateClause<T> | "*" | readonly string[] | undefined,
+  modelName: string,
+  registry: SchemaRegistry,
+): PopulateClause<T> | undefined {
+  if (!populate) {
+    return undefined;
   }
 
-  return relations;
-}
-
-/**
- * Check if schema has relation field
- */
-export function hasRelation(
-  schema: SchemaDefinition,
-  relationName: string
-): boolean {
-  const field = schema.fields[relationName];
-  return field !== undefined && field.type === 'relation';
-}
-
-/**
- * Get relation field definition
- */
-export function getRelationField(
-  schema: SchemaDefinition,
-  relationName: string
-): Result<RelationField, PopulateBuilderError> {
-  const field = schema.fields[relationName];
-
-  if (!field) {
-    return {
-      success: false,
-      error: new PopulateBuilderError(
-        `Field '${relationName}' does not exist in schema '${schema.name}'`,
-        {
-          field: relationName,
-          availableRelations: Object.keys(getRelationFields(schema))
-        }
-      )
-    };
+  const schema = registry.get(modelName);
+  if (!schema) {
+    throw new Error(`Schema not found: ${modelName}`);
   }
 
-  if (field.type !== 'relation') {
-    return {
-      success: false,
-      error: new PopulateBuilderError(
-        `Field '${relationName}' is not a relation field (type: ${field.type})`,
-        { field: relationName }
-      )
-    };
-  }
-
-  return { success: true, data: field as RelationField };
-}
-
-/**
- * Parse populate clause from various formats
- */
-export function parsePopulateClause(
-  input: unknown
-): Result<PopulateClause, PopulateBuilderError> {
-  if (input === null || input === undefined) {
-    return { success: true, data: {} };
-  }
-
-  // Handle string: single relation, all fields
-  if (typeof input === 'string') {
-    return {
-      success: true,
-      data: { [input]: '*' }
-    };
-  }
-
-  // Handle array: multiple relations, all fields
-  if (Array.isArray(input)) {
-    const populate: Record<string, PopulateOptions | '*'> = {};
-    for (const item of input) {
-      if (typeof item !== 'string') {
-        return {
-          success: false,
-          error: new PopulateBuilderError(
-            `Invalid populate item: expected string, got ${typeof item}`
-          )
-        };
-      }
-      populate[item] = '*';
-    }
-    return { success: true, data: populate };
-  }
-
-  // Handle object: full populate clause
-  if (typeof input === 'object') {
-    return { success: true, data: input as PopulateClause };
-  }
-
-  return {
-    success: false,
-    error: new PopulateBuilderError(
-      `Invalid populate clause type: expected string, array, or object, got ${typeof input}`
-    )
-  };
-}
-
-/**
- * Validate populate options
- */
-export function validatePopulateOptions(
-  relationName: string,
-  options: PopulateOptions | '*',
-  _relationField: RelationField,
-  targetSchema: SchemaDefinition,
-  getSchema: (name: string) => SchemaDefinition | undefined,
-  depth: number
-): Result<void, PopulateBuilderError> {
-  // '*' is always valid
-  if (options === '*') {
-    return { success: true, data: undefined };
-  }
-
-  // Validate select clause if present
-  if (options.select && options.select !== '*') {
-    const availableFields = Object.keys(targetSchema.fields);
-    for (const field of options.select) {
-      if (!availableFields.includes(field)) {
-        return {
-          success: false,
-          error: new PopulateBuilderError(
-            `Field '${field}' does not exist in related schema '${targetSchema.name}'`,
-            { field, relation: relationName }
-          )
+  // Handle wildcard '*' - populate all first-level relations
+  if (populate === "*") {
+    const allRelations: Record<string, object> = {};
+    for (const [fieldName, field] of Object.entries(schema.fields)) {
+      if (field.type === "relation") {
+        const relationField = field as RelationField;
+        allRelations[fieldName] = {
+          select: registry.getCachedSelectFields(relationField.model),
         };
       }
     }
+    return allRelations as PopulateClause<T>;
   }
 
-  // Validate nested populate if present with depth check
-  if (options.populate) {
-    // Check if we would exceed depth limit
-    if (depth >= MAX_POPULATE_DEPTH) {
-      return {
-        success: false,
-        error: new PopulateBuilderError(
-          `Populate clause exceeds maximum nesting depth of ${MAX_POPULATE_DEPTH}`,
-          { relation: relationName }
-        )
-      };
+  // Handle array format - dot notation ['category', 'author.company']
+  if (Array.isArray(populate)) {
+    return normalizePopulateArray(populate, schema, modelName, registry) as PopulateClause<T>;
+  }
+
+  // Handle object format
+  const result: Record<string, object> = {};
+
+  for (const [relationName, value] of Object.entries(populate)) {
+    const field = schema.fields[relationName];
+
+    // Field doesn't exist - throw error (typo detection)
+    if (!field) {
+      const availableRelations = Object.entries(schema.fields)
+        .filter(([_, f]) => f.type === "relation")
+        .map(([name]) => name);
+
+      throw new Error(
+        `Field '${relationName}' does not exist in ${modelName}. ` +
+        `Available relations: ${availableRelations.join(", ")}`
+      );
     }
 
-    // Recursively validate nested populates with depth tracking
-    const nestedResult = validatePopulateClause(
-      options.populate,
-      targetSchema,
-      getSchema,
-      depth + 1
-    );
-    if (!nestedResult.success) {
-      return {
-        success: false,
-        error: new PopulateBuilderError(
-          `Nested populate error in '${relationName}': ${nestedResult.error.message}`,
-          { relation: relationName }
-        )
+    // Field exists but is not a relation - throw error
+    if (field.type !== "relation") {
+      throw new Error(
+        `Cannot populate non-relation field '${relationName}' (type: ${field.type}) in ${modelName}`
+      );
+    }
+
+    const relationField = field as RelationField;
+    const targetModel = relationField.model;
+
+    if (typeof value === "boolean" || value === true) {
+      // populate[category]=true → convert to { select: [...] }
+      result[relationName] = {
+        select: registry.getCachedSelectFields(targetModel),
       };
+    } else if (typeof value === "object" && value !== null) {
+      // populate[category]={ select: [...], populate: {...} }
+      result[relationName] = {
+        ...value,
+        // Normalize select for this level (if provided)
+        select: value.select ? registry.getCachedSelectFields(targetModel) : undefined,
+        // Recursively process nested populate
+        populate: value.populate
+          ? normalizePopulate(value.populate, targetModel, registry)
+          : undefined,
+      };
+    } else if (value === "*") {
+      // populate[category]=* → convert to { select: [...] }
+      result[relationName] = {
+        select: registry.getCachedSelectFields(targetModel),
+      };
+    } else {
+      throw new Error(
+        `Invalid populate value for ${modelName}.${relationName}: ${value}`
+      );
     }
   }
 
-  return { success: true, data: undefined };
+  return result as PopulateClause<T>;
 }
 
 /**
- * Validate populate clause against schema
+ * Normalize array-based populate with dot notation
+ *
+ * Internal helper for normalizePopulate.
+ * Converts ['category', 'author.company', 'author.posts'] to nested object format.
+ *
+ * @param paths - Array of relation paths (dot notation)
+ * @param schema - Current schema
+ * @param modelName - Model name for error messages
+ * @param registry - Schema registry
+ * @returns Normalized populate object
  */
-export function validatePopulateClause(
-  populate: PopulateClause,
+function normalizePopulateArray(
+  paths: readonly string[],
   schema: SchemaDefinition,
-  getSchema: (name: string) => SchemaDefinition | undefined,
-  depth = 0
-): Result<void, PopulateBuilderError> {
-  // Check depth limit
-  if (depth > MAX_POPULATE_DEPTH) {
-    return {
-      success: false,
-      error: new PopulateBuilderError(
-        `Populate clause exceeds maximum nesting depth of ${MAX_POPULATE_DEPTH}`
-      )
-    };
-  }
+  modelName: string,
+  registry: SchemaRegistry,
+): Record<string, PopulateOptions> {
+  const result: Record<string, any> = {};
 
-  for (const [relationName, options] of Object.entries(populate)) {
-    // Get relation field
-    const relationResult = getRelationField(schema, relationName);
-    if (!relationResult.success) {
-      return { success: false, error: relationResult.error };
+  for (const path of paths) {
+    const parts = path.split(".");
+    const firstPart = parts[0]!;
+
+    // Validate that first part is a relation field
+    const field = schema.fields[firstPart];
+
+    // Field doesn't exist
+    if (!field) {
+      const availableRelations = Object.entries(schema.fields)
+        .filter(([_, f]) => f.type === "relation")
+        .map(([name]) => name);
+
+      throw new Error(
+        `Field '${firstPart}' does not exist in ${modelName}. ` +
+        `Available relations: ${availableRelations.join(", ")}`
+      );
     }
 
-    const relationField = relationResult.data;
+    // Field exists but is not a relation
+    if (field.type !== "relation") {
+      throw new Error(
+        `Cannot populate non-relation field '${firstPart}' in ${modelName}`
+      );
+    }
 
-    // Get target schema
-    const targetSchema = getSchema(relationField.model);
-    if (!targetSchema) {
-      return {
-        success: false,
-        error: new PopulateBuilderError(
-          `Target schema '${relationField.model}' not found for relation '${relationName}'`,
-          { relation: relationName }
-        )
+    const relationField = field as RelationField;
+    const targetModel = relationField.model;
+
+    if (parts.length === 1) {
+      // Simple path: 'category' → { category: { select: [...] } }
+      result[firstPart] = {
+        select: registry.getCachedSelectFields(targetModel),
       };
-    }
+    } else {
+      // Nested path: 'author.company' → { author: { populate: { company: { select: [...] } } } }
+      const nestedPath = parts.slice(1).join(".");
 
-    // Validate populate options with depth tracking
-    const optionsResult = validatePopulateOptions(
-      relationName,
-      options,
-      relationField,
-      targetSchema,
-      getSchema,
-      depth
-    );
-    if (!optionsResult.success) {
-      return { success: false, error: optionsResult.error };
+      if (!result[firstPart]) {
+        result[firstPart] = {
+          select: registry.getCachedSelectFields(targetModel),
+          populate: {},
+        };
+      }
+
+      if (!result[firstPart].populate) {
+        result[firstPart].populate = {};
+      }
+
+      // Recursively normalize the nested path
+      const targetSchema = registry.get(targetModel);
+      if (targetSchema) {
+        const nested = normalizePopulateArray([nestedPath], targetSchema, targetModel, registry);
+        // Merge nested populate
+        Object.assign(result[firstPart].populate, nested);
+      }
     }
   }
 
-  return { success: true, data: undefined };
+  return result;
 }
 
 /**
- * Create simple populate (all fields)
+ * Normalize and merge POPULATE arrays
+ *
+ * Complete POPULATE processing pipeline for multiple .populate() calls:
+ * 1. Normalize each populate clause (expand wildcards, validate, etc.)
+ * 2. Merge all normalized results
+ *
+ * @param populates - Array of populate clauses from multiple .populate() calls
+ * @param modelName - Model name for validation and normalization
+ * @param registry - Schema registry
+ * @returns Final normalized and merged populate clause
+ *
+ * @example
+ * ```ts
+ * // Multiple populate calls accumulated in array
+ * const populates = [
+ *   { author: true },
+ *   { category: { select: ['name'] } }
+ * ];
+ *
+ * const normalized = normalizePopulateArray(populates, 'Post', registry);
+ * // → { author: { select: [...] }, category: { select: ['name'] } }
+ * ```
  */
-export function createSimplePopulate(
-  ...relations: readonly string[]
-): PopulateClause {
-  const populate: Record<string, '*'> = {};
-  for (const relation of relations) {
-    populate[relation] = '*';
+export function normalizePopulateArray<T extends ForjaEntry>(
+  populates: (PopulateClause<T> | "*" | readonly string[])[] | undefined,
+  modelName: string,
+  registry: SchemaRegistry,
+): PopulateClause<T> | undefined {
+  if (!populates || populates.length === 0) {
+    return undefined;
   }
-  return populate;
-}
 
-/**
- * Create populate with options
- */
-export function createPopulateWithOptions(
-  relation: string,
-  options: PopulateOptions
-): PopulateClause {
-  return { [relation]: options };
-}
+  // Normalize each populate clause
+  const normalized: PopulateClause<T>[] = [];
+  for (const populate of populates) {
+    const result = normalizePopulate(populate, modelName, registry);
+    if (result) {
+      normalized.push(result);
+    }
+  }
 
-/**
- * Create nested populate
- */
-export function createNestedPopulate(
-  relation: string,
-  select?: SelectClause,
-  nestedPopulate?: PopulateClause
-): PopulateClause {
-  // Build options object conditionally
-  const options: PopulateOptions = {
-    ...(select !== undefined && { select }),
-    ...(nestedPopulate !== undefined && { populate: nestedPopulate })
-  };
+  // Merge all normalized populates
+  if (normalized.length === 0) {
+    return undefined;
+  }
 
-  return { [relation]: Object.keys(options).length > 0 ? options : '*' };
+  return mergePopulateClauses(...normalized) as PopulateClause<T>;
 }
 
 /**
  * Merge populate clauses
+ *
+ * Used internally by normalizePopulateArray when merging multiple .populate() calls.
  */
 export function mergePopulateClauses(
   ...clauses: readonly (PopulateClause | undefined)[]
 ): PopulateClause {
-  const merged: Record<string, PopulateOptions | '*'> = {};
+  const merged: Record<string, PopulateOptions | '*' | true> = {};
 
   for (const clause of clauses) {
     if (!clause) continue;
 
     for (const [relation, options] of Object.entries(clause)) {
-      // If either is '*', use '*'
-      if (options === '*' || merged[relation] === '*') {
-        merged[relation] = '*';
+      // If either is '*' or true, use it
+      if (options === '*' || options === true || merged[relation] === '*' || merged[relation] === true) {
+        merged[relation] = options === true ? true : '*';
       } else if (merged[relation]) {
-        // Merge options
+        // Merge options (both are objects)
         const existing = merged[relation] as PopulateOptions;
+        const newOptions = options as PopulateOptions;
         const mergedOptions: PopulateOptions = {
-          ...(options.select !== undefined || existing.select !== undefined
-            ? { select: options.select || existing.select }
+          ...(newOptions.select !== undefined || existing.select !== undefined
+            ? { select: newOptions.select || existing.select }
             : {}),
-          ...(options.where !== undefined || existing.where !== undefined
-            ? { where: options.where || existing.where }
+          ...(newOptions.where !== undefined || existing.where !== undefined
+            ? { where: newOptions.where || existing.where }
             : {}),
-          ...(options.populate !== undefined || existing.populate !== undefined
+          ...(newOptions.populate !== undefined || existing.populate !== undefined
             ? {
-              populate: options.populate
-                ? mergePopulateClauses(existing.populate, options.populate)
+              populate: newOptions.populate
+                ? mergePopulateClauses(existing.populate, newOptions.populate)
                 : existing.populate
             }
             : {}),
-          ...(options.limit !== undefined || existing.limit !== undefined
-            ? { limit: options.limit ?? existing.limit }
+          ...(newOptions.limit !== undefined || existing.limit !== undefined
+            ? { limit: newOptions.limit ?? existing.limit }
             : {}),
-          ...(options.offset !== undefined || existing.offset !== undefined
-            ? { offset: options.offset ?? existing.offset }
+          ...(newOptions.offset !== undefined || existing.offset !== undefined
+            ? { offset: newOptions.offset ?? existing.offset }
             : {}),
-          ...(options.orderBy !== undefined || existing.orderBy !== undefined
-            ? { orderBy: options.orderBy || existing.orderBy }
+          ...(newOptions.orderBy !== undefined || existing.orderBy !== undefined
+            ? { orderBy: newOptions.orderBy || existing.orderBy }
             : {})
         };
         merged[relation] = mergedOptions;
@@ -356,43 +332,4 @@ export function mergePopulateClauses(
   }
 
   return merged;
-}
-
-/**
- * Check if populate clause is empty
- */
-export function isEmptyPopulateClause(
-  populate: PopulateClause | undefined
-): boolean {
-  return populate === undefined || Object.keys(populate).length === 0;
-}
-
-/**
- * Get populate depth (for nested populates)
- */
-export function getPopulateDepth(
-  populate: PopulateClause,
-  currentDepth = 0
-): number {
-  // Prevent unbounded recursion
-  if (currentDepth > MAX_POPULATE_DEPTH) {
-    return MAX_POPULATE_DEPTH;
-  }
-
-  let maxDepth = 0;
-
-  for (const options of Object.values(populate)) {
-    if (options === '*') {
-      maxDepth = Math.max(maxDepth, 1);
-    } else if (options.populate) {
-      maxDepth = Math.max(
-        maxDepth,
-        1 + getPopulateDepth(options.populate, currentDepth + 1)
-      );
-    } else {
-      maxDepth = Math.max(maxDepth, 1);
-    }
-  }
-
-  return maxDepth;
 }

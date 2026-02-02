@@ -31,7 +31,7 @@ import {
   validateData,
   processRelation,
 } from "./crud-helpers";
-import { QueryNormalizer } from "./query-normalizer";
+import { QueryNormalizer } from "../query-builder";
 
 /**
  * CRUD Operations Class

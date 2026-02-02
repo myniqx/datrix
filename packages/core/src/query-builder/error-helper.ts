@@ -248,3 +248,66 @@ export function throwUnknownField(
     },
   );
 }
+
+/**
+ * Throw multiple invalid fields error
+ *
+ * @param component - Query builder component
+ * @param invalidFields - List of invalid field names
+ * @param availableFields - List of valid fields
+ *
+ * @example
+ * ```ts
+ * throwInvalidFields('select', ['field1', 'field2'], ['id', 'name', 'email']);
+ * ```
+ */
+export function throwInvalidFields(
+  component: QueryBuilderComponent,
+  invalidFields: readonly string[],
+  availableFields?: readonly string[],
+): never {
+  const fieldList = invalidFields.join(", ");
+  throw new ForjaQueryBuilderError(
+    `Invalid field(s) in ${component} clause: ${fieldList}`,
+    {
+      code: "INVALID_FIELD",
+      component,
+      field: invalidFields[0],
+      context: { invalidFields, availableFields },
+      suggestion:
+        availableFields
+          ? `Use one of: ${availableFields.join(", ")}`
+          : `Check that these fields exist in the schema`,
+      expected: availableFields ? availableFields.join(" | ") : undefined,
+      received: fieldList,
+    },
+  );
+}
+
+/**
+ * Throw relation field in select error
+ *
+ * @param relationFields - List of relation field names
+ * @param modelName - Model name
+ *
+ * @example
+ * ```ts
+ * throwRelationInSelect(['category', 'author'], 'Product');
+ * ```
+ */
+export function throwRelationInSelect(
+  relationFields: readonly string[],
+  modelName: string,
+): never {
+  const fieldList = relationFields.join(", ");
+  throw new ForjaQueryBuilderError(
+    `Cannot select relation field(s) in model '${modelName}': ${fieldList}. Use populate() to include relations.`,
+    {
+      code: "RELATION_IN_SELECT",
+      component: "select",
+      field: relationFields[0],
+      context: { relationFields, modelName },
+      suggestion: `Use .populate('${relationFields[0]}') instead of selecting it`,
+    },
+  );
+}

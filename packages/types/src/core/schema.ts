@@ -673,10 +673,9 @@ export interface SchemaRegistry {
   /** Check if registry is locked */
   isLocked(): boolean;
   /** Get select fields for a model  */
-  getSelectFieldsFor(
+  getCachedSelectFields<T extends ForjaEntry>(
     modelName: string,
-    userSelect?: readonly string[] | "*",
-  ): readonly string[] | "*";
+  ): (keyof T)[];
 }
 
 /**
