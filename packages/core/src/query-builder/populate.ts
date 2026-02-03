@@ -7,6 +7,7 @@
 
 import type { PopulateClause, PopulateOptions, ForjaEntry } from "forja-types/core/query-builder";
 import type { RelationField, SchemaDefinition, SchemaRegistry } from "forja-types/core/schema";
+import { throwInvalidField, throwInvalidValue } from "./error-helper";
 
 /**
  * Maximum nesting depth for populate clauses to prevent stack overflow
@@ -66,85 +67,78 @@ export function normalizePopulate<T extends ForjaEntry>(
 
   const schema = registry.get(modelName);
   if (!schema) {
-    throw new Error(`Schema not found: ${modelName}`);
+    throwInvalidValue("populate", "modelName", modelName, "valid model name");
   }
 
   // Handle wildcard '*' - populate all first-level relations
-  if (populate === "*") {
+  if (populate === "*")
     const allRelations: Record<string, object> = {};
-    for (const [fieldName, field] of Object.entries(schema.fields)) {
-      if (field.type === "relation") {
-        const relationField = field as RelationField;
-        allRelations[fieldName] = {
-          select: registry.getCachedSelectFields(relationField.model),
-        };
-      }
-    }
-    return allRelations as PopulateClause<T>;
-  }
-
-  // Handle array format - dot notation ['category', 'author.company']
-  if (Array.isArray(populate)) {
-    return normalizePopulateArray(populate, schema, modelName, registry) as PopulateClause<T>;
-  }
-
-  // Handle object format
-  const result: Record<string, object> = {};
-
-  for (const [relationName, value] of Object.entries(populate)) {
-    const field = schema.fields[relationName];
-
-    // Field doesn't exist - throw error (typo detection)
-    if (!field) {
-      const availableRelations = Object.entries(schema.fields)
-        .filter(([_, f]) => f.type === "relation")
-        .map(([name]) => name);
-
-      throw new Error(
-        `Field '${relationName}' does not exist in ${modelName}. ` +
-        `Available relations: ${availableRelations.join(", ")}`
-      );
-    }
-
-    // Field exists but is not a relation - throw error
-    if (field.type !== "relation") {
-      throw new Error(
-        `Cannot populate non-relation field '${relationName}' (type: ${field.type}) in ${modelName}`
-      );
-    }
-
-    const relationField = field as RelationField;
-    const targetModel = relationField.model;
-
-    if (typeof value === "boolean" || value === true) {
-      // populate[category]=true → convert to { select: [...] }
-      result[relationName] = {
-        select: registry.getCachedSelectFields(targetModel),
+  for (const [fieldName, field] of Object.entries(schema.fields)) {
+    if (field.type === "relation") {
+      const relationField = field as RelationField;
+      allRelations[fieldName] = {
+        select: registry.getCachedSelectFields(relationField.model),
       };
-    } else if (typeof value === "object" && value !== null) {
-      // populate[category]={ select: [...], populate: {...} }
-      result[relationName] = {
-        ...value,
-        // Normalize select for this level (if provided)
-        select: value.select ? registry.getCachedSelectFields(targetModel) : undefined,
-        // Recursively process nested populate
-        populate: value.populate
-          ? normalizePopulate(value.populate, targetModel, registry)
-          : undefined,
-      };
-    } else if (value === "*") {
-      // populate[category]=* → convert to { select: [...] }
-      result[relationName] = {
-        select: registry.getCachedSelectFields(targetModel),
-      };
-    } else {
-      throw new Error(
-        `Invalid populate value for ${modelName}.${relationName}: ${value}`
-      );
     }
   }
+  return allRelations as PopulateClause<T>;
+}
 
-  return result as PopulateClause<T>;
+// Handle array format - dot notation ['category', 'author.company']
+if (Array.isArray(populate)) {
+  return normalizePopulateDotNotation(populate, schema, modelName, registry) as PopulateClause<T>;
+}
+
+// Handle object format
+const result: Record<string, object> = {};
+
+for (const [relationName, value] of Object.entries(populate)) {
+  const field = schema.fields[relationName];
+
+  // Field doesn't exist - throw error (typo detection)
+  if (!field) {
+    const availableRelations = Object.entries(schema.fields)
+      .filter(([_, f]) => f.type === "relation")
+      .map(([name]) => name);
+
+    throwInvalidField("populate", relationName, availableRelations);
+  }
+
+  // Field exists but is not a relation - throw error
+  if (field.type !== "relation") {
+    throwInvalidValue("populate", relationName, field.type, "relation");
+  }
+
+  const relationField = field as RelationField;
+  const targetModel = relationField.model;
+
+  if (typeof value === "boolean" || value === true) {
+    // populate[category]=true → convert to { select: [...] }
+    result[relationName] = {
+      select: registry.getCachedSelectFields(targetModel),
+    };
+  } else if (typeof value === "object" && value !== null) {
+    // populate[category]={ select: [...], populate: {...} }
+    result[relationName] = {
+      ...value,
+      // Normalize select for this level (if provided)
+      select: value.select ? registry.getCachedSelectFields(targetModel) : undefined,
+      // Recursively process nested populate
+      populate: value.populate
+        ? normalizePopulate(value.populate, targetModel, registry)
+        : undefined,
+    };
+  } else if (value === "*") {
+    // populate[category]=* → convert to { select: [...] }
+    result[relationName] = {
+      select: registry.getCachedSelectFields(targetModel),
+    };
+  } else {
+    throwInvalidValue("populate", relationName, value, "boolean | object | '*'");
+  }
+}
+
+return result as PopulateClause<T>;
 }
 
 /**
@@ -159,7 +153,7 @@ export function normalizePopulate<T extends ForjaEntry>(
  * @param registry - Schema registry
  * @returns Normalized populate object
  */
-function normalizePopulateArray(
+function normalizePopulateDotNotation(
   paths: readonly string[],
   schema: SchemaDefinition,
   modelName: string,
@@ -180,17 +174,12 @@ function normalizePopulateArray(
         .filter(([_, f]) => f.type === "relation")
         .map(([name]) => name);
 
-      throw new Error(
-        `Field '${firstPart}' does not exist in ${modelName}. ` +
-        `Available relations: ${availableRelations.join(", ")}`
-      );
+      throwInvalidField("populate", firstPart, availableRelations);
     }
 
     // Field exists but is not a relation
     if (field.type !== "relation") {
-      throw new Error(
-        `Cannot populate non-relation field '${firstPart}' in ${modelName}`
-      );
+      throwInvalidValue("populate", firstPart, field.type, "relation");
     }
 
     const relationField = field as RelationField;
@@ -219,7 +208,7 @@ function normalizePopulateArray(
       // Recursively normalize the nested path
       const targetSchema = registry.get(targetModel);
       if (targetSchema) {
-        const nested = normalizePopulateArray([nestedPath], targetSchema, targetModel, registry);
+        const nested = normalizePopulateDotNotation([nestedPath], targetSchema, targetModel, registry);
         // Merge nested populate
         Object.assign(result[firstPart].populate, nested);
       }

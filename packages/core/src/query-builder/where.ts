@@ -157,10 +157,10 @@ export function validateComparisonOperator(
  * @param depth - Current nesting depth
  * @throws {ForjaQueryBuilderError} If where clause is invalid
  */
-export function validateWhereClause(
-  where: WhereClause,
+export function validateWhereClause<T extends ForjaEntry>(
+  where: WhereClause<T>,
   schema: SchemaDefinition,
-  schemaRegistry?: { get(name: string): SchemaDefinition | undefined },
+  schemaRegistry?: SchemaRegistry,
   depth = 0,
 ): void {
   // Check depth limit
@@ -179,12 +179,12 @@ export function validateWhereClause(
         }
 
         // Recursively validate each condition
-        for (const condition of value as readonly WhereClause[]) {
+        for (const condition of value as readonly WhereClause<T>[]) {
           validateWhereClause(condition, schema, schemaRegistry, depth + 1);
         }
       } else if (key === "$not") {
         // Recursively validate nested condition
-        validateWhereClause(value as WhereClause, schema, schemaRegistry, depth + 1);
+        validateWhereClause(value as WhereClause<T>, schema, schemaRegistry, depth + 1);
       }
       continue;
     }
@@ -194,8 +194,7 @@ export function validateWhereClause(
       throwInvalidField("where", key, availableFields);
     }
 
-    const fieldDef = schema.fields[key];
-    if (!fieldDef) continue;
+    const fieldDef = schema.fields[key]!;
 
     // Handle relation fields with nested WHERE
     if (fieldDef.type === "relation" && typeof value === "object" && value !== null && !(value instanceof Date)) {
@@ -212,7 +211,7 @@ export function validateWhereClause(
         const targetSchema = schemaRegistry.get(relationField.model);
         if (targetSchema) {
           // Recursively validate nested WHERE against target schema
-          validateWhereClause(value as WhereClause, targetSchema, schemaRegistry, depth + 1);
+          validateWhereClause(value as WhereClause<T>, targetSchema, schemaRegistry, depth + 1);
         }
       }
       continue;
@@ -337,7 +336,7 @@ function normalizeWhereClause<T extends ForjaEntry>(
     }
 
     // Check if this is a relation field
-    const field = schema.fields[key];
+    const field = schema.fields[key]!;
     if (field?.type === "relation") {
       const relationField = field as RelationField;
       const kind = relationField.kind;
