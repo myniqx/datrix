@@ -133,7 +133,7 @@ export class CrudOperations implements IRawCrud {
       builder.populate(options.populate);
     }
 
-    const query = builder.build() as QueryObject<T>;
+    const query = builder.build();
 
     return this.execute<T>(
       "findOne",
@@ -232,7 +232,7 @@ export class CrudOperations implements IRawCrud {
       builder.offset(options.offset);
     }
 
-    const query = builder.build() as QueryObject<T>;
+    const query = builder.build();
 
     return this.execute<T, T[]>("findMany", model, schema.tableName!, query, async (q) => {
       const result = await this.getAdapter().executeQuery<T>(q);
@@ -275,7 +275,7 @@ export class CrudOperations implements IRawCrud {
       builder.where(where);
     }
 
-    const query = builder.build() as QueryObject<T>;
+    const query = builder.build();
 
     return this.execute<T, number>("count", model, schema.tableName!, query, async (q) => {
       const result = await this.getAdapter().executeQuery<{ count: number }>(q);

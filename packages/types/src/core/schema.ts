@@ -6,6 +6,7 @@
  */
 
 import type { SchemaPermission, FieldPermission } from "./permission";
+import { QuerySelect } from "./query-builder";
 
 // Re-export permission types for convenience
 export type {
@@ -675,7 +676,7 @@ export interface SchemaRegistry {
   /** Get select fields for a model  */
   getCachedSelectFields<T extends ForjaEntry>(
     modelName: string,
-  ): (keyof T)[];
+  ): QuerySelect<T>;
 }
 
 /**

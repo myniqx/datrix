@@ -29,6 +29,9 @@ export type QueryBuilderErrorCode =
   | "MAX_DEPTH_EXCEEDED"
   | "EMPTY_CLAUSE"
   | "DUPLICATE_FIELD"
+  | "COERCION_FAILED"
+  | "RELATION_IN_SELECT"
+  | "SCHEMA_NOT_FOUND"
   | "UNKNOWN_FIELD";
 
 /**

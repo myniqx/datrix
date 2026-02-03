@@ -19,6 +19,11 @@ import type {
 import { normalizeWhere } from "./where";
 import { normalizePopulateArray } from "./populate";
 import { normalizeSelect } from "./select";
+import {
+  throwSchemaNotFound,
+  throwInvalidQueryType,
+  throwMissingTable,
+} from "./error-helper";
 import type {
   ForjaEntry,
   SchemaRegistry as ISchemaRegistry,
@@ -63,15 +68,14 @@ interface MutableQueryState<T extends ForjaEntry> {
   table?: string;
   select?: SelectClause<T>[];
   where?: WhereClause<T>[];
-  populate?: PopulateClause<T>[];
+  populate?: (PopulateClause<T> | "*" | readonly string[])[];
   orderBy?: OrderByItem[];
   limit?: number;
   offset?: number;
   data?: Partial<T>;
-  returning?: SelectClause<T>[];
   distinct?: boolean;
   groupBy?: string[];
-  having?: WhereClause;
+  having?: WhereClause<T>;
 }
 
 /**
@@ -109,10 +113,9 @@ export class ForjaQueryBuilder<
     this._registry = schemaRegistry;
 
     // Get schema from registry
-    const schema = schemaRegistry.get(modelName);
+    const schema = schemaRegistry.get(modelName)!;
     if (!schema) {
-      // TODO: throw SchemaNotFoundError(modelName)
-      throw new Error(`Schema not found for model: ${modelName}`);
+      throwSchemaNotFound(modelName);
     }
 
     this._schema = schema;
@@ -120,14 +123,6 @@ export class ForjaQueryBuilder<
       table: schema.tableName!,
       type,
     }
-  }
-
-  /**
-   * Set query type
-   */
-  type(queryType: QueryType): this {
-    this.query.type = queryType;
-    return this;
   }
 
   /**
@@ -166,7 +161,7 @@ export class ForjaQueryBuilder<
    *
    * Multiple calls are accumulated and merged in build()
    */
-  populate(relations: PopulateClause | "*" | readonly string[]): this {
+  populate(relations: PopulateClause<TSchema> | "*" | readonly string[]): this {
     if (this.query.populate === undefined) {
       this.query.populate = [relations];
     } else {
@@ -209,21 +204,6 @@ export class ForjaQueryBuilder<
   }
 
   /**
-   * Set returning fields (for INSERT/UPDATE/DELETE)
-   */
-  returning(fields: SelectClause): this {
-    // For returning, we wrap in array and normalize
-    const normalized = normalizeSelect(
-      [fields],
-      this._schema,
-      this._modelName,
-      this._registry,
-    );
-    this.query.returning = normalized as SelectClause;
-    return this;
-  }
-
-  /**
    * Set DISTINCT
    */
   distinct(enabled = true): this {
@@ -242,25 +222,23 @@ export class ForjaQueryBuilder<
   /**
    * Having clause (for GROUP BY)
    */
-  having(conditions: WhereClause): this {
+  having(conditions: WhereClause<TSchema>): this {
     this.query.having = conditions;
     return this;
   }
 
   /**
    * Build final QueryObject
-   * @throws {Error} If query is invalid
+   * @throws {ForjaQueryBuilderError} If query is invalid
    */
-  build(): QueryObject {
+  build(): QueryObject<TSchema> {
     // Validate required fields
     if (!this.query.type) {
-      // TODO: throw InvalidQueryTypeError(this.query.type)
-      throw new Error(`Invalid query type: ${this.query.type}`);
+      throwInvalidQueryType(this.query.type);
     }
 
     if (!this.query.table) {
-      // TODO: throw MissingTableError()
-      throw new Error("Query must have a table name");
+      throwMissingTable();
     }
 
     // Normalize select: merge, validate, add reserved fields
@@ -285,7 +263,7 @@ export class ForjaQueryBuilder<
       this._registry,
     );
 
-    return {
+    const query: QueryObject<TSchema> = {
       type: this.query.type,
       table: this.query.table,
       select: normalizedSelect,
@@ -297,15 +275,14 @@ export class ForjaQueryBuilder<
       ...(this.query.limit !== undefined && { limit: this.query.limit }),
       ...(this.query.offset !== undefined && { offset: this.query.offset }),
       ...(this.query.data !== undefined && { data: this.query.data }),
-      ...(this.query.returning !== undefined && {
-        returning: this.query.returning,
-      }),
       ...(this.query.distinct !== undefined && { distinct: this.query.distinct }),
       ...(this.query.groupBy !== undefined && {
         groupBy: this.query.groupBy as readonly string[],
       }),
       ...(this.query.having !== undefined && { having: this.query.having }),
     };
+
+    return query;
   }
 
   /**
@@ -387,13 +364,7 @@ export function selectFrom<TSchema extends ForjaEntry>(
   modelName: string,
   schemaRegistry: ISchemaRegistry,
 ): ForjaQueryBuilder<TSchema> {
-  const schema = schemaRegistry.get(modelName);
-  if (!schema) {
-    // TODO: throw SchemaNotFoundError(modelName)
-    throw new Error(`Schema not found for model: ${modelName}`);
-  }
-  return createQueryBuilder<TSchema>(modelName, schemaRegistry)
-    .type("select")
+  return new ForjaQueryBuilder<TSchema>(modelName, schemaRegistry, "select");
 }
 
 /**
@@ -411,16 +382,10 @@ export function selectFrom<TSchema extends ForjaEntry>(
  */
 export function insertInto<TSchema extends ForjaEntry>(
   modelName: string,
-  data: Record<string, unknown>,
+  data: Partial<TSchema>,
   schemaRegistry: ISchemaRegistry,
 ): ForjaQueryBuilder<TSchema> {
-  const schema = schemaRegistry.get(modelName);
-  if (!schema) {
-    // TODO: throw SchemaNotFoundError(modelName)
-    throw new Error(`Schema not found for model: ${modelName}`);
-  }
-  return createQueryBuilder<TSchema>(modelName, schemaRegistry)
-    .type("insert")
+  return new ForjaQueryBuilder<TSchema>(modelName, schemaRegistry, "insert")
     .data(data);
 }
 
@@ -441,16 +406,10 @@ export function insertInto<TSchema extends ForjaEntry>(
  */
 export function updateTable<TSchema extends ForjaEntry>(
   modelName: string,
-  data: Record<string, unknown>,
+  data: Partial<TSchema>,
   schemaRegistry: ISchemaRegistry,
 ): ForjaQueryBuilder<TSchema> {
-  const schema = schemaRegistry.get(modelName);
-  if (!schema) {
-    // TODO: throw SchemaNotFoundError(modelName)
-    throw new Error(`Schema not found for model: ${modelName}`);
-  }
-  return createQueryBuilder<TSchema>(modelName, schemaRegistry)
-    .type("update")
+  return new ForjaQueryBuilder<TSchema>(modelName, schemaRegistry, "update")
     .data(data);
 }
 
@@ -472,13 +431,7 @@ export function deleteFrom<TSchema extends ForjaEntry>(
   modelName: string,
   schemaRegistry: ISchemaRegistry,
 ): ForjaQueryBuilder<TSchema> {
-  const schema = schemaRegistry.get(modelName);
-  if (!schema) {
-    // TODO: throw SchemaNotFoundError(modelName)
-    throw new Error(`Schema not found for model: ${modelName}`);
-  }
-  return createQueryBuilder<TSchema>(modelName, schemaRegistry)
-    .type("delete")
+  return new ForjaQueryBuilder<TSchema>(modelName, schemaRegistry, "delete");
 }
 
 /**
@@ -499,11 +452,5 @@ export function countFrom<TSchema extends ForjaEntry>(
   modelName: string,
   schemaRegistry: ISchemaRegistry,
 ): ForjaQueryBuilder<TSchema> {
-  const schema = schemaRegistry.get(modelName);
-  if (!schema) {
-    // TODO: throw SchemaNotFoundError(modelName)
-    throw new Error(`Schema not found for model: ${modelName}`);
-  }
-  return createQueryBuilder<TSchema>(modelName, schemaRegistry)
-    .type("count")
+  return new ForjaQueryBuilder<TSchema>(modelName, schemaRegistry, "count");
 }

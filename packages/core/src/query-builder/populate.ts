@@ -5,7 +5,7 @@
  * Handles relation loading, nested populates, dot notation, wildcard expansion.
  */
 
-import type { PopulateClause, PopulateOptions, ForjaEntry } from "forja-types/core/query-builder";
+import type { PopulateClause, PopulateOptions, ForjaEntry, QueryPopulate } from "forja-types/core/query-builder";
 import type { RelationField, SchemaDefinition, SchemaRegistry } from "forja-types/core/schema";
 import { throwInvalidField, throwInvalidValue } from "./error-helper";
 
@@ -246,7 +246,7 @@ export function normalizePopulateArray<T extends ForjaEntry>(
   populates: (PopulateClause<T> | "*" | readonly string[])[] | undefined,
   modelName: string,
   registry: SchemaRegistry,
-): PopulateClause<T> | undefined {
+): QueryPopulate<T> | undefined {
   if (!populates || populates.length === 0) {
     return undefined;
   }
@@ -273,9 +273,9 @@ export function normalizePopulateArray<T extends ForjaEntry>(
  *
  * Used internally by normalizePopulateArray when merging multiple .populate() calls.
  */
-export function mergePopulateClauses(
-  ...clauses: readonly (PopulateClause | undefined)[]
-): PopulateClause {
+export function mergePopulateClauses<T extends ForjaEntry>(
+  ...clauses: readonly (PopulateClause<T> | undefined)[]
+): QueryPopulate<T> {
   const merged: Record<string, PopulateOptions | '*' | true> = {};
 
   for (const clause of clauses) {

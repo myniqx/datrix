@@ -217,34 +217,31 @@ export function throwInvalidQueryType(receivedType: unknown): never {
   throw new ForjaQueryBuilderError(`Invalid query type: ${receivedType}`, {
     code: "INVALID_QUERY_TYPE",
     component: "builder",
-    suggestion: "Use one of: select, insert, update, delete",
-    expected: "select | insert | update | delete",
+    suggestion: "Use one of: select, insert, update, delete, count",
+    expected: "select | insert | update | delete | count",
     received: receivedType,
   });
 }
 
 /**
- * Throw unknown field error
+ * Throw schema not found error
  *
- * @param component - Query builder component
- * @param field - Unknown field name
+ * @param modelName - Model name that was not found
  *
  * @example
  * ```ts
- * throwUnknownField('select', 'unknownField');
+ * throwSchemaNotFound('InvalidModel');
  * ```
  */
-export function throwUnknownField(
-  component: QueryBuilderComponent,
-  field: string,
-): never {
+export function throwSchemaNotFound(modelName: string): never {
   throw new ForjaQueryBuilderError(
-    `Unknown field '${field}' in ${component} clause`,
+    `Schema not found for model: ${modelName}`,
     {
-      code: "UNKNOWN_FIELD",
-      component,
-      field,
-      suggestion: `Check that '${field}' exists in the schema`,
+      code: "SCHEMA_NOT_FOUND",
+      component: "builder",
+      context: { modelName },
+      suggestion: `Check that '${modelName}' is registered in the schema registry`,
+      received: modelName,
     },
   );
 }

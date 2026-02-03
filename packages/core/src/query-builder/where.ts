@@ -173,7 +173,6 @@ function coerceString(
         return false;
       }
       throwCoercionFailed(fieldName, value, "boolean");
-      break;
     }
 
     case "date": {
@@ -190,7 +189,6 @@ function coerceString(
       } catch {
         throwCoercionFailed(fieldName, value, "json");
       }
-      break;
     }
 
     case "array": {
@@ -203,7 +201,6 @@ function coerceString(
       } catch {
         throwCoercionFailed(fieldName, value, "array");
       }
-      break;
     }
 
     case "relation": {
