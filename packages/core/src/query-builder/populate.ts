@@ -71,74 +71,74 @@ export function normalizePopulate<T extends ForjaEntry>(
   }
 
   // Handle wildcard '*' - populate all first-level relations
-  if (populate === "*")
+  if (populate === "*") {
     const allRelations: Record<string, object> = {};
-  for (const [fieldName, field] of Object.entries(schema.fields)) {
-    if (field.type === "relation") {
-      const relationField = field as RelationField;
-      allRelations[fieldName] = {
-        select: registry.getCachedSelectFields(relationField.model),
+    for (const [fieldName, field] of Object.entries(schema.fields)) {
+      if (field.type === "relation") {
+        const relationField = field as RelationField;
+        allRelations[fieldName] = {
+          select: registry.getCachedSelectFields(relationField.model),
+        };
+      }
+    }
+    return allRelations as PopulateClause<T>;
+  }
+
+  // Handle array format - dot notation ['category', 'author.company']
+  if (Array.isArray(populate)) {
+    return normalizePopulateDotNotation(populate, schema, modelName, registry) as PopulateClause<T>;
+  }
+
+  // Handle object format
+  const result: Record<string, object> = {};
+
+  for (const [relationName, value] of Object.entries(populate)) {
+    const field = schema.fields[relationName];
+
+    // Field doesn't exist - throw error (typo detection)
+    if (!field) {
+      const availableRelations = Object.entries(schema.fields)
+        .filter(([_, f]) => f.type === "relation")
+        .map(([name]) => name);
+
+      throwInvalidField("populate", relationName, availableRelations);
+    }
+
+    // Field exists but is not a relation - throw error
+    if (field.type !== "relation") {
+      throwInvalidValue("populate", relationName, field.type, "relation");
+    }
+
+    const relationField = field as RelationField;
+    const targetModel = relationField.model;
+
+    if (typeof value === "boolean" || value === true) {
+      // populate[category]=true → convert to { select: [...] }
+      result[relationName] = {
+        select: registry.getCachedSelectFields(targetModel),
       };
+    } else if (typeof value === "object" && value !== null) {
+      // populate[category]={ select: [...], populate: {...} }
+      result[relationName] = {
+        ...value,
+        // Normalize select for this level (if provided)
+        select: value.select ? registry.getCachedSelectFields(targetModel) : undefined,
+        // Recursively process nested populate
+        populate: value.populate
+          ? normalizePopulate(value.populate, targetModel, registry)
+          : undefined,
+      };
+    } else if (value === "*") {
+      // populate[category]=* → convert to { select: [...] }
+      result[relationName] = {
+        select: registry.getCachedSelectFields(targetModel),
+      };
+    } else {
+      throwInvalidValue("populate", relationName, value, "boolean | object | '*'");
     }
   }
-  return allRelations as PopulateClause<T>;
-}
 
-// Handle array format - dot notation ['category', 'author.company']
-if (Array.isArray(populate)) {
-  return normalizePopulateDotNotation(populate, schema, modelName, registry) as PopulateClause<T>;
-}
-
-// Handle object format
-const result: Record<string, object> = {};
-
-for (const [relationName, value] of Object.entries(populate)) {
-  const field = schema.fields[relationName];
-
-  // Field doesn't exist - throw error (typo detection)
-  if (!field) {
-    const availableRelations = Object.entries(schema.fields)
-      .filter(([_, f]) => f.type === "relation")
-      .map(([name]) => name);
-
-    throwInvalidField("populate", relationName, availableRelations);
-  }
-
-  // Field exists but is not a relation - throw error
-  if (field.type !== "relation") {
-    throwInvalidValue("populate", relationName, field.type, "relation");
-  }
-
-  const relationField = field as RelationField;
-  const targetModel = relationField.model;
-
-  if (typeof value === "boolean" || value === true) {
-    // populate[category]=true → convert to { select: [...] }
-    result[relationName] = {
-      select: registry.getCachedSelectFields(targetModel),
-    };
-  } else if (typeof value === "object" && value !== null) {
-    // populate[category]={ select: [...], populate: {...} }
-    result[relationName] = {
-      ...value,
-      // Normalize select for this level (if provided)
-      select: value.select ? registry.getCachedSelectFields(targetModel) : undefined,
-      // Recursively process nested populate
-      populate: value.populate
-        ? normalizePopulate(value.populate, targetModel, registry)
-        : undefined,
-    };
-  } else if (value === "*") {
-    // populate[category]=* → convert to { select: [...] }
-    result[relationName] = {
-      select: registry.getCachedSelectFields(targetModel),
-    };
-  } else {
-    throwInvalidValue("populate", relationName, value, "boolean | object | '*'");
-  }
-}
-
-return result as PopulateClause<T>;
+  return result as PopulateClause<T>;
 }
 
 /**

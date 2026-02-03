@@ -31,7 +31,7 @@ import {
   validateData,
   processRelation,
 } from "./crud-helpers";
-import { QueryNormalizer } from "../query-builder";
+import { QueryNormalizer, selectFrom, countFrom } from "../query-builder";
 
 /**
  * CRUD Operations Class
@@ -121,14 +121,19 @@ export class CrudOperations implements IRawCrud {
     options?: Pick<ParsedQuery<T>, "select" | "populate">,
   ): Promise<T | null> {
     const schema = this.getSchema(model);
-    const query: QueryObject<T> = {
-      type: "select",
-      table: schema.tableName!,
-      where: this.normalizer.normalizeWhere(where, schema),
-      select: this.normalizer.normalizeSelect(options?.select, model),
-      populate: this.normalizer.normalizePopulate(options?.populate, model),
-      limit: this.normalizer.normalizeLimit(1),
-    };
+
+    const builder = selectFrom<T>(model, this.schemas)
+      .where(where)
+      .limit(1);
+
+    if (options?.select) {
+      builder.select(options.select);
+    }
+    if (options?.populate) {
+      builder.populate(options.populate);
+    }
+
+    const query = builder.build() as QueryObject<T>;
 
     return this.execute<T>(
       "findOne",
@@ -203,16 +208,31 @@ export class CrudOperations implements IRawCrud {
     >,
   ): Promise<T[]> {
     const schema = this.getSchema(model);
-    const query: QueryObject<T> = {
-      type: "select",
-      table: schema.tableName!,
-      where: this.normalizer.normalizeWhere(options?.where, schema),
-      select: this.normalizer.normalizeSelect(options?.select, model),
-      populate: this.normalizer.normalizePopulate(options?.populate, model),
-      orderBy: this.normalizer.normalizeOrderBy(options?.orderBy),
-      limit: this.normalizer.normalizeLimit(options?.limit),
-      offset: this.normalizer.normalizeOffset(options?.offset),
-    };
+
+    const builder = selectFrom<T>(model, this.schemas);
+
+    if (options?.where) {
+      builder.where(options.where);
+    }
+    if (options?.select) {
+      builder.select(options.select);
+    }
+    if (options?.populate) {
+      builder.populate(options.populate);
+    }
+    if (options?.orderBy) {
+      for (const order of options.orderBy) {
+        builder.orderBy(order.field, order.direction);
+      }
+    }
+    if (options?.limit !== undefined) {
+      builder.limit(options.limit);
+    }
+    if (options?.offset !== undefined) {
+      builder.offset(options.offset);
+    }
+
+    const query = builder.build() as QueryObject<T>;
 
     return this.execute<T, T[]>("findMany", model, schema.tableName!, query, async (q) => {
       const result = await this.getAdapter().executeQuery<T>(q);
@@ -248,11 +268,14 @@ export class CrudOperations implements IRawCrud {
     where?: WhereClause<T>,
   ): Promise<number> {
     const schema = this.getSchema(model);
-    const query: QueryObject<T> = {
-      type: "count",
-      table: schema.tableName!,
-      where: this.normalizer.normalizeWhere(where, schema),
-    };
+
+    const builder = countFrom<T>(model, this.schemas);
+
+    if (where) {
+      builder.where(where);
+    }
+
+    const query = builder.build() as QueryObject<T>;
 
     return this.execute<T, number>("count", model, schema.tableName!, query, async (q) => {
       const result = await this.getAdapter().executeQuery<{ count: number }>(q);

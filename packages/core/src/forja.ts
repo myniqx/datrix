@@ -19,7 +19,7 @@ import {
   PluginContext,
   SchemaExtension,
 } from "forja-types/plugin";
-import { WhereClause } from "forja-types/core/query-builder";
+import { QueryBuilder, WhereClause } from "forja-types/core/query-builder";
 import { CrudOperations } from "./mixins/crud";
 import { SchemaHelpers } from "./mixins/schema";
 import { SchemaExtensionContextImpl } from "./plugin/schema-extension-context";
@@ -29,6 +29,8 @@ import { SchemaRegistry } from "./schema";
 import { ParsedQuery, ForjaEntry, ForjaRecord } from "forja-types";
 import { IForja } from "forja-types/forja";
 import { ForjaError } from "forja-types/errors";
+import { createQueryBuilder } from "./query-builder";
+import { QueryType } from "forja-types/core/query-adapter";
 
 /**
  * Forja initialization options
@@ -459,6 +461,11 @@ export class Forja implements IForja {
     this.schemas = new SchemaRegistry();
     this.initialized = false;
     Forja.initPromise = null;
+  }
+
+  public builder<T extends ForjaEntry = ForjaEntry>(modelName: string, type: QueryType): QueryBuilder<T> {
+    this.ensureInitialized();
+    return createQueryBuilder<T>(modelName, this.schemas, type);
   }
 
   private ensureInitialized(): void {

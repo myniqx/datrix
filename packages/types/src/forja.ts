@@ -1,8 +1,8 @@
 import { DatabaseAdapter } from "./adapter";
 import { ParsedQuery } from "./api/parser";
 import { DevConfig, ForjaConfig, MigrationConfig } from "./config";
-import { WhereClause } from "./core/query-builder";
-import { ForjaEntry, SchemaRegistry } from "./core/schema";
+import { QueryBuilder, QueryType, WhereClause } from "./core/query-builder";
+import { ForjaEntry, ForjaRecord, SchemaRegistry } from "./core/schema";
 import { ForjaError } from "./errors/forja-error";
 import { ForjaPlugin } from "./plugin";
 import { Result } from "./utils";
@@ -81,6 +81,7 @@ export interface IForja extends IRawCrud {
   getMigrationConfig(): Required<MigrationConfig>;
   getDevConfig(): Required<DevConfig>;
   isInitialized(): boolean;
+  builder<T extends ForjaEntry = ForjaRecord>(model: string, type: QueryType): QueryBuilder<T>;
 
   /**
    * Raw CRUD operations (bypasses plugin hooks)

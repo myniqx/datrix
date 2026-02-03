@@ -9,13 +9,213 @@ import type {
   ComparisonOperators,
   WhereClause,
 } from "forja-types/core/query-builder";
-import type { FieldType, SchemaDefinition, RelationField, SchemaRegistry, ForjaEntry } from "forja-types/core/schema";
+import type { FieldType, SchemaDefinition, RelationField, SchemaRegistry, ForjaEntry, FieldDefinition } from "forja-types/core/schema";
 import {
   throwInvalidOperator,
   throwInvalidValue,
   throwMaxDepthExceeded,
   throwInvalidField,
+  throwCoercionFailed,
 } from "./error-helper";
+
+/**
+ * All supported comparison operators
+ */
+export const COMPARISON_OPERATORS = [
+  "$eq",
+  "$ne",
+  "$gt",
+  "$gte",
+  "$lt",
+  "$lte",
+  "$in",
+  "$nin",
+  "$like",
+  "$ilike",
+  "$startsWith",
+  "$endsWith",
+  "$contains",
+  "$notContains",
+  "$icontains",
+  "$regex",
+  "$exists",
+  "$null",
+  "$notNull",
+] as const;
+
+/**
+ * Operators that always expect boolean values
+ */
+const BOOLEAN_OPERATORS = ["$exists", "$null", "$notNull"] as const;
+
+/**
+ * Operators that always expect string values (regardless of field type)
+ */
+const STRING_OPERATORS = [
+  "$like",
+  "$ilike",
+  "$startsWith",
+  "$endsWith",
+  "$contains",
+  "$notContains",
+  "$icontains",
+  "$regex",
+] as const;
+
+/**
+ * Coerce a value to the expected field type
+ *
+ * API'den gelen string değerleri schema'daki field tipine göre dönüştürür.
+ *
+ * @param value - The value to coerce (often a string from API)
+ * @param fieldDef - Field definition from schema
+ * @param fieldName - Field name for error messages
+ * @returns Coerced value in the correct type
+ * @throws {ForjaQueryBuilderError} If coercion fails
+ *
+ * @example
+ * ```ts
+ * coerceValue("100", { type: "number" }, "price") // → 100
+ * coerceValue("true", { type: "boolean" }, "active") // → true
+ * coerceValue("2024-01-01", { type: "date" }, "createdAt") // → Date object
+ * coerceValue("hello", { type: "number" }, "price") // → throws error
+ * ```
+ */
+export function coerceValue(
+  value: unknown,
+  fieldDef: FieldDefinition,
+  fieldName: string,
+): unknown {
+  // null/undefined pass through
+  if (value === null || value === undefined) {
+    return value;
+  }
+
+  // Already correct type - no coercion needed
+  if (isCorrectType(value, fieldDef.type)) {
+    return value;
+  }
+
+  // String coercion based on field type
+  if (typeof value === "string") {
+    return coerceString(value, fieldDef.type, fieldName);
+  }
+
+  // Array coercion (for $in, $nin operators)
+  if (Array.isArray(value)) {
+    return value.map((item) => coerceValue(item, fieldDef, fieldName));
+  }
+
+  // Value is not string and not correct type - error
+  throwCoercionFailed(fieldName, value, fieldDef.type);
+}
+
+/**
+ * Check if value is already the correct type
+ *
+ * Supports all FieldType values from schema.ts:
+ * string, number, boolean, date, json, enum, array, relation, file
+ */
+function isCorrectType(value: unknown, fieldType: FieldType): boolean {
+  switch (fieldType) {
+    case "string":
+    case "enum":
+    case "file":
+      return typeof value === "string";
+    case "number":
+      return typeof value === "number" && !Number.isNaN(value);
+    case "boolean":
+      return typeof value === "boolean";
+    case "date":
+      return value instanceof Date && !Number.isNaN(value.getTime());
+    case "json":
+      return typeof value === "object";
+    case "array":
+      return Array.isArray(value);
+    case "relation":
+      return typeof value === "number" || typeof value === "string";
+    default:
+      return true;
+  }
+}
+
+/**
+ * Coerce string value to target type
+ *
+ * Supports all FieldType values from schema.ts:
+ * string, number, boolean, date, json, enum, array, relation, file
+ */
+function coerceString(
+  value: string,
+  fieldType: FieldType,
+  fieldName: string,
+): unknown {
+  switch (fieldType) {
+    case "string":
+    case "enum":
+    case "file":
+      return value;
+
+    case "number": {
+      const num = Number(value);
+      if (Number.isNaN(num)) {
+        throwCoercionFailed(fieldName, value, "number");
+      }
+      return num;
+    }
+
+    case "boolean": {
+      const lower = value.toLowerCase();
+      if (lower === "true" || lower === "1") {
+        return true;
+      }
+      if (lower === "false" || lower === "0") {
+        return false;
+      }
+      throwCoercionFailed(fieldName, value, "boolean");
+      break;
+    }
+
+    case "date": {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) {
+        throwCoercionFailed(fieldName, value, "date");
+      }
+      return date;
+    }
+
+    case "json": {
+      try {
+        return JSON.parse(value);
+      } catch {
+        throwCoercionFailed(fieldName, value, "json");
+      }
+      break;
+    }
+
+    case "array": {
+      try {
+        const parsed = JSON.parse(value);
+        if (!Array.isArray(parsed)) {
+          throwCoercionFailed(fieldName, value, "array");
+        }
+        return parsed;
+      } catch {
+        throwCoercionFailed(fieldName, value, "array");
+      }
+      break;
+    }
+
+    case "relation": {
+      // Try to parse as number first, otherwise keep as string ID
+      const num = Number(value);
+      return Number.isNaN(num) ? value : num;
+    }
+
+    default:
+      return value;
+  }
+}
 
 /**
  * Maximum nesting depth for WHERE clauses to prevent stack overflow
@@ -32,25 +232,9 @@ export function isComparisonOperators(
     return false;
   }
 
-  const operators = [
-    "$eq",
-    "$ne",
-    "$gt",
-    "$gte",
-    "$lt",
-    "$lte",
-    "$in",
-    "$nin",
-    "$like",
-    "$ilike",
-    "$contains",
-    "$icontains",
-    "$regex",
-    "$exists",
-    "$null",
-  ];
-
-  return Object.keys(value).some((key) => operators.includes(key));
+  return Object.keys(value).some((key) =>
+    (COMPARISON_OPERATORS as readonly string[]).includes(key)
+  );
 }
 
 /**
@@ -62,6 +246,11 @@ export function isLogicalOperator(key: string): boolean {
 
 /**
  * Validate comparison operator value
+ *
+ * Note: This validation is lenient for string values because coercion
+ * happens in normalizeWhereClause and will convert strings to proper types.
+ * We only validate structural correctness here (e.g., $in must be array).
+ *
  * @throws {ForjaQueryBuilderError} If operator or value is invalid
  */
 export function validateComparisonOperator(
@@ -73,7 +262,7 @@ export function validateComparisonOperator(
   switch (operator) {
     case "$eq":
     case "$ne":
-      // Any primitive is valid
+      // Any primitive is valid (strings will be coerced later)
       if (
         typeof value !== "string" &&
         typeof value !== "number" &&
@@ -89,9 +278,13 @@ export function validateComparisonOperator(
     case "$gte":
     case "$lt":
     case "$lte":
-      // Only numbers and dates
-      if (typeof value !== "number" && !(value instanceof Date)) {
-        throwInvalidValue("where", field, value, "number or Date");
+      // Numbers, dates, or strings (strings will be coerced to number/date)
+      if (
+        typeof value !== "number" &&
+        typeof value !== "string" &&
+        !(value instanceof Date)
+      ) {
+        throwInvalidValue("where", field, value, "number, Date, or string");
       }
       break;
 
@@ -107,6 +300,9 @@ export function validateComparisonOperator(
     case "$ilike":
     case "$contains":
     case "$icontains":
+    case "$notContains":
+    case "$startsWith":
+    case "$endsWith":
       // String only
       if (typeof value !== "string") {
         throwInvalidValue("where", field, value, "string");
@@ -122,30 +318,15 @@ export function validateComparisonOperator(
 
     case "$exists":
     case "$null":
-      // Boolean only
-      if (typeof value !== "boolean") {
-        throwInvalidValue("where", field, value, "boolean");
+    case "$notNull":
+      // Boolean or string (strings like "true"/"false" will be coerced)
+      if (typeof value !== "boolean" && typeof value !== "string") {
+        throwInvalidValue("where", field, value, "boolean or string");
       }
       break;
 
     default:
-      throwInvalidOperator(field, operator, [
-        "$eq",
-        "$ne",
-        "$gt",
-        "$gte",
-        "$lt",
-        "$lte",
-        "$in",
-        "$nin",
-        "$like",
-        "$ilike",
-        "$contains",
-        "$icontains",
-        "$regex",
-        "$exists",
-        "$null",
-      ]);
+      throwInvalidOperator(field, operator, COMPARISON_OPERATORS);
   }
 }
 
@@ -304,15 +485,16 @@ export function normalizeWhere<T extends ForjaEntry>(
  * Normalize WHERE clause recursively
  *
  * Internal function that handles:
+ * - Type coercion: "100" → 100 (based on field type)
  * - Relation shortcuts: { category: 2 } → { categoryId: { $eq: 2 } }
  * - Nested relation WHERE: Recursively normalize target schema
  * - Logical operators: Recursively process $and, $or, $not
- * - Regular fields: Keep as-is
+ * - Comparison operators: Coerce values inside $eq, $gt, $in, etc.
  *
  * @param where - WHERE clause to normalize
  * @param schema - Schema definition
  * @param registry - Schema registry for nested relation schemas
- * @returns Normalized WHERE clause
+ * @returns Normalized WHERE clause with coerced values
  */
 function normalizeWhereClause<T extends ForjaEntry>(
   where: WhereClause<T>,
@@ -335,10 +517,17 @@ function normalizeWhereClause<T extends ForjaEntry>(
       continue;
     }
 
-    // Check if this is a relation field
-    const field = schema.fields[key]!;
-    if (field?.type === "relation") {
-      const relationField = field as RelationField;
+    // Get field definition
+    const fieldDef = schema.fields[key];
+    if (!fieldDef) {
+      // Unknown field - keep as-is (validation will catch this)
+      normalized[key] = value;
+      continue;
+    }
+
+    // Handle relation fields
+    if (fieldDef.type === "relation") {
+      const relationField = fieldDef as RelationField;
       const kind = relationField.kind;
 
       // Only normalize primitive values for belongsTo/hasOne
@@ -347,10 +536,11 @@ function normalizeWhereClause<T extends ForjaEntry>(
         (kind === "belongsTo" || kind === "hasOne") &&
         (typeof value === "string" || typeof value === "number")
       ) {
-        // Convert relation shortcut to FK filter
-        // { category: 2 } → { categoryId: { $eq: 2 } }
+        // Coerce and convert relation shortcut to FK filter
+        // { category: "2" } → { categoryId: { $eq: 2 } }
         const foreignKey = relationField.foreignKey!;
-        normalized[foreignKey] = { $eq: value };
+        const coercedValue = coerceValue(value, { type: "number" }, key);
+        normalized[foreignKey] = { $eq: coercedValue };
         continue;
       }
 
@@ -366,10 +556,32 @@ function normalizeWhereClause<T extends ForjaEntry>(
 
       // Fallback: keep as-is
       normalized[key] = value;
-    } else {
-      // Regular field - keep as-is
-      normalized[key] = value;
+      continue;
     }
+
+    // Handle comparison operators - coerce values inside
+    if (isComparisonOperators(value)) {
+      const coercedOps: ComparisonOperators = {};
+      for (const [operator, opValue] of Object.entries(value as ComparisonOperators)) {
+        // Boolean operators - $exists, $null, $notNull
+        if ((BOOLEAN_OPERATORS as readonly string[]).includes(operator)) {
+          coercedOps[operator] = coerceValue(opValue, { type: "boolean" }, key);
+        }
+        // String operators - always keep as string regardless of field type
+        else if ((STRING_OPERATORS as readonly string[]).includes(operator)) {
+          coercedOps[operator] = opValue; // Keep as string
+        }
+        // All other operators - coerce based on field type
+        else {
+          coercedOps[operator] = coerceValue(opValue, fieldDef, key);
+        }
+      }
+      normalized[key] = coercedOps;
+      continue;
+    }
+
+    // Simple equality - coerce based on field type
+    normalized[key] = coerceValue(value, fieldDef, key);
   }
 
   return normalized;

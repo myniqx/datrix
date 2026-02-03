@@ -311,3 +311,36 @@ export function throwRelationInSelect(
     },
   );
 }
+
+/**
+ * Throw type coercion failed error
+ *
+ * @param field - Field name
+ * @param value - Value that failed coercion
+ * @param expectedType - Expected type
+ *
+ * @example
+ * ```ts
+ * throwCoercionFailed('price', 'invalid', 'number');
+ * // Error: Cannot convert value 'invalid' to number for field 'price'
+ * ```
+ */
+export function throwCoercionFailed(
+  field: string,
+  value: unknown,
+  expectedType: string,
+): never {
+  const displayValue = typeof value === "string" ? `'${value}'` : String(value);
+  throw new ForjaQueryBuilderError(
+    `Cannot convert value ${displayValue} to ${expectedType} for field '${field}'`,
+    {
+      code: "COERCION_FAILED",
+      component: "where",
+      field,
+      context: { value, expectedType, receivedType: typeof value },
+      suggestion: `Provide a valid ${expectedType} value for '${field}'`,
+      expected: expectedType,
+      received: value,
+    },
+  );
+}

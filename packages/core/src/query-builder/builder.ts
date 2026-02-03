@@ -21,7 +21,6 @@ import { normalizePopulateArray } from "./populate";
 import { normalizeSelect } from "./select";
 import type {
   ForjaEntry,
-  ForjaRecord,
   SchemaRegistry as ISchemaRegistry,
   SchemaDefinition,
 } from "forja-types/core/schema";
@@ -105,7 +104,7 @@ export class ForjaQueryBuilder<
    * builder.select('*').where({ role: 'admin' });
    * ```
    */
-  constructor(modelName: string, schemaRegistry: ISchemaRegistry) {
+  constructor(modelName: string, schemaRegistry: ISchemaRegistry, type: QueryType = "select") {
     this._modelName = modelName;
     this._registry = schemaRegistry;
 
@@ -118,7 +117,8 @@ export class ForjaQueryBuilder<
 
     this._schema = schema;
     this.query = {
-      table: schema.tableName!
+      table: schema.tableName!,
+      type,
     }
   }
 
@@ -363,8 +363,9 @@ export class ForjaQueryBuilder<
 export function createQueryBuilder<TSchema extends ForjaEntry>(
   modelName: string,
   schemaRegistry: ISchemaRegistry,
+  type: QueryType = "select",
 ): ForjaQueryBuilder<TSchema> {
-  return new ForjaQueryBuilder<TSchema>(modelName, schemaRegistry);
+  return new ForjaQueryBuilder<TSchema>(modelName, schemaRegistry, type);
 }
 
 /**
@@ -393,7 +394,6 @@ export function selectFrom<TSchema extends ForjaEntry>(
   }
   return createQueryBuilder<TSchema>(modelName, schemaRegistry)
     .type("select")
-    .table(schema.tableName!);
 }
 
 /**
@@ -421,7 +421,6 @@ export function insertInto<TSchema extends ForjaEntry>(
   }
   return createQueryBuilder<TSchema>(modelName, schemaRegistry)
     .type("insert")
-    .table(schema.tableName!)
     .data(data);
 }
 
@@ -452,7 +451,6 @@ export function updateTable<TSchema extends ForjaEntry>(
   }
   return createQueryBuilder<TSchema>(modelName, schemaRegistry)
     .type("update")
-    .table(schema.tableName!)
     .data(data);
 }
 
@@ -481,7 +479,6 @@ export function deleteFrom<TSchema extends ForjaEntry>(
   }
   return createQueryBuilder<TSchema>(modelName, schemaRegistry)
     .type("delete")
-    .table(schema.tableName!);
 }
 
 /**
@@ -509,5 +506,4 @@ export function countFrom<TSchema extends ForjaEntry>(
   }
   return createQueryBuilder<TSchema>(modelName, schemaRegistry)
     .type("count")
-    .table(schema.tableName!);
 }
