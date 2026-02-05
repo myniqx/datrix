@@ -19,6 +19,7 @@ import type {
 import { normalizeWhere } from "./where";
 import { normalizePopulateArray } from "./populate";
 import { normalizeSelect } from "./select";
+import { processData } from "./data";
 import {
   throwSchemaNotFound,
   throwInvalidQueryType,
@@ -68,7 +69,7 @@ interface MutableQueryState<T extends ForjaEntry> {
   table?: string;
   select?: SelectClause<T>[];
   where?: WhereClause<T>[];
-  populate?: (PopulateClause<T> | "*" | readonly string[])[];
+  populate?: (PopulateClause<T>)[];
   orderBy?: OrderByItem[];
   limit?: number;
   offset?: number;
@@ -161,7 +162,7 @@ export class ForjaQueryBuilder<
    *
    * Multiple calls are accumulated and merged in build()
    */
-  populate(relations: PopulateClause<TSchema> | "*" | readonly string[]): this {
+  populate(relations: PopulateClause<TSchema>): this {
     if (this.query.populate === undefined) {
       this.query.populate = [relations];
     } else {
@@ -197,9 +198,26 @@ export class ForjaQueryBuilder<
 
   /**
    * Set data for INSERT/UPDATE
+   *
+   * Multiple calls are merged (shallow merge).
+   *
+   * @param values - Data to insert/update
+   * @returns this
+   *
+   * @example
+   * ```ts
+   * builder
+   *   .data({ name: 'John' })
+   *   .data({ age: 25 });  // Merged: { name: 'John', age: 25 }
+   * ```
    */
   data(values: Partial<TSchema>): this {
-    this.query.data = values;
+    if (this.query.data === undefined) {
+      this.query.data = values;
+    } else {
+      // Shallow merge (later values override earlier ones)
+      this.query.data = { ...this.query.data, ...values };
+    }
     return this;
   }
 
@@ -245,7 +263,6 @@ export class ForjaQueryBuilder<
     const normalizedSelect = normalizeSelect(
       this.query.select,
       this._schema,
-      this._modelName,
       this._registry,
     );
 
@@ -263,6 +280,16 @@ export class ForjaQueryBuilder<
       this._registry,
     );
 
+    // Process data (INSERT/UPDATE): validate, normalize, separate
+    const processedData =
+      this.query.data !== undefined
+        ? processData<TSchema>(
+          this.query.data,
+          this._schema,
+          this._registry,
+        )
+        : undefined;
+
     const query: QueryObject<TSchema> = {
       type: this.query.type,
       table: this.query.table,
@@ -274,7 +301,8 @@ export class ForjaQueryBuilder<
       }),
       ...(this.query.limit !== undefined && { limit: this.query.limit }),
       ...(this.query.offset !== undefined && { offset: this.query.offset }),
-      ...(this.query.data !== undefined && { data: this.query.data }),
+      ...(processedData !== undefined && { data: processedData.data }),
+      ...(processedData?.relations !== undefined && { relations: processedData.relations }),
       ...(this.query.distinct !== undefined && { distinct: this.query.distinct }),
       ...(this.query.groupBy !== undefined && {
         groupBy: this.query.groupBy as readonly string[],

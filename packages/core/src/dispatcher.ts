@@ -7,7 +7,7 @@
 
 import { QueryObject } from "forja-types/core/query-builder";
 import { PluginRegistry, QueryAction, QueryContext } from "forja-types/plugin";
-import { ForjaEntry, ForjaRecord, SchemaRegistry } from "forja-types/core/schema";
+import { ForjaEntry, ForjaRecord, SchemaDefinition, SchemaRegistry } from "forja-types/core/schema";
 import type { Forja } from "./forja";
 import { validateQueryObject } from "forja-types/utils/query";
 
@@ -16,14 +16,12 @@ import { validateQueryObject } from "forja-types/utils/query";
  */
 function createQueryContext(
   action: QueryAction,
-  model: string,
-  table: string,
+  schema: SchemaDefinition,
   forja: Forja,
 ): QueryContext {
   return {
     action,
-    model,
-    table,
+    schema,
     forja,
     metadata: {},
   };
@@ -45,10 +43,9 @@ export class Dispatcher {
    */
   private async buildQueryContext(
     action: QueryAction,
-    model: string,
-    table: string,
+    schema: SchemaDefinition
   ): Promise<QueryContext> {
-    let context = createQueryContext(action, model, table, this.forja);
+    let context = createQueryContext(action, schema, this.forja);
 
     for (const plugin of this.registry.getAll()) {
       try {
@@ -96,12 +93,11 @@ export class Dispatcher {
    */
   async executeQuery<TResult extends ForjaEntry, R = ForjaEntry>(
     action: QueryAction,
-    model: string,
-    table: string,
+    schema: SchemaDefinition,
     query: QueryObject<TResult>,
     executor: (query: QueryObject<TResult>) => Promise<R>,
   ): Promise<R> {
-    const context = await this.buildQueryContext(action, model, table);
+    const context = await this.buildQueryContext(action, schema);
     const modifiedQuery = await this.dispatchBeforeQuery(query, context);
     const result = await executor(modifiedQuery);
     const finalResult = await this.dispatchAfterQuery(result, context);
@@ -123,7 +119,7 @@ export class Dispatcher {
       );
     }
 
-    let currentQuery = { ...query };
+    let currentQuery = { ...query } as QueryObject<TResult>;
 
     for (const plugin of this.registry.getAll()) {
       try {

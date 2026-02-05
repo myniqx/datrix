@@ -27,11 +27,11 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import {
   expectApiSingle,
-  expectApiError,
   expectApiForbidden,
   expectApiUnauthorized,
   expectApiMulti,
 } from "forja-types/test/helpers";
+import { createRequest } from "./data/helper";
 
 describe("Schema-Level Permission Tests", () => {
   let forja: Forja;
@@ -55,29 +55,7 @@ describe("Schema-Level Permission Tests", () => {
   /**
    * Helper to create authenticated request
    */
-  function createRequest(
-    url: string,
-    options: {
-      method?: string;
-      body?: Record<string, unknown>;
-      token?: string;
-    } = {},
-  ): Request {
-    const { method = "GET", body, token } = options;
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
 
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-    }
-
-    return new Request(`http://localhost:3000${url}`, {
-      method,
-      headers,
-      ...(body && { body: JSON.stringify(body) }),
-    });
-  }
 
   beforeAll(async () => {
     // Clean up and create temp directory

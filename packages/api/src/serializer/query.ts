@@ -13,16 +13,20 @@ export function queryToParams<T extends ForjaEntry = ForjaRecord>(query: ParsedQ
 
   const serialized = serializeQuery(query);
 
-  const params = new URLSearchParams();
+  const parts: string[] = [];
   Object.entries(serialized).forEach(([key, value]) => {
     if (Array.isArray(value)) {
-      value.forEach((v) => params.append(key, v));
+      value.forEach((v) => {
+        // Only encode the value, keep [ ] in key for readability
+        parts.push(`${key}=${encodeURIComponent(String(v))}`);
+      });
     } else if (value !== undefined) {
-      params.append(key, value as string);
+      // Only encode the value, keep [ ] in key for readability
+      parts.push(`${key}=${encodeURIComponent(String(value))}`);
     }
   });
 
-  return params.toString();
+  return parts.join('&');
 }
 
 /**
@@ -105,9 +109,14 @@ function serializeWhere<T extends ForjaEntry>(where: WhereClause<T> | QueryPrimi
 /**
  * Recursive helper to serialize populate clause
  */
-function serializePopulate(populate: PopulateClause | '*', prefix: string, params: Record<string, string | string[]>) {
+function serializePopulate(populate: PopulateClause | '*', prefix: string, params: Record<string, string | string[] | true>) {
   if (populate === '*') {
     params[prefix] = '*';
+    return;
+  }
+
+  if (populate === 'true') {
+    params[prefix] = true;
     return;
   }
 
@@ -117,9 +126,9 @@ function serializePopulate(populate: PopulateClause | '*', prefix: string, param
     const relPrefix = `${prefix}[${relation}]`;
 
     if (options === '*' || options === true) {
-      params[relPrefix] = '*';
+      params[relPrefix] = options;
     } else if (typeof options === 'object') {
-      const opts = options as PopulateOptions;
+      const opts = options as PopulateOptions<ForjaEntry>;
 
       // select fields in populate
       if (opts.select) {

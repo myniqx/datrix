@@ -155,13 +155,12 @@ export type LogicalOperators<T extends ForjaEntry = ForjaEntry> = {
  * };
  * ```
  */
-export type WhereClause<T extends ForjaEntry = ForjaRecord> = {
-  [K in keyof T]?: T[K] extends Relation<infer R> ? WhereClause<R> // Relation fields → Nested WhereClause
-  : // Scalar fields → Value or operators
-  T[K] extends ScalarValue ? T[K] | ComparisonOperators<T[K]>
-  : // Unknown/complex types → Flexible fallback
-  unknown;
-} & LogicalOperators<T>;
+type Writable<T> = { -readonly [K in keyof T]: T[K] };
+export type WhereClause<T extends ForjaEntry> = Writable<{
+  [K in keyof T]?: T[K] extends Relation<infer R> ? WhereClause<R>
+  : T[K] extends ScalarValue ? T[K] | ComparisonOperators<T[K]>
+  : unknown;
+}> & LogicalOperators<T>;
 
 /**
  * SELECT clause (fields to select) - Input format from user
@@ -171,7 +170,7 @@ export type WhereClause<T extends ForjaEntry = ForjaRecord> = {
  * - Single field name: 'name'
  * - Wildcard: '*' (all fields)
  */
-export type SelectClause<T extends ForjaEntry = ForjaRecord> = readonly (keyof T)[] | "*" | keyof T;
+export type SelectClause<T extends ForjaEntry> = readonly (keyof T)[] | "*" | keyof T;
 
 /**
  * Populate clause (relations to include)
@@ -187,11 +186,19 @@ export type PopulateOptions<T extends ForjaEntry> = {
 
 /**
  * Populate clause type
+ *
+ * Accepts multiple formats:
+ * - Wildcard/true: '*' or true (populate all relations)
+ * - Dot notation array: ['relation1', 'relation1.nested', 'relation2']
+ * - Object notation: { relation1: true, relation2: { select: [...] } }
+ * - false: No populate (explicit opt-out)
  */
 export type PopulateClause<T extends ForjaEntry = ForjaRecord> =
-  | false
+  | boolean
+  | "*" | "true"
+  | keyof T[]
   | {
-    readonly [relation: string]: PopulateOptions<T> | "*" | true;
+    readonly [relation: string]: PopulateOptions<T> | "*" | boolean;
   };
 
 /**
@@ -243,21 +250,118 @@ export type QueryPopulate<T extends ForjaEntry = ForjaRecord> = {
 
 
 /**
+ * Normalized nested data for create/update operations (output of processData)
+ *
+ * After normalization:
+ * - Scalar fields go to 'data'
+ * - Relation operations go to 'relations' (can be recursive)
+ *
+ * @template T - The entity type
+ */
+export type NormalizedNestedData<T extends ForjaEntry> = {
+  readonly data: Partial<T>;
+  readonly relations?: QueryRelations<T>;
+};
+
+/**
+ * Normalized relation operations for QueryObject (output format)
+ *
+ * This is what processData() produces - fully normalized and type-safe:
+ * - connect/disconnect/set/delete: number[] (normalized from flexible input)
+ * - create: NormalizedNestedData<R> or array (recursive normalization)
+ * - update: { where, data, relations } or array (recursive normalization)
+ *
+ * @template R - The related entity type
+ *
+ * @example
+ * ```ts
+ * // Input (flexible RelationInput):
+ * {
+ *   author: { connect: 5 },
+ *   tags: {
+ *     connect: [{ id: 1 }, 2],
+ *     create: [{ name: 'Tech', category: { connect: 3 } }]
+ *   }
+ * }
+ *
+ * // Output (normalized NormalizedRelationOperations):
+ * {
+ *   author: { connect: [5] },
+ *   tags: {
+ *     connect: [1, 2],
+ *     create: [{
+ *       data: { name: 'Tech', categoryId: 3 },
+ *       relations: undefined
+ *     }]
+ *   }
+ * }
+ * ```
+ */
+export type NormalizedRelationOperations<R extends ForjaEntry> = {
+  readonly connect?: readonly number[];
+  readonly disconnect?: readonly number[];
+  readonly set?: readonly number[];
+  readonly delete?: readonly number[];
+  readonly create?: readonly NormalizedNestedData<R>[];
+  readonly update?: readonly NormalizedRelationUpdate<R>[];
+};
+
+export interface NormalizedRelationUpdate<T extends ForjaEntry> extends NormalizedNestedData<T> {
+  readonly where: { readonly id: number };
+}
+
+/**
+ * Type-safe relation operations for QueryObject
+ *
+ * Maps each relation field to its normalized operations.
+ * This is the OUTPUT format after processData() normalization.
+ *
+ * @template T - The entity type
+ *
+ * @example
+ * ```ts
+ * type Post = {
+ *   id: number;
+ *   title: string;
+ *   author: Relation<User>;
+ *   tags: Relation<Tag>;
+ * };
+ *
+ * const relations: QueryRelations<Post> = {
+ *   author: { connect: [5] },  // ✅ normalized to number[]
+ *   tags: {
+ *     set: [1, 2, 3],           // ✅ number[] (not flexible input)
+ *     create: [{                // ✅ NormalizedNestedData
+ *       data: { name: 'New Tag' },
+ *       relations: undefined
+ *     }]
+ *   }
+ * };
+ * ```
+ */
+export type QueryRelations<T extends ForjaEntry> = {
+  readonly [K in keyof T]?: T[K] extends Relation<infer R>
+  ? NormalizedRelationOperations<R>
+  : never;
+};
+
+/**
  * Query object (database-agnostic representation)
  *
  * This is the normalized query that adapters receive.
  * All clauses are in their normalized form (QuerySelect, QueryPopulate, etc.)
  */
-export interface QueryObject<T extends ForjaEntry = ForjaRecord> {
+export interface QueryObject<T extends ForjaEntry> {
   readonly type: QueryType;
   readonly table: string;
-  readonly select?: QuerySelect<T>;
-  readonly where?: WhereClause<T>;
-  readonly populate?: QueryPopulate<T>;
-  readonly orderBy?: OrderBy;
-  readonly limit?: number;
-  readonly offset?: number;
-  readonly data?: Partial<T>; // For INSERT/UPDATE
+  readonly select?: QuerySelect<T> | undefined;
+  where?: WhereClause<T> | undefined;
+  readonly populate?: QueryPopulate<T> | undefined;
+  readonly orderBy?: OrderBy | undefined;
+  readonly limit?: number | undefined;
+  readonly offset?: number | undefined;
+  readonly data?: Partial<T>; // For INSERT/UPDATE (scalar fields only)
+  readonly relations?: QueryRelations<T>; // For INSERT/UPDATE (type-safe relation operations)
   readonly distinct?: boolean; // SELECT DISTINCT
   readonly groupBy?: readonly string[]; // GROUP BY fields
   readonly having?: WhereClause<T>; // HAVING clause
@@ -297,7 +401,7 @@ export interface QueryBuilder<TSchema extends ForjaEntry> {
   /**
    * Add populate (relations)
    */
-  populate(relations: PopulateClause<TSchema> | "*" | readonly string[]): this;
+  populate(relations: PopulateClause<TSchema>): this;
 
   /**
    * Add order by

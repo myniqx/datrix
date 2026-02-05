@@ -46,12 +46,11 @@ import { throwInvalidFields, throwRelationInSelect } from "./error-helper";
 export function normalizeSelect<T extends ForjaEntry>(
   selects: SelectClause<T>[] | undefined,
   schema: SchemaDefinition,
-  modelName: string,
   registry: SchemaRegistry,
 ): QuerySelect<T> {
   // If no selects provided, return cached fields for "*"
   if (!selects || selects.length === 0) {
-    return registry.getCachedSelectFields<T>(modelName);
+    return registry.getCachedSelectFields<T>(schema.name);
   }
 
   // 1. Flatten and deduplicate using Set (preserves insertion order)
@@ -93,13 +92,13 @@ export function normalizeSelect<T extends ForjaEntry>(
   }
 
   if (relationFields.length > 0) {
-    throwRelationInSelect(relationFields, modelName);
+    throwRelationInSelect(relationFields, schema.name);
   }
 
   // 3. Check for wildcard AFTER validation
   // If any select is "*", return cached fields
   if (selects.some((s) => s === "*")) {
-    return registry.getCachedSelectFields<T>(modelName);
+    return registry.getCachedSelectFields<T>(schema.name);
   }
 
   // 4. Add reserved fields

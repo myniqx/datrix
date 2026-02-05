@@ -8,79 +8,41 @@
 import { DatabaseAdapter } from "forja-types/adapter";
 import {
   SchemaRegistry,
-  SchemaDefinition,
   ForjaEntry,
-  RelationField,
   ForjaRecord,
 } from "forja-types/core/schema";
 import {
-  QueryObject,
   WhereClause,
 } from "forja-types/core/query-builder";
-import { QueryAction } from "forja-types/plugin";
 import { Dispatcher } from "../dispatcher";
 import { IRawCrud } from "forja-types/forja";
 import { ParsedQuery } from "forja-types";
-import {
-  throwQueryExecutionError,
-  throwSchemaNotFoundError,
-} from "./error-helper";
-import {
-  normalizeRelations,
-  separateRelations,
-  validateData,
-  processRelation,
-} from "./crud-helpers";
-import { QueryNormalizer, selectFrom, countFrom } from "../query-builder";
+import { selectFrom, countFrom, insertInto, updateTable, deleteFrom } from "../query-builder";
+import { QueryExecutor } from "../query-executor/executor";
 
 /**
  * CRUD Operations Class
  *
  * Handles all database CRUD operations with type-safe query building.
+ * Uses QueryExecutor for INSERT/UPDATE operations with relation processing.
  * Implements IRawCrud interface.
  */
 export class CrudOperations implements IRawCrud {
-  private readonly normalizer: QueryNormalizer;
+  private readonly executor: QueryExecutor;
 
   constructor(
     private readonly schemas: SchemaRegistry,
     private readonly getAdapter: () => DatabaseAdapter,
     private readonly getDispatcher: (() => Dispatcher) | null = null,
   ) {
-    this.normalizer = new QueryNormalizer(schemas);
-  }
-
-  /**
-   * Execute a query with optional plugin hooks
-   *
-   * If getDispatcher is null (raw mode), executes directly without hooks.
-   * Otherwise, runs through the full plugin lifecycle (onBeforeQuery, onAfterQuery).
-   *
-   * @param action - Query action type
-   * @param model - Model name
-   * @param table - Table name
-   * @param query - Query object
-   * @param handler - Function that executes the actual database query
-   * @returns Query result
-   */
-  private async execute<T extends ForjaEntry, R = T>(
-    action: QueryAction,
-    model: string,
-    table: string,
-    query: QueryObject<T>,
-    handler: (q: QueryObject<T>) => Promise<R>,
-  ): Promise<R> {
-    if (!this.getDispatcher) {
-      return handler(query);
-    }
-    return this.getDispatcher().executeQuery(
-      action,
-      model,
-      table,
-      query,
-      handler,
+    // QueryExecutor handles validation, timestamps, and recursive relations
+    this.executor = new QueryExecutor(
+      schemas,
+      getAdapter,
+      getDispatcher || (() => ({} as Dispatcher)), // Dummy dispatcher if null
     );
   }
+
 
   /**
    * Find one record by criteria
@@ -120,7 +82,6 @@ export class CrudOperations implements IRawCrud {
     where: WhereClause<T>,
     options?: Pick<ParsedQuery<T>, "select" | "populate">,
   ): Promise<T | null> {
-    const schema = this.getSchema(model);
 
     const builder = selectFrom<T>(model, this.schemas)
       .where(where)
@@ -135,19 +96,11 @@ export class CrudOperations implements IRawCrud {
 
     const query = builder.build();
 
-    return this.execute<T>(
-      "findOne",
-      model,
-      schema.tableName!,
-      query,
-      async (q) => {
-        const result = await this.getAdapter().executeQuery<T>(q);
-        if (!result.success) {
-          throwQueryExecutionError("findOne", model, q, result.error);
-        }
-        return result.data.rows[0]!;
-      },
-    );
+    const results = await this.executor.execute<T, T[]>(query, {
+      noDispatcher: this.getDispatcher === null,
+    });
+
+    return results[0] || null;
   }
 
   /**
@@ -207,8 +160,6 @@ export class CrudOperations implements IRawCrud {
       "where" | "select" | "populate" | "orderBy" | "limit" | "offset"
     >,
   ): Promise<T[]> {
-    const schema = this.getSchema(model);
-
     const builder = selectFrom<T>(model, this.schemas);
 
     if (options?.where) {
@@ -234,13 +185,11 @@ export class CrudOperations implements IRawCrud {
 
     const query = builder.build();
 
-    return this.execute<T, T[]>("findMany", model, schema.tableName!, query, async (q) => {
-      const result = await this.getAdapter().executeQuery<T>(q);
-      if (!result.success) {
-        throwQueryExecutionError("findMany", model, q, result.error);
-      }
-      return result.data.rows as T[];
+    const results = await this.executor.execute<T, T[]>(query, {
+      noDispatcher: this.getDispatcher === null,
     });
+
+    return results;
   }
 
   /**
@@ -267,8 +216,6 @@ export class CrudOperations implements IRawCrud {
     model: string,
     where?: WhereClause<T>,
   ): Promise<number> {
-    const schema = this.getSchema(model);
-
     const builder = countFrom<T>(model, this.schemas);
 
     if (where) {
@@ -277,13 +224,11 @@ export class CrudOperations implements IRawCrud {
 
     const query = builder.build();
 
-    return this.execute<T, number>("count", model, schema.tableName!, query, async (q) => {
-      const result = await this.getAdapter().executeQuery<{ count: number }>(q);
-      if (!result.success) {
-        throwQueryExecutionError("count", model, q, result.error);
-      }
-      return result.data.rows[0]?.count ?? 0;
+    const result = await this.executor.execute<T, number>(query, {
+      noDispatcher: this.getDispatcher === null,
     });
+
+    return result;
   }
 
   /**
@@ -304,67 +249,26 @@ export class CrudOperations implements IRawCrud {
    */
   async create<T extends ForjaEntry = ForjaRecord>(
     model: string,
-    data: Record<string, unknown>,
+    data: Partial<T>,
     options?: Pick<ParsedQuery<T>, "select" | "populate">,
   ): Promise<T> {
-    const schema = this.getSchema(model);
+    const builder = insertInto(model, data, this.schemas);
 
-    // 1. Normalize shortcuts (id -> RelationInput)
-    const normalizedData = normalizeRelations(data, schema);
-
-    // 2. Validate EVERYTHING (scalars + relations)
-    // This solves the "required relation" problem because Validator now sees RelationInput
-    const validatedData = validateData<T, false>(normalizedData, schema, {
-      partial: false,
-      isCreate: true,
-      isRawMode: this.getDispatcher === null,
-    });
-
-    // 3. Separate scalars from async relations
-    // Inlines local FKs (belongsTo) into scalars
-    const { scalars, relations } = separateRelations(validatedData, schema);
-
-    // INSERT query - now contains local FKs
-    const query: QueryObject<T> = {
-      type: "insert",
-      table: schema.tableName!,
-      data: scalars,
-    };
-
-    const insertedId = await this.execute<T, number>(
-      "create",
-      model,
-      schema.tableName!,
-      query,
-      async (q) => {
-        const result = await this.getAdapter().executeQuery<T>(q);
-        if (!result.success) {
-          throwQueryExecutionError("create", model, q, result.error);
-        }
-        // Get insertedId from result (standardized across adapters)
-        return result.data.metadata?.insertId ?? result.data.rows?.[0]?.id!;
-      },
-    );
-
-    // Process relations (connect/disconnect/set)
-    const internalUpdate = this.internalUpdate.bind(this);
-    const internalInsert = this.internalInsert.bind(this);
-    const internalDelete = this.internalDelete.bind(this);
-    for (const [fieldName, relationData] of Object.entries(relations)) {
-      await processRelation(
-        model,
-        insertedId,
-        fieldName,
-        relationData,
-        schema,
-        internalUpdate,
-        internalInsert,
-        internalDelete,
-      );
+    if (options?.select) {
+      builder.select(options.select);
+    }
+    if (options?.populate) {
+      builder.populate(options.populate);
     }
 
-    // Fetch created record with options applied
-    return (await this.findById<T>(model, insertedId, options))!;
+    const query = builder.build();
+
+    const result = await this.executor.execute<T, T>(query, {
+      noDispatcher: this.getDispatcher === null,
+      noReturning: false,
+    });
+
+    return result;
   }
 
   /**
@@ -385,66 +289,25 @@ export class CrudOperations implements IRawCrud {
   async update<T extends ForjaEntry = ForjaRecord>(
     model: string,
     id: string | number,
-    data: Record<string, unknown>,
+    data: Partial<T>,
     options?: Pick<ParsedQuery, "select" | "populate">,
   ): Promise<T> {
-    const schema = this.getSchema(model);
+    const builder = updateTable(model, data, this.schemas).where({ id });
 
-    // 1. Normalize shortcuts
-    const normalizedData = normalizeRelations(data, schema);
+    if (options?.select) {
+      builder.select(options.select);
+    }
+    if (options?.populate) {
+      builder.populate(options.populate);
+    }
 
-    // 2. Validate everything (partial)
-    const validatedData = validateData<T, true>(normalizedData, schema, {
-      partial: true,
-      isCreate: false,
-      isRawMode: this.getDispatcher === null,
+    const query = builder.build();
+    const result = await this.executor.execute<T, T>(query, {
+      noDispatcher: this.getDispatcher === null,
+      noReturning: false,
     });
 
-    // 3. Separate and inline
-    const { scalars, relations } = separateRelations(validatedData, schema);
-
-    // UPDATE query (only if there are scalar fields to update)
-    if (Object.keys(scalars).length > 0) {
-      const query: QueryObject<T> = {
-        type: "update",
-        table: schema.tableName!,
-        where: { id },
-        data: scalars,
-      };
-
-      await this.execute<T, void>(
-        "update",
-        model,
-        schema.tableName!,
-        query,
-        async (q) => {
-          const result = await this.getAdapter().executeQuery<T>(q);
-          if (!result.success) {
-            throwQueryExecutionError("update", model, q, result.error);
-          }
-        },
-      );
-    }
-
-    // Process relations (connect/disconnect/set)
-    const internalUpdate = this.internalUpdate.bind(this);
-    const internalInsert = this.internalInsert.bind(this);
-    const internalDelete = this.internalDelete.bind(this);
-    for (const [fieldName, relationData] of Object.entries(relations)) {
-      await processRelation(
-        model,
-        id,
-        fieldName,
-        relationData,
-        schema,
-        internalUpdate,
-        internalInsert,
-        internalDelete,
-      );
-    }
-
-    // Fetch updated record with options applied
-    return (await this.findById<T>(model, id, options))!;
+    return result;
   }
 
   /**
@@ -476,36 +339,18 @@ export class CrudOperations implements IRawCrud {
     model: string,
     where: WhereClause<T>,
     data: Partial<T>,
+    noReturning = false
   ): Promise<number> {
-    const schema = this.getSchema(model);
+    const builder = updateTable(model, data, this.schemas)
+      .where(where);
+    const query = builder.build();
 
-    // Validate data against schema (partial validation, timestamps added inside)
-    const finalData = validateData<T, true>(data, schema, {
-      partial: true,
-      isCreate: false,
-      isRawMode: this.getDispatcher === null,
+    const result = await this.executor.execute<T, number>(query, {
+      noDispatcher: this.getDispatcher === null,
+      noReturning,
     });
 
-    const query: QueryObject<T> = {
-      type: "update",
-      table: schema.tableName!,
-      where: this.normalizer.normalizeWhere(where, schema),
-      data: finalData,
-    };
-
-    return this.execute<T, number>(
-      "updateMany",
-      model,
-      schema.tableName!,
-      query,
-      async (q) => {
-        const result = await this.getAdapter().executeQuery<{ count: number }>(q);
-        if (!result.success) {
-          throwQueryExecutionError("updateMany", model, q, result.error);
-        }
-        return result.data.metadata.rowCount ?? 0;
-      },
-    );
+    return result as number;
   }
 
   /**
@@ -525,45 +370,25 @@ export class CrudOperations implements IRawCrud {
     id: number,
     options?: Pick<ParsedQuery<T>, "select" | "populate">,
   ): Promise<boolean> {
-    const schema = this.getSchema(model);
+    const queryBuilder = deleteFrom<T>(model, this.schemas)
+      .where({ id });
 
-    // CASCADE DELETE: Clean up junction tables for manyToMany relations
-    const m2mRelations = Object.entries(schema.fields).filter(
-      ([_, field]) =>
-        field.type === "relation" && (field as RelationField).kind === "manyToMany",
-    );
-
-    for (const [_, field] of m2mRelations) {
-      const relation = field as RelationField;
-      await this.internalDelete(relation.through!, { [`${model}Id`]: id });
+    if (options?.select) {
+      queryBuilder.select(options.select);
+    }
+    if (options?.populate) {
+      queryBuilder.populate(options.populate);
     }
 
-    // If options provided, fetch record before deleting
-    // (to return it with select/populate applied)
-    if (options) {
-      await this.findById(model, id, options);
-    }
+    const query = queryBuilder.build();
 
-    // DELETE query
-    const query: QueryObject<T> = {
-      type: "delete",
-      table: schema.tableName!,
-      where: { id },
-    };
+    // Execute via QueryExecutor (handles CASCADE DELETE automatically)
+    const result = await this.executor.execute<T, boolean>(query, {
+      noDispatcher: this.getDispatcher === null,
+      noReturning: !options,
+    });
 
-    return this.execute<T, boolean>(
-      "delete",
-      model,
-      schema.tableName!,
-      query,
-      async (q) => {
-        const result = await this.getAdapter().executeQuery<unknown>(q);
-        if (!result.success) {
-          throwQueryExecutionError("delete", model, q, result.error);
-        }
-        return (result.data.metadata.rowCount ?? 0) > 0;
-      },
-    );
+    return typeof result === 'boolean' ? result : true;
   }
 
   /**
@@ -590,172 +415,17 @@ export class CrudOperations implements IRawCrud {
     model: string,
     where: WhereClause<T>,
   ): Promise<number> {
-    const schema = this.getSchema(model);
+    const query = deleteFrom<T>(model, this.schemas)
+      .where(where)
+      .build();
 
-    // Find IDs to delete (needed for junction table cascade)
-    const m2mRelations = Object.entries(schema.fields).filter(
-      ([_, field]) =>
-        field.type === "relation" && (field as RelationField).kind === "manyToMany",
-    );
+    // Execute via QueryExecutor (handles CASCADE DELETE automatically)
+    const result = await this.executor.execute<T, number>(query, {
+      noDispatcher: this.getDispatcher === null,
+      noReturning: true,
+    });
 
-    // Only fetch IDs if we have manyToMany relations
-    let idsToDelete: (string | number)[] = [];
-    if (m2mRelations.length > 0) {
-      const toDelete = await this.findMany<T>(model, {
-        where,
-        select: ["id"],
-      });
-      idsToDelete = toDelete.map((r) => r.id);
-
-      if (idsToDelete.length === 0) {
-        return 0; // Nothing to delete
-      }
-
-      // CASCADE DELETE: Clean up junction tables
-      for (const [_, field] of m2mRelations) {
-        const relation = field as RelationField;
-        await this.internalDelete(relation.through!, {
-          [`${model}Id`]: { $in: idsToDelete },
-        });
-      }
-    }
-
-    const query: QueryObject<T> = {
-      type: "delete",
-      table: schema.tableName!,
-      where: this.normalizer.normalizeWhere(where, schema),
-    };
-
-    return this.execute<T, number>(
-      "deleteMany",
-      model,
-      schema.tableName!,
-      query,
-      async (q) => {
-        const result = await this.getAdapter().executeQuery<ForjaEntry>(q);
-        if (!result.success) {
-          throwQueryExecutionError("deleteMany", model, q, result.error);
-        }
-        return result.data.metadata.rowCount ?? 0;
-      },
-    );
+    return result as number;
   }
 
-  /**
-   * Get schema and table name (internal helper)
-   * Reduces code duplication across all CRUD methods
-   */
-  private getSchema(model: string): SchemaDefinition {
-    const schema = this.schemas.get(model);
-    if (!schema) {
-      throwSchemaNotFoundError(model);
-    }
-    return schema;
-  }
-
-
-  /**
-   * Internal insert that bypasses dispatcher
-   * Used for relation processing (junction tables) to avoid triggering hooks
-   *
-   * @param model - Model name
-   * @param data - Data to insert
-   * @returns Inserted record ID
-   *
-   * @example
-   * ```ts
-   * // Insert junction record
-   * await this.internalInsert('Post_Tag', { postId: 1, tagId: 5 });
-   * ```
-   */
-  private async internalInsert(
-    model: string,
-    data: Record<string, unknown>,
-  ): Promise<number | string> {
-    const { tableName } = this.getSchema(model);
-    const query: QueryObject = {
-      type: "insert",
-      table: tableName!,
-      data,
-    };
-
-    const result = await this.getAdapter().executeQuery<ForjaEntry>(query);
-    if (!result.success) {
-      throwQueryExecutionError("insert", model, query, result.error);
-    }
-    return result.data.metadata?.insertId ?? result.data.rows?.[0]?.id!;
-  }
-
-  /**
-   * Internal delete that bypasses dispatcher
-   * Used for relation processing (junction tables) to avoid triggering hooks
-   *
-   * @param model - Model name
-   * @param where - Where clause
-   * @returns Number of deleted rows
-   *
-   * @example
-   * ```ts
-   * // Delete junction records
-   * await this.internalDelete('Post_Tag', { postId: 1, tagId: { $in: [1, 2, 3] } });
-   * ```
-   */
-  private async internalDelete(
-    model: string,
-    where: WhereClause,
-  ): Promise<number> {
-    const { tableName } = this.getSchema(model);
-    const query: QueryObject = {
-      type: "delete",
-      table: tableName!,
-      where,
-    };
-
-    const result = await this.getAdapter().executeQuery(query);
-    if (!result.success) {
-      throwQueryExecutionError("delete", model, query, result.error);
-    }
-    return result.data.metadata?.rowCount ?? 0;
-  }
-
-  /**
-   * Internal update that bypasses dispatcher
-   * Used for relation processing to avoid triggering hooks
-   *
-   * @param model - Model name
-   * @param where - Where clause (supports both single and multi-record updates)
-   * @param data - Data to update
-   * @returns Number of affected rows
-   *
-   * @example
-   * ```ts
-   * // Single record
-   * await this.internalUpdate('Post', { id: 5 }, { categoryId: 3 });
-   *
-   * // Multiple records by ID
-   * await this.internalUpdate('Post', { id: { $in: [1, 2, 3] } }, { authorId: 5 });
-   *
-   * // Multiple records by foreign key
-   * await this.internalUpdate('Post', { authorId: 5 }, { authorId: null });
-   * ```
-   */
-  private async internalUpdate(
-    model: string,
-    where: WhereClause,
-    data: Record<string, unknown>,
-  ): Promise<number> {
-    const { tableName } = this.getSchema(model);
-    const query: QueryObject = {
-      type: "update",
-      table: tableName!,
-      where,
-      data,
-    };
-
-    const result = await this.getAdapter().executeQuery(query);
-    if (!result.success) {
-      throwQueryExecutionError("update", model, query, result.error);
-    }
-    return result.data.metadata?.rowCount ?? 0;
-  }
 }

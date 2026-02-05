@@ -15,6 +15,7 @@ export type QueryBuilderComponent =
   | "where"
   | "select"
   | "populate"
+  | "data"
   | "pagination";
 
 /**

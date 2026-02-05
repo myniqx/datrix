@@ -355,9 +355,37 @@ export const tagSchema = defineSchema({
 } as const);
 
 /**
- * Test Schema: Author (ManyToMany Tests)
+ * Test Schema: Company (Nested Relation Tests)
+ *
+ * Company for nested create/update testing
+ */
+export const companySchema = defineSchema({
+  name: "company",
+  fields: {
+    name: {
+      type: "string",
+      required: true,
+      minLength: 2,
+      maxLength: 200,
+    },
+    country: {
+      type: "string",
+      required: true,
+    },
+  },
+  permission: {
+    create: true,
+    read: true,
+    update: true,
+    delete: true,
+  },
+} as const);
+
+/**
+ * Test Schema: Author (ManyToMany Tests + Nested Relations)
  *
  * Post author (separate from user for testing)
+ * Has relation to Company for nested create/update tests
  */
 export const authorSchema = defineSchema({
   name: "author",
@@ -370,6 +398,11 @@ export const authorSchema = defineSchema({
       type: "string",
       required: true,
       pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+    },
+    company: {
+      type: "relation",
+      kind: "belongsTo",
+      model: "company",
     },
   },
   indexes: [{ fields: ["email"], unique: true }],
@@ -392,4 +425,5 @@ export const testSchemas = [
   postSchema,
   tagSchema,
   authorSchema,
+  companySchema,
 ];

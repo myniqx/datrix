@@ -51,8 +51,8 @@ export type ReservedFieldName = (typeof RESERVED_FIELDS)[number];
  */
 export interface ForjaEntry {
   readonly id: number;
-  readonly createdAt: Date;
-  readonly updatedAt: Date;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 /**
@@ -76,7 +76,7 @@ export interface ForjaEntry {
  * const where: WhereClause<Post> = { title: 'Hello' };
  * ```
  */
-export type ForjaRecord = ForjaEntry & Record<string, unknown>;
+export type ForjaRecord = Partial<ForjaEntry> & Record<string, unknown>;
 
 /**
  * Primitive field types
@@ -234,7 +234,7 @@ export interface RelationField<
  * { id: "uuid-123", name: "Test" } // extra fields ignored, id extracted
  * ```
  */
-export type RelationIdRef = string | number | { id: string | number };
+export type RelationIdRef = number | { id: number };
 
 /**
  * Flexible ID references (single or array)
@@ -268,7 +268,7 @@ export type RelationIdRefs = RelationIdRef | RelationIdRef[];
  * { connect: [1, { id: 2 }, "uuid-3"] }
  * ```
  */
-export type RelationInput<T = Record<string, unknown>> = {
+export type RelationInput<T extends ForjaEntry> = {
   // Connect existing records by ID (flexible format)
   connect?: RelationIdRefs;
 
@@ -283,8 +283,8 @@ export type RelationInput<T = Record<string, unknown>> = {
 
   // Update existing related records
   update?:
-  | { where: { id: string | number }; data: Partial<T> }
-  | { where: { id: string | number }; data: Partial<T> }[];
+  | { where: { id: number }; data: Partial<T> }
+  | { where: { id: number }; data: Partial<T> }[];
 
   // Delete related records (flexible format)
   delete?: RelationIdRefs;

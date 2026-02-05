@@ -8,6 +8,7 @@
 import type { PopulateClause, PopulateOptions, ForjaEntry, QueryPopulate } from "forja-types/core/query-builder";
 import type { RelationField, SchemaDefinition, SchemaRegistry } from "forja-types/core/schema";
 import { throwInvalidField, throwInvalidValue } from "./error-helper";
+import { normalizeSelect } from "./select";
 
 /**
  * Maximum nesting depth for populate clauses to prevent stack overflow
@@ -33,8 +34,9 @@ const MAX_POPULATE_DEPTH = 5;
  *
  * @example
  * ```ts
- * // Wildcard - all relations
+ * // Wildcard or true - all relations (both are equivalent)
  * normalizePopulate('*', 'Post', registry)
+ * normalizePopulate(true, 'Post', registry)
  * // → { author: { select: [...] }, category: { select: [...] } }
  *
  * // Dot notation array
@@ -44,8 +46,9 @@ const MAX_POPULATE_DEPTH = 5;
  * //   author: { populate: { company: { select: [...] } } }
  * // }
  *
- * // Object notation
+ * // Object notation with true or '*' (both are equivalent)
  * normalizePopulate({ author: true }, 'Post', registry)
+ * normalizePopulate({ author: '*' }, 'Post', registry)
  * // → { author: { select: ['id', 'name', ...] } }
  *
  * // Validation errors
@@ -57,7 +60,7 @@ const MAX_POPULATE_DEPTH = 5;
  * ```
  */
 export function normalizePopulate<T extends ForjaEntry>(
-  populate: PopulateClause<T> | "*" | readonly string[] | undefined,
+  populate: PopulateClause<T> | undefined,
   modelName: string,
   registry: SchemaRegistry,
 ): PopulateClause<T> | undefined {
@@ -70,8 +73,8 @@ export function normalizePopulate<T extends ForjaEntry>(
     throwInvalidValue("populate", "modelName", modelName, "valid model name");
   }
 
-  // Handle wildcard '*' - populate all first-level relations
-  if (populate === "*") {
+  // Handle wildcard '*' or true - populate all first-level relations
+  if (populate === "*" || populate === true) {
     const allRelations: Record<string, object> = {};
     for (const [fieldName, field] of Object.entries(schema.fields)) {
       if (field.type === "relation") {
@@ -112,8 +115,8 @@ export function normalizePopulate<T extends ForjaEntry>(
     const relationField = field as RelationField;
     const targetModel = relationField.model;
 
-    if (typeof value === "boolean" || value === true) {
-      // populate[category]=true → convert to { select: [...] }
+    if (typeof value === "boolean" || value === "*") {
+      // populate[category]=true or populate[category]='*' → convert to { select: [...] }
       result[relationName] = {
         select: registry.getCachedSelectFields(targetModel),
       };
@@ -122,16 +125,11 @@ export function normalizePopulate<T extends ForjaEntry>(
       result[relationName] = {
         ...value,
         // Normalize select for this level (if provided)
-        select: value.select ? registry.getCachedSelectFields(targetModel) : undefined,
+        select: normalizeSelect([value.select], registry.get(targetModel)!, registry), // value.select ? registry.getCachedSelectFields(targetModel) : undefined,
         // Recursively process nested populate
         populate: value.populate
           ? normalizePopulate(value.populate, targetModel, registry)
           : undefined,
-      };
-    } else if (value === "*") {
-      // populate[category]=* → convert to { select: [...] }
-      result[relationName] = {
-        select: registry.getCachedSelectFields(targetModel),
       };
     } else {
       throwInvalidValue("populate", relationName, value, "boolean | object | '*'");
@@ -243,7 +241,7 @@ function normalizePopulateDotNotation(
  * ```
  */
 export function normalizePopulateArray<T extends ForjaEntry>(
-  populates: (PopulateClause<T> | "*" | readonly string[])[] | undefined,
+  populates: PopulateClause<T>[] | undefined,
   modelName: string,
   registry: SchemaRegistry,
 ): QueryPopulate<T> | undefined {

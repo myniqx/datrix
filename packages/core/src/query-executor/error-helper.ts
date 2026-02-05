@@ -1,0 +1,32 @@
+/**
+ * Query Executor Error Helpers
+ *
+ * Centralized error creation for query executor operations.
+ */
+
+import { ForjaQueryExecutorError } from "forja-types/errors";
+
+/**
+ * Throw unsupported query type error
+ *
+ * @param queryType - The unsupported query type
+ *
+ * @example
+ * ```ts
+ * throwUnsupportedQueryType('invalid');
+ * // Error: Unsupported query type: invalid
+ * ```
+ */
+export function throwUnsupportedQueryType(queryType: unknown): never {
+  throw new ForjaQueryExecutorError(
+    `Unsupported query type: ${queryType}`,
+    {
+      code: "UNSUPPORTED_QUERY_TYPE",
+      component: "executor",
+      context: { queryType },
+      suggestion: "Use one of: select, insert, update, delete, count",
+      expected: "select | insert | update | delete | count",
+      received: queryType,
+    },
+  );
+}

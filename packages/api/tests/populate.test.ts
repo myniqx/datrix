@@ -15,7 +15,9 @@ import { Forja } from "forja-core";
 import { handleRequest } from "../src/helper";
 import { createTestConfig, getTmpDir } from "./data";
 import { serializeQuery } from "../src/serializer/query";
+import { createRequest } from "./data/helper";
 import fs from "node:fs/promises";
+import { expectApiSingle } from "forja-types/test/helpers";
 
 describe("Populate Integration Tests", () => {
   let forja: Forja;
@@ -94,36 +96,36 @@ describe("Populate Integration Tests", () => {
 
   describe("Basic Populate", () => {
     it("should populate relations with all fields", async () => {
-      const request = new Request(
-        `http://localhost:3000/api/products/${testProductId}?populate[category]=true&populate[supplier]=true`,
+      const request = createRequest(
+        `/api/products/${testProductId}`,
+        { method: "GET" },
         {
-          method: "GET",
-        },
+          populate: {
+            category: true,
+            supplier: true,
+          },
+        }
       );
 
       const response = await handleRequest(forja, request);
-      const data = await response.json();
+      const data = await expectApiSingle(response);
 
-      expect(response.status).toBe(200);
-      expect(data.data).toHaveProperty("category");
-      expect(data.data.category).toHaveProperty("id");
-      expect(data.data.category).toHaveProperty("name");
-      expect(data.data.category).toHaveProperty("description");
+      expect(data).toHaveProperty("category");
+      expect(data.category).toHaveProperty("id");
+      expect(data.category).toHaveProperty("name");
+      expect(data.category).toHaveProperty("description");
 
-      expect(data.data).toHaveProperty("supplier");
-      expect(data.data.supplier).toHaveProperty("id");
-      expect(data.data.supplier).toHaveProperty("name");
+      expect(data).toHaveProperty("supplier");
+      expect(data.supplier).toHaveProperty("id");
+      expect(data.supplier).toHaveProperty("name");
     });
 
     it("should create product with populate option", async () => {
-      const request = new Request(
-        "http://localhost:3000/api/products?populate[category]=true&populate[supplier]=true",
+      const request = createRequest(
+        "/api/products",
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
+          body: {
             name: "Monitor",
             description: "27-inch 4K monitor",
             price: 399.99,
@@ -132,110 +134,118 @@ describe("Populate Integration Tests", () => {
             supplier: 1,
             sku: "MON-2024-001",
             isAvailable: true,
-          }),
+          },
         },
+        {
+          populate: {
+            category: true,
+            supplier: true,
+          },
+        }
       );
 
       const response = await handleRequest(forja, request);
-      const data = await response.json();
+      const data = await expectApiSingle(response, 201);
 
-      expect(response.status).toBe(201);
-      expect(data.data).toHaveProperty("category");
-      expect(data.data.category).toHaveProperty("id");
-      expect(data.data.category).toHaveProperty("name");
-      expect(data.data.category.id).toBe(1);
+      expect(data).toHaveProperty("category");
+      expect(data.category).toHaveProperty("id");
+      expect(data.category).toHaveProperty("name");
+      expect(data.category.id).toBe(1);
 
-      expect(data.data).toHaveProperty("supplier");
-      expect(data.data.supplier).toHaveProperty("id");
-      expect(data.data.supplier).toHaveProperty("name");
-      expect(data.data.supplier.id).toBe(1);
+      expect(data).toHaveProperty("supplier");
+      expect(data.supplier).toHaveProperty("id");
+      expect(data.supplier).toHaveProperty("name");
+      expect(data.supplier.id).toBe(1);
     });
   });
 
   describe("Foreign Key Exclusion", () => {
     it("should NOT include foreign keys in response when populate is used", async () => {
-      const request = new Request(
-        `http://localhost:3000/api/products/${testProductId}?populate[category]=true&populate[supplier]=true`,
+      const request = createRequest(
+        `/api/products/${testProductId}`,
+        { method: "GET" },
         {
-          method: "GET",
-        },
+          populate: {
+            category: true,
+            supplier: true,
+          },
+        }
       );
 
       const response = await handleRequest(forja, request);
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
+      const data = await expectApiSingle(response);
 
       // Foreign keys should NOT be in response
-      expect(data.data).not.toHaveProperty("categoryId");
-      expect(data.data).not.toHaveProperty("supplierId");
+      expect(data).not.toHaveProperty("categoryId");
+      expect(data).not.toHaveProperty("supplierId");
 
       // But populated relations should be there
-      expect(data.data).toHaveProperty("category");
-      expect(data.data).toHaveProperty("supplier");
+      expect(data).toHaveProperty("category");
+      expect(data).toHaveProperty("supplier");
     });
 
-    it("should NOT include foreign keys even with select=*", async () => {
-      const request = new Request(
-        `http://localhost:3000/api/products/${testProductId}?fields=*&populate[category]=true`,
+    it("should NOT include foreign keys even with fields=*", async () => {
+      const request = createRequest(
+        `/api/products/${testProductId}`,
+        { method: "GET" },
         {
-          method: "GET",
-        },
+          select: "*",
+          populate: {
+            category: true,
+          },
+        }
       );
 
       const response = await handleRequest(forja, request);
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
+      const data = await expectApiSingle(response);
 
       // Foreign key should NOT be visible
-      expect(data.data).not.toHaveProperty("categoryId");
+      expect(data).not.toHaveProperty("categoryId");
 
       // Populated relation should be there
-      expect(data.data).toHaveProperty("category");
+      expect(data).toHaveProperty("category");
     });
   });
 
   describe("Select + Populate Combination", () => {
     it("should apply select to main entity while preserving populated fields", async () => {
-      const request = new Request(
-        `http://localhost:3000/api/products/${testProductId}?fields[0]=id&fields[1]=name&populate[category]=true`,
+      const request = createRequest(
+        `/api/products/${testProductId}`,
+        { method: "GET" },
         {
-          method: "GET",
-        },
+          select: ["id", "name"],
+          populate: {
+            category: true,
+          },
+        }
       );
 
       const response = await handleRequest(forja, request);
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
+      const data = await expectApiSingle(response);
 
       // Only selected fields + reserved fields
-      expect(data.data).toHaveProperty("id");
-      expect(data.data).toHaveProperty("name");
-      expect(data.data).toHaveProperty("createdAt"); // Reserved field
-      expect(data.data).toHaveProperty("updatedAt"); // Reserved field
+      expect(data).toHaveProperty("id");
+      expect(data).toHaveProperty("name");
+      expect(data).toHaveProperty("createdAt"); // Reserved field
+      expect(data).toHaveProperty("updatedAt"); // Reserved field
 
       // Non-selected fields should NOT be there
-      expect(data.data).not.toHaveProperty("description");
-      expect(data.data).not.toHaveProperty("price");
-      expect(data.data).not.toHaveProperty("stock");
+      expect(data).not.toHaveProperty("description");
+      expect(data).not.toHaveProperty("price");
+      expect(data).not.toHaveProperty("stock");
 
       // Populated field should be preserved
-      expect(data.data).toHaveProperty("category");
-      expect(data.data.category).toHaveProperty("id");
-      expect(data.data.category).toHaveProperty("name");
+      expect(data).toHaveProperty("category");
+      expect(data.category).toHaveProperty("id");
+      expect(data.category).toHaveProperty("name");
     });
 
     it("should create product with both select and populate options", async () => {
-      const request = new Request(
-        "http://localhost:3000/api/products?fields[0]=id&fields[1]=name&fields[2]=price&populate[category][fields][0]=id&populate[category][fields][1]=name",
+      const request = createRequest(
+        "/api/products",
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
+          body: {
             name: "Webcam",
             description: "1080p HD webcam",
             price: 59.99,
@@ -244,403 +254,390 @@ describe("Populate Integration Tests", () => {
             supplier: 1,
             sku: "WC-2024-001",
             isAvailable: true,
-          }),
+          },
         },
+        {
+          select: ["id", "name", "price"],
+          populate: {
+            category: {
+              select: ["id", "name"],
+            },
+          },
+        }
       );
 
       const response = await handleRequest(forja, request);
-      const data = await response.json();
-
-      expect(response.status).toBe(201);
+      const data = await expectApiSingle(response, 201);
 
       // Should only have selected fields + reserved fields
-      expect(data.data).toHaveProperty("id");
-      expect(data.data).toHaveProperty("name");
-      expect(data.data).toHaveProperty("price");
-      expect(data.data).toHaveProperty("createdAt");
-      expect(data.data).toHaveProperty("updatedAt");
+      expect(data).toHaveProperty("id");
+      expect(data).toHaveProperty("name");
+      expect(data).toHaveProperty("price");
+      expect(data).toHaveProperty("createdAt");
+      expect(data).toHaveProperty("updatedAt");
 
       // Should not have non-selected fields
-      expect(data.data).not.toHaveProperty("description");
-      expect(data.data).not.toHaveProperty("stock");
+      expect(data).not.toHaveProperty("description");
+      expect(data).not.toHaveProperty("stock");
 
       // Check populated category with selected fields only
-      expect(data.data).toHaveProperty("category");
-      expect(data.data.category).toHaveProperty("id");
-      expect(data.data.category).toHaveProperty("name");
-      expect(data.data.category).not.toHaveProperty("description");
-      expect(data.data.category).not.toHaveProperty("isActive");
+      expect(data).toHaveProperty("category");
+      expect(data.category).toHaveProperty("id");
+      expect(data.category).toHaveProperty("name");
+      expect(data.category).not.toHaveProperty("description");
+      expect(data.category).not.toHaveProperty("isActive");
     });
   });
 
   describe("Reserved Fields in Populated Relations", () => {
     it("should always include reserved fields (id, createdAt, updatedAt) in populated relations even with select", async () => {
-      const query = {
-        populate: {
-          category: {
-            select: ["name"],
-          },
-        },
-      };
-
-      const serialized = serializeQuery(query);
-      const queryParams = new URLSearchParams(
-        serialized as Record<string, string>,
-      );
-
-      const request = new Request(
-        `http://localhost:3000/api/products/${testProductId}?${queryParams}`,
+      const request = createRequest(
+        `/api/products/${testProductId}`,
+        { method: "GET" },
         {
-          method: "GET",
-        },
+          populate: {
+            category: {
+              select: ["name"],
+            },
+          },
+        }
       );
 
       const response = await handleRequest(forja, request);
-      const data = await response.json();
+      const data = await expectApiSingle(response);
 
-      expect(response.status).toBe(200);
-      expect(data.data).toHaveProperty("category");
+      expect(data).toHaveProperty("category");
 
       // Reserved fields should ALWAYS be present
-      expect(data.data.category).toHaveProperty("id");
-      expect(data.data.category).toHaveProperty("createdAt");
-      expect(data.data.category).toHaveProperty("updatedAt");
+      expect(data.category).toHaveProperty("id");
+      expect(data.category).toHaveProperty("createdAt");
+      expect(data.category).toHaveProperty("updatedAt");
 
       // User-selected field
-      expect(data.data.category).toHaveProperty("name");
+      expect(data.category).toHaveProperty("name");
 
       // Non-selected fields should NOT be there
-      expect(data.data.category).not.toHaveProperty("description");
-      expect(data.data.category).not.toHaveProperty("isActive");
+      expect(data.category).not.toHaveProperty("description");
+      expect(data.category).not.toHaveProperty("isActive");
     });
 
     it("should include reserved fields in nested populate with select", async () => {
-      const query = {
-        populate: {
-          category: {
-            select: ["id", "name", "description"],
-          },
-          supplier: {
-            select: ["name", "country"],
-          },
-        },
-      };
-
-      const serialized = serializeQuery(query);
-      const queryParams = new URLSearchParams(
-        serialized as Record<string, string>,
-      );
-
-      const request = new Request(
-        `http://localhost:3000/api/products/${testProductId}?${queryParams}`,
+      const request = createRequest(
+        `/api/products/${testProductId}`,
+        { method: "GET" },
         {
-          method: "GET",
-        },
+          populate: {
+            category: {
+              select: ["id", "name", "description"],
+            },
+            supplier: {
+              select: ["name", "country"],
+            },
+          },
+        }
       );
 
       const response = await handleRequest(forja, request);
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
+      const data = await expectApiSingle(response);
 
       // Category - reserved fields + selected fields
-      expect(data.data.category).toHaveProperty("id");
-      expect(data.data.category).toHaveProperty("createdAt");
-      expect(data.data.category).toHaveProperty("updatedAt");
-      expect(data.data.category).toHaveProperty("name");
-      expect(data.data.category).toHaveProperty("description");
-      expect(data.data.category).not.toHaveProperty("isActive");
+      expect(data.category).toHaveProperty("id");
+      expect(data.category).toHaveProperty("createdAt");
+      expect(data.category).toHaveProperty("updatedAt");
+      expect(data.category).toHaveProperty("name");
+      expect(data.category).toHaveProperty("description");
+      expect(data.category).not.toHaveProperty("isActive");
 
       // Supplier - reserved fields + selected fields
-      expect(data.data.supplier).toHaveProperty("id");
-      expect(data.data.supplier).toHaveProperty("createdAt");
-      expect(data.data.supplier).toHaveProperty("updatedAt");
-      expect(data.data.supplier).toHaveProperty("name");
-      expect(data.data.supplier).toHaveProperty("country");
-      expect(data.data.supplier).not.toHaveProperty("email");
-      expect(data.data.supplier).not.toHaveProperty("rating");
+      expect(data.supplier).toHaveProperty("id");
+      expect(data.supplier).toHaveProperty("createdAt");
+      expect(data.supplier).toHaveProperty("updatedAt");
+      expect(data.supplier).toHaveProperty("name");
+      expect(data.supplier).toHaveProperty("country");
+      expect(data.supplier).not.toHaveProperty("email");
+      expect(data.supplier).not.toHaveProperty("rating");
     });
   });
 
   describe("Populate with Select Options", () => {
     it("should populate with selected fields (Level 1 - 3 fields)", async () => {
-      const query = {
-        populate: {
-          category: {
-            select: ["id", "name", "description"],
-          },
-        },
-      };
-
-      const serialized = serializeQuery(query);
-      const queryParams = new URLSearchParams(
-        serialized as Record<string, string>,
-      );
-
-      const request = new Request(
-        `http://localhost:3000/api/products/${testProductId}?${queryParams}`,
+      const request = createRequest(
+        `/api/products/${testProductId}`,
+        { method: "GET" },
         {
-          method: "GET",
-        },
+          populate: {
+            category: {
+              select: ["id", "name", "description"],
+            },
+          },
+        }
       );
 
       const response = await handleRequest(forja, request);
-      const data = await response.json();
+      const data = await expectApiSingle(response);
 
-      expect(response.status).toBe(200);
-      expect(data).toHaveProperty("data");
-      expect(data.data).toHaveProperty("category");
-      expect(data.data.category).toHaveProperty("id");
-      expect(data.data.category).toHaveProperty("name");
-      expect(data.data.category).toHaveProperty("description");
-      expect(data.data.category).toHaveProperty("createdAt"); // Reserved field
-      expect(data.data.category).toHaveProperty("updatedAt"); // Reserved field
-      expect(data.data.category).not.toHaveProperty("isActive");
+      expect(data).toHaveProperty("category");
+      expect(data.category).toHaveProperty("id");
+      expect(data.category).toHaveProperty("name");
+      expect(data.category).toHaveProperty("description");
+      expect(data.category).toHaveProperty("createdAt"); // Reserved field
+      expect(data.category).toHaveProperty("updatedAt"); // Reserved field
+      expect(data.category).not.toHaveProperty("isActive");
     });
 
     it("should populate nested relations (Level 2 - full first level, 3 fields second level)", async () => {
-      const query = {
-        populate: {
-          category: {
-            select: "*",
-          },
-          supplier: {
-            select: ["id", "name", "country"],
-          },
-        },
-      };
-
-      const serialized = serializeQuery(query);
-      const queryParams = new URLSearchParams(
-        serialized as Record<string, string>,
-      );
-
-      const request = new Request(
-        `http://localhost:3000/api/products/${testProductId}?${queryParams}`,
+      const request = createRequest(
+        `/api/products/${testProductId}`,
+        { method: "GET" },
         {
-          method: "GET",
-        },
+          populate: {
+            category: {
+              select: "*",
+            },
+            supplier: {
+              select: ["id", "name", "country"],
+            },
+          },
+        }
       );
 
       const response = await handleRequest(forja, request);
-      const data = await response.json();
+      const data = await expectApiSingle(response);
 
-      expect(response.status).toBe(200);
-      expect(data).toHaveProperty("data");
+      expect(data).toHaveProperty("category");
+      expect(data.category).toHaveProperty("id");
+      expect(data.category).toHaveProperty("name");
+      expect(data.category).toHaveProperty("description");
+      expect(data.category).toHaveProperty("isActive");
 
-      expect(data.data).toHaveProperty("category");
-      expect(data.data.category).toHaveProperty("id");
-      expect(data.data.category).toHaveProperty("name");
-      expect(data.data.category).toHaveProperty("description");
-      expect(data.data.category).toHaveProperty("isActive");
-
-      expect(data.data).toHaveProperty("supplier");
-      expect(data.data.supplier).toHaveProperty("id");
-      expect(data.data.supplier).toHaveProperty("name");
-      expect(data.data.supplier).toHaveProperty("country");
-      expect(data.data.supplier).toHaveProperty("createdAt"); // Reserved field
-      expect(data.data.supplier).toHaveProperty("updatedAt"); // Reserved field
-      expect(data.data.supplier).not.toHaveProperty("email");
-      expect(data.data.supplier).not.toHaveProperty("rating");
-      expect(data.data.supplier).not.toHaveProperty("isVerified");
+      expect(data).toHaveProperty("supplier");
+      expect(data.supplier).toHaveProperty("id");
+      expect(data.supplier).toHaveProperty("name");
+      expect(data.supplier).toHaveProperty("country");
+      expect(data.supplier).toHaveProperty("createdAt"); // Reserved field
+      expect(data.supplier).toHaveProperty("updatedAt"); // Reserved field
+      expect(data.supplier).not.toHaveProperty("email");
+      expect(data.supplier).not.toHaveProperty("rating");
+      expect(data.supplier).not.toHaveProperty("isVerified");
     });
   });
 
   describe("Edge Cases", () => {
     it("should handle select on main entity with multiple populated relations", async () => {
-      const request = new Request(
-        `http://localhost:3000/api/products/${testProductId}?fields[0]=id&fields[1]=name&populate[category]=true&populate[supplier]=true`,
+      const request = createRequest(
+        `/api/products/${testProductId}`,
+        { method: "GET" },
         {
-          method: "GET",
-        },
+          select: ["id", "name"],
+          populate: {
+            category: true,
+            supplier: true,
+          },
+        }
       );
 
       const response = await handleRequest(forja, request);
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
+      const data = await expectApiSingle(response);
 
       // Main entity - only selected fields + reserved
-      expect(data.data).toHaveProperty("id");
-      expect(data.data).toHaveProperty("name");
-      expect(data.data).toHaveProperty("createdAt");
-      expect(data.data).toHaveProperty("updatedAt");
-      expect(data.data).not.toHaveProperty("description");
-      expect(data.data).not.toHaveProperty("price");
+      expect(data).toHaveProperty("id");
+      expect(data).toHaveProperty("name");
+      expect(data).toHaveProperty("createdAt");
+      expect(data).toHaveProperty("updatedAt");
+      expect(data).not.toHaveProperty("description");
+      expect(data).not.toHaveProperty("price");
 
       // Both populated relations should be present
-      expect(data.data).toHaveProperty("category");
-      expect(data.data).toHaveProperty("supplier");
+      expect(data).toHaveProperty("category");
+      expect(data).toHaveProperty("supplier");
 
       // Foreign keys should NOT be present
-      expect(data.data).not.toHaveProperty("categoryId");
-      expect(data.data).not.toHaveProperty("supplierId");
+      expect(data).not.toHaveProperty("categoryId");
+      expect(data).not.toHaveProperty("supplierId");
     });
   });
 
   describe("Relation API (connect/disconnect/set)", () => {
     it("should create product with connect API", async () => {
-      const request = new Request(
-        "http://localhost:3000/api/products?populate[category]=true",
+      const request = createRequest(
+        "/api/products",
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
+          body: {
             name: "Keyboard",
             description: "Mechanical keyboard",
             price: 129.99,
             stock: 30,
-            category: { connect: { id: 1 } }, // Full API instead of shortcut
+            category: { connect: { id: 1 } },
             supplier: { connect: { id: 1 } },
             sku: "KB-2024-001",
             isAvailable: true,
-          }),
+          },
         },
+        {
+          populate: {
+            category: true,
+          },
+        }
       );
 
       const response = await handleRequest(forja, request);
-      const data = await response.json();
+      const data = await expectApiSingle(response, 201);
 
-      expect(response.status).toBe(201);
-      expect(data.data).toHaveProperty("category");
-      expect(data.data.category.id).toBe(1);
-      expect(data.data.category).toHaveProperty("name");
+      expect(data).toHaveProperty("category");
+      expect(data.category.id).toBe(1);
+      expect(data.category).toHaveProperty("name");
     });
 
     it("should update product relation using connect", async () => {
-      // First create a product without category
-      const createReq = new Request("http://localhost:3000/api/products", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: "Mouse",
-          price: 49.99,
-          stock: 50,
-          sku: "MS-2024-001",
-          isAvailable: true,
-          category: { connect: { id: 1 } }, // Full API instead of shortcut
-          supplier: { connect: { id: 1 } },
-        }),
-      });
+      // First create a product
+      const createReq = createRequest(
+        "/api/products",
+        {
+          method: "POST",
+          body: {
+            name: "Mouse",
+            price: 49.99,
+            stock: 50,
+            sku: "MS-2024-001",
+            isAvailable: true,
+            category: { connect: { id: 1 } },
+            supplier: { connect: { id: 1 } },
+          },
+        }
+      );
 
       const createRes = await handleRequest(forja, createReq);
-      const createData = await createRes.json();
-      const productId = createData.data.id;
+      const createData = await expectApiSingle(createRes, 201);
+      const productId = createData.id;
 
       // Now update with category using connect
-      const updateReq = new Request(
-        `http://localhost:3000/api/products/${productId}?populate[category]=true`,
+      const updateReq = createRequest(
+        `/api/products/${productId}`,
         {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+          body: {
             category: { connect: { id: 1 } },
-          }),
+          },
         },
+        {
+          populate: {
+            category: true,
+          },
+        }
       );
 
       const updateRes = await handleRequest(forja, updateReq);
-      const updateData = await updateRes.json();
+      const updateData = await expectApiSingle(updateRes);
 
-      expect(updateRes.status).toBe(200);
-      expect(updateData.data).toHaveProperty("category");
-      expect(updateData.data.category.id).toBe(1);
+      expect(updateData).toHaveProperty("category");
+      expect(updateData.category.id).toBe(1);
     });
 
     it("should update product relation using disconnect", async () => {
       // First create a product with category
-      const createReq = new Request("http://localhost:3000/api/products", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: "Headset",
-          price: 79.99,
-          stock: 20,
-          category: 1,
-          supplier: { connect: { id: 1 } },
-          sku: "HS-2024-001",
-          isAvailable: true,
-        }),
-      });
+      const createReq = createRequest(
+        "/api/products",
+        {
+          method: "POST",
+          body: {
+            name: "Headset",
+            price: 79.99,
+            stock: 20,
+            category: 1,
+            supplier: { connect: { id: 1 } },
+            sku: "HS-2024-001",
+            isAvailable: true,
+          },
+        }
+      );
 
       const createRes = await handleRequest(forja, createReq);
-      const createData = await createRes.json();
-      const productId = createData.data.id;
+      const createData = await expectApiSingle(createRes, 201);
+      const productId = createData.id;
 
       // Now disconnect category
-      const updateReq = new Request(
-        `http://localhost:3000/api/products/${productId}?populate[category]=true`,
+      const updateReq = createRequest(
+        `/api/products/${productId}`,
         {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+          body: {
             category: { disconnect: true },
-          }),
+          },
         },
+        {
+          populate: {
+            category: true,
+          },
+        }
       );
 
       const updateRes = await handleRequest(forja, updateReq);
-      const updateData = await updateRes.json();
+      const updateData = await expectApiSingle(updateRes);
 
-      expect(updateRes.status).toBe(200);
-      expect(updateData.data.category).toBeNull();
+      expect(updateData.category).toBeNull();
     });
 
     it("should update product relation using set", async () => {
       // Create a product with category 1
-      const createReq = new Request("http://localhost:3000/api/products", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: "Speaker",
-          price: 199.99,
-          stock: 15,
-          category: 1,
-          supplier: { connect: { id: 1 } },
-          sku: "SP-2024-001",
-          isAvailable: true,
-        }),
-      });
+      const createReq = createRequest(
+        "/api/products",
+        {
+          method: "POST",
+          body: {
+            name: "Speaker",
+            price: 199.99,
+            stock: 15,
+            category: 1,
+            supplier: { connect: { id: 1 } },
+            sku: "SP-2024-001",
+            isAvailable: true,
+          },
+        }
+      );
 
       const createRes = await handleRequest(forja, createReq);
-      const createData = await createRes.json();
-      const productId = createData.data.id;
+      const createData = await expectApiSingle(createRes, 201);
+      const productId = createData.id;
 
       // First create another category
-      const catReq = new Request("http://localhost:3000/api/categories", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: "Audio",
-          description: "Audio equipment",
-          isActive: true,
-        }),
-      });
+      const catReq = createRequest(
+        "/api/categories",
+        {
+          method: "POST",
+          body: {
+            name: "Audio",
+            description: "Audio equipment",
+            isActive: true,
+          },
+        }
+      );
       const catRes = await handleRequest(forja, catReq);
-      const catData = await catRes.json();
-      const newCategoryId = catData.data.id;
+      const catData = await expectApiSingle(catRes, 201);
+      const newCategoryId = catData.id;
 
       // Now set to new category
-      const updateReq = new Request(
-        `http://localhost:3000/api/products/${productId}?populate[category]=true`,
+      const updateReq = createRequest(
+        `/api/products/${productId}`,
         {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+          body: {
             category: { set: { id: newCategoryId } },
-          }),
+          },
         },
+        {
+          populate: {
+            category: true,
+          },
+        }
       );
 
       const updateRes = await handleRequest(forja, updateReq);
-      const updateData = await updateRes.json();
+      const updateData = await expectApiSingle(updateRes);
 
-      expect(updateRes.status).toBe(200);
-      expect(updateData.data).toHaveProperty("category");
-      expect(updateData.data.category.id).toBe(newCategoryId);
-      expect(updateData.data.category.name).toBe("Audio");
+      expect(updateData).toHaveProperty("category");
+      expect(updateData.category.id).toBe(newCategoryId);
+      expect(updateData.category.name).toBe("Audio");
     });
   });
 });

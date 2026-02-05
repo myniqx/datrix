@@ -15,6 +15,7 @@ import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import { Forja } from "forja-core";
 import { handleRequest } from "../src/helper";
 import { createTestConfig, getTmpDir } from "./data";
+import { createRequest } from "./data/helper";
 import { expectApiSingle, expectApiMulti } from "forja-types/test/helpers";
 import fs from "node:fs/promises";
 
@@ -101,18 +102,20 @@ describe("ManyToMany Populate Integration Tests", () => {
     it("should create post with connected tags (shortcut syntax)", async () => {
       const { tags, authors } = await setupFixture();
 
-      const request = new Request(
-        "http://localhost:3000/api/posts?populate[tags]=true",
+      const request = createRequest(
+        "/api/posts",
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+          body: {
             title: "Getting Started with TypeScript",
             content: "TypeScript is awesome!",
             author: authors.john.id,
             tags: [tags.js.id, tags.ts.id], // Shortcut: array of IDs
-          }),
+          },
         },
+        {
+          populate: { tags: true },
+        }
       );
 
       const response = await handleRequest(forja, request);
@@ -128,18 +131,20 @@ describe("ManyToMany Populate Integration Tests", () => {
     it("should create post with connect API", async () => {
       const { tags, authors } = await setupFixture();
 
-      const request = new Request(
-        "http://localhost:3000/api/posts?populate[tags]=true",
+      const request = createRequest(
+        "/api/posts",
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+          body: {
             title: "React Best Practices",
             content: "Learn React patterns",
             author: authors.jane.id,
             tags: { connect: [tags.js.id, tags.react.id] }, // Explicit connect
-          }),
+          },
         },
+        {
+          populate: { tags: true },
+        }
       );
 
       const response = await handleRequest(forja, request);
@@ -155,29 +160,30 @@ describe("ManyToMany Populate Integration Tests", () => {
       const { tags, authors } = await setupFixture();
 
       // Create post with JS tag
-      const createReq = new Request("http://localhost:3000/api/posts", {
+      const createReq = createRequest("/api/posts", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: {
           title: "Node.js Tutorial",
           content: "Learn backend development",
           author: authors.john.id,
           tags: [tags.node.id],
-        }),
+        },
       });
       const createRes = await handleRequest(forja, createReq);
       const createdPost = await expectApiSingle(createRes, 201);
 
       // Update: add TS and JS tags
-      const updateReq = new Request(
-        `http://localhost:3000/api/posts/${createdPost.id}?populate[tags]=true`,
+      const updateReq = createRequest(
+        `/api/posts/${createdPost.id}`,
         {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+          body: {
             tags: { connect: [tags.js.id, tags.ts.id] },
-          }),
+          },
         },
+        {
+          populate: { tags: true },
+        }
       );
 
       const updateRes = await handleRequest(forja, updateReq);
@@ -201,29 +207,30 @@ describe("ManyToMany Populate Integration Tests", () => {
       const { tags, authors } = await setupFixture();
 
       // Create post with 3 tags
-      const createReq = new Request("http://localhost:3000/api/posts", {
+      const createReq = createRequest("/api/posts", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: {
           title: "Full Stack Development",
           content: "Frontend and Backend",
           author: authors.john.id,
           tags: [tags.js.id, tags.ts.id, tags.react.id],
-        }),
+        },
       });
       const createRes = await handleRequest(forja, createReq);
       const createdPost = await expectApiSingle(createRes, 201);
 
       // Disconnect JS and React tags
-      const updateReq = new Request(
-        `http://localhost:3000/api/posts/${createdPost.id}?populate[tags]=true`,
+      const updateReq = createRequest(
+        `/api/posts/${createdPost.id}`,
         {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+          body: {
             tags: { disconnect: [tags.js.id, tags.react.id] },
-          }),
+          },
         },
+        {
+          populate: { tags: true },
+        }
       );
 
       const updateRes = await handleRequest(forja, updateReq);
@@ -237,29 +244,30 @@ describe("ManyToMany Populate Integration Tests", () => {
       const { tags, authors } = await setupFixture();
 
       // Create post with tags
-      const createReq = new Request("http://localhost:3000/api/posts", {
+      const createReq = createRequest("/api/posts", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: {
           title: "Test Post",
           content: "Content",
           author: authors.jane.id,
           tags: [tags.js.id, tags.ts.id],
-        }),
+        },
       });
       const createRes = await handleRequest(forja, createReq);
       const createdPost = await expectApiSingle(createRes, 201);
 
       // Disconnect all tags
-      const updateReq = new Request(
-        `http://localhost:3000/api/posts/${createdPost.id}?populate[tags]=true`,
+      const updateReq = createRequest(
+        `/api/posts/${createdPost.id}`,
         {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+          body: {
             tags: { disconnect: [tags.js.id, tags.ts.id] },
-          }),
+          },
         },
+        {
+          populate: { tags: true },
+        }
       );
 
       const updateRes = await handleRequest(forja, updateReq);
@@ -280,29 +288,30 @@ describe("ManyToMany Populate Integration Tests", () => {
       const { tags, authors } = await setupFixture();
 
       // Create post with JS and TS tags
-      const createReq = new Request("http://localhost:3000/api/posts", {
+      const createReq = createRequest("/api/posts", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: {
           title: "JavaScript Basics",
           content: "Learn JS",
           author: authors.john.id,
           tags: [tags.js.id, tags.ts.id],
-        }),
+        },
       });
       const createRes = await handleRequest(forja, createReq);
       const createdPost = await expectApiSingle(createRes, 201);
 
       // Set to React and Node tags (replace all)
-      const updateReq = new Request(
-        `http://localhost:3000/api/posts/${createdPost.id}?populate[tags]=true`,
+      const updateReq = createRequest(
+        `/api/posts/${createdPost.id}`,
         {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+          body: {
             tags: { set: [tags.react.id, tags.node.id] },
-          }),
+          },
         },
+        {
+          populate: { tags: true },
+        }
       );
 
       const updateRes = await handleRequest(forja, updateReq);
@@ -320,29 +329,30 @@ describe("ManyToMany Populate Integration Tests", () => {
       const { tags, authors } = await setupFixture();
 
       // Create post with tags
-      const createReq = new Request("http://localhost:3000/api/posts", {
+      const createReq = createRequest("/api/posts", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: {
           title: "Test Post",
           content: "Content",
           author: authors.jane.id,
           tags: [tags.js.id, tags.react.id],
-        }),
+        },
       });
       const createRes = await handleRequest(forja, createReq);
       const createdPost = await expectApiSingle(createRes, 201);
 
       // Set to empty array
-      const updateReq = new Request(
-        `http://localhost:3000/api/posts/${createdPost.id}?populate[tags]=true`,
+      const updateReq = createRequest(
+        `/api/posts/${createdPost.id}`,
         {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+          body: {
             tags: { set: [] },
-          }),
+          },
         },
+        {
+          populate: { tags: true },
+        }
       );
 
       const updateRes = await handleRequest(forja, updateReq);
@@ -370,9 +380,12 @@ describe("ManyToMany Populate Integration Tests", () => {
         tags: [tags.js.id, tags.react.id],
       });
 
-      const request = new Request(
-        "http://localhost:3000/api/posts?populate[tags]=true",
+      const request = createRequest(
+        "/api/posts",
         { method: "GET" },
+        {
+          populate: { tags: true },
+        }
       );
 
       const response = await handleRequest(forja, request);
@@ -395,9 +408,16 @@ describe("ManyToMany Populate Integration Tests", () => {
         tags: [tags.node.id, tags.ts.id],
       });
 
-      const request = new Request(
-        "http://localhost:3000/api/posts?populate[tags][fields][0]=id&populate[tags][fields][1]=name",
+      const request = createRequest(
+        "/api/posts",
         { method: "GET" },
+        {
+          populate: {
+            tags: {
+              select: ["id", "name"],
+            },
+          },
+        }
       );
 
       const response = await handleRequest(forja, request);
@@ -424,9 +444,12 @@ describe("ManyToMany Populate Integration Tests", () => {
         author: authors.john.id,
       });
 
-      const request = new Request(
-        "http://localhost:3000/api/posts?populate[tags]=true",
+      const request = createRequest(
+        "/api/posts",
         { method: "GET" },
+        {
+          populate: { tags: true },
+        }
       );
 
       const response = await handleRequest(forja, request);
@@ -447,15 +470,14 @@ describe("ManyToMany Populate Integration Tests", () => {
       const { tags, authors } = await setupFixture();
 
       // Create post with tags
-      const createReq = new Request("http://localhost:3000/api/posts", {
+      const createReq = createRequest("/api/posts", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: {
           title: "Test Post",
           content: "Content",
           author: authors.john.id,
           tags: [tags.js.id, tags.ts.id],
-        }),
+        },
       });
       const createRes = await handleRequest(forja, createReq);
       const createdPost = await expectApiSingle(createRes, 201);
@@ -469,10 +491,9 @@ describe("ManyToMany Populate Integration Tests", () => {
       }
 
       // Delete post
-      const deleteReq = new Request(
-        `http://localhost:3000/api/posts/${createdPost.id}`,
-        { method: "DELETE" },
-      );
+      const deleteReq = createRequest(`/api/posts/${createdPost.id}`, {
+        method: "DELETE",
+      });
       await handleRequest(forja, deleteReq);
 
       // Verify junction records are deleted
@@ -536,20 +557,22 @@ describe("ManyToMany Populate Integration Tests", () => {
     it.fails("should create new tags and connect them to post", async () => {
       const { authors } = await setupFixture();
 
-      const request = new Request(
-        "http://localhost:3000/api/posts?populate[tags]=true",
+      const request = createRequest(
+        "/api/posts",
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+          body: {
             title: "New Post",
             content: "Content",
             author: authors.john.id,
             tags: {
               create: [{ name: "Vue.js" }, { name: "Angular" }],
             },
-          }),
+          },
         },
+        {
+          populate: { tags: true },
+        }
       );
 
       const response = await handleRequest(forja, request);
@@ -565,29 +588,30 @@ describe("ManyToMany Populate Integration Tests", () => {
       const { tags, authors } = await setupFixture();
 
       // Create post with tags
-      const createReq = new Request("http://localhost:3000/api/posts", {
+      const createReq = createRequest("/api/posts", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: {
           title: "Test Post",
           content: "Content",
           author: authors.john.id,
           tags: [tags.js.id, tags.ts.id],
-        }),
+        },
       });
       const createRes = await handleRequest(forja, createReq);
       const createdPost = await expectApiSingle(createRes, 201);
 
       // Delete tags (removes from junction AND deletes the tag record)
-      const updateReq = new Request(
-        `http://localhost:3000/api/posts/${createdPost.id}?populate[tags]=true`,
+      const updateReq = createRequest(
+        `/api/posts/${createdPost.id}`,
         {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+          body: {
             tags: { delete: [tags.js.id] },
-          }),
+          },
         },
+        {
+          populate: { tags: true },
+        }
       );
 
       const updateRes = await handleRequest(forja, updateReq);
@@ -614,32 +638,33 @@ describe("ManyToMany Populate Integration Tests", () => {
       const { tags, authors } = await setupFixture();
 
       // Create post with JS and TS tags
-      const createReq = new Request("http://localhost:3000/api/posts", {
+      const createReq = createRequest("/api/posts", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: {
           title: "Test Post",
           content: "Content",
           author: authors.john.id,
           tags: [tags.js.id, tags.ts.id],
-        }),
+        },
       });
       const createRes = await handleRequest(forja, createReq);
       const createdPost = await expectApiSingle(createRes, 201);
 
       // Connect React, disconnect JS (should have: TS, React)
-      const updateReq = new Request(
-        `http://localhost:3000/api/posts/${createdPost.id}?populate[tags]=true`,
+      const updateReq = createRequest(
+        `/api/posts/${createdPost.id}`,
         {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+          body: {
             tags: {
               connect: [tags.react.id],
               disconnect: [tags.js.id],
             },
-          }),
+          },
         },
+        {
+          populate: { tags: true },
+        }
       );
 
       const updateRes = await handleRequest(forja, updateReq);
@@ -655,18 +680,20 @@ describe("ManyToMany Populate Integration Tests", () => {
     it("should not include junction foreign keys in response", async () => {
       const { tags, authors } = await setupFixture();
 
-      const request = new Request(
-        "http://localhost:3000/api/posts?populate[tags]=true",
+      const request = createRequest(
+        "/api/posts",
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+          body: {
             title: "Test Post",
             content: "Content",
             author: authors.john.id,
             tags: [tags.js.id],
-          }),
+          },
         },
+        {
+          populate: { tags: true },
+        }
       );
 
       const response = await handleRequest(forja, request);

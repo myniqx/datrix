@@ -10,9 +10,9 @@ import {
   type CrudOperation,
   type CrudErrorCode,
   type CrudErrorContext,
-  ForjaError,
 } from "forja-types/errors";
 import type { QueryObject } from "forja-types/core/query-builder";
+import { ForjaEntry } from "forja-types";
 
 /**
  * Options for throwing CRUD errors
@@ -122,10 +122,10 @@ function enhanceContext(
  * Helper for query execution errors
  * Most common use case in CRUD operations
  */
-export function throwQueryExecutionError(
+export function throwQueryExecutionError<T extends ForjaEntry>(
   operation: CrudOperation | "insert",
   model: string,
-  query: QueryObject,
+  query: QueryObject<T>,
   cause: Error,
 ): never {
   throwCrudError({
@@ -134,14 +134,7 @@ export function throwQueryExecutionError(
     code: "QUERY_EXECUTION_FAILED",
     cause,
     context: {
-      query: {
-        type: query.type,
-        table: query.table,
-        ...(query.where && { where: query.where }),
-        ...(query.select && { select: query.select }),
-        ...(query.limit && { limit: query.limit }),
-        ...(query.offset && { offset: query.offset }),
-      },
+      query: query as unknown as Record<string, unknown>,
     },
   });
 }

@@ -31,7 +31,7 @@ const DEFAULT_MAX_DEPTH = 5;
 export function parsePopulate(
   params: RawQueryParams,
   maxDepth: number = DEFAULT_MAX_DEPTH,
-): Record<string, PopulateOptions | "*"> | { "*": "*" } | undefined {
+): Record<string, PopulateOptions | "*"> | "*" | true | undefined {
   // Validate maxDepth
   if (maxDepth <= 0) {
     populateError.maxDepthExceeded(maxDepth, maxDepth, ["config"], {
@@ -40,14 +40,17 @@ export function parsePopulate(
   }
 
   // Build populate clause
-  const populateClause: Record<string, PopulateOptions | "*"> = {};
+  const populateClause: Record<string, PopulateOptions | "*"> | true = {};
 
   // Check for simple populate parameter (string)
   const mainPopulate = params["populate"];
   if (mainPopulate !== undefined) {
     if (mainPopulate === "*") {
-      // Return wildcard - handler will populate all relations
-      return { "*": "*" };
+      return '*';
+    }
+
+    if (mainPopulate === 'true') {
+      return true;
     }
 
     if (typeof mainPopulate === "string") {

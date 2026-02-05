@@ -10,7 +10,8 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { Forja } from "forja-core";
 import { handleRequest } from "../src/helper";
 import { createTestConfig, getTmpDir } from "./data";
-import { serializeQuery } from "../src/serializer/query";
+import { createRequest } from "./data/helper";
+import { expectApiSingle, expectApiMulti, expectApiError } from "forja-types/test/helpers";
 import fs from "node:fs/promises";
 
 describe("API CRUD Integration Tests", () => {
@@ -80,64 +81,51 @@ describe("API CRUD Integration Tests", () => {
 
   describe("CREATE Operation", () => {
     it("should create a new category", async () => {
-      const request = new Request("http://localhost:3000/api/categories", {
+      const request = createRequest("/api/categories", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+        body: {
           name: "Electronics 2",
           description: "Electronic devices and gadgets",
           isActive: true,
-        }),
+        },
       });
 
       const response = await handleRequest(forja, request);
-      const data = await response.json();
+      const data = await expectApiSingle(response, 201);
 
-      expect(response.status).toBe(201);
-      expect(data).toHaveProperty("data");
-      expect(data.data).toHaveProperty("id");
-      expect(data.data.name).toBe("Electronics 2");
-      expect(data.data.description).toBe("Electronic devices and gadgets");
-      expect(data.data.isActive).toBe(true);
+      expect(data).toHaveProperty("id");
+      expect(data.name).toBe("Electronics 2");
+      expect(data.description).toBe("Electronic devices and gadgets");
+      expect(data.isActive).toBe(true);
     });
 
     it("should create a new supplier", async () => {
-      const request = new Request("http://localhost:3000/api/suppliers", {
+      const request = createRequest("/api/suppliers", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+        body: {
           name: "TechCorp Inc. 2",
           email: "contact2@techcorp.com",
           country: "USA",
           rating: 4.5,
           isVerified: true,
-        }),
+        },
       });
 
       const response = await handleRequest(forja, request);
-      const data = await response.json();
+      const data = await expectApiSingle(response, 201);
 
-      expect(response.status).toBe(201);
-      expect(data).toHaveProperty("data");
-      expect(data.data).toHaveProperty("id");
-      expect(data.data.name).toBe("TechCorp Inc. 2");
-      expect(data.data.email).toBe("contact2@techcorp.com");
-      expect(data.data.country).toBe("USA");
-      expect(data.data.rating).toBe(4.5);
-      expect(data.data.isVerified).toBe(true);
+      expect(data).toHaveProperty("id");
+      expect(data.name).toBe("TechCorp Inc. 2");
+      expect(data.email).toBe("contact2@techcorp.com");
+      expect(data.country).toBe("USA");
+      expect(data.rating).toBe(4.5);
+      expect(data.isVerified).toBe(true);
     });
 
     it("should create a new product with relations", async () => {
-      const request = new Request("http://localhost:3000/api/products", {
+      const request = createRequest("/api/products", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+        body: {
           name: "Wireless Mouse",
           description: "Ergonomic wireless mouse with 2.4GHz connectivity",
           price: 29.99,
@@ -147,86 +135,66 @@ describe("API CRUD Integration Tests", () => {
           sku: "WM-2024-001",
           isAvailable: true,
           tags: ["wireless", "computer", "accessories"],
-        }),
+        },
       });
 
       const response = await handleRequest(forja, request);
-      const data = await response.json();
+      const data = await expectApiSingle(response, 201);
 
-      expect(response.status).toBe(201);
-      expect(data).toHaveProperty("data");
-      expect(data.data).toHaveProperty("id");
-      expect(data.data.name).toBe("Wireless Mouse");
-      expect(data.data.price).toBe(29.99);
-      expect(data.data.stock).toBe(150);
-      expect(data.data.sku).toBe("WM-2024-001");
-      expect(data.data.tags).toEqual(["wireless", "computer", "accessories"]);
+      expect(data).toHaveProperty("id");
+      expect(data.name).toBe("Wireless Mouse");
+      expect(data.price).toBe(29.99);
+      expect(data.stock).toBe(150);
+      expect(data.sku).toBe("WM-2024-001");
+      expect(data.tags).toEqual(["wireless", "computer", "accessories"]);
     });
 
     it("should fail to create product with invalid data (missing required field)", async () => {
-      const request = new Request("http://localhost:3000/api/products", {
+      const request = createRequest("/api/products", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+        body: {
           description: "Product without name",
           price: 10.0,
           stock: 5,
-        }),
+        },
       });
 
       const response = await handleRequest(forja, request);
-      const data = await response.json();
-
-      expect(response.status).toBe(400);
-      expect(data).toHaveProperty("error");
+      await expectApiError(response, 400);
     });
 
     it("should fail to create category with duplicate name", async () => {
       // First create
-      const request1 = new Request("http://localhost:3000/api/categories", {
+      const request1 = createRequest("/api/categories", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+        body: {
           name: "Unique Category",
           description: "First creation",
-        }),
+        },
       });
 
       const response1 = await handleRequest(forja, request1);
-      expect(response1.status).toBe(201);
+      await expectApiSingle(response1, 201);
 
       // Try duplicate
-      const request2 = new Request("http://localhost:3000/api/categories", {
+      const request2 = createRequest("/api/categories", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+        body: {
           name: "Unique Category",
           description: "Duplicate attempt",
-        }),
+        },
       });
 
       const response2 = await handleRequest(forja, request2);
-      const data2 = await response2.json();
-
-      expect(response2.status).toBe(400);
-      expect(data2).toHaveProperty("error");
+      await expectApiError(response2, 400);
     });
 
     it("should create product with select fields option", async () => {
-      const request = new Request(
-        "http://localhost:3000/api/products?fields[0]=id&fields[1]=name&fields[2]=price",
+      const request = createRequest(
+        "/api/products",
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
+          body: {
             name: "Keyboard",
             description: "Mechanical keyboard with RGB lighting",
             price: 79.99,
@@ -235,31 +203,31 @@ describe("API CRUD Integration Tests", () => {
             supplier: 1,
             sku: "KB-2024-001",
             isAvailable: true,
-          }),
+          },
         },
+        {
+          select: ["id", "name", "price"],
+        }
       );
 
       const response = await handleRequest(forja, request);
-      const data = await response.json();
-
-      expect(response.status).toBe(201);
-      expect(data).toHaveProperty("data");
+      const data = await expectApiSingle(response, 201);
 
       // Should only have selected fields (plus reserved fields)
-      expect(data.data).toHaveProperty("id");
-      expect(data.data).toHaveProperty("name");
-      expect(data.data).toHaveProperty("price");
-      expect(data.data.name).toBe("Keyboard");
-      expect(data.data.price).toBe(79.99);
+      expect(data).toHaveProperty("id");
+      expect(data).toHaveProperty("name");
+      expect(data).toHaveProperty("price");
+      expect(data.name).toBe("Keyboard");
+      expect(data.price).toBe(79.99);
 
       // Reserved fields always present
-      expect(data.data).toHaveProperty("createdAt");
-      expect(data.data).toHaveProperty("updatedAt");
+      expect(data).toHaveProperty("createdAt");
+      expect(data).toHaveProperty("updatedAt");
 
       // Other fields should not be present
-      expect(data.data).not.toHaveProperty("description");
-      expect(data.data).not.toHaveProperty("stock");
-      expect(data.data).not.toHaveProperty("sku");
+      expect(data).not.toHaveProperty("description");
+      expect(data).not.toHaveProperty("stock");
+      expect(data).not.toHaveProperty("sku");
     });
   });
 
@@ -267,30 +235,28 @@ describe("API CRUD Integration Tests", () => {
     beforeAll(async () => {
       await handleRequest(
         forja,
-        new Request("http://localhost:3000/api/categories", {
+        createRequest("/api/categories", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+          body: {
             name: "Books",
             description: "Books and literature",
             isActive: true,
-          }),
-        }),
+          },
+        })
       );
 
       await handleRequest(
         forja,
-        new Request("http://localhost:3000/api/suppliers", {
+        createRequest("/api/suppliers", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+          body: {
             name: "BookCorp Ltd.",
             email: "info@bookcorp.com",
             country: "UK",
             rating: 4.8,
             isVerified: true,
-          }),
-        }),
+          },
+        })
       );
 
       const products = [
@@ -343,50 +309,39 @@ describe("API CRUD Integration Tests", () => {
       for (const product of products) {
         await handleRequest(
           forja,
-          new Request("http://localhost:3000/api/products", {
+          createRequest("/api/products", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(product),
-          }),
+            body: product,
+          })
         );
       }
     });
 
     it("should query products with AND/OR conditions", async () => {
-      const query = {
-        where: {
-          $or: [
-            {
-              $and: [{ price: { $gte: 100 } }, { stock: { $lte: 10 } }],
-            },
-            {
-              $and: [{ price: { $lte: 20 } }, { stock: { $gte: 100 } }],
-            },
-          ],
-        },
-      };
-
-      const serialized = serializeQuery(query);
-      const queryParams = new URLSearchParams(
-        serialized as Record<string, string>,
-      );
-
-      const request = new Request(
-        `http://localhost:3000/api/products?${queryParams}`,
+      const request = createRequest(
+        "/api/products",
+        { method: "GET" },
         {
-          method: "GET",
-        },
+          where: {
+            $or: [
+              {
+                $and: [{ price: { $gte: 100 } }, { stock: { $lte: 10 } }],
+              },
+              {
+                $and: [{ price: { $lte: 20 } }, { stock: { $gte: 100 } }],
+              },
+            ],
+          },
+        }
       );
 
       const response = await handleRequest(forja, request);
-      const data = await response.json();
+      const { data } = await expectApiMulti(response);
 
-      expect(response.status).toBe(200);
-      expect(data).toHaveProperty("data");
-      expect(Array.isArray(data.data)).toBe(true);
-      expect(data.data.length).toBe(2);
+      expect(Array.isArray(data)).toBe(true);
+      expect(data.length).toBe(2);
 
-      for (const product of data.data) {
+      for (const product of data) {
         const matchesFirstCondition = product.price >= 100 && product.stock <= 10;
         const matchesSecondCondition = product.price <= 20 && product.stock >= 100;
         expect(matchesFirstCondition || matchesSecondCondition).toBe(true);

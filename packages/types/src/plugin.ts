@@ -40,8 +40,7 @@ export type QueryAction =
  */
 export interface QueryContext {
   readonly action: QueryAction;
-  readonly model: string;
-  readonly table: string;
+  readonly schema: SchemaDefinition;
   readonly forja: IForja;
   readonly metadata: Record<string, unknown>;
   user?: AuthUser | undefined;

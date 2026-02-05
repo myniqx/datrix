@@ -15,6 +15,7 @@ import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import { Forja } from "forja-core";
 import { handleRequest } from "../src/helper";
 import { createTestConfig, getTmpDir } from "./data";
+import { createRequest } from "./data/helper";
 import { expectApiMulti, expectPaginationMeta } from "forja-types/test/helpers";
 import fs from "node:fs/promises";
 
@@ -89,9 +90,7 @@ describe("Pagination Integration Tests", () => {
       // Create 30 users
       await setupUsers(30);
 
-      const request = new Request("http://localhost:3000/api/users", {
-        method: "GET",
-      });
+      const request = createRequest("/api/users", { method: "GET" });
 
       const response = await handleRequest(forja, request);
       const { data, meta } = await expectApiMulti(response);
@@ -110,10 +109,7 @@ describe("Pagination Integration Tests", () => {
       // Create 10 users
       await setupUsers(10);
 
-      const request = new Request(
-        "http://localhost:3000/api/users?pageSize=3",
-        { method: "GET" },
-      );
+      const request = createRequest("/api/users", { method: "GET" }, { pageSize: 3 });
 
       const response = await handleRequest(forja, request);
       const { data, meta } = await expectApiMulti(response);
@@ -132,10 +128,7 @@ describe("Pagination Integration Tests", () => {
       const users = await setupUsers(10);
 
       // Page 1
-      const page1Request = new Request(
-        "http://localhost:3000/api/users?page=1&pageSize=3",
-        { method: "GET" },
-      );
+      const page1Request = createRequest("/api/users", { method: "GET" }, { page: 1, pageSize: 3 });
       const page1Response = await handleRequest(forja, page1Request);
       const page1Result = await expectApiMulti(page1Response);
 
@@ -145,10 +138,7 @@ describe("Pagination Integration Tests", () => {
       expect(page1Result.data[2].name).toBe("User 3");
 
       // Page 2
-      const page2Request = new Request(
-        "http://localhost:3000/api/users?page=2&pageSize=3",
-        { method: "GET" },
-      );
+      const page2Request = createRequest("/api/users", { method: "GET" }, { page: 2, pageSize: 3 });
       const page2Response = await handleRequest(forja, page2Request);
       const page2Result = await expectApiMulti(page2Response);
 
@@ -158,10 +148,7 @@ describe("Pagination Integration Tests", () => {
       expect(page2Result.data[2].name).toBe("User 6");
 
       // Page 3
-      const page3Request = new Request(
-        "http://localhost:3000/api/users?page=3&pageSize=3",
-        { method: "GET" },
-      );
+      const page3Request = createRequest("/api/users", { method: "GET" }, { page: 3, pageSize: 3 });
       const page3Response = await handleRequest(forja, page3Request);
       const page3Result = await expectApiMulti(page3Response);
 
@@ -181,10 +168,7 @@ describe("Pagination Integration Tests", () => {
       // Create 10 users, pageSize=3 → last page has 1 item
       await setupUsers(10);
 
-      const request = new Request(
-        "http://localhost:3000/api/users?page=4&pageSize=3",
-        { method: "GET" },
-      );
+      const request = createRequest("/api/users", { method: "GET" }, { page: 4, pageSize: 3 });
 
       const response = await handleRequest(forja, request);
       const { data, meta } = await expectApiMulti(response);
@@ -205,10 +189,7 @@ describe("Pagination Integration Tests", () => {
       // Create 5 users
       await setupUsers(5);
 
-      const request = new Request(
-        "http://localhost:3000/api/users?page=10&pageSize=3",
-        { method: "GET" },
-      );
+      const request = createRequest("/api/users", { method: "GET" }, { page: 10, pageSize: 3 });
 
       const response = await handleRequest(forja, request);
       const { data, meta } = await expectApiMulti(response);
@@ -229,10 +210,7 @@ describe("Pagination Integration Tests", () => {
       // Create 3 users
       await setupUsers(3);
 
-      const request = new Request(
-        "http://localhost:3000/api/users?page=2&pageSize=1",
-        { method: "GET" },
-      );
+      const request = createRequest("/api/users", { method: "GET" }, { page: 2, pageSize: 1 });
 
       const response = await handleRequest(forja, request);
       const { data, meta } = await expectApiMulti(response);
@@ -251,10 +229,7 @@ describe("Pagination Integration Tests", () => {
     it("should handle empty database", async () => {
       // No users created
 
-      const request = new Request(
-        "http://localhost:3000/api/users?page=1&pageSize=10",
-        { method: "GET" },
-      );
+      const request = createRequest("/api/users", { method: "GET" }, { page: 1, pageSize: 10 });
 
       const response = await handleRequest(forja, request);
       const { data, meta } = await expectApiMulti(response);
@@ -273,10 +248,7 @@ describe("Pagination Integration Tests", () => {
       // Create 9 users, pageSize=3 → exactly 3 pages
       await setupUsers(9);
 
-      const request = new Request(
-        "http://localhost:3000/api/users?page=3&pageSize=3",
-        { method: "GET" },
-      );
+      const request = createRequest("/api/users", { method: "GET" }, { page: 3, pageSize: 3 });
 
       const response = await handleRequest(forja, request);
       const { data, meta } = await expectApiMulti(response);
@@ -305,37 +277,25 @@ describe("Pagination Integration Tests", () => {
       await setupUsers(10);
 
       // Scenario 1: 10 items, pageSize=3 → 4 pages (10/3 = 3.33)
-      const req1 = new Request(
-        "http://localhost:3000/api/users?pageSize=3",
-        { method: "GET" },
-      );
+      const req1 = createRequest("/api/users", { method: "GET" }, { pageSize: 3 });
       const res1 = await handleRequest(forja, req1);
       const result1 = await expectApiMulti(res1);
       expect(result1.meta.totalPages).toBe(4);
 
       // Scenario 2: 10 items, pageSize=5 → 2 pages (10/5 = 2)
-      const req2 = new Request(
-        "http://localhost:3000/api/users?pageSize=5",
-        { method: "GET" },
-      );
+      const req2 = createRequest("/api/users", { method: "GET" }, { pageSize: 5 });
       const res2 = await handleRequest(forja, req2);
       const result2 = await expectApiMulti(res2);
       expect(result2.meta.totalPages).toBe(2);
 
       // Scenario 3: 10 items, pageSize=10 → 1 page (10/10 = 1)
-      const req3 = new Request(
-        "http://localhost:3000/api/users?pageSize=10",
-        { method: "GET" },
-      );
+      const req3 = createRequest("/api/users", { method: "GET" }, { pageSize: 10 });
       const res3 = await handleRequest(forja, req3);
       const result3 = await expectApiMulti(res3);
       expect(result3.meta.totalPages).toBe(1);
 
       // Scenario 4: 10 items, pageSize=20 → 1 page (10/20 = 0.5)
-      const req4 = new Request(
-        "http://localhost:3000/api/users?pageSize=20",
-        { method: "GET" },
-      );
+      const req4 = createRequest("/api/users", { method: "GET" }, { pageSize: 20 });
       const res4 = await handleRequest(forja, req4);
       const result4 = await expectApiMulti(res4);
       expect(result4.meta.totalPages).toBe(1);
@@ -346,10 +306,7 @@ describe("Pagination Integration Tests", () => {
 
       // All pages should have same total and totalPages
       for (let page = 1; page <= 4; page++) {
-        const request = new Request(
-          `http://localhost:3000/api/users?page=${page}&pageSize=3`,
-          { method: "GET" },
-        );
+        const request = createRequest("/api/users", { method: "GET" }, { page, pageSize: 3 });
         const response = await handleRequest(forja, request);
         const { meta } = await expectApiMulti(response);
 
@@ -371,9 +328,14 @@ describe("Pagination Integration Tests", () => {
       await setupUsers(10); // ages 21-30
 
       // Filter: age >= 25 (users 5-10, total 6 users)
-      const request = new Request(
-        "http://localhost:3000/api/users?where[age][$gte]=25&page=1&pageSize=3",
+      const request = createRequest(
+        "/api/users",
         { method: "GET" },
+        {
+          where: { age: { $gte: 25 } },
+          page: 1,
+          pageSize: 3,
+        }
       );
 
       const response = await handleRequest(forja, request);
@@ -397,9 +359,14 @@ describe("Pagination Integration Tests", () => {
       await setupUsers(10);
 
       // Page 2 of filtered results
-      const request = new Request(
-        "http://localhost:3000/api/users?where[age][$gte]=25&page=2&pageSize=3",
+      const request = createRequest(
+        "/api/users",
         { method: "GET" },
+        {
+          where: { age: { $gte: 25 } },
+          page: 2,
+          pageSize: 3,
+        }
       );
 
       const response = await handleRequest(forja, request);
@@ -432,9 +399,14 @@ describe("Pagination Integration Tests", () => {
       await forja.create("user", { name: "David", email: "d@example.com", age: 35 });
 
       // Sort by name ascending, page 1, pageSize=2
-      const request = new Request(
-        "http://localhost:3000/api/users?sort=name&page=1&pageSize=2",
+      const request = createRequest(
+        "/api/users",
         { method: "GET" },
+        {
+          sort: "name",
+          page: 1,
+          pageSize: 2,
+        }
       );
 
       const response = await handleRequest(forja, request);
@@ -460,9 +432,14 @@ describe("Pagination Integration Tests", () => {
       await forja.create("user", { name: "David", email: "d@example.com", age: 35 });
 
       // Page 2 with same sort
-      const request = new Request(
-        "http://localhost:3000/api/users?sort=name&page=2&pageSize=2",
+      const request = createRequest(
+        "/api/users",
         { method: "GET" },
+        {
+          sort: "name",
+          page: 2,
+          pageSize: 2,
+        }
       );
 
       const response = await handleRequest(forja, request);
@@ -478,9 +455,14 @@ describe("Pagination Integration Tests", () => {
       await setupUsers(5); // User 1-5, ages 21-25
 
       // Sort by age descending, page 1, pageSize=2
-      const request = new Request(
-        "http://localhost:3000/api/users?sort=-age&page=1&pageSize=2",
+      const request = createRequest(
+        "/api/users",
         { method: "GET" },
+        {
+          sort: "-age",
+          page: 1,
+          pageSize: 2,
+        }
       );
 
       const response = await handleRequest(forja, request);
@@ -514,9 +496,15 @@ describe("Pagination Integration Tests", () => {
       // Sorted: Alice, Charlie, David, Eve, Frank
       // Page 1 (items 1-2): Alice, Charlie
       // Page 2 (items 3-4): David, Eve
-      const request = new Request(
-        "http://localhost:3000/api/users?where[age][$gte]=25&sort=name&page=2&pageSize=2",
+      const request = createRequest(
+        "/api/users",
         { method: "GET" },
+        {
+          where: { age: { $gte: 25 } },
+          sort: "name",
+          page: 2,
+          pageSize: 2,
+        }
       );
 
       const response = await handleRequest(forja, request);

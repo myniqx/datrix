@@ -89,11 +89,11 @@ const result = processData(transformed);
 ```typescript
 // ❌ BAD - Complex inline expression
 return jsonResponse({
-  data: await filterRecordsForRead(
-    schema,
-    await forja.findMany(schema.name, buildQuery(ctx)),
-    ctx
-  )
+	data: await filterRecordsForRead(
+		schema,
+		await forja.findMany(schema.name, buildQuery(ctx)),
+		ctx,
+	),
 });
 
 // ✅ GOOD - Break into steps
@@ -104,6 +104,7 @@ return jsonResponse({ data: filteredRecords });
 ```
 
 **Benefits:**
+
 - Set breakpoints on each line
 - Inspect intermediate values in debugger
 - Understand data transformations clearly
@@ -111,6 +112,7 @@ return jsonResponse({ data: filteredRecords });
 - Better stack traces
 
 **When to apply:**
+
 - Functions with 2+ nested calls
 - Complex async operations
 - Data transformation pipelines
@@ -217,13 +219,11 @@ type User = InferSchemaType<typeof userSchema>;
 
 ### Plugins Module (`src/plugins/`) - ✅ Implemented
 
-**Purpose:** Optional features (auth, upload, hooks, soft-delete)
+**Purpose:** Optional features (auth, upload)
 **Status:** 100% complete (all 4 core plugins)
 
 - ✅ Auth plugin (800 LOC) - JWT, session, RBAC, custom crypto
 - ✅ Upload plugin - Local + S3 providers (custom Signature V4)
-- ✅ Hooks plugin - All lifecycle hooks
-- ✅ Soft Delete plugin - Query interception
 
 **Rules:**
 
