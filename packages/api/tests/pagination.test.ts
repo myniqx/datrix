@@ -403,7 +403,7 @@ describe("Pagination Integration Tests", () => {
         "/api/users",
         { method: "GET" },
         {
-          sort: "name",
+          orderBy: "name",
           page: 1,
           pageSize: 2,
         }
@@ -436,7 +436,7 @@ describe("Pagination Integration Tests", () => {
         "/api/users",
         { method: "GET" },
         {
-          sort: "name",
+          orderBy: "name",
           page: 2,
           pageSize: 2,
         }
@@ -459,7 +459,7 @@ describe("Pagination Integration Tests", () => {
         "/api/users",
         { method: "GET" },
         {
-          sort: "-age",
+          orderBy: "-age",
           page: 1,
           pageSize: 2,
         }
@@ -501,7 +501,7 @@ describe("Pagination Integration Tests", () => {
         { method: "GET" },
         {
           where: { age: { $gte: 25 } },
-          sort: "name",
+          orderBy: "name",
           page: 2,
           pageSize: 2,
         }

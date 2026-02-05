@@ -9,6 +9,7 @@ import type {
   SchemaDefinition,
   FieldDefinition,
   ForjaEntry,
+  ForjaRecord,
 } from "forja-types/core/schema";
 import type {
   SchemaValidationResult,
@@ -50,22 +51,19 @@ export function validateSchema<T extends ForjaEntry>(
   data: unknown,
   schema: SchemaDefinition,
   options?: ValidatorOptions,
-): SchemaValidationResult<T> {
+): T {
   const opts = { ...DEFAULT_OPTIONS, ...options };
   let errors = new ValidationErrorCollection();
 
   // Check if data is an object
   if (typeof data !== "object" || data === null || Array.isArray(data)) {
-    return {
-      success: false,
-      error: [
-        createValidationError(
-          schema.name,
-          "TYPE_MISMATCH",
-          `Expected object, got ${typeof data}`,
-        ),
-      ],
-    };
+    throwValidationMultiple(schema.name, [
+      createValidationError(
+        schema.name,
+        "TYPE_MISMATCH",
+        `Expected object, got ${typeof data}`,
+      ),
+    ]);
   }
 
   const inputData = data as Record<string, unknown>;
@@ -78,7 +76,10 @@ export function validateSchema<T extends ForjaEntry>(
       continue;
     }
 
-    const value = inputData[fieldName];
+    let value = inputData[fieldName];
+    if (!value && fieldDef.type === "relation" && (fieldDef.kind === 'belongsTo' || fieldDef.kind === 'hasOne')) {
+      value = inputData[fieldDef.foreignKey!]; // if there is a foreign key, meaning it's inlined.
+    }
 
     // Skip hidden fields if not provided - these are typically auto-managed (like FKs)
     // and will be filled later in the CRUD flow or by the database.
@@ -94,7 +95,7 @@ export function validateSchema<T extends ForjaEntry>(
 
       // Abort early if option is set
       if (opts.abortEarly) {
-        return { success: false, error: [...errors.getAll()] };
+        throwValidationMultiple(schema.name, errors.getAll());
       }
     } else if (result.data !== undefined) {
       validatedData[fieldName] = result.data;
@@ -115,7 +116,7 @@ export function validateSchema<T extends ForjaEntry>(
 
         // Abort early if option is set
         if (opts.abortEarly) {
-          return { success: false, error: [...errors.getAll()] };
+          throwValidationMultiple(schema.name, errors.getAll());
         }
       }
     }
@@ -132,10 +133,10 @@ export function validateSchema<T extends ForjaEntry>(
 
   // Return result
   if (errors.hasErrors()) {
-    return { success: false, error: [...errors.getAll()] };
+    throwValidationMultiple(schema.name, errors.getAll());
   }
 
-  return { success: true, data: validatedData as T };
+  return validatedData as T
 }
 
 /**
@@ -145,22 +146,19 @@ export function validatePartial<T extends ForjaEntry>(
   data: unknown,
   schema: SchemaDefinition,
   options?: ValidatorOptions,
-): SchemaValidationResult<Partial<T>> {
+): Partial<T> {
   const opts = { ...DEFAULT_OPTIONS, ...options };
   let errors = new ValidationErrorCollection();
 
   // Check if data is an object
   if (typeof data !== "object" || data === null || Array.isArray(data)) {
-    return {
-      success: false,
-      error: [
-        createValidationError(
-          schema.name,
-          "TYPE_MISMATCH",
-          `Expected object, got ${typeof data}`,
-        ),
-      ],
-    };
+    throwValidationMultiple(schema.name, [
+      createValidationError(
+        schema.name,
+        "TYPE_MISMATCH",
+        `Expected object, got ${typeof data}`,
+      ),
+    ]);
   }
 
   const inputData = data as Record<string, unknown>;
@@ -182,7 +180,7 @@ export function validatePartial<T extends ForjaEntry>(
         );
 
         if (opts.abortEarly) {
-          return { success: false, error: [...errors.getAll()] };
+          throwValidationMultiple(schema.name, errors.getAll());
         }
       } else if (!opts.stripUnknown) {
         validatedData[fieldName] = value;
@@ -200,7 +198,7 @@ export function validatePartial<T extends ForjaEntry>(
       errors = errors.addMany(result.error);
 
       if (opts.abortEarly) {
-        return { success: false, error: [...errors.getAll()] };
+        throwValidationMultiple(schema.name, errors.getAll());
       }
     } else {
       validatedData[fieldName] = result.data;
@@ -209,28 +207,12 @@ export function validatePartial<T extends ForjaEntry>(
 
   // Return result
   if (errors.hasErrors()) {
-    return { success: false, error: [...errors.getAll()] };
+    throwValidationMultiple(schema.name, errors.getAll());
   }
 
-  return { success: true, data: validatedData as Partial<T> };
+  return validatedData as T;
 }
 
-/**
- * Validate partial data and throw on error
- */
-export function validatePartialOrThrow<T extends ForjaEntry>(
-  data: unknown,
-  schema: SchemaDefinition,
-  options?: ValidatorOptions,
-): Partial<T> {
-  const result = validatePartial<T>(data, schema, options);
-
-  if (!result.success) {
-    throwValidationMultiple(schema.name, result.error);
-  }
-
-  return (result as any).data;
-}
 
 /**
  * Validate array of data
@@ -239,22 +221,18 @@ export function validateMany<T extends ForjaEntry>(
   dataArray: unknown,
   schema: SchemaDefinition,
   options?: ValidatorOptions,
-): SchemaValidationResult<readonly T[]> {
+): readonly T[] {
   const opts = { ...DEFAULT_OPTIONS, ...options };
-  let errors = new ValidationErrorCollection();
 
   // Check if data is an array
   if (!Array.isArray(dataArray)) {
-    return {
-      success: false,
-      error: [
-        createValidationError(
-          schema.name,
-          "TYPE_MISMATCH",
-          `Expected array, got ${typeof dataArray}`,
-        ),
-      ],
-    };
+    throwValidationMultiple(schema.name, [
+      createValidationError(
+        schema.name,
+        "TYPE_MISMATCH",
+        `Expected array, got ${typeof dataArray}`,
+      ),
+    ]);
   }
 
   const validatedArray: T[] = [];
@@ -263,31 +241,10 @@ export function validateMany<T extends ForjaEntry>(
   for (let i = 0; i < dataArray.length; i++) {
     const item = dataArray[i];
     const result = validateSchema<T>(item, schema, opts);
-
-    if (!result.success) {
-      // Add context to errors
-      const itemErrors = result.error.map((err) =>
-        createValidationError(`[${i}].${err.field}`, err.code, err.message, {
-          value: err.value,
-          expected: err.expected,
-        }),
-      );
-      errors = errors.addMany(itemErrors);
-
-      if (opts.abortEarly) {
-        return { success: false, error: [...errors.getAll()] };
-      }
-    } else {
-      validatedArray.push(result.data);
-    }
+    validatedArray.push(result);
   }
 
-  // Return result
-  if (errors.hasErrors()) {
-    return { success: false, error: [...errors.getAll()] };
-  }
-
-  return { success: true, data: validatedArray };
+  return validatedArray;
 }
 
 /**
@@ -298,25 +255,8 @@ export function isValid(
   schema: SchemaDefinition,
   options?: ValidatorOptions,
 ): boolean {
-  const result = validateSchema(data, schema, options);
-  return result.success;
-}
-
-/**
- * Validate and throw on error
- */
-export function validateOrThrow<T extends ForjaEntry>(
-  data: unknown,
-  schema: SchemaDefinition,
-  options?: ValidatorOptions,
-): T {
-  const result = validateSchema<T>(data, schema, options);
-
-  if (!result.success) {
-    throwValidationMultiple(schema.name, result.error);
-  }
-
-  return (result as any).data;
+  validateSchema(data, schema, options);
+  return true;
 }
 
 /**
@@ -327,9 +267,5 @@ export function assertSchema<T>(
   schema: SchemaDefinition,
   options?: ValidatorOptions,
 ): asserts data is T {
-  const result = validateSchema(data, schema, options);
-
-  if (!result.success) {
-    throwValidationMultiple(schema.name, result.error);
-  }
+  validateSchema(data, schema, options);
 }

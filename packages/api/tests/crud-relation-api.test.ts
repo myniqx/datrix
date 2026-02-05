@@ -15,37 +15,40 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { Forja } from "forja-core";
 import { handleRequest } from "../src/helper";
 import { createTestConfig, getTmpDir } from "./data";
+import { createRequest } from "./data/helper";
 import { expectApiSingle, expectApiError, randomEmail } from "forja-types/test/helpers";
 import fs from "node:fs/promises";
+import { ParsedQuery } from "forja-types";
 
 describe("CRUD Relation API Tests", () => {
   let forja: Forja;
   const tmpDir = getTmpDir();
 
-  // Helper: Create request
-  const createRequest = (
-    url: string,
-    method: string,
-    body?: unknown,
-  ): Request => {
-    return new Request(url, {
-      method,
-      headers: body ? { "Content-Type": "application/json" } : {},
-      body: body ? JSON.stringify(body) : undefined,
-    });
+  // Helper: POST request
+  const postRequest = async (endpoint: string, body: unknown, params?: ParsedQuery) => {
+    const request = createRequest(endpoint, {
+      method: "POST",
+      body,
+    }, params);
+    return handleRequest(forja, request);
   };
 
-  // Helper: POST request
-  const post = (endpoint: string, body: unknown) =>
-    handleRequest(forja, createRequest(`http://localhost:3000${endpoint}`, "POST", body));
-
   // Helper: PUT request
-  const put = (endpoint: string, body: unknown) =>
-    handleRequest(forja, createRequest(`http://localhost:3000${endpoint}`, "PUT", body));
+  const putRequest = async (endpoint: string, body: unknown) => {
+    const request = createRequest(endpoint, {
+      method: "PUT",
+      body,
+    });
+    return handleRequest(forja, request);
+  };
 
   // Helper: GET request
-  const get = (endpoint: string) =>
-    handleRequest(forja, createRequest(`http://localhost:3000${endpoint}`, "GET"));
+  const getRequest = async (endpoint: string) => {
+    const request = createRequest(endpoint, {
+      method: "GET",
+    });
+    return handleRequest(forja, request);
+  };
 
   beforeAll(async () => {
     // Clean up temporary directory
@@ -87,14 +90,14 @@ describe("CRUD Relation API Tests", () => {
   describe("Data Normalization - Connect/Set/Disconnect", () => {
     it("should normalize connect: number → number[]", async () => {
       // Create company first
-      const companyRes = await post("/api/companies", {
+      const companyRes = await postRequest("/api/companies", {
         name: "TechCorp",
         country: "USA",
       });
       const company = await expectApiSingle(companyRes, 201);
 
       // Create author with connect as number
-      const authorRes = await post("/api/authors?populate=true", {
+      const authorRes = await postRequest("/api/authors?populate=true", {
         name: "John Doe",
         email: randomEmail(),
         company: company.id, // ✅ Direct ID (should normalize to number[])
@@ -105,14 +108,14 @@ describe("CRUD Relation API Tests", () => {
     });
 
     it("should normalize connect: {id} → number[]", async () => {
-      const companyRes = await post("/api/companies", {
+      const companyRes = await postRequest("/api/companies", {
         name: "DevCorp",
         country: "UK",
       });
       const company = await expectApiSingle(companyRes, 201);
 
       // Without populate → No relation, no FK
-      const authorRes = await post("/api/authors", {
+      const authorRes = await postRequest("/api/authors", {
         name: "Jane Smith",
         email: randomEmail(),
         company: { connect: { id: company.id } }, // ✅ Object format
@@ -124,14 +127,14 @@ describe("CRUD Relation API Tests", () => {
     });
 
     it("should normalize connect: [{id}, {id}] → number[] (first only for belongsTo)", async () => {
-      const company1Res = await post("/api/companies", { name: "Corp1", country: "USA" });
+      const company1Res = await postRequest("/api/companies", { name: "Corp1", country: "USA" });
       const company1 = await expectApiSingle(company1Res, 201);
 
-      const company2Res = await post("/api/companies", { name: "Corp2", country: "UK" });
+      const company2Res = await postRequest("/api/companies", { name: "Corp2", country: "UK" });
       const company2 = await expectApiSingle(company2Res, 201);
 
       // Without populate → No FK, no relation
-      const authorRes = await post("/api/authors", {
+      const authorRes = await postRequest("/api/authors", {
         name: "Bob Johnson",
         email: randomEmail(),
         company: { connect: [{ id: company1.id }, { id: company2.id }] }, // ✅ Array (belongsTo takes first)
@@ -143,11 +146,11 @@ describe("CRUD Relation API Tests", () => {
     });
 
     it("should normalize set: [number] → number[]", async () => {
-      const companyRes = await post("/api/companies", { name: "NewCorp", country: "DE" });
+      const companyRes = await postRequest("/api/companies", { name: "NewCorp", country: "DE" });
       const company = await expectApiSingle(companyRes, 201);
 
       // Without populate → No FK, no relation
-      const authorRes = await post("/api/authors", {
+      const authorRes = await postRequest("/api/authors", {
         name: "Alice Brown",
         email: randomEmail(),
         company: { set: [company.id] }, // ✅ Set format
@@ -159,10 +162,10 @@ describe("CRUD Relation API Tests", () => {
     });
 
     it("should handle disconnect (set FK to null)", async () => {
-      const companyRes = await post("/api/companies", { name: "OldCorp", country: "FR" });
+      const companyRes = await postRequest("/api/companies", { name: "OldCorp", country: "FR" });
       const company = await expectApiSingle(companyRes, 201);
 
-      const authorRes = await post("/api/authors?populate=true", {
+      const authorRes = await postRequest("/api/authors?populate=true", {
         name: "Charlie Wilson",
         email: randomEmail(),
         company: company.id,
@@ -172,7 +175,7 @@ describe("CRUD Relation API Tests", () => {
       expect(author.company.id).toBe(company.id); // ✅ Populated before disconnect
 
       // Disconnect (populate to verify it's gone)
-      const updateRes = await put(`/api/authors/${author.id}?populate=true`, {
+      const updateRes = await putRequest(`/api/authors/${author.id}?populate=true`, {
         company: { disconnect: true },
       });
       const updated = await expectApiSingle(updateRes);
@@ -184,7 +187,7 @@ describe("CRUD Relation API Tests", () => {
 
   describe("Nested Create - Single Level", () => {
     it("should create author with nested company create", async () => {
-      const response = await post("/api/authors?populate=true", {
+      const response = await postRequest("/api/authors?populate=true", {
         name: "David Lee",
         email: randomEmail(),
         company: {
@@ -205,7 +208,7 @@ describe("CRUD Relation API Tests", () => {
     });
 
     it("should create post with nested author create", async () => {
-      const response = await post("/api/posts?populate=true", {
+      const response = await postRequest("/api/posts?populate=true", {
         title: "My First Post",
         content: "Hello World!",
         author: {
@@ -225,7 +228,7 @@ describe("CRUD Relation API Tests", () => {
     });
 
     it("should create with nested array creates (manyToMany)", async () => {
-      const response = await post("/api/posts", {
+      const response = await postRequest("/api/posts", {
         title: "Tagged Post",
         content: "Content here",
         tags: {
@@ -247,7 +250,7 @@ describe("CRUD Relation API Tests", () => {
 
   describe("Nested Create - Multi Level (Deep Nesting)", () => {
     it("should create post → author → company (3 levels)", async () => {
-      const response = await post("/api/posts?populate[author][populate][company]=true", {
+      const response = await postRequest("/api/posts", {
         title: "Deep Nested Post",
         content: "Testing deep nesting",
         author: {
@@ -262,6 +265,8 @@ describe("CRUD Relation API Tests", () => {
             },
           },
         },
+      }, {
+        populate: ["author.company"]
       });
 
       const post = await expectApiSingle(response, 201);
@@ -287,14 +292,14 @@ describe("CRUD Relation API Tests", () => {
   describe("Mixed Operations - Connect + Create + Set", () => {
     it("should handle connect existing + create new (manyToMany)", async () => {
       // Create existing tags
-      const tag1Res = await post("/api/tags", { name: "react" });
+      const tag1Res = await postRequest("/api/tags", { name: "react" });
       const tag1 = await expectApiSingle(tag1Res, 201);
 
-      const tag2Res = await post("/api/tags", { name: "vue" });
+      const tag2Res = await postRequest("/api/tags", { name: "vue" });
       const tag2 = await expectApiSingle(tag2Res, 201);
 
       // Create post with mixed operations
-      const response = await post("/api/posts", {
+      const response = await postRequest("/api/posts", {
         title: "Framework Comparison",
         content: "Comparing frameworks",
         tags: {
@@ -312,11 +317,11 @@ describe("CRUD Relation API Tests", () => {
 
     it("should handle create with nested create + connect", async () => {
       // Create existing company
-      const companyRes = await post("/api/companies", { name: "ExistingCo", country: "US" });
+      const companyRes = await postRequest("/api/companies", { name: "ExistingCo", country: "US" });
       const company = await expectApiSingle(companyRes, 201);
 
       // Create post with author that has both create and connect
-      const response = await post("/api/posts?populate[author][populate][company]=true", {
+      const response = await postRequest("/api/posts", {
         title: "Complex Post",
         content: "Testing complex relations",
         author: {
@@ -326,6 +331,8 @@ describe("CRUD Relation API Tests", () => {
             company: company.id, // ✅ Connect existing company
           },
         },
+      }, {
+        populate: ["author.company"]
       });
 
       const post = await expectApiSingle(response, 201);
@@ -341,7 +348,7 @@ describe("CRUD Relation API Tests", () => {
   describe("Nested Update Operations", () => {
     it("should update post with nested author update", async () => {
       // Create post with author (populate to get author.id)
-      const createRes = await post("/api/posts?populate=true", {
+      const createRes = await postRequest("/api/posts?populate=true", {
         title: "Original Title",
         content: "Original content",
         author: {
@@ -354,7 +361,7 @@ describe("CRUD Relation API Tests", () => {
       const post = await expectApiSingle(createRes, 201);
 
       // Update post with nested author update
-      const updateRes = await put(`/api/posts/${post.id}?populate=true`, {
+      const updateRes = await putRequest(`/api/posts/${post.id}?populate=true`, {
         title: "Updated Title",
         author: {
           update: {
@@ -373,14 +380,14 @@ describe("CRUD Relation API Tests", () => {
 
     it("should update with nested create (add new relation)", async () => {
       // Create post without author
-      const createRes = await post("/api/posts", {
+      const createRes = await postRequest("/api/posts", {
         title: "Authorless Post",
         content: "No author yet",
       });
       const post = await expectApiSingle(createRes, 201);
 
       // Update with nested author create (populate to get author)
-      const updateRes = await put(`/api/posts/${post.id}?populate=true`, {
+      const updateRes = await putRequest(`/api/posts/${post.id}?populate=true`, {
         author: {
           create: {
             name: "Isabel Perez",
@@ -399,7 +406,7 @@ describe("CRUD Relation API Tests", () => {
   describe("Relation Delete Operations", () => {
     it("should delete related records", async () => {
       // Create author with company (populate to get company.id)
-      const createRes = await post("/api/authors?populate=true", {
+      const createRes = await postRequest("/api/authors?populate=true", {
         name: "Jack Ryan",
         email: randomEmail(),
         company: {
@@ -413,7 +420,7 @@ describe("CRUD Relation API Tests", () => {
       const companyId = author.company.id;
 
       // Update with delete operation
-      const updateRes = await put(`/api/authors/${author.id}`, {
+      const updateRes = await putRequest(`/api/authors/${author.id}`, {
         company: {
           delete: [companyId], // ✅ Delete company
         },
@@ -423,7 +430,7 @@ describe("CRUD Relation API Tests", () => {
       expect(updated.companyId).toBeUndefined(); // ❌ FK never visible
 
       // Verify company was deleted
-      const companyRes = await get(`/api/companies/${companyId}`);
+      const companyRes = await getRequest(`/api/companies/${companyId}`);
       await expectApiError(companyRes, 404); // Should be deleted
     });
   });
@@ -431,17 +438,17 @@ describe("CRUD Relation API Tests", () => {
   describe("Set Operation (Replace All)", () => {
     it("should replace all tags with set operation", async () => {
       // Create tags
-      const tag1Res = await post("/api/tags", { name: "old1" });
+      const tag1Res = await postRequest("/api/tags", { name: "old1" });
       const tag1 = await expectApiSingle(tag1Res, 201);
 
-      const tag2Res = await post("/api/tags", { name: "old2" });
+      const tag2Res = await postRequest("/api/tags", { name: "old2" });
       const tag2 = await expectApiSingle(tag2Res, 201);
 
-      const tag3Res = await post("/api/tags", { name: "new1" });
+      const tag3Res = await postRequest("/api/tags", { name: "new1" });
       const tag3 = await expectApiSingle(tag3Res, 201);
 
       // Create post with initial tags
-      const createRes = await post("/api/posts", {
+      const createRes = await postRequest("/api/posts", {
         title: "Tag Test Post",
         content: "Testing tags",
         tags: {
@@ -451,7 +458,7 @@ describe("CRUD Relation API Tests", () => {
       const post = await expectApiSingle(createRes, 201);
 
       // Replace all tags with set
-      const updateRes = await put(`/api/posts/${post.id}`, {
+      const updateRes = await putRequest(`/api/posts/${post.id}`, {
         tags: {
           set: [tag3.id], // ✅ Replace all with just tag3
         },
@@ -467,10 +474,10 @@ describe("CRUD Relation API Tests", () => {
   describe("Edge Cases & Validation", () => {
     it("should preserve FK inline optimization (belongsTo)", async () => {
       // When using simple connect, FK should be inlined
-      const companyRes = await post("/api/companies", { name: "InlineCo", country: "US" });
+      const companyRes = await postRequest("/api/companies", { name: "InlineCo", country: "US" });
       const company = await expectApiSingle(companyRes, 201);
 
-      const authorRes = await post("/api/authors?populate=true", {
+      const authorRes = await postRequest("/api/authors?populate=true", {
         name: "Karen White",
         email: randomEmail(),
         company: company.id, // ✅ Should inline FK, no async relation processing
@@ -483,7 +490,7 @@ describe("CRUD Relation API Tests", () => {
     });
 
     it("should fail with invalid nested data", async () => {
-      const response = await post("/api/authors", {
+      const response = await postRequest("/api/authors", {
         name: "Invalid Author",
         email: randomEmail(),
         company: {
@@ -498,7 +505,7 @@ describe("CRUD Relation API Tests", () => {
     });
 
     it("should handle empty create array", async () => {
-      const response = await post("/api/posts", {
+      const response = await postRequest("/api/posts", {
         title: "Empty Tags",
         content: "No tags",
         tags: {

@@ -12,8 +12,9 @@ import {
   SchemaDefinition,
   RESERVED_FIELDS,
 } from "forja-types/core/schema";
-import { validateOrThrow, validatePartialOrThrow } from "../validator";
+import { validateOrThrow, validatePartial, validatePartialOrThrow, validateSchema } from "../validator";
 import { throwReservedFieldError } from "../mixins/error-helper";
+import { QueryRelations } from "forja-types/core/query-builder";
 
 /**
  * Validation options
@@ -174,6 +175,7 @@ export function validateData<
   P extends boolean = false,
 >(
   data: Partial<T> | undefined,
+  relations: QueryRelations<T> | undefined,
   schema: SchemaDefinition,
   options: ValidationOptions,
 ): P extends true ? Partial<T> : T {
@@ -183,7 +185,7 @@ export function validateData<
   checkReservedFields(data, isRawMode);
 
   // 2. Add timestamps BEFORE validation (so required fields like createdAt pass)
-  const dataWithTimestamps = addTimestamps(data, { isCreate, isRawMode });
+  const dataWithTimestamps = schema._isJunctionTable ? data : addTimestamps(data, { isCreate, isRawMode });
 
   // 3. Schema validation (with timestamps already present)
   const validationOptions = {
@@ -192,17 +194,13 @@ export function validateData<
     abortEarly: false,
   };
 
+  const combined = { ...(dataWithTimestamps ?? {}), ...(relations ?? {}) };
+
   if (partial) {
-    return validatePartialOrThrow<T>(
-      dataWithTimestamps,
-      schema,
-      validationOptions,
-    ) as P extends true ? Partial<T> : T;
+    validatePartial(combined, schema, validationOptions);
+  } else {
+    validateSchema(combined, schema, validationOptions);
   }
 
-  return validateOrThrow<T>(
-    dataWithTimestamps,
-    schema,
-    validationOptions,
-  ) as P extends true ? Partial<T> : T;
+  return dataWithTimestamps as P extends true ? Partial<T> : T;
 }

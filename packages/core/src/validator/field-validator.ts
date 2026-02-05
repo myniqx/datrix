@@ -569,26 +569,26 @@ function validateRelation(
     if (input['connect']) {
       const connect = input['connect'];
       if (Array.isArray(connect)) {
-        if (!connect.every(item => typeof item === 'object' && item !== null && 'id' in item)) {
+        if (!connect.every(item => typeof item === 'number')) {
           return {
             success: false,
-            error: [createValidationError(fieldName, 'INVALID_FORMAT', 'connect must be an object or array of objects with id')]
+            error: [createValidationError(fieldName, 'INVALID_FORMAT', 'connect must be a number or array of numbers')]
           };
         }
-      } else if (typeof connect !== 'object' || connect === null || !('id' in connect)) {
+      } else if (typeof connect !== 'number') {
         return {
           success: false,
-          error: [createValidationError(fieldName, 'INVALID_FORMAT', 'connect must be an object or array of objects with id')]
+          error: [createValidationError(fieldName, 'INVALID_FORMAT', 'connect must be a number or array of numbers')]
         };
       }
     }
 
-    // If 'set' is provided, it must be an array of objects with id
+    // If 'set' is provided, it must be an array of numbers
     if (input['set']) {
-      if (!Array.isArray(input['set']) || !(input['set'] as unknown[]).every(item => typeof item === 'object' && item !== null && 'id' in item)) {
+      if (!Array.isArray(input['set']) || !(input['set'] as unknown[]).every(item => typeof item === 'number')) {
         return {
           success: false,
-          error: [createValidationError(fieldName, 'INVALID_FORMAT', 'set must be an array of objects with id')]
+          error: [createValidationError(fieldName, 'INVALID_FORMAT', 'set must be an array of numbers')]
         };
       }
     }

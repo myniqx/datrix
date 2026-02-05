@@ -16,7 +16,7 @@ import {
   ForjaEntry,
   RelationField,
 } from "forja-types/core/schema";
-import { QueryObject } from "forja-types/core/query-builder";
+import { QueryObject, WhereClause } from "forja-types/core/query-builder";
 import { QueryAction } from "forja-types/plugin";
 import { Dispatcher } from "../dispatcher";
 import { validateData } from "./validation";
@@ -35,7 +35,7 @@ export interface ExecutorOptions {
   noDispatcher?: boolean;
   /** If true, return only ID/count instead of full record */
   noReturning?: boolean;
-
+  /** Query action override */
   action?: QueryAction;
 }
 
@@ -96,8 +96,13 @@ export class QueryExecutor {
     }
 
     // INSERT/UPDATE: Validation + relations + fetch result
-    if (query.type === "insert" || query.type === "update") {
-      return this.executeCreateUpdate<T>(query, schema, options) as R;
+    if (query.type === "insert") {
+      return this.executeInsert<T>(query, schema, options) as R;
+    }
+
+    // INSERT/UPDATE: Validation + relations + fetch result
+    if (query.type === "update") {
+      return this.executeUpdate<T>(query, schema, options) as R;
     }
 
     throwUnsupportedQueryType(query.type);
@@ -186,10 +191,10 @@ export class QueryExecutor {
           const sourceForeignKey = `${schema.name}Id`;
 
           // Delete junction records
-          const junctionQuery: QueryObject = {
+          const junctionQuery: QueryObject<T> = {
             type: "delete",
             table: junctionTable,
-            where: { [sourceForeignKey]: { $in: idsToDelete } },
+            where: { [sourceForeignKey]: { $in: idsToDelete } } as WhereClause<T>,
           };
 
           const result = await this.getAdapter().executeQuery(junctionQuery);
@@ -234,57 +239,46 @@ export class QueryExecutor {
   }
 
   /**
-   * Execute INSERT/UPDATE with validation and relations
+   * Execute INSERT with validation and relations
    */
-  async executeCreateUpdate<T extends ForjaEntry>(
+  private async executeInsert<T extends ForjaEntry>(
     query: QueryObject<T>,
     schema: SchemaDefinition,
     options: ExecutorOptions,
   ): Promise<T | number> {
-    const isCreate = query.type === "insert";
     const isRawMode = options.noDispatcher ?? false;
 
     // 1. Validate data against schema (min/max/regex/type) + add timestamps
-    let validatedData = query.data;
-
-    validatedData = validateData<T, typeof isCreate extends false ? true : false>(
+    const validatedData = validateData<T, false>(
       query.data,
+      query.relations,
       schema,
       {
-        partial: !isCreate,
-        isCreate,
+        partial: false,
+        isCreate: true,
         isRawMode,
       },
     );
 
-    // 2. Execute main query (scalars only)
+    // 2. Execute INSERT query (scalars only)
     const queryWithValidatedData: QueryObject<T> = {
-      type: query.type,
+      type: "insert",
       table: query.table,
       data: validatedData,
     };
 
-    const action = isCreate ? "create" : "update";
-
     const recordId = await this.executeWithDispatcher<T, number>(
-      options.action ?? action,
+      options.action ?? "create",
       schema,
       queryWithValidatedData,
       options.noDispatcher ?? false,
       async (q) => {
         const result = await this.getAdapter().executeQuery<T>(q);
         if (!result.success) {
-          throwQueryExecutionError(action, schema.name, q, result.error);
+          throwQueryExecutionError("create", schema.name, q, result.error);
         }
-
-        if (isCreate) {
-          // INSERT: Return inserted ID
-          return result.data.metadata?.insertId ?? result.data.rows?.[0]?.id!;
-        } else {
-          // UPDATE: Return affected row count (or ID if where clause has id)
-          const whereId = Number((query.where as Record<string, unknown>)?.["id"]);
-          return whereId ?? result.data.metadata.rowCount ?? 0;
-        }
+        // INSERT: Return inserted ID
+        return result.data.metadata?.insertId ?? result.data.rows?.[0]?.id!;
       },
     );
 
@@ -295,12 +289,12 @@ export class QueryExecutor {
         recordId,
         schema.name,
         schema,
-        this, //.createInternalOperations(options.noDispatcher ?? false),
+        this,
         this.schemas,
       );
     }
 
-    // 4. Fetch and return the created/updated record (if returning enabled)
+    // 4. Fetch and return the created record (if returning enabled)
     if (options.noReturning) {
       return typeof recordId === 'number' ? recordId : parseInt(recordId as string, 10);
     }
@@ -309,13 +303,90 @@ export class QueryExecutor {
     const selectQuery: QueryObject<T> = {
       type: "select",
       table: query.table,
-      where: { id: recordId },
+      where: { id: recordId } as WhereClause<T>,
       select: query.select,
       populate: query.populate,
     };
 
     const results = await this.executeSelect<T>(selectQuery, schema, { noDispatcher: true });
-    return results[0];
+    return results[0]!;
+  }
+
+  /**
+   * Execute UPDATE with validation and relations
+   *
+   */
+  async executeUpdate<T extends ForjaEntry>(
+    query: QueryObject<T>,
+    schema: SchemaDefinition,
+    options: ExecutorOptions,
+  ): Promise<T | number[]> {
+    const isRawMode = options.noDispatcher ?? false;
+
+    // 1. Validate data against schema (min/max/regex/type) + add timestamps
+    const validatedData = validateData<T, true>(
+      query.data,
+      query.relations,
+      schema,
+      {
+        partial: true,
+        isCreate: false,
+        isRawMode,
+      },
+    );
+
+    // 2. Execute UPDATE query (scalars only)
+    const queryWithValidatedData: QueryObject<T> = {
+      type: "update",
+      table: query.table,
+      data: validatedData,
+      where: query.where,
+    };
+
+    const recordIds = await this.executeWithDispatcher<T, number[]>(
+      options.action ?? "update",
+      schema,
+      queryWithValidatedData,
+      options.noDispatcher ?? false,
+      async (q) => {
+        const result = await this.getAdapter().executeQuery<T>(q);
+        if (!result.success) {
+          throwQueryExecutionError("update", schema.name, q, result.error);
+        }
+        return result.data.rows.map((r) => r.id) ?? []
+      },
+    );
+
+    // 3. Process relations (if any)
+    if (query.relations) {
+      for (const recordId of recordIds) {
+        await processRelations(
+          query.relations,
+          recordId,
+          schema.name,
+          schema,
+          this,
+          this.schemas,
+        );
+      }
+    }
+
+    // 4. Fetch and return the updated record (if returning enabled)
+    if (options.noReturning) {
+      return recordIds;
+    }
+
+    // Build SELECT query to fetch the record
+    const selectQuery: QueryObject<T> = {
+      type: "select",
+      table: query.table,
+      where: query.where, // Use original WHERE clause to fetch updated records
+      select: query.select,
+      populate: query.populate,
+    };
+
+    const results = await this.executeSelect<T>(selectQuery, schema, { noDispatcher: true });
+    return results as unknown as T;
   }
 
   /**
@@ -335,83 +406,6 @@ export class QueryExecutor {
 
     // Normal mode: Execute with hooks
     return this.getDispatcher().executeQuery<T, R>(action, schema, query, handler);
-  }
-
-  /**
-   * Create internal operations for relation processing
-   * (respects parent query's dispatcher mode)
-   
-  private createInternalOperations(isRawMode: boolean): InternalOperations {
-    return {
-      isRawMode: () => isRawMode,
-
-      executeQuery: async <T extends ForjaEntry>(query: QueryObject<T>) => {
-        // Recursive execute (respects parent dispatcher mode)
-        return this.execute<T>(query, { noDispatcher: isRawMode });
-      },
-
-      insert: async (model: string, data: Record<string, unknown>) => {
-        const schema = this.schemas.get(model);
-        if (!schema) {
-          throwSchemaNotFoundError(model);
-        }
-
-        const query: QueryObject = {
-          type: "insert",
-          table: schema.tableName!,
-          data,
-        };
-
-        const result = await this.getAdapter().executeQuery<ForjaEntry>(query);
-        if (!result.success) {
-          throwQueryExecutionError("insert", model, query, result.error);
-        }
-        return result.data.metadata?.insertId ?? result.data.rows?.[0]?.id!;
-      },
-
-      update: async (
-        model: string,
-        where: WhereClause,
-        data: Record<string, unknown>,
-      ) => {
-        const schema = this.schemas.get(model);
-        if (!schema) {
-          throwSchemaNotFoundError(model);
-        }
-
-        const query: QueryObject = {
-          type: "update",
-          table: schema.tableName!,
-          where,
-          data,
-        };
-
-        const result = await this.getAdapter().executeQuery(query);
-        if (!result.success) {
-          throwQueryExecutionError("update", model, query, result.error);
-        }
-        return result.data.metadata?.rowCount ?? 0;
-      },
-
-      delete: async (model: string, where: WhereClause) => {
-        const schema = this.schemas.get(model);
-        if (!schema) {
-          throwSchemaNotFoundError(model);
-        }
-
-        const query: QueryObject = {
-          type: "delete",
-          table: schema.tableName!,
-          where,
-        };
-
-        const result = await this.getAdapter().executeQuery(query);
-        if (!result.success) {
-          throwQueryExecutionError("delete", model, query, result.error);
-        }
-        return result.data.metadata?.rowCount ?? 0;
-      },
-    };
   }
 
   /**

@@ -98,6 +98,7 @@ export class CrudOperations implements IRawCrud {
 
     const results = await this.executor.execute<T, T[]>(query, {
       noDispatcher: this.getDispatcher === null,
+      action: 'findOne'
     });
 
     return results[0] || null;
@@ -121,7 +122,7 @@ export class CrudOperations implements IRawCrud {
     id: number,
     options?: Pick<ParsedQuery<T>, "select" | "populate">,
   ): Promise<T | null> {
-    return this.findOne<T>(model, { id }, options);
+    return this.findOne<T>(model, { id } as WhereClause<T>, options);
   }
 
   /**
@@ -187,6 +188,7 @@ export class CrudOperations implements IRawCrud {
 
     const results = await this.executor.execute<T, T[]>(query, {
       noDispatcher: this.getDispatcher === null,
+      action: 'findMany'
     });
 
     return results;
@@ -226,6 +228,7 @@ export class CrudOperations implements IRawCrud {
 
     const result = await this.executor.execute<T, number>(query, {
       noDispatcher: this.getDispatcher === null,
+      action: 'count'
     });
 
     return result;
@@ -265,10 +268,10 @@ export class CrudOperations implements IRawCrud {
 
     const result = await this.executor.execute<T, T>(query, {
       noDispatcher: this.getDispatcher === null,
-      noReturning: false,
+      action: 'create'
     });
 
-    return result;
+    return result!;
   }
 
   /**
@@ -292,7 +295,8 @@ export class CrudOperations implements IRawCrud {
     data: Partial<T>,
     options?: Pick<ParsedQuery, "select" | "populate">,
   ): Promise<T> {
-    const builder = updateTable(model, data, this.schemas).where({ id });
+    const builder = updateTable(model, data, this.schemas)
+      .where({ id } as WhereClause<T>);
 
     if (options?.select) {
       builder.select(options.select);
@@ -302,12 +306,13 @@ export class CrudOperations implements IRawCrud {
     }
 
     const query = builder.build();
-    const result = await this.executor.execute<T, T>(query, {
+    const result = await this.executor.execute<T, T[]>(query, {
       noDispatcher: this.getDispatcher === null,
       noReturning: false,
+      action: 'update'
     });
 
-    return result;
+    return result[0]!;
   }
 
   /**
@@ -348,6 +353,7 @@ export class CrudOperations implements IRawCrud {
     const result = await this.executor.execute<T, number>(query, {
       noDispatcher: this.getDispatcher === null,
       noReturning,
+      action: 'updateMany'
     });
 
     return result as number;
@@ -386,6 +392,7 @@ export class CrudOperations implements IRawCrud {
     const result = await this.executor.execute<T, boolean>(query, {
       noDispatcher: this.getDispatcher === null,
       noReturning: !options,
+      action: 'delete'
     });
 
     return typeof result === 'boolean' ? result : true;
@@ -423,6 +430,7 @@ export class CrudOperations implements IRawCrud {
     const result = await this.executor.execute<T, number>(query, {
       noDispatcher: this.getDispatcher === null,
       noReturning: true,
+      action: 'deleteMany'
     });
 
     return result as number;

@@ -31,7 +31,7 @@ const DEFAULT_MAX_DEPTH = 5;
 export function parsePopulate(
   params: RawQueryParams,
   maxDepth: number = DEFAULT_MAX_DEPTH,
-): Record<string, PopulateOptions | "*"> | "*" | true | undefined {
+): Record<string, PopulateOptions | "*"> | "*" | true | string[] | undefined {
   // Validate maxDepth
   if (maxDepth <= 0) {
     populateError.maxDepthExceeded(maxDepth, maxDepth, ["config"], {
@@ -60,21 +60,14 @@ export function parsePopulate(
         populateError.emptyValue([]);
       }
 
-      // Handle comma-separated: populate=author,comments
-      const relations = mainPopulate
-        .split(",")
-        .map((r) => r.trim())
-        .filter(Boolean);
-      for (const rel of relations) {
-        // Validate relation name
-        const validation = validateFieldName(rel);
-        if (!validation.valid) {
-          populateError.invalidRelation(rel, [rel], {
-            fieldValidationReason: validation.reason,
-          });
-        }
-        populateClause[rel] = "*";
+      // Single relation: populate=author
+      const validation = validateFieldName(trimmed);
+      if (!validation.valid) {
+        populateError.invalidRelation(trimmed, [trimmed], {
+          fieldValidationReason: validation.reason,
+        });
       }
+      populateClause[trimmed] = "*";
     } else if (Array.isArray(mainPopulate)) {
       // Handle array: populate[]=author&populate[]=comments
       for (const rel of mainPopulate) {
@@ -99,7 +92,32 @@ export function parsePopulate(
   // Extract all populate parameters
   const populateParams = extractPopulateParams(params);
 
-  // Parse each relation
+  // Detect if this is an indexed array format: populate[0]=author&populate[1]=comments
+  const indexedArrayRelations: string[] = [];
+  for (const [key, value] of Object.entries(params)) {
+    const indexMatch = key.match(/^populate\[(\d+)\]$/);
+    if (indexMatch && typeof value === 'string') {
+      const index = Number(indexMatch[1]);
+      const relationName = value.trim();
+
+      // Validate relation name
+      const validation = validateFieldName(relationName);
+      if (!validation.valid) {
+        populateError.invalidRelation(relationName, [relationName], {
+          fieldValidationReason: validation.reason,
+        });
+      }
+
+      indexedArrayRelations[index] = relationName;
+    }
+  }
+
+  // If we found indexed array format, return as string[]
+  if (indexedArrayRelations.length > 0) {
+    return indexedArrayRelations.filter(Boolean); // Remove empty slots
+  }
+
+  // Parse each relation (object format)
   for (const [relation, relationParams] of Object.entries(populateParams)) {
     const parseResult = parseRelation(relation, relationParams, 1, maxDepth);
     populateClause[relation] = parseResult;

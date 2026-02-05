@@ -38,6 +38,14 @@ export function queryToParams<T extends ForjaEntry = ForjaRecord>(query: ParsedQ
 export function serializeQuery<T extends ForjaEntry = ForjaEntry>(query: ParsedQuery<T>): RawQueryParams {
   const params: Record<string, string | string[]> = {};
 
+  const validKeys = ['select', 'where', 'populate', 'orderBy', 'page', 'pageSize'];
+  const queryKeys = Object.keys(query);
+  const unknownKeys = queryKeys.filter(key => !validKeys.includes(key));
+
+  if (unknownKeys.length > 0) {
+    throw new Error(`Unknown query keys: ${unknownKeys.join(', ')}. Valid keys are: ${validKeys.join(', ')}`);
+  }
+
   // 1. Fields (select)
   if (query.select) {
     if (query.select === '*') {
@@ -58,12 +66,24 @@ export function serializeQuery<T extends ForjaEntry = ForjaEntry>(query: ParsedQ
   }
 
   // 4. OrderBy (sort)
-  if (query.orderBy && Array.isArray(query.orderBy)) {
-    const sortStrings = query.orderBy.map(item => {
-      return item.direction === 'desc' ? `-${item.field}` : item.field;
-    });
-    if (sortStrings.length > 0) {
-      params['sort'] = sortStrings.join(',');
+  if (query.orderBy) {
+    if (typeof query.orderBy === 'string') {
+      // Simple string format: 'name' or '-name'
+      params['sort'] = query.orderBy;
+    } else if (Array.isArray(query.orderBy)) {
+      // Array format: ['name', '-createdAt'] or [{ field: 'name', direction: 'asc' }]
+      const sortStrings = query.orderBy.map(item => {
+        if (typeof item === 'string') {
+          // String item: 'name' or '-name'
+          return item;
+        } else {
+          // Object item: { field: 'name', direction: 'asc' }
+          return item.direction === 'desc' ? `-${item.field}` : item.field;
+        }
+      });
+      if (sortStrings.length > 0) {
+        params['sort'] = sortStrings.join(',');
+      }
     }
   }
 
@@ -117,6 +137,20 @@ function serializePopulate(populate: PopulateClause | '*', prefix: string, param
 
   if (populate === 'true') {
     params[prefix] = true;
+    return;
+  }
+
+  if (populate === true) {
+    params[prefix] = true;
+    return;
+  }
+
+  // Handle string[] format: ['relation1', 'relation2']
+  // Serialize as indexed array (preserves array format)
+  if (Array.isArray(populate)) {
+    populate.forEach((relation: string, index: number) => {
+      params[`${prefix}[${index}]`] = String(relation);
+    });
     return;
   }
 

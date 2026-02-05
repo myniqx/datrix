@@ -1,0 +1,29 @@
+# Dependencies
+node_modules
+pnpm-lock.yaml
+
+# Build outputs
+dist
+build
+*.tsbuildinfo
+
+# Coverage
+coverage
+.nyc_output
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.*
+
+# IDE
+.vscode
+.idea
+
+# Git
+.git
+
+# Markdown files
+*.md

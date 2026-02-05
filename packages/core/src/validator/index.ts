@@ -12,8 +12,6 @@ export { validateField } from './field-validator';
 export {
   validateSchema,
   validatePartial,
-  validateOrThrow,
-  validatePartialOrThrow,
   isValid,
   assertSchema,
 } from './schema-validator';

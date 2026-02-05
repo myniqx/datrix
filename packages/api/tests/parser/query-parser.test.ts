@@ -173,7 +173,7 @@ describe("QueryParser - Happy Path", () => {
     it("should combine where and populate", () => {
       const params: RawQueryParams = {
         "where[published]": "true",
-        populate: "author,comments",
+        populate: ['author', 'comments'],
       };
 
       const parsedQuery = expectSuccessData(parseQuery(params));

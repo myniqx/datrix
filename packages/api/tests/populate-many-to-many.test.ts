@@ -554,7 +554,7 @@ describe("ManyToMany Populate Integration Tests", () => {
       await forja.deleteMany("author", {});
     });
 
-    it.fails("should create new tags and connect them to post", async () => {
+    it("should create new tags and connect them to post", async () => {
       const { authors } = await setupFixture();
 
       const request = createRequest(
@@ -584,7 +584,7 @@ describe("ManyToMany Populate Integration Tests", () => {
       );
     });
 
-    it.fails("should delete tags when disconnecting with delete option", async () => {
+    it("should delete tags when disconnecting with delete option", async () => {
       const { tags, authors } = await setupFixture();
 
       // Create post with tags

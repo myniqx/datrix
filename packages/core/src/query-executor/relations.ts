@@ -12,26 +12,15 @@ import {
   ForjaEntry,
   ForjaRecord,
 } from "forja-types/core/schema";
-import { WhereClause, QueryObject, QueryRelations, NormalizedRelationOperations, NormalizedNestedData, NormalizedRelationUpdate } from "forja-types/core/query-builder";
-import { deleteFrom, insertInto, updateTable } from "../query-builder";
+import { QueryObject, QueryRelations, NormalizedRelationOperations } from "forja-types/core/query-builder";
 import type { ProcessedData } from "../query-builder/data";
 import { QueryExecutor } from "./executor";
 
 /**
- * Internal CRUD function signatures
- * (Used for raw operations - respects parent query's dispatcher mode)
+ * Result type for handleCUD operations
  */
-export interface InternalOperations {
-  /** Insert (raw mode = no hooks, normal mode = hooks) */
-  insert(model: string, data: Record<string, unknown>): Promise<number | string>;
-  /** Update (raw mode = no hooks, normal mode = hooks) */
-  update(model: string, where: WhereClause, data: Record<string, unknown>): Promise<number>;
-  /** Delete (raw mode = no hooks, normal mode = hooks) */
-  delete(model: string, where: WhereClause): Promise<number>;
-  /** Execute query (respects parent dispatcher mode) */
-  executeQuery<T extends ForjaEntry>(query: QueryObject<T>): Promise<T | T[] | number | boolean>;
-  /** Check if in raw mode */
-  isRawMode(): boolean;
+interface CUDResult {
+  createdIds: number[];
 }
 
 /**
@@ -143,6 +132,14 @@ async function processRelation<T extends ForjaEntry>(
       updateData[foreignKey] = ids.length > 0 ? ids[0] : null;
     }
 
+    // Handle create/update/delete (recursive queries)
+    const cudResult = await handleCUD(relData, relation.model, executor, schemaRegistry);
+
+    // If create returned IDs, assign the first one as FK
+    if (cudResult.createdIds.length > 0) {
+      updateData[foreignKey] = cudResult.createdIds[0];
+    }
+
     // Only fire update if we have data and it wasn't already handled by inlining
     if (Object.keys(updateData).length > 0) {
       const query: QueryObject<T> = {
@@ -151,12 +148,8 @@ async function processRelation<T extends ForjaEntry>(
         where: { id: parentId },
         data: updateData,
       }
-      await executor.executeCreateUpdate(query, schema, { noDispatcher: true });
-      // await operations.update(parentModel, { id: parentId }, updateData);
+      await executor.executeUpdate(query, schema, { noDispatcher: true });
     }
-
-    // Handle create/update/delete (recursive queries)
-    await handleCUD(relData, relation.model, executor, schemaRegistry);
   }
 
   // hasMany → Update TARGET records' foreign key
@@ -172,71 +165,55 @@ async function processRelation<T extends ForjaEntry>(
     if (relData.connect) {
       const ids = relData.connect;
       if (ids.length > 0) {
-        await executor.executeCreateUpdate({
+        await executor.executeUpdate({
           ...query,
           data: { [reverseForeignKey]: parentId },
           where: { id: { $in: ids } },
         }, relationSchema, { noDispatcher: true });
-
-        /* OLD CODE!
-        await operations.update(
-          relation.model,
-          { id: { $in: ids } },
-          { [reverseForeignKey]: parentId },
-        ); */
       }
     }
 
     if (relData.disconnect) {
       const ids = relData.disconnect;
       if (ids.length > 0) {
-        await executor.executeCreateUpdate({
+        await executor.executeUpdate({
           ...query,
           data: { [reverseForeignKey]: null },
           where: { id: { $in: ids } },
         }, relationSchema, { noDispatcher: true });
-
-        /* OLD CODE
-        await operations.update(
-          relation.model,
-          { id: { $in: ids } },
-          { [reverseForeignKey]: null },
-        ); */
       }
     }
 
     if (relData.set) {
       // 1. Disconnect all current
-      await executor.executeCreateUpdate({
+      await executor.executeUpdate({
         ...query,
         data: { [reverseForeignKey]: null },
         where: { [reverseForeignKey]: parentId },
       }, relationSchema, { noDispatcher: true });
-      /* OLD CODE
-      await operations.update(
-        relation.model,
-        { [reverseForeignKey]: parentId },
-        { [reverseForeignKey]: null },
-      ); */
+
       // 2. Connect new ones
       const ids = relData.set as number[];
       if (ids.length > 0) {
-        await executor.executeCreateUpdate({
+        await executor.executeUpdate({
           ...query,
           data: { [reverseForeignKey]: parentId },
           where: { id: { $in: ids } },
         }, relationSchema, { noDispatcher: true });
-        /*
-        await operations.update(
-          relation.model,
-          { id: { $in: ids } },
-          { [reverseForeignKey]: parentId },
-        ); */
       }
     }
 
     // Handle create/update/delete (recursive queries)
-    await handleCUD(relData, relation.model, executor, schemaRegistry);
+    const cudResult = await handleCUD(relData, relation.model, executor, schemaRegistry);
+
+    // For created children, assign parent FK
+    if (cudResult.createdIds.length > 0) {
+      await executor.executeUpdate({
+        ...query,
+        data: { [reverseForeignKey]: parentId },
+        where: { id: { $in: cudResult.createdIds } },
+      }, relationSchema, { noDispatcher: true });
+    }
   }
 
   // manyToMany → Junction table operations
@@ -259,12 +236,6 @@ async function processRelation<T extends ForjaEntry>(
             [targetFK]: targetId,
           }
         }, { noDispatcher: true, noReturning: true });
-
-        /* OLD CODE
-        await operations.insert(junctionTable, {
-          [sourceFK]: parentId,
-          [targetFK]: targetId,
-        }); */
       }
     }
 
@@ -280,11 +251,6 @@ async function processRelation<T extends ForjaEntry>(
             [targetFK]: { $in: ids },
           }
         }, { noDispatcher: true, noReturning: true });
-        /* OLD CODE
-        await operations.delete(junctionTable, {
-          [sourceFK]: parentId,
-          [targetFK]: { $in: ids },
-        }); */
       }
     }
 
@@ -298,7 +264,6 @@ async function processRelation<T extends ForjaEntry>(
           [sourceFK]: parentId,
         }
       }, { noDispatcher: true, noReturning: true });
-      // await operations.delete(junctionTable, { [sourceFK]: parentId });
 
       // 2. Insert new relations
       const ids = relData.set as number[];
@@ -311,16 +276,25 @@ async function processRelation<T extends ForjaEntry>(
             [targetFK]: targetId,
           }
         }, { noDispatcher: true, noReturning: true });
-        /*
-        await operations.insert(junctionTable, {
-          [sourceFK]: parentId,
-          [targetFK]: targetId,
-        }); */
       }
     }
 
     // Handle create/update/delete (recursive queries)
-    await handleCUD(relData, relation.model, executor, schemaRegistry);
+    const cudResult = await handleCUD(relData, relation.model, executor, schemaRegistry);
+
+    // For created targets, insert junction records
+    if (cudResult.createdIds.length > 0) {
+      for (const targetId of cudResult.createdIds) {
+        await executor.execute({
+          table: junctionTable,
+          type: 'insert',
+          data: {
+            [sourceFK]: parentId,
+            [targetFK]: targetId,
+          }
+        }, { noDispatcher: true, noReturning: true });
+      }
+    }
   }
 }
 
@@ -337,17 +311,20 @@ async function processRelation<T extends ForjaEntry>(
  *
  * @param relData - Relation input data (normalized by processData)
  * @param relatedModel - Related model name
- * @param operations - Internal operations
+ * @param executor - Query executor
  * @param schemaRegistry - Schema registry for QueryBuilder
+ * @returns Created IDs (for FK assignment)
  */
 async function handleCUD<T extends ForjaEntry>(
   relData: NormalizedRelationOperations<T>,
   relatedModel: string,
   executor: QueryExecutor,
   schemaRegistry: SchemaRegistry,
-): Promise<void> {
-  // Handle create (ProcessedData format from processData)
+): Promise<CUDResult> {
+  const createdIds: number[] = [];
   const schema = schemaRegistry.get(relatedModel)!;
+
+  // Handle create (ProcessedData format from processData)
   if (relData.create) {
     const createItems = Array.isArray(relData.create)
       ? relData.create
@@ -356,27 +333,15 @@ async function handleCUD<T extends ForjaEntry>(
     for (const createItem of createItems) {
       const processedData = createItem as ProcessedData<ForjaEntry>;
 
-      /*
-      // Build query with scalar data only (relations handled separately)
-      const query = insertInto(
-        relatedModel,
-        processedData.data,
-        schemaRegistry,
-      ).build();
-
-      // Attach nested relations to the query (if any)
-      if (processedData.relations) {
-        query.relations = processedData.relations;
-      }
-      */
-      // Execute (validation + timestamps + RECURSIVE relations processing)
-      // This will call processRelations again for nested relations
-      await executor.execute({
+      // Execute with noReturning: true (returns ID only)
+      const createdId = await executor.execute<ForjaEntry, number>({
         type: "insert",
         table: schema.tableName!,
         data: processedData.data,
         relations: processedData.relations,
       }, { noReturning: true, noDispatcher: true });
+
+      createdIds.push(createdId);
     }
   }
 
@@ -407,7 +372,8 @@ async function handleCUD<T extends ForjaEntry>(
         table: schema.tableName!,
         where: { id: { $in: deleteIds } },
       })
-      // await operations.delete(relatedModel, { id: { $in: deleteIds } });
     }
   }
+
+  return { createdIds };
 }

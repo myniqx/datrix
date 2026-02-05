@@ -1,5 +1,5 @@
 import { queryToParams } from "forja-api";
-import { ParsedQuery } from "forja-types";
+import { ForjaEntry, ParsedQuery } from "forja-types";
 
 
 export function createRequest(
@@ -10,7 +10,7 @@ export function createRequest(
     token?: string;
     cookie?: string;
   } = {},
-  params: ParsedQuery = {}
+  params: ParsedQuery<ForjaEntry> = {}
 ): Request {
   const { method = "GET", body, token, cookie } = options;
   const headers: Record<string, string> = {
