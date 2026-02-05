@@ -5,17 +5,17 @@
  */
 
 // Re-export Forja singleton (main entry point)
-export { Forja, defineConfig } from './forja';
-export type { ForjaInitOptions, ConfigFactory } from './forja';
+export { Forja, defineConfig } from "./forja";
+export type { ForjaInitOptions, ConfigFactory } from "./forja";
 
 // Re-export schema system
-export * from './schema';
+export * from "./schema";
 
 // Re-export validator system
-export * from './validator';
+export * from "./validator";
 
 // Re-export query builder
-export * from './query-builder';
+export * from "./query-builder";
 
 // Re-export migration system
-export * from './migration';
+export * from "./migration";

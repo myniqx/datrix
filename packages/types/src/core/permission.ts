@@ -24,21 +24,21 @@ export type FieldPermissionAction = "read" | "write";
  * @template TRecord - The record type for the schema
  */
 export interface PermissionContext<TRecord extends ForjaEntry = ForjaEntry> {
-  /** Current authenticated user (undefined if not authenticated) */
-  readonly user: AuthUser | undefined;
-  /** Current record (for update/delete operations) */
-  readonly record?: TRecord;
-  /** Input data (for create/update operations) */
-  readonly input?: Partial<TRecord>;
-  /** Current action being performed */
-  readonly action: PermissionAction;
+	/** Current authenticated user (undefined if not authenticated) */
+	readonly user: AuthUser | undefined;
+	/** Current record (for update/delete operations) */
+	readonly record?: TRecord;
+	/** Input data (for create/update operations) */
+	readonly input?: Partial<TRecord>;
+	/** Current action being performed */
+	readonly action: PermissionAction;
 
-  readonly id?: number | string | null;
-  /**
-   * Forja instance for custom queries
-   * User can perform additional checks if needed
-   */
-  readonly forja: unknown; // Avoid circular dependency
+	readonly id?: number | string | null;
+	/**
+	 * Forja instance for custom queries
+	 * User can perform additional checks if needed
+	 */
+	readonly forja: unknown; // Avoid circular dependency
 }
 
 /**
@@ -48,7 +48,7 @@ export interface PermissionContext<TRecord extends ForjaEntry = ForjaEntry> {
  * @template TRecord - The record type for the schema
  */
 export type PermissionFn<TRecord extends ForjaEntry = ForjaEntry> = (
-  ctx: PermissionContext<TRecord>,
+	ctx: PermissionContext<TRecord>,
 ) => boolean | Promise<boolean>;
 
 /**
@@ -63,13 +63,13 @@ export type PermissionFn<TRecord extends ForjaEntry = ForjaEntry> = (
  * @template TRecord - The record type for the schema
  */
 export type PermissionValue<
-  TRoles extends string = string,
-  TRecord extends ForjaEntry = ForjaEntry,
+	TRoles extends string = string,
+	TRecord extends ForjaEntry = ForjaEntry,
 > =
-  | boolean
-  | readonly TRoles[]
-  | PermissionFn<TRecord>
-  | readonly (TRoles | PermissionFn<TRecord>)[];
+	| boolean
+	| readonly TRoles[]
+	| PermissionFn<TRecord>
+	| readonly (TRoles | PermissionFn<TRecord>)[];
 
 /**
  * Schema-level permission configuration
@@ -88,13 +88,13 @@ export type PermissionValue<
  * ```
  */
 export interface SchemaPermission<
-  TRoles extends string = string,
-  TRecord extends ForjaEntry = ForjaEntry,
+	TRoles extends string = string,
+	TRecord extends ForjaEntry = ForjaEntry,
 > {
-  readonly create?: PermissionValue<TRoles, TRecord>;
-  readonly read?: PermissionValue<TRoles, TRecord>;
-  readonly update?: PermissionValue<TRoles, TRecord>;
-  readonly delete?: PermissionValue<TRoles, TRecord>;
+	readonly create?: PermissionValue<TRoles, TRecord>;
+	readonly read?: PermissionValue<TRoles, TRecord>;
+	readonly update?: PermissionValue<TRoles, TRecord>;
+	readonly delete?: PermissionValue<TRoles, TRecord>;
 }
 
 /**
@@ -119,19 +119,19 @@ export interface SchemaPermission<
  * ```
  */
 export interface FieldPermission<
-  TRoles extends string = string,
-  TRecord extends ForjaEntry = ForjaEntry,
+	TRoles extends string = string,
+	TRecord extends ForjaEntry = ForjaEntry,
 > {
-  /**
-   * Read permission - if denied, field is stripped from response
-   * 'owner' is a placeholder for future owner-based access
-   */
-  readonly read?: PermissionValue<TRoles, TRecord> | "owner";
-  /**
-   * Write permission - if denied, returns 403 error
-   * 'owner' is a placeholder for future owner-based access
-   */
-  readonly write?: PermissionValue<TRoles, TRecord> | "owner";
+	/**
+	 * Read permission - if denied, field is stripped from response
+	 * 'owner' is a placeholder for future owner-based access
+	 */
+	readonly read?: PermissionValue<TRoles, TRecord> | "owner";
+	/**
+	 * Write permission - if denied, returns 403 error
+	 * 'owner' is a placeholder for future owner-based access
+	 */
+	readonly write?: PermissionValue<TRoles, TRecord> | "owner";
 }
 
 /**
@@ -142,65 +142,65 @@ export interface FieldPermission<
  * @template TRoles - Union type of valid role names
  */
 export interface DefaultPermission<TRoles extends string = string> {
-  readonly create?: PermissionValue<TRoles>;
-  readonly read?: PermissionValue<TRoles>;
-  readonly update?: PermissionValue<TRoles>;
-  readonly delete?: PermissionValue<TRoles>;
+	readonly create?: PermissionValue<TRoles>;
+	readonly read?: PermissionValue<TRoles>;
+	readonly update?: PermissionValue<TRoles>;
+	readonly delete?: PermissionValue<TRoles>;
 }
 
 /**
  * Permission check result
  */
 export interface PermissionCheckResult {
-  readonly allowed: boolean;
-  readonly reason?: string | undefined;
+	readonly allowed: boolean;
+	readonly reason?: string | undefined;
 }
 
 /**
  * Field permission check result
  */
 export interface FieldPermissionCheckResult {
-  readonly allowed: boolean;
-  readonly deniedFields?: readonly string[] | undefined;
+	readonly allowed: boolean;
+	readonly deniedFields?: readonly string[] | undefined;
 }
 
 /**
  * Type guard for PermissionFn
  */
 export function isPermissionFn<TRecord extends ForjaEntry = ForjaEntry>(
-  value: unknown,
+	value: unknown,
 ): value is PermissionFn<TRecord> {
-  return typeof value === "function";
+	return typeof value === "function";
 }
 
 /**
  * Type guard for checking if permission value is a role array
  */
 export function isRoleArray<TRoles extends string>(
-  value: PermissionValue<TRoles>,
+	value: PermissionValue<TRoles>,
 ): value is readonly TRoles[] {
-  return (
-    Array.isArray(value) &&
-    value.length > 0 &&
-    value.every((item) => typeof item === "string")
-  );
+	return (
+		Array.isArray(value) &&
+		value.length > 0 &&
+		value.every((item) => typeof item === "string")
+	);
 }
 
 /**
  * Type guard for checking if permission value is a mixed array (roles + functions)
  */
 export function isMixedPermissionArray<
-  TRoles extends string,
-  TRecord extends ForjaEntry = ForjaEntry,
+	TRoles extends string,
+	TRecord extends ForjaEntry = ForjaEntry,
 >(
-  value: PermissionValue<TRoles, TRecord>,
+	value: PermissionValue<TRoles, TRecord>,
 ): value is readonly (TRoles | PermissionFn<TRecord>)[] {
-  return (
-    Array.isArray(value) &&
-    value.length > 0 &&
-    value.some((item) => typeof item === "string") &&
-    value.some((item) => typeof item === "function")
-  );
+	return (
+		Array.isArray(value) &&
+		value.length > 0 &&
+		value.some((item) => typeof item === "string") &&
+		value.some((item) => typeof item === "function")
+	);
 }
 
 /**
@@ -211,81 +211,81 @@ export function isMixedPermissionArray<
  * @returns Validation result with invalid roles if any
  */
 export function validatePermissionRoles<TRoles extends string>(
-  permission: SchemaPermission<TRoles> | undefined,
-  validRoles: readonly TRoles[],
+	permission: SchemaPermission<TRoles> | undefined,
+	validRoles: readonly TRoles[],
 ): { valid: boolean; invalidRoles: string[] } {
-  if (!permission) {
-    return { valid: true, invalidRoles: [] };
-  }
+	if (!permission) {
+		return { valid: true, invalidRoles: [] };
+	}
 
-  const invalidRoles: string[] = [];
-  const roleSet = new Set(validRoles);
+	const invalidRoles: string[] = [];
+	const roleSet = new Set(validRoles);
 
-  const checkValue = (value: PermissionValue<TRoles> | undefined): void => {
-    if (!value || typeof value === "boolean" || typeof value === "function") {
-      return;
-    }
+	const checkValue = (value: PermissionValue<TRoles> | undefined): void => {
+		if (!value || typeof value === "boolean" || typeof value === "function") {
+			return;
+		}
 
-    if (Array.isArray(value)) {
-      for (const item of value) {
-        if (typeof item === "string" && !roleSet.has(item as TRoles)) {
-          invalidRoles.push(item);
-        }
-      }
-    }
-  };
+		if (Array.isArray(value)) {
+			for (const item of value) {
+				if (typeof item === "string" && !roleSet.has(item as TRoles)) {
+					invalidRoles.push(item);
+				}
+			}
+		}
+	};
 
-  checkValue(permission.create);
-  checkValue(permission.read);
-  checkValue(permission.update);
-  checkValue(permission.delete);
+	checkValue(permission.create);
+	checkValue(permission.read);
+	checkValue(permission.update);
+	checkValue(permission.delete);
 
-  return {
-    valid: invalidRoles.length === 0,
-    invalidRoles: [...new Set(invalidRoles)], // Remove duplicates
-  };
+	return {
+		valid: invalidRoles.length === 0,
+		invalidRoles: [...new Set(invalidRoles)], // Remove duplicates
+	};
 }
 
 /**
  * Validate field permission roles
  */
 export function validateFieldPermissionRoles<TRoles extends string>(
-  permission: FieldPermission<TRoles> | undefined,
-  validRoles: readonly TRoles[],
+	permission: FieldPermission<TRoles> | undefined,
+	validRoles: readonly TRoles[],
 ): { valid: boolean; invalidRoles: string[] } {
-  if (!permission) {
-    return { valid: true, invalidRoles: [] };
-  }
+	if (!permission) {
+		return { valid: true, invalidRoles: [] };
+	}
 
-  const invalidRoles: string[] = [];
-  const roleSet = new Set(validRoles);
+	const invalidRoles: string[] = [];
+	const roleSet = new Set(validRoles);
 
-  const checkValue = (
-    value: PermissionValue<TRoles> | "owner" | undefined,
-  ): void => {
-    if (
-      !value ||
-      typeof value === "boolean" ||
-      typeof value === "function" ||
-      value === "owner"
-    ) {
-      return;
-    }
+	const checkValue = (
+		value: PermissionValue<TRoles> | "owner" | undefined,
+	): void => {
+		if (
+			!value ||
+			typeof value === "boolean" ||
+			typeof value === "function" ||
+			value === "owner"
+		) {
+			return;
+		}
 
-    if (Array.isArray(value)) {
-      for (const item of value) {
-        if (typeof item === "string" && !roleSet.has(item as TRoles)) {
-          invalidRoles.push(item);
-        }
-      }
-    }
-  };
+		if (Array.isArray(value)) {
+			for (const item of value) {
+				if (typeof item === "string" && !roleSet.has(item as TRoles)) {
+					invalidRoles.push(item);
+				}
+			}
+		}
+	};
 
-  checkValue(permission.read);
-  checkValue(permission.write);
+	checkValue(permission.read);
+	checkValue(permission.write);
 
-  return {
-    valid: invalidRoles.length === 0,
-    invalidRoles: [...new Set(invalidRoles)],
-  };
+	return {
+		valid: invalidRoles.length === 0,
+		invalidRoles: [...new Set(invalidRoles)],
+	};
 }

@@ -20,16 +20,16 @@ import { ForjaEntry, ForjaRecord } from "forja-types/core/schema";
  * expect(data.operator).toBe('$eq'); // ✅ No lint error
  */
 export function expectSuccessData<T, E = unknown>(result: Result<T, E>): T {
-  if (result.success === false) {
-    console.log("Error", JSON.stringify(result.error, null, 2));
-  }
-  expect(result.success).toBe(true);
-  if (!result.success) {
-    throw new Error(
-      `Expected success but got error: ${JSON.stringify(result.error)}`,
-    );
-  }
-  return result.data;
+	if (result.success === false) {
+		console.log("Error", JSON.stringify(result.error, null, 2));
+	}
+	expect(result.success).toBe(true);
+	if (!result.success) {
+		throw new Error(
+			`Expected success but got error: ${JSON.stringify(result.error)}`,
+		);
+	}
+	return result.data;
 }
 
 /**
@@ -42,13 +42,13 @@ export function expectSuccessData<T, E = unknown>(result: Result<T, E>): T {
  * expect(error.code).toBe('INVALID_OPERATOR'); // ✅ No lint error
  */
 export function expectFailureError<T, E = unknown>(result: Result<T, E>): E {
-  expect(result.success).toBe(false);
-  if (result.success) {
-    throw new Error(
-      `Expected failure but got success with data: ${JSON.stringify(result.data)}`,
-    );
-  }
-  return result.error;
+	expect(result.success).toBe(false);
+	if (result.success) {
+		throw new Error(
+			`Expected failure but got success with data: ${JSON.stringify(result.data)}`,
+		);
+	}
+	return result.error;
 }
 
 /**
@@ -58,16 +58,16 @@ export function expectFailureError<T, E = unknown>(result: Result<T, E>): E {
  * await expectWithinTimeLimit(() => parseWhere({ name: 'John' }), 1);
  */
 export async function expectWithinTimeLimit<T>(
-  fn: () => T | Promise<T>,
-  maxMs: number,
+	fn: () => T | Promise<T>,
+	maxMs: number,
 ): Promise<T> {
-  const start = performance.now();
-  const result = await fn();
-  const end = performance.now();
-  const duration = end - start;
+	const start = performance.now();
+	const result = await fn();
+	const end = performance.now();
+	const duration = end - start;
 
-  expect(duration).toBeLessThan(maxMs);
-  return result;
+	expect(duration).toBeLessThan(maxMs);
+	return result;
 }
 
 /**
@@ -77,10 +77,11 @@ export async function expectWithinTimeLimit<T>(
  * const randomName = randomString(10);
  */
 export function randomString(length: number): string {
-  const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  return Array.from({ length }, () =>
-    chars.charAt(Math.floor(Math.random() * chars.length)),
-  ).join("");
+	const chars =
+		"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+	return Array.from({ length }, () =>
+		chars.charAt(Math.floor(Math.random() * chars.length)),
+	).join("");
 }
 
 /**
@@ -90,7 +91,7 @@ export function randomString(length: number): string {
  * const randomUserEmail = randomEmail();
  */
 export function randomEmail(): string {
-  return `${randomString(8)}@example.com`;
+	return `${randomString(8)}@example.com`;
 }
 
 // ============================================================================
@@ -107,25 +108,25 @@ export function randomEmail(): string {
  * );
  */
 export function expectForjaError(
-  fn: () => void | Promise<void>,
-  expectedCode: string,
+	fn: () => void | Promise<void>,
+	expectedCode: string,
 ): ForjaError {
-  let caughtError: unknown;
+	let caughtError: unknown;
 
-  try {
-    const result = fn();
-    if (result instanceof Promise) {
-      throw new Error("Use expectForjaErrorAsync for async functions");
-    }
-  } catch (error) {
-    caughtError = error;
-  }
+	try {
+		const result = fn();
+		if (result instanceof Promise) {
+			throw new Error("Use expectForjaErrorAsync for async functions");
+		}
+	} catch (error) {
+		caughtError = error;
+	}
 
-  expect(caughtError).toBeInstanceOf(ForjaError);
-  const forjaError = caughtError as ForjaError;
-  expect(forjaError.code).toBe(expectedCode);
+	expect(caughtError).toBeInstanceOf(ForjaError);
+	const forjaError = caughtError as ForjaError;
+	expect(forjaError.code).toBe(expectedCode);
 
-  return forjaError;
+	return forjaError;
 }
 
 /**
@@ -138,22 +139,22 @@ export function expectForjaError(
  * );
  */
 export async function expectForjaErrorAsync(
-  fn: () => Promise<void>,
-  expectedCode: string,
+	fn: () => Promise<void>,
+	expectedCode: string,
 ): Promise<ForjaError> {
-  let caughtError: unknown;
+	let caughtError: unknown;
 
-  try {
-    await fn();
-  } catch (error) {
-    caughtError = error;
-  }
+	try {
+		await fn();
+	} catch (error) {
+		caughtError = error;
+	}
 
-  expect(caughtError).toBeInstanceOf(ForjaError);
-  const forjaError = caughtError as ForjaError;
-  expect(forjaError.code).toBe(expectedCode);
+	expect(caughtError).toBeInstanceOf(ForjaError);
+	const forjaError = caughtError as ForjaError;
+	expect(forjaError.code).toBe(expectedCode);
 
-  return forjaError;
+	return forjaError;
 }
 
 /**
@@ -164,14 +165,14 @@ export async function expectForjaErrorAsync(
  * expectErrorMessage(error, /invalid/i);
  */
 export function expectErrorMessage(
-  error: ForjaError,
-  messagePattern: string | RegExp,
+	error: ForjaError,
+	messagePattern: string | RegExp,
 ): void {
-  if (typeof messagePattern === "string") {
-    expect(error.message).toContain(messagePattern);
-  } else {
-    expect(error.message).toMatch(messagePattern);
-  }
+	if (typeof messagePattern === "string") {
+		expect(error.message).toContain(messagePattern);
+	} else {
+		expect(error.message).toMatch(messagePattern);
+	}
 }
 
 /**
@@ -182,18 +183,18 @@ export function expectErrorMessage(
  * expectErrorSuggestion(error, 'Check your configuration');
  */
 export function expectErrorSuggestion(
-  error: ForjaError,
-  suggestionPattern?: string | RegExp,
+	error: ForjaError,
+	suggestionPattern?: string | RegExp,
 ): void {
-  expect(error.suggestion).toBeDefined();
+	expect(error.suggestion).toBeDefined();
 
-  if (suggestionPattern) {
-    if (typeof suggestionPattern === "string") {
-      expect(error.suggestion).toContain(suggestionPattern);
-    } else {
-      expect(error.suggestion).toMatch(suggestionPattern);
-    }
-  }
+	if (suggestionPattern) {
+		if (typeof suggestionPattern === "string") {
+			expect(error.suggestion).toContain(suggestionPattern);
+		} else {
+			expect(error.suggestion).toMatch(suggestionPattern);
+		}
+	}
 }
 
 /**
@@ -204,15 +205,15 @@ export function expectErrorSuggestion(
  * expectErrorContext(error, { field: 'email', value: 'test@test.com' });
  */
 export function expectErrorContext(
-  error: ForjaError,
-  expectedContext: Record<string, unknown>,
+	error: ForjaError,
+	expectedContext: Record<string, unknown>,
 ): void {
-  expect(error.context).toBeDefined();
+	expect(error.context).toBeDefined();
 
-  for (const [key, value] of Object.entries(expectedContext)) {
-    expect(error.context).toHaveProperty(key);
-    expect(error.context![key]).toEqual(value);
-  }
+	for (const [key, value] of Object.entries(expectedContext)) {
+		expect(error.context).toHaveProperty(key);
+		expect(error.context![key]).toEqual(value);
+	}
 }
 
 /**
@@ -223,17 +224,17 @@ export function expectErrorContext(
  * expectErrorValues(error, 'valid email', 'invalid-email');
  */
 export function expectErrorValues(
-  error: ForjaError,
-  expected?: string,
-  received?: unknown,
+	error: ForjaError,
+	expected?: string,
+	received?: unknown,
 ): void {
-  if (expected !== undefined) {
-    expect(error.expected).toBe(expected);
-  }
+	if (expected !== undefined) {
+		expect(error.expected).toBe(expected);
+	}
 
-  if (received !== undefined) {
-    expect(error.received).toEqual(received);
-  }
+	if (received !== undefined) {
+		expect(error.received).toEqual(received);
+	}
 }
 
 /**
@@ -244,8 +245,8 @@ export function expectErrorValues(
  * expectErrorCause(error);
  */
 export function expectErrorCause(error: ForjaError): void {
-  expect(error.cause).toBeDefined();
-  expect(error.cause).toBeInstanceOf(Error);
+	expect(error.cause).toBeDefined();
+	expect(error.cause).toBeInstanceOf(Error);
 }
 
 /**
@@ -261,38 +262,38 @@ export function expectErrorCause(error: ForjaError): void {
  * });
  */
 export function expectCompleteError(options: {
-  fn: () => void | Promise<void>;
-  code: string;
-  message?: string | RegExp;
-  suggestion?: string | RegExp;
-  context?: Record<string, unknown>;
-  expected?: string;
-  received?: unknown;
-  hasCause?: boolean;
+	fn: () => void | Promise<void>;
+	code: string;
+	message?: string | RegExp;
+	suggestion?: string | RegExp;
+	context?: Record<string, unknown>;
+	expected?: string;
+	received?: unknown;
+	hasCause?: boolean;
 }): ForjaError {
-  const error = expectForjaError(options.fn, options.code);
+	const error = expectForjaError(options.fn, options.code);
 
-  if (options.message) {
-    expectErrorMessage(error, options.message);
-  }
+	if (options.message) {
+		expectErrorMessage(error, options.message);
+	}
 
-  if (options.suggestion) {
-    expectErrorSuggestion(error, options.suggestion);
-  }
+	if (options.suggestion) {
+		expectErrorSuggestion(error, options.suggestion);
+	}
 
-  if (options.context) {
-    expectErrorContext(error, options.context);
-  }
+	if (options.context) {
+		expectErrorContext(error, options.context);
+	}
 
-  if (options.expected !== undefined || options.received !== undefined) {
-    expectErrorValues(error, options.expected, options.received);
-  }
+	if (options.expected !== undefined || options.received !== undefined) {
+		expectErrorValues(error, options.expected, options.received);
+	}
 
-  if (options.hasCause) {
-    expectErrorCause(error);
-  }
+	if (options.hasCause) {
+		expectErrorCause(error);
+	}
 
-  return error;
+	return error;
 }
 
 /**
@@ -307,38 +308,38 @@ export function expectCompleteError(options: {
  * });
  */
 export async function expectCompleteErrorAsync(options: {
-  fn: () => Promise<void>;
-  code: string;
-  message?: string | RegExp;
-  suggestion?: string | RegExp;
-  context?: Record<string, unknown>;
-  expected?: string;
-  received?: unknown;
-  hasCause?: boolean;
+	fn: () => Promise<void>;
+	code: string;
+	message?: string | RegExp;
+	suggestion?: string | RegExp;
+	context?: Record<string, unknown>;
+	expected?: string;
+	received?: unknown;
+	hasCause?: boolean;
 }): Promise<ForjaError> {
-  const error = await expectForjaErrorAsync(options.fn, options.code);
+	const error = await expectForjaErrorAsync(options.fn, options.code);
 
-  if (options.message) {
-    expectErrorMessage(error, options.message);
-  }
+	if (options.message) {
+		expectErrorMessage(error, options.message);
+	}
 
-  if (options.suggestion) {
-    expectErrorSuggestion(error, options.suggestion);
-  }
+	if (options.suggestion) {
+		expectErrorSuggestion(error, options.suggestion);
+	}
 
-  if (options.context) {
-    expectErrorContext(error, options.context);
-  }
+	if (options.context) {
+		expectErrorContext(error, options.context);
+	}
 
-  if (options.expected !== undefined || options.received !== undefined) {
-    expectErrorValues(error, options.expected, options.received);
-  }
+	if (options.expected !== undefined || options.received !== undefined) {
+		expectErrorValues(error, options.expected, options.received);
+	}
 
-  if (options.hasCause) {
-    expectErrorCause(error);
-  }
+	if (options.hasCause) {
+		expectErrorCause(error);
+	}
 
-  return error;
+	return error;
 }
 
 // ============================================================================
@@ -352,22 +353,22 @@ import type { PaginationMeta } from "../api";
  * Single record API response
  */
 export interface ResponseSingleData<T extends ForjaEntry> {
-  readonly data: Partial<T>;
+	readonly data: Partial<T>;
 }
 
 /**
  * Multiple records API response (with pagination)
  */
 export interface ResponseMultiData<T extends ForjaEntry> {
-  readonly data: Partial<T>[];
-  readonly meta: PaginationMeta;
+	readonly data: Partial<T>[];
+	readonly meta: PaginationMeta;
 }
 
 /**
  * API error response with full ForjaError serialization
  */
 export interface ApiErrorResponse {
-  error: SerializedForjaError;
+	error: SerializedForjaError;
 }
 
 /**
@@ -381,27 +382,27 @@ export interface ApiErrorResponse {
  * const user = await expectApiSingle<User>(response, 201); // For POST
  */
 export async function expectApiSingle<T extends ForjaEntry = ForjaRecord>(
-  response: Response,
-  expectedStatus = 200,
+	response: Response,
+	expectedStatus = 200,
 ): Promise<Partial<T>> {
-  // Debug: Log response if status doesn't match
-  if (response.status !== expectedStatus) {
-    const clonedResponse = response.clone();
-    const body = await clonedResponse.json();
-    console.log("❌ Unexpected status!");
-    console.log("Expected:", expectedStatus);
-    console.log("Received:", response.status);
-    console.log("Response body:", JSON.stringify(body, null, 2));
-  }
+	// Debug: Log response if status doesn't match
+	if (response.status !== expectedStatus) {
+		const clonedResponse = response.clone();
+		const body = await clonedResponse.json();
+		console.log("❌ Unexpected status!");
+		console.log("Expected:", expectedStatus);
+		console.log("Received:", response.status);
+		console.log("Response body:", JSON.stringify(body, null, 2));
+	}
 
-  expect(response.status).toBe(expectedStatus);
+	expect(response.status).toBe(expectedStatus);
 
-  const json = (await response.json()) as ResponseSingleData<T>;
-  expect(json.data).toBeDefined();
-  expect(json.data).toBeTypeOf("object");
-  expect(Array.isArray(json.data)).toBe(false);
+	const json = (await response.json()) as ResponseSingleData<T>;
+	expect(json.data).toBeDefined();
+	expect(json.data).toBeTypeOf("object");
+	expect(Array.isArray(json.data)).toBe(false);
 
-  return json.data;
+	return json.data;
 }
 
 /**
@@ -414,35 +415,35 @@ export async function expectApiSingle<T extends ForjaEntry = ForjaRecord>(
  * expect(meta.totalPages).toBe(7);
  */
 export async function expectApiMulti<T extends ForjaEntry = ForjaRecord>(
-  response: Response,
-  expectedStatus = 200,
+	response: Response,
+	expectedStatus = 200,
 ): Promise<ResponseMultiData<T>> {
-  // Debug: Log response if status doesn't match
-  if (response.status !== expectedStatus) {
-    const clonedResponse = response.clone();
-    const body = await clonedResponse.json();
-    console.log("❌ Unexpected status!");
-    console.log("Expected:", expectedStatus);
-    console.log("Received:", response.status);
-    console.log("Response body:", JSON.stringify(body, null, 2));
-  }
+	// Debug: Log response if status doesn't match
+	if (response.status !== expectedStatus) {
+		const clonedResponse = response.clone();
+		const body = await clonedResponse.json();
+		console.log("❌ Unexpected status!");
+		console.log("Expected:", expectedStatus);
+		console.log("Received:", response.status);
+		console.log("Response body:", JSON.stringify(body, null, 2));
+	}
 
-  expect(response.status).toBe(expectedStatus);
+	expect(response.status).toBe(expectedStatus);
 
-  const json = (await response.json()) as ResponseMultiData<T>;
+	const json = (await response.json()) as ResponseMultiData<T>;
 
-  // Validate data array
-  expect(json.data).toBeDefined();
-  expect(Array.isArray(json.data)).toBe(true);
+	// Validate data array
+	expect(json.data).toBeDefined();
+	expect(Array.isArray(json.data)).toBe(true);
 
-  // Validate pagination meta
-  expect(json.meta).toBeDefined();
-  expect(json.meta.total).toBeTypeOf("number");
-  expect(json.meta.page).toBeTypeOf("number");
-  expect(json.meta.pageSize).toBeTypeOf("number");
-  expect(json.meta.totalPages).toBeTypeOf("number");
+	// Validate pagination meta
+	expect(json.meta).toBeDefined();
+	expect(json.meta.total).toBeTypeOf("number");
+	expect(json.meta.page).toBeTypeOf("number");
+	expect(json.meta.pageSize).toBeTypeOf("number");
+	expect(json.meta.totalPages).toBeTypeOf("number");
 
-  return json;
+	return json;
 }
 
 /**
@@ -456,21 +457,21 @@ export async function expectApiMulti<T extends ForjaEntry = ForjaRecord>(
  * });
  */
 export function expectPaginationMeta(
-  meta: PaginationMeta,
-  expected: Partial<PaginationMeta>,
+	meta: PaginationMeta,
+	expected: Partial<PaginationMeta>,
 ): void {
-  if (expected.total !== undefined) {
-    expect(meta.total).toBe(expected.total);
-  }
-  if (expected.page !== undefined) {
-    expect(meta.page).toBe(expected.page);
-  }
-  if (expected.pageSize !== undefined) {
-    expect(meta.pageSize).toBe(expected.pageSize);
-  }
-  if (expected.totalPages !== undefined) {
-    expect(meta.totalPages).toBe(expected.totalPages);
-  }
+	if (expected.total !== undefined) {
+		expect(meta.total).toBe(expected.total);
+	}
+	if (expected.page !== undefined) {
+		expect(meta.page).toBe(expected.page);
+	}
+	if (expected.pageSize !== undefined) {
+		expect(meta.pageSize).toBe(expected.pageSize);
+	}
+	if (expected.totalPages !== undefined) {
+		expect(meta.totalPages).toBe(expected.totalPages);
+	}
 }
 
 /**
@@ -480,49 +481,49 @@ export function expectPaginationMeta(
  * Optional fields: operation, context, suggestion, expected, received, documentation, cause
  */
 function validateForjaErrorStructure(error: SerializedForjaError): void {
-  // Required fields
-  expect(error.type).toBeDefined();
-  expect(error.type).toBeTypeOf("string");
+	// Required fields
+	expect(error.type).toBeDefined();
+	expect(error.type).toBeTypeOf("string");
 
-  expect(error.message).toBeDefined();
-  expect(error.message).toBeTypeOf("string");
-  expect(error.message.length).toBeGreaterThan(0);
+	expect(error.message).toBeDefined();
+	expect(error.message).toBeTypeOf("string");
+	expect(error.message.length).toBeGreaterThan(0);
 
-  expect(error.code).toBeDefined();
-  expect(error.code).toBeTypeOf("string");
-  expect(error.code.length).toBeGreaterThan(0);
+	expect(error.code).toBeDefined();
+	expect(error.code).toBeTypeOf("string");
+	expect(error.code.length).toBeGreaterThan(0);
 
-  expect(error.timestamp).toBeDefined();
-  expect(error.timestamp).toBeTypeOf("string");
-  // Validate ISO 8601 date format
-  expect(error.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+	expect(error.timestamp).toBeDefined();
+	expect(error.timestamp).toBeTypeOf("string");
+	// Validate ISO 8601 date format
+	expect(error.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
 
-  // Optional fields validation (if present)
-  if (error.operation !== undefined) {
-    expect(error.operation).toBeTypeOf("string");
-  }
+	// Optional fields validation (if present)
+	if (error.operation !== undefined) {
+		expect(error.operation).toBeTypeOf("string");
+	}
 
-  if (error.context !== undefined) {
-    expect(error.context).toBeTypeOf("object");
-  }
+	if (error.context !== undefined) {
+		expect(error.context).toBeTypeOf("object");
+	}
 
-  if (error.suggestion !== undefined) {
-    expect(error.suggestion).toBeTypeOf("string");
-  }
+	if (error.suggestion !== undefined) {
+		expect(error.suggestion).toBeTypeOf("string");
+	}
 
-  if (error.expected !== undefined) {
-    expect(error.expected).toBeTypeOf("string");
-  }
+	if (error.expected !== undefined) {
+		expect(error.expected).toBeTypeOf("string");
+	}
 
-  if (error.documentation !== undefined) {
-    expect(error.documentation).toBeTypeOf("string");
-  }
+	if (error.documentation !== undefined) {
+		expect(error.documentation).toBeTypeOf("string");
+	}
 
-  if (error.cause !== undefined) {
-    expect(error.cause).toBeTypeOf("object");
-    expect(error.cause.message).toBeDefined();
-    expect(error.cause.name).toBeDefined();
-  }
+	if (error.cause !== undefined) {
+		expect(error.cause).toBeTypeOf("object");
+		expect(error.cause.message).toBeDefined();
+		expect(error.cause.name).toBeDefined();
+	}
 }
 
 /**
@@ -539,34 +540,34 @@ function validateForjaErrorStructure(error: SerializedForjaError): void {
  * expect(error.suggestion).toBeDefined();
  */
 export async function expectApiError(
-  response: Response,
-  expectedStatus: number,
-  expectedCode?: string,
+	response: Response,
+	expectedStatus: number,
+	expectedCode?: string,
 ): Promise<SerializedForjaError> {
-  // Debug: Log response if status doesn't match
-  if (response.status !== expectedStatus) {
-    const clonedResponse = response.clone();
-    const body = await clonedResponse.json();
-    console.log("❌ Unexpected error status!");
-    console.log("Expected:", expectedStatus);
-    console.log("Received:", response.status);
-    console.log("Error body:", JSON.stringify(body, null, 2));
-  }
+	// Debug: Log response if status doesn't match
+	if (response.status !== expectedStatus) {
+		const clonedResponse = response.clone();
+		const body = await clonedResponse.json();
+		console.log("❌ Unexpected error status!");
+		console.log("Expected:", expectedStatus);
+		console.log("Received:", response.status);
+		console.log("Error body:", JSON.stringify(body, null, 2));
+	}
 
-  expect(response.status).toBe(expectedStatus);
+	expect(response.status).toBe(expectedStatus);
 
-  const json = (await response.json()) as ApiErrorResponse;
-  expect(json.error).toBeDefined();
+	const json = (await response.json()) as ApiErrorResponse;
+	expect(json.error).toBeDefined();
 
-  // Validate ForjaError structure
-  validateForjaErrorStructure(json.error);
+	// Validate ForjaError structure
+	validateForjaErrorStructure(json.error);
 
-  // Check expected code if provided
-  if (expectedCode) {
-    expect(json.error.code).toBe(expectedCode);
-  }
+	// Check expected code if provided
+	if (expectedCode) {
+		expect(json.error.code).toBe(expectedCode);
+	}
 
-  return json.error;
+	return json.error;
 }
 
 /**
@@ -577,9 +578,9 @@ export async function expectApiError(
  * expect(error.code).toBe('UNAUTHORIZED');
  */
 export async function expectApiUnauthorized(
-  response: Response,
+	response: Response,
 ): Promise<SerializedForjaError> {
-  return expectApiError(response, 401, "UNAUTHORIZED");
+	return expectApiError(response, 401, "UNAUTHORIZED");
 }
 
 /**
@@ -590,10 +591,10 @@ export async function expectApiUnauthorized(
  * expect(error.code).toBe('FORBIDDEN');
  */
 export async function expectApiForbidden(
-  response: Response,
-  expectedCode = "FORBIDDEN",
+	response: Response,
+	expectedCode = "FORBIDDEN",
 ): Promise<SerializedForjaError> {
-  return expectApiError(response, 403, expectedCode);
+	return expectApiError(response, 403, expectedCode);
 }
 
 /**
@@ -604,9 +605,9 @@ export async function expectApiForbidden(
  * expect(error.message).toContain('not found');
  */
 export async function expectApiNotFound(
-  response: Response,
+	response: Response,
 ): Promise<SerializedForjaError> {
-  return expectApiError(response, 404);
+	return expectApiError(response, 404);
 }
 
 /**
@@ -617,9 +618,9 @@ export async function expectApiNotFound(
  * expect(error.code).toBe('VALIDATION_FAILED');
  */
 export async function expectApiValidationError(
-  response: Response,
+	response: Response,
 ): Promise<SerializedForjaError> {
-  return expectApiError(response, 400);
+	return expectApiError(response, 400);
 }
 
 /**
@@ -634,43 +635,43 @@ export async function expectApiValidationError(
  * });
  */
 export async function expectCompleteApiError(
-  response: Response,
-  options: {
-    status: number;
-    code?: string;
-    message?: string | RegExp;
-    suggestion?: string | RegExp;
-    context?: Record<string, unknown>;
-  },
+	response: Response,
+	options: {
+		status: number;
+		code?: string;
+		message?: string | RegExp;
+		suggestion?: string | RegExp;
+		context?: Record<string, unknown>;
+	},
 ): Promise<SerializedForjaError> {
-  const error = await expectApiError(response, options.status, options.code);
+	const error = await expectApiError(response, options.status, options.code);
 
-  if (options.message) {
-    if (typeof options.message === "string") {
-      expect(error.message).toContain(options.message);
-    } else {
-      expect(error.message).toMatch(options.message);
-    }
-  }
+	if (options.message) {
+		if (typeof options.message === "string") {
+			expect(error.message).toContain(options.message);
+		} else {
+			expect(error.message).toMatch(options.message);
+		}
+	}
 
-  if (options.suggestion) {
-    expect(error.suggestion).toBeDefined();
-    if (typeof options.suggestion === "string") {
-      expect(error.suggestion).toContain(options.suggestion);
-    } else {
-      expect(error.suggestion).toMatch(options.suggestion);
-    }
-  }
+	if (options.suggestion) {
+		expect(error.suggestion).toBeDefined();
+		if (typeof options.suggestion === "string") {
+			expect(error.suggestion).toContain(options.suggestion);
+		} else {
+			expect(error.suggestion).toMatch(options.suggestion);
+		}
+	}
 
-  if (options.context) {
-    expect(error.context).toBeDefined();
-    for (const [key, value] of Object.entries(options.context)) {
-      expect(error.context).toHaveProperty(key);
-      expect(error.context![key]).toEqual(value);
-    }
-  }
+	if (options.context) {
+		expect(error.context).toBeDefined();
+		for (const [key, value] of Object.entries(options.context)) {
+			expect(error.context).toHaveProperty(key);
+			expect(error.context![key]).toEqual(value);
+		}
+	}
 
-  return error;
+	return error;
 }
 
 // ============================================================================
@@ -710,11 +711,11 @@ import type { ParsedQuery } from "../api/parser";
  * // Result: page=1&pageSize=10
  */
 export function buildQueryString<T extends ForjaEntry = ForjaRecord>(
-  query: ParsedQuery<T>,
+	query: ParsedQuery<T>,
 ): string {
-  // This is a placeholder function for documentation purposes
-  // In actual tests, use: import { queryToParams } from '@forja/api/serializer'
-  throw new Error(
-    "Use queryToParams from '@forja/api/serializer' instead of this placeholder"
-  );
+	// This is a placeholder function for documentation purposes
+	// In actual tests, use: import { queryToParams } from '@forja/api/serializer'
+	throw new Error(
+		"Use queryToParams from '@forja/api/serializer' instead of this placeholder",
+	);
 }

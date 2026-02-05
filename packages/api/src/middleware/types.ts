@@ -23,76 +23,76 @@ export type HttpMethod = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
  * Single source of truth for the entire request lifecycle.
  */
 export interface RequestContext<TRole extends string = string> {
-  /**
-   * Resolved schema from URL (null if not found)
-   * Access model name via schema.name, table name via schema.tableName
-   */
-  readonly schema: SchemaDefinition | null;
+	/**
+	 * Resolved schema from URL (null if not found)
+	 * Access model name via schema.name, table name via schema.tableName
+	 */
+	readonly schema: SchemaDefinition | null;
 
-  /**
-   * Permission action derived from HTTP method
-   */
-  readonly action: PermissionAction;
+	/**
+	 * Permission action derived from HTTP method
+	 */
+	readonly action: PermissionAction;
 
-  /**
-   * Record ID (for single record operations)
-   */
-  readonly id: number | null;
+	/**
+	 * Record ID (for single record operations)
+	 */
+	readonly id: number | null;
 
-  /**
-   * HTTP method
-   */
-  readonly method: HttpMethod;
+	/**
+	 * HTTP method
+	 */
+	readonly method: HttpMethod;
 
-  /**
-   * Parsed query parameters (for GET requests)
-   */
-  readonly query: ParsedQuery | null;
+	/**
+	 * Parsed query parameters (for GET requests)
+	 */
+	readonly query: ParsedQuery | null;
 
-  /**
-   * Request body (for POST/PATCH/PUT requests)
-   */
-  readonly body: Record<string, unknown> | null;
+	/**
+	 * Request body (for POST/PATCH/PUT requests)
+	 */
+	readonly body: Record<string, unknown> | null;
 
-  /**
-   * Request headers
-   */
-  readonly headers: Record<string, string>;
+	/**
+	 * Request headers
+	 */
+	readonly headers: Record<string, string>;
 
-  /**
-   * Request URL
-   */
-  readonly url: URL;
+	/**
+	 * Request URL
+	 */
+	readonly url: URL;
 
-  /**
-   * Raw request object
-   */
-  readonly request: Request;
+	/**
+	 * Raw request object
+	 */
+	readonly request: Request;
 
-  /**
-   * Authenticated user (null if not authenticated or auth disabled)
-   */
-  readonly user: AuthUser | null;
+	/**
+	 * Authenticated user (null if not authenticated or auth disabled)
+	 */
+	readonly user: AuthUser | null;
 
-  /**
-   * Forja instance for database operations
-   */
-  readonly forja: Forja;
+	/**
+	 * Forja instance for database operations
+	 */
+	readonly forja: Forja;
 
-  /**
-   * API plugin instance
-   */
-  readonly api: IApiPlugin<TRole>;
+	/**
+	 * API plugin instance
+	 */
+	readonly api: IApiPlugin<TRole>;
 
-  /**
-   * Whether authentication is enabled
-   */
-  readonly authEnabled: boolean;
+	/**
+	 * Whether authentication is enabled
+	 */
+	readonly authEnabled: boolean;
 }
 
 /**
  * Context Builder Options
  */
 export interface ContextBuilderOptions {
-  readonly apiPrefix?: string;
+	readonly apiPrefix?: string;
 }

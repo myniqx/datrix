@@ -6,41 +6,48 @@
  */
 
 import type {
-  ComparisonOperators,
-  WhereClause,
+	ComparisonOperators,
+	WhereClause,
 } from "forja-types/core/query-builder";
-import type { FieldType, SchemaDefinition, RelationField, SchemaRegistry, ForjaEntry, FieldDefinition } from "forja-types/core/schema";
+import type {
+	FieldType,
+	SchemaDefinition,
+	RelationField,
+	SchemaRegistry,
+	ForjaEntry,
+	FieldDefinition,
+} from "forja-types/core/schema";
 import {
-  throwInvalidOperator,
-  throwInvalidValue,
-  throwMaxDepthExceeded,
-  throwInvalidField,
-  throwCoercionFailed,
+	throwInvalidOperator,
+	throwInvalidValue,
+	throwMaxDepthExceeded,
+	throwInvalidField,
+	throwCoercionFailed,
 } from "./error-helper";
 
 /**
  * All supported comparison operators
  */
 export const COMPARISON_OPERATORS = [
-  "$eq",
-  "$ne",
-  "$gt",
-  "$gte",
-  "$lt",
-  "$lte",
-  "$in",
-  "$nin",
-  "$like",
-  "$ilike",
-  "$startsWith",
-  "$endsWith",
-  "$contains",
-  "$notContains",
-  "$icontains",
-  "$regex",
-  "$exists",
-  "$null",
-  "$notNull",
+	"$eq",
+	"$ne",
+	"$gt",
+	"$gte",
+	"$lt",
+	"$lte",
+	"$in",
+	"$nin",
+	"$like",
+	"$ilike",
+	"$startsWith",
+	"$endsWith",
+	"$contains",
+	"$notContains",
+	"$icontains",
+	"$regex",
+	"$exists",
+	"$null",
+	"$notNull",
 ] as const;
 
 /**
@@ -52,14 +59,14 @@ const BOOLEAN_OPERATORS = ["$exists", "$null", "$notNull"] as const;
  * Operators that always expect string values (regardless of field type)
  */
 const STRING_OPERATORS = [
-  "$like",
-  "$ilike",
-  "$startsWith",
-  "$endsWith",
-  "$contains",
-  "$notContains",
-  "$icontains",
-  "$regex",
+	"$like",
+	"$ilike",
+	"$startsWith",
+	"$endsWith",
+	"$contains",
+	"$notContains",
+	"$icontains",
+	"$regex",
 ] as const;
 
 /**
@@ -82,32 +89,32 @@ const STRING_OPERATORS = [
  * ```
  */
 export function coerceValue(
-  value: unknown,
-  fieldDef: FieldDefinition,
-  fieldName: string,
+	value: unknown,
+	fieldDef: FieldDefinition,
+	fieldName: string,
 ): unknown {
-  // null/undefined pass through
-  if (value === null || value === undefined) {
-    return value;
-  }
+	// null/undefined pass through
+	if (value === null || value === undefined) {
+		return value;
+	}
 
-  // Already correct type - no coercion needed
-  if (isCorrectType(value, fieldDef.type)) {
-    return value;
-  }
+	// Already correct type - no coercion needed
+	if (isCorrectType(value, fieldDef.type)) {
+		return value;
+	}
 
-  // String coercion based on field type
-  if (typeof value === "string") {
-    return coerceString(value, fieldDef.type, fieldName);
-  }
+	// String coercion based on field type
+	if (typeof value === "string") {
+		return coerceString(value, fieldDef.type, fieldName);
+	}
 
-  // Array coercion (for $in, $nin operators)
-  if (Array.isArray(value)) {
-    return value.map((item) => coerceValue(item, fieldDef, fieldName));
-  }
+	// Array coercion (for $in, $nin operators)
+	if (Array.isArray(value)) {
+		return value.map((item) => coerceValue(item, fieldDef, fieldName));
+	}
 
-  // Value is not string and not correct type - error
-  throwCoercionFailed(fieldName, value, fieldDef.type);
+	// Value is not string and not correct type - error
+	throwCoercionFailed(fieldName, value, fieldDef.type);
 }
 
 /**
@@ -117,26 +124,26 @@ export function coerceValue(
  * string, number, boolean, date, json, enum, array, relation, file
  */
 function isCorrectType(value: unknown, fieldType: FieldType): boolean {
-  switch (fieldType) {
-    case "string":
-    case "enum":
-    case "file":
-      return typeof value === "string";
-    case "number":
-      return typeof value === "number" && !Number.isNaN(value);
-    case "boolean":
-      return typeof value === "boolean";
-    case "date":
-      return value instanceof Date && !Number.isNaN(value.getTime());
-    case "json":
-      return typeof value === "object";
-    case "array":
-      return Array.isArray(value);
-    case "relation":
-      return typeof value === "number" || typeof value === "string";
-    default:
-      return true;
-  }
+	switch (fieldType) {
+		case "string":
+		case "enum":
+		case "file":
+			return typeof value === "string";
+		case "number":
+			return typeof value === "number" && !Number.isNaN(value);
+		case "boolean":
+			return typeof value === "boolean";
+		case "date":
+			return value instanceof Date && !Number.isNaN(value.getTime());
+		case "json":
+			return typeof value === "object";
+		case "array":
+			return Array.isArray(value);
+		case "relation":
+			return typeof value === "number" || typeof value === "string";
+		default:
+			return true;
+	}
 }
 
 /**
@@ -146,72 +153,72 @@ function isCorrectType(value: unknown, fieldType: FieldType): boolean {
  * string, number, boolean, date, json, enum, array, relation, file
  */
 function coerceString(
-  value: string,
-  fieldType: FieldType,
-  fieldName: string,
+	value: string,
+	fieldType: FieldType,
+	fieldName: string,
 ): unknown {
-  switch (fieldType) {
-    case "string":
-    case "enum":
-    case "file":
-      return value;
+	switch (fieldType) {
+		case "string":
+		case "enum":
+		case "file":
+			return value;
 
-    case "number": {
-      const num = Number(value);
-      if (Number.isNaN(num)) {
-        throwCoercionFailed(fieldName, value, "number");
-      }
-      return num;
-    }
+		case "number": {
+			const num = Number(value);
+			if (Number.isNaN(num)) {
+				throwCoercionFailed(fieldName, value, "number");
+			}
+			return num;
+		}
 
-    case "boolean": {
-      const lower = value.toLowerCase();
-      if (lower === "true" || lower === "1") {
-        return true;
-      }
-      if (lower === "false" || lower === "0") {
-        return false;
-      }
-      throwCoercionFailed(fieldName, value, "boolean");
-    }
+		case "boolean": {
+			const lower = value.toLowerCase();
+			if (lower === "true" || lower === "1") {
+				return true;
+			}
+			if (lower === "false" || lower === "0") {
+				return false;
+			}
+			throwCoercionFailed(fieldName, value, "boolean");
+		}
 
-    case "date": {
-      const date = new Date(value);
-      if (Number.isNaN(date.getTime())) {
-        throwCoercionFailed(fieldName, value, "date");
-      }
-      return date;
-    }
+		case "date": {
+			const date = new Date(value);
+			if (Number.isNaN(date.getTime())) {
+				throwCoercionFailed(fieldName, value, "date");
+			}
+			return date;
+		}
 
-    case "json": {
-      try {
-        return JSON.parse(value);
-      } catch {
-        throwCoercionFailed(fieldName, value, "json");
-      }
-    }
+		case "json": {
+			try {
+				return JSON.parse(value);
+			} catch {
+				throwCoercionFailed(fieldName, value, "json");
+			}
+		}
 
-    case "array": {
-      try {
-        const parsed = JSON.parse(value);
-        if (!Array.isArray(parsed)) {
-          throwCoercionFailed(fieldName, value, "array");
-        }
-        return parsed;
-      } catch {
-        throwCoercionFailed(fieldName, value, "array");
-      }
-    }
+		case "array": {
+			try {
+				const parsed = JSON.parse(value);
+				if (!Array.isArray(parsed)) {
+					throwCoercionFailed(fieldName, value, "array");
+				}
+				return parsed;
+			} catch {
+				throwCoercionFailed(fieldName, value, "array");
+			}
+		}
 
-    case "relation": {
-      // Try to parse as number first, otherwise keep as string ID
-      const num = Number(value);
-      return Number.isNaN(num) ? value : num;
-    }
+		case "relation": {
+			// Try to parse as number first, otherwise keep as string ID
+			const num = Number(value);
+			return Number.isNaN(num) ? value : num;
+		}
 
-    default:
-      return value;
-  }
+		default:
+			return value;
+	}
 }
 
 /**
@@ -223,22 +230,22 @@ const MAX_WHERE_DEPTH = 10;
  * Check if value is a comparison operator object
  */
 export function isComparisonOperators(
-  value: unknown,
+	value: unknown,
 ): value is ComparisonOperators {
-  if (typeof value !== "object" || value === null) {
-    return false;
-  }
+	if (typeof value !== "object" || value === null) {
+		return false;
+	}
 
-  return Object.keys(value).some((key) =>
-    (COMPARISON_OPERATORS as readonly string[]).includes(key)
-  );
+	return Object.keys(value).some((key) =>
+		(COMPARISON_OPERATORS as readonly string[]).includes(key),
+	);
 }
 
 /**
  * Check if value is a logical operator
  */
 export function isLogicalOperator(key: string): boolean {
-  return ["$and", "$or", "$not"].includes(key);
+	return ["$and", "$or", "$not"].includes(key);
 }
 
 /**
@@ -251,80 +258,80 @@ export function isLogicalOperator(key: string): boolean {
  * @throws {ForjaQueryBuilderError} If operator or value is invalid
  */
 export function validateComparisonOperator(
-  field: string,
-  operator: string,
-  value: unknown,
-  _fieldType: FieldType,
+	field: string,
+	operator: string,
+	value: unknown,
+	_fieldType: FieldType,
 ): void {
-  switch (operator) {
-    case "$eq":
-    case "$ne":
-      // Any primitive is valid (strings will be coerced later)
-      if (
-        typeof value !== "string" &&
-        typeof value !== "number" &&
-        typeof value !== "boolean" &&
-        value !== null &&
-        !(value instanceof Date)
-      ) {
-        throwInvalidValue("where", field, value, "primitive value");
-      }
-      break;
+	switch (operator) {
+		case "$eq":
+		case "$ne":
+			// Any primitive is valid (strings will be coerced later)
+			if (
+				typeof value !== "string" &&
+				typeof value !== "number" &&
+				typeof value !== "boolean" &&
+				value !== null &&
+				!(value instanceof Date)
+			) {
+				throwInvalidValue("where", field, value, "primitive value");
+			}
+			break;
 
-    case "$gt":
-    case "$gte":
-    case "$lt":
-    case "$lte":
-      // Numbers, dates, or strings (strings will be coerced to number/date)
-      if (
-        typeof value !== "number" &&
-        typeof value !== "string" &&
-        !(value instanceof Date)
-      ) {
-        throwInvalidValue("where", field, value, "number, Date, or string");
-      }
-      break;
+		case "$gt":
+		case "$gte":
+		case "$lt":
+		case "$lte":
+			// Numbers, dates, or strings (strings will be coerced to number/date)
+			if (
+				typeof value !== "number" &&
+				typeof value !== "string" &&
+				!(value instanceof Date)
+			) {
+				throwInvalidValue("where", field, value, "number, Date, or string");
+			}
+			break;
 
-    case "$in":
-    case "$nin":
-      // Array of primitives
-      if (!Array.isArray(value)) {
-        throwInvalidValue("where", field, value, "array");
-      }
-      break;
+		case "$in":
+		case "$nin":
+			// Array of primitives
+			if (!Array.isArray(value)) {
+				throwInvalidValue("where", field, value, "array");
+			}
+			break;
 
-    case "$like":
-    case "$ilike":
-    case "$contains":
-    case "$icontains":
-    case "$notContains":
-    case "$startsWith":
-    case "$endsWith":
-      // String only
-      if (typeof value !== "string") {
-        throwInvalidValue("where", field, value, "string");
-      }
-      break;
+		case "$like":
+		case "$ilike":
+		case "$contains":
+		case "$icontains":
+		case "$notContains":
+		case "$startsWith":
+		case "$endsWith":
+			// String only
+			if (typeof value !== "string") {
+				throwInvalidValue("where", field, value, "string");
+			}
+			break;
 
-    case "$regex":
-      // RegExp or string
-      if (!(value instanceof RegExp) && typeof value !== "string") {
-        throwInvalidValue("where", field, value, "RegExp or string");
-      }
-      break;
+		case "$regex":
+			// RegExp or string
+			if (!(value instanceof RegExp) && typeof value !== "string") {
+				throwInvalidValue("where", field, value, "RegExp or string");
+			}
+			break;
 
-    case "$exists":
-    case "$null":
-    case "$notNull":
-      // Boolean or string (strings like "true"/"false" will be coerced)
-      if (typeof value !== "boolean" && typeof value !== "string") {
-        throwInvalidValue("where", field, value, "boolean or string");
-      }
-      break;
+		case "$exists":
+		case "$null":
+		case "$notNull":
+			// Boolean or string (strings like "true"/"false" will be coerced)
+			if (typeof value !== "boolean" && typeof value !== "string") {
+				throwInvalidValue("where", field, value, "boolean or string");
+			}
+			break;
 
-    default:
-      throwInvalidOperator(field, operator, COMPARISON_OPERATORS);
-  }
+		default:
+			throwInvalidOperator(field, operator, COMPARISON_OPERATORS);
+	}
 }
 
 /**
@@ -336,88 +343,102 @@ export function validateComparisonOperator(
  * @throws {ForjaQueryBuilderError} If where clause is invalid
  */
 export function validateWhereClause<T extends ForjaEntry>(
-  where: WhereClause<T>,
-  schema: SchemaDefinition,
-  schemaRegistry?: SchemaRegistry,
-  depth = 0,
+	where: WhereClause<T>,
+	schema: SchemaDefinition,
+	schemaRegistry?: SchemaRegistry,
+	depth = 0,
 ): void {
-  // Check depth limit
-  if (depth > MAX_WHERE_DEPTH) {
-    throwMaxDepthExceeded("where", depth, MAX_WHERE_DEPTH);
-  }
+	// Check depth limit
+	if (depth > MAX_WHERE_DEPTH) {
+		throwMaxDepthExceeded("where", depth, MAX_WHERE_DEPTH);
+	}
 
-  const availableFields = Object.keys(schema.fields);
+	const availableFields = Object.keys(schema.fields);
 
-  for (const [key, value] of Object.entries(where)) {
-    // Handle logical operators
-    if (isLogicalOperator(key)) {
-      if (key === "$and" || key === "$or") {
-        if (!Array.isArray(value)) {
-          throwInvalidValue("where", key, value, "array of conditions");
-        }
+	for (const [key, value] of Object.entries(where)) {
+		// Handle logical operators
+		if (isLogicalOperator(key)) {
+			if (key === "$and" || key === "$or") {
+				if (!Array.isArray(value)) {
+					throwInvalidValue("where", key, value, "array of conditions");
+				}
 
-        // Recursively validate each condition
-        for (const condition of value as readonly WhereClause<T>[]) {
-          validateWhereClause(condition, schema, schemaRegistry, depth + 1);
-        }
-      } else if (key === "$not") {
-        // Recursively validate nested condition
-        validateWhereClause(value as WhereClause<T>, schema, schemaRegistry, depth + 1);
-      }
-      continue;
-    }
+				// Recursively validate each condition
+				for (const condition of value as readonly WhereClause<T>[]) {
+					validateWhereClause(condition, schema, schemaRegistry, depth + 1);
+				}
+			} else if (key === "$not") {
+				// Recursively validate nested condition
+				validateWhereClause(
+					value as WhereClause<T>,
+					schema,
+					schemaRegistry,
+					depth + 1,
+				);
+			}
+			continue;
+		}
 
-    // Check field exists in schema
-    if (!availableFields.includes(key)) {
-      throwInvalidField("where", key, availableFields);
-    }
+		// Check field exists in schema
+		if (!availableFields.includes(key)) {
+			throwInvalidField("where", key, availableFields);
+		}
 
-    const fieldDef = schema.fields[key]!;
+		const fieldDef = schema.fields[key]!;
 
-    // Handle relation fields with nested WHERE
-    if (fieldDef.type === "relation" && typeof value === "object" && value !== null && !(value instanceof Date)) {
-      const relationField = fieldDef as RelationField;
+		// Handle relation fields with nested WHERE
+		if (
+			fieldDef.type === "relation" &&
+			typeof value === "object" &&
+			value !== null &&
+			!(value instanceof Date)
+		) {
+			const relationField = fieldDef as RelationField;
 
-      // Check if it's a primitive value (shortcut)
-      if (typeof value === "string" || typeof value === "number") {
-        // Primitive shortcut - will be normalized later
-        continue;
-      }
+			// Check if it's a primitive value (shortcut)
+			if (typeof value === "string" || typeof value === "number") {
+				// Primitive shortcut - will be normalized later
+				continue;
+			}
 
-      // Nested WHERE for relation - validate against target schema
-      if (schemaRegistry) {
-        const targetSchema = schemaRegistry.get(relationField.model);
-        if (targetSchema) {
-          // Recursively validate nested WHERE against target schema
-          validateWhereClause(value as WhereClause<T>, targetSchema, schemaRegistry, depth + 1);
-        }
-      }
-      continue;
-    }
+			// Nested WHERE for relation - validate against target schema
+			if (schemaRegistry) {
+				const targetSchema = schemaRegistry.get(relationField.model);
+				if (targetSchema) {
+					// Recursively validate nested WHERE against target schema
+					validateWhereClause(
+						value as WhereClause<T>,
+						targetSchema,
+						schemaRegistry,
+						depth + 1,
+					);
+				}
+			}
+			continue;
+		}
 
-    // Handle comparison operators
-    if (isComparisonOperators(value)) {
-      const ops = value as ComparisonOperators;
-      for (const [operator, opValue] of Object.entries(ops)) {
-        validateComparisonOperator(key, operator, opValue, fieldDef.type);
-      }
-    }
-    // Simple equality check
-    else {
-      // Validate primitive value
-      if (
-        typeof value !== "string" &&
-        typeof value !== "number" &&
-        typeof value !== "boolean" &&
-        value !== null &&
-        !(value instanceof Date)
-      ) {
-        throwInvalidValue("where", key, value, "primitive value");
-      }
-    }
-  }
+		// Handle comparison operators
+		if (isComparisonOperators(value)) {
+			const ops = value as ComparisonOperators;
+			for (const [operator, opValue] of Object.entries(ops)) {
+				validateComparisonOperator(key, operator, opValue, fieldDef.type);
+			}
+		}
+		// Simple equality check
+		else {
+			// Validate primitive value
+			if (
+				typeof value !== "string" &&
+				typeof value !== "number" &&
+				typeof value !== "boolean" &&
+				value !== null &&
+				!(value instanceof Date)
+			) {
+				throwInvalidValue("where", key, value, "primitive value");
+			}
+		}
+	}
 }
-
 
 /**
  * Normalize and validate WHERE arrays
@@ -454,28 +475,28 @@ export function validateWhereClause<T extends ForjaEntry>(
  * ```
  */
 export function normalizeWhere<T extends ForjaEntry>(
-  wheres: WhereClause<T>[] | undefined,
-  schema: SchemaDefinition,
-  registry: SchemaRegistry,
+	wheres: WhereClause<T>[] | undefined,
+	schema: SchemaDefinition,
+	registry: SchemaRegistry,
 ): WhereClause<T> | undefined {
-  if (!wheres || wheres.length === 0) {
-    return undefined;
-  }
+	if (!wheres || wheres.length === 0) {
+		return undefined;
+	}
 
-  // 1. Merge multiple where clauses with $and
-  let mergedWhere: WhereClause<T>;
-  if (wheres.length === 1) {
-    mergedWhere = wheres[0]!;
-  } else {
-    mergedWhere = { $and: wheres } as WhereClause<T>;
-  }
+	// 1. Merge multiple where clauses with $and
+	let mergedWhere: WhereClause<T>;
+	if (wheres.length === 1) {
+		mergedWhere = wheres[0]!;
+	} else {
+		mergedWhere = { $and: wheres } as WhereClause<T>;
+	}
 
-  // 2. Validate BEFORE normalization (catches errors early)
-  //    Including nested relation WHERE validation
-  validateWhereClause(mergedWhere, schema, registry);
+	// 2. Validate BEFORE normalization (catches errors early)
+	//    Including nested relation WHERE validation
+	validateWhereClause(mergedWhere, schema, registry);
 
-  // 3. Normalize relation shortcuts and logical operators
-  return normalizeWhereClause(mergedWhere, schema, registry);
+	// 3. Normalize relation shortcuts and logical operators
+	return normalizeWhereClause(mergedWhere, schema, registry);
 }
 
 /**
@@ -494,92 +515,106 @@ export function normalizeWhere<T extends ForjaEntry>(
  * @returns Normalized WHERE clause with coerced values
  */
 function normalizeWhereClause<T extends ForjaEntry>(
-  where: WhereClause<T>,
-  schema: SchemaDefinition,
-  registry: SchemaRegistry,
+	where: WhereClause<T>,
+	schema: SchemaDefinition,
+	registry: SchemaRegistry,
 ): WhereClause<T> {
-  const normalized: WhereClause<T> = {};
+	const normalized: WhereClause<T> = {};
 
-  for (const [key, value] of Object.entries(where)) {
-    // Handle logical operators recursively
-    if (key === "$and" || key === "$or") {
-      normalized[key] = (value as WhereClause<T>[]).map((clause) =>
-        normalizeWhereClause(clause, schema, registry),
-      );
-      continue;
-    }
+	for (const [key, value] of Object.entries(where)) {
+		// Handle logical operators recursively
+		if (key === "$and" || key === "$or") {
+			normalized[key] = (value as WhereClause<T>[]).map((clause) =>
+				normalizeWhereClause(clause, schema, registry),
+			);
+			continue;
+		}
 
-    if (key === "$not") {
-      normalized[key] = normalizeWhereClause(value as WhereClause<T>, schema, registry);
-      continue;
-    }
+		if (key === "$not") {
+			normalized[key] = normalizeWhereClause(
+				value as WhereClause<T>,
+				schema,
+				registry,
+			);
+			continue;
+		}
 
-    // Get field definition
-    const fieldDef = schema.fields[key];
-    if (!fieldDef) {
-      // Unknown field - keep as-is (validation will catch this)
-      normalized[key] = value;
-      continue;
-    }
+		// Get field definition
+		const fieldDef = schema.fields[key];
+		if (!fieldDef) {
+			// Unknown field - keep as-is (validation will catch this)
+			normalized[key] = value;
+			continue;
+		}
 
-    // Handle relation fields
-    if (fieldDef.type === "relation") {
-      const relationField = fieldDef as RelationField;
-      const kind = relationField.kind;
+		// Handle relation fields
+		if (fieldDef.type === "relation") {
+			const relationField = fieldDef as RelationField;
+			const kind = relationField.kind;
 
-      // Only normalize primitive values for belongsTo/hasOne
-      // (hasMany/manyToMany with primitive values are semantic errors - validation catches)
-      if (
-        (kind === "belongsTo" || kind === "hasOne") &&
-        (typeof value === "string" || typeof value === "number")
-      ) {
-        // Coerce and convert relation shortcut to FK filter
-        // { category: "2" } → { categoryId: { $eq: 2 } }
-        const foreignKey = relationField.foreignKey!;
-        const coercedValue = coerceValue(value, { type: "number" }, key);
-        normalized[foreignKey] = { $eq: coercedValue };
-        continue;
-      }
+			// Only normalize primitive values for belongsTo/hasOne
+			// (hasMany/manyToMany with primitive values are semantic errors - validation catches)
+			if (
+				(kind === "belongsTo" || kind === "hasOne") &&
+				(typeof value === "string" || typeof value === "number")
+			) {
+				// Coerce and convert relation shortcut to FK filter
+				// { category: "2" } → { categoryId: { $eq: 2 } }
+				const foreignKey = relationField.foreignKey!;
+				const coercedValue = coerceValue(value, { type: "number" }, key);
+				normalized[foreignKey] = { $eq: coercedValue };
+				continue;
+			}
 
-      // For object values (nested WHERE), recursively normalize with target schema
-      if (typeof value === "object" && value !== null && !(value instanceof Date)) {
-        const targetSchema = registry.get(relationField.model);
-        if (targetSchema) {
-          // Recursively normalize nested WHERE clause
-          normalized[key] = normalizeWhereClause(value as WhereClause, targetSchema, registry);
-          continue;
-        }
-      }
+			// For object values (nested WHERE), recursively normalize with target schema
+			if (
+				typeof value === "object" &&
+				value !== null &&
+				!(value instanceof Date)
+			) {
+				const targetSchema = registry.get(relationField.model);
+				if (targetSchema) {
+					// Recursively normalize nested WHERE clause
+					normalized[key] = normalizeWhereClause(
+						value as WhereClause,
+						targetSchema,
+						registry,
+					);
+					continue;
+				}
+			}
 
-      // Fallback: keep as-is
-      normalized[key] = value;
-      continue;
-    }
+			// Fallback: keep as-is
+			normalized[key] = value;
+			continue;
+		}
 
-    // Handle comparison operators - coerce values inside
-    if (isComparisonOperators(value)) {
-      const coercedOps: ComparisonOperators = {};
-      for (const [operator, opValue] of Object.entries(value as ComparisonOperators)) {
-        // Boolean operators - $exists, $null, $notNull
-        if ((BOOLEAN_OPERATORS as readonly string[]).includes(operator)) {
-          coercedOps[operator] = coerceValue(opValue, { type: "boolean" }, key);
-        }
-        // String operators - always keep as string regardless of field type
-        else if ((STRING_OPERATORS as readonly string[]).includes(operator)) {
-          coercedOps[operator] = opValue; // Keep as string
-        }
-        // All other operators - coerce based on field type
-        else {
-          coercedOps[operator] = coerceValue(opValue, fieldDef, key);
-        }
-      }
-      normalized[key] = coercedOps;
-      continue;
-    }
+		// Handle comparison operators - coerce values inside
+		if (isComparisonOperators(value)) {
+			const coercedOps: ComparisonOperators = {};
+			for (const [operator, opValue] of Object.entries(
+				value as ComparisonOperators,
+			)) {
+				// Boolean operators - $exists, $null, $notNull
+				if ((BOOLEAN_OPERATORS as readonly string[]).includes(operator)) {
+					coercedOps[operator] = coerceValue(opValue, { type: "boolean" }, key);
+				}
+				// String operators - always keep as string regardless of field type
+				else if ((STRING_OPERATORS as readonly string[]).includes(operator)) {
+					coercedOps[operator] = opValue; // Keep as string
+				}
+				// All other operators - coerce based on field type
+				else {
+					coercedOps[operator] = coerceValue(opValue, fieldDef, key);
+				}
+			}
+			normalized[key] = coercedOps;
+			continue;
+		}
 
-    // Simple equality - coerce based on field type
-    normalized[key] = coerceValue(value, fieldDef, key);
-  }
+		// Simple equality - coerce based on field type
+		normalized[key] = coerceValue(value, fieldDef, key);
+	}
 
-  return normalized;
+	return normalized;
 }

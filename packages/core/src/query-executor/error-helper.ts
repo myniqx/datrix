@@ -18,15 +18,12 @@ import { ForjaQueryExecutorError } from "forja-types/errors";
  * ```
  */
 export function throwUnsupportedQueryType(queryType: unknown): never {
-  throw new ForjaQueryExecutorError(
-    `Unsupported query type: ${queryType}`,
-    {
-      code: "UNSUPPORTED_QUERY_TYPE",
-      component: "executor",
-      context: { queryType },
-      suggestion: "Use one of: select, insert, update, delete, count",
-      expected: "select | insert | update | delete | count",
-      received: queryType,
-    },
-  );
+	throw new ForjaQueryExecutorError(`Unsupported query type: ${queryType}`, {
+		code: "UNSUPPORTED_QUERY_TYPE",
+		component: "executor",
+		context: { queryType },
+		suggestion: "Use one of: select, insert, update, delete, count",
+		expected: "select | insert | update | delete | count",
+		received: queryType,
+	});
 }

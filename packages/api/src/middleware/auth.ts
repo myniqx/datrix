@@ -14,19 +14,19 @@ import type { AuthManager } from "../auth/manager";
  * Returns authenticated user or null
  */
 export async function authenticate(
-  request: Request,
-  authManager?: AuthManager,
+	request: Request,
+	authManager?: AuthManager,
 ): Promise<AuthUser | null> {
-  if (!authManager) {
-    return null;
-  }
+	if (!authManager) {
+		return null;
+	}
 
-  // Use auth manager's authenticate method
-  const authContext = await authManager.authenticate(request);
+	// Use auth manager's authenticate method
+	const authContext = await authManager.authenticate(request);
 
-  if (!authContext || !authContext.user) {
-    return null;
-  }
+	if (!authContext || !authContext.user) {
+		return null;
+	}
 
-  return authContext.user;
+	return authContext.user;
 }

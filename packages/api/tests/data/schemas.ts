@@ -21,30 +21,30 @@ type TestRoles = "admin" | "editor" | "user" | "guest";
  * - delete: admin only
  */
 export const categorySchema = defineSchema({
-  name: "category",
-  fields: {
-    name: {
-      type: "string",
-      required: true,
-      minLength: 2,
-      maxLength: 100,
-    },
-    description: {
-      type: "string",
-      maxLength: 500,
-    },
-    isActive: {
-      type: "boolean",
-      default: true,
-    },
-  },
-  indexes: [{ fields: ["name"], unique: true }],
-  permission: {
-    create: ["admin"] as readonly TestRoles[],
-    read: true,
-    update: ["admin", "editor"] as readonly TestRoles[],
-    delete: ["admin"] as readonly TestRoles[],
-  },
+	name: "category",
+	fields: {
+		name: {
+			type: "string",
+			required: true,
+			minLength: 2,
+			maxLength: 100,
+		},
+		description: {
+			type: "string",
+			maxLength: 500,
+		},
+		isActive: {
+			type: "boolean",
+			default: true,
+		},
+	},
+	indexes: [{ fields: ["name"], unique: true }],
+	permission: {
+		create: ["admin"] as readonly TestRoles[],
+		read: true,
+		update: ["admin", "editor"] as readonly TestRoles[],
+		delete: ["admin"] as readonly TestRoles[],
+	},
 } as const);
 
 /**
@@ -63,46 +63,46 @@ export const categorySchema = defineSchema({
  * - rating: write only for admin
  */
 export const supplierSchema = defineSchema({
-  name: "supplier",
-  fields: {
-    name: {
-      type: "string",
-      required: true,
-      minLength: 2,
-      maxLength: 200,
-    },
-    email: {
-      type: "string",
-      required: true,
-      pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-      permission: {
-        read: ["admin", "editor"] as readonly TestRoles[],
-      },
-    },
-    country: {
-      type: "string",
-      required: true,
-    },
-    rating: {
-      type: "number",
-      min: 0,
-      max: 5,
-      permission: {
-        write: ["admin"] as readonly TestRoles[],
-      },
-    },
-    isVerified: {
-      type: "boolean",
-      default: false,
-    },
-  },
-  indexes: [{ fields: ["email"], unique: true }],
-  permission: {
-    create: ["admin", "editor"] as readonly TestRoles[],
-    read: (ctx: PermissionContext) => ctx.user !== undefined,
-    update: ["admin", "editor"] as readonly TestRoles[],
-    delete: ["admin"] as readonly TestRoles[],
-  },
+	name: "supplier",
+	fields: {
+		name: {
+			type: "string",
+			required: true,
+			minLength: 2,
+			maxLength: 200,
+		},
+		email: {
+			type: "string",
+			required: true,
+			pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+			permission: {
+				read: ["admin", "editor"] as readonly TestRoles[],
+			},
+		},
+		country: {
+			type: "string",
+			required: true,
+		},
+		rating: {
+			type: "number",
+			min: 0,
+			max: 5,
+			permission: {
+				write: ["admin"] as readonly TestRoles[],
+			},
+		},
+		isVerified: {
+			type: "boolean",
+			default: false,
+		},
+	},
+	indexes: [{ fields: ["email"], unique: true }],
+	permission: {
+		create: ["admin", "editor"] as readonly TestRoles[],
+		read: (ctx: PermissionContext) => ctx.user !== undefined,
+		update: ["admin", "editor"] as readonly TestRoles[],
+		delete: ["admin"] as readonly TestRoles[],
+	},
 } as const);
 
 /**
@@ -121,86 +121,86 @@ export const supplierSchema = defineSchema({
  * - stock: read/write only for admin/editor
  */
 export const productSchema = defineSchema({
-  name: "product",
-  fields: {
-    name: {
-      type: "string",
-      required: true,
-      minLength: 3,
-      maxLength: 200,
-    },
-    description: {
-      type: "string",
-      maxLength: 1000,
-    },
-    price: {
-      type: "number",
-      required: true,
-      min: 0,
-      permission: {
-        write: ["admin", "editor"] as readonly TestRoles[],
-      },
-    },
-    stock: {
-      type: "number",
-      required: true,
-      min: 0,
-      default: 0,
-      permission: {
-        read: ["admin", "editor"] as readonly TestRoles[],
-        write: ["admin", "editor"] as readonly TestRoles[],
-      },
-    },
-    sku: {
-      type: "string",
-      required: true,
-      pattern: /^[A-Z0-9-]+$/,
-    },
-    isAvailable: {
-      type: "boolean",
-      default: true,
-    },
-    tags: {
-      type: "array",
-      items: { type: "string" },
-    },
-    createdBy: {
-      type: "string",
-    },
-    category: {
-      type: "relation",
-      kind: "belongsTo",
-      model: "category",
-    },
-    supplier: {
-      type: "relation",
-      kind: "belongsTo",
-      model: "supplier",
-    },
-  },
-  indexes: [
-    { fields: ["sku"], unique: true },
-    { fields: ["categoryId"] },
-    { fields: ["supplierId"] },
-    { fields: ["price"] },
-  ],
-  permission: {
-    create: ["admin", "editor"] as readonly TestRoles[],
-    read: true,
-    update: [
-      "admin" as TestRoles,
-      "editor" as TestRoles,
-      async (ctx: PermissionContext) => {
-        const record = await (ctx.forja as Forja).findById<
-          { createdBy: string } & ForjaEntry
-        >("product", ctx.id!);
+	name: "product",
+	fields: {
+		name: {
+			type: "string",
+			required: true,
+			minLength: 3,
+			maxLength: 200,
+		},
+		description: {
+			type: "string",
+			maxLength: 1000,
+		},
+		price: {
+			type: "number",
+			required: true,
+			min: 0,
+			permission: {
+				write: ["admin", "editor"] as readonly TestRoles[],
+			},
+		},
+		stock: {
+			type: "number",
+			required: true,
+			min: 0,
+			default: 0,
+			permission: {
+				read: ["admin", "editor"] as readonly TestRoles[],
+				write: ["admin", "editor"] as readonly TestRoles[],
+			},
+		},
+		sku: {
+			type: "string",
+			required: true,
+			pattern: /^[A-Z0-9-]+$/,
+		},
+		isAvailable: {
+			type: "boolean",
+			default: true,
+		},
+		tags: {
+			type: "array",
+			items: { type: "string" },
+		},
+		createdBy: {
+			type: "string",
+		},
+		category: {
+			type: "relation",
+			kind: "belongsTo",
+			model: "category",
+		},
+		supplier: {
+			type: "relation",
+			kind: "belongsTo",
+			model: "supplier",
+		},
+	},
+	indexes: [
+		{ fields: ["sku"], unique: true },
+		{ fields: ["categoryId"] },
+		{ fields: ["supplierId"] },
+		{ fields: ["price"] },
+	],
+	permission: {
+		create: ["admin", "editor"] as readonly TestRoles[],
+		read: true,
+		update: [
+			"admin" as TestRoles,
+			"editor" as TestRoles,
+			async (ctx: PermissionContext) => {
+				const record = await (ctx.forja as Forja).findById<
+					{ createdBy: string } & ForjaEntry
+				>("product", ctx.id!);
 
-        console.log(record);
-        return ctx.user?.id.toString() === record?.["createdBy"];
-      },
-    ],
-    delete: ["admin"] as readonly TestRoles[],
-  },
+				console.log(record);
+				return ctx.user?.id.toString() === record?.["createdBy"];
+			},
+		],
+		delete: ["admin"] as readonly TestRoles[],
+	},
 } as const);
 
 /**
@@ -211,18 +211,18 @@ export const productSchema = defineSchema({
  * When auth is enabled, defaultPermission applies
  */
 export const secretSchema = defineSchema({
-  name: "secret",
-  fields: {
-    key: {
-      type: "string",
-      required: true,
-    },
-    value: {
-      type: "string",
-      required: true,
-    },
-  },
-  // No permission defined - uses defaultPermission from API config
+	name: "secret",
+	fields: {
+		key: {
+			type: "string",
+			required: true,
+		},
+		value: {
+			type: "string",
+			required: true,
+		},
+	},
+	// No permission defined - uses defaultPermission from API config
 } as const);
 
 /**
@@ -231,22 +231,22 @@ export const secretSchema = defineSchema({
  * Fully public schema - all operations allowed
  */
 export const publicSchema = defineSchema({
-  name: "public",
-  fields: {
-    title: {
-      type: "string",
-      required: true,
-    },
-    content: {
-      type: "string",
-    },
-  },
-  permission: {
-    create: true,
-    read: true,
-    update: true,
-    delete: true,
-  },
+	name: "public",
+	fields: {
+		title: {
+			type: "string",
+			required: true,
+		},
+		content: {
+			type: "string",
+		},
+	},
+	permission: {
+		create: true,
+		read: true,
+		update: true,
+		delete: true,
+	},
 } as const);
 
 /**
@@ -255,19 +255,19 @@ export const publicSchema = defineSchema({
  * Admin-only schema - all operations require admin role
  */
 export const restrictedSchema = defineSchema({
-  name: "restricted",
-  fields: {
-    data: {
-      type: "string",
-      required: true,
-    },
-  },
-  permission: {
-    create: ["admin"] as readonly TestRoles[],
-    read: ["admin"] as readonly TestRoles[],
-    update: ["admin"] as readonly TestRoles[],
-    delete: ["admin"] as readonly TestRoles[],
-  },
+	name: "restricted",
+	fields: {
+		data: {
+			type: "string",
+			required: true,
+		},
+	},
+	permission: {
+		create: ["admin"] as readonly TestRoles[],
+		read: ["admin"] as readonly TestRoles[],
+		update: ["admin"] as readonly TestRoles[],
+		delete: ["admin"] as readonly TestRoles[],
+	},
 } as const);
 
 /**
@@ -277,20 +277,20 @@ export const restrictedSchema = defineSchema({
  * Auth plugin creates separate 'authentication' table linked via userId.
  */
 export const userSchema = defineSchema({
-  name: "user",
-  fields: {
-    email: {
-      type: "string",
-      required: true,
-    },
-    name: {
-      type: "string",
-    },
-    age: {
-      type: "number",
-    }
-  },
-  indexes: [{ fields: ["email"], unique: true }],
+	name: "user",
+	fields: {
+		email: {
+			type: "string",
+			required: true,
+		},
+		name: {
+			type: "string",
+		},
+		age: {
+			type: "number",
+		},
+	},
+	indexes: [{ fields: ["email"], unique: true }],
 } as const);
 
 /**
@@ -299,35 +299,35 @@ export const userSchema = defineSchema({
  * Blog post with manyToMany relation to tags
  */
 export const postSchema = defineSchema({
-  name: "post",
-  fields: {
-    title: {
-      type: "string",
-      required: true,
-      minLength: 3,
-      maxLength: 200,
-    },
-    content: {
-      type: "string",
-      required: true,
-    },
-    author: {
-      type: "relation",
-      kind: "belongsTo",
-      model: "author",
-    },
-    tags: {
-      type: "relation",
-      kind: "manyToMany",
-      model: "tag",
-    },
-  },
-  permission: {
-    create: true,
-    read: true,
-    update: true,
-    delete: true,
-  },
+	name: "post",
+	fields: {
+		title: {
+			type: "string",
+			required: true,
+			minLength: 3,
+			maxLength: 200,
+		},
+		content: {
+			type: "string",
+			required: true,
+		},
+		author: {
+			type: "relation",
+			kind: "belongsTo",
+			model: "author",
+		},
+		tags: {
+			type: "relation",
+			kind: "manyToMany",
+			model: "tag",
+		},
+	},
+	permission: {
+		create: true,
+		read: true,
+		update: true,
+		delete: true,
+	},
 } as const);
 
 /**
@@ -336,22 +336,22 @@ export const postSchema = defineSchema({
  * Tags that can be attached to multiple posts
  */
 export const tagSchema = defineSchema({
-  name: "tag",
-  fields: {
-    name: {
-      type: "string",
-      required: true,
-      minLength: 2,
-      maxLength: 50,
-    },
-  },
-  indexes: [{ fields: ["name"], unique: true }],
-  permission: {
-    create: true,
-    read: true,
-    update: true,
-    delete: true,
-  },
+	name: "tag",
+	fields: {
+		name: {
+			type: "string",
+			required: true,
+			minLength: 2,
+			maxLength: 50,
+		},
+	},
+	indexes: [{ fields: ["name"], unique: true }],
+	permission: {
+		create: true,
+		read: true,
+		update: true,
+		delete: true,
+	},
 } as const);
 
 /**
@@ -360,25 +360,25 @@ export const tagSchema = defineSchema({
  * Company for nested create/update testing
  */
 export const companySchema = defineSchema({
-  name: "company",
-  fields: {
-    name: {
-      type: "string",
-      required: true,
-      minLength: 2,
-      maxLength: 200,
-    },
-    country: {
-      type: "string",
-      required: true,
-    },
-  },
-  permission: {
-    create: true,
-    read: true,
-    update: true,
-    delete: true,
-  },
+	name: "company",
+	fields: {
+		name: {
+			type: "string",
+			required: true,
+			minLength: 2,
+			maxLength: 200,
+		},
+		country: {
+			type: "string",
+			required: true,
+		},
+	},
+	permission: {
+		create: true,
+		read: true,
+		update: true,
+		delete: true,
+	},
 } as const);
 
 /**
@@ -388,42 +388,42 @@ export const companySchema = defineSchema({
  * Has relation to Company for nested create/update tests
  */
 export const authorSchema = defineSchema({
-  name: "author",
-  fields: {
-    name: {
-      type: "string",
-      required: true,
-    },
-    email: {
-      type: "string",
-      required: true,
-      pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-    },
-    company: {
-      type: "relation",
-      kind: "belongsTo",
-      model: "company",
-    },
-  },
-  indexes: [{ fields: ["email"], unique: true }],
-  permission: {
-    create: true,
-    read: true,
-    update: true,
-    delete: true,
-  },
+	name: "author",
+	fields: {
+		name: {
+			type: "string",
+			required: true,
+		},
+		email: {
+			type: "string",
+			required: true,
+			pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+		},
+		company: {
+			type: "relation",
+			kind: "belongsTo",
+			model: "company",
+		},
+	},
+	indexes: [{ fields: ["email"], unique: true }],
+	permission: {
+		create: true,
+		read: true,
+		update: true,
+		delete: true,
+	},
 } as const);
 
 export const testSchemas = [
-  categorySchema,
-  supplierSchema,
-  productSchema,
-  secretSchema,
-  publicSchema,
-  restrictedSchema,
-  userSchema,
-  postSchema,
-  tagSchema,
-  authorSchema,
-  companySchema,
+	categorySchema,
+	supplierSchema,
+	productSchema,
+	secretSchema,
+	publicSchema,
+	restrictedSchema,
+	userSchema,
+	postSchema,
+	tagSchema,
+	authorSchema,
+	companySchema,
 ];

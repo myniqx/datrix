@@ -5,11 +5,11 @@
  */
 
 // Unified handler (recommended)
-export { handleRequest } from './unified';
+export { handleRequest } from "./unified";
 
 // Auth handlers
 export {
-  createAuthHandlers,
-  createUnifiedAuthHandler,
-  type AuthHandlerConfig,
-} from './auth-handler';
+	createAuthHandlers,
+	createUnifiedAuthHandler,
+	type AuthHandlerConfig,
+} from "./auth-handler";

@@ -33,141 +33,147 @@ export const MAX_ARRAY_INDEX = 1000;
  * Comparison operators for WHERE clauses
  */
 export const COMPARISON_OPERATORS = [
-  '$eq',    // Equal
-  '$ne',    // Not equal
-  '$gt',    // Greater than
-  '$gte',   // Greater than or equal
-  '$lt',    // Less than
-  '$lte',   // Less than or equal
+	"$eq", // Equal
+	"$ne", // Not equal
+	"$gt", // Greater than
+	"$gte", // Greater than or equal
+	"$lt", // Less than
+	"$lte", // Less than or equal
 ] as const;
 
 /**
  * String operators for WHERE clauses
  */
 export const STRING_OPERATORS = [
-  '$contains',      // String contains
-  '$notContains',   // String does not contain
-  '$startsWith',    // String starts with
-  '$endsWith',      // String ends with
-  '$like',          // SQL LIKE pattern
-  '$ilike',         // Case-insensitive LIKE
+	"$contains", // String contains
+	"$notContains", // String does not contain
+	"$startsWith", // String starts with
+	"$endsWith", // String ends with
+	"$like", // SQL LIKE pattern
+	"$ilike", // Case-insensitive LIKE
 ] as const;
 
 /**
  * Array membership operators for WHERE clauses
  */
 export const ARRAY_OPERATORS = [
-  '$in',    // Value in array
-  '$nin',   // Value not in array
+	"$in", // Value in array
+	"$nin", // Value not in array
 ] as const;
 
 /**
  * Null check operators for WHERE clauses
  */
 export const NULL_OPERATORS = [
-  '$null',      // IS NULL
-  '$notNull',   // IS NOT NULL
+	"$null", // IS NULL
+	"$notNull", // IS NOT NULL
 ] as const;
 
 /**
  * Logical operators for WHERE clauses
  */
 export const LOGICAL_OPERATORS = [
-  '$and',   // Logical AND
-  '$or',    // Logical OR
-  '$not',   // Logical NOT
+	"$and", // Logical AND
+	"$or", // Logical OR
+	"$not", // Logical NOT
 ] as const;
 
 /**
  * All valid WHERE operators
  */
 export const ALL_WHERE_OPERATORS = [
-  ...COMPARISON_OPERATORS,
-  ...STRING_OPERATORS,
-  ...ARRAY_OPERATORS,
-  ...NULL_OPERATORS,
-  ...LOGICAL_OPERATORS,
+	...COMPARISON_OPERATORS,
+	...STRING_OPERATORS,
+	...ARRAY_OPERATORS,
+	...NULL_OPERATORS,
+	...LOGICAL_OPERATORS,
 ] as const;
 
 /**
  * Type of operator value expectations
  */
 export type OperatorValueType =
-  | 'any'           // Any primitive value
-  | 'array'         // Must be array
-  | 'number'        // Must be number
-  | 'string'        // Must be string
-  | 'boolean'       // Must be boolean
-  | 'conditions';   // Array of WHERE conditions (for logical operators)
+	| "any" // Any primitive value
+	| "array" // Must be array
+	| "number" // Must be number
+	| "string" // Must be string
+	| "boolean" // Must be boolean
+	| "conditions"; // Array of WHERE conditions (for logical operators)
 
 /**
  * Operator validation rules
  * Defines what type of value each operator expects
  */
 export const OPERATOR_VALUE_TYPES: Record<string, OperatorValueType> = {
-  // Comparison operators - accept any value
-  '$eq': 'any',
-  '$ne': 'any',
-  '$gt': 'any',
-  '$gte': 'any',
-  '$lt': 'any',
-  '$lte': 'any',
+	// Comparison operators - accept any value
+	$eq: "any",
+	$ne: "any",
+	$gt: "any",
+	$gte: "any",
+	$lt: "any",
+	$lte: "any",
 
-  // String operators - must be string
-  '$contains': 'string',
-  '$notContains': 'string',
-  '$startsWith': 'string',
-  '$endsWith': 'string',
-  '$like': 'string',
-  '$ilike': 'string',
+	// String operators - must be string
+	$contains: "string",
+	$notContains: "string",
+	$startsWith: "string",
+	$endsWith: "string",
+	$like: "string",
+	$ilike: "string",
 
-  // Array operators - must be array of values
-  '$in': 'array',
-  '$nin': 'array',
+	// Array operators - must be array of values
+	$in: "array",
+	$nin: "array",
 
-  // Null operators - boolean or no value needed
-  '$null': 'boolean',
-  '$notNull': 'boolean',
+	// Null operators - boolean or no value needed
+	$null: "boolean",
+	$notNull: "boolean",
 
-  // Logical operators - must be array of conditions
-  '$and': 'conditions',
-  '$or': 'conditions',
-  '$not': 'conditions',
+	// Logical operators - must be array of conditions
+	$and: "conditions",
+	$or: "conditions",
+	$not: "conditions",
 } as const;
 
 /**
  * Check if a string is a valid WHERE operator
  */
-export function isValidWhereOperator(operator: string): operator is typeof ALL_WHERE_OPERATORS[number] {
-  return (ALL_WHERE_OPERATORS as readonly string[]).includes(operator);
+export function isValidWhereOperator(
+	operator: string,
+): operator is (typeof ALL_WHERE_OPERATORS)[number] {
+	return (ALL_WHERE_OPERATORS as readonly string[]).includes(operator);
 }
 
 /**
  * Check if an operator is a logical operator
  */
-export function isLogicalOperator(operator: string): operator is typeof LOGICAL_OPERATORS[number] {
-  return (LOGICAL_OPERATORS as readonly string[]).includes(operator);
+export function isLogicalOperator(
+	operator: string,
+): operator is (typeof LOGICAL_OPERATORS)[number] {
+	return (LOGICAL_OPERATORS as readonly string[]).includes(operator);
 }
 
 /**
  * Check if an operator requires an array value
  */
 export function requiresArrayValue(operator: string): boolean {
-  return OPERATOR_VALUE_TYPES[operator] === 'array';
+	return OPERATOR_VALUE_TYPES[operator] === "array";
 }
 
 /**
  * Check if an operator requires conditions (for logical operators)
  */
 export function requiresConditions(operator: string): boolean {
-  return OPERATOR_VALUE_TYPES[operator] === 'conditions';
+	return OPERATOR_VALUE_TYPES[operator] === "conditions";
 }
 
 /**
  * Get expected value type for an operator
  */
-export function getOperatorValueType(operator: string): OperatorValueType | undefined {
-  return OPERATOR_VALUE_TYPES[operator];
+export function getOperatorValueType(
+	operator: string,
+): OperatorValueType | undefined {
+	return OPERATOR_VALUE_TYPES[operator];
 }
 
 /**
@@ -185,27 +191,27 @@ export const CONTROL_CHARS_PATTERN = /[\x00-\x1F\x7F]/;
  * Reserved field names (prototype pollution protection)
  */
 export const RESERVED_FIELD_NAMES = [
-  '__proto__',
-  'constructor',
-  'prototype',
+	"__proto__",
+	"constructor",
+	"prototype",
 ] as const;
 
 /**
  * Field validation failure reasons
  */
 export type FieldInvalidReason =
-  | 'EMPTY'
-  | 'TOO_LONG'
-  | 'RESERVED_FIELD'
-  | 'CONTROL_CHARS'
-  | 'INVALID_FORMAT';
+	| "EMPTY"
+	| "TOO_LONG"
+	| "RESERVED_FIELD"
+	| "CONTROL_CHARS"
+	| "INVALID_FORMAT";
 
 /**
  * Field validation result with detailed reason
  */
 export type FieldValidationResult =
-  | { valid: true }
-  | { valid: false; reason: FieldInvalidReason; detail?: string };
+	| { valid: true }
+	| { valid: false; reason: FieldInvalidReason; detail?: string };
 
 /**
  * Validate field name with detailed reason on failure
@@ -214,36 +220,40 @@ export type FieldValidationResult =
  * @returns Validation result with reason if invalid
  */
 export function validateFieldName(fieldName: string): FieldValidationResult {
-  // Empty or whitespace-only
-  if (!fieldName || fieldName.trim() === '') {
-    return { valid: false, reason: 'EMPTY' };
-  }
+	// Empty or whitespace-only
+	if (!fieldName || fieldName.trim() === "") {
+		return { valid: false, reason: "EMPTY" };
+	}
 
-  // Length check
-  if (fieldName.length > MAX_FIELD_NAME_LENGTH) {
-    return {
-      valid: false,
-      reason: 'TOO_LONG',
-      detail: `Max ${MAX_FIELD_NAME_LENGTH} characters`,
-    };
-  }
+	// Length check
+	if (fieldName.length > MAX_FIELD_NAME_LENGTH) {
+		return {
+			valid: false,
+			reason: "TOO_LONG",
+			detail: `Max ${MAX_FIELD_NAME_LENGTH} characters`,
+		};
+	}
 
-  // Reserved fields check (prototype pollution protection)
-  if (RESERVED_FIELD_NAMES.includes(fieldName as typeof RESERVED_FIELD_NAMES[number])) {
-    return { valid: false, reason: 'RESERVED_FIELD', detail: fieldName };
-  }
+	// Reserved fields check (prototype pollution protection)
+	if (
+		RESERVED_FIELD_NAMES.includes(
+			fieldName as (typeof RESERVED_FIELD_NAMES)[number],
+		)
+	) {
+		return { valid: false, reason: "RESERVED_FIELD", detail: fieldName };
+	}
 
-  // Control characters check
-  if (CONTROL_CHARS_PATTERN.test(fieldName)) {
-    return { valid: false, reason: 'CONTROL_CHARS' };
-  }
+	// Control characters check
+	if (CONTROL_CHARS_PATTERN.test(fieldName)) {
+		return { valid: false, reason: "CONTROL_CHARS" };
+	}
 
-  // Format check
-  if (!FIELD_NAME_PATTERN.test(fieldName)) {
-    return { valid: false, reason: 'INVALID_FORMAT' };
-  }
+	// Format check
+	if (!FIELD_NAME_PATTERN.test(fieldName)) {
+		return { valid: false, reason: "INVALID_FORMAT" };
+	}
 
-  return { valid: true };
+	return { valid: true };
 }
 
 /**
@@ -253,5 +263,5 @@ export function validateFieldName(fieldName: string): FieldValidationResult {
  * @returns True if valid, false otherwise
  */
 export function isValidFieldName(fieldName: string): boolean {
-  return validateFieldName(fieldName).valid;
+	return validateFieldName(fieldName).valid;
 }

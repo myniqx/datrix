@@ -6,11 +6,11 @@
 
 // Export query builder
 export {
-  createQueryBuilder,
-  selectFrom,
-  insertInto,
-  updateTable,
-  deleteFrom,
-  countFrom,
-  ForjaQueryBuilder,
-} from './builder';
+	createQueryBuilder,
+	selectFrom,
+	insertInto,
+	updateTable,
+	deleteFrom,
+	countFrom,
+	ForjaQueryBuilder,
+} from "./builder";

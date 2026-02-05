@@ -27,15 +27,18 @@
  * ```
  */
 
-export { MySQLAdapter, createMySQLAdapter } from './adapter';
-export { MySQLQueryTranslator, createMySQLTranslator } from './query-translator';
-export type { MySQLConfig, MySQLDataType } from './types';
+export { MySQLAdapter, createMySQLAdapter } from "./adapter";
 export {
-  getMySQLType,
-  getMySQLTypeWithModifiers,
-  toMySQLValue,
-  fromMySQLValue,
-  parseConnectionString,
-  FIELD_TYPE_TO_MYSQL,
-  MYSQL_TO_TS_TYPE
-} from './types';
+	MySQLQueryTranslator,
+	createMySQLTranslator,
+} from "./query-translator";
+export type { MySQLConfig, MySQLDataType } from "./types";
+export {
+	getMySQLType,
+	getMySQLTypeWithModifiers,
+	toMySQLValue,
+	fromMySQLValue,
+	parseConnectionString,
+	FIELD_TYPE_TO_MYSQL,
+	MYSQL_TO_TS_TYPE,
+} from "./types";

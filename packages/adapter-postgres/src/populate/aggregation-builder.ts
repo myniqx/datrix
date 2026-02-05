@@ -6,23 +6,22 @@
  */
 
 import type {
-  PopulateClause,
-  OrderByItem,
-  PopulateOptions,
+	PopulateClause,
+	OrderByItem,
+	PopulateOptions,
 } from "forja-types/core/query-builder";
 import type { SchemaRegistry } from "forja-core/schema";
 import type { ForjaEntry, RelationField } from "forja-types/core/schema";
 import type { PostgresQueryTranslator } from "../query-translator";
 import type { AggregationClause, PopulateFieldSelection } from "./types";
 import {
-  throwModelNotFound,
-  throwSchemaNotFound,
-  throwRelationNotFound,
-  throwInvalidRelationType,
-  throwTargetModelNotFound,
-  throwJsonAggregationError,
+	throwModelNotFound,
+	throwSchemaNotFound,
+	throwRelationNotFound,
+	throwInvalidRelationType,
+	throwTargetModelNotFound,
+	throwJsonAggregationError,
 } from "../error-helper";
-
 
 /**
  * Aggregation Builder Class
@@ -30,155 +29,169 @@ import {
  * Generates SQL for JSON aggregation in SELECT clause.
  */
 export class AggregationBuilder {
-  constructor(
-    private translator: PostgresQueryTranslator,
-    private schemaRegistry: SchemaRegistry,
-  ) { }
+	constructor(
+		private translator: PostgresQueryTranslator,
+		private schemaRegistry: SchemaRegistry,
+	) {}
 
-  /**
-   * Build all aggregation clauses for a query
-   *
-   * For json-aggregation strategy:
-   * - belongsTo/hasOne: Uses row_to_json with JOINed table
-   * - hasMany/manyToMany: Uses subquery with json_agg (no JOIN, no row explosion)
-   *
-   * @param tableName - Source table name
-   * @param populate - Populate clause
-   * @returns Array of aggregation SQL strings
-   */
-  buildAggregations<T extends ForjaEntry>(
-    tableName: string,
-    populate: PopulateClause<T>,
-  ): readonly AggregationClause[] {
-    const modelName = this.schemaRegistry.findModelByTableName(tableName);
-    if (!modelName) {
-      throwModelNotFound(tableName);
-    }
+	/**
+	 * Build all aggregation clauses for a query
+	 *
+	 * For json-aggregation strategy:
+	 * - belongsTo/hasOne: Uses row_to_json with JOINed table
+	 * - hasMany/manyToMany: Uses subquery with json_agg (no JOIN, no row explosion)
+	 *
+	 * @param tableName - Source table name
+	 * @param populate - Populate clause
+	 * @returns Array of aggregation SQL strings
+	 */
+	buildAggregations<T extends ForjaEntry>(
+		tableName: string,
+		populate: PopulateClause<T>,
+	): readonly AggregationClause[] {
+		const modelName = this.schemaRegistry.findModelByTableName(tableName);
+		if (!modelName) {
+			throwModelNotFound(tableName);
+		}
 
-    const schema = this.schemaRegistry.get(modelName);
-    if (!schema) {
-      throwSchemaNotFound(modelName);
-    }
+		const schema = this.schemaRegistry.get(modelName);
+		if (!schema) {
+			throwSchemaNotFound(modelName);
+		}
 
-    const aggregations: AggregationClause[] = [];
+		const aggregations: AggregationClause[] = [];
 
-    for (const [relationName, options] of Object.entries(populate)) {
-      const relationField = schema.fields[relationName];
-      if (!relationField) {
-        throwRelationNotFound(relationName, schema.name);
-      }
+		for (const [relationName, options] of Object.entries(populate)) {
+			const relationField = schema.fields[relationName];
+			if (!relationField) {
+				throwRelationNotFound(relationName, schema.name);
+			}
 
-      if (relationField.type !== "relation") {
-        throwInvalidRelationType(relationName, relationField.type, schema.name);
-      }
+			if (relationField.type !== "relation") {
+				throwInvalidRelationType(relationName, relationField.type, schema.name);
+			}
 
-      const relField = relationField as RelationField;
+			const relField = relationField as RelationField;
 
-      try {
-        const aggregation = this.buildRelationAggregation(
-          tableName,
-          relationName,
-          relField,
-          options,
-        );
-        aggregations.push(aggregation);
-      } catch (error) {
-        if (error instanceof Error && error.message.includes("ADAPTER_")) {
-          throw error;
-        }
-        throwJsonAggregationError(
-          relationName,
-          error instanceof Error ? error : undefined,
-        );
-      }
-    }
+			try {
+				const aggregation = this.buildRelationAggregation(
+					tableName,
+					relationName,
+					relField,
+					options,
+				);
+				aggregations.push(aggregation);
+			} catch (error) {
+				if (error instanceof Error && error.message.includes("ADAPTER_")) {
+					throw error;
+				}
+				throwJsonAggregationError(
+					relationName,
+					error instanceof Error ? error : undefined,
+				);
+			}
+		}
 
-    return aggregations;
-  }
+		return aggregations;
+	}
 
-  /**
-   * Build aggregation for a specific relation
-   */
-  private buildRelationAggregation<T extends ForjaEntry>(
-    sourceTable: string,
-    relationName: string,
-    relation: RelationField,
-    options: PopulateOptions<T>,
-  ): AggregationClause {
-    const relationAlias = this.translator.escapeIdentifier(relationName);
-    const fieldSelection = this.buildFieldSelection(relationName, relation, options);
+	/**
+	 * Build aggregation for a specific relation
+	 */
+	private buildRelationAggregation<T extends ForjaEntry>(
+		sourceTable: string,
+		relationName: string,
+		relation: RelationField,
+		options: PopulateOptions<T>,
+	): AggregationClause {
+		const relationAlias = this.translator.escapeIdentifier(relationName);
+		const fieldSelection = this.buildFieldSelection(
+			relationName,
+			relation,
+			options,
+		);
 
-    let sql: string;
+		let sql: string;
 
-    switch (relation.kind) {
-      case "belongsTo":
-      case "hasOne":
-        // Single object: row_to_json() from JOINed table
-        sql = `row_to_json(${relationAlias}.*) AS ${relationAlias}`;
-        if (fieldSelection.fields && fieldSelection.fields !== "*") {
-          sql = `row_to_json((SELECT r FROM (SELECT ${fieldSelection.sql}) r)) AS ${relationAlias}`;
-        }
-        break;
+		switch (relation.kind) {
+			case "belongsTo":
+			case "hasOne":
+				// Single object: row_to_json() from JOINed table
+				sql = `row_to_json(${relationAlias}.*) AS ${relationAlias}`;
+				if (fieldSelection.fields && fieldSelection.fields !== "*") {
+					sql = `row_to_json((SELECT r FROM (SELECT ${fieldSelection.sql}) r)) AS ${relationAlias}`;
+				}
+				break;
 
-      case "hasMany":
-        // Array: use subquery to avoid row explosion
-        sql = this.buildHasManySubquery(sourceTable, relationName, relation, fieldSelection);
-        break;
+			case "hasMany":
+				// Array: use subquery to avoid row explosion
+				sql = this.buildHasManySubquery(
+					sourceTable,
+					relationName,
+					relation,
+					fieldSelection,
+				);
+				break;
 
-      case "manyToMany":
-        // Array: use subquery with junction table
-        sql = this.buildManyToManySubquery(sourceTable, relationName, relation, fieldSelection);
-        break;
+			case "manyToMany":
+				// Array: use subquery with junction table
+				sql = this.buildManyToManySubquery(
+					sourceTable,
+					relationName,
+					relation,
+					fieldSelection,
+				);
+				break;
 
-      default:
-        throwJsonAggregationError(relationName);
-    }
+			default:
+				throwJsonAggregationError(relationName);
+		}
 
-    return {
-      relationName,
-      relationKind: relation.kind,
-      sql,
-      alias: relationName,
-    };
-  }
+		return {
+			relationName,
+			relationKind: relation.kind,
+			sql,
+			alias: relationName,
+		};
+	}
 
-  /**
-   * Build hasMany subquery (no JOIN, no row explosion)
-   *
-   * Generates:
-   * ```sql
-   * (
-   *   SELECT COALESCE(json_agg(row_to_json(t.*)), '[]'::jsonb)
-   *   FROM (
-   *     SELECT target.*
-   *     FROM target_table target
-   *     WHERE target.foreignKey = source_table.id
-   *   ) t
-   * ) AS relationName
-   * ```
-   */
-  private buildHasManySubquery(
-    sourceTable: string,
-    relationName: string,
-    relation: RelationField,
-    fieldSelection: PopulateFieldSelection,
-  ): string {
-    const targetSchema = this.schemaRegistry.get(relation.model);
-    if (!targetSchema) {
-      throwTargetModelNotFound(relation.model, relationName, sourceTable);
-    }
+	/**
+	 * Build hasMany subquery (no JOIN, no row explosion)
+	 *
+	 * Generates:
+	 * ```sql
+	 * (
+	 *   SELECT COALESCE(json_agg(row_to_json(t.*)), '[]'::jsonb)
+	 *   FROM (
+	 *     SELECT target.*
+	 *     FROM target_table target
+	 *     WHERE target.foreignKey = source_table.id
+	 *   ) t
+	 * ) AS relationName
+	 * ```
+	 */
+	private buildHasManySubquery(
+		sourceTable: string,
+		relationName: string,
+		relation: RelationField,
+		fieldSelection: PopulateFieldSelection,
+	): string {
+		const targetSchema = this.schemaRegistry.get(relation.model);
+		if (!targetSchema) {
+			throwTargetModelNotFound(relation.model, relationName, sourceTable);
+		}
 
-    const targetTable = targetSchema.tableName ?? relation.model.toLowerCase();
-    const foreignKey = relation.foreignKey!;
+		const targetTable = targetSchema.tableName ?? relation.model.toLowerCase();
+		const foreignKey = relation.foreignKey!;
 
-    const sourceTableEsc = this.translator.escapeIdentifier(sourceTable);
-    const targetTableEsc = this.translator.escapeIdentifier(targetTable);
-    const foreignKeyEsc = this.translator.escapeIdentifier(foreignKey);
-    const relationAlias = this.translator.escapeIdentifier(relationName);
+		const sourceTableEsc = this.translator.escapeIdentifier(sourceTable);
+		const targetTableEsc = this.translator.escapeIdentifier(targetTable);
+		const foreignKeyEsc = this.translator.escapeIdentifier(foreignKey);
+		const relationAlias = this.translator.escapeIdentifier(relationName);
 
-    const selectFields = fieldSelection.sql || `${targetTableEsc}.*`;
+		const selectFields = fieldSelection.sql || `${targetTableEsc}.*`;
 
-    const subquery = `
+		const subquery = `
       (
         SELECT COALESCE(jsonb_agg(row_to_json(t.*)), '[]'::jsonb)
         FROM (
@@ -187,64 +200,67 @@ export class AggregationBuilder {
           WHERE ${targetTableEsc}.${foreignKeyEsc} = ${sourceTableEsc}."id"
         ) t
       ) AS ${relationAlias}
-    `.trim().replace(/\s+/g, " ");
+    `
+			.trim()
+			.replace(/\s+/g, " ");
 
-    return subquery;
-  }
+		return subquery;
+	}
 
-  /**
-   * Build manyToMany subquery with junction table (no JOIN, no row explosion)
-   *
-   * Generates:
-   * ```sql
-   * (
-   *   SELECT COALESCE(json_agg(row_to_json(t.*)), '[]'::jsonb)
-   *   FROM (
-   *     SELECT target.*
-   *     FROM target_table target
-   *     INNER JOIN junction_table ON target.id = junction_table.TargetId
-   *     WHERE junction_table.SourceId = source_table.id
-   *   ) t
-   * ) AS relationName
-   * ```
-   */
-  private buildManyToManySubquery(
-    sourceTable: string,
-    relationName: string,
-    relation: RelationField,
-    fieldSelection: PopulateFieldSelection,
-  ): string {
-    const targetSchema = this.schemaRegistry.get(relation.model);
-    if (!targetSchema) {
-      throwTargetModelNotFound(relation.model, relationName, sourceTable);
-    }
+	/**
+	 * Build manyToMany subquery with junction table (no JOIN, no row explosion)
+	 *
+	 * Generates:
+	 * ```sql
+	 * (
+	 *   SELECT COALESCE(json_agg(row_to_json(t.*)), '[]'::jsonb)
+	 *   FROM (
+	 *     SELECT target.*
+	 *     FROM target_table target
+	 *     INNER JOIN junction_table ON target.id = junction_table.TargetId
+	 *     WHERE junction_table.SourceId = source_table.id
+	 *   ) t
+	 * ) AS relationName
+	 * ```
+	 */
+	private buildManyToManySubquery(
+		sourceTable: string,
+		relationName: string,
+		relation: RelationField,
+		fieldSelection: PopulateFieldSelection,
+	): string {
+		const targetSchema = this.schemaRegistry.get(relation.model);
+		if (!targetSchema) {
+			throwTargetModelNotFound(relation.model, relationName, sourceTable);
+		}
 
-    const targetTable = targetSchema.tableName ?? relation.model.toLowerCase();
-    const junctionTable = relation.through!;
+		const targetTable = targetSchema.tableName ?? relation.model.toLowerCase();
+		const junctionTable = relation.through!;
 
-    const currentModelName = this.schemaRegistry.findModelByTableName(sourceTable);
-    if (!currentModelName) {
-      throwModelNotFound(sourceTable);
-    }
+		const currentModelName =
+			this.schemaRegistry.findModelByTableName(sourceTable);
+		if (!currentModelName) {
+			throwModelNotFound(sourceTable);
+		}
 
-    const currentSchema = this.schemaRegistry.get(currentModelName);
-    if (!currentSchema) {
-      throwSchemaNotFound(currentModelName);
-    }
+		const currentSchema = this.schemaRegistry.get(currentModelName);
+		if (!currentSchema) {
+			throwSchemaNotFound(currentModelName);
+		}
 
-    const sourceFK = `${currentSchema.name}Id`;
-    const targetFK = `${relation.model}Id`;
+		const sourceFK = `${currentSchema.name}Id`;
+		const targetFK = `${relation.model}Id`;
 
-    const sourceTableEsc = this.translator.escapeIdentifier(sourceTable);
-    const targetTableEsc = this.translator.escapeIdentifier(targetTable);
-    const junctionTableEsc = this.translator.escapeIdentifier(junctionTable);
-    const sourceFKEsc = this.translator.escapeIdentifier(sourceFK);
-    const targetFKEsc = this.translator.escapeIdentifier(targetFK);
-    const relationAlias = this.translator.escapeIdentifier(relationName);
+		const sourceTableEsc = this.translator.escapeIdentifier(sourceTable);
+		const targetTableEsc = this.translator.escapeIdentifier(targetTable);
+		const junctionTableEsc = this.translator.escapeIdentifier(junctionTable);
+		const sourceFKEsc = this.translator.escapeIdentifier(sourceFK);
+		const targetFKEsc = this.translator.escapeIdentifier(targetFK);
+		const relationAlias = this.translator.escapeIdentifier(relationName);
 
-    const selectFields = fieldSelection.sql || `${targetTableEsc}.*`;
+		const selectFields = fieldSelection.sql || `${targetTableEsc}.*`;
 
-    const subquery = `
+		const subquery = `
       (
         SELECT COALESCE(jsonb_agg(row_to_json(t.*)), '[]'::jsonb)
         FROM (
@@ -254,101 +270,113 @@ export class AggregationBuilder {
           WHERE ${junctionTableEsc}.${sourceFKEsc} = ${sourceTableEsc}."id"
         ) t
       ) AS ${relationAlias}
-    `.trim().replace(/\s+/g, " ");
+    `
+			.trim()
+			.replace(/\s+/g, " ");
 
-    return subquery;
-  }
+		return subquery;
+	}
 
-  /**
-   * Build LATERAL subquery for complex populate options
-   *
-   * Generates:
-   * ```sql
-   * LEFT JOIN LATERAL (
-   *   SELECT json_agg(row_to_json(t.*)) as data
-   *   FROM (
-   *     SELECT fields...
-   *     FROM target_table
-   *     WHERE target.fk = source.id
-   *       AND additional_where_conditions
-   *     ORDER BY field ASC
-   *     LIMIT 10
-   *     OFFSET 20
-   *   ) t
-   * ) relation_data ON true
-   * ```
-   */
-  buildLateralSubquery<T extends ForjaEntry>(
-    sourceTable: string,
-    relationName: string,
-    relation: RelationField,
-    options: PopulateOptions<T>,
-  ): string {
+	/**
+	 * Build LATERAL subquery for complex populate options
+	 *
+	 * Generates:
+	 * ```sql
+	 * LEFT JOIN LATERAL (
+	 *   SELECT json_agg(row_to_json(t.*)) as data
+	 *   FROM (
+	 *     SELECT fields...
+	 *     FROM target_table
+	 *     WHERE target.fk = source.id
+	 *       AND additional_where_conditions
+	 *     ORDER BY field ASC
+	 *     LIMIT 10
+	 *     OFFSET 20
+	 *   ) t
+	 * ) relation_data ON true
+	 * ```
+	 */
+	buildLateralSubquery<T extends ForjaEntry>(
+		sourceTable: string,
+		relationName: string,
+		relation: RelationField,
+		options: PopulateOptions<T>,
+	): string {
+		// Get target schema
+		const targetSchema = this.schemaRegistry.get(relation.model);
+		if (!targetSchema) {
+			throwTargetModelNotFound(relation.model, relationName, sourceTable);
+		}
 
-    // Get target schema
-    const targetSchema = this.schemaRegistry.get(relation.model);
-    if (!targetSchema) {
-      throwTargetModelNotFound(relation.model, relationName, sourceTable);
-    }
+		const targetTable = targetSchema.tableName ?? relation.model.toLowerCase();
+		const foreignKey = relation.foreignKey!;
 
-    const targetTable = targetSchema.tableName ?? relation.model.toLowerCase();
-    const foreignKey = relation.foreignKey!;
+		const sourceTableEsc = this.translator.escapeIdentifier(sourceTable);
+		const targetTableEsc = this.translator.escapeIdentifier(targetTable);
+		const foreignKeyEsc = this.translator.escapeIdentifier(foreignKey);
+		const relationAlias = this.translator.escapeIdentifier(
+			`${relationName}_data`,
+		);
 
-    const sourceTableEsc = this.translator.escapeIdentifier(sourceTable);
-    const targetTableEsc = this.translator.escapeIdentifier(targetTable);
-    const foreignKeyEsc = this.translator.escapeIdentifier(foreignKey);
-    const relationAlias = this.translator.escapeIdentifier(`${relationName}_data`);
+		// Parse options
+		const opts = this.parsePopulateOptions(options);
 
-    // Parse options
-    const opts = this.parsePopulateOptions(options);
+		// Build field selection
+		const fieldSelection = this.buildFieldSelection(
+			relationName,
+			relation,
+			options,
+		);
+		const selectFields = fieldSelection.sql || `${targetTableEsc}.*`;
 
-    // Build field selection
-    const fieldSelection = this.buildFieldSelection(relationName, relation, options);
-    const selectFields = fieldSelection.sql || `${targetTableEsc}.*`;
+		// Build WHERE clause
+		const whereConditions: string[] = [];
 
-    // Build WHERE clause
-    const whereConditions: string[] = [];
+		// FK condition
+		if (relation.kind === "belongsTo") {
+			// belongsTo: source.fk = target.id
+			whereConditions.push(
+				`${targetTableEsc}."id" = ${sourceTableEsc}.${foreignKeyEsc}`,
+			);
+		} else {
+			// hasOne/hasMany: target.fk = source.id
+			whereConditions.push(
+				`${targetTableEsc}.${foreignKeyEsc} = ${sourceTableEsc}."id"`,
+			);
+		}
 
-    // FK condition
-    if (relation.kind === "belongsTo") {
-      // belongsTo: source.fk = target.id
-      whereConditions.push(`${targetTableEsc}."id" = ${sourceTableEsc}.${foreignKeyEsc}`);
-    } else {
-      // hasOne/hasMany: target.fk = source.id
-      whereConditions.push(`${targetTableEsc}.${foreignKeyEsc} = ${sourceTableEsc}."id"`);
-    }
+		// Additional WHERE conditions from options
+		if (opts.where) {
+			const whereResult = this.translator.translateWhere(opts.where, 1);
+			whereConditions.push(`(${whereResult.sql})`);
+		}
 
-    // Additional WHERE conditions from options
-    if (opts.where) {
-      const whereResult = this.translator.translateWhere(opts.where, 1);
-      whereConditions.push(`(${whereResult.sql})`);
-    }
+		const whereClause = whereConditions.join(" AND ");
 
-    const whereClause = whereConditions.join(" AND ");
+		// Build ORDER BY
+		let orderByClause = "";
+		if (opts.orderBy && opts.orderBy.length > 0) {
+			orderByClause = `ORDER BY ${this.buildOrderBy(opts.orderBy)}`;
+		}
 
-    // Build ORDER BY
-    let orderByClause = "";
-    if (opts.orderBy && opts.orderBy.length > 0) {
-      orderByClause = `ORDER BY ${this.buildOrderBy(opts.orderBy)}`;
-    }
+		// Build LIMIT/OFFSET
+		let limitClause = "";
+		if (opts.limit !== undefined) {
+			limitClause = `LIMIT ${opts.limit}`;
+		}
 
-    // Build LIMIT/OFFSET
-    let limitClause = "";
-    if (opts.limit !== undefined) {
-      limitClause = `LIMIT ${opts.limit}`;
-    }
+		let offsetClause = "";
+		if (opts.offset !== undefined) {
+			offsetClause = `OFFSET ${opts.offset}`;
+		}
 
-    let offsetClause = "";
-    if (opts.offset !== undefined) {
-      offsetClause = `OFFSET ${opts.offset}`;
-    }
+		// Determine aggregation type
+		const isArray =
+			relation.kind === "hasMany" || relation.kind === "manyToMany";
+		const aggregationFunc = isArray ? "json_agg" : "row_to_json";
 
-    // Determine aggregation type
-    const isArray = relation.kind === "hasMany" || relation.kind === "manyToMany";
-    const aggregationFunc = isArray ? "json_agg" : "row_to_json";
-
-    // Build subquery
-    const subquery = `
+		// Build subquery
+		const subquery = `
       LEFT JOIN LATERAL (
         SELECT ${aggregationFunc}(row_to_json(t.*)) as data
         FROM (
@@ -360,85 +388,93 @@ export class AggregationBuilder {
           ${offsetClause}
         ) t
       ) ${relationAlias} ON true
-    `.trim().replace(/\s+/g, " ");
+    `
+			.trim()
+			.replace(/\s+/g, " ");
 
-    return subquery;
-  }
+		return subquery;
+	}
 
-  /**
-   * Build LATERAL subquery for manyToMany with options
-   */
-  buildManyToManyLateralSubquery<T extends ForjaEntry>(
-    sourceTable: string,
-    relationName: string,
-    relation: RelationField,
-    options: PopulateOptions<T>,
-  ): string {
+	/**
+	 * Build LATERAL subquery for manyToMany with options
+	 */
+	buildManyToManyLateralSubquery<T extends ForjaEntry>(
+		sourceTable: string,
+		relationName: string,
+		relation: RelationField,
+		options: PopulateOptions<T>,
+	): string {
+		// Get schemas
+		const targetSchema = this.schemaRegistry.get(relation.model);
+		if (!targetSchema) {
+			throwTargetModelNotFound(relation.model, relationName, sourceTable);
+		}
 
-    // Get schemas
-    const targetSchema = this.schemaRegistry.get(relation.model);
-    if (!targetSchema) {
-      throwTargetModelNotFound(relation.model, relationName, sourceTable);
-    }
+		const targetTable = targetSchema.tableName ?? relation.model.toLowerCase();
+		const junctionTable = relation.through!;
 
-    const targetTable = targetSchema.tableName ?? relation.model.toLowerCase();
-    const junctionTable = relation.through!;
+		const currentModelName =
+			this.schemaRegistry.findModelByTableName(sourceTable);
+		if (!currentModelName) {
+			throwModelNotFound(sourceTable);
+		}
 
-    const currentModelName = this.schemaRegistry.findModelByTableName(sourceTable);
-    if (!currentModelName) {
-      throwModelNotFound(sourceTable);
-    }
+		const currentSchema = this.schemaRegistry.get(currentModelName);
+		if (!currentSchema) {
+			throwSchemaNotFound(currentModelName);
+		}
 
-    const currentSchema = this.schemaRegistry.get(currentModelName);
-    if (!currentSchema) {
-      throwSchemaNotFound(currentModelName);
-    }
+		// Foreign keys
+		const sourceFK = `${currentSchema.name}Id`;
+		const targetFK = `${relation.model}Id`;
 
-    // Foreign keys
-    const sourceFK = `${currentSchema.name}Id`;
-    const targetFK = `${relation.model}Id`;
+		// Escape identifiers
+		const sourceTableEsc = this.translator.escapeIdentifier(sourceTable);
+		const junctionTableEsc = this.translator.escapeIdentifier(junctionTable);
+		const targetTableEsc = this.translator.escapeIdentifier(targetTable);
+		const sourceFKEsc = this.translator.escapeIdentifier(sourceFK);
+		const targetFKEsc = this.translator.escapeIdentifier(targetFK);
+		const relationAlias = this.translator.escapeIdentifier(
+			`${relationName}_data`,
+		);
 
-    // Escape identifiers
-    const sourceTableEsc = this.translator.escapeIdentifier(sourceTable);
-    const junctionTableEsc = this.translator.escapeIdentifier(junctionTable);
-    const targetTableEsc = this.translator.escapeIdentifier(targetTable);
-    const sourceFKEsc = this.translator.escapeIdentifier(sourceFK);
-    const targetFKEsc = this.translator.escapeIdentifier(targetFK);
-    const relationAlias = this.translator.escapeIdentifier(`${relationName}_data`);
+		// Parse options
+		const opts = this.parsePopulateOptions(options);
 
-    // Parse options
-    const opts = this.parsePopulateOptions(options);
+		// Build field selection
+		const fieldSelection = this.buildFieldSelection(
+			relationName,
+			relation,
+			options,
+		);
+		const selectFields = fieldSelection.sql || `${targetTableEsc}.*`;
 
-    // Build field selection
-    const fieldSelection = this.buildFieldSelection(relationName, relation, options);
-    const selectFields = fieldSelection.sql || `${targetTableEsc}.*`;
+		// Build WHERE for target table
+		let targetWhereClause = "";
+		if (opts.where) {
+			const whereResult = this.translator.translateWhere(opts.where, 1);
+			targetWhereClause = `WHERE ${whereResult.sql}`;
+		}
 
-    // Build WHERE for target table
-    let targetWhereClause = "";
-    if (opts.where) {
-      const whereResult = this.translator.translateWhere(opts.where, 1);
-      targetWhereClause = `WHERE ${whereResult.sql}`;
-    }
+		// Build ORDER BY
+		let orderByClause = "";
+		if (opts.orderBy && opts.orderBy.length > 0) {
+			orderByClause = `ORDER BY ${this.buildOrderBy(opts.orderBy)}`;
+		}
 
-    // Build ORDER BY
-    let orderByClause = "";
-    if (opts.orderBy && opts.orderBy.length > 0) {
-      orderByClause = `ORDER BY ${this.buildOrderBy(opts.orderBy)}`;
-    }
+		// Build LIMIT/OFFSET
+		let limitClause = "";
+		if (opts.limit !== undefined) {
+			limitClause = `LIMIT ${opts.limit}`;
+		}
 
-    // Build LIMIT/OFFSET
-    let limitClause = "";
-    if (opts.limit !== undefined) {
-      limitClause = `LIMIT ${opts.limit}`;
-    }
+		let offsetClause = "";
+		if (opts.offset !== undefined) {
+			offsetClause = `OFFSET ${opts.offset}`;
+		}
 
-    let offsetClause = "";
-    if (opts.offset !== undefined) {
-      offsetClause = `OFFSET ${opts.offset}`;
-    }
-
-    // Build subquery with junction join
-    const subquery = `
+		// Build subquery with junction join
+		const subquery = `
       LEFT JOIN LATERAL (
         SELECT json_agg(row_to_json(t.*)) as data
         FROM (
@@ -452,98 +488,101 @@ export class AggregationBuilder {
           ${offsetClause}
         ) t
       ) ${relationAlias} ON true
-    `.trim().replace(/\s+/g, " ");
+    `
+			.trim()
+			.replace(/\s+/g, " ");
 
-    return subquery;
-  }
+		return subquery;
+	}
 
-  /**
-   * Build field selection for relation
-   */
-  private buildFieldSelection<T extends ForjaEntry>(
-    relationName: string,
-    relation: RelationField,
-    options: PopulateOptions<T>,
-  ): PopulateFieldSelection {
-    const opts = this.parsePopulateOptions(options);
+	/**
+	 * Build field selection for relation
+	 */
+	private buildFieldSelection<T extends ForjaEntry>(
+		relationName: string,
+		relation: RelationField,
+		options: PopulateOptions<T>,
+	): PopulateFieldSelection {
+		const opts = this.parsePopulateOptions(options);
 
-    // Get target schema
-    const targetSchema = this.schemaRegistry.get(relation.model);
-    if (!targetSchema) {
-      throwTargetModelNotFound(relation.model, relationName, "unknown");
-    }
+		// Get target schema
+		const targetSchema = this.schemaRegistry.get(relation.model);
+		if (!targetSchema) {
+			throwTargetModelNotFound(relation.model, relationName, "unknown");
+		}
 
-    const relationAlias = this.translator.escapeIdentifier(relationName);
+		const relationAlias = this.translator.escapeIdentifier(relationName);
 
-    // If no select specified, return all fields
-    if (!opts.select || opts.select === "*") {
-      return {
-        fields: "*",
-        sql: `${relationAlias}.*`,
-      };
-    }
+		// If no select specified, return all fields
+		if (!opts.select || opts.select === "*") {
+			return {
+				fields: "*",
+				sql: `${relationAlias}.*`,
+			};
+		}
 
-    // Build field list
-    const fields = opts.select as string[];
-    const fieldSQL = fields
-      .map((field) => {
-        const fieldEsc = this.translator.escapeIdentifier(field);
-        return `${relationAlias}.${fieldEsc}`;
-      })
-      .join(", ");
+		// Build field list
+		const fields = opts.select as string[];
+		const fieldSQL = fields
+			.map((field) => {
+				const fieldEsc = this.translator.escapeIdentifier(field);
+				return `${relationAlias}.${fieldEsc}`;
+			})
+			.join(", ");
 
-    return {
-      fields: opts.select,
-      sql: fieldSQL,
-    };
-  }
+		return {
+			fields: opts.select,
+			sql: fieldSQL,
+		};
+	}
 
-  /**
-   * Parse populate options
-   */
-  private parsePopulateOptions<T extends ForjaEntry>(options: PopulateOptions<T>): PopulateOptions<T> {
-    if (typeof options === "string") {
-      return { select: options === "*" ? "*" : [options] };
-    }
+	/**
+	 * Parse populate options
+	 */
+	private parsePopulateOptions<T extends ForjaEntry>(
+		options: PopulateOptions<T>,
+	): PopulateOptions<T> {
+		if (typeof options === "string") {
+			return { select: options === "*" ? "*" : [options] };
+		}
 
-    if (typeof options !== "object" || options === null) {
-      return {};
-    }
+		if (typeof options !== "object" || options === null) {
+			return {};
+		}
 
+		return {
+			select: options.select,
+			where: options.where,
+			orderBy: options.orderBy,
+			limit: options.limit,
+			offset: options.offset,
+			populate: options.populate,
+		};
+	}
 
-    return {
-      select: options.select,
-      where: options.where,
-      orderBy: options.orderBy,
-      limit: options.limit,
-      offset: options.offset,
-      populate: options.populate,
-    };
-  }
+	/**
+	 * Build ORDER BY clause
+	 */
+	private buildOrderBy(orderBy: readonly OrderByItem[]): string {
+		return orderBy
+			.map((item) => {
+				const field = this.translator.escapeIdentifier(item.field);
+				const direction = item.direction.toUpperCase();
+				let clause = `${field} ${direction}`;
 
-  /**
-   * Build ORDER BY clause
-   */
-  private buildOrderBy(orderBy: readonly OrderByItem[]): string {
-    return orderBy
-      .map((item) => {
-        const field = this.translator.escapeIdentifier(item.field);
-        const direction = item.direction.toUpperCase();
-        let clause = `${field} ${direction}`;
+				if (item.nulls) {
+					clause += ` NULLS ${item.nulls.toUpperCase()}`;
+				}
 
-        if (item.nulls) {
-          clause += ` NULLS ${item.nulls.toUpperCase()}`;
-        }
+				return clause;
+			})
+			.join(", ");
+	}
 
-        return clause;
-      })
-      .join(", ");
-  }
-
-  /**
-   * Generate aggregation SQL for SELECT clause
-   */
-  generateAggregationSQL(aggregations: readonly AggregationClause[]): string {
-    return aggregations.map((agg) => agg.sql).join(", ");
-  }
+	/**
+	 * Generate aggregation SQL for SELECT clause
+	 */
+	generateAggregationSQL(aggregations: readonly AggregationClause[]): string {
+		return aggregations.map((agg) => agg.sql).join(", ");
+	}
 }

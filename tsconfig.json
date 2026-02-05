@@ -1,69 +1,59 @@
 {
-  "compilerOptions": {
-    /* Language and Environment */
-    "target": "ES2022",
-    "lib": [
-      "ES2022"
-    ],
-    /* Modules */
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "resolveJsonModule": true,
-    "allowImportingTsExtensions": false,
-    "baseUrl": ".",
-    "paths": {
-      "forja-types": ["./packages/types/src/index.ts"],
-      "forja-types/*": ["./packages/types/src/*"],
-      "forja-core": ["./packages/core/src/index.ts"],
-      "forja-core/*": ["./packages/core/src/*"],
-      "forja-adapter-postgres": ["./packages/adapter-postgres/src/index.ts"],
-      "forja-adapter-postgres/*": ["./packages/adapter-postgres/src/*"],
-      "forja-api": ["./packages/api/src/index.ts"],
-      "forja-api/*": ["./packages/api/src/*"]
-    },
-    /* Emit */
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "outDir": "./dist",
-    "removeComments": true,
-    "importHelpers": true,
-    "downlevelIteration": true,
-    /* Interop Constraints */
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "forceConsistentCasingInFileNames": true,
-    "isolatedModules": true,
-    /* Type Checking - STRICT MODE */
-    "strict": true,
-    "noImplicitAny": true,
-    "strictNullChecks": true,
-    "strictFunctionTypes": true,
-    "strictBindCallApply": true,
-    "strictPropertyInitialization": true,
-    "noImplicitThis": true,
-    "alwaysStrict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noImplicitReturns": true,
-    "noFallthroughCasesInSwitch": true,
-    "noUncheckedIndexedAccess": true,
-    "noImplicitOverride": true,
-    "noPropertyAccessFromIndexSignature": true,
-    "allowUnusedLabels": false,
-    "allowUnreachableCode": false,
-    "exactOptionalPropertyTypes": true,
-    /* Completeness */
-    "skipLibCheck": true
-  },
-  "include": [
-    "packages/*/src/**/*",
-    "tests/**/*"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "build",
-    "examples"
-  ]
+	"compilerOptions": {
+		/* Language and Environment */
+		"target": "ES2022",
+		"lib": ["ES2022"],
+		/* Modules */
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"resolveJsonModule": true,
+		"allowImportingTsExtensions": false,
+		"baseUrl": ".",
+		"paths": {
+			"forja-types": ["./packages/types/src/index.ts"],
+			"forja-types/*": ["./packages/types/src/*"],
+			"forja-core": ["./packages/core/src/index.ts"],
+			"forja-core/*": ["./packages/core/src/*"],
+			"forja-adapter-postgres": ["./packages/adapter-postgres/src/index.ts"],
+			"forja-adapter-postgres/*": ["./packages/adapter-postgres/src/*"],
+			"forja-api": ["./packages/api/src/index.ts"],
+			"forja-api/*": ["./packages/api/src/*"]
+		},
+		/* Emit */
+		"declaration": true,
+		"declarationMap": true,
+		"sourceMap": true,
+		"outDir": "./dist",
+		"removeComments": true,
+		"importHelpers": true,
+		"downlevelIteration": true,
+		/* Interop Constraints */
+		"esModuleInterop": true,
+		"allowSyntheticDefaultImports": true,
+		"forceConsistentCasingInFileNames": true,
+		"isolatedModules": true,
+		/* Type Checking - STRICT MODE */
+		"strict": true,
+		"noImplicitAny": true,
+		"strictNullChecks": true,
+		"strictFunctionTypes": true,
+		"strictBindCallApply": true,
+		"strictPropertyInitialization": true,
+		"noImplicitThis": true,
+		"alwaysStrict": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"noImplicitReturns": true,
+		"noFallthroughCasesInSwitch": true,
+		"noUncheckedIndexedAccess": true,
+		"noImplicitOverride": true,
+		"noPropertyAccessFromIndexSignature": true,
+		"allowUnusedLabels": false,
+		"allowUnreachableCode": false,
+		"exactOptionalPropertyTypes": true,
+		/* Completeness */
+		"skipLibCheck": true
+	},
+	"include": ["packages/*/src/**/*", "tests/**/*"],
+	"exclude": ["node_modules", "dist", "build", "examples"]
 }

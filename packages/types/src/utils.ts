@@ -10,8 +10,8 @@
  * Use this instead of throwing exceptions
  */
 export type Result<T, E = Error> =
-  | { readonly success: true; readonly data: T }
-  | { readonly success: false; readonly error: E }
+	| { readonly success: true; readonly data: T }
+	| { readonly success: false; readonly error: E };
 
 /**
  * Primitive types
@@ -22,32 +22,34 @@ export type Primitive = string | number | boolean | null | undefined;
  * JSON-serializable value
  */
 export type JsonValue =
-  | string
-  | number
-  | boolean
-  | null
-  | { readonly [key: string]: JsonValue }
-  | readonly JsonValue[];
+	| string
+	| number
+	| boolean
+	| null
+	| { readonly [key: string]: JsonValue }
+	| readonly JsonValue[];
 
 /**
  * Make all properties in T optional recursively
  */
-export type DeepPartial<T> = T extends Record<string, unknown>
-  ? { [P in keyof T]?: DeepPartial<T[P]> }
-  : T;
+export type DeepPartial<T> =
+	T extends Record<string, unknown>
+		? { [P in keyof T]?: DeepPartial<T[P]> }
+		: T;
 
 /**
  * Make all properties in T readonly recursively
  */
-export type DeepReadonly<T> = T extends Record<string, unknown>
-  ? { readonly [P in keyof T]: DeepReadonly<T[P]> }
-  : T;
+export type DeepReadonly<T> =
+	T extends Record<string, unknown>
+		? { readonly [P in keyof T]: DeepReadonly<T[P]> }
+		: T;
 
 /**
  * Extract keys from T that have values of type V
  */
 export type KeysOfType<T, V> = {
-  [K in keyof T]: T[K] extends V ? K : never;
+	[K in keyof T]: T[K] extends V ? K : never;
 }[keyof T];
 
 /**
@@ -59,7 +61,7 @@ export type RequireKeys<T, K extends keyof T> = T & Required<Pick<T, K>>;
  * Make specific properties K in T optional
  */
 export type OptionalKeys<T, K extends keyof T> = Omit<T, K> &
-  Partial<Pick<T, K>>;
+	Partial<Pick<T, K>>;
 
 /**
  * Prettify type for better IDE hints
@@ -90,7 +92,7 @@ export type AnyFunction = (...args: readonly unknown[]) => unknown;
  * Constructor type
  */
 export type Constructor<T = Record<string, never>> = new (
-  ...args: readonly unknown[]
+	...args: readonly unknown[]
 ) => T;
 
 /**
@@ -102,7 +104,7 @@ export type Merge<T, U> = Omit<T, keyof U> & U;
  * Make properties mutable (remove readonly)
  */
 export type Mutable<T> = {
-  -readonly [P in keyof T]: T[P];
+	-readonly [P in keyof T]: T[P];
 };
 
 /**

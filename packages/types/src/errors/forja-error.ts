@@ -70,189 +70,189 @@
  * });
  */
 export class ForjaError<
-  TContext extends Record<string, unknown> = Record<string, unknown>,
+	TContext extends Record<string, unknown> = Record<string, unknown>,
 > extends Error {
-  /** Error code for programmatic handling */
-  readonly code: string;
+	/** Error code for programmatic handling */
+	readonly code: string;
 
-  /** When this error occurred */
-  readonly timestamp: Date;
+	/** When this error occurred */
+	readonly timestamp: Date;
 
-  /** Operation that caused the error (e.g., 'parseQuery', 'validateField') */
-  readonly operation?: string | undefined;
+	/** Operation that caused the error (e.g., 'parseQuery', 'validateField') */
+	readonly operation?: string | undefined;
 
-  /** Additional error context (error-specific details) */
-  readonly context?: TContext | undefined;
+	/** Additional error context (error-specific details) */
+	readonly context?: TContext | undefined;
 
-  /** Underlying error (for error chaining) */
-  override readonly cause?: Error | undefined;
+	/** Underlying error (for error chaining) */
+	override readonly cause?: Error | undefined;
 
-  // Client-facing fields (optional)
+	// Client-facing fields (optional)
 
-  /** User guidance - how to fix this error */
-  readonly suggestion?: string | undefined;
+	/** User guidance - how to fix this error */
+	readonly suggestion?: string | undefined;
 
-  /** Expected value/format */
-  readonly expected?: string | undefined;
+	/** Expected value/format */
+	readonly expected?: string | undefined;
 
-  /** Actual received value */
-  readonly received?: unknown;
+	/** Actual received value */
+	readonly received?: unknown;
 
-  /** Documentation link (optional, can be added later) */
-  readonly documentation?: string | undefined;
+	/** Documentation link (optional, can be added later) */
+	readonly documentation?: string | undefined;
 
-  constructor(message: string, options: ForjaErrorOptions<TContext>) {
-    super(message, { cause: options.cause });
+	constructor(message: string, options: ForjaErrorOptions<TContext>) {
+		super(message, { cause: options.cause });
 
-    this.name = this.constructor.name;
-    this.code = options.code;
-    this.timestamp = new Date();
-    this.operation = options.operation;
-    this.context = options.context;
-    this.cause = options.cause;
+		this.name = this.constructor.name;
+		this.code = options.code;
+		this.timestamp = new Date();
+		this.operation = options.operation;
+		this.context = options.context;
+		this.cause = options.cause;
 
-    // Client-facing fields
-    this.suggestion = options.suggestion;
-    this.expected = options.expected;
-    this.received = options.received;
-    this.documentation = options.documentation;
+		// Client-facing fields
+		this.suggestion = options.suggestion;
+		this.expected = options.expected;
+		this.received = options.received;
+		this.documentation = options.documentation;
 
-    // Maintain proper stack trace
-    if (Error.captureStackTrace) {
-      Error.captureStackTrace(this, this.constructor);
-    }
-  }
+		// Maintain proper stack trace
+		if (Error.captureStackTrace) {
+			Error.captureStackTrace(this, this.constructor);
+		}
+	}
 
-  /**
-   * Serialize error for JSON responses
-   * Automatically excludes undefined fields
-   */
-  toJSON(): SerializedForjaError {
-    const json: SerializedForjaError = {
-      type: this.name,
-      message: this.message,
-      code: this.code,
-      timestamp: this.timestamp.toISOString(),
-    };
+	/**
+	 * Serialize error for JSON responses
+	 * Automatically excludes undefined fields
+	 */
+	toJSON(): SerializedForjaError {
+		const json: SerializedForjaError = {
+			type: this.name,
+			message: this.message,
+			code: this.code,
+			timestamp: this.timestamp.toISOString(),
+		};
 
-    // Add optional fields only if defined
-    if (this.operation) json.operation = this.operation;
-    if (this.context) json.context = this.context;
-    if (this.suggestion) json.suggestion = this.suggestion;
-    if (this.expected) json.expected = this.expected;
-    if (this.received !== undefined) json.received = this.received;
-    if (this.documentation) json.documentation = this.documentation;
+		// Add optional fields only if defined
+		if (this.operation) json.operation = this.operation;
+		if (this.context) json.context = this.context;
+		if (this.suggestion) json.suggestion = this.suggestion;
+		if (this.expected) json.expected = this.expected;
+		if (this.received !== undefined) json.received = this.received;
+		if (this.documentation) json.documentation = this.documentation;
 
-    if (this.cause) {
-      json.cause = {
-        message: this.cause.message,
-        name: this.cause.name,
-      };
-    }
+		if (this.cause) {
+			json.cause = {
+				message: this.cause.message,
+				name: this.cause.name,
+			};
+		}
 
-    return json;
-  }
+		return json;
+	}
 
-  /**
-   * Get detailed error message (for logging)
-   */
-  toDetailedMessage(): string {
-    const parts = [
-      `[${this.name}] ${this.message}`,
-      `  Code: ${this.code}`,
-      `  Timestamp: ${this.timestamp.toISOString()}`,
-    ];
+	/**
+	 * Get detailed error message (for logging)
+	 */
+	toDetailedMessage(): string {
+		const parts = [
+			`[${this.name}] ${this.message}`,
+			`  Code: ${this.code}`,
+			`  Timestamp: ${this.timestamp.toISOString()}`,
+		];
 
-    if (this.operation) {
-      parts.push(`  Operation: ${this.operation}`);
-    }
+		if (this.operation) {
+			parts.push(`  Operation: ${this.operation}`);
+		}
 
-    if (this.received !== undefined) {
-      parts.push(`  Received: ${JSON.stringify(this.received)}`);
-    }
+		if (this.received !== undefined) {
+			parts.push(`  Received: ${JSON.stringify(this.received)}`);
+		}
 
-    if (this.expected) {
-      parts.push(`  Expected: ${this.expected}`);
-    }
+		if (this.expected) {
+			parts.push(`  Expected: ${this.expected}`);
+		}
 
-    if (this.suggestion) {
-      parts.push(`  Suggestion: ${this.suggestion}`);
-    }
+		if (this.suggestion) {
+			parts.push(`  Suggestion: ${this.suggestion}`);
+		}
 
-    if (this.documentation) {
-      parts.push(`  Documentation: ${this.documentation}`);
-    }
+		if (this.documentation) {
+			parts.push(`  Documentation: ${this.documentation}`);
+		}
 
-    if (this.cause) {
-      parts.push(`  Caused by: ${this.cause.message}`);
-    }
+		if (this.cause) {
+			parts.push(`  Caused by: ${this.cause.message}`);
+		}
 
-    return parts.join("\n");
-  }
+		return parts.join("\n");
+	}
 
-  /**
-   * Type guard - check if error is a ForjaError
-   */
-  static isForjaError(error: unknown): error is ForjaError {
-    return error instanceof ForjaError;
-  }
+	/**
+	 * Type guard - check if error is a ForjaError
+	 */
+	static isForjaError(error: unknown): error is ForjaError {
+		return error instanceof ForjaError;
+	}
 }
 
 /**
  * Options for creating ForjaError
  */
 export interface ForjaErrorOptions<
-  TContext extends Record<string, unknown> = Record<string, unknown>,
+	TContext extends Record<string, unknown> = Record<string, unknown>,
 > {
-  /**
-   * Error code (machine-readable)
-   * Each error type can define its own code constants
-   */
-  readonly code: string;
+	/**
+	 * Error code (machine-readable)
+	 * Each error type can define its own code constants
+	 */
+	readonly code: string;
 
-  /**
-   * Operation that caused the error
-   * Examples: 'parseQuery', 'validateField', 'executeQuery'
-   */
-  readonly operation?: string | undefined;
+	/**
+	 * Operation that caused the error
+	 * Examples: 'parseQuery', 'validateField', 'executeQuery'
+	 */
+	readonly operation?: string | undefined;
 
-  /**
-   * Additional error context
-   * Include relevant details for debugging
-   */
-  readonly context?: TContext | undefined;
+	/**
+	 * Additional error context
+	 * Include relevant details for debugging
+	 */
+	readonly context?: TContext | undefined;
 
-  /**
-   * Underlying error (for error chaining)
-   * Use when wrapping lower-level errors
-   */
-  readonly cause?: Error | undefined;
+	/**
+	 * Underlying error (for error chaining)
+	 * Use when wrapping lower-level errors
+	 */
+	readonly cause?: Error | undefined;
 
-  // Client-facing fields (optional)
+	// Client-facing fields (optional)
 
-  /**
-   * User guidance - how to fix this error
-   * Only for client-facing errors
-   */
-  readonly suggestion?: string | undefined;
+	/**
+	 * User guidance - how to fix this error
+	 * Only for client-facing errors
+	 */
+	readonly suggestion?: string | undefined;
 
-  /**
-   * Expected value/format
-   * Only for client-facing errors
-   */
-  readonly expected?: string | undefined;
+	/**
+	 * Expected value/format
+	 * Only for client-facing errors
+	 */
+	readonly expected?: string | undefined;
 
-  /**
-   * Actual received value
-   * Only for client-facing errors
-   */
-  readonly received?: unknown | undefined;
+	/**
+	 * Actual received value
+	 * Only for client-facing errors
+	 */
+	readonly received?: unknown | undefined;
 
-  /**
-   * Documentation link
-   * Can be added later
-   */
-  readonly documentation?: string | undefined;
+	/**
+	 * Documentation link
+	 * Can be added later
+	 */
+	readonly documentation?: string | undefined;
 }
 
 /**
@@ -260,18 +260,18 @@ export interface ForjaErrorOptions<
  * Only includes defined fields
  */
 export interface SerializedForjaError {
-  readonly type: string;
-  readonly message: string;
-  readonly code: string;
-  readonly timestamp: string;
-  operation?: string;
-  context?: Record<string, unknown>;
-  suggestion?: string;
-  expected?: string;
-  received?: unknown;
-  documentation?: string;
-  cause?: {
-    readonly message: string;
-    readonly name: string;
-  };
+	readonly type: string;
+	readonly message: string;
+	readonly code: string;
+	readonly timestamp: string;
+	operation?: string;
+	context?: Record<string, unknown>;
+	suggestion?: string;
+	expected?: string;
+	received?: unknown;
+	documentation?: string;
+	cause?: {
+		readonly message: string;
+		readonly name: string;
+	};
 }

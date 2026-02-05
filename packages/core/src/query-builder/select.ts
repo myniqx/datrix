@@ -5,7 +5,11 @@
  */
 
 import type { QuerySelect, SelectClause } from "forja-types/core/query-builder";
-import type { ForjaEntry, SchemaDefinition, SchemaRegistry } from "forja-types/core/schema";
+import type {
+	ForjaEntry,
+	SchemaDefinition,
+	SchemaRegistry,
+} from "forja-types/core/schema";
 import { throwInvalidFields, throwRelationInSelect } from "./error-helper";
 
 /**
@@ -44,67 +48,67 @@ import { throwInvalidFields, throwRelationInSelect } from "./error-helper";
  * ```
  */
 export function normalizeSelect<T extends ForjaEntry>(
-  selects: SelectClause<T>[] | undefined,
-  schema: SchemaDefinition,
-  registry: SchemaRegistry,
+	selects: SelectClause<T>[] | undefined,
+	schema: SchemaDefinition,
+	registry: SchemaRegistry,
 ): QuerySelect<T> {
-  // If no selects provided, return cached fields for "*"
-  if (!selects || selects.length === 0) {
-    return registry.getCachedSelectFields<T>(schema.name);
-  }
+	// If no selects provided, return cached fields for "*"
+	if (!selects || selects.length === 0) {
+		return registry.getCachedSelectFields<T>(schema.name);
+	}
 
-  // 1. Flatten and deduplicate using Set (preserves insertion order)
-  const allFields = new Set<keyof T>();
-  for (const select of selects) {
-    if (Array.isArray(select)) {
-      select.forEach((field) => allFields.add(field));
-    }
-  }
+	// 1. Flatten and deduplicate using Set (preserves insertion order)
+	const allFields = new Set<keyof T>();
+	for (const select of selects) {
+		if (Array.isArray(select)) {
+			select.forEach((field) => allFields.add(field));
+		}
+	}
 
-  const fieldArray = Array.from(allFields);
+	const fieldArray = Array.from(allFields);
 
-  // 2. Validate fields (BEFORE wildcard check)
-  // This ensures invalid fields are caught even if wildcard is present
-  const invalidFields: string[] = [];
-  const relationFields: string[] = [];
+	// 2. Validate fields (BEFORE wildcard check)
+	// This ensures invalid fields are caught even if wildcard is present
+	const invalidFields: string[] = [];
+	const relationFields: string[] = [];
 
-  for (const fieldName of fieldArray) {
-    const field = schema.fields[fieldName as string];
+	for (const fieldName of fieldArray) {
+		const field = schema.fields[fieldName as string];
 
-    // Field doesn't exist in schema
-    if (!field) {
-      invalidFields.push(fieldName as string);
-      continue;
-    }
+		// Field doesn't exist in schema
+		if (!field) {
+			invalidFields.push(fieldName as string);
+			continue;
+		}
 
-    // Field is a relation type
-    if (field.type === "relation") {
-      relationFields.push(fieldName as string);
-    }
-  }
+		// Field is a relation type
+		if (field.type === "relation") {
+			relationFields.push(fieldName as string);
+		}
+	}
 
-  // Throw if validation failed
-  if (invalidFields.length > 0) {
-    const availableFields = Object.keys(schema.fields).filter(
-      (name) => schema.fields[name]?.type !== "relation",
-    );
-    throwInvalidFields("select", invalidFields, availableFields);
-  }
+	// Throw if validation failed
+	if (invalidFields.length > 0) {
+		const availableFields = Object.keys(schema.fields).filter(
+			(name) => schema.fields[name]?.type !== "relation",
+		);
+		throwInvalidFields("select", invalidFields, availableFields);
+	}
 
-  if (relationFields.length > 0) {
-    throwRelationInSelect(relationFields, schema.name);
-  }
+	if (relationFields.length > 0) {
+		throwRelationInSelect(relationFields, schema.name);
+	}
 
-  // 3. Check for wildcard AFTER validation
-  // If any select is "*", return cached fields
-  if (selects.some((s) => s === "*")) {
-    return registry.getCachedSelectFields<T>(schema.name);
-  }
+	// 3. Check for wildcard AFTER validation
+	// If any select is "*", return cached fields
+	if (selects.some((s) => s === "*")) {
+		return registry.getCachedSelectFields<T>(schema.name);
+	}
 
-  // 4. Add reserved fields
-  allFields.add("id" as keyof T);
-  allFields.add("createdAt" as keyof T);
-  allFields.add("updatedAt" as keyof T);
+	// 4. Add reserved fields
+	allFields.add("id" as keyof T);
+	allFields.add("createdAt" as keyof T);
+	allFields.add("updatedAt" as keyof T);
 
-  return Array.from(allFields);
+	return Array.from(allFields);
 }

@@ -6,9 +6,9 @@
  */
 
 import type {
-  RequestContext,
-  HttpMethod,
-  ContextBuilderOptions,
+	RequestContext,
+	HttpMethod,
+	ContextBuilderOptions,
 } from "./types";
 import type { Forja } from "forja-core";
 import type { IApiPlugin } from "../interface";
@@ -22,18 +22,18 @@ import { parseQuery } from "../parser";
  * /api/users/123 -> 'users'
  */
 function extractTableNameFromPath(
-  pathname: string,
-  prefix: string,
+	pathname: string,
+	prefix: string,
 ): string | null {
-  const segments = pathname.split("/").filter(Boolean);
-  const prefixSegments = prefix.split("/").filter(Boolean);
-  const pathSegments = segments.slice(prefixSegments.length);
+	const segments = pathname.split("/").filter(Boolean);
+	const prefixSegments = prefix.split("/").filter(Boolean);
+	const pathSegments = segments.slice(prefixSegments.length);
 
-  if (pathSegments.length === 0) {
-    return null;
-  }
+	if (pathSegments.length === 0) {
+		return null;
+	}
 
-  return pathSegments[0] ?? null;
+	return pathSegments[0] ?? null;
 }
 
 /**
@@ -42,28 +42,28 @@ function extractTableNameFromPath(
  * /api/user -> null
  */
 function extractIdFromPath(pathname: string, prefix: string): string | null {
-  const segments = pathname.split("/").filter(Boolean);
-  const prefixSegments = prefix.split("/").filter(Boolean);
-  const pathSegments = segments.slice(prefixSegments.length);
+	const segments = pathname.split("/").filter(Boolean);
+	const prefixSegments = prefix.split("/").filter(Boolean);
+	const pathSegments = segments.slice(prefixSegments.length);
 
-  if (pathSegments.length < 2) {
-    return null;
-  }
+	if (pathSegments.length < 2) {
+		return null;
+	}
 
-  return pathSegments[1] ?? null;
+	return pathSegments[1] ?? null;
 }
 
 /**
  * Parser error wrapper for context building
  */
 export class ContextBuildError extends Error {
-  readonly parserError: ParserError;
+	readonly parserError: ParserError;
 
-  constructor(parserError: ParserError) {
-    super(parserError.message);
-    this.name = "ContextBuildError";
-    this.parserError = parserError;
-  }
+	constructor(parserError: ParserError) {
+		super(parserError.message);
+		this.name = "ContextBuildError";
+		this.parserError = parserError;
+	}
 }
 
 /**
@@ -81,94 +81,94 @@ export class ContextBuildError extends Error {
  * @throws {ContextBuildError} When query parsing fails
  */
 export async function buildRequestContext<TRole extends string = string>(
-  request: Request,
-  forja: Forja,
-  api: IApiPlugin<TRole>,
-  options: ContextBuilderOptions = {},
+	request: Request,
+	forja: Forja,
+	api: IApiPlugin<TRole>,
+	options: ContextBuilderOptions = {},
 ): Promise<RequestContext<TRole>> {
-  const apiPrefix = options.apiPrefix ?? "/api";
-  const url = new URL(request.url);
-  const method = request.method as HttpMethod;
-  const authEnabled = api.isAuthEnabled();
+	const apiPrefix = options.apiPrefix ?? "/api";
+	const url = new URL(request.url);
+	const method = request.method as HttpMethod;
+	const authEnabled = api.isAuthEnabled();
 
-  // 1. RESOLVE SCHEMA from URL
-  const tableName = extractTableNameFromPath(url.pathname, apiPrefix);
-  const modelName = forja.getSchemas().findModelByTableName(tableName);
-  const schema = modelName ? (forja.getSchema(modelName) ?? null) : null;
+	// 1. RESOLVE SCHEMA from URL
+	const tableName = extractTableNameFromPath(url.pathname, apiPrefix);
+	const modelName = forja.getSchemas().findModelByTableName(tableName);
+	const schema = modelName ? (forja.getSchema(modelName) ?? null) : null;
 
-  // 2. DERIVE ACTION from HTTP method
-  const action = methodToAction(method);
+	// 2. DERIVE ACTION from HTTP method
+	const action = methodToAction(method);
 
-  // 3. EXTRACT ID from URL
-  const id = extractIdFromPath(url.pathname, apiPrefix);
+	// 3. EXTRACT ID from URL
+	const id = extractIdFromPath(url.pathname, apiPrefix);
 
-  // 4. AUTHENTICATE (only if auth is enabled)
-  let user = null;
-  if (authEnabled && api.authManager) {
-    const authResult = await api.authManager.authenticate(request);
-    user = authResult?.user ?? null;
-  }
+	// 4. AUTHENTICATE (only if auth is enabled)
+	let user = null;
+	if (authEnabled && api.authManager) {
+		const authResult = await api.authManager.authenticate(request);
+		user = authResult?.user ?? null;
+	}
 
-  // 5. PARSE QUERY (from query string - works for all HTTP methods)
-  let query = null;
-  const queryParams: Record<string, string | string[]> = {};
-  url.searchParams.forEach((value, key) => {
-    const existing = queryParams[key];
-    if (existing !== undefined) {
-      if (Array.isArray(existing)) {
-        existing.push(value);
-      } else {
-        queryParams[key] = [existing, value];
-      }
-    } else {
-      queryParams[key] = value;
-    }
-  });
+	// 5. PARSE QUERY (from query string - works for all HTTP methods)
+	let query = null;
+	const queryParams: Record<string, string | string[]> = {};
+	url.searchParams.forEach((value, key) => {
+		const existing = queryParams[key];
+		if (existing !== undefined) {
+			if (Array.isArray(existing)) {
+				existing.push(value);
+			} else {
+				queryParams[key] = [existing, value];
+			}
+		} else {
+			queryParams[key] = value;
+		}
+	});
 
-  if (Object.keys(queryParams).length > 0) {
-    const parseResult = parseQuery(queryParams);
+	if (Object.keys(queryParams).length > 0) {
+		const parseResult = parseQuery(queryParams);
 
-    if (!parseResult.success) {
-      // Throw wrapped error so unified handler can catch and format it
-      throw new ContextBuildError(parseResult.error);
-    }
+		if (!parseResult.success) {
+			// Throw wrapped error so unified handler can catch and format it
+			throw new ContextBuildError(parseResult.error);
+		}
 
-    query = parseResult.data;
-  }
+		query = parseResult.data;
+	}
 
-  // 6. PARSE BODY (for POST/PATCH/PUT requests)
-  let body = null;
-  if (["POST", "PATCH", "PUT"].includes(method)) {
-    try {
-      const contentType = request.headers.get("content-type");
-      if (contentType?.includes("application/json")) {
-        body = (await request.json()) as Record<string, unknown>;
-      }
-    } catch {
-      // Invalid JSON, body stays null
-    }
-  }
+	// 6. PARSE BODY (for POST/PATCH/PUT requests)
+	let body = null;
+	if (["POST", "PATCH", "PUT"].includes(method)) {
+		try {
+			const contentType = request.headers.get("content-type");
+			if (contentType?.includes("application/json")) {
+				body = (await request.json()) as Record<string, unknown>;
+			}
+		} catch {
+			// Invalid JSON, body stays null
+		}
+	}
 
-  // 7. EXTRACT HEADERS
-  const headers: Record<string, string> = {};
-  request.headers.forEach((value, key) => {
-    headers[key] = value;
-  });
+	// 7. EXTRACT HEADERS
+	const headers: Record<string, string> = {};
+	request.headers.forEach((value, key) => {
+		headers[key] = value;
+	});
 
-  // 8. BUILD UNIFIED CONTEXT
-  return {
-    schema,
-    action,
-    id,
-    method,
-    query,
-    body,
-    headers,
-    url,
-    request,
-    user,
-    forja,
-    api,
-    authEnabled,
-  };
+	// 8. BUILD UNIFIED CONTEXT
+	return {
+		schema,
+		action,
+		id,
+		method,
+		query,
+		body,
+		headers,
+		url,
+		request,
+		user,
+		forja,
+		api,
+		authEnabled,
+	};
 }

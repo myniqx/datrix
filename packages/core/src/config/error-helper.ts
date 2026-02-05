@@ -6,8 +6,8 @@
  */
 
 import {
-  ForjaConfigError,
-  ForjaConfigValidationError,
+	ForjaConfigError,
+	ForjaConfigValidationError,
 } from "forja-types/errors";
 
 /**
@@ -21,11 +21,11 @@ import {
  * ```
  */
 export function throwConfigNotFound(configPath: string): never {
-  throw new ForjaConfigError(`Config file not found: ${configPath}`, {
-    code: "CONFIG_NOT_FOUND",
-    context: { configPath },
-    suggestion: `Create a config file at ${configPath} or specify a different path`,
-  });
+	throw new ForjaConfigError(`Config file not found: ${configPath}`, {
+		code: "CONFIG_NOT_FOUND",
+		context: { configPath },
+		suggestion: `Create a config file at ${configPath} or specify a different path`,
+	});
 }
 
 /**
@@ -41,23 +41,23 @@ export function throwConfigNotFound(configPath: string): never {
  * ```
  */
 export function throwConfigInvalidType(
-  field: string,
-  expected: string,
-  received: unknown,
+	field: string,
+	expected: string,
+	received: unknown,
 ): never {
-  const receivedType = received === null ? "null" : typeof received;
+	const receivedType = received === null ? "null" : typeof received;
 
-  throw new ForjaConfigError(
-    `Config.${field} has incorrect type. Expected ${expected}, got ${receivedType}`,
-    {
-      code: "CONFIG_INVALID_TYPE",
-      field,
-      context: { receivedType, expectedType: expected },
-      suggestion: `Ensure Config.${field} is of type ${expected}`,
-      expected,
-      received,
-    },
-  );
+	throw new ForjaConfigError(
+		`Config.${field} has incorrect type. Expected ${expected}, got ${receivedType}`,
+		{
+			code: "CONFIG_INVALID_TYPE",
+			field,
+			context: { receivedType, expectedType: expected },
+			suggestion: `Ensure Config.${field} is of type ${expected}`,
+			expected,
+			received,
+		},
+	);
 }
 
 /**
@@ -71,12 +71,12 @@ export function throwConfigInvalidType(
  * ```
  */
 export function throwConfigRequired(field: string): never {
-  throw new ForjaConfigError(`Config must have "${field}" property`, {
-    code: "CONFIG_REQUIRED_FIELD",
-    field,
-    suggestion: `Add the "${field}" property to your config`,
-    expected: `Config.${field}`,
-  });
+	throw new ForjaConfigError(`Config must have "${field}" property`, {
+		code: "CONFIG_REQUIRED_FIELD",
+		field,
+		suggestion: `Add the "${field}" property to your config`,
+		expected: `Config.${field}`,
+	});
 }
 
 /**
@@ -93,21 +93,20 @@ export function throwConfigRequired(field: string): never {
  * ```
  */
 export function throwConfigInvalidValue(
-  field: string,
-  message: string,
-  received: unknown,
-  validOptions?: readonly string[],
+	field: string,
+	message: string,
+	received: unknown,
+	validOptions?: readonly string[],
 ): never {
-  throw new ForjaConfigError(`Config.${field} ${message}`, {
-    code: "CONFIG_INVALID_VALUE",
-    field,
-    context: validOptions ? { validOptions } : undefined,
-    suggestion:
-      validOptions ?
-        `Use one of: ${validOptions.join(", ")}`
-        : `Fix the value for Config.${field}`,
-    received,
-  });
+	throw new ForjaConfigError(`Config.${field} ${message}`, {
+		code: "CONFIG_INVALID_VALUE",
+		field,
+		context: validOptions ? { validOptions } : undefined,
+		suggestion: validOptions
+			? `Use one of: ${validOptions.join(", ")}`
+			: `Fix the value for Config.${field}`,
+		received,
+	});
 }
 
 /**
@@ -121,11 +120,11 @@ export function throwConfigInvalidValue(
  * ```
  */
 export function throwConfigEmpty(field: string): never {
-  throw new ForjaConfigError(`Config.${field} cannot be empty`, {
-    code: "CONFIG_EMPTY_VALUE",
-    field,
-    suggestion: `Provide at least one item in Config.${field}`,
-  });
+	throw new ForjaConfigError(`Config.${field} cannot be empty`, {
+		code: "CONFIG_EMPTY_VALUE",
+		field,
+		suggestion: `Provide at least one item in Config.${field}`,
+	});
 }
 
 /**
@@ -142,20 +141,20 @@ export function throwConfigEmpty(field: string): never {
  * ```
  */
 export function throwConfigArrayItem(
-  field: string,
-  index: number,
-  message: string,
-  received?: unknown,
+	field: string,
+	index: number,
+	message: string,
+	received?: unknown,
 ): never {
-  const fullField = `${field}[${index}]`;
+	const fullField = `${field}[${index}]`;
 
-  throw new ForjaConfigError(`Config.${fullField} ${message}`, {
-    code: "CONFIG_INVALID_VALUE",
-    field: fullField,
-    context: { index },
-    suggestion: `Fix the item at index ${index} in Config.${field}`,
-    received,
-  });
+	throw new ForjaConfigError(`Config.${fullField} ${message}`, {
+		code: "CONFIG_INVALID_VALUE",
+		field: fullField,
+		context: { index },
+		suggestion: `Fix the item at index ${index} in Config.${field}`,
+		received,
+	});
 }
 
 /**
@@ -173,10 +172,10 @@ export function throwConfigArrayItem(
  * ```
  */
 export function throwConfigMultiple(
-  errors: readonly string[],
-  suggestion?: string,
+	errors: readonly string[],
+	suggestion?: string,
 ): never {
-  throw new ForjaConfigValidationError(errors, suggestion);
+	throw new ForjaConfigValidationError(errors, suggestion);
 }
 
 /**
@@ -192,23 +191,24 @@ export function throwConfigMultiple(
  * ```
  */
 export function throwConfigFieldType(
-  field: string,
-  expectedType: "object" | "array" | "string" | "boolean" | "number",
-  received: unknown,
+	field: string,
+	expectedType: "object" | "array" | "string" | "boolean" | "number",
+	received: unknown,
 ): never {
-  const receivedType =
-    Array.isArray(received) ? "array"
-      : received === null ? "null"
-        : typeof received;
+	const receivedType = Array.isArray(received)
+		? "array"
+		: received === null
+			? "null"
+			: typeof received;
 
-  throw new ForjaConfigError(`Config.${field} must be ${expectedType}`, {
-    code: "CONFIG_INVALID_TYPE",
-    field,
-    context: { receivedType, expectedType },
-    suggestion: `Ensure Config.${field} is ${expectedType}`,
-    expected: expectedType,
-    received,
-  });
+	throw new ForjaConfigError(`Config.${field} must be ${expectedType}`, {
+		code: "CONFIG_INVALID_TYPE",
+		field,
+		context: { receivedType, expectedType },
+		suggestion: `Ensure Config.${field} is ${expectedType}`,
+		expected: expectedType,
+		received,
+	});
 }
 
 /**
@@ -223,10 +223,10 @@ export function throwConfigFieldType(
  * ```
  */
 export function throwConfigBooleanField(
-  field: string,
-  received: unknown,
+	field: string,
+	received: unknown,
 ): never {
-  throwConfigFieldType(field, "boolean", received);
+	throwConfigFieldType(field, "boolean", received);
 }
 
 /**
@@ -241,8 +241,8 @@ export function throwConfigBooleanField(
  * ```
  */
 export function throwConfigStringField(
-  field: string,
-  received: unknown,
+	field: string,
+	received: unknown,
 ): never {
-  throwConfigFieldType(field, "string", received);
+	throwConfigFieldType(field, "string", received);
 }

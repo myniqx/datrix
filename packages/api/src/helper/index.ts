@@ -64,43 +64,43 @@ import { ForjaError } from "forja-types/errors";
  * ```
  */
 export async function handleRequest(
-  forja: Forja,
-  request: Request,
+	forja: Forja,
+	request: Request,
 ): Promise<Response> {
-  try {
-    // 1. Check if API is configured
-    const api = forja.getPlugin("api");
+	try {
+		// 1. Check if API is configured
+		const api = forja.getPlugin("api");
 
-    if (!api || !(api instanceof ApiPlugin)) {
-      const errRes = handlerError.internalError(
-        'API is not configured in forja.config.ts. Add "api: new ForjaApi({ ... })" to your configuration.',
-      );
-      return forjaErrorResponse(errRes);
-    }
+		if (!api || !(api instanceof ApiPlugin)) {
+			const errRes = handlerError.internalError(
+				'API is not configured in forja.config.ts. Add "api: new ForjaApi({ ... })" to your configuration.',
+			);
+			return forjaErrorResponse(errRes);
+		}
 
-    // 2. Check if API is enabled (api.enabled = false)
-    if (!api.isEnabled()) {
-      const errRes = handlerError.internalError(
-        'API is disabled. Set "enabled: true" in ForjaApi configuration.',
-      );
-      return forjaErrorResponse(errRes);
-    }
+		// 2. Check if API is enabled (api.enabled = false)
+		if (!api.isEnabled()) {
+			const errRes = handlerError.internalError(
+				'API is disabled. Set "enabled: true" in ForjaApi configuration.',
+			);
+			return forjaErrorResponse(errRes);
+		}
 
-    // 3. Handle request (all logic inside ForjaApi)
-    return await api.handleRequest(request, forja);
-  } catch (error) {
-    if (error instanceof ForjaError) {
-      return forjaErrorResponse({ error, success: false });
-    }
+		// 3. Handle request (all logic inside ForjaApi)
+		return await api.handleRequest(request, forja);
+	} catch (error) {
+		if (error instanceof ForjaError) {
+			return forjaErrorResponse({ error, success: false });
+		}
 
-    // 4. Catch unexpected errors (should rarely happen)
-    console.error("[Forja API] Unexpected error:", error);
-    const message =
-      error instanceof Error ? error.message : "Internal server error";
-    const errRes = handlerError.internalError(
-      message,
-      error instanceof Error ? error : undefined,
-    );
-    return forjaErrorResponse(errRes);
-  }
+		// 4. Catch unexpected errors (should rarely happen)
+		console.error("[Forja API] Unexpected error:", error);
+		const message =
+			error instanceof Error ? error.message : "Internal server error";
+		const errRes = handlerError.internalError(
+			message,
+			error instanceof Error ? error : undefined,
+		);
+		return forjaErrorResponse(errRes);
+	}
 }

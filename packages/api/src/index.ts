@@ -25,19 +25,18 @@
  */
 
 // Main exports - Plugin API
-export { ApiPlugin } from './api';
+export { ApiPlugin } from "./api";
 
-export { handleRequest } from './helper';
-
+export { handleRequest } from "./helper";
 
 // Middleware module (auth, context, permission)
-export * from './middleware';
+export * from "./middleware";
 
 // Parser module (query string parsing)
-export * from './parser';
+export * from "./parser";
 
 // Serializer module (response serialization)
-export * from './serializer';
+export * from "./serializer";
 
 // Handler module (CRUD and auth handlers)
-export * from './handler';
+export * from "./handler";

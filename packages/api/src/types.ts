@@ -28,60 +28,60 @@ import type { AuthConfig } from "./auth/types";
  * ```
  */
 export interface ApiConfig<TRole extends string = string> extends Record<
-  string,
-  unknown
+	string,
+	unknown
 > {
-  /**
-   * Enable API routes
-   * @default true
-   */
-  readonly enabled?: boolean;
+	/**
+	 * Enable API routes
+	 * @default true
+	 */
+	readonly enabled?: boolean;
 
-  /**
-   * API route prefix
-   * @default '/api'
-   */
-  readonly prefix?: string;
+	/**
+	 * API route prefix
+	 * @default '/api'
+	 */
+	readonly prefix?: string;
 
-  /**
-   * Default pagination page size
-   * @default 25
-   */
-  readonly defaultPageSize?: number;
+	/**
+	 * Default pagination page size
+	 * @default 25
+	 */
+	readonly defaultPageSize?: number;
 
-  /**
-   * Maximum allowed page size
-   * @default 100
-   */
-  readonly maxPageSize?: number;
+	/**
+	 * Maximum allowed page size
+	 * @default 100
+	 */
+	readonly maxPageSize?: number;
 
-  /**
-   * Maximum depth for nested relation population
-   * @default 5
-   */
-  readonly maxPopulateDepth?: number;
+	/**
+	 * Maximum depth for nested relation population
+	 * @default 5
+	 */
+	readonly maxPopulateDepth?: number;
 
-  /**
-   * Authentication configuration
-   *
-   * When defined, authentication is enabled.
-   * When undefined, authentication is disabled.
-   *
-   * Contains: roles, defaultRole, defaultPermission, jwt/session config
-   */
-  readonly auth?: AuthConfig<TRole>;
+	/**
+	 * Authentication configuration
+	 *
+	 * When defined, authentication is enabled.
+	 * When undefined, authentication is disabled.
+	 *
+	 * Contains: roles, defaultRole, defaultPermission, jwt/session config
+	 */
+	readonly auth?: AuthConfig<TRole>;
 
-  readonly disabled?: boolean;
-  /**
-   * Auto-generate CRUD routes for schemas
-   * @default true
-   */
-  readonly autoRoutes?: boolean;
+	readonly disabled?: boolean;
+	/**
+	 * Auto-generate CRUD routes for schemas
+	 * @default true
+	 */
+	readonly autoRoutes?: boolean;
 
-  /**
-   * Exclude schemas from auto-generated routes
-   * 'auth' is always reserved for authentication endpoints
-   * @default []
-   */
-  readonly excludeSchemas?: readonly string[];
+	/**
+	 * Exclude schemas from auto-generated routes
+	 * 'auth' is always reserved for authentication endpoints
+	 * @default []
+	 */
+	readonly excludeSchemas?: readonly string[];
 }

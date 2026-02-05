@@ -5,8 +5,8 @@
  * These classes encapsulate specific functionality domains.
  */
 
-export { CrudOperations } from './crud';
-export { SchemaHelpers } from './schema';
+export { CrudOperations } from "./crud";
+export { SchemaHelpers } from "./schema";
 
 // TODO: Add when implemented
 // export { QueryBuilder } from './query';

@@ -5,7 +5,11 @@
  */
 
 // Export schema registry
-export { SchemaRegistry } from './registry';
+export { SchemaRegistry } from "./registry";
 
 // Export type inference utilities
-export { inferFieldType, getRequiredFields, getOptionalFields } from './inference';
+export {
+	inferFieldType,
+	getRequiredFields,
+	getOptionalFields,
+} from "./inference";

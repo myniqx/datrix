@@ -12,8 +12,8 @@ export * from "./serializer";
  * Authenticated user
  */
 export interface AuthUser {
-  readonly id: number;
-  readonly email: string;
-  readonly role: string;
-  readonly [key: string]: unknown;
+	readonly id: number;
+	readonly email: string;
+	readonly role: string;
+	readonly [key: string]: unknown;
 }

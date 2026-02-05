@@ -40,17 +40,17 @@ let schemaCreated = false;
  * - Error handling
  */
 async function handler(request: Request): Promise<Response> {
-  const instance = await forja();
-  if (!schemaCreated) {
-    // Create tables
-    const adapter = instance.getAdapter();
-    for (const schema of instance.getSchemas().getAll()) {
-      try {
-        await adapter.createTable(schema);
-      } catch { }
-    }
-  }
-  return handleRequest(instance, request);
+	const instance = await forja();
+	if (!schemaCreated) {
+		// Create tables
+		const adapter = instance.getAdapter();
+		for (const schema of instance.getSchemas().getAll()) {
+			try {
+				await adapter.createTable(schema);
+			} catch {}
+		}
+	}
+	return handleRequest(instance, request);
 }
 
 // Export for all HTTP methods

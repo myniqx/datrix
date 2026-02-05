@@ -6,8 +6,8 @@
  */
 
 import {
-  ValidationError,
-  ValidationErrorCode,
+	ValidationError,
+	ValidationErrorCode,
 } from "forja-types/core/validator";
 import { ForjaValidationError } from "forja-types/errors/core/validation";
 
@@ -15,304 +15,305 @@ import { ForjaValidationError } from "forja-types/errors/core/validation";
  * Create a validation error
  */
 export function createValidationError(
-  field: string,
-  code: ValidationErrorCode,
-  message: string,
-  options?: {
-    value?: unknown;
-    expected?: unknown;
-  },
+	field: string,
+	code: ValidationErrorCode,
+	message: string,
+	options?: {
+		value?: unknown;
+		expected?: unknown;
+	},
 ): ValidationError {
-  return {
-    field,
-    code,
-    message,
-    value: options?.value,
-    expected: options?.expected,
-  };
+	return {
+		field,
+		code,
+		message,
+		value: options?.value,
+		expected: options?.expected,
+	};
 }
 
 /**
  * Format error message with context
  */
 export function formatErrorMessage(
-  code: ValidationErrorCode,
-  field: string,
-  options?: {
-    min?: number;
-    max?: number;
-    expected?: unknown;
-    actual?: unknown;
-    pattern?: RegExp;
-  },
+	code: ValidationErrorCode,
+	field: string,
+	options?: {
+		min?: number;
+		max?: number;
+		expected?: unknown;
+		actual?: unknown;
+		pattern?: RegExp;
+	},
 ): string {
-  switch (code) {
-    case "REQUIRED":
-      return `Field '${field}' is required`;
+	switch (code) {
+		case "REQUIRED":
+			return `Field '${field}' is required`;
 
-    case "TYPE_MISMATCH":
-      return `Field '${field}' has incorrect type. Expected ${options?.expected}, got ${options?.actual}`;
+		case "TYPE_MISMATCH":
+			return `Field '${field}' has incorrect type. Expected ${options?.expected}, got ${options?.actual}`;
 
-    case "MIN_LENGTH":
-      return `Field '${field}' must be at least ${options?.min} characters long`;
+		case "MIN_LENGTH":
+			return `Field '${field}' must be at least ${options?.min} characters long`;
 
-    case "MAX_LENGTH":
-      return `Field '${field}' must be at most ${options?.max} characters long`;
+		case "MAX_LENGTH":
+			return `Field '${field}' must be at most ${options?.max} characters long`;
 
-    case "MIN_VALUE":
-      return `Field '${field}' must be at least ${options?.min}`;
+		case "MIN_VALUE":
+			return `Field '${field}' must be at least ${options?.min}`;
 
-    case "MAX_VALUE":
-      return `Field '${field}' must be at most ${options?.max}`;
+		case "MAX_VALUE":
+			return `Field '${field}' must be at most ${options?.max}`;
 
-    case "MIN_ITEMS":
-      return `Field '${field}' must have at least ${options?.min} items`;
+		case "MIN_ITEMS":
+			return `Field '${field}' must have at least ${options?.min} items`;
 
-    case "MAX_ITEMS":
-      return `Field '${field}' must have at most ${options?.max} items`;
+		case "MAX_ITEMS":
+			return `Field '${field}' must have at most ${options?.max} items`;
 
-    case "PATTERN":
-      return `Field '${field}' does not match required pattern${options?.pattern ? `: ${options.pattern}` : ""
-        }`;
+		case "PATTERN":
+			return `Field '${field}' does not match required pattern${
+				options?.pattern ? `: ${options.pattern}` : ""
+			}`;
 
-    case "UNIQUE":
-      return `Field '${field}' must be unique`;
+		case "UNIQUE":
+			return `Field '${field}' must be unique`;
 
-    case "INVALID_ENUM":
-      return `Field '${field}' must be one of: ${options?.expected}`;
+		case "INVALID_ENUM":
+			return `Field '${field}' must be one of: ${options?.expected}`;
 
-    case "INVALID_FORMAT":
-      return `Field '${field}' has invalid format`;
+		case "INVALID_FORMAT":
+			return `Field '${field}' has invalid format`;
 
-    case "INVALID_DATE":
-      return `Field '${field}' is not a valid date`;
+		case "INVALID_DATE":
+			return `Field '${field}' is not a valid date`;
 
-    case "CUSTOM":
-      return `Field '${field}' validation failed`;
+		case "CUSTOM":
+			return `Field '${field}' validation failed`;
 
-    default:
-      return `Field '${field}' validation failed`;
-  }
+		default:
+			return `Field '${field}' validation failed`;
+	}
 }
 
 /**
  * Combine multiple validation errors
  */
 export function combineErrors(
-  ...errorArrays: readonly (readonly ValidationError[])[]
+	...errorArrays: readonly (readonly ValidationError[])[]
 ): readonly ValidationError[] {
-  const combined: ValidationError[] = [];
+	const combined: ValidationError[] = [];
 
-  for (const errors of errorArrays) {
-    combined.push(...errors);
-  }
+	for (const errors of errorArrays) {
+		combined.push(...errors);
+	}
 
-  return combined;
+	return combined;
 }
 
 /**
  * Group errors by field
  */
 export function groupErrorsByField(
-  errors: readonly ValidationError[],
+	errors: readonly ValidationError[],
 ): Record<string, readonly ValidationError[]> {
-  const grouped: Record<string, ValidationError[]> = {};
+	const grouped: Record<string, ValidationError[]> = {};
 
-  for (const error of errors) {
-    if (!grouped[error.field]) {
-      grouped[error.field] = [];
-    }
-    grouped[error.field]!.push(error);
-  }
+	for (const error of errors) {
+		if (!grouped[error.field]) {
+			grouped[error.field] = [];
+		}
+		grouped[error.field]!.push(error);
+	}
 
-  return grouped;
+	return grouped;
 }
 
 /**
  * Get first error for each field
  */
 export function getFirstErrorPerField(
-  errors: readonly ValidationError[],
+	errors: readonly ValidationError[],
 ): Record<string, ValidationError> {
-  const firstErrors: Record<string, ValidationError> = {};
+	const firstErrors: Record<string, ValidationError> = {};
 
-  for (const error of errors) {
-    if (!firstErrors[error.field]) {
-      firstErrors[error.field] = error;
-    }
-  }
+	for (const error of errors) {
+		if (!firstErrors[error.field]) {
+			firstErrors[error.field] = error;
+		}
+	}
 
-  return firstErrors;
+	return firstErrors;
 }
 
 /**
  * Filter errors by code
  */
 export function filterErrorsByCode(
-  errors: readonly ValidationError[],
-  code: ValidationErrorCode,
+	errors: readonly ValidationError[],
+	code: ValidationErrorCode,
 ): readonly ValidationError[] {
-  return errors.filter((error) => error.code === code);
+	return errors.filter((error) => error.code === code);
 }
 
 /**
  * Filter errors by field
  */
 export function filterErrorsByField(
-  errors: readonly ValidationError[],
-  field: string,
+	errors: readonly ValidationError[],
+	field: string,
 ): readonly ValidationError[] {
-  return errors.filter((error) => error.field === field);
+	return errors.filter((error) => error.field === field);
 }
 
 /**
  * Check if errors contain specific code
  */
 export function hasErrorCode(
-  errors: readonly ValidationError[],
-  code: ValidationErrorCode,
+	errors: readonly ValidationError[],
+	code: ValidationErrorCode,
 ): boolean {
-  return errors.some((error) => error.code === code);
+	return errors.some((error) => error.code === code);
 }
 
 /**
  * Check if errors contain specific field
  */
 export function hasErrorForField(
-  errors: readonly ValidationError[],
-  field: string,
+	errors: readonly ValidationError[],
+	field: string,
 ): boolean {
-  return errors.some((error) => error.field === field);
+	return errors.some((error) => error.field === field);
 }
 
 /**
  * Format errors as human-readable string
  */
 export function formatErrors(errors: readonly ValidationError[]): string {
-  if (errors.length === 0) {
-    return "No validation errors";
-  }
+	if (errors.length === 0) {
+		return "No validation errors";
+	}
 
-  const messages = errors.map(
-    (error) => `  - ${error.field}: ${error.message} (${error.code})`,
-  );
+	const messages = errors.map(
+		(error) => `  - ${error.field}: ${error.message} (${error.code})`,
+	);
 
-  return `Validation failed with ${errors.length} error(s):\n${messages.join(
-    "\n",
-  )}`;
+	return `Validation failed with ${errors.length} error(s):\n${messages.join(
+		"\n",
+	)}`;
 }
 
 /**
  * Format errors as JSON
  */
 export function formatErrorsAsJSON(errors: readonly ValidationError[]): string {
-  return JSON.stringify(errors, null, 2);
+	return JSON.stringify(errors, null, 2);
 }
 
 /**
  * Convert errors to plain object (for API responses)
  */
 export function errorsToPlainObject(
-  errors: readonly ValidationError[],
+	errors: readonly ValidationError[],
 ): Record<string, string[]> {
-  const plain: Record<string, string[]> = {};
+	const plain: Record<string, string[]> = {};
 
-  for (const error of errors) {
-    if (!plain[error.field]) {
-      plain[error.field] = [];
-    }
-    plain[error.field]!.push(error.message);
-  }
+	for (const error of errors) {
+		if (!plain[error.field]) {
+			plain[error.field] = [];
+		}
+		plain[error.field]!.push(error.message);
+	}
 
-  return plain;
+	return plain;
 }
 
 /**
  * Validation error collection class (immutable)
  */
 export class ValidationErrorCollection {
-  private readonly errors: readonly ValidationError[];
+	private readonly errors: readonly ValidationError[];
 
-  constructor(errors: readonly ValidationError[] = []) {
-    this.errors = Object.freeze([...errors]);
-  }
+	constructor(errors: readonly ValidationError[] = []) {
+		this.errors = Object.freeze([...errors]);
+	}
 
-  /**
-   * Add an error (returns new instance)
-   */
-  add(error: ValidationError): ValidationErrorCollection {
-    return new ValidationErrorCollection([...this.errors, error]);
-  }
+	/**
+	 * Add an error (returns new instance)
+	 */
+	add(error: ValidationError): ValidationErrorCollection {
+		return new ValidationErrorCollection([...this.errors, error]);
+	}
 
-  /**
-   * Add multiple errors (returns new instance)
-   */
-  addMany(errors: readonly ValidationError[]): ValidationErrorCollection {
-    return new ValidationErrorCollection([...this.errors, ...errors]);
-  }
+	/**
+	 * Add multiple errors (returns new instance)
+	 */
+	addMany(errors: readonly ValidationError[]): ValidationErrorCollection {
+		return new ValidationErrorCollection([...this.errors, ...errors]);
+	}
 
-  /**
-   * Get all errors
-   */
-  getAll(): readonly ValidationError[] {
-    return this.errors;
-  }
+	/**
+	 * Get all errors
+	 */
+	getAll(): readonly ValidationError[] {
+		return this.errors;
+	}
 
-  /**
-   * Get errors by field
-   */
-  getByField(field: string): readonly ValidationError[] {
-    return filterErrorsByField(this.errors, field);
-  }
+	/**
+	 * Get errors by field
+	 */
+	getByField(field: string): readonly ValidationError[] {
+		return filterErrorsByField(this.errors, field);
+	}
 
-  /**
-   * Get errors by code
-   */
-  getByCode(code: ValidationErrorCode): readonly ValidationError[] {
-    return filterErrorsByCode(this.errors, code);
-  }
+	/**
+	 * Get errors by code
+	 */
+	getByCode(code: ValidationErrorCode): readonly ValidationError[] {
+		return filterErrorsByCode(this.errors, code);
+	}
 
-  /**
-   * Check if has errors
-   */
-  hasErrors(): boolean {
-    return this.errors.length > 0;
-  }
+	/**
+	 * Check if has errors
+	 */
+	hasErrors(): boolean {
+		return this.errors.length > 0;
+	}
 
-  /**
-   * Get error count
-   */
-  count(): number {
-    return this.errors.length;
-  }
+	/**
+	 * Get error count
+	 */
+	count(): number {
+		return this.errors.length;
+	}
 
-  /**
-   * Format as string
-   */
-  toString(): string {
-    return formatErrors(this.errors);
-  }
+	/**
+	 * Format as string
+	 */
+	toString(): string {
+		return formatErrors(this.errors);
+	}
 
-  /**
-   * Format as JSON
-   */
-  toJSON(): readonly ValidationError[] {
-    return this.errors;
-  }
+	/**
+	 * Format as JSON
+	 */
+	toJSON(): readonly ValidationError[] {
+		return this.errors;
+	}
 
-  /**
-   * Group by field
-   */
-  groupByField(): Record<string, readonly ValidationError[]> {
-    return groupErrorsByField(this.errors);
-  }
+	/**
+	 * Group by field
+	 */
+	groupByField(): Record<string, readonly ValidationError[]> {
+		return groupErrorsByField(this.errors);
+	}
 
-  /**
-   * Get first error per field
-   */
-  getFirstPerField(): Record<string, ValidationError> {
-    return getFirstErrorPerField(this.errors);
-  }
+	/**
+	 * Get first error per field
+	 */
+	getFirstPerField(): Record<string, ValidationError> {
+		return getFirstErrorPerField(this.errors);
+	}
 }
 
 /**
@@ -338,23 +339,23 @@ export class ValidationErrorCollection {
  * ```
  */
 export function throwValidationMultiple(
-  model: string,
-  errors: readonly ValidationError[],
-  suggestion?: string,
+	model: string,
+	errors: readonly ValidationError[],
+	suggestion?: string,
 ): never {
-  const errorMessages = errors
-    .map((e) => `${e.field}: ${e.message}`)
-    .join(", ");
+	const errorMessages = errors
+		.map((e) => `${e.field}: ${e.message}`)
+		.join(", ");
 
-  throw new ForjaValidationError(
-    `Validation failed for ${model}: ${errorMessages}`,
-    {
-      model,
-      errors,
-      operation: "validation:data",
-      suggestion,
-    },
-  );
+	throw new ForjaValidationError(
+		`Validation failed for ${model}: ${errorMessages}`,
+		{
+			model,
+			errors,
+			operation: "validation:data",
+			suggestion,
+		},
+	);
 }
 
 /**
@@ -372,27 +373,27 @@ export function throwValidationMultiple(
  * ```
  */
 export function throwValidationSingle(
-  model: string,
-  field: string,
-  code: ValidationErrorCode,
-  message: string,
-  options?: {
-    value?: unknown;
-    expected?: unknown;
-    suggestion?: string;
-  },
+	model: string,
+	field: string,
+	code: ValidationErrorCode,
+	message: string,
+	options?: {
+		value?: unknown;
+		expected?: unknown;
+		suggestion?: string;
+	},
 ): never {
-  const error = createValidationError(field, code, message, {
-    value: options?.value,
-    expected: options?.expected,
-  });
+	const error = createValidationError(field, code, message, {
+		value: options?.value,
+		expected: options?.expected,
+	});
 
-  throw new ForjaValidationError(`Validation failed for ${model}: ${message}`, {
-    model,
-    errors: [error],
-    operation: "validation:field",
-    suggestion: options?.suggestion,
-  });
+	throw new ForjaValidationError(`Validation failed for ${model}: ${message}`, {
+		model,
+		errors: [error],
+		operation: "validation:field",
+		suggestion: options?.suggestion,
+	});
 }
 
 /**
@@ -407,10 +408,10 @@ export function throwValidationSingle(
  * ```
  */
 export function throwValidationRequired(model: string, field: string): never {
-  const message = formatErrorMessage("REQUIRED", field);
-  throwValidationSingle(model, field, "REQUIRED", message, {
-    suggestion: `Provide a value for the '${field}' field`,
-  });
+	const message = formatErrorMessage("REQUIRED", field);
+	throwValidationSingle(model, field, "REQUIRED", message, {
+		suggestion: `Provide a value for the '${field}' field`,
+	});
 }
 
 /**
@@ -427,22 +428,22 @@ export function throwValidationRequired(model: string, field: string): never {
  * ```
  */
 export function throwValidationTypeMismatch(
-  model: string,
-  field: string,
-  expected: string,
-  received: unknown,
+	model: string,
+	field: string,
+	expected: string,
+	received: unknown,
 ): never {
-  const actualType = typeof received;
-  const message = formatErrorMessage("TYPE_MISMATCH", field, {
-    expected,
-    actual: actualType,
-  });
+	const actualType = typeof received;
+	const message = formatErrorMessage("TYPE_MISMATCH", field, {
+		expected,
+		actual: actualType,
+	});
 
-  throwValidationSingle(model, field, "TYPE_MISMATCH", message, {
-    value: received,
-    expected,
-    suggestion: `Ensure '${field}' is of type ${expected}`,
-  });
+	throwValidationSingle(model, field, "TYPE_MISMATCH", message, {
+		value: received,
+		expected,
+		suggestion: `Ensure '${field}' is of type ${expected}`,
+	});
 }
 
 /**
@@ -459,18 +460,18 @@ export function throwValidationTypeMismatch(
  * ```
  */
 export function throwValidationPattern(
-  model: string,
-  field: string,
-  pattern: RegExp,
-  received: unknown,
+	model: string,
+	field: string,
+	pattern: RegExp,
+	received: unknown,
 ): never {
-  const message = formatErrorMessage("PATTERN", field, { pattern });
+	const message = formatErrorMessage("PATTERN", field, { pattern });
 
-  throwValidationSingle(model, field, "PATTERN", message, {
-    value: received,
-    expected: pattern.toString(),
-    suggestion: `Ensure '${field}' matches the required pattern: ${pattern}`,
-  });
+	throwValidationSingle(model, field, "PATTERN", message, {
+		value: received,
+		expected: pattern.toString(),
+		suggestion: `Ensure '${field}' matches the required pattern: ${pattern}`,
+	});
 }
 
 /**
@@ -487,18 +488,18 @@ export function throwValidationPattern(
  * ```
  */
 export function throwValidationMinLength(
-  model: string,
-  field: string,
-  minLength: number,
-  received: unknown,
+	model: string,
+	field: string,
+	minLength: number,
+	received: unknown,
 ): never {
-  const message = formatErrorMessage("MIN_LENGTH", field, { min: minLength });
+	const message = formatErrorMessage("MIN_LENGTH", field, { min: minLength });
 
-  throwValidationSingle(model, field, "MIN_LENGTH", message, {
-    value: received,
-    expected: `at least ${minLength} characters`,
-    suggestion: `Provide a longer value for '${field}'`,
-  });
+	throwValidationSingle(model, field, "MIN_LENGTH", message, {
+		value: received,
+		expected: `at least ${minLength} characters`,
+		suggestion: `Provide a longer value for '${field}'`,
+	});
 }
 
 /**
@@ -515,18 +516,18 @@ export function throwValidationMinLength(
  * ```
  */
 export function throwValidationMaxLength(
-  model: string,
-  field: string,
-  maxLength: number,
-  received: unknown,
+	model: string,
+	field: string,
+	maxLength: number,
+	received: unknown,
 ): never {
-  const message = formatErrorMessage("MAX_LENGTH", field, { max: maxLength });
+	const message = formatErrorMessage("MAX_LENGTH", field, { max: maxLength });
 
-  throwValidationSingle(model, field, "MAX_LENGTH", message, {
-    value: received,
-    expected: `at most ${maxLength} characters`,
-    suggestion: `Shorten the value for '${field}'`,
-  });
+	throwValidationSingle(model, field, "MAX_LENGTH", message, {
+		value: received,
+		expected: `at most ${maxLength} characters`,
+		suggestion: `Shorten the value for '${field}'`,
+	});
 }
 
 /**
@@ -543,18 +544,18 @@ export function throwValidationMaxLength(
  * ```
  */
 export function throwValidationMinValue(
-  model: string,
-  field: string,
-  minValue: number,
-  received: unknown,
+	model: string,
+	field: string,
+	minValue: number,
+	received: unknown,
 ): never {
-  const message = formatErrorMessage("MIN_VALUE", field, { min: minValue });
+	const message = formatErrorMessage("MIN_VALUE", field, { min: minValue });
 
-  throwValidationSingle(model, field, "MIN_VALUE", message, {
-    value: received,
-    expected: `at least ${minValue}`,
-    suggestion: `Provide a value >= ${minValue} for '${field}'`,
-  });
+	throwValidationSingle(model, field, "MIN_VALUE", message, {
+		value: received,
+		expected: `at least ${minValue}`,
+		suggestion: `Provide a value >= ${minValue} for '${field}'`,
+	});
 }
 
 /**
@@ -571,18 +572,18 @@ export function throwValidationMinValue(
  * ```
  */
 export function throwValidationMaxValue(
-  model: string,
-  field: string,
-  maxValue: number,
-  received: unknown,
+	model: string,
+	field: string,
+	maxValue: number,
+	received: unknown,
 ): never {
-  const message = formatErrorMessage("MAX_VALUE", field, { max: maxValue });
+	const message = formatErrorMessage("MAX_VALUE", field, { max: maxValue });
 
-  throwValidationSingle(model, field, "MAX_VALUE", message, {
-    value: received,
-    expected: `at most ${maxValue}`,
-    suggestion: `Provide a value <= ${maxValue} for '${field}'`,
-  });
+	throwValidationSingle(model, field, "MAX_VALUE", message, {
+		value: received,
+		expected: `at most ${maxValue}`,
+		suggestion: `Provide a value <= ${maxValue} for '${field}'`,
+	});
 }
 
 /**
@@ -599,20 +600,20 @@ export function throwValidationMaxValue(
  * ```
  */
 export function throwValidationEnum(
-  model: string,
-  field: string,
-  validValues: readonly string[],
-  received: unknown,
+	model: string,
+	field: string,
+	validValues: readonly string[],
+	received: unknown,
 ): never {
-  const message = formatErrorMessage("INVALID_ENUM", field, {
-    expected: validValues.join(", "),
-  });
+	const message = formatErrorMessage("INVALID_ENUM", field, {
+		expected: validValues.join(", "),
+	});
 
-  throwValidationSingle(model, field, "INVALID_ENUM", message, {
-    value: received,
-    expected: validValues.join(" | "),
-    suggestion: `Use one of: ${validValues.join(", ")}`,
-  });
+	throwValidationSingle(model, field, "INVALID_ENUM", message, {
+		value: received,
+		expected: validValues.join(" | "),
+		suggestion: `Use one of: ${validValues.join(", ")}`,
+	});
 }
 
 /**
@@ -629,18 +630,18 @@ export function throwValidationEnum(
  * ```
  */
 export function throwValidationMinItems(
-  model: string,
-  field: string,
-  minItems: number,
-  received: unknown,
+	model: string,
+	field: string,
+	minItems: number,
+	received: unknown,
 ): never {
-  const message = formatErrorMessage("MIN_ITEMS", field, { min: minItems });
+	const message = formatErrorMessage("MIN_ITEMS", field, { min: minItems });
 
-  throwValidationSingle(model, field, "MIN_ITEMS", message, {
-    value: received,
-    expected: `at least ${minItems} items`,
-    suggestion: `Provide at least ${minItems} items for '${field}'`,
-  });
+	throwValidationSingle(model, field, "MIN_ITEMS", message, {
+		value: received,
+		expected: `at least ${minItems} items`,
+		suggestion: `Provide at least ${minItems} items for '${field}'`,
+	});
 }
 
 /**
@@ -657,18 +658,18 @@ export function throwValidationMinItems(
  * ```
  */
 export function throwValidationMaxItems(
-  model: string,
-  field: string,
-  maxItems: number,
-  received: unknown,
+	model: string,
+	field: string,
+	maxItems: number,
+	received: unknown,
 ): never {
-  const message = formatErrorMessage("MAX_ITEMS", field, { max: maxItems });
+	const message = formatErrorMessage("MAX_ITEMS", field, { max: maxItems });
 
-  throwValidationSingle(model, field, "MAX_ITEMS", message, {
-    value: received,
-    expected: `at most ${maxItems} items`,
-    suggestion: `Reduce items in '${field}' to ${maxItems} or less`,
-  });
+	throwValidationSingle(model, field, "MAX_ITEMS", message, {
+		value: received,
+		expected: `at most ${maxItems} items`,
+		suggestion: `Reduce items in '${field}' to ${maxItems} or less`,
+	});
 }
 
 /**
@@ -684,17 +685,17 @@ export function throwValidationMaxItems(
  * ```
  */
 export function throwValidationDate(
-  model: string,
-  field: string,
-  received: unknown,
+	model: string,
+	field: string,
+	received: unknown,
 ): never {
-  const message = formatErrorMessage("INVALID_DATE", field);
+	const message = formatErrorMessage("INVALID_DATE", field);
 
-  throwValidationSingle(model, field, "INVALID_DATE", message, {
-    value: received,
-    expected: "valid Date object",
-    suggestion: `Provide a valid date for '${field}'`,
-  });
+	throwValidationSingle(model, field, "INVALID_DATE", message, {
+		value: received,
+		expected: "valid Date object",
+		suggestion: `Provide a valid date for '${field}'`,
+	});
 }
 
 /**
@@ -711,14 +712,14 @@ export function throwValidationDate(
  * ```
  */
 export function throwValidationCustom(
-  model: string,
-  field: string,
-  message: string,
-  received?: unknown,
+	model: string,
+	field: string,
+	message: string,
+	received?: unknown,
 ): never {
-  throwValidationSingle(model, field, "CUSTOM", message, {
-    value: received,
-  });
+	throwValidationSingle(model, field, "CUSTOM", message, {
+		value: received,
+	});
 }
 
 /**
@@ -726,5 +727,5 @@ export function throwValidationCustom(
  * @deprecated Use throwValidationMultiple instead
  */
 export const validationError = {
-  throw: throwValidationMultiple,
+	throw: throwValidationMultiple,
 };

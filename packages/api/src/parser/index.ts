@@ -5,13 +5,13 @@
  */
 
 // Export query parser
-export { parseQuery } from './query-parser';
+export { parseQuery } from "./query-parser";
 
 // Export where clause parser
-export { parseWhere } from './where-parser';
+export { parseWhere } from "./where-parser";
 
 // Export populate parser
-export { parsePopulate } from './populate-parser';
+export { parsePopulate } from "./populate-parser";
 
 // Export fields parser
-export { parseFields } from './fields-parser';
+export { parseFields } from "./fields-parser";

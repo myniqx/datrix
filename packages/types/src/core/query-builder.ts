@@ -45,25 +45,25 @@ export type QueryType = "select" | "insert" | "update" | "delete" | "count";
  * ```
  */
 export type ComparisonOperators<T = QueryPrimitive> = {
-  readonly $eq?: T;
-  readonly $ne?: T;
-  readonly $gt?: T extends number | Date ? T : never;
-  readonly $gte?: T extends number | Date ? T : never;
-  readonly $lt?: T extends number | Date ? T : never;
-  readonly $lte?: T extends number | Date ? T : never;
-  readonly $in?: readonly T[];
-  readonly $nin?: readonly T[];
-  readonly $like?: T extends string ? string : never;
-  readonly $ilike?: T extends string ? string : never;
-  readonly $startsWith?: T extends string ? string : never;
-  readonly $endsWith?: T extends string ? string : never;
-  readonly $contains?: T extends string ? string : never;
-  readonly $notContains?: T extends string ? string : never;
-  readonly $icontains?: T extends string ? string : never;
-  readonly $regex?: T extends string ? RegExp | string : never;
-  readonly $exists?: boolean;
-  readonly $null?: boolean;
-  readonly $notNull?: boolean;
+	readonly $eq?: T;
+	readonly $ne?: T;
+	readonly $gt?: T extends number | Date ? T : never;
+	readonly $gte?: T extends number | Date ? T : never;
+	readonly $lt?: T extends number | Date ? T : never;
+	readonly $lte?: T extends number | Date ? T : never;
+	readonly $in?: readonly T[];
+	readonly $nin?: readonly T[];
+	readonly $like?: T extends string ? string : never;
+	readonly $ilike?: T extends string ? string : never;
+	readonly $startsWith?: T extends string ? string : never;
+	readonly $endsWith?: T extends string ? string : never;
+	readonly $contains?: T extends string ? string : never;
+	readonly $notContains?: T extends string ? string : never;
+	readonly $icontains?: T extends string ? string : never;
+	readonly $regex?: T extends string ? RegExp | string : never;
+	readonly $exists?: boolean;
+	readonly $null?: boolean;
+	readonly $notNull?: boolean;
 };
 
 /**
@@ -85,9 +85,9 @@ export type ComparisonOperators<T = QueryPrimitive> = {
  * ```
  */
 export type LogicalOperators<T extends ForjaEntry = ForjaEntry> = {
-  readonly $and?: WhereClause<T>[];
-  readonly $or?: WhereClause<T>[];
-  readonly $not?: WhereClause<T>;
+	readonly $and?: WhereClause<T>[];
+	readonly $or?: WhereClause<T>[];
+	readonly $not?: WhereClause<T>;
 };
 
 /**
@@ -157,10 +157,13 @@ export type LogicalOperators<T extends ForjaEntry = ForjaEntry> = {
  */
 type Writable<T> = { -readonly [K in keyof T]: T[K] };
 export type WhereClause<T extends ForjaEntry> = Writable<{
-  [K in keyof T]?: T[K] extends Relation<infer R> ? WhereClause<R>
-  : T[K] extends ScalarValue ? T[K] | ComparisonOperators<T[K]>
-  : unknown;
-}> & LogicalOperators<T>;
+	[K in keyof T]?: T[K] extends Relation<infer R>
+		? WhereClause<R>
+		: T[K] extends ScalarValue
+			? T[K] | ComparisonOperators<T[K]>
+			: unknown;
+}> &
+	LogicalOperators<T>;
 
 /**
  * SELECT clause (fields to select) - Input format from user
@@ -170,18 +173,21 @@ export type WhereClause<T extends ForjaEntry> = Writable<{
  * - Single field name: 'name'
  * - Wildcard: '*' (all fields)
  */
-export type SelectClause<T extends ForjaEntry> = readonly (keyof T)[] | "*" | keyof T;
+export type SelectClause<T extends ForjaEntry> =
+	| readonly (keyof T)[]
+	| "*"
+	| keyof T;
 
 /**
  * Populate clause (relations to include)
  */
 export type PopulateOptions<T extends ForjaEntry> = {
-  readonly select?: SelectClause<T> | undefined;
-  readonly where?: WhereClause<T> | undefined;
-  readonly populate?: PopulateClause<T> | undefined; // Nested populate
-  readonly limit?: number | undefined;
-  readonly offset?: number | undefined;
-  readonly orderBy?: OrderBy | undefined;
+	readonly select?: SelectClause<T> | undefined;
+	readonly where?: WhereClause<T> | undefined;
+	readonly populate?: PopulateClause<T> | undefined; // Nested populate
+	readonly limit?: number | undefined;
+	readonly offset?: number | undefined;
+	readonly orderBy?: OrderBy | undefined;
 };
 
 /**
@@ -194,12 +200,13 @@ export type PopulateOptions<T extends ForjaEntry> = {
  * - false: No populate (explicit opt-out)
  */
 export type PopulateClause<T extends ForjaEntry = ForjaRecord> =
-  | boolean
-  | "*" | "true"
-  | keyof T[]
-  | {
-    readonly [relation: string]: PopulateOptions<T> | "*" | boolean;
-  };
+	| boolean
+	| "*"
+	| "true"
+	| keyof T[]
+	| {
+			readonly [relation: string]: PopulateOptions<T> | "*" | boolean;
+	  };
 
 /**
  * Order direction
@@ -210,29 +217,29 @@ export type OrderDirection = "asc" | "desc";
  * Order by item
  */
 export type OrderByItem = {
-  readonly field: string;
-  readonly direction: OrderDirection;
-  readonly nulls?: "first" | "last"; // NULL ordering
+	readonly field: string;
+	readonly direction: OrderDirection;
+	readonly nulls?: "first" | "last"; // NULL ordering
 };
 
 export type OrderBy = readonly OrderByItem[];
 
-
 /**
  * QuerySelect - Normalized form of SelectClause (always array, never '*')
  */
-export type QuerySelect<T extends ForjaEntry = ForjaRecord> = readonly (keyof T)[];
+export type QuerySelect<T extends ForjaEntry = ForjaRecord> =
+	readonly (keyof T)[];
 
 /**
  * QueryPopulateOptions - Normalized options for a single relation
  */
 export type QueryPopulateOptions<T extends ForjaEntry = ForjaRecord> = {
-  readonly select: QuerySelect<T>;
-  readonly where?: WhereClause<T>;
-  readonly populate?: QueryPopulate<T>;
-  readonly limit?: number;
-  readonly offset?: number;
-  readonly orderBy?: OrderBy;
+	readonly select: QuerySelect<T>;
+	readonly where?: WhereClause<T>;
+	readonly populate?: QueryPopulate<T>;
+	readonly limit?: number;
+	readonly offset?: number;
+	readonly orderBy?: OrderBy;
 };
 
 /**
@@ -242,12 +249,10 @@ export type QueryPopulateOptions<T extends ForjaEntry = ForjaRecord> = {
  * QueryPopulateOptions of the related entity type.
  */
 export type QueryPopulate<T extends ForjaEntry = ForjaRecord> = {
-  readonly [K in keyof T]?: T[K] extends Relation<infer R>
-  ? QueryPopulateOptions<R>
-  : never;
+	readonly [K in keyof T]?: T[K] extends Relation<infer R>
+		? QueryPopulateOptions<R>
+		: never;
 };
-
-
 
 /**
  * Normalized nested data for create/update operations (output of processData)
@@ -259,8 +264,8 @@ export type QueryPopulate<T extends ForjaEntry = ForjaRecord> = {
  * @template T - The entity type
  */
 export type NormalizedNestedData<T extends ForjaEntry> = {
-  readonly data: Partial<T>;
-  readonly relations?: QueryRelations<T>;
+	readonly data: Partial<T>;
+	readonly relations?: QueryRelations<T>;
 };
 
 /**
@@ -298,16 +303,18 @@ export type NormalizedNestedData<T extends ForjaEntry> = {
  * ```
  */
 export type NormalizedRelationOperations<R extends ForjaEntry> = {
-  readonly connect?: readonly number[];
-  readonly disconnect?: readonly number[];
-  readonly set?: readonly number[];
-  readonly delete?: readonly number[];
-  readonly create?: readonly NormalizedNestedData<R>[];
-  readonly update?: readonly NormalizedRelationUpdate<R>[];
+	readonly connect?: readonly number[];
+	readonly disconnect?: readonly number[];
+	readonly set?: readonly number[];
+	readonly delete?: readonly number[];
+	readonly create?: readonly NormalizedNestedData<R>[];
+	readonly update?: readonly NormalizedRelationUpdate<R>[];
 };
 
-export interface NormalizedRelationUpdate<T extends ForjaEntry> extends NormalizedNestedData<T> {
-  readonly where: { readonly id: number };
+export interface NormalizedRelationUpdate<
+	T extends ForjaEntry,
+> extends NormalizedNestedData<T> {
+	readonly where: { readonly id: number };
 }
 
 /**
@@ -340,9 +347,9 @@ export interface NormalizedRelationUpdate<T extends ForjaEntry> extends Normaliz
  * ```
  */
 export type QueryRelations<T extends ForjaEntry> = {
-  readonly [K in keyof T]?: T[K] extends Relation<infer R>
-  ? NormalizedRelationOperations<R>
-  : never;
+	readonly [K in keyof T]?: T[K] extends Relation<infer R>
+		? NormalizedRelationOperations<R>
+		: never;
 };
 
 /**
@@ -352,19 +359,19 @@ export type QueryRelations<T extends ForjaEntry> = {
  * All clauses are in their normalized form (QuerySelect, QueryPopulate, etc.)
  */
 export interface QueryObject<T extends ForjaEntry> {
-  readonly type: QueryType;
-  readonly table: string;
-  readonly select?: QuerySelect<T> | undefined;
-  where?: WhereClause<T> | undefined;
-  readonly populate?: QueryPopulate<T> | undefined;
-  readonly orderBy?: OrderBy | undefined;
-  readonly limit?: number | undefined;
-  readonly offset?: number | undefined;
-  readonly data?: Partial<T>; // For INSERT/UPDATE (scalar fields only)
-  readonly relations?: QueryRelations<T>; // For INSERT/UPDATE (type-safe relation operations)
-  readonly distinct?: boolean; // SELECT DISTINCT
-  readonly groupBy?: readonly string[]; // GROUP BY fields
-  readonly having?: WhereClause<T>; // HAVING clause
+	readonly type: QueryType;
+	readonly table: string;
+	readonly select?: QuerySelect<T> | undefined;
+	where?: WhereClause<T> | undefined;
+	readonly populate?: QueryPopulate<T> | undefined;
+	readonly orderBy?: OrderBy | undefined;
+	readonly limit?: number | undefined;
+	readonly offset?: number | undefined;
+	readonly data?: Partial<T>; // For INSERT/UPDATE (scalar fields only)
+	readonly relations?: QueryRelations<T>; // For INSERT/UPDATE (type-safe relation operations)
+	readonly distinct?: boolean; // SELECT DISTINCT
+	readonly groupBy?: readonly string[]; // GROUP BY fields
+	readonly having?: WhereClause<T>; // HAVING clause
 }
 
 /**
@@ -387,64 +394,64 @@ export interface QueryObject<T extends ForjaEntry> {
  * ```
  */
 export interface QueryBuilder<TSchema extends ForjaEntry> {
-  /**
-   * Select fields
-   */
-  select(fields: SelectClause<TSchema>): this;
+	/**
+	 * Select fields
+	 */
+	select(fields: SelectClause<TSchema>): this;
 
-  /**
-   * Add WHERE conditions (type-safe when TSchema is provided)
-   * Multiple .where() calls are merged with $and logic
-   */
-  where(conditions: WhereClause<TSchema>): this;
+	/**
+	 * Add WHERE conditions (type-safe when TSchema is provided)
+	 * Multiple .where() calls are merged with $and logic
+	 */
+	where(conditions: WhereClause<TSchema>): this;
 
-  /**
-   * Add populate (relations)
-   */
-  populate(relations: PopulateClause<TSchema>): this;
+	/**
+	 * Add populate (relations)
+	 */
+	populate(relations: PopulateClause<TSchema>): this;
 
-  /**
-   * Add order by
-   */
-  orderBy(field: string, direction?: OrderDirection): this;
+	/**
+	 * Add order by
+	 */
+	orderBy(field: string, direction?: OrderDirection): this;
 
-  /**
-   * Set limit
-   */
-  limit(limit: number): this;
+	/**
+	 * Set limit
+	 */
+	limit(limit: number): this;
 
-  /**
-   * Set offset
-   */
-  offset(offset: number): this;
+	/**
+	 * Set offset
+	 */
+	offset(offset: number): this;
 
-  /**
-   * Set data for INSERT/UPDATE
-   */
-  data(data: Partial<TSchema>): this;
+	/**
+	 * Set data for INSERT/UPDATE
+	 */
+	data(data: Partial<TSchema>): this;
 
-  /**
-   * Set distinct
-   */
-  distinct(distinct?: boolean): this;
+	/**
+	 * Set distinct
+	 */
+	distinct(distinct?: boolean): this;
 
-  /**
-   * Set group by
-   */
-  groupBy(fields: readonly string[]): this;
+	/**
+	 * Set group by
+	 */
+	groupBy(fields: readonly string[]): this;
 
-  /**
-   * Set having clause (type-safe when TSchema is provided)
-   */
-  having(conditions: WhereClause<TSchema>): this;
+	/**
+	 * Set having clause (type-safe when TSchema is provided)
+	 */
+	having(conditions: WhereClause<TSchema>): this;
 
-  /**
-   * Build final query object
-   */
-  build(): QueryObject<TSchema>;
+	/**
+	 * Build final query object
+	 */
+	build(): QueryObject<TSchema>;
 
-  /**
-   * Clone the builder
-   */
-  clone(): QueryBuilder<TSchema>;
+	/**
+	 * Clone the builder
+	 */
+	clone(): QueryBuilder<TSchema>;
 }

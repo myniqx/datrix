@@ -7,18 +7,18 @@
 export { buildRequestContext, ContextBuildError } from "./context";
 export { authenticate } from "./auth";
 export {
-  methodToAction,
-  evaluatePermissionValue,
-  checkSchemaPermission,
-  checkFieldsForWrite,
-  filterFieldsForRead,
-  filterRecordsForRead,
+	methodToAction,
+	evaluatePermissionValue,
+	checkSchemaPermission,
+	checkFieldsForWrite,
+	filterFieldsForRead,
+	filterRecordsForRead,
 } from "./permission";
 
 export type {
-  RequestContext,
-  HttpMethod,
-  ContextBuilderOptions,
+	RequestContext,
+	HttpMethod,
+	ContextBuilderOptions,
 } from "./types";
 
 // Re-export permission types

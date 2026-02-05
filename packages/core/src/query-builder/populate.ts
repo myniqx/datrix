@@ -5,8 +5,17 @@
  * Handles relation loading, nested populates, dot notation, wildcard expansion.
  */
 
-import type { PopulateClause, PopulateOptions, ForjaEntry, QueryPopulate } from "forja-types/core/query-builder";
-import type { RelationField, SchemaDefinition, SchemaRegistry } from "forja-types/core/schema";
+import type {
+	PopulateClause,
+	PopulateOptions,
+	ForjaEntry,
+	QueryPopulate,
+} from "forja-types/core/query-builder";
+import type {
+	RelationField,
+	SchemaDefinition,
+	SchemaRegistry,
+} from "forja-types/core/schema";
 import { throwInvalidField, throwInvalidValue } from "./error-helper";
 import { normalizeSelect } from "./select";
 
@@ -60,83 +69,97 @@ const MAX_POPULATE_DEPTH = 5;
  * ```
  */
 export function normalizePopulate<T extends ForjaEntry>(
-  populate: PopulateClause<T> | undefined,
-  modelName: string,
-  registry: SchemaRegistry,
+	populate: PopulateClause<T> | undefined,
+	modelName: string,
+	registry: SchemaRegistry,
 ): PopulateClause<T> | undefined {
-  if (!populate) {
-    return undefined;
-  }
+	if (!populate) {
+		return undefined;
+	}
 
-  const schema = registry.get(modelName);
-  if (!schema) {
-    throwInvalidValue("populate", "modelName", modelName, "valid model name");
-  }
+	const schema = registry.get(modelName);
+	if (!schema) {
+		throwInvalidValue("populate", "modelName", modelName, "valid model name");
+	}
 
-  // Handle wildcard '*' or true - populate all first-level relations
-  if (populate === "*" || populate === true) {
-    const allRelations: Record<string, object> = {};
-    for (const [fieldName, field] of Object.entries(schema.fields)) {
-      if (field.type === "relation") {
-        const relationField = field as RelationField;
-        allRelations[fieldName] = {
-          select: registry.getCachedSelectFields(relationField.model),
-        };
-      }
-    }
-    return allRelations as PopulateClause<T>;
-  }
+	// Handle wildcard '*' or true - populate all first-level relations
+	if (populate === "*" || populate === true) {
+		const allRelations: Record<string, object> = {};
+		for (const [fieldName, field] of Object.entries(schema.fields)) {
+			if (field.type === "relation") {
+				const relationField = field as RelationField;
+				allRelations[fieldName] = {
+					select: registry.getCachedSelectFields(relationField.model),
+				};
+			}
+		}
+		return allRelations as PopulateClause<T>;
+	}
 
-  // Handle array format - dot notation ['category', 'author.company']
-  if (Array.isArray(populate)) {
-    return normalizePopulateDotNotation(populate, schema, modelName, registry) as PopulateClause<T>;
-  }
+	// Handle array format - dot notation ['category', 'author.company']
+	if (Array.isArray(populate)) {
+		return normalizePopulateDotNotation(
+			populate,
+			schema,
+			modelName,
+			registry,
+		) as PopulateClause<T>;
+	}
 
-  // Handle object format
-  const result: Record<string, object> = {};
+	// Handle object format
+	const result: Record<string, object> = {};
 
-  for (const [relationName, value] of Object.entries(populate)) {
-    const field = schema.fields[relationName];
+	for (const [relationName, value] of Object.entries(populate)) {
+		const field = schema.fields[relationName];
 
-    // Field doesn't exist - throw error (typo detection)
-    if (!field) {
-      const availableRelations = Object.entries(schema.fields)
-        .filter(([_, f]) => f.type === "relation")
-        .map(([name]) => name);
+		// Field doesn't exist - throw error (typo detection)
+		if (!field) {
+			const availableRelations = Object.entries(schema.fields)
+				.filter(([_, f]) => f.type === "relation")
+				.map(([name]) => name);
 
-      throwInvalidField("populate", relationName, availableRelations);
-    }
+			throwInvalidField("populate", relationName, availableRelations);
+		}
 
-    // Field exists but is not a relation - throw error
-    if (field.type !== "relation") {
-      throwInvalidValue("populate", relationName, field.type, "relation");
-    }
+		// Field exists but is not a relation - throw error
+		if (field.type !== "relation") {
+			throwInvalidValue("populate", relationName, field.type, "relation");
+		}
 
-    const relationField = field as RelationField;
-    const targetModel = relationField.model;
+		const relationField = field as RelationField;
+		const targetModel = relationField.model;
 
-    if (typeof value === "boolean" || value === "*") {
-      // populate[category]=true or populate[category]='*' → convert to { select: [...] }
-      result[relationName] = {
-        select: registry.getCachedSelectFields(targetModel),
-      };
-    } else if (typeof value === "object" && value !== null) {
-      // populate[category]={ select: [...], populate: {...} }
-      result[relationName] = {
-        ...value,
-        // Normalize select for this level (if provided)
-        select: normalizeSelect([value.select], registry.get(targetModel)!, registry), // value.select ? registry.getCachedSelectFields(targetModel) : undefined,
-        // Recursively process nested populate
-        populate: value.populate
-          ? normalizePopulate(value.populate, targetModel, registry)
-          : undefined,
-      };
-    } else {
-      throwInvalidValue("populate", relationName, value, "boolean | object | '*'");
-    }
-  }
+		if (typeof value === "boolean" || value === "*") {
+			// populate[category]=true or populate[category]='*' → convert to { select: [...] }
+			result[relationName] = {
+				select: registry.getCachedSelectFields(targetModel),
+			};
+		} else if (typeof value === "object" && value !== null) {
+			// populate[category]={ select: [...], populate: {...} }
+			result[relationName] = {
+				...value,
+				// Normalize select for this level (if provided)
+				select: normalizeSelect(
+					[value.select],
+					registry.get(targetModel)!,
+					registry,
+				), // value.select ? registry.getCachedSelectFields(targetModel) : undefined,
+				// Recursively process nested populate
+				populate: value.populate
+					? normalizePopulate(value.populate, targetModel, registry)
+					: undefined,
+			};
+		} else {
+			throwInvalidValue(
+				"populate",
+				relationName,
+				value,
+				"boolean | object | '*'",
+			);
+		}
+	}
 
-  return result as PopulateClause<T>;
+	return result as PopulateClause<T>;
 }
 
 /**
@@ -152,68 +175,73 @@ export function normalizePopulate<T extends ForjaEntry>(
  * @returns Normalized populate object
  */
 function normalizePopulateDotNotation(
-  paths: readonly string[],
-  schema: SchemaDefinition,
-  modelName: string,
-  registry: SchemaRegistry,
+	paths: readonly string[],
+	schema: SchemaDefinition,
+	modelName: string,
+	registry: SchemaRegistry,
 ): Record<string, PopulateOptions> {
-  const result: Record<string, any> = {};
+	const result: Record<string, any> = {};
 
-  for (const path of paths) {
-    const parts = path.split(".");
-    const firstPart = parts[0]!;
+	for (const path of paths) {
+		const parts = path.split(".");
+		const firstPart = parts[0]!;
 
-    // Validate that first part is a relation field
-    const field = schema.fields[firstPart];
+		// Validate that first part is a relation field
+		const field = schema.fields[firstPart];
 
-    // Field doesn't exist
-    if (!field) {
-      const availableRelations = Object.entries(schema.fields)
-        .filter(([_, f]) => f.type === "relation")
-        .map(([name]) => name);
+		// Field doesn't exist
+		if (!field) {
+			const availableRelations = Object.entries(schema.fields)
+				.filter(([_, f]) => f.type === "relation")
+				.map(([name]) => name);
 
-      throwInvalidField("populate", firstPart, availableRelations);
-    }
+			throwInvalidField("populate", firstPart, availableRelations);
+		}
 
-    // Field exists but is not a relation
-    if (field.type !== "relation") {
-      throwInvalidValue("populate", firstPart, field.type, "relation");
-    }
+		// Field exists but is not a relation
+		if (field.type !== "relation") {
+			throwInvalidValue("populate", firstPart, field.type, "relation");
+		}
 
-    const relationField = field as RelationField;
-    const targetModel = relationField.model;
+		const relationField = field as RelationField;
+		const targetModel = relationField.model;
 
-    if (parts.length === 1) {
-      // Simple path: 'category' → { category: { select: [...] } }
-      result[firstPart] = {
-        select: registry.getCachedSelectFields(targetModel),
-      };
-    } else {
-      // Nested path: 'author.company' → { author: { populate: { company: { select: [...] } } } }
-      const nestedPath = parts.slice(1).join(".");
+		if (parts.length === 1) {
+			// Simple path: 'category' → { category: { select: [...] } }
+			result[firstPart] = {
+				select: registry.getCachedSelectFields(targetModel),
+			};
+		} else {
+			// Nested path: 'author.company' → { author: { populate: { company: { select: [...] } } } }
+			const nestedPath = parts.slice(1).join(".");
 
-      if (!result[firstPart]) {
-        result[firstPart] = {
-          select: registry.getCachedSelectFields(targetModel),
-          populate: {},
-        };
-      }
+			if (!result[firstPart]) {
+				result[firstPart] = {
+					select: registry.getCachedSelectFields(targetModel),
+					populate: {},
+				};
+			}
 
-      if (!result[firstPart].populate) {
-        result[firstPart].populate = {};
-      }
+			if (!result[firstPart].populate) {
+				result[firstPart].populate = {};
+			}
 
-      // Recursively normalize the nested path
-      const targetSchema = registry.get(targetModel);
-      if (targetSchema) {
-        const nested = normalizePopulateDotNotation([nestedPath], targetSchema, targetModel, registry);
-        // Merge nested populate
-        Object.assign(result[firstPart].populate, nested);
-      }
-    }
-  }
+			// Recursively normalize the nested path
+			const targetSchema = registry.get(targetModel);
+			if (targetSchema) {
+				const nested = normalizePopulateDotNotation(
+					[nestedPath],
+					targetSchema,
+					targetModel,
+					registry,
+				);
+				// Merge nested populate
+				Object.assign(result[firstPart].populate, nested);
+			}
+		}
+	}
 
-  return result;
+	return result;
 }
 
 /**
@@ -241,29 +269,29 @@ function normalizePopulateDotNotation(
  * ```
  */
 export function normalizePopulateArray<T extends ForjaEntry>(
-  populates: PopulateClause<T>[] | undefined,
-  modelName: string,
-  registry: SchemaRegistry,
+	populates: PopulateClause<T>[] | undefined,
+	modelName: string,
+	registry: SchemaRegistry,
 ): QueryPopulate<T> | undefined {
-  if (!populates || populates.length === 0) {
-    return undefined;
-  }
+	if (!populates || populates.length === 0) {
+		return undefined;
+	}
 
-  // Normalize each populate clause
-  const normalized: PopulateClause<T>[] = [];
-  for (const populate of populates) {
-    const result = normalizePopulate(populate, modelName, registry);
-    if (result) {
-      normalized.push(result);
-    }
-  }
+	// Normalize each populate clause
+	const normalized: PopulateClause<T>[] = [];
+	for (const populate of populates) {
+		const result = normalizePopulate(populate, modelName, registry);
+		if (result) {
+			normalized.push(result);
+		}
+	}
 
-  // Merge all normalized populates
-  if (normalized.length === 0) {
-    return undefined;
-  }
+	// Merge all normalized populates
+	if (normalized.length === 0) {
+		return undefined;
+	}
 
-  return mergePopulateClauses(...normalized) as PopulateClause<T>;
+	return mergePopulateClauses(...normalized) as PopulateClause<T>;
 }
 
 /**
@@ -272,51 +300,57 @@ export function normalizePopulateArray<T extends ForjaEntry>(
  * Used internally by normalizePopulateArray when merging multiple .populate() calls.
  */
 export function mergePopulateClauses<T extends ForjaEntry>(
-  ...clauses: readonly (PopulateClause<T> | undefined)[]
+	...clauses: readonly (PopulateClause<T> | undefined)[]
 ): QueryPopulate<T> {
-  const merged: Record<string, PopulateOptions | '*' | true> = {};
+	const merged: Record<string, PopulateOptions | "*" | true> = {};
 
-  for (const clause of clauses) {
-    if (!clause) continue;
+	for (const clause of clauses) {
+		if (!clause) continue;
 
-    for (const [relation, options] of Object.entries(clause)) {
-      // If either is '*' or true, use it
-      if (options === '*' || options === true || merged[relation] === '*' || merged[relation] === true) {
-        merged[relation] = options === true ? true : '*';
-      } else if (merged[relation]) {
-        // Merge options (both are objects)
-        const existing = merged[relation] as PopulateOptions;
-        const newOptions = options as PopulateOptions;
-        const mergedOptions: PopulateOptions = {
-          ...(newOptions.select !== undefined || existing.select !== undefined
-            ? { select: newOptions.select || existing.select }
-            : {}),
-          ...(newOptions.where !== undefined || existing.where !== undefined
-            ? { where: newOptions.where || existing.where }
-            : {}),
-          ...(newOptions.populate !== undefined || existing.populate !== undefined
-            ? {
-              populate: newOptions.populate
-                ? mergePopulateClauses(existing.populate, newOptions.populate)
-                : existing.populate
-            }
-            : {}),
-          ...(newOptions.limit !== undefined || existing.limit !== undefined
-            ? { limit: newOptions.limit ?? existing.limit }
-            : {}),
-          ...(newOptions.offset !== undefined || existing.offset !== undefined
-            ? { offset: newOptions.offset ?? existing.offset }
-            : {}),
-          ...(newOptions.orderBy !== undefined || existing.orderBy !== undefined
-            ? { orderBy: newOptions.orderBy || existing.orderBy }
-            : {})
-        };
-        merged[relation] = mergedOptions;
-      } else {
-        merged[relation] = options;
-      }
-    }
-  }
+		for (const [relation, options] of Object.entries(clause)) {
+			// If either is '*' or true, use it
+			if (
+				options === "*" ||
+				options === true ||
+				merged[relation] === "*" ||
+				merged[relation] === true
+			) {
+				merged[relation] = options === true ? true : "*";
+			} else if (merged[relation]) {
+				// Merge options (both are objects)
+				const existing = merged[relation] as PopulateOptions;
+				const newOptions = options as PopulateOptions;
+				const mergedOptions: PopulateOptions = {
+					...(newOptions.select !== undefined || existing.select !== undefined
+						? { select: newOptions.select || existing.select }
+						: {}),
+					...(newOptions.where !== undefined || existing.where !== undefined
+						? { where: newOptions.where || existing.where }
+						: {}),
+					...(newOptions.populate !== undefined ||
+					existing.populate !== undefined
+						? {
+								populate: newOptions.populate
+									? mergePopulateClauses(existing.populate, newOptions.populate)
+									: existing.populate,
+							}
+						: {}),
+					...(newOptions.limit !== undefined || existing.limit !== undefined
+						? { limit: newOptions.limit ?? existing.limit }
+						: {}),
+					...(newOptions.offset !== undefined || existing.offset !== undefined
+						? { offset: newOptions.offset ?? existing.offset }
+						: {}),
+					...(newOptions.orderBy !== undefined || existing.orderBy !== undefined
+						? { orderBy: newOptions.orderBy || existing.orderBy }
+						: {}),
+				};
+				merged[relation] = mergedOptions;
+			} else {
+				merged[relation] = options;
+			}
+		}
+	}
 
-  return merged;
+	return merged;
 }

@@ -5,10 +5,6 @@
  * NO `any` types, NO type assertions.
  */
 
-export type {
-  StorageProvider,
-  UploadFile,
-  UploadResult,
-} from '../types';
+export type { StorageProvider, UploadFile, UploadResult } from "../types";
 
-export { UploadError, isStorageProvider } from '../types';
+export { UploadError, isStorageProvider } from "../types";

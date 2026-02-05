@@ -27,7 +27,9 @@ describe("WhereParser - Error Path", () => {
 			const sqlInjectionFieldParams: RawQueryParams =
 				parserTestData.invalidWhereConditions.sqlInjectionField;
 
-			const error = expectFailureError(() => parseWhere(sqlInjectionFieldParams));
+			const error = expectFailureError(() =>
+				parseWhere(sqlInjectionFieldParams),
+			);
 
 			expect(error.code).toBe("INVALID_FIELD_NAME");
 		});
@@ -38,7 +40,9 @@ describe("WhereParser - Error Path", () => {
 			const sqlInjectionValueParams: RawQueryParams =
 				parserTestData.invalidWhereConditions.sqlInjectionValue;
 
-			const parsedWhere = expectSuccessData(parseWhere(sqlInjectionValueParams));
+			const parsedWhere = expectSuccessData(
+				parseWhere(sqlInjectionValueParams),
+			);
 
 			// Should parse as string value, not execute SQL
 			expect(parsedWhere).toEqual({ name: "'; DROP TABLE users; --" });

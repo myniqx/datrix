@@ -6,8 +6,8 @@
  */
 
 import {
-  ForjaQueryBuilderError,
-  type QueryBuilderComponent,
+	ForjaQueryBuilderError,
+	type QueryBuilderComponent,
 } from "forja-types/errors";
 
 /**
@@ -23,25 +23,24 @@ import {
  * ```
  */
 export function throwInvalidField(
-  component: QueryBuilderComponent,
-  field: string,
-  availableFields?: readonly string[],
+	component: QueryBuilderComponent,
+	field: string,
+	availableFields?: readonly string[],
 ): never {
-  throw new ForjaQueryBuilderError(
-    `Invalid field '${field}' in ${component} clause`,
-    {
-      code: "INVALID_FIELD",
-      component,
-      field,
-      context: availableFields ? { availableFields } : undefined,
-      suggestion:
-        availableFields ?
-          `Use one of: ${availableFields.join(", ")}`
-          : `Check that '${field}' exists in the schema`,
-      expected: availableFields ? availableFields.join(" | ") : undefined,
-      received: field,
-    },
-  );
+	throw new ForjaQueryBuilderError(
+		`Invalid field '${field}' in ${component} clause`,
+		{
+			code: "INVALID_FIELD",
+			component,
+			field,
+			context: availableFields ? { availableFields } : undefined,
+			suggestion: availableFields
+				? `Use one of: ${availableFields.join(", ")}`
+				: `Check that '${field}' exists in the schema`,
+			expected: availableFields ? availableFields.join(" | ") : undefined,
+			received: field,
+		},
+	);
 }
 
 /**
@@ -57,22 +56,22 @@ export function throwInvalidField(
  * ```
  */
 export function throwInvalidOperator(
-  field: string,
-  operator: string,
-  validOperators: readonly string[],
+	field: string,
+	operator: string,
+	validOperators: readonly string[],
 ): never {
-  throw new ForjaQueryBuilderError(
-    `Invalid operator '${operator}' for field '${field}'`,
-    {
-      code: "INVALID_OPERATOR",
-      component: "where",
-      field,
-      context: { operator, validOperators },
-      suggestion: `Use one of: ${validOperators.join(", ")}`,
-      expected: validOperators.join(" | "),
-      received: operator,
-    },
-  );
+	throw new ForjaQueryBuilderError(
+		`Invalid operator '${operator}' for field '${field}'`,
+		{
+			code: "INVALID_OPERATOR",
+			component: "where",
+			field,
+			context: { operator, validOperators },
+			suggestion: `Use one of: ${validOperators.join(", ")}`,
+			expected: validOperators.join(" | "),
+			received: operator,
+		},
+	);
 }
 
 /**
@@ -89,28 +88,29 @@ export function throwInvalidOperator(
  * ```
  */
 export function throwInvalidValue(
-  component: QueryBuilderComponent,
-  field: string,
-  value: unknown,
-  expectedType: string,
+	component: QueryBuilderComponent,
+	field: string,
+	value: unknown,
+	expectedType: string,
 ): never {
-  const receivedType =
-    Array.isArray(value) ? "array"
-      : value === null ? "null"
-        : typeof value;
+	const receivedType = Array.isArray(value)
+		? "array"
+		: value === null
+			? "null"
+			: typeof value;
 
-  throw new ForjaQueryBuilderError(
-    `Invalid value for field '${field}'. Expected ${expectedType}, got ${receivedType}`,
-    {
-      code: "INVALID_VALUE",
-      component,
-      field,
-      context: { value, expectedType, receivedType },
-      suggestion: `Provide a ${expectedType} value for '${field}'`,
-      expected: expectedType,
-      received: value,
-    },
-  );
+	throw new ForjaQueryBuilderError(
+		`Invalid value for field '${field}'. Expected ${expectedType}, got ${receivedType}`,
+		{
+			code: "INVALID_VALUE",
+			component,
+			field,
+			context: { value, expectedType, receivedType },
+			suggestion: `Provide a ${expectedType} value for '${field}'`,
+			expected: expectedType,
+			received: value,
+		},
+	);
 }
 
 /**
@@ -126,21 +126,21 @@ export function throwInvalidValue(
  * ```
  */
 export function throwMaxDepthExceeded(
-  component: QueryBuilderComponent,
-  currentDepth: number,
-  maxDepth: number,
+	component: QueryBuilderComponent,
+	currentDepth: number,
+	maxDepth: number,
 ): never {
-  throw new ForjaQueryBuilderError(
-    `Maximum nesting depth exceeded in ${component} clause. Depth: ${currentDepth}, Max: ${maxDepth}`,
-    {
-      code: "MAX_DEPTH_EXCEEDED",
-      component,
-      context: { depth: currentDepth, maxDepth },
-      suggestion: `Reduce nesting depth to ${maxDepth} or less`,
-      expected: `depth <= ${maxDepth}`,
-      received: currentDepth,
-    },
-  );
+	throw new ForjaQueryBuilderError(
+		`Maximum nesting depth exceeded in ${component} clause. Depth: ${currentDepth}, Max: ${maxDepth}`,
+		{
+			code: "MAX_DEPTH_EXCEEDED",
+			component,
+			context: { depth: currentDepth, maxDepth },
+			suggestion: `Reduce nesting depth to ${maxDepth} or less`,
+			expected: `depth <= ${maxDepth}`,
+			received: currentDepth,
+		},
+	);
 }
 
 /**
@@ -154,11 +154,11 @@ export function throwMaxDepthExceeded(
  * ```
  */
 export function throwEmptyClause(component: QueryBuilderComponent): never {
-  throw new ForjaQueryBuilderError(`Empty ${component} clause`, {
-    code: "EMPTY_CLAUSE",
-    component,
-    suggestion: `Provide at least one item in ${component} clause`,
-  });
+	throw new ForjaQueryBuilderError(`Empty ${component} clause`, {
+		code: "EMPTY_CLAUSE",
+		component,
+		suggestion: `Provide at least one item in ${component} clause`,
+	});
 }
 
 /**
@@ -173,18 +173,18 @@ export function throwEmptyClause(component: QueryBuilderComponent): never {
  * ```
  */
 export function throwDuplicateField(
-  component: QueryBuilderComponent,
-  field: string,
+	component: QueryBuilderComponent,
+	field: string,
 ): never {
-  throw new ForjaQueryBuilderError(
-    `Duplicate field '${field}' in ${component} clause`,
-    {
-      code: "DUPLICATE_FIELD",
-      component,
-      field,
-      suggestion: `Remove duplicate '${field}' field`,
-    },
-  );
+	throw new ForjaQueryBuilderError(
+		`Duplicate field '${field}' in ${component} clause`,
+		{
+			code: "DUPLICATE_FIELD",
+			component,
+			field,
+			suggestion: `Remove duplicate '${field}' field`,
+		},
+	);
 }
 
 /**
@@ -196,11 +196,12 @@ export function throwDuplicateField(
  * ```
  */
 export function throwMissingTable(): never {
-  throw new ForjaQueryBuilderError("Query must have a table name", {
-    code: "MISSING_TABLE",
-    component: "builder",
-    suggestion: "Call .from('tableName') or .table('tableName') before building",
-  });
+	throw new ForjaQueryBuilderError("Query must have a table name", {
+		code: "MISSING_TABLE",
+		component: "builder",
+		suggestion:
+			"Call .from('tableName') or .table('tableName') before building",
+	});
 }
 
 /**
@@ -214,13 +215,13 @@ export function throwMissingTable(): never {
  * ```
  */
 export function throwInvalidQueryType(receivedType: unknown): never {
-  throw new ForjaQueryBuilderError(`Invalid query type: ${receivedType}`, {
-    code: "INVALID_QUERY_TYPE",
-    component: "builder",
-    suggestion: "Use one of: select, insert, update, delete, count",
-    expected: "select | insert | update | delete | count",
-    received: receivedType,
-  });
+	throw new ForjaQueryBuilderError(`Invalid query type: ${receivedType}`, {
+		code: "INVALID_QUERY_TYPE",
+		component: "builder",
+		suggestion: "Use one of: select, insert, update, delete, count",
+		expected: "select | insert | update | delete | count",
+		received: receivedType,
+	});
 }
 
 /**
@@ -234,16 +235,13 @@ export function throwInvalidQueryType(receivedType: unknown): never {
  * ```
  */
 export function throwSchemaNotFound(modelName: string): never {
-  throw new ForjaQueryBuilderError(
-    `Schema not found for model: ${modelName}`,
-    {
-      code: "SCHEMA_NOT_FOUND",
-      component: "builder",
-      context: { modelName },
-      suggestion: `Check that '${modelName}' is registered in the schema registry`,
-      received: modelName,
-    },
-  );
+	throw new ForjaQueryBuilderError(`Schema not found for model: ${modelName}`, {
+		code: "SCHEMA_NOT_FOUND",
+		component: "builder",
+		context: { modelName },
+		suggestion: `Check that '${modelName}' is registered in the schema registry`,
+		received: modelName,
+	});
 }
 
 /**
@@ -259,26 +257,25 @@ export function throwSchemaNotFound(modelName: string): never {
  * ```
  */
 export function throwInvalidFields(
-  component: QueryBuilderComponent,
-  invalidFields: readonly string[],
-  availableFields?: readonly string[],
+	component: QueryBuilderComponent,
+	invalidFields: readonly string[],
+	availableFields?: readonly string[],
 ): never {
-  const fieldList = invalidFields.join(", ");
-  throw new ForjaQueryBuilderError(
-    `Invalid field(s) in ${component} clause: ${fieldList}`,
-    {
-      code: "INVALID_FIELD",
-      component,
-      field: invalidFields[0],
-      context: { invalidFields, availableFields },
-      suggestion:
-        availableFields
-          ? `Use one of: ${availableFields.join(", ")}`
-          : `Check that these fields exist in the schema`,
-      expected: availableFields ? availableFields.join(" | ") : undefined,
-      received: fieldList,
-    },
-  );
+	const fieldList = invalidFields.join(", ");
+	throw new ForjaQueryBuilderError(
+		`Invalid field(s) in ${component} clause: ${fieldList}`,
+		{
+			code: "INVALID_FIELD",
+			component,
+			field: invalidFields[0],
+			context: { invalidFields, availableFields },
+			suggestion: availableFields
+				? `Use one of: ${availableFields.join(", ")}`
+				: `Check that these fields exist in the schema`,
+			expected: availableFields ? availableFields.join(" | ") : undefined,
+			received: fieldList,
+		},
+	);
 }
 
 /**
@@ -293,20 +290,20 @@ export function throwInvalidFields(
  * ```
  */
 export function throwRelationInSelect(
-  relationFields: readonly string[],
-  modelName: string,
+	relationFields: readonly string[],
+	modelName: string,
 ): never {
-  const fieldList = relationFields.join(", ");
-  throw new ForjaQueryBuilderError(
-    `Cannot select relation field(s) in model '${modelName}': ${fieldList}. Use populate() to include relations.`,
-    {
-      code: "RELATION_IN_SELECT",
-      component: "select",
-      field: relationFields[0],
-      context: { relationFields, modelName },
-      suggestion: `Use .populate('${relationFields[0]}') instead of selecting it`,
-    },
-  );
+	const fieldList = relationFields.join(", ");
+	throw new ForjaQueryBuilderError(
+		`Cannot select relation field(s) in model '${modelName}': ${fieldList}. Use populate() to include relations.`,
+		{
+			code: "RELATION_IN_SELECT",
+			component: "select",
+			field: relationFields[0],
+			context: { relationFields, modelName },
+			suggestion: `Use .populate('${relationFields[0]}') instead of selecting it`,
+		},
+	);
 }
 
 /**
@@ -323,21 +320,21 @@ export function throwRelationInSelect(
  * ```
  */
 export function throwCoercionFailed(
-  field: string,
-  value: unknown,
-  expectedType: string,
+	field: string,
+	value: unknown,
+	expectedType: string,
 ): never {
-  const displayValue = typeof value === "string" ? `'${value}'` : String(value);
-  throw new ForjaQueryBuilderError(
-    `Cannot convert value ${displayValue} to ${expectedType} for field '${field}'`,
-    {
-      code: "COERCION_FAILED",
-      component: "where",
-      field,
-      context: { value, expectedType, receivedType: typeof value },
-      suggestion: `Provide a valid ${expectedType} value for '${field}'`,
-      expected: expectedType,
-      received: value,
-    },
-  );
+	const displayValue = typeof value === "string" ? `'${value}'` : String(value);
+	throw new ForjaQueryBuilderError(
+		`Cannot convert value ${displayValue} to ${expectedType} for field '${field}'`,
+		{
+			code: "COERCION_FAILED",
+			component: "where",
+			field,
+			context: { value, expectedType, receivedType: typeof value },
+			suggestion: `Provide a valid ${expectedType} value for '${field}'`,
+			expected: expectedType,
+			received: value,
+		},
+	);
 }

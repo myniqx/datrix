@@ -12,11 +12,11 @@ import { FieldDefinition, IndexDefinition, SchemaDefinition } from "./schema";
  * Migration status
  */
 export type MigrationStatus =
-  | "pending"
-  | "running"
-  | "completed"
-  | "failed"
-  | "rolled_back";
+	| "pending"
+	| "running"
+	| "completed"
+	| "failed"
+	| "rolled_back";
 
 /**
  * Migration direction
@@ -27,453 +27,458 @@ export type MigrationDirection = "up" | "down";
  * Migration metadata
  */
 export interface MigrationMetadata {
-  readonly name: string;
-  readonly version: string;
-  readonly timestamp: number;
-  readonly description?: string;
-  readonly author?: string;
+	readonly name: string;
+	readonly version: string;
+	readonly timestamp: number;
+	readonly description?: string;
+	readonly author?: string;
 }
 
 /**
  * Migration context for execution
  */
 export interface MigrationContext {
-  readonly version: string;
-  readonly direction: MigrationDirection;
-  readonly dryRun?: boolean;
+	readonly version: string;
+	readonly direction: MigrationDirection;
+	readonly dryRun?: boolean;
 }
 
 /**
  * Migration operation types
  */
 export type MigrationOperationType =
-  | "createTable"
-  | "dropTable"
-  | "alterTable"
-  | "createIndex"
-  | "dropIndex"
-  | "renameTable"
-  | "raw";
+	| "createTable"
+	| "dropTable"
+	| "alterTable"
+	| "createIndex"
+	| "dropIndex"
+	| "renameTable"
+	| "raw";
 
 /**
  * Base migration operation
  */
 export interface BaseMigrationOperation {
-  readonly type: MigrationOperationType;
+	readonly type: MigrationOperationType;
 }
 
 /**
  * Create table operation
  */
 export interface CreateTableOperation extends BaseMigrationOperation {
-  readonly type: "createTable";
-  readonly schema: SchemaDefinition;
+	readonly type: "createTable";
+	readonly schema: SchemaDefinition;
 }
 
 /**
  * Drop table operation
  */
 export interface DropTableOperation extends BaseMigrationOperation {
-  readonly type: "dropTable";
-  readonly tableName: string;
+	readonly type: "dropTable";
+	readonly tableName: string;
 }
 
 /**
  * Alter table operation
  */
 export interface AlterTableOperation extends BaseMigrationOperation {
-  readonly type: "alterTable";
-  readonly tableName: string;
-  readonly operations: readonly AlterOperation[];
+	readonly type: "alterTable";
+	readonly tableName: string;
+	readonly operations: readonly AlterOperation[];
 }
 
 /**
  * Create index operation
  */
 export interface CreateIndexOperation extends BaseMigrationOperation {
-  readonly type: "createIndex";
-  readonly tableName: string;
-  readonly index: IndexDefinition;
+	readonly type: "createIndex";
+	readonly tableName: string;
+	readonly index: IndexDefinition;
 }
 
 /**
  * Drop index operation
  */
 export interface DropIndexOperation extends BaseMigrationOperation {
-  readonly type: "dropIndex";
-  readonly tableName: string;
-  readonly indexName: string;
+	readonly type: "dropIndex";
+	readonly tableName: string;
+	readonly indexName: string;
 }
 
 /**
  * Rename table operation
  */
 export interface RenameTableOperation extends BaseMigrationOperation {
-  readonly type: "renameTable";
-  readonly from: string;
-  readonly to: string;
+	readonly type: "renameTable";
+	readonly from: string;
+	readonly to: string;
 }
 
 /**
  * Raw SQL operation (for custom migrations)
  */
 export interface RawSQLOperation extends BaseMigrationOperation {
-  readonly type: "raw";
-  readonly sql: string;
-  readonly params?: readonly unknown[];
+	readonly type: "raw";
+	readonly sql: string;
+	readonly params?: readonly unknown[];
 }
 
 /**
  * Union of all migration operations
  */
 export type MigrationOperation =
-  | CreateTableOperation
-  | DropTableOperation
-  | AlterTableOperation
-  | CreateIndexOperation
-  | DropIndexOperation
-  | RenameTableOperation
-  | RawSQLOperation;
+	| CreateTableOperation
+	| DropTableOperation
+	| AlterTableOperation
+	| CreateIndexOperation
+	| DropIndexOperation
+	| RenameTableOperation
+	| RawSQLOperation;
 
 /**
  * Migration definition
  */
 export interface Migration {
-  readonly metadata: MigrationMetadata;
-  readonly up: readonly MigrationOperation[];
-  readonly down: readonly MigrationOperation[];
+	readonly metadata: MigrationMetadata;
+	readonly up: readonly MigrationOperation[];
+	readonly down: readonly MigrationOperation[];
 }
 
 /**
  * Schema difference types
  */
 export type SchemaDiffType =
-  | "tableAdded"
-  | "tableRemoved"
-  | "tableRenamed"
-  | "fieldAdded"
-  | "fieldRemoved"
-  | "fieldModified"
-  | "fieldRenamed"
-  | "indexAdded"
-  | "indexRemoved";
+	| "tableAdded"
+	| "tableRemoved"
+	| "tableRenamed"
+	| "fieldAdded"
+	| "fieldRemoved"
+	| "fieldModified"
+	| "fieldRenamed"
+	| "indexAdded"
+	| "indexRemoved";
 
 /**
  * Base schema difference
  */
 export interface BaseSchemaDiff {
-  readonly type: SchemaDiffType;
+	readonly type: SchemaDiffType;
 }
 
 /**
  * Table added difference
  */
 export interface TableAddedDiff extends BaseSchemaDiff {
-  readonly type: "tableAdded";
-  readonly schema: SchemaDefinition;
+	readonly type: "tableAdded";
+	readonly schema: SchemaDefinition;
 }
 
 /**
  * Table removed difference
  */
 export interface TableRemovedDiff extends BaseSchemaDiff {
-  readonly type: "tableRemoved";
-  readonly tableName: string;
+	readonly type: "tableRemoved";
+	readonly tableName: string;
 }
 
 /**
  * Table renamed difference
  */
 export interface TableRenamedDiff extends BaseSchemaDiff {
-  readonly type: "tableRenamed";
-  readonly from: string;
-  readonly to: string;
+	readonly type: "tableRenamed";
+	readonly from: string;
+	readonly to: string;
 }
 
 /**
  * Field added difference
  */
 export interface FieldAddedDiff extends BaseSchemaDiff {
-  readonly type: "fieldAdded";
-  readonly tableName: string;
-  readonly fieldName: string;
-  readonly definition: FieldDefinition;
+	readonly type: "fieldAdded";
+	readonly tableName: string;
+	readonly fieldName: string;
+	readonly definition: FieldDefinition;
 }
 
 /**
  * Field removed difference
  */
 export interface FieldRemovedDiff extends BaseSchemaDiff {
-  readonly type: "fieldRemoved";
-  readonly tableName: string;
-  readonly fieldName: string;
+	readonly type: "fieldRemoved";
+	readonly tableName: string;
+	readonly fieldName: string;
 }
 
 /**
  * Field modified difference
  */
 export interface FieldModifiedDiff extends BaseSchemaDiff {
-  readonly type: "fieldModified";
-  readonly tableName: string;
-  readonly fieldName: string;
-  readonly oldDefinition: FieldDefinition;
-  readonly newDefinition: FieldDefinition;
+	readonly type: "fieldModified";
+	readonly tableName: string;
+	readonly fieldName: string;
+	readonly oldDefinition: FieldDefinition;
+	readonly newDefinition: FieldDefinition;
 }
 
 /**
  * Field renamed difference
  */
 export interface FieldRenamedDiff extends BaseSchemaDiff {
-  readonly type: "fieldRenamed";
-  readonly tableName: string;
-  readonly from: string;
-  readonly to: string;
+	readonly type: "fieldRenamed";
+	readonly tableName: string;
+	readonly from: string;
+	readonly to: string;
 }
 
 /**
  * Index added difference
  */
 export interface IndexAddedDiff extends BaseSchemaDiff {
-  readonly type: "indexAdded";
-  readonly tableName: string;
-  readonly index: IndexDefinition;
+	readonly type: "indexAdded";
+	readonly tableName: string;
+	readonly index: IndexDefinition;
 }
 
 /**
  * Index removed difference
  */
 export interface IndexRemovedDiff extends BaseSchemaDiff {
-  readonly type: "indexRemoved";
-  readonly tableName: string;
-  readonly indexName: string;
+	readonly type: "indexRemoved";
+	readonly tableName: string;
+	readonly indexName: string;
 }
 
 /**
  * Union of all schema differences
  */
 export type SchemaDiff =
-  | TableAddedDiff
-  | TableRemovedDiff
-  | TableRenamedDiff
-  | FieldAddedDiff
-  | FieldRemovedDiff
-  | FieldModifiedDiff
-  | FieldRenamedDiff
-  | IndexAddedDiff
-  | IndexRemovedDiff;
+	| TableAddedDiff
+	| TableRemovedDiff
+	| TableRenamedDiff
+	| FieldAddedDiff
+	| FieldRemovedDiff
+	| FieldModifiedDiff
+	| FieldRenamedDiff
+	| IndexAddedDiff
+	| IndexRemovedDiff;
 
 /**
  * Schema comparison result
  */
 export interface SchemaComparison {
-  readonly differences: readonly SchemaDiff[];
-  readonly hasChanges: boolean;
+	readonly differences: readonly SchemaDiff[];
+	readonly hasChanges: boolean;
 }
 
 /**
  * Migration history record (stored in database)
  */
 export interface MigrationHistoryRecord {
-  readonly id: number;
-  readonly name: string;
-  readonly version: string;
-  readonly appliedAt: Date;
-  readonly executionTime: number; // milliseconds
-  readonly status: MigrationStatus;
-  readonly checksum?: string;
-  readonly error?: string;
+	readonly id: number;
+	readonly name: string;
+	readonly version: string;
+	readonly appliedAt: Date;
+	readonly executionTime: number; // milliseconds
+	readonly status: MigrationStatus;
+	readonly checksum?: string;
+	readonly error?: string;
 }
 
 /**
  * Migration execution result
  */
 export interface MigrationExecutionResult {
-  readonly migration: Migration;
-  readonly status: MigrationStatus;
-  readonly executionTime: number;
-  readonly error?: Error;
-  readonly warnings?: readonly string[];
+	readonly migration: Migration;
+	readonly status: MigrationStatus;
+	readonly executionTime: number;
+	readonly error?: Error;
+	readonly warnings?: readonly string[];
 }
 
 /**
  * Migration plan (list of migrations to execute)
  */
 export interface MigrationPlan {
-  readonly migrations: readonly Migration[];
-  readonly direction: MigrationDirection;
-  readonly target?: string; // Target version (undefined = latest)
+	readonly migrations: readonly Migration[];
+	readonly direction: MigrationDirection;
+	readonly target?: string; // Target version (undefined = latest)
 }
 
 /**
  * Migration error
  */
 export class MigrationSystemError extends Error {
-  constructor(
-    message: string,
-    public readonly code:
-      | "MIGRATION_ERROR"
-      | "DIFF_ERROR"
-      | "GENERATION_ERROR"
-      | "VALIDATION_ERROR",
-    public readonly details?: unknown,
-  ) {
-    super(message);
-    this.name = "MigrationSystemError";
-  }
+	constructor(
+		message: string,
+		public readonly code:
+			| "MIGRATION_ERROR"
+			| "DIFF_ERROR"
+			| "GENERATION_ERROR"
+			| "VALIDATION_ERROR",
+		public readonly details?: unknown,
+	) {
+		super(message);
+		this.name = "MigrationSystemError";
+	}
 }
 
 /**
  * Schema differ interface
  */
 export interface SchemaDiffer {
-  /**
-   * Compare two schemas and return differences
-   */
-  compare(
-    oldSchema: Record<string, SchemaDefinition>,
-    newSchema: Record<string, SchemaDefinition>,
-  ): Result<SchemaComparison, MigrationSystemError>;
+	/**
+	 * Compare two schemas and return differences
+	 */
+	compare(
+		oldSchema: Record<string, SchemaDefinition>,
+		newSchema: Record<string, SchemaDefinition>,
+	): Result<SchemaComparison, MigrationSystemError>;
 
-  /**
-   * Detect field type changes
-   */
-  isFieldModified(oldField: FieldDefinition, newField: FieldDefinition): boolean;
+	/**
+	 * Detect field type changes
+	 */
+	isFieldModified(
+		oldField: FieldDefinition,
+		newField: FieldDefinition,
+	): boolean;
 }
 
 /**
  * Migration generator interface
  */
 export interface MigrationGenerator {
-  /**
-   * Generate migration from schema differences
-   */
-  generate(
-    differences: readonly SchemaDiff[],
-    metadata: Omit<MigrationMetadata, "timestamp">,
-  ): Result<Migration, MigrationSystemError>;
+	/**
+	 * Generate migration from schema differences
+	 */
+	generate(
+		differences: readonly SchemaDiff[],
+		metadata: Omit<MigrationMetadata, "timestamp">,
+	): Result<Migration, MigrationSystemError>;
 
-  /**
-   * Generate migration operations from differences
-   */
-  generateOperations(differences: readonly SchemaDiff[]): Result<
-    {
-      readonly up: readonly MigrationOperation[];
-      readonly down: readonly MigrationOperation[];
-    },
-    MigrationSystemError
-  >;
+	/**
+	 * Generate migration operations from differences
+	 */
+	generateOperations(differences: readonly SchemaDiff[]): Result<
+		{
+			readonly up: readonly MigrationOperation[];
+			readonly down: readonly MigrationOperation[];
+		},
+		MigrationSystemError
+	>;
 
-  /**
-   * Generate TypeScript migration file content
-   */
-  generateFile(migration: Migration): string;
+	/**
+	 * Generate TypeScript migration file content
+	 */
+	generateFile(migration: Migration): string;
 }
 
 /**
  * Migration runner interface
  */
 export interface MigrationRunner {
-  /**
-   * Get pending migrations
-   */
-  getPending(): Promise<Result<readonly Migration[], MigrationSystemError>>;
+	/**
+	 * Get pending migrations
+	 */
+	getPending(): Promise<Result<readonly Migration[], MigrationSystemError>>;
 
-  /**
-   * Get applied migrations
-   */
-  getApplied(): Promise<
-    Result<readonly MigrationHistoryRecord[], MigrationSystemError>
-  >;
+	/**
+	 * Get applied migrations
+	 */
+	getApplied(): Promise<
+		Result<readonly MigrationHistoryRecord[], MigrationSystemError>
+	>;
 
-  /**
-   * Run pending migrations
-   */
-  runPending(options?: {
-    readonly target?: string;
-    readonly dryRun?: boolean;
-  }): Promise<Result<readonly MigrationExecutionResult[], MigrationSystemError>>;
+	/**
+	 * Run pending migrations
+	 */
+	runPending(options?: {
+		readonly target?: string;
+		readonly dryRun?: boolean;
+	}): Promise<
+		Result<readonly MigrationExecutionResult[], MigrationSystemError>
+	>;
 
-  /**
-   * Run specific migration
-   */
-  runOne(
-    migration: Migration,
-    direction: MigrationDirection,
-  ): Promise<Result<MigrationExecutionResult, MigrationSystemError>>;
+	/**
+	 * Run specific migration
+	 */
+	runOne(
+		migration: Migration,
+		direction: MigrationDirection,
+	): Promise<Result<MigrationExecutionResult, MigrationSystemError>>;
 
-  /**
-   * Rollback last migration
-   */
-  rollbackLast(): Promise<
-    Result<MigrationExecutionResult, MigrationSystemError>
-  >;
+	/**
+	 * Rollback last migration
+	 */
+	rollbackLast(): Promise<
+		Result<MigrationExecutionResult, MigrationSystemError>
+	>;
 
-  /**
-   * Rollback to specific version
-   */
-  rollbackTo(
-    version: string,
-  ): Promise<Result<readonly MigrationExecutionResult[], MigrationSystemError>>;
+	/**
+	 * Rollback to specific version
+	 */
+	rollbackTo(
+		version: string,
+	): Promise<Result<readonly MigrationExecutionResult[], MigrationSystemError>>;
 
-  /**
-   * Get migration plan
-   */
-  getPlan(options?: {
-    readonly target?: string;
-    readonly direction?: MigrationDirection;
-  }): Result<MigrationPlan, MigrationSystemError>;
+	/**
+	 * Get migration plan
+	 */
+	getPlan(options?: {
+		readonly target?: string;
+		readonly direction?: MigrationDirection;
+	}): Result<MigrationPlan, MigrationSystemError>;
 }
 
 /**
  * Migration history manager interface
  */
 export interface MigrationHistory {
-  /**
-   * Initialize migrations table
-   */
-  initialize(): Promise<Result<void, MigrationSystemError>>;
+	/**
+	 * Initialize migrations table
+	 */
+	initialize(): Promise<Result<void, MigrationSystemError>>;
 
-  /**
-   * Record migration execution
-   */
-  record(
-    migration: Migration,
-    executionTime: number,
-    status: MigrationStatus,
-    error?: Error,
-  ): Promise<Result<void, MigrationSystemError>>;
+	/**
+	 * Record migration execution
+	 */
+	record(
+		migration: Migration,
+		executionTime: number,
+		status: MigrationStatus,
+		error?: Error,
+	): Promise<Result<void, MigrationSystemError>>;
 
-  /**
-   * Get all migration records
-   */
-  getAll(): Promise<
-    Result<readonly MigrationHistoryRecord[], MigrationSystemError>
-  >;
+	/**
+	 * Get all migration records
+	 */
+	getAll(): Promise<
+		Result<readonly MigrationHistoryRecord[], MigrationSystemError>
+	>;
 
-  /**
-   * Get last applied migration
-   */
-  getLast(): Promise<
-    Result<MigrationHistoryRecord | undefined, MigrationSystemError>
-  >;
+	/**
+	 * Get last applied migration
+	 */
+	getLast(): Promise<
+		Result<MigrationHistoryRecord | undefined, MigrationSystemError>
+	>;
 
-  /**
-   * Check if migration was applied
-   */
-  isApplied(version: string): Promise<Result<boolean, MigrationSystemError>>;
+	/**
+	 * Check if migration was applied
+	 */
+	isApplied(version: string): Promise<Result<boolean, MigrationSystemError>>;
 
-  /**
-   * Remove migration record (for rollback)
-   */
-  remove(version: string): Promise<Result<void, MigrationSystemError>>;
+	/**
+	 * Remove migration record (for rollback)
+	 */
+	remove(version: string): Promise<Result<void, MigrationSystemError>>;
 
-  /**
-   * Calculate migration checksum
-   */
-  calculateChecksum(migration: Migration): string;
+	/**
+	 * Calculate migration checksum
+	 */
+	calculateChecksum(migration: Migration): string;
 
-  /**
-   * Verify migration integrity
-   */
-  verifyChecksum(migration: Migration, record: MigrationHistoryRecord): boolean;
+	/**
+	 * Verify migration integrity
+	 */
+	verifyChecksum(migration: Migration, record: MigrationHistoryRecord): boolean;
 }

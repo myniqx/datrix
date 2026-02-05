@@ -8,11 +8,16 @@
  */
 
 import {
-  ForjaEntry,
-  SchemaDefinition,
-  RESERVED_FIELDS,
+	ForjaEntry,
+	SchemaDefinition,
+	RESERVED_FIELDS,
 } from "forja-types/core/schema";
-import { validateOrThrow, validatePartial, validatePartialOrThrow, validateSchema } from "../validator";
+import {
+	validateOrThrow,
+	validatePartial,
+	validatePartialOrThrow,
+	validateSchema,
+} from "../validator";
 import { throwReservedFieldError } from "../mixins/error-helper";
 import { QueryRelations } from "forja-types/core/query-builder";
 
@@ -20,12 +25,12 @@ import { QueryRelations } from "forja-types/core/query-builder";
  * Validation options
  */
 export interface ValidationOptions {
-  /** If true, use partial validation (for updates) */
-  partial: boolean;
-  /** If true, this is a create operation (affects timestamp handling) */
-  isCreate: boolean;
-  /** If true, allow user to override timestamps (raw mode) */
-  isRawMode: boolean;
+	/** If true, use partial validation (for updates) */
+	partial: boolean;
+	/** If true, this is a create operation (affects timestamp handling) */
+	isCreate: boolean;
+	/** If true, allow user to override timestamps (raw mode) */
+	isRawMode: boolean;
 }
 
 /**
@@ -50,18 +55,18 @@ export interface ValidationOptions {
  * ```
  */
 function checkReservedFields<T extends ForjaEntry>(
-  data: Partial<T> | undefined,
-  isRawMode: boolean,
+	data: Partial<T> | undefined,
+	isRawMode: boolean,
 ): void {
-  if (isRawMode || !data) {
-    return;
-  }
+	if (isRawMode || !data) {
+		return;
+	}
 
-  for (const field of RESERVED_FIELDS) {
-    if (field in data) {
-      throwReservedFieldError(field, "unknown");
-    }
-  }
+	for (const field of RESERVED_FIELDS) {
+		if (field in data) {
+			throwReservedFieldError(field, "unknown");
+		}
+	}
 }
 
 /**
@@ -100,41 +105,41 @@ function checkReservedFields<T extends ForjaEntry>(
  * ```
  */
 function addTimestamps<T extends ForjaEntry>(
-  data: Partial<T> | undefined,
-  options: Pick<ValidationOptions, "isCreate" | "isRawMode">,
+	data: Partial<T> | undefined,
+	options: Pick<ValidationOptions, "isCreate" | "isRawMode">,
 ): Partial<T> {
-  const { isCreate, isRawMode } = options;
-  const now = new Date();
-  const result: Partial<T> = !!data ? { ...data } : {} as Partial<T>;
+	const { isCreate, isRawMode } = options;
+	const now = new Date();
+	const result: Partial<T> = !!data ? { ...data } : ({} as Partial<T>);
 
-  if (isCreate) {
-    if (isRawMode) {
-      // Raw mode: Smart defaults (only if not provided)
-      if (!result.createdAt) {
-        result.createdAt = now;
-      }
-      if (!result.updatedAt) {
-        result.updatedAt = result.createdAt;
-      }
-    } else {
-      // Normal mode: Always add timestamps (override)
-      result.createdAt = now;
-      result.updatedAt = now;
-    }
-  } else {
-    // Update operation
-    if (isRawMode) {
-      // Raw mode: Add updatedAt only if not provided
-      if (!result.updatedAt) {
-        result.updatedAt = now;
-      }
-    } else {
-      // Normal mode: Always update timestamp (override)
-      result.updatedAt = now;
-    }
-  }
+	if (isCreate) {
+		if (isRawMode) {
+			// Raw mode: Smart defaults (only if not provided)
+			if (!result.createdAt) {
+				result.createdAt = now;
+			}
+			if (!result.updatedAt) {
+				result.updatedAt = result.createdAt;
+			}
+		} else {
+			// Normal mode: Always add timestamps (override)
+			result.createdAt = now;
+			result.updatedAt = now;
+		}
+	} else {
+		// Update operation
+		if (isRawMode) {
+			// Raw mode: Add updatedAt only if not provided
+			if (!result.updatedAt) {
+				result.updatedAt = now;
+			}
+		} else {
+			// Normal mode: Always update timestamp (override)
+			result.updatedAt = now;
+		}
+	}
 
-  return result;
+	return result;
 }
 
 /**
@@ -171,36 +176,38 @@ function addTimestamps<T extends ForjaEntry>(
  * ```
  */
 export function validateData<
-  T extends ForjaEntry = ForjaEntry,
-  P extends boolean = false,
+	T extends ForjaEntry = ForjaEntry,
+	P extends boolean = false,
 >(
-  data: Partial<T> | undefined,
-  relations: QueryRelations<T> | undefined,
-  schema: SchemaDefinition,
-  options: ValidationOptions,
+	data: Partial<T> | undefined,
+	relations: QueryRelations<T> | undefined,
+	schema: SchemaDefinition,
+	options: ValidationOptions,
 ): P extends true ? Partial<T> : T {
-  const { partial, isCreate, isRawMode } = options;
+	const { partial, isCreate, isRawMode } = options;
 
-  // 1. Check for reserved fields (only in normal mode)
-  checkReservedFields(data, isRawMode);
+	// 1. Check for reserved fields (only in normal mode)
+	checkReservedFields(data, isRawMode);
 
-  // 2. Add timestamps BEFORE validation (so required fields like createdAt pass)
-  const dataWithTimestamps = schema._isJunctionTable ? data : addTimestamps(data, { isCreate, isRawMode });
+	// 2. Add timestamps BEFORE validation (so required fields like createdAt pass)
+	const dataWithTimestamps = schema._isJunctionTable
+		? data
+		: addTimestamps(data, { isCreate, isRawMode });
 
-  // 3. Schema validation (with timestamps already present)
-  const validationOptions = {
-    strict: true,
-    stripUnknown: false,
-    abortEarly: false,
-  };
+	// 3. Schema validation (with timestamps already present)
+	const validationOptions = {
+		strict: true,
+		stripUnknown: false,
+		abortEarly: false,
+	};
 
-  const combined = { ...(dataWithTimestamps ?? {}), ...(relations ?? {}) };
+	const combined = { ...(dataWithTimestamps ?? {}), ...(relations ?? {}) };
 
-  if (partial) {
-    validatePartial(combined, schema, validationOptions);
-  } else {
-    validateSchema(combined, schema, validationOptions);
-  }
+	if (partial) {
+		validatePartial(combined, schema, validationOptions);
+	} else {
+		validateSchema(combined, schema, validationOptions);
+	}
 
-  return dataWithTimestamps as P extends true ? Partial<T> : T;
+	return dataWithTimestamps as P extends true ? Partial<T> : T;
 }

@@ -7,11 +7,11 @@
 
 import { ForjaEntry, ForjaRecord } from "../core/schema";
 import {
-  OrderByItem,
-  PopulateClause,
-  QueryObject,
-  SelectClause,
-  WhereClause,
+	OrderByItem,
+	PopulateClause,
+	QueryObject,
+	SelectClause,
+	WhereClause,
 } from "../core/query-builder";
 import { ParserError } from "../errors/api/parser";
 import { Result } from "../utils";
@@ -21,8 +21,8 @@ import { Result } from "../utils";
  * (framework-agnostic - works with URLSearchParams, Express req.query, etc.)
  */
 export type RawQueryParams = Record<
-  string,
-  string | readonly string[] | undefined
+	string,
+	string | readonly string[] | undefined
 >;
 
 /**
@@ -30,39 +30,39 @@ export type RawQueryParams = Record<
  */
 
 export interface ParsedQuery<T extends ForjaEntry = ForjaRecord> {
-  readonly select?: QueryObject<T>["select"];
-  readonly where?: QueryObject<T>["where"];
-  readonly populate?: QueryObject<T>["populate"];
-  readonly orderBy?: QueryObject<T>["orderBy"];
-  readonly page?: number;
-  readonly pageSize?: number;
+	readonly select?: QueryObject<T>["select"];
+	readonly where?: QueryObject<T>["where"];
+	readonly populate?: QueryObject<T>["populate"];
+	readonly orderBy?: QueryObject<T>["orderBy"];
+	readonly page?: number;
+	readonly pageSize?: number;
 }
 
 /**
  * Parser options
  */
 export interface ParserOptions {
-  readonly maxPageSize?: number; // Default: 100
-  readonly defaultPageSize?: number; // Default: 25
-  readonly maxPopulateDepth?: number; // Default: 5
-  readonly allowedOperators?: readonly string[]; // Default: all
-  readonly strictMode?: boolean; // Fail on unknown fields
+	readonly maxPageSize?: number; // Default: 100
+	readonly defaultPageSize?: number; // Default: 25
+	readonly maxPopulateDepth?: number; // Default: 5
+	readonly allowedOperators?: readonly string[]; // Default: all
+	readonly strictMode?: boolean; // Fail on unknown fields
 }
 
 // Re-export parser error types from errors module
 export type {
-  ParserType,
-  ParserErrorCode,
-  ParserErrorContext,
-  WhereErrorContext,
-  PopulateErrorContext,
-  FieldsErrorContext,
-  PaginationErrorContext,
-  SortErrorContext,
-  BaseErrorContext,
-  ErrorLocation,
-  ParserErrorOptions,
-  SerializedParserError,
+	ParserType,
+	ParserErrorCode,
+	ParserErrorContext,
+	WhereErrorContext,
+	PopulateErrorContext,
+	FieldsErrorContext,
+	PaginationErrorContext,
+	SortErrorContext,
+	BaseErrorContext,
+	ErrorLocation,
+	ParserErrorOptions,
+	SerializedParserError,
 } from "../errors/api/parser";
 
 export { ParserError, buildErrorLocation } from "../errors/api/parser";
@@ -81,8 +81,8 @@ export type WhereParserResult = Result<WhereClause | undefined, ParserError>;
  * Populate parser result
  */
 export type PopulateParserResult = Result<
-  PopulateClause | undefined,
-  ParserError
+	PopulateClause | undefined,
+	ParserError
 >;
 
 /**
@@ -94,25 +94,25 @@ export type QueryParserResult = Result<ParsedQuery, ParserError>;
  * Supported WHERE operators
  */
 export const WHERE_OPERATORS = [
-  "$eq",
-  "$ne",
-  "$lt",
-  "$lte",
-  "$gt",
-  "$gte",
-  "$in",
-  "$nin",
-  "$contains",
-  "$notContains",
-  "$startsWith",
-  "$endsWith",
-  "$null",
-  "$notNull",
-  "$like",
-  "$ilike",
-  "$and",
-  "$or",
-  "$not",
+	"$eq",
+	"$ne",
+	"$lt",
+	"$lte",
+	"$gt",
+	"$gte",
+	"$in",
+	"$nin",
+	"$contains",
+	"$notContains",
+	"$startsWith",
+	"$endsWith",
+	"$null",
+	"$notNull",
+	"$like",
+	"$ilike",
+	"$and",
+	"$or",
+	"$not",
 ] as const;
 
 /**
@@ -124,23 +124,23 @@ export type WhereOperator = (typeof WHERE_OPERATORS)[number];
  * Check if string is a valid operator
  */
 export function isWhereOperator(value: string): value is WhereOperator {
-  return WHERE_OPERATORS.includes(value as WhereOperator);
+	return WHERE_OPERATORS.includes(value as WhereOperator);
 }
 
 /**
  * Pagination parameters
  */
 export interface PaginationParams {
-  readonly page?: number;
-  readonly pageSize?: number;
+	readonly page?: number;
+	readonly pageSize?: number;
 }
 
 /**
  * Parse pagination result
  */
 export interface ParsedPagination {
-  readonly page: number;
-  readonly pageSize: number;
+	readonly page: number;
+	readonly pageSize: number;
 }
 
 /**
