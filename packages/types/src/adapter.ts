@@ -38,11 +38,11 @@ export interface QueryResult<T = unknown> {
 export interface Transaction {
 	readonly id: string;
 
-	query<TResult>(
-		query: QueryObject,
+	query<TResult extends ForjaEntry>(
+		query: QueryObject<TResult>,
 	): Promise<Result<QueryResult<TResult>, QueryError>>;
 
-	rawQuery<TResult>(
+	rawQuery<TResult extends ForjaEntry>(
 		sql: string,
 		params: readonly unknown[],
 	): Promise<Result<QueryResult<TResult>, QueryError>>;
@@ -293,14 +293,14 @@ export type SqlDialect = "postgres" | "mysql" | "sqlite";
 /**
  * Query translator interface
  */
-export interface QueryTranslator {
-	translate(query: QueryObject): {
+export interface QueryTranslator<T extends ForjaEntry = ForjaEntry> {
+	translate(query: QueryObject<T>): {
 		readonly sql: string;
 		readonly params: readonly unknown[];
 	};
 
 	translateWhere(
-		where: WhereClause,
+		where: WhereClause<T>,
 		startIndex: number,
 	): {
 		readonly sql: string;

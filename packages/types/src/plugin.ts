@@ -140,41 +140,6 @@ export type PluginFactory<TOptions = Record<string, unknown>> = (
 ) => ForjaPlugin<TOptions>;
 
 /**
- * Lifecycle hook context
- */
-export interface HookContext {
-	readonly modelName: string;
-	readonly operation: "create" | "update" | "delete" | "find";
-	readonly user?: {
-		readonly id: string;
-		readonly role: string;
-	};
-	readonly metadata?: Record<string, unknown>;
-}
-
-/**
- * Lifecycle hook handler
- */
-export type HookHandler<TData = unknown, TResult = TData> = (
-	data: TData,
-	context: HookContext,
-) => Promise<TResult> | TResult;
-
-/**
- * Lifecycle hooks map
- */
-export interface LifecycleHooks<T = Record<string, unknown>> {
-	readonly beforeCreate?: HookHandler<Partial<T>, Partial<T>>;
-	readonly afterCreate?: HookHandler<T, T>;
-	readonly beforeUpdate?: HookHandler<Partial<T>, Partial<T>>;
-	readonly afterUpdate?: HookHandler<T, T>;
-	readonly beforeDelete?: HookHandler<string, void>;
-	readonly afterDelete?: HookHandler<string, void>;
-	readonly beforeFind?: HookHandler<QueryObject, QueryObject>;
-	readonly afterFind?: HookHandler<T | readonly T[], T | readonly T[]>;
-}
-
-/**
  * Auth plugin types
  */
 
@@ -235,92 +200,6 @@ export class UploadError extends PluginError {
 		super(message, { code: "UPLOAD_ERROR", details });
 		this.name = "UploadError";
 	}
-}
-
-/**
- * Soft delete plugin types
- */
-
-/**
- * Soft delete options
- */
-export interface SoftDeleteOptions {
-	readonly field?: string; // Field name (default: 'deletedAt')
-	readonly type?: "timestamp" | "boolean"; // Field type
-}
-
-/**
- * Soft delete interceptor
- */
-export interface SoftDeleteInterceptor {
-	interceptQuery(query: QueryObject): QueryObject;
-	hardDelete(query: QueryObject): QueryObject;
-	findDeleted(query: QueryObject): QueryObject;
-	restore(tableName: string, id: string): QueryObject;
-}
-
-/**
- * Hooks plugin types
- */
-
-/**
- * Hook registration
- */
-export interface HookRegistration {
-	readonly modelName: string;
-	readonly hooks: LifecycleHooks;
-}
-
-/**
- * Hooks manager
- */
-export interface HooksManager {
-	registerHooks(modelName: string, hooks: LifecycleHooks): void;
-	getHooks(modelName: string): LifecycleHooks | undefined;
-	executeHook<TData, TResult = TData>(
-		modelName: string,
-		hookName: keyof LifecycleHooks,
-		data: TData,
-		context: HookContext,
-	): Promise<TResult>;
-	hasHook(modelName: string, hookName: keyof LifecycleHooks): boolean;
-}
-
-/**
- * Validation plugin types
- */
-
-/**
- * Validation rule
- */
-export interface ValidationRule<T = unknown> {
-	readonly validator: (value: T) => boolean | Promise<boolean>;
-	readonly message: string;
-}
-
-/**
- * Field validation
- */
-export interface FieldValidation {
-	readonly field: string;
-	readonly rules: readonly ValidationRule[];
-}
-
-/**
- * Validation result
- */
-export interface ValidationResult {
-	readonly valid: boolean;
-	readonly errors: readonly ValidationErrorDetail[];
-}
-
-/**
- * Validation error detail
- */
-export interface ValidationErrorDetail {
-	readonly field: string;
-	readonly message: string;
-	readonly value?: unknown;
 }
 
 /**

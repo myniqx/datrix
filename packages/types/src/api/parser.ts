@@ -6,13 +6,7 @@
  */
 
 import { ForjaEntry, ForjaRecord } from "../core/schema";
-import {
-	OrderByItem,
-	PopulateClause,
-	QueryObject,
-	SelectClause,
-	WhereClause,
-} from "../core/query-builder";
+import { OrderByItem, QueryObject } from "../core/query-builder";
 import { ParserError } from "../errors/api/parser";
 import { Result } from "../utils";
 
@@ -66,24 +60,6 @@ export type {
 } from "../errors/api/parser";
 
 export { ParserError, buildErrorLocation } from "../errors/api/parser";
-
-/**
- * Field parser result
- */
-export type FieldsParserResult = Result<SelectClause, ParserError>;
-
-/**
- * Where parser result
- */
-export type WhereParserResult = Result<WhereClause | undefined, ParserError>;
-
-/**
- * Populate parser result
- */
-export type PopulateParserResult = Result<
-	PopulateClause | undefined,
-	ParserError
->;
 
 /**
  * Query parser result

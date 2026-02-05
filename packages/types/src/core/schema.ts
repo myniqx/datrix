@@ -76,7 +76,7 @@ export interface ForjaEntry {
  * const where: WhereClause<Post> = { title: 'Hello' };
  * ```
  */
-export type ForjaRecord = Partial<ForjaEntry> & Record<string, unknown>;
+export type ForjaRecord = ForjaEntry & Record<string, unknown>;
 
 /**
  * Primitive field types

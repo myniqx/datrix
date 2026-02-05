@@ -6,7 +6,7 @@
  */
 
 import { PopulateClause, SelectClause } from "../core/query-builder";
-import { FieldDefinition, SchemaDefinition } from "../core/schema";
+import { FieldDefinition, ForjaEntry, SchemaDefinition } from "../core/schema";
 import { Result } from "../utils";
 
 /**
@@ -14,9 +14,8 @@ import { Result } from "../utils";
  */
 export interface SerializerOptions {
 	readonly schema: SchemaDefinition;
-	readonly select?: SelectClause;
+	readonly select?: SelectClause<ForjaEntry>;
 	readonly populate?: PopulateClause;
-	readonly includeTimestamps?: boolean; // Include createdAt, updatedAt
 	readonly includeMeta?: boolean; // Include metadata
 }
 

@@ -519,7 +519,7 @@ function normalizeWhereClause<T extends ForjaEntry>(
 	schema: SchemaDefinition,
 	registry: SchemaRegistry,
 ): WhereClause<T> {
-	const normalized: WhereClause<T> = {};
+	const normalized: Record<string, unknown> = {};
 
 	for (const [key, value] of Object.entries(where)) {
 		// Handle logical operators recursively
@@ -576,7 +576,7 @@ function normalizeWhereClause<T extends ForjaEntry>(
 				if (targetSchema) {
 					// Recursively normalize nested WHERE clause
 					normalized[key] = normalizeWhereClause(
-						value as WhereClause,
+						value as WhereClause<T>,
 						targetSchema,
 						registry,
 					);
@@ -591,7 +591,7 @@ function normalizeWhereClause<T extends ForjaEntry>(
 
 		// Handle comparison operators - coerce values inside
 		if (isComparisonOperators(value)) {
-			const coercedOps: ComparisonOperators = {};
+			const coercedOps: Record<string, unknown> = {};
 			for (const [operator, opValue] of Object.entries(
 				value as ComparisonOperators,
 			)) {
@@ -616,5 +616,5 @@ function normalizeWhereClause<T extends ForjaEntry>(
 		normalized[key] = coerceValue(value, fieldDef, key);
 	}
 
-	return normalized;
+	return normalized as WhereClause<T>;
 }

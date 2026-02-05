@@ -12,12 +12,7 @@ import {
 	SchemaDefinition,
 	RESERVED_FIELDS,
 } from "forja-types/core/schema";
-import {
-	validateOrThrow,
-	validatePartial,
-	validatePartialOrThrow,
-	validateSchema,
-} from "../validator";
+import { validatePartial, validateSchema } from "../validator";
 import { throwReservedFieldError } from "../mixins/error-helper";
 import { QueryRelations } from "forja-types/core/query-builder";
 

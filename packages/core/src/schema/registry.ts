@@ -509,7 +509,7 @@ export class SchemaRegistry {
 		// Check cache first
 		const cached = this.cache.selectFields.get(modelName);
 		if (cached) {
-			return cached;
+			return cached as (keyof T)[];
 		}
 
 		// Build clean field list: exclude hidden and relation fields
@@ -531,7 +531,7 @@ export class SchemaRegistry {
 		// Cache the result
 		this.cache.selectFields.set(modelName, cleanFields);
 
-		return cleanFields;
+		return cleanFields as (keyof T)[];
 	}
 
 	/**

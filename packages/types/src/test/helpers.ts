@@ -41,7 +41,10 @@ export function expectSuccessData<T, E = unknown>(result: Result<T, E>): T {
  * const error = expectFailureError(parseWhere({ invalid: true }));
  * expect(error.code).toBe('INVALID_OPERATOR'); // ✅ No lint error
  */
-export function expectFailureError<T, E = unknown>(result: Result<T, E>): E {
+export function expectFailureError<
+	T,
+	E = Record<string, string | unknown | object>,
+>(result: Result<T, E>): E {
 	expect(result.success).toBe(false);
 	if (result.success) {
 		throw new Error(
@@ -357,14 +360,6 @@ export interface ResponseSingleData<T extends ForjaEntry> {
 }
 
 /**
- * Multiple records API response (with pagination)
- */
-export interface ResponseMultiData<T extends ForjaEntry> {
-	readonly data: Partial<T>[];
-	readonly meta: PaginationMeta;
-}
-
-/**
  * API error response with full ForjaError serialization
  */
 export interface ApiErrorResponse {
@@ -438,10 +433,10 @@ export async function expectApiMulti<T extends ForjaEntry = ForjaRecord>(
 
 	// Validate pagination meta
 	expect(json.meta).toBeDefined();
-	expect(json.meta.total).toBeTypeOf("number");
-	expect(json.meta.page).toBeTypeOf("number");
-	expect(json.meta.pageSize).toBeTypeOf("number");
-	expect(json.meta.totalPages).toBeTypeOf("number");
+	expect(json.meta!.total).toBeTypeOf("number");
+	expect(json.meta!.page).toBeTypeOf("number");
+	expect(json.meta!.pageSize).toBeTypeOf("number");
+	expect(json.meta!.totalPages).toBeTypeOf("number");
 
 	return json;
 }
@@ -672,50 +667,4 @@ export async function expectCompleteApiError(
 	}
 
 	return error;
-}
-
-// ============================================================================
-// Query Builder Helper (uses serializer)
-// ============================================================================
-
-import type { ParsedQuery } from "../api/parser";
-
-/**
- * Build query string from ParsedQuery object
- *
- * Converts structured query objects into URL query strings for API requests.
- * This makes tests more readable and maintainable.
- *
- * NOTE: To use this in tests, import queryToParams from '@forja/api/serializer'
- * This placeholder exists to document the pattern.
- *
- * @example
- * import { queryToParams } from '@forja/api/serializer';
- *
- * const queryString = queryToParams({
- *   where: { status: 'active', age: { $gte: 18 } },
- *   page: 2,
- *   pageSize: 25,
- *   orderBy: [{ field: 'name', direction: 'asc' }]
- * });
- *
- * const response = await fetch(`/api/users?${queryString}`);
- * // Result: /api/users?where[status]=active&where[age][$gte]=18&page=2&pageSize=25&sort=name
- *
- * @example
- * // Simple pagination
- * const queryString = queryToParams({
- *   page: 1,
- *   pageSize: 10
- * });
- * // Result: page=1&pageSize=10
- */
-export function buildQueryString<T extends ForjaEntry = ForjaRecord>(
-	query: ParsedQuery<T>,
-): string {
-	// This is a placeholder function for documentation purposes
-	// In actual tests, use: import { queryToParams } from '@forja/api/serializer'
-	throw new Error(
-		"Use queryToParams from '@forja/api/serializer' instead of this placeholder",
-	);
 }

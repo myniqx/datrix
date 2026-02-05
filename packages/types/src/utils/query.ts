@@ -4,6 +4,7 @@
  * Provides runtime validation for QueryObject structure.
  */
 
+import { ForjaEntry } from "forja-types/core/schema";
 import { QueryObject } from "../core/query-builder";
 import { ForjaError } from "../errors";
 import { Result } from "../utils";
@@ -37,12 +38,13 @@ const FORBIDDEN_KEYS_MAPPING: Record<string, string> = {
 };
 
 /**
+ * @deprecated Dont need it any more. query-builder creates perfectly validated QueryObjects
  * Validates that a QueryObject contains only allowed keys.
  * This is a runtime check to catch errors from plugins or dynamic query construction.
  */
-export function validateQueryObject(
+export function validateQueryObject<T extends ForjaEntry>(
 	query: unknown,
-): Result<QueryObject, ForjaError> {
+): Result<QueryObject<T>, ForjaError> {
 	if (typeof query !== "object" || query === null) {
 		return {
 			success: false,
@@ -101,7 +103,7 @@ export function validateQueryObject(
 	}
 
 	// Basic structure check for required fields
-	const q = query as Partial<QueryObject>;
+	const q = query as Partial<QueryObject<T>>;
 	if (!q.type) {
 		return {
 			success: false,
@@ -131,6 +133,6 @@ export function validateQueryObject(
 
 	return {
 		success: true,
-		data: query as QueryObject,
+		data: query as QueryObject<T>,
 	};
 }

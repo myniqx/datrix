@@ -16,8 +16,8 @@ import {
 	QueryObject,
 	QueryRelations,
 	NormalizedRelationOperations,
+	WhereClause,
 } from "forja-types/core/query-builder";
-import type { ProcessedData } from "../query-builder/data";
 import { QueryExecutor } from "./executor";
 
 /**
@@ -117,7 +117,7 @@ async function processRelation<T extends ForjaEntry>({
 
 	// belongsTo / hasOne → Update THIS record's foreign key
 	if (relation.kind === "belongsTo" || relation.kind === "hasOne") {
-		const updateData: ForjaRecord = {};
+		const updateData: Partial<ForjaRecord> = {};
 
 		// After normalization: connect/set/disconnect are now number[]
 		if (relData.connect) {
@@ -152,8 +152,8 @@ async function processRelation<T extends ForjaEntry>({
 			const query: QueryObject<T> = {
 				table: schema.tableName!,
 				type: "update",
-				where: { id: parentId },
-				data: updateData,
+				where: { id: parentId } as WhereClause<T>,
+				data: updateData as Partial<T>,
 			};
 			await executor.executeUpdate(query, schema, { noDispatcher: true });
 		}
@@ -175,8 +175,8 @@ async function processRelation<T extends ForjaEntry>({
 				await executor.executeUpdate(
 					{
 						...query,
-						data: { [reverseForeignKey]: parentId },
-						where: { id: { $in: ids } },
+						data: { [reverseForeignKey]: parentId } as Partial<T>,
+						where: { id: { $in: ids } } as WhereClause<T>,
 					},
 					relationSchema,
 					{ noDispatcher: true },
@@ -190,8 +190,8 @@ async function processRelation<T extends ForjaEntry>({
 				await executor.executeUpdate(
 					{
 						...query,
-						data: { [reverseForeignKey]: null },
-						where: { id: { $in: ids } },
+						data: { [reverseForeignKey]: null } as Partial<T>,
+						where: { id: { $in: ids } } as WhereClause<T>,
 					},
 					relationSchema,
 					{ noDispatcher: true },
@@ -204,8 +204,8 @@ async function processRelation<T extends ForjaEntry>({
 			await executor.executeUpdate(
 				{
 					...query,
-					data: { [reverseForeignKey]: null },
-					where: { [reverseForeignKey]: parentId },
+					data: { [reverseForeignKey]: null } as Partial<T>,
+					where: { [reverseForeignKey]: parentId } as WhereClause<T>,
 				},
 				relationSchema,
 				{ noDispatcher: true },
@@ -217,8 +217,8 @@ async function processRelation<T extends ForjaEntry>({
 				await executor.executeUpdate(
 					{
 						...query,
-						data: { [reverseForeignKey]: parentId },
-						where: { id: { $in: ids } },
+						data: { [reverseForeignKey]: parentId } as Partial<T>,
+						where: { id: { $in: ids } } as WhereClause<T>,
 					},
 					relationSchema,
 					{ noDispatcher: true },
@@ -239,8 +239,8 @@ async function processRelation<T extends ForjaEntry>({
 			await executor.executeUpdate(
 				{
 					...query,
-					data: { [reverseForeignKey]: parentId },
-					where: { id: { $in: cudResult.createdIds } },
+					data: { [reverseForeignKey]: parentId } as Partial<T>,
+					where: { id: { $in: cudResult.createdIds } } as WhereClause<T>,
 				},
 				relationSchema,
 				{ noDispatcher: true },
@@ -378,15 +378,13 @@ async function handleCUD<T extends ForjaEntry>(
 
 	// Handle create (ProcessedData format from processData)
 	if (relData.create) {
-		const createItems = Array.isArray(relData.create)
-			? relData.create
-			: [relData.create];
+		const createItems = relData.create;
 
 		for (const createItem of createItems) {
-			const processedData = createItem as ProcessedData<ForjaEntry>;
+			const processedData = createItem;
 
 			// Execute with noReturning: true (returns ID only)
-			const createdId = await executor.execute<ForjaEntry, number>(
+			const createdId = await executor.execute<T, number>(
 				{
 					type: "insert",
 					table: schema.tableName!,
@@ -414,7 +412,7 @@ async function handleCUD<T extends ForjaEntry>(
 					table: schema.tableName!,
 					data,
 					relations,
-					where,
+					where: where as WhereClause<T>,
 				},
 				{ noReturning: true, noDispatcher: true },
 			);

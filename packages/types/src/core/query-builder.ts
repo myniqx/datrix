@@ -368,7 +368,7 @@ export interface QueryObject<T extends ForjaEntry> {
 	readonly limit?: number | undefined;
 	readonly offset?: number | undefined;
 	readonly data?: Partial<T>; // For INSERT/UPDATE (scalar fields only)
-	readonly relations?: QueryRelations<T>; // For INSERT/UPDATE (type-safe relation operations)
+	readonly relations?: QueryRelations<T> | undefined; // For INSERT/UPDATE (type-safe relation operations)
 	readonly distinct?: boolean; // SELECT DISTINCT
 	readonly groupBy?: readonly string[]; // GROUP BY fields
 	readonly having?: WhereClause<T>; // HAVING clause

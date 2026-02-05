@@ -8,10 +8,10 @@
 import type {
 	PopulateClause,
 	PopulateOptions,
-	ForjaEntry,
 	QueryPopulate,
 } from "forja-types/core/query-builder";
 import type {
+	ForjaEntry,
 	RelationField,
 	SchemaDefinition,
 	SchemaRegistry,
@@ -174,12 +174,12 @@ export function normalizePopulate<T extends ForjaEntry>(
  * @param registry - Schema registry
  * @returns Normalized populate object
  */
-function normalizePopulateDotNotation(
+function normalizePopulateDotNotation<T extends ForjaEntry>(
 	paths: readonly string[],
 	schema: SchemaDefinition,
 	modelName: string,
 	registry: SchemaRegistry,
-): Record<string, PopulateOptions> {
+): Record<string, PopulateOptions<T>> {
 	const result: Record<string, any> = {};
 
 	for (const path of paths) {
@@ -291,7 +291,7 @@ export function normalizePopulateArray<T extends ForjaEntry>(
 		return undefined;
 	}
 
-	return mergePopulateClauses(...normalized) as PopulateClause<T>;
+	return mergePopulateClauses(...normalized) as QueryPopulate<T>;
 }
 
 /**
@@ -302,7 +302,7 @@ export function normalizePopulateArray<T extends ForjaEntry>(
 export function mergePopulateClauses<T extends ForjaEntry>(
 	...clauses: readonly (PopulateClause<T> | undefined)[]
 ): QueryPopulate<T> {
-	const merged: Record<string, PopulateOptions | "*" | true> = {};
+	const merged: Record<string, PopulateOptions<T> | "*" | true> = {};
 
 	for (const clause of clauses) {
 		if (!clause) continue;
@@ -318,9 +318,9 @@ export function mergePopulateClauses<T extends ForjaEntry>(
 				merged[relation] = options === true ? true : "*";
 			} else if (merged[relation]) {
 				// Merge options (both are objects)
-				const existing = merged[relation] as PopulateOptions;
-				const newOptions = options as PopulateOptions;
-				const mergedOptions: PopulateOptions = {
+				const existing = merged[relation] as PopulateOptions<T>;
+				const newOptions = options as PopulateOptions<T>;
+				const mergedOptions = {
 					...(newOptions.select !== undefined || existing.select !== undefined
 						? { select: newOptions.select || existing.select }
 						: {}),
@@ -345,12 +345,12 @@ export function mergePopulateClauses<T extends ForjaEntry>(
 						? { orderBy: newOptions.orderBy || existing.orderBy }
 						: {}),
 				};
-				merged[relation] = mergedOptions;
+				merged[relation] = mergedOptions as PopulateOptions<T>;
 			} else {
 				merged[relation] = options;
 			}
 		}
 	}
 
-	return merged;
+	return merged as QueryPopulate<T>;
 }

@@ -9,12 +9,8 @@ import type {
 	SchemaDefinition,
 	FieldDefinition,
 	ForjaEntry,
-	ForjaRecord,
 } from "forja-types/core/schema";
-import type {
-	SchemaValidationResult,
-	ValidatorOptions,
-} from "forja-types/core/validator";
+import type { ValidatorOptions } from "forja-types/core/validator";
 import { validateField } from "./field-validator";
 import {
 	createValidationError,

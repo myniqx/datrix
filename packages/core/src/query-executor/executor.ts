@@ -443,24 +443,4 @@ export class QueryExecutor {
 		}
 		return result.schema;
 	}
-
-	/**
-	 * Map query type to query action
-	 */
-	private getQueryAction(type: string): QueryAction {
-		switch (type) {
-			case "select":
-				return "findMany";
-			case "insert":
-				return "create";
-			case "update":
-				return "update";
-			case "delete":
-				return "delete";
-			case "count":
-				return "count";
-			default:
-				return "findMany";
-		}
-	}
 }
