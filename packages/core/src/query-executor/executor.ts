@@ -20,7 +20,7 @@ import { QueryObject, WhereClause } from "forja-types/core/query-builder";
 import { QueryAction } from "forja-types/plugin";
 import { Dispatcher } from "../dispatcher";
 import { validateData } from "./validation";
-import { processRelations } from "./relations";
+import { processRelations, resolveRelationCUD } from "./relations";
 import {
 	throwQueryExecutionError,
 	throwSchemaNotFoundError,
@@ -296,10 +296,16 @@ export class QueryExecutor {
 			},
 		);
 
-		// 3. Process relations (if any)
+		// 3. Process relations (if any) - resolve CUD once, then link
 		if (query.relations) {
-			await processRelations(
+			const resolvedOps = await resolveRelationCUD(
 				query.relations,
+				schema,
+				this,
+				this.schemas,
+			);
+			await processRelations(
+				resolvedOps,
 				recordId,
 				schema.name,
 				schema,
@@ -375,11 +381,17 @@ export class QueryExecutor {
 			},
 		);
 
-		// 3. Process relations (if any)
+		// 3. Process relations (if any) - resolve CUD ONCE, then link per parent
 		if (query.relations) {
+			const resolvedOps = await resolveRelationCUD(
+				query.relations,
+				schema,
+				this,
+				this.schemas,
+			);
 			for (const recordId of recordIds) {
 				await processRelations(
-					query.relations,
+					resolvedOps,
 					recordId,
 					schema.name,
 					schema,

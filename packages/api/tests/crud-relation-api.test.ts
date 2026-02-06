@@ -18,6 +18,7 @@ import { createTestConfig, getTmpDir } from "./data";
 import { createRequest } from "./data/helper";
 import {
 	expectApiSingle,
+	expectApiMulti,
 	expectApiError,
 	randomEmail,
 } from "forja-types/test/helpers";
@@ -55,10 +56,14 @@ describe("CRUD Relation API Tests", () => {
 	};
 
 	// Helper: GET request
-	const getRequest = async (endpoint: string) => {
-		const request = createRequest(endpoint, {
-			method: "GET",
-		});
+	const getRequest = async (endpoint: string, params?: ParsedQuery) => {
+		const request = createRequest(
+			endpoint,
+			{
+				method: "GET",
+			},
+			params,
+		);
 		return handleRequest(forja, request);
 	};
 
@@ -512,6 +517,403 @@ describe("CRUD Relation API Tests", () => {
 			expect(updated.title).toBe("Tag Test Post");
 
 			// (Would need populate to verify tag replacement)
+		});
+	});
+
+	describe("Resolve-then-link: Create runs once, IDs merge into connect", () => {
+		it("should create tag ONCE and connect to post (manyToMany create → connect merge)", async () => {
+			// Create post with tags.create → tag should be created once, then connected
+			const response = await postRequest(
+				"/api/posts",
+				{
+					title: "Resolve Test M2M",
+					content: "Testing resolve-then-link",
+					tags: {
+						create: [{ name: "resolve-tag-1" }],
+					},
+				},
+				{
+					populate: { tags: true },
+				},
+			);
+
+			const post = await expectApiSingle(response, 201);
+			expect(post.tags).toBeDefined();
+			expect(post.tags).toHaveLength(1);
+			expect(post.tags[0].name).toBe("resolve-tag-1");
+
+			// Verify tag exists exactly once in DB
+			const tagListRes = await getRequest("/api/tags", {
+				where: { name: { $eq: "resolve-tag-1" } },
+			});
+			const { data: tagList } = await expectApiMulti(tagListRes);
+			expect(tagList).toHaveLength(1);
+		});
+
+		it("should create multiple tags ONCE each and connect all (manyToMany batch create)", async () => {
+			const response = await postRequest(
+				"/api/posts",
+				{
+					title: "Batch Tag Create",
+					content: "Multiple tags created at once",
+					tags: {
+						create: [
+							{ name: "batch-tag-a" },
+							{ name: "batch-tag-b" },
+							{ name: "batch-tag-c" },
+						],
+					},
+				},
+				{
+					populate: { tags: true },
+				},
+			);
+
+			const post = await expectApiSingle(response, 201);
+			expect(post.tags).toHaveLength(3);
+			const tagNames = post.tags.map((t: { name: string }) => t.name).sort();
+			expect(tagNames).toEqual(["batch-tag-a", "batch-tag-b", "batch-tag-c"]);
+		});
+
+		it("should merge created tag IDs with existing connect IDs (manyToMany create + connect)", async () => {
+			// Create existing tag
+			const existingTagRes = await postRequest("/api/tags", { name: "existing-merge-tag" });
+			const existingTag = await expectApiSingle(existingTagRes, 201);
+
+			// Create post: connect existing + create new
+			const response = await postRequest(
+				"/api/posts",
+				{
+					title: "Merge Connect Post",
+					content: "Testing create + connect merge",
+					tags: {
+						connect: [existingTag.id],
+						create: [{ name: "new-merge-tag" }],
+					},
+				},
+				{
+					populate: { tags: true },
+				},
+			);
+
+			const post = await expectApiSingle(response, 201);
+			expect(post.tags).toHaveLength(2);
+			const tagNames = post.tags.map((t: { name: string }) => t.name).sort();
+			expect(tagNames).toEqual(["existing-merge-tag", "new-merge-tag"]);
+		});
+
+		it("should merge created IDs into set when set is present (manyToMany set + create)", async () => {
+			// Create existing tags
+			const oldTagRes = await postRequest("/api/tags", { name: "old-set-tag" });
+			const oldTag = await expectApiSingle(oldTagRes, 201);
+
+			// Create post with old tag
+			const createRes = await postRequest("/api/posts", {
+				title: "Set Merge Post",
+				content: "Testing set + create merge",
+				tags: { connect: [oldTag.id] },
+			});
+			const post = await expectApiSingle(createRes, 201);
+
+			// Update: set (replaces all) + create (new tag merged into set)
+			const updateRes = await putRequest(
+				`/api/posts/${post.id}`,
+				{
+					tags: {
+						set: [], // Remove all existing
+						create: [{ name: "fresh-set-tag" }], // Create new, should merge into set
+					},
+				},
+			);
+			await expectApiSingle(updateRes);
+
+			// Verify: only the new tag should be connected
+			const fetchRes = await getRequest(`/api/posts/${post.id}?populate[tags]=true`);
+			const fetched = await expectApiSingle(fetchRes);
+			expect(fetched.tags).toHaveLength(1);
+			expect(fetched.tags[0].name).toBe("fresh-set-tag");
+		});
+
+		it("should create company ONCE for belongsTo (create → FK assigned)", async () => {
+			const response = await postRequest(
+				"/api/authors",
+				{
+					name: "Resolve BelongsTo Author",
+					email: randomEmail(),
+					company: {
+						create: {
+							name: "ResolveOnce Corp",
+							country: "TR",
+						},
+					},
+				},
+				{
+					populate: ["company"],
+				},
+			);
+
+			const author = await expectApiSingle(response, 201);
+			expect(author.company).toBeDefined();
+			expect(author.company.name).toBe("ResolveOnce Corp");
+
+			// Verify company exists exactly once
+			const companyListRes = await getRequest("/api/companies", {
+				where: { name: { $eq: "ResolveOnce Corp" } },
+			});
+			const { data: companyList } = await expectApiMulti(companyListRes);
+			expect(companyList).toHaveLength(1);
+		});
+	});
+
+	describe("Resolve-then-link: Update runs once (no duplication)", () => {
+		it("should update related tag ONCE via nested update (manyToMany)", async () => {
+			// Create tag + post
+			const tagRes = await postRequest("/api/tags", { name: "updatable-tag" });
+			const tag = await expectApiSingle(tagRes, 201);
+
+			const postRes = await postRequest("/api/posts", {
+				title: "Update Tag Post",
+				content: "Testing nested update",
+				tags: { connect: [tag.id] },
+			});
+			const post = await expectApiSingle(postRes, 201);
+
+			// Update post with nested tag update
+			const updateRes = await putRequest(`/api/posts/${post.id}`, {
+				tags: {
+					update: {
+						where: { id: tag.id },
+						data: { name: "updated-tag-name" },
+					},
+				},
+			});
+			await expectApiSingle(updateRes);
+
+			// Verify tag was updated
+			const fetchTagRes = await getRequest(`/api/tags/${tag.id}`);
+			const fetchedTag = await expectApiSingle(fetchTagRes);
+			expect(fetchedTag.name).toBe("updated-tag-name");
+		});
+
+		it("should update nested author ONCE via belongsTo update", async () => {
+			// Create author
+			const authorRes = await postRequest("/api/authors", {
+				name: "Original Author Name",
+				email: randomEmail(),
+			});
+			const author = await expectApiSingle(authorRes, 201);
+
+			// Create post with author
+			const postRes = await postRequest("/api/posts", {
+				title: "Nested Update Post",
+				content: "Testing nested author update",
+				author: { connect: author.id },
+			});
+			const post = await expectApiSingle(postRes, 201);
+
+			// Update post with nested author update
+			const updateRes = await putRequest(
+				`/api/posts/${post.id}`,
+				{
+					author: {
+						update: {
+							where: { id: author.id },
+							data: { name: "Renamed Author" },
+						},
+					},
+				},
+			);
+			await expectApiSingle(updateRes);
+
+			// Verify author name changed
+			const fetchAuthorRes = await getRequest(`/api/authors/${author.id}?populate=true`);
+			const fetchedAuthor = await expectApiSingle(fetchAuthorRes);
+			expect(fetchedAuthor.name).toBe("Renamed Author");
+		});
+	});
+
+	describe("Resolve-then-link: Delete runs once", () => {
+		it("should delete related tags ONCE (manyToMany delete)", async () => {
+			// Create tags
+			const tag1Res = await postRequest("/api/tags", { name: "delete-me-1" });
+			const tag1 = await expectApiSingle(tag1Res, 201);
+
+			const tag2Res = await postRequest("/api/tags", { name: "delete-me-2" });
+			const tag2 = await expectApiSingle(tag2Res, 201);
+
+			// Create post with tags
+			const postRes = await postRequest("/api/posts", {
+				title: "Delete Tags Post",
+				content: "Testing tag deletion",
+				tags: { connect: [tag1.id, tag2.id] },
+			});
+			const post = await expectApiSingle(postRes, 201);
+
+			// Delete tags via relation API
+			const updateRes = await putRequest(`/api/posts/${post.id}`, {
+				tags: { delete: [tag1.id] },
+			});
+			await expectApiSingle(updateRes);
+
+			// Verify tag1 is deleted from DB
+			const tag1Fetch = await getRequest(`/api/tags/${tag1.id}`);
+			await expectApiError(tag1Fetch, 404);
+
+			// Verify tag2 still exists
+			const tag2Fetch = await getRequest(`/api/tags/${tag2.id}`);
+			const tag2Fetched = await expectApiSingle(tag2Fetch);
+			expect(tag2Fetched.name).toBe("delete-me-2");
+		});
+	});
+
+	describe("Deep Nesting with Resolve-then-link", () => {
+		it("should handle post → author.create → company.create (3-level deep)", async () => {
+			const response = await postRequest(
+				"/api/posts",
+				{
+					title: "Deep Resolve Post",
+					content: "3-level deep create",
+					author: {
+						create: {
+							name: "Deep Author",
+							email: randomEmail(),
+							company: {
+								create: {
+									name: "Deep Company",
+									country: "SE",
+								},
+							},
+						},
+					},
+				},
+				{
+					populate: ["author.company"],
+				},
+			);
+
+			const post = await expectApiSingle(response, 201);
+			expect(post.author).toBeDefined();
+			expect(post.author.name).toBe("Deep Author");
+			expect(post.author.company).toBeDefined();
+			expect(post.author.company.name).toBe("Deep Company");
+			expect(post.author.company.country).toBe("SE");
+
+			// Verify only 1 company created
+			const companyListRes = await getRequest("/api/companies", {
+				where: { name: { $eq: "Deep Company" } },
+			});
+			const { data: companyList } = await expectApiMulti(companyListRes);
+			expect(companyList).toHaveLength(1);
+		});
+
+		it("should handle post.create with author.create + tags.create simultaneously", async () => {
+			const response = await postRequest(
+				"/api/posts",
+				{
+					title: "Multi Relation Create",
+					content: "Author + Tags in one shot",
+					author: {
+						create: {
+							name: "Multi Rel Author",
+							email: randomEmail(),
+						},
+					},
+					tags: {
+						create: [
+							{ name: "multi-rel-tag-1" },
+							{ name: "multi-rel-tag-2" },
+						],
+					},
+				},
+				{
+					populate: ["author", "tags"],
+				},
+			);
+
+			const post = await expectApiSingle(response, 201);
+			expect(post.author).toBeDefined();
+			expect(post.author.name).toBe("Multi Rel Author");
+			expect(post.tags).toHaveLength(2);
+		});
+	});
+
+	describe("Mixed CUD + Link Operations", () => {
+		it("should handle create + connect + disconnect in same update (manyToMany)", async () => {
+			// Setup: create tags and post with 2 tags
+			const tag1Res = await postRequest("/api/tags", { name: "keep-tag" });
+			const tag1 = await expectApiSingle(tag1Res, 201);
+
+			const tag2Res = await postRequest("/api/tags", { name: "remove-tag" });
+			const tag2 = await expectApiSingle(tag2Res, 201);
+
+			const tag3Res = await postRequest("/api/tags", { name: "add-tag" });
+			const tag3 = await expectApiSingle(tag3Res, 201);
+
+			const postRes = await postRequest("/api/posts", {
+				title: "Mixed Ops Post",
+				content: "Testing mixed operations",
+				tags: { connect: [tag1.id, tag2.id] },
+			});
+			const post = await expectApiSingle(postRes, 201);
+
+			// Mixed: create new + connect existing + disconnect existing
+			const updateRes = await putRequest(
+				`/api/posts/${post.id}`,
+				{
+					tags: {
+						create: [{ name: "brand-new-tag" }],
+						connect: [tag3.id],
+						disconnect: [tag2.id],
+					},
+				},
+			);
+			await expectApiSingle(updateRes);
+
+			// Verify final state
+			const fetchRes = await getRequest(`/api/posts/${post.id}?populate[tags]=true`);
+			const fetched = await expectApiSingle(fetchRes);
+
+			// Should have: keep-tag, add-tag, brand-new-tag (3 total)
+			// Should NOT have: remove-tag
+			expect(fetched.tags).toHaveLength(3);
+			const tagNames = fetched.tags.map((t: { name: string }) => t.name).sort();
+			expect(tagNames).toEqual(["add-tag", "brand-new-tag", "keep-tag"]);
+		});
+
+		it("should handle belongsTo: disconnect old + create new in one update", async () => {
+			// Create author with company
+			const authorRes = await postRequest(
+				"/api/authors",
+				{
+					name: "Switch Company Author",
+					email: randomEmail(),
+					company: {
+						create: { name: "OldCo", country: "US" },
+					},
+				},
+				{
+					populate: ["company"],
+				},
+			);
+			const author = await expectApiSingle(authorRes, 201);
+			expect(author.company.name).toBe("OldCo");
+
+			// Update: create new company (replaces old via belongsTo)
+			const updateRes = await putRequest(
+				`/api/authors/${author.id}`,
+				{
+					company: {
+						create: { name: "NewCo", country: "DE" },
+					},
+				},
+			);
+			await expectApiSingle(updateRes);
+
+			// Verify new company is assigned
+			const fetchRes = await getRequest(`/api/authors/${author.id}?populate[company]=true`);
+			const fetched = await expectApiSingle(fetchRes);
+			expect(fetched.company).toBeDefined();
+			expect(fetched.company.name).toBe("NewCo");
 		});
 	});
 

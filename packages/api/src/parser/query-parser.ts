@@ -9,14 +9,15 @@ import type {
 	OrderByItem,
 	OrderDirection,
 } from "forja-types/core/query-builder";
-import type {
-	RawQueryParams,
-	QueryParserResult,
-	ParserOptions,
-	ParsedPagination,
-	ParsedSort,
-	ParsedQuery,
+import {
 	ParserError,
+	buildErrorLocation,
+	type RawQueryParams,
+	type QueryParserResult,
+	type ParserOptions,
+	type ParsedPagination,
+	type ParsedSort,
+	type ParsedQuery,
 } from "forja-types/api/parser";
 import { validateFieldName } from "forja-types/core/constants";
 import { parseFields } from "./fields-parser";
@@ -91,6 +92,24 @@ export function parseQuery(
 		const sort = parseSort(params);
 		if (sort !== undefined && Array.isArray(sort) && sort.length > 0) {
 			result.orderBy = sort;
+		}
+
+		// Detect unknown/unrecognized query parameters
+		const unknownParams = detectUnknownParams(params);
+		if (unknownParams.length > 0) {
+			throw new ParserError(
+				`Unknown query parameters: ${unknownParams.join(", ")}`,
+				{
+					code: "UNKNOWN_PARAMETER",
+					parser: "query",
+					location: buildErrorLocation(unknownParams),
+					received: unknownParams,
+					expected:
+						"Known parameters: fields, where, populate, page, pageSize, sort",
+					suggestion:
+						"Check for typos. Common mistake: use 'where' instead of 'filters'.",
+				},
+			);
 		}
 
 		// Return result as ParsedQuery - all fields are optional and properly typed
@@ -209,4 +228,42 @@ function parseSort(params: RawQueryParams): ParsedSort | undefined {
 	}
 
 	return sorts.length > 0 ? sorts : undefined;
+}
+
+/**
+ * Known query parameter prefixes
+ *
+ * Any key not matching these is considered unknown.
+ * This catches typos like "filters" (should be "where"),
+ * "limit" (should be "pageSize"), etc.
+ */
+const KNOWN_PARAM_PREFIXES = [
+	"fields",
+	"where",
+	"populate",
+	"page",
+	"pageSize",
+	"sort",
+] as const;
+
+/**
+ * Detect unknown/unrecognized query parameters
+ *
+ * Returns list of parameter keys that don't match any known prefix.
+ * This prevents silent failures where typos like "filters" are ignored.
+ */
+function detectUnknownParams(params: RawQueryParams): string[] {
+	const unknownKeys: string[] = [];
+
+	for (const key of Object.keys(params)) {
+		const isKnown = KNOWN_PARAM_PREFIXES.some(
+			(prefix) => key === prefix || key.startsWith(`${prefix}[`),
+		);
+
+		if (!isKnown) {
+			unknownKeys.push(key);
+		}
+	}
+
+	return unknownKeys;
 }
