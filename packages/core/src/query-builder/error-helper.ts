@@ -205,6 +205,20 @@ export function throwMissingTable(): never {
 }
 
 /**
+ * Throw missing WHERE clause error for DELETE queries
+ */
+export function throwDeleteWithoutWhere(): never {
+	throw new ForjaQueryBuilderError(
+		"DELETE query requires a WHERE clause. Use deleteAll() to delete all records explicitly.",
+		{
+			code: "DELETE_WITHOUT_WHERE",
+			component: "builder",
+			suggestion: "Add .where() clause or use deleteAll() for full table deletion",
+		},
+	);
+}
+
+/**
  * Throw invalid query type error
  *
  * @param receivedType - Received query type

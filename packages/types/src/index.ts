@@ -93,5 +93,4 @@ export {
 	type QueryDeleteObject,
 	type QueryObject,
 	type QueryObjectForType,
-	type QueryBuilder,
 } from "./core/query-builder";

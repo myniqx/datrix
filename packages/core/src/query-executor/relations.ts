@@ -21,6 +21,7 @@ import {
 	QueryRelations,
 	NormalizedRelationOperations,
 	WhereClause,
+	QueryUpdateObject,
 } from "forja-types/core/query-builder";
 import { QueryExecutor } from "./executor";
 
@@ -116,6 +117,7 @@ export async function resolveRelationCUD<T extends ForjaEntry>(
 		}
 
 		const relatedModel = field.model;
+		const relSchema = schemaRegistry.get(relatedModel)!;
 
 		// Start with existing ID-based ops (copy from readonly)
 		const ops: ResolvedRelationOps = {
@@ -127,8 +129,6 @@ export async function resolveRelationCUD<T extends ForjaEntry>(
 
 		// --- Execute CREATE (once) and merge IDs ---
 		if (relData.create) {
-			const relSchema = schemaRegistry.get(relatedModel)!;
-
 			// TODO: hasMany + updateMany guard
 			// When parent query is updateMany (multiple parents), hasMany create
 			// is semantically ambiguous: a child can only belong to one parent.
@@ -146,15 +146,16 @@ export async function resolveRelationCUD<T extends ForjaEntry>(
 			// }
 
 			for (const createItem of relData.create) {
-				const createdId = await executor.execute<ForjaEntry, number>(
+				const createdIds = await executor.executeInsert<ForjaEntry>(
 					{
 						type: "insert",
 						table: relSchema.tableName!,
-						data: createItem.data,
+						data: [createItem.data],
 						relations: createItem.relations,
-					},
+					}, relSchema,
 					{ noReturning: true, noDispatcher: true },
 				);
+				const createdId = createdIds[0]!.id;
 
 				// Merge created ID into connect or set
 				if (ops.set !== undefined) {
@@ -172,14 +173,14 @@ export async function resolveRelationCUD<T extends ForjaEntry>(
 			for (const updateItem of relData.update) {
 				const { where, data, relations: nestedRelations } = updateItem;
 
-				await executor.execute(
+				await executor.executeUpdate<ForjaEntry>(
 					{
 						type: "update",
 						table: relSchema.tableName!,
 						data,
 						relations: nestedRelations,
 						where: where as WhereClause<ForjaEntry>,
-					},
+					}, relSchema,
 					{ noReturning: true, noDispatcher: true },
 				);
 			}
@@ -189,11 +190,13 @@ export async function resolveRelationCUD<T extends ForjaEntry>(
 		if (ops.deleteIds.length > 0) {
 			const relSchema = schemaRegistry.get(relatedModel)!;
 
-			await executor.execute({
+			await executor.executeDelete<ForjaEntry>({
 				type: "delete",
 				table: relSchema.tableName!,
 				where: { id: { $in: ops.deleteIds } },
-			});
+			},
+				relSchema,
+				{ noReturning: true, noDispatcher: true });
 		}
 
 		resolved[fieldName] = ops;
@@ -264,7 +267,7 @@ async function processRelation<T extends ForjaEntry>({
 	if (relation.kind === "hasMany") {
 		const reverseForeignKey = relation.foreignKey ?? `${parentModel}Id`;
 		const relationSchema = schemaRegistry.get(relation.model)!;
-		const baseQuery: QueryObject<T> = {
+		const baseQuery: QueryUpdateObject<T> = {
 			table: relationSchema.tableName!,
 			type: "update",
 		};
@@ -339,10 +342,10 @@ async function processRelation<T extends ForjaEntry>({
 					{
 						table: junctionTable,
 						type: "insert",
-						data: {
+						data: [{
 							[sourceFK]: parentId,
 							[targetFK]: targetId,
-						},
+						}],
 					},
 					{ noDispatcher: true, noReturning: true },
 				);
@@ -384,10 +387,10 @@ async function processRelation<T extends ForjaEntry>({
 					{
 						table: junctionTable,
 						type: "insert",
-						data: {
+						data: [{
 							[sourceFK]: parentId,
 							[targetFK]: targetId,
-						},
+						}],
 					},
 					{ noDispatcher: true, noReturning: true },
 				);

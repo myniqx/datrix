@@ -45,7 +45,7 @@ describe("ManyToMany Populate Integration Tests", () => {
 		for (const schema of forja.getSchemas().getAll()) {
 			try {
 				await adapter.dropTable(schema.tableName!);
-			} catch {}
+			} catch { }
 			const result = await adapter.createTable(schema);
 			if (!result.success) {
 				throw new Error(
@@ -489,7 +489,7 @@ describe("ManyToMany Populate Integration Tests", () => {
 				.executeQuery(countQueryBefore);
 			expect(resultBefore.success).toBe(true);
 			if (resultBefore.success) {
-				expect(resultBefore.data.rows[0]?.count).toBe(2);
+				expect(resultBefore.data.metadata?.count).toBe(2);
 			}
 
 			// Delete post
@@ -505,7 +505,7 @@ describe("ManyToMany Populate Integration Tests", () => {
 				.executeQuery(countQueryAfter);
 			expect(resultAfter.success).toBe(true);
 			if (resultAfter.success) {
-				expect(resultAfter.data.rows[0]?.count).toBe(0);
+				expect(resultAfter.data.metadata.count).toBe(0);
 			}
 
 			// Tags should still exist
@@ -537,7 +537,7 @@ describe("ManyToMany Populate Integration Tests", () => {
 				.executeQuery(countQueryBefore);
 			expect(resultBefore.success).toBe(true);
 			if (resultBefore.success) {
-				expect(resultBefore.data.rows[0]?.count).toBe(4); // 2 posts × 2 tags
+				expect(resultBefore.data.metadata.count).toBe(4); // 2 posts × 2 tags
 			}
 
 			// Delete all posts by author
@@ -550,7 +550,7 @@ describe("ManyToMany Populate Integration Tests", () => {
 				.executeQuery(countQueryAfter);
 			expect(resultAfter.success).toBe(true);
 			if (resultAfter.success) {
-				expect(resultAfter.data.rows[0]?.count).toBe(0);
+				expect(resultAfter.data.metadata.count).toBe(0);
 			}
 		});
 	});

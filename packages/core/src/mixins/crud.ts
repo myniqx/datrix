@@ -13,7 +13,7 @@ import {
 } from "forja-types/core/schema";
 import { WhereClause } from "forja-types/core/query-builder";
 import { Dispatcher } from "../dispatcher";
-import { IRawCrud } from "forja-types/forja";
+import { IRawCrud, RawCrudOptions, RawFindManyOptions } from "forja-types/forja";
 import { ParsedQuery } from "forja-types";
 import {
   selectFrom,
@@ -36,7 +36,7 @@ export class CrudOperations implements IRawCrud {
 
   constructor(
     private readonly schemas: SchemaRegistry,
-    private readonly getAdapter: () => DatabaseAdapter,
+    readonly getAdapter: () => DatabaseAdapter,
     private readonly getDispatcher: (() => Dispatcher) | null = null,
   ) {
     // QueryExecutor handles validation, timestamps, and recursive relations
@@ -85,7 +85,9 @@ export class CrudOperations implements IRawCrud {
     where: WhereClause<T>,
     options?: Pick<ParsedQuery<T>, "select" | "populate">,
   ): Promise<T | null> {
-    const builder = selectFrom<T>(model, this.schemas).where(where).limit(1);
+    const builder = selectFrom<T>(model, this.schemas)
+      .where(where)
+      .limit(1);
 
     if (options?.select) {
       builder.select(options.select);
@@ -156,10 +158,7 @@ export class CrudOperations implements IRawCrud {
    */
   async findMany<T extends ForjaEntry = ForjaRecord>(
     model: string,
-    options?: Pick<
-      ParsedQuery<T>,
-      "where" | "select" | "populate" | "orderBy" | "limit" | "offset"
-    >,
+    options?: RawFindManyOptions<T>,
   ): Promise<T[]> {
     const builder = selectFrom<T>(model, this.schemas);
 
@@ -235,26 +234,54 @@ export class CrudOperations implements IRawCrud {
   }
 
   /**
-   * Create a new record
-   *
-   * @param model - Model name
-   * @param data - Record data
-   * @returns Created record
-   *
-   * @example
-   * ```ts
-   * const user = await crud.create('User', {
-   *   email: 'john@example.com',
-   *   name: 'John Doe',
-   *   role: 'user'
-   * });
-   * ```
-   */
+ * Create a new record
+ *
+ * @param model - Model name
+ * @param data - Record data
+ * @returns Created record
+ *
+ * @example
+ * ```ts
+ * const user = await crud.create('User', {
+ *   email: 'john@example.com',
+ *   name: 'John Doe',
+ *   role: 'user'
+ * });
+ * ```
+ */
   async create<T extends ForjaEntry = ForjaRecord>(
     model: string,
     data: Partial<T>,
-    options?: Pick<ParsedQuery<T>, "select" | "populate">,
+    options?: RawCrudOptions<T>,
   ): Promise<T> {
+    const result = await this.createMany(model, [data], {
+      ...options,
+      action: options?.action ?? "create",
+    });
+
+    return result[0]!;
+  }
+
+  /**
+   * Create multiple new record
+   *
+   * @param model - Model name
+   * @param data - Record data []
+   * @returns Created records
+   *
+   * @example
+   * ```ts
+   * const user = await crud.create('User', [
+   *   { email: 'john@example.com', name: 'John Doe', role: 'user' },
+   *   { email: 'jane@example.com', name: 'Jane Doe', role: 'user' }
+   * ]);
+   * ```
+   */
+  async createMany<T extends ForjaEntry = ForjaRecord>(
+    model: string,
+    data: Partial<T>[],
+    options?: RawCrudOptions<T>,
+  ): Promise<T[]> {
     const builder = insertInto(model, data, this.schemas);
 
     if (options?.select) {
@@ -266,12 +293,12 @@ export class CrudOperations implements IRawCrud {
 
     const query = builder.build();
 
-    const result = await this.executor.execute<T, T>(query, {
+    const result = await this.executor.execute<T, T[]>(query, {
       noDispatcher: this.getDispatcher === null,
-      action: "create",
+      action: options?.action ?? "createMany",
     });
 
-    return result!;
+    return result;
   }
 
   /**
@@ -291,28 +318,14 @@ export class CrudOperations implements IRawCrud {
    */
   async update<T extends ForjaEntry = ForjaRecord>(
     model: string,
-    id: string | number,
+    id: number,
     data: Partial<T>,
-    options?: Pick<ParsedQuery<T>, "select" | "populate">,
+    options?: RawCrudOptions<T>,
   ): Promise<T> {
-    const builder = updateTable(model, data, this.schemas).where({
-      id,
-    } as WhereClause<T>);
-
-    if (options?.select) {
-      builder.select(options.select);
-    }
-    if (options?.populate) {
-      builder.populate(options.populate);
-    }
-
-    const query = builder.build();
-    const result = await this.executor.execute<T, T[]>(query, {
-      noDispatcher: this.getDispatcher === null,
-      noReturning: false,
-      action: "update",
+    const result = await this.updateMany(model, { id } as WhereClause<T>, data, {
+      ...options,
+      action: options?.action ?? "update",
     });
-
     return result[0]!;
   }
 
@@ -345,18 +358,28 @@ export class CrudOperations implements IRawCrud {
     model: string,
     where: WhereClause<T>,
     data: Partial<T>,
-    noReturning = false,
-  ): Promise<number> {
-    const builder = updateTable(model, data, this.schemas).where(where);
+    options: RawCrudOptions<T>
+  ): Promise<T[]> {
+    const builder = updateTable(model, data, this.schemas)
+      .where(where);
+
+    if (options?.select) {
+      builder.select(options.select);
+    }
+
+    if (options?.populate) {
+      builder.populate(options.populate);
+    }
+
     const query = builder.build();
 
-    const result = await this.executor.execute<T, number>(query, {
+    const result = await this.executor.execute<T, T[]>(query, {
       noDispatcher: this.getDispatcher === null,
-      noReturning,
-      action: "updateMany",
+      noReturning: options?.noReturning ?? false,
+      action: options?.action || "updateMany",
     });
 
-    return result as number;
+    return result;
   }
 
   /**
@@ -374,15 +397,15 @@ export class CrudOperations implements IRawCrud {
   async delete<T extends ForjaEntry = ForjaRecord>(
     model: string,
     id: number,
-    options?: Pick<ParsedQuery<T>, "select" | "populate">,
-  ): Promise<number | T> {
-
+    options?: RawCrudOptions<T>,
+  ): Promise<T> {
     const result = await this.deleteMany<T>(
       model,
       { id } as WhereClause<T>,
       {
         ...options,
-        action: "delete",
+        noReturning: options?.noReturning ?? !(options?.select && options?.populate),
+        action: options?.action ?? "delete",
       }
     );
 
@@ -412,8 +435,8 @@ export class CrudOperations implements IRawCrud {
   async deleteMany<T extends ForjaEntry = ForjaRecord>(
     model: string,
     where: WhereClause<T>,
-    options?: Pick<ParsedQuery<T>, "select" | "populate"> & { action?: 'delete' },
-  ): Promise<number> {
+    options?: RawCrudOptions<T>,
+  ): Promise<T[]> {
     const queryBuilder = deleteFrom<T>(model, this.schemas)
       .where(where)
 
@@ -425,12 +448,12 @@ export class CrudOperations implements IRawCrud {
 
     const query = queryBuilder.build();
 
-    const result = await this.executor.execute<T, number>(query, {
+    const result = await this.executor.execute<T, T[]>(query, {
       noDispatcher: this.getDispatcher === null,
-      noReturning: true,
+      noReturning: options?.noReturning ?? !(options?.select && options?.populate),
       action: options?.action ?? "deleteMany",
     });
 
-    return result as number;
+    return result;
   }
 }

@@ -30,6 +30,7 @@ export type QueryAction =
 	| "findMany"
 	| "count"
 	| "create"
+	| "createMany"
 	| "update"
 	| "updateMany"
 	| "delete"

@@ -6,8 +6,7 @@
  */
 
 import type {
-	QueryBuilder,
-	QueryObject,
+	QueryObjectForType,
 	QueryType,
 	SelectClause,
 	WhereClause,
@@ -24,6 +23,7 @@ import {
 	throwSchemaNotFound,
 	throwInvalidQueryType,
 	throwMissingTable,
+	throwDeleteWithoutWhere,
 } from "./error-helper";
 import type {
 	ForjaEntry,
@@ -74,6 +74,7 @@ interface MutableQueryState<T extends ForjaEntry> {
 	limit?: number;
 	offset?: number;
 	data?: Partial<T>;
+	dataItems?: Partial<T>[];
 	distinct?: boolean;
 	groupBy?: string[];
 	having?: WhereClause<T>;
@@ -84,7 +85,8 @@ interface MutableQueryState<T extends ForjaEntry> {
  */
 export class ForjaQueryBuilder<
 	TSchema extends ForjaEntry,
-> implements QueryBuilder<TSchema> {
+	TType extends QueryType = QueryType,
+> {
 	private query: MutableQueryState<TSchema>;
 	private readonly _modelName: string;
 	private readonly _schema: SchemaDefinition;
@@ -112,7 +114,7 @@ export class ForjaQueryBuilder<
 	constructor(
 		modelName: string,
 		schemaRegistry: ISchemaRegistry,
-		type: QueryType = "select",
+		type: TType = "select" as TType,
 	) {
 		this._modelName = modelName;
 		this._registry = schemaRegistry;
@@ -199,11 +201,12 @@ export class ForjaQueryBuilder<
 	}
 
 	/**
-	 * Set data for INSERT/UPDATE
+	 * Set data for UPDATE (shallow merge, single object)
 	 *
 	 * Multiple calls are merged (shallow merge).
+	 * Only available for UPDATE queries.
 	 *
-	 * @param values - Data to insert/update
+	 * @param values - Data to update
 	 * @returns this
 	 *
 	 * @example
@@ -217,8 +220,33 @@ export class ForjaQueryBuilder<
 		if (this.query.data === undefined) {
 			this.query.data = values;
 		} else {
-			// Shallow merge (later values override earlier ones)
 			this.query.data = { ...this.query.data, ...values };
+		}
+		return this;
+	}
+
+	/**
+	 * Push a data item for INSERT (bulk insert support)
+	 *
+	 * Each call adds one item to the insert batch.
+	 * Only available for INSERT queries.
+	 *
+	 * @param item - Data item to insert
+	 * @returns this
+	 *
+	 * @example
+	 * ```ts
+	 * builder
+	 *   .pushData({ name: 'John', age: 25 })
+	 *   .pushData({ name: 'Jane', age: 30 });
+	 * // Inserts 2 rows
+	 * ```
+	 */
+	pushData(item: Partial<TSchema>): this {
+		if (this.query.dataItems === undefined) {
+			this.query.dataItems = [item];
+		} else {
+			this.query.dataItems.push(item);
 		}
 		return this;
 	}
@@ -251,7 +279,7 @@ export class ForjaQueryBuilder<
 	 * Build final QueryObject
 	 * @throws {ForjaQueryBuilderError} If query is invalid
 	 */
-	build(): QueryObject<TSchema> {
+	build(): QueryObjectForType<TSchema, TType> {
 		// Validate required fields
 		if (!this.query.type) {
 			throwInvalidQueryType(this.query.type);
@@ -261,73 +289,145 @@ export class ForjaQueryBuilder<
 			throwMissingTable();
 		}
 
-		// Normalize select: merge, validate, add reserved fields
-		const normalizedSelect = normalizeSelect(
-			this.query.select,
-			this._schema,
-			this._registry,
-		);
+		const type = this.query.type!;
+		const table = this.query.table!;
 
-		// Normalize where: merge, validate (including nested), normalize relation shortcuts
+		// Normalize common clauses
 		const normalizedWhere = normalizeWhere(
 			this.query.where,
 			this._schema,
 			this._registry,
 		);
-
-		// Normalize populate: merge, validate, expand wildcards
+		const normalizedSelect = normalizeSelect(
+			this.query.select,
+			this._schema,
+			this._registry,
+		);
 		const normalizedPopulate = normalizePopulateArray(
 			this.query.populate,
 			this._modelName,
 			this._registry,
 		);
 
-		// Process data (INSERT/UPDATE): validate, normalize, separate
-		const processedData =
-			this.query.data !== undefined
-				? processData<TSchema>(this.query.data, this._schema, this._registry)
-				: undefined;
+		// Spread helpers for reuse
+		const selectSpread = normalizedSelect !== undefined
+			? { select: normalizedSelect }
+			: { select: undefined };
+		const populateSpread = normalizedPopulate !== undefined
+			? { populate: normalizedPopulate }
+			: {};
+		const whereSpread = normalizedWhere !== undefined
+			? { where: normalizedWhere }
+			: {};
 
-		const query: QueryObject<TSchema> = {
-			type: this.query.type,
-			table: this.query.table,
-			select: normalizedSelect,
-			...(normalizedWhere !== undefined && { where: normalizedWhere }),
-			...(normalizedPopulate !== undefined && { populate: normalizedPopulate }),
-			...(this.query.orderBy !== undefined && {
-				orderBy: this.query.orderBy as readonly OrderByItem[],
-			}),
-			...(this.query.limit !== undefined && { limit: this.query.limit }),
-			...(this.query.offset !== undefined && { offset: this.query.offset }),
-			...(processedData !== undefined && { data: processedData.data }),
-			...(processedData?.relations !== undefined && {
-				relations: processedData.relations,
-			}),
-			...(this.query.distinct !== undefined && {
-				distinct: this.query.distinct,
-			}),
-			...(this.query.groupBy !== undefined && {
-				groupBy: this.query.groupBy as readonly string[],
-			}),
-			...(this.query.having !== undefined && { having: this.query.having }),
-		};
+		switch (type) {
+			case "select": {
+				return {
+					type,
+					table,
+					...selectSpread,
+					...whereSpread,
+					...populateSpread,
+					...(this.query.orderBy !== undefined && {
+						orderBy: this.query.orderBy as readonly OrderByItem[],
+					}),
+					...(this.query.limit !== undefined && { limit: this.query.limit }),
+					...(this.query.offset !== undefined && { offset: this.query.offset }),
+					...(this.query.distinct !== undefined && {
+						distinct: this.query.distinct,
+					}),
+					...(this.query.groupBy !== undefined && {
+						groupBy: this.query.groupBy as readonly string[],
+					}),
+					...(this.query.having !== undefined && {
+						having: this.query.having,
+					}),
+				} as QueryObjectForType<TSchema, TType>;
+			}
 
-		return query;
+			case "count": {
+				return {
+					type,
+					table,
+					...whereSpread,
+					...(this.query.groupBy !== undefined && {
+						groupBy: this.query.groupBy as readonly string[],
+					}),
+					...(this.query.having !== undefined && {
+						having: this.query.having,
+					}),
+				} as QueryObjectForType<TSchema, TType>;
+			}
+
+			case "insert": {
+				const processedItems = (this.query.dataItems ?? []).map((item) =>
+					processData<TSchema>(item, this._schema, this._registry),
+				);
+				const dataArray = processedItems.map((p) => p.data) as readonly Partial<TSchema>[];
+				const relations = processedItems[0]?.relations;
+				return {
+					type: "insert" as const,
+					table,
+					data: dataArray,
+					...(relations !== undefined && { relations }),
+					...selectSpread,
+					...populateSpread,
+				} as unknown as QueryObjectForType<TSchema, TType>;
+			}
+
+			case "update": {
+				const processedData =
+					this.query.data !== undefined
+						? processData<TSchema>(
+							this.query.data,
+							this._schema,
+							this._registry,
+						)
+						: undefined;
+				return {
+					type,
+					table,
+					...whereSpread,
+					...(processedData !== undefined && { data: processedData.data }),
+					...(processedData?.relations !== undefined && {
+						relations: processedData.relations,
+					}),
+					...selectSpread,
+					...populateSpread,
+				} as QueryObjectForType<TSchema, TType>;
+			}
+
+			case "delete": {
+				if (normalizedWhere === undefined) {
+					throwDeleteWithoutWhere();
+				}
+				return {
+					type,
+					table,
+					where: normalizedWhere,
+					...selectSpread,
+					...populateSpread,
+				} as QueryObjectForType<TSchema, TType>;
+			}
+
+			default:
+				throwInvalidQueryType(type);
+		}
 	}
 
 	/**
 	 * Clone builder (for reusability)
 	 */
-	clone(): QueryBuilder<TSchema> {
-		const cloned = new ForjaQueryBuilder<TSchema>(
+	clone(): ForjaQueryBuilder<TSchema, TType> {
+		const cloned = new ForjaQueryBuilder<TSchema, TType>(
 			this._modelName,
 			this._registry,
+			this.query.type as TType,
 		);
 
 		// Deep clone the query state to avoid shared references
 		cloned.query = {
 			...this.query,
-			// Deep clone nested objects
 			...(this.query.where !== undefined && {
 				where: deepClone(this.query.where),
 			}),
@@ -336,6 +436,9 @@ export class ForjaQueryBuilder<
 			}),
 			...(this.query.data !== undefined && {
 				data: deepClone(this.query.data),
+			}),
+			...(this.query.dataItems !== undefined && {
+				dataItems: deepClone(this.query.dataItems),
 			}),
 			...(this.query.orderBy !== undefined && {
 				orderBy: deepClone(this.query.orderBy),
@@ -372,126 +475,84 @@ export class ForjaQueryBuilder<
  * const builder = createQueryBuilder<User>('User', registry);
  * ```
  */
-export function createQueryBuilder<TSchema extends ForjaEntry>(
+export function createQueryBuilder<
+	TSchema extends ForjaEntry,
+	TType extends QueryType = "select",
+>(
 	modelName: string,
 	schemaRegistry: ISchemaRegistry,
-	type: QueryType = "select",
-): ForjaQueryBuilder<TSchema> {
-	return new ForjaQueryBuilder<TSchema>(modelName, schemaRegistry, type);
+	type?: TType,
+): ForjaQueryBuilder<TSchema, TType> {
+	return new ForjaQueryBuilder<TSchema, TType>(
+		modelName,
+		schemaRegistry,
+		(type ?? "select") as TType,
+	);
 }
 
-/**
- * Create SELECT query builder
- *
- * @param modelName - Model name (e.g., 'User', 'Post')
- * @param schemaRegistry - Schema registry
- * @returns Query builder instance with type=select
- *
- * @example
- * ```ts
- * const query = selectFrom<User>('User', registry)
- *   .select(['id', 'name'])
- *   .where({ role: 'admin' })
- *   .build();
- * ```
- */
 export function selectFrom<TSchema extends ForjaEntry>(
 	modelName: string,
 	schemaRegistry: ISchemaRegistry,
-): ForjaQueryBuilder<TSchema> {
-	return new ForjaQueryBuilder<TSchema>(modelName, schemaRegistry, "select");
+): ForjaQueryBuilder<TSchema, "select"> {
+	return new ForjaQueryBuilder<TSchema, "select">(
+		modelName,
+		schemaRegistry,
+		"select",
+	);
 }
 
 /**
  * Create INSERT query builder
  *
- * @param modelName - Model name (e.g., 'User', 'Post')
- * @param data - Data to insert
- * @param schemaRegistry - Schema registry
- * @returns Query builder instance with type=insert
- *
- * @example
- * ```ts
- * const query = insertInto<User>('User', { name: 'John' }, registry).build();
- * ```
+ * @param data - Single item or array of items to insert
  */
 export function insertInto<TSchema extends ForjaEntry>(
 	modelName: string,
-	data: Partial<TSchema>,
+	data: Partial<TSchema> | readonly Partial<TSchema>[],
 	schemaRegistry: ISchemaRegistry,
-): ForjaQueryBuilder<TSchema> {
-	return new ForjaQueryBuilder<TSchema>(
+): ForjaQueryBuilder<TSchema, "insert"> {
+	const builder = new ForjaQueryBuilder<TSchema, "insert">(
 		modelName,
 		schemaRegistry,
 		"insert",
-	).data(data);
+	);
+	const items = Array.isArray(data) ? data : [data];
+	for (const item of items) {
+		builder.pushData(item);
+	}
+	return builder;
 }
 
-/**
- * Create UPDATE query builder
- *
- * @param modelName - Model name (e.g., 'User', 'Post')
- * @param data - Data to update
- * @param schemaRegistry - Schema registry
- * @returns Query builder instance with type=update
- *
- * @example
- * ```ts
- * const query = updateTable<User>('User', { name: 'Jane' }, registry)
- *   .where({ id: 1 })
- *   .build();
- * ```
- */
 export function updateTable<TSchema extends ForjaEntry>(
 	modelName: string,
 	data: Partial<TSchema>,
 	schemaRegistry: ISchemaRegistry,
-): ForjaQueryBuilder<TSchema> {
-	return new ForjaQueryBuilder<TSchema>(
+): ForjaQueryBuilder<TSchema, "update"> {
+	return new ForjaQueryBuilder<TSchema, "update">(
 		modelName,
 		schemaRegistry,
 		"update",
 	).data(data);
 }
 
-/**
- * Create DELETE query builder
- *
- * @param modelName - Model name (e.g., 'User', 'Post')
- * @param schemaRegistry - Schema registry
- * @returns Query builder instance with type=delete
- *
- * @example
- * ```ts
- * const query = deleteFrom<User>('User', registry)
- *   .where({ id: 1 })
- *   .build();
- * ```
- */
 export function deleteFrom<TSchema extends ForjaEntry>(
 	modelName: string,
 	schemaRegistry: ISchemaRegistry,
-): ForjaQueryBuilder<TSchema> {
-	return new ForjaQueryBuilder<TSchema>(modelName, schemaRegistry, "delete");
+): ForjaQueryBuilder<TSchema, "delete"> {
+	return new ForjaQueryBuilder<TSchema, "delete">(
+		modelName,
+		schemaRegistry,
+		"delete",
+	);
 }
 
-/**
- * Create COUNT query builder
- *
- * @param modelName - Model name (e.g., 'User', 'Post')
- * @param schemaRegistry - Schema registry
- * @returns Query builder instance with type=count
- *
- * @example
- * ```ts
- * const query = countFrom<User>('User', registry)
- *   .where({ role: 'admin' })
- *   .build();
- * ```
- */
 export function countFrom<TSchema extends ForjaEntry>(
 	modelName: string,
 	schemaRegistry: ISchemaRegistry,
-): ForjaQueryBuilder<TSchema> {
-	return new ForjaQueryBuilder<TSchema>(modelName, schemaRegistry, "count");
+): ForjaQueryBuilder<TSchema, "count"> {
+	return new ForjaQueryBuilder<TSchema, "count">(
+		modelName,
+		schemaRegistry,
+		"count",
+	);
 }

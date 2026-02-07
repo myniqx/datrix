@@ -19,9 +19,8 @@ import {
 	PluginContext,
 	SchemaExtension,
 } from "forja-types/plugin";
-import { QueryBuilder, WhereClause } from "forja-types/core/query-builder";
+import { WhereClause } from "forja-types/core/query-builder";
 import { CrudOperations } from "./mixins/crud";
-import { SchemaHelpers } from "./mixins/schema";
 import { SchemaExtensionContextImpl } from "./plugin/schema-extension-context";
 import { Dispatcher, createDispatcher } from "./dispatcher";
 import { PluginRegistry } from "forja-types/plugin";
@@ -29,8 +28,6 @@ import { SchemaRegistry } from "./schema";
 import { ParsedQuery, ForjaEntry, ForjaRecord } from "forja-types";
 import { IForja } from "forja-types/forja";
 import { ForjaError } from "forja-types/errors";
-import { createQueryBuilder } from "./query-builder";
-import { QueryType } from "forja-types/core/query-adapter";
 
 /**
  * Forja initialization options
@@ -64,7 +61,7 @@ export class Forja implements IForja {
 	private _rawCrud!: CrudOperations;
 	private _schema!: SchemaHelpers;
 
-	private constructor() {}
+	private constructor() { }
 
 	static getInstance(): Forja {
 		if (!Forja.instance) {
@@ -204,7 +201,7 @@ export class Forja implements IForja {
 				() => this.adapter!,
 				null, // No dispatcher = raw mode (bypasses plugin hooks)
 			);
-			this._schema = new SchemaHelpers(this.schemas);
+			this._schema = this.schemas; // TODO: check this
 
 			// Initialize plugins
 			if (!options.skipPlugins) {
@@ -467,14 +464,6 @@ export class Forja implements IForja {
 		this.schemas = new SchemaRegistry();
 		this.initialized = false;
 		Forja.initPromise = null;
-	}
-
-	public builder<T extends ForjaEntry = ForjaEntry>(
-		modelName: string,
-		type: QueryType,
-	): QueryBuilder<T> {
-		this.ensureInitialized();
-		return createQueryBuilder<T>(modelName, this.schemas, type);
 	}
 
 	private ensureInitialized(): void {

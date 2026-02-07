@@ -158,10 +158,10 @@ export type LogicalOperators<T extends ForjaEntry = ForjaEntry> = {
 type Writable<T> = { -readonly [K in keyof T]: T[K] };
 export type WhereClause<T extends ForjaEntry> = Writable<{
 	[K in keyof T]?: T[K] extends Relation<infer R>
-		? WhereClause<R>
-		: T[K] extends ScalarValue
-			? T[K] | ComparisonOperators<T[K]>
-			: unknown;
+	? WhereClause<R>
+	: T[K] extends ScalarValue
+	? T[K] | ComparisonOperators<T[K]>
+	: unknown;
 }> &
 	LogicalOperators<T>;
 
@@ -205,8 +205,8 @@ export type PopulateClause<T extends ForjaEntry = ForjaRecord> =
 	| "true"
 	| keyof T[]
 	| {
-			readonly [relation: string]: PopulateOptions<T> | "*" | boolean;
-	  };
+		readonly [relation: string]: PopulateOptions<T> | "*" | boolean;
+	};
 
 /**
  * Order direction
@@ -250,8 +250,8 @@ export type QueryPopulateOptions<T extends ForjaEntry = ForjaRecord> = {
  */
 export type QueryPopulate<T extends ForjaEntry = ForjaRecord> = {
 	readonly [K in keyof T]?: T[K] extends Relation<infer R>
-		? QueryPopulateOptions<R>
-		: never;
+	? QueryPopulateOptions<R>
+	: never;
 };
 
 /**
@@ -348,110 +348,112 @@ export interface NormalizedRelationUpdate<
  */
 export type QueryRelations<T extends ForjaEntry> = {
 	readonly [K in keyof T]?: T[K] extends Relation<infer R>
-		? NormalizedRelationOperations<R>
-		: never;
+	? NormalizedRelationOperations<R>
+	: never;
 };
 
 /**
- * Query object (database-agnostic representation)
- *
- * This is the normalized query that adapters receive.
- * All clauses are in their normalized form (QuerySelect, QueryPopulate, etc.)
+ * Query object base - common fields for all query types
  */
-export interface QueryObject<T extends ForjaEntry> {
-	readonly type: QueryType;
+interface QueryBase {
 	readonly table: string;
-	readonly select?: QuerySelect<T> | undefined;
-	where?: WhereClause<T> | undefined;
+}
+
+/**
+ * SELECT query - read rows with filtering, sorting, pagination, population
+ */
+export interface QuerySelectObject<T extends ForjaEntry> extends QueryBase {
+	readonly type: "select";
+	readonly select: QuerySelect<T> | undefined;
+	where?: WhereClause<T>;
 	readonly populate?: QueryPopulate<T> | undefined;
 	readonly orderBy?: OrderBy | undefined;
 	readonly limit?: number | undefined;
 	readonly offset?: number | undefined;
-	readonly data?: Partial<T>; // For INSERT/UPDATE (scalar fields only)
-	readonly relations?: QueryRelations<T> | undefined; // For INSERT/UPDATE (type-safe relation operations)
-	readonly distinct?: boolean; // SELECT DISTINCT
-	readonly groupBy?: readonly string[]; // GROUP BY fields
-	readonly having?: WhereClause<T>; // HAVING clause
+	readonly distinct?: boolean | undefined;
+	readonly groupBy?: readonly string[] | undefined;
+	readonly having?: WhereClause<T> | undefined;
 }
 
 /**
- * Query builder interface
- *
- * Generic type TSchema allows for type-safe query building when schema type is known.
- * If TSchema extends ForjaEntry, WHERE conditions will be fully type-checked.
- *
- * @template TSchema - Entity type for type-safe queries (default: Record<string, unknown>)
- *
- * @example
- * ```ts
- * // Type-safe builder
- * const builder: QueryBuilder<Post> = createQueryBuilder('posts');
- * builder.where({ title: { $like: 'Hello%' } });  // ✅ Type-checked
- *
- * // Generic builder (backward compatible)
- * const builder2: QueryBuilder = createQueryBuilder('users');
- * builder2.where({ anyField: 'value' });  // ✅ Works but no type checking
- * ```
+ * COUNT query - count rows matching conditions
  */
-export interface QueryBuilder<TSchema extends ForjaEntry> {
-	/**
-	 * Select fields
-	 */
-	select(fields: SelectClause<TSchema>): this;
-
-	/**
-	 * Add WHERE conditions (type-safe when TSchema is provided)
-	 * Multiple .where() calls are merged with $and logic
-	 */
-	where(conditions: WhereClause<TSchema>): this;
-
-	/**
-	 * Add populate (relations)
-	 */
-	populate(relations: PopulateClause<TSchema>): this;
-
-	/**
-	 * Add order by
-	 */
-	orderBy(field: string, direction?: OrderDirection): this;
-
-	/**
-	 * Set limit
-	 */
-	limit(limit: number): this;
-
-	/**
-	 * Set offset
-	 */
-	offset(offset: number): this;
-
-	/**
-	 * Set data for INSERT/UPDATE
-	 */
-	data(data: Partial<TSchema>): this;
-
-	/**
-	 * Set distinct
-	 */
-	distinct(distinct?: boolean): this;
-
-	/**
-	 * Set group by
-	 */
-	groupBy(fields: readonly string[]): this;
-
-	/**
-	 * Set having clause (type-safe when TSchema is provided)
-	 */
-	having(conditions: WhereClause<TSchema>): this;
-
-	/**
-	 * Build final query object
-	 */
-	build(): QueryObject<TSchema>;
-
-	/**
-	 * Clone the builder
-	 */
-	clone(): QueryBuilder<TSchema>;
+export interface QueryCountObject<T extends ForjaEntry> extends QueryBase {
+	readonly type: "count";
+	where?: WhereClause<T>;
+	readonly groupBy?: readonly string[];
+	readonly having?: WhereClause<T>;
 }
+
+/**
+ * INSERT query - bulk insert with data array
+ * select/populate are used by executor to fetch inserted records after insert
+ */
+export interface QueryInsertObject<T extends ForjaEntry> extends QueryBase {
+	readonly type: "insert";
+	readonly data: readonly Partial<T>[];
+	readonly relations?: QueryRelations<T> | undefined;
+	readonly select?: QuerySelect<T> | undefined;
+	readonly populate?: QueryPopulate<T> | undefined;
+}
+
+/**
+ * UPDATE query - update rows matching conditions
+ * select/populate are used by executor to fetch updated records after update
+ */
+export interface QueryUpdateObject<T extends ForjaEntry> extends QueryBase {
+	readonly type: "update";
+	readonly data: Partial<T>;
+	where?: WhereClause<T>;
+	readonly relations?: QueryRelations<T> | undefined;
+	readonly select?: QuerySelect<T> | undefined;
+	readonly populate?: QueryPopulate<T> | undefined;
+}
+
+/**
+ * DELETE query - delete rows matching conditions
+ * select/populate are used by executor to fetch records before deletion
+ * where is required — use deleteAll() explicitly if you want to delete everything
+ */
+export interface QueryDeleteObject<T extends ForjaEntry> extends QueryBase {
+	readonly type: "delete";
+	where: WhereClause<T>;
+	readonly select?: QuerySelect<T>;
+	readonly populate?: QueryPopulate<T>;
+}
+
+/**
+ * Query object (database-agnostic representation)
+ *
+ * Discriminated union on `type` field. Each query type has only the fields it needs:
+ * - SELECT: select, where, populate, orderBy, limit, offset, distinct, groupBy, having
+ * - COUNT: where, groupBy, having
+ * - INSERT: data (array), relations
+ * - UPDATE: data (single), where, relations
+ * - DELETE: where
+ */
+export type QueryObject<T extends ForjaEntry = ForjaEntry> =
+	| QuerySelectObject<T>
+	| QueryCountObject<T>
+	| QueryInsertObject<T>
+	| QueryUpdateObject<T>
+	| QueryDeleteObject<T>;
+
+/**
+ * Map QueryType to its corresponding QueryObject variant
+ */
+export type QueryObjectForType<
+	T extends ForjaEntry,
+	TType extends QueryType,
+> = TType extends "select"
+	? QuerySelectObject<T>
+	: TType extends "count"
+	? QueryCountObject<T>
+	: TType extends "insert"
+	? QueryInsertObject<T>
+	: TType extends "update"
+	? QueryUpdateObject<T>
+	: TType extends "delete"
+	? QueryDeleteObject<T>
+	: QueryObject<T>;
+

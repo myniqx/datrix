@@ -13,7 +13,7 @@ import {
 	RESERVED_FIELDS,
 } from "forja-types/core/schema";
 import { validatePartial, validateSchema } from "../validator";
-import { throwReservedFieldError } from "../mixins/error-helper";
+import { throwReservedFieldError } from "./error-helper";
 import { QueryRelations } from "forja-types/core/query-builder";
 
 /**

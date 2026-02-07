@@ -21,7 +21,8 @@ import { ForjaError } from "./errors";
 export interface QueryMetadata {
 	readonly rowCount?: number;
 	readonly affectedRows?: number;
-	readonly insertId?: number;
+	readonly insertIds?: readonly number[];
+	readonly count?: number;
 }
 
 /**

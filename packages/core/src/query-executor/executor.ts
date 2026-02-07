@@ -16,7 +16,15 @@ import {
 	ForjaEntry,
 	RelationField,
 } from "forja-types/core/schema";
-import { QueryObject, WhereClause } from "forja-types/core/query-builder";
+import {
+	QueryObject,
+	QuerySelectObject,
+	QueryCountObject,
+	QueryInsertObject,
+	QueryUpdateObject,
+	QueryDeleteObject,
+	WhereClause,
+} from "forja-types/core/query-builder";
 import { QueryAction } from "forja-types/plugin";
 import { Dispatcher } from "../dispatcher";
 import { validateData } from "./validation";
@@ -24,7 +32,7 @@ import { processRelations, resolveRelationCUD } from "./relations";
 import {
 	throwQueryExecutionError,
 	throwSchemaNotFoundError,
-} from "../mixins/error-helper";
+} from "./error-helper";
 import { throwUnsupportedQueryType } from "./error-helper";
 
 /**
@@ -50,7 +58,7 @@ export class QueryExecutor {
 		private readonly schemas: SchemaRegistry,
 		private readonly getAdapter: () => DatabaseAdapter,
 		private readonly getDispatcher: () => Dispatcher,
-	) {}
+	) { }
 
 	/**
 	 * Execute a query
@@ -71,7 +79,7 @@ export class QueryExecutor {
 	 * const id = await executor.execute<User, number>(query, { noReturning: true });
 	 * ```
 	 */
-	async execute<T extends ForjaEntry, R = T | T[] | number | boolean>(
+	async execute<T extends ForjaEntry, R>(
 		query: QueryObject<T>,
 		options: ExecutorOptions = {},
 	): Promise<R> {
@@ -102,7 +110,7 @@ export class QueryExecutor {
 			return this.executeUpdate<T>(query, schema, options) as R;
 		}
 
-		throwUnsupportedQueryType(query.type);
+		throwUnsupportedQueryType((query as { type: string }).type);
 	}
 
 	/**
@@ -112,7 +120,7 @@ export class QueryExecutor {
 	 * Can be reused for fetching after INSERT/UPDATE/DELETE.
 	 */
 	async executeSelect<T extends ForjaEntry>(
-		query: QueryObject<T>,
+		query: QuerySelectObject<T>,
 		schema: SchemaDefinition,
 		options: ExecutorOptions,
 	): Promise<T[]> {
@@ -135,7 +143,7 @@ export class QueryExecutor {
 	 * Execute COUNT query
 	 */
 	async executeCount<T extends ForjaEntry>(
-		query: QueryObject<T>,
+		query: QueryCountObject<T>,
 		schema: SchemaDefinition,
 		options: ExecutorOptions,
 	): Promise<number> {
@@ -149,9 +157,7 @@ export class QueryExecutor {
 				if (!result.success) {
 					throwQueryExecutionError("count", schema.name, q, result.error);
 				}
-				return (
-					(result.data.rows[0] as unknown as { count: number })?.count ?? 0
-				);
+				return result.data.metadata.count ?? 0;
 			},
 		);
 	}
@@ -160,41 +166,55 @@ export class QueryExecutor {
 	 * Execute DELETE query (cascade junction tables, fetch first, then delete)
 	 */
 	async executeDelete<T extends ForjaEntry>(
-		query: QueryObject<T>,
+		query: QueryDeleteObject<T>,
 		schema: SchemaDefinition,
 		options: ExecutorOptions,
-	): Promise<T[] | boolean> {
+	): Promise<readonly T[]> {
+		// 0. Fetch records before deletion (if select/populate requested)
+		let recordsToReturn: T[] | undefined;
+
+		if (!options.noReturning && (query.select || query.populate)) {
+			const selectQuery: QuerySelectObject<T> = {
+				type: "select",
+				table: query.table,
+				where: query.where,
+				select: query.select ?? undefined,
+				...(query.populate !== undefined && { populate: query.populate }),
+			};
+			recordsToReturn = await this.executeSelect<T>(
+				selectQuery,
+				schema,
+				{ noDispatcher: true },
+			);
+		}
+
 		// 1. CASCADE DELETE: Clean up junction tables for manyToMany relations
-		// Find all manyToMany relations in schema
 		const m2mRelations = Object.entries(schema.fields).filter(
 			([_, field]) => field.type === "relation" && field.kind === "manyToMany",
 		);
 
-		if (m2mRelations.length > 0 && query.where) {
-			// Need to fetch IDs first to clean junction tables
-			const selectQuery: QueryObject<T> = {
+		if (m2mRelations.length > 0) {
+			const idQuery: QuerySelectObject<T> = {
 				type: "select",
 				table: query.table,
 				where: query.where,
 				select: ["id"] as readonly (keyof T)[],
 			};
 
-			const recordsToDelete = await this.executeSelect<T>(
-				selectQuery,
+			const records = await this.executeSelect<T>(
+				idQuery,
 				schema,
-				options,
+				{ noDispatcher: true },
 			);
-			const idsToDelete = recordsToDelete.map((r) => r.id);
+			const idsToDelete = records.map((r) => r.id);
 
 			if (idsToDelete.length > 0) {
-				// Clean up junction tables for each manyToMany relation
 				for (const [_, field] of m2mRelations) {
 					const relation = field as RelationField;
 					const junctionTable = relation.through!;
 					const sourceForeignKey = `${schema.name}Id`;
 
-					// Delete junction records
-					const junctionQuery: QueryObject<T> = {
+					const junctionQuery: QueryDeleteObject<T> = {
 						type: "delete",
 						table: junctionTable,
 						where: {
@@ -215,23 +235,8 @@ export class QueryExecutor {
 			}
 		}
 
-		// 2. Fetch records that will be deleted (if returning enabled)
-		let recordsToDelete: T[] | undefined = undefined;
-
-		if (!options.noReturning && (query.select || query.populate)) {
-			const selectQuery: QueryObject<T> = {
-				...query,
-				type: "select",
-			};
-			recordsToDelete = await this.executeSelect<T>(
-				selectQuery,
-				schema,
-				options,
-			);
-		}
-
-		// 3. Execute DELETE
-		const deleteResult = await this.executeWithDispatcher<T, boolean>(
+		// 2. Execute DELETE
+		const deleteResult = await this.executeWithDispatcher<T, readonly T[]>(
 			options.action ?? "delete",
 			schema,
 			query,
@@ -241,13 +246,12 @@ export class QueryExecutor {
 				if (!result.success) {
 					throwQueryExecutionError("delete", schema.name, q, result.error);
 				}
-				return (result.data.metadata.rowCount ?? 0) > 0;
+				return result.data.rows;
 			},
 		);
 
-		// 4. Return fetched records if requested, otherwise boolean
-		if (recordsToDelete !== undefined) {
-			return recordsToDelete;
+		if (recordsToReturn !== undefined) {
+			return recordsToReturn;
 		}
 		return deleteResult;
 	}
@@ -255,33 +259,30 @@ export class QueryExecutor {
 	/**
 	 * Execute INSERT with validation and relations
 	 */
-	private async executeInsert<T extends ForjaEntry>(
-		query: QueryObject<T>,
+	async executeInsert<T extends ForjaEntry>(
+		query: QueryInsertObject<T>,
 		schema: SchemaDefinition,
 		options: ExecutorOptions,
-	): Promise<T | number> {
+	): Promise<readonly T[]> {
 		const isRawMode = options.noDispatcher ?? false;
 
-		// 1. Validate data against schema (min/max/regex/type) + add timestamps
-		const validatedData = validateData<T, false>(
-			query.data,
-			query.relations,
-			schema,
-			{
+		// 1. Validate each data item against schema + add timestamps
+		const validatedItems = query.data.map((item) =>
+			validateData<T, false>(item, query.relations, schema, {
 				partial: false,
 				isCreate: true,
 				isRawMode,
-			},
+			}),
 		);
 
-		// 2. Execute INSERT query (scalars only)
-		const queryWithValidatedData: QueryObject<T> = {
+		// 2. Execute INSERT query (bulk)
+		const queryWithValidatedData: QueryInsertObject<T> = {
 			type: "insert",
 			table: query.table,
-			data: validatedData,
+			data: validatedItems,
 		};
 
-		const recordId = await this.executeWithDispatcher<T, number>(
+		const insertedIds = await this.executeWithDispatcher<T, readonly T[]>(
 			options.action ?? "create",
 			schema,
 			queryWithValidatedData,
@@ -291,12 +292,11 @@ export class QueryExecutor {
 				if (!result.success) {
 					throwQueryExecutionError("create", schema.name, q, result.error);
 				}
-				// INSERT: Return inserted ID
-				return result.data.metadata?.insertId ?? result.data.rows?.[0]?.id!;
+				return result.data.rows
 			},
 		);
 
-		// 3. Process relations (if any) - resolve CUD once, then link
+		// 3. Process relations (if any) - resolve CUD once, then link per record
 		if (query.relations) {
 			const resolvedOps = await resolveRelationCUD(
 				query.relations,
@@ -304,36 +304,37 @@ export class QueryExecutor {
 				this,
 				this.schemas,
 			);
-			await processRelations(
-				resolvedOps,
-				recordId,
-				schema.name,
-				schema,
-				this,
-				this.schemas,
-			);
+			for (const recordId of insertedIds) {
+				await processRelations(
+					resolvedOps,
+					recordId.id,
+					schema.name,
+					schema,
+					this,
+					this.schemas,
+				);
+			}
 		}
 
 		// 4. Fetch and return the created record (if returning enabled)
 		if (options.noReturning) {
-			return typeof recordId === "number"
-				? recordId
-				: parseInt(recordId as string, 10);
+			return insertedIds;
 		}
 
-		// Build SELECT query to fetch the record
-		const selectQuery: QueryObject<T> = {
+		// Build SELECT query to fetch the inserted records
+		const selectQuery: QuerySelectObject<T> = {
 			type: "select",
 			table: query.table,
-			where: { id: recordId } as WhereClause<T>,
-			select: query.select,
-			populate: query.populate,
+			select: query.select ?? undefined,
+			where: { id: { $in: insertedIds.map((r) => r.id) } } as WhereClause<T>,
+			...(query.populate !== undefined && { populate: query.populate }),
 		};
 
 		const results = await this.executeSelect<T>(selectQuery, schema, {
 			noDispatcher: true,
 		});
-		return results[0]!;
+
+		return results;
 	}
 
 	/**
@@ -341,10 +342,10 @@ export class QueryExecutor {
 	 *
 	 */
 	async executeUpdate<T extends ForjaEntry>(
-		query: QueryObject<T>,
+		query: QueryUpdateObject<T>,
 		schema: SchemaDefinition,
 		options: ExecutorOptions,
-	): Promise<T | number[]> {
+	): Promise<readonly T[]> {
 		const isRawMode = options.noDispatcher ?? false;
 
 		// 1. Validate data against schema (min/max/regex/type) + add timestamps
@@ -360,14 +361,14 @@ export class QueryExecutor {
 		);
 
 		// 2. Execute UPDATE query (scalars only)
-		const queryWithValidatedData: QueryObject<T> = {
+		const queryWithValidatedData: QueryUpdateObject<T> = {
 			type: "update",
 			table: query.table,
 			data: validatedData,
-			where: query.where,
+			...(query.where !== undefined && { where: query.where }),
 		};
 
-		const recordIds = await this.executeWithDispatcher<T, number[]>(
+		const recordIds = await this.executeWithDispatcher<T, readonly T[]>(
 			options.action ?? "update",
 			schema,
 			queryWithValidatedData,
@@ -377,7 +378,7 @@ export class QueryExecutor {
 				if (!result.success) {
 					throwQueryExecutionError("update", schema.name, q, result.error);
 				}
-				return result.data.rows.map((r) => r.id) ?? [];
+				return result.data.rows;
 			},
 		);
 
@@ -392,7 +393,7 @@ export class QueryExecutor {
 			for (const recordId of recordIds) {
 				await processRelations(
 					resolvedOps,
-					recordId,
+					recordId.id,
 					schema.name,
 					schema,
 					this,
@@ -406,19 +407,20 @@ export class QueryExecutor {
 			return recordIds;
 		}
 
-		// Build SELECT query to fetch the record
-		const selectQuery: QueryObject<T> = {
+		// Build SELECT query to fetch the updated records
+		const selectQuery: QuerySelectObject<T> = {
 			type: "select",
 			table: query.table,
-			where: query.where, // Use original WHERE clause to fetch updated records
-			select: query.select,
-			populate: query.populate,
+			select: query.select ?? undefined,
+			...(query.where !== undefined && { where: query.where }),
+			...(query.populate !== undefined && { populate: query.populate }),
 		};
 
 		const results = await this.executeSelect<T>(selectQuery, schema, {
 			noDispatcher: true,
 		});
-		return results as unknown as T;
+
+		return results;
 	}
 
 	/**
