@@ -32,6 +32,7 @@ import {
 	expectApiMulti,
 } from "forja-types/test/helpers";
 import { createRequest } from "./data/helper";
+import { ForjaEntry } from "forja-types";
 
 describe("Schema-Level Permission Tests", () => {
 	let forja: Forja;
@@ -74,7 +75,7 @@ describe("Schema-Level Permission Tests", () => {
 		for (const schema of forja.getSchemas().getAll()) {
 			try {
 				await adapter.dropTable(schema.tableName!);
-			} catch {}
+			} catch { }
 			const result = await adapter.createTable(schema);
 			if (!result.success) {
 				throw new Error(
@@ -140,7 +141,7 @@ describe("Schema-Level Permission Tests", () => {
 				}),
 			);
 
-			const user = await expectApiSingle<{ id: number }>(createResponse, 201);
+			const user = await expectApiSingle<ForjaEntry>(createResponse, 201);
 			const userId = user.id!;
 
 			// Verify auth record was created via forja raw query

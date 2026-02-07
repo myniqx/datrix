@@ -54,7 +54,7 @@ export class Forja implements IForja {
 	private adapter: DatabaseAdapter | null = null;
 	private pluginRegistry: PluginRegistry = new PluginRegistry();
 	private dispatcher: Dispatcher | null = null;
-	private schemas: SchemaRegistry = new SchemaRegistry();
+	private _schemas: SchemaRegistry = new SchemaRegistry();
 	private initialized = false;
 
 	private _crud!: CrudOperations;
@@ -120,7 +120,7 @@ export class Forja implements IForja {
 			// 1. Register user schemas
 			if (!options.skipSchemas && config.schemas.length > 0) {
 				for (const schema of config.schemas) {
-					const registerResult = this.schemas.register(schema);
+					const registerResult = this._schemas.register(schema);
 					if (!registerResult.success) {
 						return {
 							success: false,
@@ -139,7 +139,7 @@ export class Forja implements IForja {
 					if (plugin.getSchemas) {
 						const pluginSchemas = await plugin.getSchemas();
 						for (const schema of pluginSchemas) {
-							const registerResult = this.schemas.register(schema);
+							const registerResult = this._schemas.register(schema);
 							if (!registerResult.success) {
 								return {
 									success: false,
@@ -157,7 +157,7 @@ export class Forja implements IForja {
 			// 3. Apply schema extensions
 			if (!options.skipPlugins) {
 				const extensionContext = new SchemaExtensionContextImpl(
-					this.schemas.getAll(),
+					this._schemas.getAll(),
 				);
 
 				for (const plugin of this.pluginRegistry.getAll()) {
@@ -178,7 +178,7 @@ export class Forja implements IForja {
 			}
 
 			// 4. Finalize registry (process relations, create junction tables)
-			const finalizeResult = this.schemas.finalizeRegistry();
+			const finalizeResult = this._schemas.finalizeRegistry();
 			if (!finalizeResult.success) {
 				return {
 					success: false,
@@ -191,12 +191,12 @@ export class Forja implements IForja {
 
 			// Initialize mixins
 			this._crud = new CrudOperations(
-				this.schemas,
+				this._schemas,
 				() => this.adapter!,
 				() => this.dispatcher!,
 			);
 			this._rawCrud = new CrudOperations(
-				this.schemas,
+				this._schemas,
 				() => this.adapter!,
 				null, // No dispatcher = raw mode (bypasses plugin hooks)
 			);
@@ -205,7 +205,7 @@ export class Forja implements IForja {
 			if (!options.skipPlugins) {
 				const pluginContext: PluginContext = {
 					adapter: this.adapter!,
-					schemas: this.schemas,
+					schemas: this._schemas,
 					config: this.config,
 				};
 
@@ -223,7 +223,7 @@ export class Forja implements IForja {
 
 			// Dispatch schema load event
 			if (!options.skipPlugins) {
-				await this.dispatcher.dispatchSchemaLoad(this.schemas);
+				await this.dispatcher.dispatchSchemaLoad(this._schemas);
 			}
 
 			this.initialized = true;
@@ -260,7 +260,7 @@ export class Forja implements IForja {
 				await this.adapter.disconnect();
 			}
 
-			this.schemas.clear();
+			this._schemas.clear();
 			this.dispatcher = null;
 			this.initialized = false;
 
@@ -308,7 +308,7 @@ export class Forja implements IForja {
 
 	getSchemas(): SchemaRegistry {
 		this.ensureInitialized();
-		return this.schemas;
+		return this._schemas;
 	}
 
 	getMigrationConfig(): Required<MigrationConfig> {
@@ -444,22 +444,22 @@ export class Forja implements IForja {
 
 	get schema(): SchemaRegistry {
 		this.ensureInitialized();
-		return this.schema;
+		return this._schemas;
 	}
 
 	getSchema(name: string) {
 		this.ensureInitialized();
-		return this.schema.get(name);
+		return this._schemas.get(name);
 	}
 
 	getAllSchemas() {
 		this.ensureInitialized();
-		return this.schema.getAll();
+		return this._schemas.getAll();
 	}
 
 	hasSchema(name: string): boolean {
 		this.ensureInitialized();
-		return this.schema.has(name);
+		return this._schemas.has(name);
 	}
 
 	reset(): void {
@@ -467,7 +467,7 @@ export class Forja implements IForja {
 		this.adapter = null;
 		this.pluginRegistry = new PluginRegistry();
 		this.dispatcher = null;
-		this.schemas = new SchemaRegistry();
+		this._schemas = new SchemaRegistry();
 		this.initialized = false;
 		Forja.initPromise = null;
 	}
@@ -485,7 +485,7 @@ export class Forja implements IForja {
 		extensions: SchemaExtension[],
 	): Result<void, ForjaError> {
 		for (const extension of extensions) {
-			const schema = this.schemas.get(extension.targetSchema);
+			const schema = this._schemas.get(extension.targetSchema);
 
 			if (!schema) {
 				return {
@@ -546,7 +546,7 @@ export class Forja implements IForja {
 				indexes: extendedIndexes,
 			};
 
-			this.schemas.register(extendedSchema);
+			this._schemas.register(extendedSchema);
 		}
 
 		return { success: true, data: undefined };
