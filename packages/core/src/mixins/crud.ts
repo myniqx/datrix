@@ -358,7 +358,7 @@ export class CrudOperations implements IRawCrud {
     model: string,
     where: WhereClause<T>,
     data: Partial<T>,
-    options: RawCrudOptions<T>
+    options?: RawCrudOptions<T>
   ): Promise<T[]> {
     const builder = updateTable(model, data, this.schemas)
       .where(where);

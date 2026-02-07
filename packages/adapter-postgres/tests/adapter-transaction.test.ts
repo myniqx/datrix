@@ -122,7 +122,7 @@ describe("PostgresAdapter - Transaction Lifecycle", () => {
 		const txnResult = await adapter.beginTransaction();
 		const txn = txnResult.data!;
 
-		const queryResult = await txn.query({
+		const queryResult = await txn.executeQuery({
 			type: "insert",
 			table: "test_txn",
 			data: { value: "test" },
@@ -138,7 +138,7 @@ describe("PostgresAdapter - Transaction Lifecycle", () => {
 		const txnResult = await adapter.beginTransaction();
 		const txn = txnResult.data!;
 
-		const queryResult = await txn.rawQuery(
+		const queryResult = await txn.executeRawQuery(
 			"INSERT INTO test_txn (value) VALUES ($1)",
 			["test"],
 		);
@@ -154,7 +154,7 @@ describe("PostgresAdapter - Transaction Lifecycle", () => {
 		const txn = txnResult.data!;
 
 		// Insert within transaction
-		await txn.query({
+		await txn.executeQuery({
 			type: "insert",
 			table: "test_txn",
 			data: { value: "committed" },
@@ -182,7 +182,7 @@ describe("PostgresAdapter - Transaction Lifecycle", () => {
 		const txn = txnResult.data!;
 
 		// Insert within transaction
-		await txn.query({
+		await txn.executeQuery({
 			type: "insert",
 			table: "test_txn",
 			data: { value: "rollback me" },
@@ -280,7 +280,7 @@ describe("PostgresAdapter - Transaction Lifecycle", () => {
 		await txn.commit();
 
 		// Query after commit should fail
-		const queryResult = await txn.query({
+		const queryResult = await txn.executeQuery({
 			type: "select",
 			table: "test_txn",
 			select: "*",
@@ -300,7 +300,7 @@ describe("PostgresAdapter - Transaction Lifecycle", () => {
 		await txn.rollback();
 
 		// Query after rollback should fail
-		const queryResult = await txn.query({
+		const queryResult = await txn.executeQuery({
 			type: "select",
 			table: "test_txn",
 			select: "*",
@@ -320,7 +320,7 @@ describe("PostgresAdapter - Transaction Lifecycle", () => {
 		await txn.commit();
 
 		// Raw query after commit should fail
-		const queryResult = await txn.rawQuery("SELECT 1", []);
+		const queryResult = await txn.executeRawQuery("SELECT 1", []);
 
 		expect(queryResult.success).toBe(false);
 		expect(queryResult.error?.message).toContain(
@@ -335,7 +335,7 @@ describe("PostgresAdapter - Transaction Lifecycle", () => {
 		await txn.rollback();
 
 		// Raw query after rollback should fail
-		const queryResult = await txn.rawQuery("SELECT 1", []);
+		const queryResult = await txn.executeRawQuery("SELECT 1", []);
 
 		expect(queryResult.success).toBe(false);
 		expect(queryResult.error?.message).toContain(
@@ -348,7 +348,7 @@ describe("PostgresAdapter - Transaction Lifecycle", () => {
 		const txn = txnResult.data!;
 
 		// Insert within transaction
-		await txn.query({
+		await txn.executeQuery({
 			type: "insert",
 			table: "test_txn",
 			data: { value: "isolated" },
@@ -383,19 +383,19 @@ describe("PostgresAdapter - Transaction Lifecycle", () => {
 		const txn = txnResult.data!;
 
 		// Multiple inserts
-		await txn.query({
+		await txn.executeQuery({
 			type: "insert",
 			table: "test_txn",
 			data: { value: "first" },
 		});
 
-		await txn.query({
+		await txn.executeQuery({
 			type: "insert",
 			table: "test_txn",
 			data: { value: "second" },
 		});
 
-		await txn.query({
+		await txn.executeQuery({
 			type: "insert",
 			table: "test_txn",
 			data: { value: "third" },
@@ -419,13 +419,13 @@ describe("PostgresAdapter - Transaction Lifecycle", () => {
 		const txn = txnResult.data!;
 
 		// Multiple inserts
-		await txn.query({
+		await txn.executeQuery({
 			type: "insert",
 			table: "test_txn",
 			data: { value: "first" },
 		});
 
-		await txn.query({
+		await txn.executeQuery({
 			type: "insert",
 			table: "test_txn",
 			data: { value: "second" },
@@ -452,13 +452,13 @@ describe("PostgresAdapter - Transaction Lifecycle", () => {
 		const txn2 = txn2Result.data!;
 
 		// Insert in both transactions
-		await txn1.query({
+		await txn1.executeQuery({
 			type: "insert",
 			table: "test_txn",
 			data: { value: "txn1" },
 		});
 
-		await txn2.query({
+		await txn2.executeQuery({
 			type: "insert",
 			table: "test_txn",
 			data: { value: "txn2" },
@@ -516,7 +516,7 @@ describe("PostgresAdapter - Transaction Lifecycle", () => {
 		const txnResult = await adapter.beginTransaction();
 		const txn = txnResult.data!;
 
-		const updateResult = await txn.query({
+		const updateResult = await txn.executeQuery({
 			type: "update",
 			table: "test_txn",
 			data: { value: "new" },
@@ -549,7 +549,7 @@ describe("PostgresAdapter - Transaction Lifecycle", () => {
 		const txnResult = await adapter.beginTransaction();
 		const txn = txnResult.data!;
 
-		const deleteResult = await txn.query({
+		const deleteResult = await txn.executeQuery({
 			type: "delete",
 			table: "test_txn",
 			where: { value: "delete me" },
@@ -574,7 +574,7 @@ describe("PostgresAdapter - Transaction Lifecycle", () => {
 		const txnResult = await adapter.beginTransaction();
 		const txn = txnResult.data!;
 
-		const insertResult = await txn.query({
+		const insertResult = await txn.executeQuery({
 			type: "insert",
 			table: "test_txn",
 			data: { value: "test" },
@@ -592,7 +592,7 @@ describe("PostgresAdapter - Transaction Lifecycle", () => {
 		const txnResult = await adapter.beginTransaction();
 		const txn = txnResult.data!;
 
-		const result = await txn.rawQuery(
+		const result = await txn.executeRawQuery(
 			"INSERT INTO test_txn (value) VALUES ($1)",
 			["test"],
 		);
@@ -608,7 +608,7 @@ describe("PostgresAdapter - Transaction Lifecycle", () => {
 		const txn = txnResult.data!;
 
 		// Invalid query (nonexistent table)
-		const queryResult = await txn.query({
+		const queryResult = await txn.executeQuery({
 			type: "select",
 			table: "nonexistent_table",
 			select: "*",
@@ -619,7 +619,7 @@ describe("PostgresAdapter - Transaction Lifecycle", () => {
 		expect(queryResult.error?.name).toBe("QueryError");
 
 		// Transaction should still be usable
-		const validQuery = await txn.query({
+		const validQuery = await txn.executeQuery({
 			type: "insert",
 			table: "test_txn",
 			data: { value: "test" },
@@ -635,13 +635,13 @@ describe("PostgresAdapter - Transaction Lifecycle", () => {
 		const txn = txnResult.data!;
 
 		// Invalid SQL
-		const queryResult = await txn.rawQuery("INVALID SQL", []);
+		const queryResult = await txn.executeRawQuery("INVALID SQL", []);
 
 		expect(queryResult.success).toBe(false);
 		expect(queryResult.error).toBeDefined();
 
 		// Transaction should still be usable
-		const validQuery = await txn.rawQuery(
+		const validQuery = await txn.executeRawQuery(
 			"INSERT INTO test_txn (value) VALUES ($1)",
 			["test"],
 		);
@@ -661,7 +661,7 @@ describe("PostgresAdapter - Transaction Lifecycle", () => {
 			select: "*" as const,
 		};
 
-		const result = await txn.query(query);
+		const result = await txn.executeQuery(query);
 
 		expect(result.success).toBe(false);
 		expect(result.error?.query).toEqual(query);
@@ -674,7 +674,7 @@ describe("PostgresAdapter - Transaction Lifecycle", () => {
 		const txn = txnResult.data!;
 
 		const sql = "INVALID SQL";
-		const result = await txn.rawQuery(sql, []);
+		const result = await txn.executeRawQuery(sql, []);
 
 		expect(result.success).toBe(false);
 		expect(result.error?.sql).toBe(sql);
@@ -699,7 +699,7 @@ describe("PostgresAdapter - Transaction Lifecycle", () => {
 		const txnResult = await adapter.beginTransaction();
 		const txn = txnResult.data!;
 
-		await txn.query({
+		await txn.executeQuery({
 			type: "insert",
 			table: "test_txn",
 			data: { value: "test" },
@@ -716,7 +716,7 @@ describe("PostgresAdapter - Transaction Lifecycle", () => {
 		const txnResult = await adapter.beginTransaction();
 		const txn = txnResult.data!;
 
-		await txn.query({
+		await txn.executeQuery({
 			type: "insert",
 			table: "test_txn",
 			data: { value: "test" },
@@ -789,10 +789,10 @@ describe("PostgresAdapter - Transaction Lifecycle", () => {
 		const txn = txnResult.data!;
 
 		// This query will fail (syntax error)
-		await txn.rawQuery("SELECT INVALID SQL", []);
+		await txn.executeRawQuery("SELECT INVALID SQL", []);
 
 		// After an error in Postgres, any subsequent query (except ROLLBACK or ROLLBACK TO SAVEPOINT) should fail
-		const subsequentQuery = await txn.rawQuery("SELECT 1", []);
+		const subsequentQuery = await txn.executeRawQuery("SELECT 1", []);
 
 		expect(subsequentQuery.success).toBe(false);
 		expect(subsequentQuery.error?.message).toMatch(
@@ -812,14 +812,14 @@ describe("PostgresAdapter - Transaction Lifecycle", () => {
 			throw new Error("Transaction interface does not support savepoints");
 		}
 
-		await txn.rawQuery("INSERT INTO test_txn (value) VALUES ($1)", [
+		await txn.executeRawQuery("INSERT INTO test_txn (value) VALUES ($1)", [
 			"before_sp",
 		]);
 
 		const spResult = await txn.savepoint("sp1");
 		expect(spResult.success).toBe(true);
 
-		await txn.rawQuery("INSERT INTO test_txn (value) VALUES ($1)", [
+		await txn.executeRawQuery("INSERT INTO test_txn (value) VALUES ($1)", [
 			"after_sp",
 		]);
 
@@ -851,14 +851,14 @@ describe("PostgresAdapter - Transaction Lifecycle", () => {
 		expect(spResult.success).toBe(true);
 
 		// This will fail
-		await txn.rawQuery("SELECT INVALID SQL", []);
+		await txn.executeRawQuery("SELECT INVALID SQL", []);
 
 		// Recovery by rolling back to savepoint
 		const rbSpResult = await txn.rollbackTo("sp_error");
 		expect(rbSpResult.success).toBe(true);
 
 		// Transaction should be usable again
-		const subsequentQuery = await txn.rawQuery("SELECT 1 as val", []);
+		const subsequentQuery = await txn.executeRawQuery("SELECT 1 as val", []);
 		expect(subsequentQuery.success).toBe(true);
 		expect((subsequentQuery.data?.rows[0] as any).val).toBe(1);
 

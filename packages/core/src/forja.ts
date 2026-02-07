@@ -25,8 +25,8 @@ import { SchemaExtensionContextImpl } from "./plugin/schema-extension-context";
 import { Dispatcher, createDispatcher } from "./dispatcher";
 import { PluginRegistry } from "forja-types/plugin";
 import { SchemaRegistry } from "./schema";
-import { ParsedQuery, ForjaEntry, ForjaRecord } from "forja-types";
-import { IForja } from "forja-types/forja";
+import { ForjaEntry } from "forja-types";
+import { IForja, RawCrudOptions, RawFindManyOptions } from "forja-types/forja";
 import { ForjaError } from "forja-types/errors";
 
 /**
@@ -59,7 +59,6 @@ export class Forja implements IForja {
 
 	private _crud!: CrudOperations;
 	private _rawCrud!: CrudOperations;
-	private _schema!: SchemaHelpers;
 
 	private constructor() { }
 
@@ -201,7 +200,6 @@ export class Forja implements IForja {
 				() => this.adapter!,
 				null, // No dispatcher = raw mode (bypasses plugin hooks)
 			);
-			this._schema = this.schemas; // TODO: check this
 
 			// Initialize plugins
 			if (!options.skipPlugins) {
@@ -354,10 +352,10 @@ export class Forja implements IForja {
 		return this._rawCrud;
 	}
 
-	async findOne<T extends ForjaEntry = ForjaRecord>(
+	async findOne<T extends ForjaEntry = ForjaEntry>(
 		model: string,
 		where: WhereClause<T>,
-		options?: Pick<ParsedQuery<T>, "select" | "populate">,
+		options?: RawCrudOptions<T>,
 	): Promise<T | null> {
 		this.ensureInitialized();
 		return this._crud.findOne<T>(model, where, options);
@@ -366,7 +364,7 @@ export class Forja implements IForja {
 	async findById<T extends ForjaEntry = ForjaEntry>(
 		model: string,
 		id: number,
-		options?: Pick<ParsedQuery<T>, "select" | "populate">,
+		options?: RawCrudOptions<T>,
 	): Promise<T | null> {
 		this.ensureInitialized();
 		return this._crud.findById<T>(model, id, options);
@@ -374,10 +372,7 @@ export class Forja implements IForja {
 
 	async findMany<T extends ForjaEntry = ForjaEntry>(
 		model: string,
-		options?: Pick<
-			ParsedQuery<T>,
-			"where" | "select" | "populate" | "orderBy" | "limit" | "offset"
-		>,
+		options?: RawFindManyOptions<T>,
 	): Promise<T[]> {
 		this.ensureInitialized();
 		return this._crud.findMany<T>(model, options);
@@ -393,18 +388,27 @@ export class Forja implements IForja {
 
 	async create<T extends ForjaEntry = ForjaEntry>(
 		model: string,
-		data: Record<string, unknown>,
-		options?: Pick<ParsedQuery<T>, "select" | "populate">,
+		data: Partial<T>,
+		options?: RawCrudOptions<T>,
 	): Promise<T> {
 		this.ensureInitialized();
 		return this._crud.create<T>(model, data, options);
 	}
 
+	async createMany<T extends ForjaEntry = ForjaEntry>(
+		model: string,
+		data: Partial<T>[],
+		options?: RawCrudOptions<T>,
+	): Promise<T[]> {
+		this.ensureInitialized();
+		return this._crud.createMany<T>(model, data, options);
+	}
+
 	async update<T extends ForjaEntry = ForjaEntry>(
 		model: string,
 		id: number,
-		data: Record<string, unknown>,
-		options?: Pick<ParsedQuery<T>, "select" | "populate">,
+		data: Partial<T>,
+		options?: RawCrudOptions<T>,
 	): Promise<T> {
 		this.ensureInitialized();
 		return this._crud.update<T>(model, id, data, options);
@@ -414,16 +418,17 @@ export class Forja implements IForja {
 		model: string,
 		where: WhereClause<T>,
 		data: Partial<T>,
-	): Promise<number> {
+		options?: RawCrudOptions<T>,
+	): Promise<T[]> {
 		this.ensureInitialized();
-		return this._crud.updateMany(model, where, data);
+		return this._crud.updateMany(model, where, data, options);
 	}
 
 	async delete<T extends ForjaEntry = ForjaEntry>(
 		model: string,
-		id: string | number,
-		options?: Pick<ParsedQuery<T>, "select" | "populate">,
-	): Promise<boolean> {
+		id: number,
+		options?: RawCrudOptions<T>,
+	): Promise<T> {
 		this.ensureInitialized();
 		return this._crud.delete(model, id, options);
 	}
@@ -431,29 +436,30 @@ export class Forja implements IForja {
 	async deleteMany<T extends ForjaEntry = ForjaEntry>(
 		model: string,
 		where: WhereClause<T>,
-	): Promise<number> {
+		options?: RawCrudOptions<T>,
+	): Promise<T[]> {
 		this.ensureInitialized();
-		return this._crud.deleteMany(model, where);
+		return this._crud.deleteMany(model, where, options);
 	}
 
-	get schema(): SchemaHelpers {
+	get schema(): SchemaRegistry {
 		this.ensureInitialized();
-		return this._schema;
+		return this.schema;
 	}
 
 	getSchema(name: string) {
 		this.ensureInitialized();
-		return this._schema.get(name);
+		return this.schema.get(name);
 	}
 
 	getAllSchemas() {
 		this.ensureInitialized();
-		return this._schema.getAll();
+		return this.schema.getAll();
 	}
 
 	hasSchema(name: string): boolean {
 		this.ensureInitialized();
-		return this._schema.has(name);
+		return this.schema.has(name);
 	}
 
 	reset(): void {

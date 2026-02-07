@@ -5,7 +5,7 @@
  * Handles connection pooling, query execution, transactions, and schema operations.
  */
 
-import type { Pool, PoolClient } from "pg";
+import type { Pool, PoolClient, QueryResultRow } from "pg";
 import { Pool as PgPool } from "pg";
 
 import { PostgresQueryTranslator } from "./query-translator";
@@ -146,9 +146,13 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 
 	/**
 	 * Execute query
+	 *
+	 * @param query - Query object to execute
+	 * @param client - Optional PoolClient for transaction support. If provided, query runs on this client instead of pool.
 	 */
 	async executeQuery<TResult extends ForjaEntry>(
 		query: QueryObject<TResult>,
+		client?: PoolClient,
 	): Promise<Result<QueryResult<TResult>, QueryError>> {
 		// Runtime validation of QueryObject structure
 		const validation = validateQueryObject(query);
@@ -164,7 +168,9 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 			};
 		}
 
-		if (!this.pool) {
+		const queryRunner = client ?? this.pool;
+
+		if (!queryRunner) {
 			return {
 				success: false,
 				error: new QueryError("Not connected to database", {
@@ -180,7 +186,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 			if (query.populate && query.type === "select") {
 				const schemaRegistry = Forja.getInstance().getSchemas();
 				const populator = new PostgresPopulator(
-					this.pool,
+					queryRunner,
 					this.getTranslator(),
 					schemaRegistry,
 				);
@@ -195,7 +201,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 
 			const { sql, params } = this.getTranslator().translate(query);
 			lastSql = sql;
-			const result = await this.pool.query(sql, params as unknown[]);
+			const result = await queryRunner.query<QueryResultRow>(sql, params as unknown[]);
 
 			if (query.type === "select") {
 				const rows = result.rows as readonly TResult[];
@@ -222,9 +228,10 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 			}
 
 			// insert, update, delete — rows contain {id} from RETURNING id
-			const ids = result.rows.map((r: { id: string | number }) =>
-				typeof r.id === "string" ? parseInt(r.id, 10) : r.id,
-			);
+			const ids = result.rows.map((r) => {
+				const row = r as { id: string | number };
+				return typeof row.id === "string" ? parseInt(row.id, 10) : row.id;
+			});
 			const idRows = ids.map((id) => ({ id })) as TResult[];
 			const metadata: QueryMetadata = {
 				rowCount: ids.length,
@@ -344,8 +351,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 
 			const transaction = new PostgresTransaction(
 				client,
-				this.getTranslator(),
-				this.mapPostgresError.bind(this),
+				this,
 				`tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
 			);
 
@@ -850,41 +856,36 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 
 /**
  * PostgreSQL transaction implementation
+ *
+ * Delegates query execution to adapter's executeQuery with the transaction's client.
+ * This eliminates code duplication (validate, populate, count parse, id mapping).
  */
 class PostgresTransaction implements Transaction {
 	readonly id: string;
 	private client: PoolClient;
-	private translator: PostgresQueryTranslator;
-	private errorMapper: (
-		error: unknown,
-		query?: QueryObject,
-		sql?: string,
-	) => QueryError;
+	private adapter: PostgresAdapter;
 	private committed = false;
 	private rolledBack = false;
 	private aborted = false;
 
 	constructor(
 		client: PoolClient,
-		translator: PostgresQueryTranslator,
-		errorMapper: (
-			error: unknown,
-			query?: QueryObject,
-			sql?: string,
-		) => QueryError,
+		adapter: PostgresAdapter,
 		id: string,
 	) {
 		this.client = client;
-		this.translator = translator;
-		this.errorMapper = errorMapper;
+		this.adapter = adapter;
 		this.id = id;
 	}
 
 	/**
 	 * Execute query within transaction
+	 *
+	 * Delegates to adapter.executeQuery with this transaction's client,
+	 * reusing all query logic (validation, populate, count parse, id mapping).
 	 */
-	async query<TResult>(
-		query: QueryObject,
+	async executeQuery<TResult extends ForjaEntry>(
+		query: QueryObject<TResult>,
 	): Promise<Result<QueryResult<TResult>, QueryError>> {
 		if (this.committed || this.rolledBack) {
 			return {
@@ -903,38 +904,17 @@ class PostgresTransaction implements Transaction {
 			};
 		}
 
-		let lastSql: string | undefined;
-
-		try {
-			const { sql, params } = this.translator.translate(query);
-			lastSql = sql;
-			const result = await this.client.query(sql, params as unknown[]);
-
-			const metadata: QueryMetadata = {
-				rowCount: result.rowCount ?? 0,
-				affectedRows: result.rowCount ?? 0,
-			};
-
-			return {
-				success: true,
-				data: {
-					rows: result.rows as readonly TResult[],
-					metadata,
-				},
-			};
-		} catch (error) {
+		const result = await this.adapter.executeQuery<TResult>(query, this.client);
+		if (!result.success) {
 			this.aborted = true;
-			return {
-				success: false,
-				error: this.errorMapper(error, query, lastSql),
-			};
 		}
+		return result;
 	}
 
 	/**
 	 * Execute raw SQL within transaction
 	 */
-	async rawQuery<TResult>(
+	async executeRawQuery<TResult extends ForjaEntry>(
 		sql: string,
 		params: readonly unknown[],
 	): Promise<Result<QueryResult<TResult>, QueryError>> {
@@ -972,9 +952,10 @@ class PostgresTransaction implements Transaction {
 			};
 		} catch (error) {
 			this.aborted = true;
+			const message = error instanceof Error ? error.message : String(error);
 			return {
 				success: false,
-				error: this.errorMapper(error, undefined, sql),
+				error: new QueryError(`Raw query failed: ${message}`, { sql, details: error }),
 			};
 		}
 	}
@@ -1056,7 +1037,7 @@ class PostgresTransaction implements Transaction {
 	 */
 	async savepoint(name: string): Promise<Result<void, TransactionError>> {
 		try {
-			const escapedName = this.translator.escapeIdentifier(name);
+			const escapedName = this.adapter.getTranslator().escapeIdentifier(name);
 			await this.client.query(`SAVEPOINT ${escapedName}`);
 			return { success: true, data: undefined };
 		} catch (error) {
@@ -1076,9 +1057,9 @@ class PostgresTransaction implements Transaction {
 	 */
 	async rollbackTo(name: string): Promise<Result<void, TransactionError>> {
 		try {
-			const escapedName = this.translator.escapeIdentifier(name);
+			const escapedName = this.adapter.getTranslator().escapeIdentifier(name);
 			await this.client.query(`ROLLBACK TO SAVEPOINT ${escapedName}`);
-			this.aborted = false; // Rolling back to a savepoint clears the aborted state for that savepoint
+			this.aborted = false;
 			return { success: true, data: undefined };
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
@@ -1097,7 +1078,7 @@ class PostgresTransaction implements Transaction {
 	 */
 	async release(name: string): Promise<Result<void, TransactionError>> {
 		try {
-			const escapedName = this.translator.escapeIdentifier(name);
+			const escapedName = this.adapter.getTranslator().escapeIdentifier(name);
 			await this.client.query(`RELEASE SAVEPOINT ${escapedName}`);
 			return { success: true, data: undefined };
 		} catch (error) {

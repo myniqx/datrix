@@ -145,7 +145,33 @@ export async function resolveRelationCUD<T extends ForjaEntry>(
 			//   }
 			// }
 
-			for (const createItem of relData.create) {
+			// Separate items with nested relations from plain ones
+			const plainItems = relData.create.filter((item) => !item.relations);
+			const nestedItems = relData.create.filter((item) => item.relations);
+
+			// Bulk insert plain items (no nested relations)
+			if (plainItems.length > 0) {
+				const bulkData = plainItems.map((item) => item.data);
+				const createdIds = await executor.executeInsert<ForjaEntry>(
+					{
+						type: "insert",
+						table: relSchema.tableName!,
+						data: bulkData,
+					}, relSchema,
+					{ noReturning: true, noDispatcher: true },
+				);
+
+				for (const created of createdIds) {
+					if (ops.set !== undefined) {
+						ops.set.push(created.id);
+					} else {
+						ops.connect.push(created.id);
+					}
+				}
+			}
+
+			// Items with nested relations must be inserted individually
+			for (const createItem of nestedItems) {
 				const createdIds = await executor.executeInsert<ForjaEntry>(
 					{
 						type: "insert",
@@ -157,7 +183,6 @@ export async function resolveRelationCUD<T extends ForjaEntry>(
 				);
 				const createdId = createdIds[0]!.id;
 
-				// Merge created ID into connect or set
 				if (ops.set !== undefined) {
 					ops.set.push(createdId);
 				} else {
@@ -270,6 +295,7 @@ async function processRelation<T extends ForjaEntry>({
 		const baseQuery: QueryUpdateObject<T> = {
 			table: relationSchema.tableName!,
 			type: "update",
+			data: null!
 		};
 
 		if (ops.connect.length > 0) {
@@ -335,21 +361,20 @@ async function processRelation<T extends ForjaEntry>({
 		const sourceFK = `${parentModel}Id`;
 		const targetFK = `${relation.model}Id`;
 
-		// Connect → INSERT INTO junction table
+		// Connect → INSERT INTO junction table (bulk)
 		if (ops.connect.length > 0) {
-			for (const targetId of ops.connect) {
-				await executor.execute(
-					{
-						table: junctionTable,
-						type: "insert",
-						data: [{
-							[sourceFK]: parentId,
-							[targetFK]: targetId,
-						}],
-					},
-					{ noDispatcher: true, noReturning: true },
-				);
-			}
+			const rows = ops.connect.map((targetId) => ({
+				[sourceFK]: parentId,
+				[targetFK]: targetId,
+			}));
+			await executor.execute(
+				{
+					table: junctionTable,
+					type: "insert",
+					data: rows,
+				},
+				{ noDispatcher: true, noReturning: true },
+			);
 		}
 
 		// Disconnect → DELETE FROM junction table
@@ -381,16 +406,17 @@ async function processRelation<T extends ForjaEntry>({
 				{ noDispatcher: true, noReturning: true },
 			);
 
-			// 2. Insert new relations
-			for (const targetId of ops.set) {
+			// 2. Insert new relations (bulk)
+			if (ops.set.length > 0) {
+				const rows = ops.set.map((targetId) => ({
+					[sourceFK]: parentId,
+					[targetFK]: targetId,
+				}));
 				await executor.execute(
 					{
 						table: junctionTable,
 						type: "insert",
-						data: [{
-							[sourceFK]: parentId,
-							[targetFK]: targetId,
-						}],
+						data: rows,
 					},
 					{ noDispatcher: true, noReturning: true },
 				);

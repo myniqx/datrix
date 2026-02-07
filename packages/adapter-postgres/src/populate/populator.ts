@@ -5,7 +5,7 @@
  * Decides strategy based on query complexity and executes accordingly.
  */
 
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 import type {
 	PopulateClause,
 	QueryObject,
@@ -48,7 +48,7 @@ export class PostgresPopulator {
 	private resultProcessor: ResultProcessor;
 
 	constructor(
-		private pool: Pool,
+		private pool: Pool | PoolClient,
 		private translator: PostgresQueryTranslator,
 		private schemaRegistry: SchemaRegistry,
 	) {

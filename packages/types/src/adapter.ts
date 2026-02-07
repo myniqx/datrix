@@ -34,19 +34,25 @@ export interface QueryResult<T = unknown> {
 }
 
 /**
- * Transaction interface
+ * Common query execution interface shared by DatabaseAdapter and Transaction.
+ * Allows executor to accept either one without caring about the source.
  */
-export interface Transaction {
-	readonly id: string;
-
-	query<TResult extends ForjaEntry>(
+export interface QueryRunner {
+	executeQuery<TResult extends ForjaEntry>(
 		query: QueryObject<TResult>,
 	): Promise<Result<QueryResult<TResult>, QueryError>>;
 
-	rawQuery<TResult extends ForjaEntry>(
+	executeRawQuery<TResult extends ForjaEntry>(
 		sql: string,
 		params: readonly unknown[],
 	): Promise<Result<QueryResult<TResult>, QueryError>>;
+}
+
+/**
+ * Transaction interface
+ */
+export interface Transaction extends QueryRunner {
+	readonly id: string;
 
 	commit(): Promise<Result<void, TransactionError>>;
 	rollback(): Promise<Result<void, TransactionError>>;
@@ -92,7 +98,7 @@ export type ConnectionState =
  *
  * ALL database adapters MUST implement this interface
  */
-export interface DatabaseAdapter<TConfig = Record<string, unknown>> {
+export interface DatabaseAdapter<TConfig = Record<string, unknown>> extends QueryRunner {
 	// Metadata
 	readonly name: string;
 	readonly config: TConfig;
@@ -102,16 +108,6 @@ export interface DatabaseAdapter<TConfig = Record<string, unknown>> {
 	disconnect(): Promise<Result<void, ConnectionError>>;
 	isConnected(): boolean;
 	getConnectionState(): ConnectionState;
-
-	// Query execution
-	executeQuery<TResult extends ForjaEntry>(
-		query: QueryObject<TResult>,
-	): Promise<Result<QueryResult<TResult>, QueryError>>;
-
-	executeRawQuery<TResult extends ForjaEntry>(
-		sql: string,
-		params: readonly unknown[],
-	): Promise<Result<QueryResult<TResult>, QueryError>>;
 
 	// Transaction support
 	beginTransaction(): Promise<Result<Transaction, TransactionError>>;
