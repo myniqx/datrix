@@ -86,6 +86,12 @@ export {
 	type OrderDirection,
 	type OrderByItem,
 	type OrderBy,
+	type QuerySelectObject,
+	type QueryCountObject,
+	type QueryInsertObject,
+	type QueryUpdateObject,
+	type QueryDeleteObject,
 	type QueryObject,
+	type QueryObjectForType,
 	type QueryBuilder,
 } from "./core/query-builder";

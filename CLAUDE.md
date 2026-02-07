@@ -3,6 +3,7 @@
 ## 🎯 Project Mission
 
 BU PROJE PRODUCTION DEGIL! GERIYE UYUMLULUK DUSUNME!
+TIP HATALARINI İÇİN OTOMATİK İŞLEM YAPMA, bunu istediğimde prompt ile bildiririm.
 
 Forja is a TypeScript-first database management framework that provides Strapi-like REST API flexibility without being a standalone application. Our goal is to create a minimal, type-safe, and highly extensible framework that developers can integrate into their existing projects.
 

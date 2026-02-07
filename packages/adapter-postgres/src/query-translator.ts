@@ -461,7 +461,9 @@ export class PostgresQueryTranslator implements QueryTranslator {
 	private translateInsert<T extends ForjaEntry>(
 		query: PostgresQueryObject<T>,
 	): string {
-		if (!query.data || Object.keys(query.data).length === 0) {
+		const dataArray = Array.isArray(query.data) ? query.data : [query.data];
+
+		if (dataArray.length === 0 || !dataArray[0]) {
 			throw new QueryError("INSERT query requires data");
 		}
 
@@ -472,27 +474,27 @@ export class PostgresQueryTranslator implements QueryTranslator {
 			currentSchema = this.schemaRegistry.get(modelName);
 		}
 
-		const parts: string[] = [];
-		const columns: string[] = [];
-		const values: string[] = [];
+		// Use keys from first item as columns
+		const firstItem = dataArray[0] as Record<string, unknown>;
+		const columns = Object.keys(firstItem).map((k) =>
+			this.escapeIdentifier(k),
+		);
 
-		for (const [key, value] of Object.entries(query.data)) {
-			columns.push(this.escapeIdentifier(key));
-			values.push(this.addParam(value, currentSchema, key));
+		// Build VALUES rows
+		const valueRows: string[] = [];
+		for (const item of dataArray) {
+			const row = item as Record<string, unknown>;
+			const values = Object.keys(firstItem).map((key) =>
+				this.addParam(row[key], currentSchema, key),
+			);
+			valueRows.push(`(${values.join(", ")})`);
 		}
 
+		const parts: string[] = [];
 		parts.push(`INSERT INTO ${this.escapeIdentifier(query.table)}`);
 		parts.push(`(${columns.join(", ")})`);
-		parts.push(`VALUES (${values.join(", ")})`);
-
-		// RETURNING clause
-		// - If query.returning is specified (raw query), use it
-		// - Otherwise, default to returning only ID (adapter standardization)
-		if (query.returning) {
-			parts.push(`RETURNING ${this.translateSelectClause(query.returning)}`);
-		} else {
-			parts.push(`RETURNING id`);
-		}
+		parts.push(`VALUES ${valueRows.join(", ")}`);
+		parts.push(`RETURNING id`);
 
 		return parts.join(" ");
 	}
@@ -545,10 +547,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
 			this.params.push(...whereResult.params);
 		}
 
-		// RETURNING clause
-		if (query.returning) {
-			parts.push(`RETURNING ${this.translateSelectClause(query.returning)}`);
-		}
+		parts.push(`RETURNING id`);
 
 		return parts.join(" ");
 	}
@@ -581,10 +580,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
 			this.params.push(...whereResult.params);
 		}
 
-		// RETURNING clause
-		if (query.returning) {
-			parts.push(`RETURNING ${this.translateSelectClause(query.returning)}`);
-		}
+		parts.push(`RETURNING id`);
 
 		return parts.join(" ");
 	}

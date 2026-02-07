@@ -379,14 +379,10 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		}
 
 		try {
-			const filePath = this.getTablePath(query.table);
-
 			let tableData: JsonTableFile<Record<string, unknown>>;
-			let fileContent: string;
 
-			// Step 1: Read file
 			try {
-				fileContent = await fs.readFile(filePath, "utf-8");
+				tableData = await this.readTable(query.table);
 			} catch (err) {
 				if (lockAcquired) await this.lock.release();
 				return {
@@ -397,31 +393,6 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 						details: err,
 					}),
 				};
-			}
-
-			// Step 2: Parse JSON
-			try {
-				tableData = JSON.parse(fileContent);
-			} catch (parseErr) {
-				if (lockAcquired) await this.lock.release();
-				this.invalidateCache(query.table);
-				return {
-					success: false,
-					error: new QueryError(
-						`Failed to parse JSON file for table '${query.table}': ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`,
-						{ query },
-					),
-				};
-			}
-
-			// Update cache for read operations
-			if (!isWriteOp && this.cacheEnabled) {
-				try {
-					const stat = await fs.stat(filePath);
-					this.cache.set(query.table, { data: tableData, mtime: stat.mtimeMs });
-				} catch {
-					// Ignore cache update errors
-				}
 			}
 
 			// Handle missing data field
@@ -435,7 +406,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 			const metadata: {
 				rowCount: number;
 				affectedRows: number;
-				insertId?: number;
+				insertIds?: number[];
 			} = { rowCount: 0, affectedRows: 0 };
 			let shouldWrite = false;
 
@@ -468,8 +439,8 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 						return {
 							success: true,
 							data: {
-								rows: [{ count: rows.length }] as unknown as TResult[],
-								metadata: { rowCount: 1, affectedRows: 0 },
+								rows: [] as TResult[],
+								metadata: { rowCount: 0, affectedRows: 0, count: rows.length },
 							},
 						};
 					}
@@ -477,39 +448,37 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 				}
 
 				case "insert": {
-					if (!query.data) {
+					if (!query.data || !Array.isArray(query.data)) {
 						throwQueryMissingData("insert", query.table);
 					}
-					const newItem = { ...query.data };
 
-					if (!newItem["id"]) {
-						// Auto-generate ID
-						tableData.meta.lastInsertId =
-							(tableData.meta.lastInsertId ?? 0) + 1;
-						newItem["id"] = tableData.meta.lastInsertId;
-					} else {
-						// Manual ID provided - update lastInsertId to avoid future conflicts
-						const manualId = Number(newItem["id"]);
-						if (
-							!isNaN(manualId) &&
-							manualId > (tableData.meta.lastInsertId ?? 0)
-						) {
-							tableData.meta.lastInsertId = manualId;
+					const insertedIds: number[] = [];
+
+					for (const item of query.data) {
+						const newItem = { ...item };
+
+						if (!newItem["id"]) {
+							tableData.meta.lastInsertId =
+								(tableData.meta.lastInsertId ?? 0) + 1;
+							newItem["id"] = tableData.meta.lastInsertId;
+						} else {
+							const manualId = Number(newItem["id"]);
+							if (
+								!isNaN(manualId) &&
+								manualId > (tableData.meta.lastInsertId ?? 0)
+							) {
+								tableData.meta.lastInsertId = manualId;
+							}
 						}
+
+						this.checkUniqueConstraints(tableData, newItem);
+						tableData.data.push(newItem);
+						insertedIds.push(newItem["id"] as number);
 					}
 
-					// Check unique constraints before inserting
-					this.checkUniqueConstraints(tableData, newItem);
-
-					tableData.data.push(newItem);
-					rows = [newItem];
-
-					if (query.returning) {
-						rows = runner.projectData(rows, query.returning);
-					}
-
-					metadata.affectedRows = 1;
-					metadata.insertId = newItem["id"] as number;
+					rows = insertedIds.map((id) => ({ id }));
+					metadata.affectedRows = insertedIds.length;
+					metadata.insertIds = insertedIds;
 					shouldWrite = true;
 					break;
 				}
@@ -540,13 +509,9 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 						Object.assign(row, query.data);
 					}
 
-					rows = rowsToUpdate;
-
-					if (query.returning) {
-						rows = runner.projectData(rows, query.returning);
-					}
-
-					metadata.affectedRows = rows.length;
+					const updatedIds = rowsToUpdate.map((r) => r["id"] as number);
+					rows = updatedIds.map((id) => ({ id }));
+					metadata.affectedRows = updatedIds.length;
 					shouldWrite = true;
 					break;
 				}
@@ -566,12 +531,8 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 						(d) => !idsToDelete.has(d["id"]),
 					);
 
-					rows = rowsToDelete;
-
-					if (query.returning) {
-						rows = runner.projectData(rows, query.returning);
-					}
-
+					const deletedIds = rowsToDelete.map((r) => r["id"] as number);
+					rows = deletedIds.map((id) => ({ id }));
 					metadata.affectedRows = originalLength - tableData.data.length;
 					shouldWrite = true;
 					break;
@@ -580,6 +541,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 
 			if (shouldWrite) {
 				tableData.meta.updatedAt = new Date().toISOString();
+				const filePath = this.getTablePath(query.table);
 				await fs.writeFile(
 					filePath,
 					JSON.stringify(tableData, null, 2),
@@ -648,12 +610,12 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		}
 
 		try {
-			const filePath = this.getTablePath(tableName);
-			const content = await fs.readFile(filePath, "utf-8");
-			const json: JsonTableFile = JSON.parse(content);
+			const json = await this.readTable(tableName);
 
 			json.meta.updatedAt = new Date().toISOString();
+			const filePath = this.getTablePath(tableName);
 			await fs.writeFile(filePath, JSON.stringify(json, null, 2), "utf-8");
+			await this.updateCache(tableName, json);
 			return { success: true, data: undefined };
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
@@ -714,9 +676,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 			};
 		}
 		try {
-			const filePath = this.getTablePath(tableName);
-			const content = await fs.readFile(filePath, "utf-8");
-			const json: JsonTableFile = JSON.parse(content);
+			const json = await this.readTable(tableName);
 
 			if (json.schema) {
 				return { success: true, data: json.schema as SchemaDefinition };

@@ -177,8 +177,6 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 		let lastSql: string | undefined;
 
 		try {
-			let rows: readonly TResult[];
-
 			if (query.populate && query.type === "select") {
 				const schemaRegistry = Forja.getInstance().getSchemas();
 				const populator = new PostgresPopulator(
@@ -187,45 +185,54 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 					schemaRegistry,
 				);
 
-				rows = await populator.populate<TResult>(query);
-			} else {
-				const { sql, params } = this.getTranslator().translate(query);
-				lastSql = sql;
-
-				const result = await this.pool.query(sql, params as unknown[]);
-				rows = result.rows as readonly TResult[];
+				const rows = await populator.populate<TResult>(query);
+				const metadata: QueryMetadata = {
+					rowCount: rows.length,
+					affectedRows: 0,
+				};
+				return { success: true, data: { rows, metadata } };
 			}
 
-			// PostgreSQL driver returns numbers as strings, parse them
-			if (query.type === "count" && rows.length > 0) {
-				const countRow = rows[0] as unknown as { count: string | number };
-				if (typeof countRow.count === "string") {
-					countRow.count = parseInt(countRow.count, 10);
-				}
+			const { sql, params } = this.getTranslator().translate(query);
+			lastSql = sql;
+			const result = await this.pool.query(sql, params as unknown[]);
+
+			if (query.type === "select") {
+				const rows = result.rows as readonly TResult[];
+				const metadata: QueryMetadata = {
+					rowCount: rows.length,
+					affectedRows: 0,
+				};
+				return { success: true, data: { rows, metadata } };
 			}
 
-			let insertId: number | undefined;
-
-			if (query.type === "insert" && rows.length > 0) {
-				const firstRow = rows[0] as ForjaEntry;
-				const rawId = firstRow["id"];
-				insertId =
-					typeof rawId === "string" ? parseInt(rawId, 10) : (rawId as number);
+			if (query.type === "count") {
+				const countRow = result.rows[0] as { count: string | number } | undefined;
+				const count = countRow
+					? typeof countRow.count === "string"
+						? parseInt(countRow.count, 10)
+						: countRow.count
+					: 0;
+				const metadata: QueryMetadata = {
+					rowCount: 0,
+					affectedRows: 0,
+					count,
+				};
+				return { success: true, data: { rows: [] as TResult[], metadata } };
 			}
 
+			// insert, update, delete — rows contain {id} from RETURNING id
+			const ids = result.rows.map((r: { id: string | number }) =>
+				typeof r.id === "string" ? parseInt(r.id, 10) : r.id,
+			);
+			const idRows = ids.map((id) => ({ id })) as TResult[];
 			const metadata: QueryMetadata = {
-				rowCount: rows.length,
-				affectedRows: rows.length,
-				...(insertId !== undefined && { insertId }),
+				rowCount: ids.length,
+				affectedRows: ids.length,
+				...(query.type === "insert" && { insertIds: ids }),
 			};
 
-			return {
-				success: true,
-				data: {
-					rows,
-					metadata,
-				},
-			};
+			return { success: true, data: { rows: idRows, metadata } };
 		} catch (error) {
 			return {
 				success: false,
