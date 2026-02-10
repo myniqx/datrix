@@ -190,6 +190,7 @@ export function processData<T extends ForjaEntry>(
 	schema: SchemaDefinition,
 	registry: SchemaRegistry,
 	depth: number = 0,
+	visitedModels: ReadonlySet<string> = new Set(),
 ): NormalizedNestedData<T> {
 	// Check max depth
 	if (depth > MAX_NESTED_DEPTH) {
@@ -198,6 +199,16 @@ export function processData<T extends ForjaEntry>(
 			"nested depth",
 			depth,
 			`maximum ${MAX_NESTED_DEPTH} levels of nesting`,
+		);
+	}
+
+	// Check redundant nested creation (e.g. Author → Post → Author)
+	if (visitedModels.has(schema.name)) {
+		throwInvalidValue(
+			"data",
+			"redundant nested create/update",
+			`${[...visitedModels, schema.name].join(" → ")}`,
+			`use 'connect' instead of nesting back to '${schema.name}' — creating the same model in a nested chain is redundant`,
 		);
 	}
 	const scalars: Record<string, unknown> = {};
@@ -296,12 +307,14 @@ export function processData<T extends ForjaEntry>(
 					);
 				}
 
+				const nextVisited = new Set([...visitedModels, schema.name]);
+
 				// Handle array of creates
 				if (Array.isArray(relInput.create)) {
 					normalized = {
 						...normalized,
 						create: relInput.create.map((item) =>
-							processData(item, targetSchema, registry, depth + 1),
+							processData(item, targetSchema, registry, depth + 1, nextVisited),
 						),
 					};
 				} else {
@@ -309,7 +322,7 @@ export function processData<T extends ForjaEntry>(
 					normalized = {
 						...normalized,
 						create: [
-							processData(relInput.create, targetSchema, registry, depth + 1),
+							processData(relInput.create, targetSchema, registry, depth + 1, nextVisited),
 						],
 					};
 				}
@@ -327,6 +340,8 @@ export function processData<T extends ForjaEntry>(
 					);
 				}
 
+				const nextVisited = new Set([...visitedModels, schema.name]);
+
 				// Handle array of updates
 				if (Array.isArray(relInput.update)) {
 					normalized = {
@@ -339,6 +354,7 @@ export function processData<T extends ForjaEntry>(
 								targetSchema,
 								registry,
 								depth + 1,
+								nextVisited,
 							);
 							return {
 								where: whereClause,
@@ -355,6 +371,7 @@ export function processData<T extends ForjaEntry>(
 						targetSchema,
 						registry,
 						depth + 1,
+						nextVisited,
 					);
 					normalized = {
 						...normalized,
@@ -374,6 +391,21 @@ export function processData<T extends ForjaEntry>(
 
 		// Inline foreign keys for belongsTo/hasOne
 		if (field.kind === "belongsTo" || field.kind === "hasOne") {
+			// Singular relations can only reference one record total
+			const totalRefs =
+				(normalized.connect?.length ?? 0) +
+				(normalized.set?.length ?? 0) +
+				(normalized.create?.length ?? 0);
+
+			if (totalRefs > 1) {
+				throwInvalidValue(
+					"data",
+					`relation ${key} (${field.kind})`,
+					`${totalRefs} references`,
+					"a single reference — belongsTo/hasOne can only reference one record",
+				);
+			}
+
 			const foreignKey = field.foreignKey!;
 			let inlinedId: number | null | undefined = undefined;
 

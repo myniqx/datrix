@@ -143,7 +143,7 @@ describe("CRUD Relation API Tests", () => {
 			expect(author.company).toBeUndefined(); // ❌ Relation not populated
 		});
 
-		it("should normalize connect: [{id}, {id}] → number[] (first only for belongsTo)", async () => {
+		it("should reject multiple IDs for belongsTo connect", async () => {
 			const company1Res = await postRequest("/api/companies", {
 				name: "Corp1",
 				country: "USA",
@@ -156,16 +156,13 @@ describe("CRUD Relation API Tests", () => {
 			});
 			const company2 = await expectApiSingle(company2Res, 201);
 
-			// Without populate → No FK, no relation
+			// belongsTo can only reference one record — multiple IDs should fail
 			const authorRes = await postRequest("/api/authors", {
 				name: "Bob Johnson",
 				email: randomEmail(),
-				company: { connect: [{ id: company1.id }, { id: company2.id }] }, // ✅ Array (belongsTo takes first)
+				company: { connect: [{ id: company1.id }, { id: company2.id }] },
 			});
-			const author = await expectApiSingle(authorRes, 201);
-
-			expect(author.companyId).toBeUndefined(); // ❌ FK never visible
-			expect(author.company).toBeUndefined(); // ❌ Not populated
+			await expectApiError(authorRes, 400);
 		});
 
 		it("should normalize set: [number] → number[]", async () => {

@@ -17,18 +17,12 @@ import {
 	ForjaRecord,
 } from "forja-types/core/schema";
 import {
-	QueryObject,
 	QueryRelations,
 	NormalizedRelationOperations,
 	WhereClause,
-	QueryUpdateObject,
 } from "forja-types/core/query-builder";
-import { QueryExecutor } from "./executor";
-
-// TODO: Implement circular relation detection
-// Nested create can cause infinite loops:
-// Post.create({ author: { create: { posts: { create: [...] } } } })
-// Add depth limit or visited set before processing nested relations.
+import { QueryRunner } from "forja-types/adapter";
+import { validateData } from "./validation";
 
 /**
  * Resolved relation operations (mutable, after CUD resolution)
@@ -62,7 +56,7 @@ export async function processRelations<T extends ForjaEntry>(
 	parentId: number,
 	parentModel: string,
 	schema: SchemaDefinition,
-	executor: QueryExecutor,
+	runner: QueryRunner,
 	schemaRegistry: SchemaRegistry,
 ): Promise<void> {
 	for (const [fieldName, ops] of Object.entries(resolvedRelations)) {
@@ -72,7 +66,7 @@ export async function processRelations<T extends ForjaEntry>(
 			fieldName,
 			ops,
 			schema,
-			executor,
+			runner,
 			schemaRegistry,
 		});
 	}
@@ -103,7 +97,7 @@ export async function processRelations<T extends ForjaEntry>(
 export async function resolveRelationCUD<T extends ForjaEntry>(
 	relations: QueryRelations<T>,
 	schema: SchemaDefinition,
-	executor: QueryExecutor,
+	runner: QueryRunner,
 	schemaRegistry: SchemaRegistry,
 ): Promise<Record<string, ResolvedRelationOps>> {
 	const resolved: Record<string, ResolvedRelationOps> = {};
@@ -151,17 +145,23 @@ export async function resolveRelationCUD<T extends ForjaEntry>(
 
 			// Bulk insert plain items (no nested relations)
 			if (plainItems.length > 0) {
-				const bulkData = plainItems.map((item) => item.data);
-				const createdIds = await executor.executeInsert<ForjaEntry>(
-					{
-						type: "insert",
-						table: relSchema.tableName!,
-						data: bulkData,
-					}, relSchema,
-					{ noReturning: true, noDispatcher: true },
+				const validatedBulkData = plainItems.map((item) =>
+					validateData<ForjaEntry, false>(item.data, item.relations, relSchema, {
+						partial: false,
+						isCreate: true,
+						isRawMode: true,
+					}),
 				);
+				const bulkResult = await runner.executeQuery<ForjaEntry>({
+					type: "insert",
+					table: relSchema.tableName!,
+					data: validatedBulkData,
+				});
+				if (!bulkResult.success) {
+					throw bulkResult.error;
+				}
 
-				for (const created of createdIds) {
+				for (const created of bulkResult.data.rows) {
 					if (ops.set !== undefined) {
 						ops.set.push(created.id);
 					} else {
@@ -172,16 +172,38 @@ export async function resolveRelationCUD<T extends ForjaEntry>(
 
 			// Items with nested relations must be inserted individually
 			for (const createItem of nestedItems) {
-				const createdIds = await executor.executeInsert<ForjaEntry>(
-					{
-						type: "insert",
-						table: relSchema.tableName!,
-						data: [createItem.data],
-						relations: createItem.relations,
-					}, relSchema,
-					{ noReturning: true, noDispatcher: true },
-				);
-				const createdId = createdIds[0]!.id;
+				const validatedData = validateData<ForjaEntry, false>(createItem.data, createItem.relations, relSchema, {
+					partial: false,
+					isCreate: true,
+					isRawMode: true,
+				});
+				const createResult = await runner.executeQuery<ForjaEntry>({
+					type: "insert",
+					table: relSchema.tableName!,
+					data: [validatedData],
+				});
+				if (!createResult.success) {
+					throw createResult.error;
+				}
+				const createdId = createResult.data.rows[0]!.id;
+
+				// Recursively resolve nested relations
+				if (createItem.relations) {
+					const nestedResolved = await resolveRelationCUD(
+						createItem.relations,
+						relSchema,
+						runner,
+						schemaRegistry,
+					);
+					await processRelations(
+						nestedResolved,
+						createdId,
+						relSchema.name,
+						relSchema,
+						runner,
+						schemaRegistry,
+					);
+				}
 
 				if (ops.set !== undefined) {
 					ops.set.push(createdId);
@@ -193,35 +215,56 @@ export async function resolveRelationCUD<T extends ForjaEntry>(
 
 		// --- Execute UPDATE (once) ---
 		if (relData.update) {
-			const relSchema = schemaRegistry.get(relatedModel)!;
-
 			for (const updateItem of relData.update) {
 				const { where, data, relations: nestedRelations } = updateItem;
 
-				await executor.executeUpdate<ForjaEntry>(
-					{
-						type: "update",
-						table: relSchema.tableName!,
-						data,
-						relations: nestedRelations,
-						where: where as WhereClause<ForjaEntry>,
-					}, relSchema,
-					{ noReturning: true, noDispatcher: true },
-				);
+				const validatedData = validateData<ForjaEntry, true>(data, nestedRelations, relSchema, {
+					partial: true,
+					isCreate: false,
+					isRawMode: true,
+				});
+				const updateResult = await runner.executeQuery<ForjaEntry>({
+					type: "update",
+					table: relSchema.tableName!,
+					data: validatedData,
+					where: where as WhereClause<ForjaEntry>,
+				});
+				if (!updateResult.success) {
+					throw updateResult.error;
+				}
+
+				// Recursively resolve nested relations
+				if (nestedRelations) {
+					for (const updated of updateResult.data.rows) {
+						const nestedResolved = await resolveRelationCUD(
+							nestedRelations,
+							relSchema,
+							runner,
+							schemaRegistry,
+						);
+						await processRelations(
+							nestedResolved,
+							updated.id,
+							relSchema.name,
+							relSchema,
+							runner,
+							schemaRegistry,
+						);
+					}
+				}
 			}
 		}
 
 		// --- Execute DELETE (once) ---
 		if (ops.deleteIds.length > 0) {
-			const relSchema = schemaRegistry.get(relatedModel)!;
-
-			await executor.executeDelete<ForjaEntry>({
+			const deleteResult = await runner.executeQuery<ForjaEntry>({
 				type: "delete",
 				table: relSchema.tableName!,
 				where: { id: { $in: ops.deleteIds } },
-			},
-				relSchema,
-				{ noReturning: true, noDispatcher: true });
+			});
+			if (!deleteResult.success) {
+				throw deleteResult.error;
+			}
 		}
 
 		resolved[fieldName] = ops;
@@ -242,7 +285,7 @@ async function processRelation<T extends ForjaEntry>({
 	fieldName,
 	ops,
 	schema,
-	executor,
+	runner,
 	schemaRegistry,
 }: {
 	parentId: number;
@@ -250,7 +293,7 @@ async function processRelation<T extends ForjaEntry>({
 	fieldName: string;
 	ops: ResolvedRelationOps;
 	schema: SchemaDefinition;
-	executor: QueryExecutor;
+	runner: QueryRunner;
 	schemaRegistry: SchemaRegistry;
 }): Promise<void> {
 	const field = schema.fields[fieldName];
@@ -276,15 +319,15 @@ async function processRelation<T extends ForjaEntry>({
 		}
 
 		if (Object.keys(updateData).length > 0) {
-			const query: QueryObject<T> = {
+			const result = await runner.executeQuery<T>({
 				table: schema.tableName!,
 				type: "update",
 				where: { id: parentId } as WhereClause<T>,
 				data: updateData as Partial<T>,
-			};
-			await executor.executeUpdate(query, schema, {
-				noDispatcher: true,
 			});
+			if (!result.success) {
+				throw result.error;
+			}
 		}
 	}
 
@@ -292,65 +335,60 @@ async function processRelation<T extends ForjaEntry>({
 	if (relation.kind === "hasMany") {
 		const reverseForeignKey = relation.foreignKey ?? `${parentModel}Id`;
 		const relationSchema = schemaRegistry.get(relation.model)!;
-		const baseQuery: QueryUpdateObject<T> = {
-			table: relationSchema.tableName!,
-			type: "update",
-			data: null!
-		};
 
 		if (ops.connect.length > 0) {
-			await executor.executeUpdate(
-				{
-					...baseQuery,
-					data: { [reverseForeignKey]: parentId } as Partial<T>,
-					where: { id: { $in: ops.connect } } as WhereClause<T>,
-				},
-				relationSchema,
-				{ noDispatcher: true },
-			);
+			const result = await runner.executeQuery<T>({
+				table: relationSchema.tableName!,
+				type: "update",
+				data: { [reverseForeignKey]: parentId } as Partial<T>,
+				where: { id: { $in: ops.connect } } as WhereClause<T>,
+			});
+			if (!result.success) {
+				throw result.error;
+			}
 		}
 
 		if (ops.disconnect.length > 0) {
-			await executor.executeUpdate(
-				{
-					...baseQuery,
-					data: { [reverseForeignKey]: null } as Partial<T>,
-					where: { id: { $in: ops.disconnect } } as WhereClause<T>,
-				},
-				relationSchema,
-				{ noDispatcher: true },
-			);
+			const result = await runner.executeQuery<T>({
+				table: relationSchema.tableName!,
+				type: "update",
+				data: { [reverseForeignKey]: null } as Partial<T>,
+				where: { id: { $in: ops.disconnect } } as WhereClause<T>,
+			});
+			if (!result.success) {
+				throw result.error;
+			}
 		}
 
 		if (ops.set !== undefined) {
 			// 1. Disconnect all current
-			await executor.executeUpdate(
-				{
-					...baseQuery,
-					data: { [reverseForeignKey]: null } as Partial<T>,
-					where: {
-						[reverseForeignKey]: parentId,
-					} as WhereClause<T>,
-				},
-				relationSchema,
-				{ noDispatcher: true },
-			);
+			const disconnectResult = await runner.executeQuery<T>({
+				table: relationSchema.tableName!,
+				type: "update",
+				data: { [reverseForeignKey]: null } as Partial<T>,
+				where: {
+					[reverseForeignKey]: parentId,
+				} as WhereClause<T>,
+			});
+			if (!disconnectResult.success) {
+				throw disconnectResult.error;
+			}
 
 			// 2. Connect new ones
 			if (ops.set.length > 0) {
-				await executor.executeUpdate(
-					{
-						...baseQuery,
-						data: {
-							[reverseForeignKey]: parentId,
-						} as Partial<T>,
-						where: {
-							id: { $in: ops.set },
-						} as WhereClause<T>,
-					},
-					relationSchema,
-					{ noDispatcher: true },
-				);
+				const connectResult = await runner.executeQuery<T>({
+					table: relationSchema.tableName!,
+					type: "update",
+					data: {
+						[reverseForeignKey]: parentId,
+					} as Partial<T>,
+					where: {
+						id: { $in: ops.set },
+					} as WhereClause<T>,
+				});
+				if (!connectResult.success) {
+					throw connectResult.error;
+				}
 			}
 		}
 	}
@@ -367,44 +405,44 @@ async function processRelation<T extends ForjaEntry>({
 				[sourceFK]: parentId,
 				[targetFK]: targetId,
 			}));
-			await executor.execute(
-				{
-					table: junctionTable,
-					type: "insert",
-					data: rows,
-				},
-				{ noDispatcher: true, noReturning: true },
-			);
+			const result = await runner.executeQuery<ForjaEntry>({
+				table: junctionTable,
+				type: "insert",
+				data: rows,
+			});
+			if (!result.success) {
+				throw result.error;
+			}
 		}
 
 		// Disconnect → DELETE FROM junction table
 		if (ops.disconnect.length > 0) {
-			await executor.execute(
-				{
-					table: junctionTable,
-					type: "delete",
-					where: {
-						[sourceFK]: parentId,
-						[targetFK]: { $in: ops.disconnect },
-					},
+			const result = await runner.executeQuery<ForjaEntry>({
+				table: junctionTable,
+				type: "delete",
+				where: {
+					[sourceFK]: parentId,
+					[targetFK]: { $in: ops.disconnect },
 				},
-				{ noDispatcher: true, noReturning: true },
-			);
+			});
+			if (!result.success) {
+				throw result.error;
+			}
 		}
 
 		// Set → DELETE all + INSERT new
 		if (ops.set !== undefined) {
 			// 1. Delete all existing relations for this record
-			await executor.execute(
-				{
-					table: junctionTable,
-					type: "delete",
-					where: {
-						[sourceFK]: parentId,
-					},
+			const deleteResult = await runner.executeQuery<ForjaEntry>({
+				table: junctionTable,
+				type: "delete",
+				where: {
+					[sourceFK]: parentId,
 				},
-				{ noDispatcher: true, noReturning: true },
-			);
+			});
+			if (!deleteResult.success) {
+				throw deleteResult.error;
+			}
 
 			// 2. Insert new relations (bulk)
 			if (ops.set.length > 0) {
@@ -412,14 +450,14 @@ async function processRelation<T extends ForjaEntry>({
 					[sourceFK]: parentId,
 					[targetFK]: targetId,
 				}));
-				await executor.execute(
-					{
-						table: junctionTable,
-						type: "insert",
-						data: rows,
-					},
-					{ noDispatcher: true, noReturning: true },
-				);
+				const insertResult = await runner.executeQuery<ForjaEntry>({
+					table: junctionTable,
+					type: "insert",
+					data: rows,
+				});
+				if (!insertResult.success) {
+					throw insertResult.error;
+				}
 			}
 		}
 	}

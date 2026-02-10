@@ -24,11 +24,11 @@ import type { IApiPlugin } from "./interface";
 import type { ForjaEntry } from "forja-types/core/schema";
 import { forjaErrorResponse } from "./handler/utils";
 import { AuthUser } from "forja-types/api";
+import { QueryObject } from "forja-types";
 
 export class ApiPlugin<TRole extends string = string>
 	extends BasePlugin<ApiConfig<TRole>>
-	implements IApiPlugin<TRole>
-{
+	implements IApiPlugin<TRole> {
 	readonly name = "api";
 	readonly version = "1.0.0";
 
@@ -212,13 +212,14 @@ export class ApiPlugin<TRole extends string = string>
 		// User insert → store flag in metadata
 		if (query.type === "insert" && query.table === userTable) {
 			context.metadata["api:createAuth"] = true;
-			context.metadata["api:userData"] = query.data;
+			context.metadata["api:userData"] = query.data[0];
 		}
 
 		// User email update → store flag in metadata
 		if (query.type === "update" && query.table === userTable) {
+			const data = query.data;
 			const emailField = this.userSchemaEmailField;
-			if (query.data && emailField in query.data) {
+			if (data && emailField in data) {
 				context.metadata["api:syncEmail"] = (
 					query.data as Record<string, unknown>
 				)[emailField];
@@ -250,15 +251,16 @@ export class ApiPlugin<TRole extends string = string>
 
 		// User created → create authentication record
 		if (
-			context.metadata["api:createAuth"] &&
-			result &&
-			typeof result === "number"
+			context.metadata["api:createAuth"]
 		) {
-			const user = {
-				...(context.metadata["api:userData"] as Record<string, unknown>),
-				userId: result,
-			};
-			await this.createAuthenticationRecord(user, pluginContext.data);
+			const { id: userId } = Array.isArray(result) ? result[0] : result;
+			if (typeof userId === "number") {
+				const user = {
+					...(context.metadata["api:userData"] as Record<string, unknown>),
+					userId,
+				};
+				await this.createAuthenticationRecord(user, pluginContext.data);
+			}
 		}
 
 		// User email updated → sync authentication email
