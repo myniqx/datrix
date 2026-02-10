@@ -32,8 +32,9 @@
 		"forja-types": "workspace:*"
 	},
 	"devDependencies": {
+		"@types/node": "^20.11.17",
+		"jiti": "^2.6.1",
 		"tsup": "^8.0.2",
-		"typescript": "^5.3.3",
-		"@types/node": "^20.11.17"
+		"typescript": "^5.3.3"
 	}
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Forja CLI Entry Point (~300 LOC)
+ * Forja CLI Entry Point
  *
  * Command-line interface for Forja database management framework.
  * Provides commands for migrations, schema generation, and development mode.
@@ -14,7 +14,11 @@ import type {
 	DevCommandOptions,
 } from "./types";
 import { logger, formatError, bold, cyan } from "./utils/logger";
+import { loadConfig } from "./utils/config-loader";
+import { createMigrationSetup } from "./utils/migration-setup";
 import { generateCommand, isValidGenerateType } from "./commands/generate";
+import { migrateCommand, displayMigrationStatus } from "./commands/migrate";
+import { devCommand } from "./commands/dev";
 
 /**
  * Parse command-line arguments
@@ -115,6 +119,16 @@ ${bold("MORE INFO")}
 }
 
 /**
+ * Get config path from options
+ */
+function getConfigPath(
+	options: Record<string, string | boolean>,
+): string | undefined {
+	const configValue = options["config"];
+	return typeof configValue === "string" ? configValue : undefined;
+}
+
+/**
  * Main CLI handler
  */
 async function main(): Promise<void> {
@@ -129,40 +143,51 @@ async function main(): Promise<void> {
 	try {
 		switch (args.command) {
 			case "migrate": {
-				// Note: In real implementation, we would need to:
-				// 1. Load config from args.options['config'] or default
-				// 2. Initialize adapter
-				// 3. Initialize migration runner
-				// For now, we show the structure
-
-				if (args.options["status"]) {
-					// This is a placeholder - would need actual runner instance
-					logger.info("Migration status command would run here");
-					logger.info(
-						"TODO: Initialize adapter and migration runner from config",
-					);
-					process.exit(0);
+				// Load config and initialize Forja
+				const configResult = await loadConfig(getConfigPath(args.options));
+				if (!configResult.success) {
+					logger.error(configResult.error.message);
+					process.exit(1);
 				}
+				const forja = configResult.data;
 
-				const configValue = args.options["config"];
 				const toValue = args.options["to"];
 
 				const migrateOptions: MigrateCommandOptions = {
-					config: typeof configValue === "string" ? configValue : undefined,
+					config: getConfigPath(args.options),
 					verbose: Boolean(args.options["verbose"]),
 					down: Boolean(args.options["down"]),
 					to: typeof toValue === "string" ? toValue : undefined,
 					dryRun: Boolean(args.options["dry-run"]),
 				};
 
-				// This is a placeholder - would need actual runner instance
-				logger.info("Migrate command would run here");
-				logger.info(
-					"TODO: Initialize adapter and migration runner from config",
-				);
-				logger.info(`Options: ${JSON.stringify(migrateOptions, null, 2)}`);
+				// Create migration runner from Forja instance
+				const setupResult = await createMigrationSetup(forja);
+				if (!setupResult.success) {
+					logger.error(setupResult.error.message);
+					process.exit(1);
+				}
+				const runner = setupResult.data;
 
-				// result = await migrateCommand(migrateOptions, runner);
+				// Status check
+				if (args.options["status"]) {
+					const statusResult = await displayMigrationStatus(runner);
+					if (!statusResult.success) {
+						logger.error(statusResult.error.message);
+						process.exit(1);
+					}
+					break;
+				}
+
+				// Run or rollback migrations
+				const result = await migrateCommand(migrateOptions, runner);
+				if (!result.success) {
+					logger.error(result.error.message);
+					if (args.options["verbose"]) {
+						logger.error(String(result.error.details));
+					}
+					process.exit(1);
+				}
 				break;
 			}
 
@@ -187,14 +212,13 @@ async function main(): Promise<void> {
 					process.exit(1);
 				}
 
-				const genConfigValue = args.options["config"];
-				const outputValue = args.options["output"];
-
 				const generateOptions: GenerateCommandOptions = {
-					config:
-						typeof genConfigValue === "string" ? genConfigValue : undefined,
+					config: getConfigPath(args.options),
 					verbose: Boolean(args.options["verbose"]),
-					output: typeof outputValue === "string" ? outputValue : undefined,
+					output:
+						typeof args.options["output"] === "string"
+							? args.options["output"]
+							: undefined,
 				};
 
 				const generateResult = await generateCommand(
@@ -215,23 +239,33 @@ async function main(): Promise<void> {
 			}
 
 			case "dev": {
-				const devConfigValue = args.options["config"];
+				// Load config and initialize Forja
+				const configResult = await loadConfig(getConfigPath(args.options));
+				if (!configResult.success) {
+					logger.error(configResult.error.message);
+					process.exit(1);
+				}
+				const forja = configResult.data;
 
 				const devOptions: DevCommandOptions = {
-					config:
-						typeof devConfigValue === "string" ? devConfigValue : undefined,
+					config: getConfigPath(args.options),
 					verbose: Boolean(args.options["verbose"]),
 					watch: args.options["watch"] !== false, // Default true
 				};
 
-				// This is a placeholder - would need actual runner instance
-				logger.info("Dev command would run here");
-				logger.info(
-					"TODO: Initialize adapter and migration runner from config",
-				);
-				logger.info(`Options: ${JSON.stringify(devOptions, null, 2)}`);
+				// Create migration runner from Forja instance
+				const setupResult = await createMigrationSetup(forja);
+				if (!setupResult.success) {
+					logger.error(setupResult.error.message);
+					process.exit(1);
+				}
+				const runner = setupResult.data;
 
-				// result = await devCommand(devOptions, runner);
+				const devResult = await devCommand(devOptions, runner);
+				if (!devResult.success) {
+					logger.error(devResult.error.message);
+					process.exit(1);
+				}
 				break;
 			}
 
