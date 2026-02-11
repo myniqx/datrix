@@ -36,7 +36,7 @@ describe("Populate Integration Tests", () => {
 		await fs.mkdir(tmpDir, { recursive: true });
 
 		// Get Forja factory function
-		getForja = createTestConfig(tmpDir);
+		getForja = await createTestConfig(tmpDir);
 
 		// Get Forja instance (this will initialize everything)
 		forja = await getForja();

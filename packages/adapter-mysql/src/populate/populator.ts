@@ -1,17 +1,17 @@
 /**
- * PostgreSQL Populator
+ * MySQL Populator
  *
  * Main orchestrator for populate functionality.
  * Decides strategy based on query complexity and executes accordingly.
  */
 
-import type { Pool, PoolClient } from "pg";
+import type { Pool, PoolConnection } from "mysql2/promise";
 import type {
 	QueryPopulate,
 	QuerySelectObject,
 } from "forja-types/core/query-builder";
 import type { SchemaRegistry } from "forja-core/schema";
-import type { PostgresQueryTranslator } from "../query-translator";
+import type { MySQLQueryTranslator } from "../query-translator";
 import type { PopulateStrategy, PopulateOptionsAnalysis } from "./types";
 import { JoinBuilder } from "./join-builder";
 import { AggregationBuilder } from "./aggregation-builder";
@@ -21,7 +21,7 @@ import {
 	throwPopulateQueryError,
 } from "../error-helper";
 import { ForjaEntry } from "forja-types";
-import { PostgresQueryObject } from "forja-adapter-postgres/types";
+import { MySQLQueryObject } from "../types";
 
 /**
  * Maximum populate nesting depth
@@ -29,27 +29,27 @@ import { PostgresQueryObject } from "forja-adapter-postgres/types";
 const MAX_POPULATE_DEPTH = 5;
 
 /**
- * PostgreSQL Populator Class
+ * MySQL Populator Class
  *
  * Handles all populate operations with strategy selection:
- * - JSON Aggregation: Single query with json_agg() for simple cases
- * - LATERAL Joins: Complex populate options (limit, offset, where, orderBy)
+ * - JSON Aggregation: Single query with JSON_ARRAYAGG() for simple cases
+ * - LATERAL Joins: Complex populate options (limit, offset, where, orderBy) - MySQL 8.0.14+
  * - Separate Queries: Fallback for very deep nesting (>3 levels)
  *
  * @example
  * ```ts
- * const populator = new PostgresPopulator(pool, translator, schemaRegistry);
+ * const populator = new MySQLPopulator(pool, translator, schemaRegistry);
  * const results = await populator.populate(query);
  * ```
  */
-export class PostgresPopulator {
+export class MySQLPopulator {
 	private joinBuilder: JoinBuilder;
 	private aggregationBuilder: AggregationBuilder;
 	private resultProcessor: ResultProcessor;
 
 	constructor(
-		private pool: Pool | PoolClient,
-		private translator: PostgresQueryTranslator,
+		private pool: Pool | PoolConnection,
+		private translator: MySQLQueryTranslator,
 		private schemaRegistry: SchemaRegistry,
 	) {
 		this.joinBuilder = new JoinBuilder(schemaRegistry, translator);
@@ -104,20 +104,8 @@ export class PostgresPopulator {
 	/**
 	 * Strategy 1: JSON Aggregation (Default, Most Performant)
 	 *
-	 * Uses json_agg() and row_to_json() for single-query populate.
+	 * Uses JSON_ARRAYAGG() and JSON_OBJECT() for single-query populate.
 	 * Best for simple cases without complex populate options.
-	 *
-	 * SQL Example:
-	 * ```sql
-	 * SELECT
-	 *   posts.*,
-	 *   row_to_json(users.*) as author,
-	 *   json_agg(DISTINCT comments.*) FILTER (WHERE comments.id IS NOT NULL) as comments
-	 * FROM posts
-	 * LEFT JOIN users ON posts.author_id = users.id
-	 * LEFT JOIN comments ON posts.id = comments.post_id
-	 * GROUP BY posts.id, users.id
-	 * ```
 	 */
 	private async executeJsonAggregation<T extends ForjaEntry>(
 		query: QuerySelectObject<T>,
@@ -128,11 +116,11 @@ export class PostgresPopulator {
 		// Execute query
 		const { sql, params } = this.translator.translate(modifiedQuery);
 		try {
-			const result = await this.pool.query(sql, params as unknown[]);
+			const [rows] = await this.pool.query(sql, params);
 
 			// Process results (parse JSON fields)
 			const processed = this.resultProcessor.processJsonAggregation<T>(
-				result.rows as T[],
+				rows as T[],
 				query.populate!,
 			);
 
@@ -149,29 +137,10 @@ export class PostgresPopulator {
 	}
 
 	/**
-	 * Strategy 2: LATERAL Joins (Complex Options)
+	 * Strategy 2: LATERAL Joins (Complex Options) - MySQL 8.0.14+
 	 *
 	 * Uses LATERAL joins for populate with limit/offset/where/orderBy.
 	 * Allows per-relation options while maintaining single query.
-	 *
-	 * SQL Example:
-	 * ```sql
-	 * SELECT
-	 *   posts.*,
-	 *   related_comments.data as comments
-	 * FROM posts
-	 * LEFT JOIN LATERAL (
-	 *   SELECT json_agg(row_to_json(c.*)) as data
-	 *   FROM (
-	 *     SELECT comments.*
-	 *     FROM comments
-	 *     WHERE comments.post_id = posts.id
-	 *       AND comments.status = 'approved'
-	 *     ORDER BY comments.created_at DESC
-	 *     LIMIT 5
-	 *   ) c
-	 * ) related_comments ON true
-	 * ```
 	 */
 	private async executeLateralJoins<T extends ForjaEntry>(
 		query: QuerySelectObject<T>,
@@ -182,11 +151,11 @@ export class PostgresPopulator {
 		// Execute query
 		const { sql, params } = this.translator.translate(modifiedQuery);
 		try {
-			const result = await this.pool.query(sql, params as unknown[]);
+			const [rows] = await this.pool.query(sql, params);
 
 			// Process results (parse JSON fields)
 			const processed = this.resultProcessor.processJsonAggregation<T>(
-				result.rows as T[],
+				rows as T[],
 				query.populate!,
 			);
 
@@ -207,11 +176,6 @@ export class PostgresPopulator {
 	 *
 	 * Executes batched queries for each relation (avoids N+1).
 	 * Best for deep nesting (depth > 2) or high cardinality (estimatedCost > 8).
-	 *
-	 * Example:
-	 * 1. Execute main query: SELECT * FROM posts
-	 * 2. Batch populate tags: SELECT post_id, jsonb_agg(tags.*) FROM tags ... WHERE post_id = ANY($1) GROUP BY post_id
-	 * 3. Map in memory: posts[i].tags = tagsMap.get(posts[i].id)
 	 */
 	private async executeBatchedQueries<T extends ForjaEntry>(
 		query: QuerySelectObject<T>,
@@ -220,8 +184,8 @@ export class PostgresPopulator {
 
 		let rows: T[];
 		try {
-			const mainResult = await this.pool.query(sql, params as unknown[]);
-			rows = mainResult.rows as T[];
+			const [mainRows] = await this.pool.query(sql, params);
+			rows = mainRows as T[];
 		} catch (error) {
 			throwPopulateQueryError(
 				query,
@@ -261,35 +225,67 @@ export class PostgresPopulator {
 				targetSchema.tableName ?? relation.model.toLowerCase();
 
 			let batchQuery: string;
-			let fkColumn: string;
+			let fkColumn: string = "";
+
+			const targetTableEsc = this.translator.escapeIdentifier(targetTable);
 
 			if (relation.kind === "belongsTo" || relation.kind === "hasOne") {
 				fkColumn = relation.foreignKey!;
+				const fkColumnEsc = this.translator.escapeIdentifier(fkColumn);
+				// Build JSON_OBJECT for all non-relation fields
+				const fields = Object.entries(targetSchema.fields)
+					.filter(([_, field]) => field.type !== "relation")
+					.map(([name]) => name);
+				const jsonPairs = fields
+					.map((f) => `'${f}', t.${this.translator.escapeIdentifier(f)}`)
+					.join(", ");
+
 				batchQuery = `
-          SELECT "${fkColumn}" as _fk, row_to_json(t.*) as data
-          FROM ${this.translator.escapeIdentifier(targetTable)} t
-          WHERE t."id" = ANY($1)
+          SELECT t.${fkColumnEsc} as _fk, JSON_OBJECT(${jsonPairs}) as data
+          FROM ${targetTableEsc} t
+          WHERE t.\`id\` IN (?)
         `;
 			} else if (relation.kind === "hasMany") {
 				fkColumn = relation.foreignKey!;
+				const fkColumnEsc = this.translator.escapeIdentifier(fkColumn);
+				// Build JSON_OBJECT for all non-relation fields
+				const fields = Object.entries(targetSchema.fields)
+					.filter(([_, field]) => field.type !== "relation")
+					.map(([name]) => name);
+				const jsonPairs = fields
+					.map((f) => `'${f}', t.${this.translator.escapeIdentifier(f)}`)
+					.join(", ");
+
 				batchQuery = `
-          SELECT "${fkColumn}" as _fk, jsonb_agg(row_to_json(t.*)) as data
-          FROM ${this.translator.escapeIdentifier(targetTable)} t
-          WHERE t."${fkColumn}" = ANY($1)
-          GROUP BY t."${fkColumn}"
+          SELECT t.${fkColumnEsc} as _fk, JSON_ARRAYAGG(JSON_OBJECT(${jsonPairs})) as data
+          FROM ${targetTableEsc} t
+          WHERE t.${fkColumnEsc} IN (?)
+          GROUP BY t.${fkColumnEsc}
         `;
 			} else if (relation.kind === "manyToMany") {
 				const junctionTable = relation.through!;
 				const sourceFK = `${schema.name}Id`;
 				const targetFK = `${relation.model}Id`;
 
+				const junctionTableEsc =
+					this.translator.escapeIdentifier(junctionTable);
+				const sourceFKEsc = this.translator.escapeIdentifier(sourceFK);
+				const targetFKEsc = this.translator.escapeIdentifier(targetFK);
+
+				// Build JSON_OBJECT for all non-relation fields
+				const fields = Object.entries(targetSchema.fields)
+					.filter(([_, field]) => field.type !== "relation")
+					.map(([name]) => name);
+				const jsonPairs = fields
+					.map((f) => `'${f}', t.${this.translator.escapeIdentifier(f)}`)
+					.join(", ");
+
 				batchQuery = `
-          SELECT j."${sourceFK}" as _fk, jsonb_agg(row_to_json(t.*)) as data
-          FROM ${this.translator.escapeIdentifier(targetTable)} t
-          INNER JOIN ${this.translator.escapeIdentifier(junctionTable)} j
-            ON t."id" = j."${targetFK}"
-          WHERE j."${sourceFK}" = ANY($1)
-          GROUP BY j."${sourceFK}"
+          SELECT j.${sourceFKEsc} as _fk, JSON_ARRAYAGG(JSON_OBJECT(${jsonPairs})) as data
+          FROM ${targetTableEsc} t
+          INNER JOIN ${junctionTableEsc} j ON t.\`id\` = j.${targetFKEsc}
+          WHERE j.${sourceFKEsc} IN (?)
+          GROUP BY j.${sourceFKEsc}
         `;
 			} else {
 				continue;
@@ -297,7 +293,8 @@ export class PostgresPopulator {
 
 			let batchResult;
 			try {
-				batchResult = await this.pool.query(batchQuery, [parentIds]);
+				const [batchRows] = await this.pool.query(batchQuery, [parentIds]);
+				batchResult = batchRows as Array<{ _fk: unknown; data: unknown }>;
 			} catch (error) {
 				throwPopulateQueryError(
 					query,
@@ -307,7 +304,8 @@ export class PostgresPopulator {
 					[parentIds],
 				);
 			}
-			const dataMap = new Map(batchResult.rows.map((r) => [r._fk, r.data]));
+
+			const dataMap = new Map(batchResult.map((r) => [r._fk, r.data]));
 
 			for (const row of rows) {
 				if (relation.kind === "belongsTo" || relation.kind === "hasOne") {
@@ -329,9 +327,9 @@ export class PostgresPopulator {
 	 */
 	private buildJsonAggregationQuery<T extends ForjaEntry>(
 		query: QuerySelectObject<T>,
-	): PostgresQuerySelectObject<T> {
-		const pgQuery = query as PostgresQuerySelectObject<T>;
-		const joins = this.joinBuilder.buildJoins(pgQuery, "json-aggregation");
+	): MySQLQueryObject<T> {
+		const mysqlQuery = query as MySQLQueryObject<T>;
+		const joins = this.joinBuilder.buildJoins(mysqlQuery, "json-aggregation");
 		const aggregations = this.aggregationBuilder.buildAggregations(
 			query.table,
 			query.populate!,
@@ -347,7 +345,7 @@ export class PostgresPopulator {
 				populateJoins: joinSQL,
 				populateAggregations: aggregationSQL,
 			},
-		} as PostgresQuerySelectObject<T>;
+		} as MySQLQueryObject<T>;
 	}
 
 	/**
@@ -355,27 +353,18 @@ export class PostgresPopulator {
 	 */
 	private buildLateralJoinsQuery<T extends ForjaEntry>(
 		query: QuerySelectObject<T>,
-	): PostgresQuerySelectObject<T> {
+	): MySQLQueryObject<T> {
 		return {
 			...query,
 			_metadata: {
 				populateStrategy: "lateral-joins" as const,
 				populateClause: query.populate,
 			},
-		} as PostgresQuerySelectObject<T>;
+		} as MySQLQueryObject<T>;
 	}
 
 	/**
 	 * Analyze populate requirements
-	 *
-	 * Determines:
-	 * - Max nesting depth
-	 * - Whether complex options are used
-	 * - Whether LATERAL joins are needed
-	 * - Number of relations
-	 * - One-to-many relation count (cardinality risk)
-	 * - Constrained relation count (limit/orderBy)
-	 * - Estimated cost for strategy selection
 	 */
 	private analyzePopulate<T extends ForjaEntry>(
 		populate: QueryPopulate<T>,

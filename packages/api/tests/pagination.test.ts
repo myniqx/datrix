@@ -36,7 +36,7 @@ describe("Pagination Integration Tests", () => {
 		await fs.mkdir(tmpDir, { recursive: true });
 
 		// Get Forja factory function
-		getForja = createTestConfig(tmpDir);
+		getForja = await createTestConfig(tmpDir);
 
 		// Get Forja instance
 		forja = await getForja();

@@ -132,35 +132,7 @@ return jsonResponse({ data: filteredRecords });
 
 ### 2. Interface-Based Design
 
-All adapters and plugins MUST implement standardized interfaces:
-
-**Adapter Interface** (defined in `src/adapters/base/types.ts`):
-
-```typescript
-interface DatabaseAdapter<TConfig = Record<string, unknown>> {
-	readonly name: string;
-	readonly config: TConfig;
-
-	connect(): Promise<void>;
-	disconnect(): Promise<void>;
-	executeQuery<TResult>(query: QueryObject): Promise<TResult>;
-	// ... more methods
-}
-```
-
-**Plugin Interface** (defined in `src/plugins/base/types.ts`):
-
-```typescript
-interface ForjaPlugin<TOptions = Record<string, unknown>> {
-	readonly name: string;
-	readonly version: string;
-	readonly options: TOptions;
-
-	init(context: PluginContext): Promise<void>;
-	destroy(): Promise<void>;
-	// ... lifecycle hooks
-}
-```
+All adapters and plugins MUST implement standardized interfaces defined in `packages/types/`.
 
 ### 3. Type Inference
 
@@ -182,86 +154,37 @@ type User = InferSchemaType<typeof userSchema>;
 
 ---
 
-## 📂 Module-Specific Guidelines
+## 📂 Package Structure
 
-### Core Module (`src/core/`) - ✅ Implemented
+Project uses monorepo structure under `packages/`:
 
-**Purpose:** Core functionality - schema, validation, query building, migration
-**Status:** 100% complete (~3,600 LOC)
+### packages/core
+Schema, validation, query building, executor, migration.
+See `packages/core/CLAUDE.md` for validation layer architecture.
 
-- ✅ Schema system (397 LOC) - type inference, registry
-- ✅ Validator (800 LOC) - zero external dependencies
-- ✅ Query Builder (1,600 LOC) - database-agnostic
-- ✅ Migration system (1,200 LOC) - auto-generation, diff, rollback
-- ❌ Config module - NOT implemented yet (planned)
+### packages/types
+Shared TypeScript types for all packages (ForjaEntry, QueryObject, adapters, etc.)
 
-**Rules:**
+### packages/adapter-postgres
+PostgreSQL adapter with query translator and populate support.
 
-- ZERO external dependencies (except TypeScript)
-- Pure functions where possible
-- Comprehensive type definitions
-- See `src/core/CLAUDE.md` for detailed instructions
+### packages/adapter-mysql
+MySQL/MariaDB adapter.
 
-### Adapters Module (`src/adapters/`) - ⚠️ Partially Implemented
+### packages/adapter-mongodb
+MongoDB adapter (experimental).
 
-**Purpose:** Database-specific implementations (PostgreSQL, MySQL, MongoDB)
-**Status:** 33% complete (1 of 3 adapters)
+### packages/adapter-json
+JSON file-based adapter for testing/development.
 
-- ✅ PostgreSQL adapter (1,700 LOC) - production-ready
-- ❌ MySQL adapter - NOT implemented
-- ❌ MongoDB adapter - NOT implemented
+### packages/api
+HTTP request handling, query parsing, auth (JWT/session), response serialization.
 
-**Rules:**
+### packages/plugin-upload
+File upload plugin with Local and S3 providers.
 
-- MUST implement `DatabaseAdapter` interface
-- Each adapter in its own folder
-- Query translator specific to database
-- See `src/adapters/CLAUDE.md` for interface documentation
-
-### Plugins Module (`src/plugins/`) - ✅ Implemented
-
-**Purpose:** Optional features (auth, upload)
-**Status:** 100% complete (all 4 core plugins)
-
-- ✅ Auth plugin (800 LOC) - JWT, session, RBAC, custom crypto
-- ✅ Upload plugin - Local + S3 providers (custom Signature V4)
-
-**Rules:**
-
-- MUST implement `ForjaPlugin` interface
-- Should be tree-shakeable
-- No required dependencies on other plugins
-- See `src/plugins/CLAUDE.md` for interface documentation
-
-### API Module (`src/api/`) - ✅ Implemented
-
-**Purpose:** HTTP request handling, query parsing, response serialization
-**Status:** 100% complete (~2,500 LOC)
-
-- ✅ Parser module - Strapi-style query parsing
-- ✅ Handler module - Framework-agnostic CRUD
-- ✅ Serializer module - JSON, relations
-
-**Rules:**
-
-- Framework agnostic (works with Next.js, Express, etc.)
-- Type-safe request/response handling
-- See `src/api/CLAUDE.md` for detailed instructions
-
-### CLI Module (`src/cli/`) - ✅ Implemented
-
-**Purpose:** Command-line tools (migrate, generate, dev)
-**Status:** 100% complete
-
-- ✅ migrate command (up, down, status, dry-run)
-- ✅ generate command (schema, migration)
-- ✅ dev command (watch mode)
-
-**Rules:**
-
-- User-friendly error messages
-- Progress indicators for long operations
-- See `src/cli/CLAUDE.md` for detailed instructions
+### packages/cli
+Command-line tools (migrate, generate, dev).
 
 ---
 
@@ -326,39 +249,19 @@ type FieldType = (typeof FIELD_TYPES)[number]; // 'string' | 'number' | 'boolean
 
 ## 🧪 Testing Guidelines
 
-### Test Structure
+Vitest config is only in root. Tests are in `packages/*/tests/` folders.
 
-```typescript
-import { describe, it, expect } from "vitest";
+```bash
+# Run specific test from root
+pnpm vitest run packages/api/tests/crud-basic.test.ts
 
-describe("FieldValidator", () => {
-	describe("validateString", () => {
-		it("should accept valid string", () => {
-			const result = validateString("hello", { type: "string" });
-			expect(result.success).toBe(true);
-		});
-
-		it("should reject non-string value", () => {
-			const result = validateString(123, { type: "string" });
-			expect(result.success).toBe(false);
-		});
-	});
-});
+# Run all tests
+pnpm test
 ```
-
-### Coverage Requirements
-
-- Core modules: 90%+ coverage (CURRENT: 0% - CRITICAL GAP)
-- Adapters: 80%+ coverage (CURRENT: 0% - CRITICAL GAP)
-- Plugins: 75%+ coverage (CURRENT: 0% - CRITICAL GAP)
-
-**IMPORTANT:** Test suite is the #1 priority for v1.0 release. No production deployment without adequate test coverage.
 
 ---
 
 ## 📦 Dependency Management
-
-### Philosophy
 
 **Minimal dependencies preferred.** Only add dependencies when:
 
@@ -366,21 +269,6 @@ describe("FieldValidator", () => {
 2. Security-critical (e.g., crypto)
 3. Database drivers (pg, mysql2, mongodb)
 4. Build tools (tsup, typescript, vitest)
-
-### Current Dependencies
-
-**Runtime:**
-
-- `pg` - PostgreSQL driver
-- `mysql2` - MySQL/MariaDB driver
-- `mongodb` - MongoDB driver
-
-**Dev:**
-
-- `typescript` - Type system
-- `tsup` - Build tool
-- `vitest` - Testing framework
-- `eslint` - Linting
 
 ---
 
@@ -393,153 +281,19 @@ Before committing code, verify:
 - [ ] All functions have return types
 - [ ] All parameters have types
 - [ ] Follows Result<T, E> pattern for errors
-- [ ] Module follows interface contracts
-- [ ] Tests written and passing
-- [ ] Documentation updated
 - [ ] No console.log left in code
-
----
-
-## 📚 Documentation Requirements
-
-### Code Comments
-
-````typescript
-/**
- * Validates a field value against its schema definition
- *
- * @param value - The value to validate
- * @param field - Field definition from schema
- * @returns Result with either validated data or validation error
- *
- * @example
- * ```ts
- * const result = validateField('john@example.com', {
- *   type: 'string',
- *   pattern: /^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/
- * });
- * ```
- */
-function validateField(
-	value: unknown,
-	field: FieldDefinition,
-): Result<unknown, ValidationError> {
-	// Implementation
-}
-````
-
-### Module Documentation
-
-Each module folder should have:
-
-1. `CLAUDE.md` - Instructions for AI assistants
-2. Main file with JSDoc comments
-3. Type definitions file with comments
 
 ---
 
 ## 🚀 Development Workflow
 
-### Starting Development
-
 ```bash
-# Install dependencies
-pnpm install
-
-# Type check
-pnpm type-check
-
-# Run tests in watch mode
-pnpm test:watch
-
-# Build
-pnpm build
-```
-
-### Before Committing
-
-```bash
-# Type check
-pnpm type-check
-
-# Run all tests
-pnpm test
-
-# Lint code
-pnpm lint
+pnpm install      # Install dependencies
+pnpm type-check   # Type check
+pnpm build        # Build all packages
+pnpm test         # Run tests
 ```
 
 ---
 
-## 🎯 Performance Considerations
-
-### Bundle Size
-
-- Core package should be <50KB minified + gzipped
-- Each plugin should be <10KB
-- Tree-shakeable exports
-
-### Runtime Performance
-
-- Query building should be <1ms
-- Validation should be <5ms for typical payloads
-- Avoid unnecessary object cloning
-- Use lazy initialization where appropriate
-
----
-
-## 🔐 Security Guidelines
-
-### Input Validation
-
-- ALWAYS validate user input
-- Use parameterized queries (prevent SQL injection)
-- Sanitize file uploads
-- Rate limiting for API endpoints
-
-### Sensitive Data
-
-- Never log passwords or tokens
-- Use environment variables for secrets
-- Hash passwords with PBKDF2 (100,000 iterations) - implemented in auth plugin
-- Secure session storage (memory/redis)
-
----
-
-## 📞 Getting Help
-
-### Documentation
-
-- Read TODO.md for project roadmap
-- Check module-specific CLAUDE.md files
-- Review type definitions in `types.ts` files
-
-### Best Practices
-
-1. Start with type definitions
-2. Write tests before implementation (TDD)
-3. Keep functions small and focused
-4. Use Result pattern for error handling
-5. Document complex logic
-
----
-
-## 🎓 Learning Resources
-
-### TypeScript Patterns
-
-- **Generics**: For reusable, type-safe code
-- **Discriminated Unions**: For type-safe state machines
-- **Template Literal Types**: For dynamic string types
-- **Conditional Types**: For type transformations
-
-### Architectural Patterns
-
-- **Result/Either Pattern**: Error handling without exceptions
-- **Builder Pattern**: For complex object construction
-- **Strategy Pattern**: For interchangeable algorithms
-- **Plugin Architecture**: For extensibility
-
----
-
-**Remember:** Type safety first, minimal dependencies, clear interfaces, comprehensive testing.
+**Remember:** Type safety first, minimal dependencies, clear interfaces.

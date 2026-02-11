@@ -233,13 +233,13 @@ export type QuerySelect<T extends ForjaEntry = ForjaRecord> =
 /**
  * QueryPopulateOptions - Normalized options for a single relation
  */
-export type QueryPopulateOptions<T extends ForjaEntry = ForjaRecord> = {
+export type QueryPopulateOptions<T extends ForjaEntry> = {
 	readonly select: QuerySelect<T>;
-	readonly where?: WhereClause<T>;
-	readonly populate?: QueryPopulate<T>;
-	readonly limit?: number;
-	readonly offset?: number;
-	readonly orderBy?: OrderBy;
+	readonly where?: WhereClause<T> | undefined;
+	readonly populate?: QueryPopulate<T> | undefined;
+	readonly limit?: number | undefined;
+	readonly offset?: number | undefined;
+	readonly orderBy?: OrderBy | undefined;
 };
 
 /**

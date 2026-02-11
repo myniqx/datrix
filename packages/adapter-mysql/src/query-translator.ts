@@ -3,23 +3,25 @@
  *
  * Translates database-agnostic QueryObject to MySQL SQL.
  * Handles WHERE clauses, JOINs, pagination, and all operators.
- *
- * TODO: Extract common SQL logic into BaseSQLTranslator class
- * that can be shared between MySQL and SQLite adapters.
- * See PLAN.md for detailed refactoring plan.
  */
 
 import type {
 	QueryObject,
 	WhereClause,
-	SelectClause,
 	ComparisonOperators,
 	OrderByItem,
+	QueryInsertObject,
+	QueryUpdateObject,
+	QueryDeleteObject,
+	QuerySelect,
+	QueryCountObject,
 } from "forja-types/core/query-builder";
 import type { QueryTranslator } from "forja-types/adapter";
 import { QueryError } from "forja-types/adapter";
 import type { SchemaRegistry } from "forja-core/schema";
-import type { RelationField } from "forja-types/core/schema";
+import type { SchemaDefinition, FieldDefinition } from "forja-types/core/schema";
+import { ForjaEntry } from "forja-types";
+import { MySQLQueryObject, TranslateResult } from "./types";
 
 /**
  * Maximum nesting depth for WHERE clauses to prevent stack overflow
@@ -54,12 +56,132 @@ export class MySQLQueryTranslator implements QueryTranslator {
 	}
 
 	/**
-	 * Add parameter and return placeholder
+	 * Add parameter and return placeholder with type-aware conversion
+	 *
+	 * @param value - The value to add
+	 * @param currentSchema - Current schema context
+	 * @param fieldPath - Field path (e.g., "price", "category.name")
 	 */
-	private addParam(value: unknown): string {
+	private addParam(
+		value: unknown,
+		currentSchema?: SchemaDefinition,
+		fieldPath?: string,
+	): string {
 		this.paramIndex++;
-		this.params.push(value);
+
+		let processedValue = value;
+
+		// Type-aware conversion based on schema
+		if (currentSchema && fieldPath) {
+			const field = currentSchema.fields[fieldPath];
+
+			if (field) {
+				processedValue = this.convertValueToFieldType(value, field);
+			} else {
+				// Field not in schema - use default conversion
+				processedValue = this.defaultValueConversion(value);
+			}
+		} else {
+			// No schema context - use default conversion
+			processedValue = this.defaultValueConversion(value);
+		}
+
+		this.params.push(processedValue);
 		return "?";
+	}
+
+	/**
+	 * Convert value to match field type from schema
+	 */
+	private convertValueToFieldType(
+		value: unknown,
+		field: FieldDefinition,
+	): unknown {
+		// Handle null/undefined
+		if (value === null || value === undefined) {
+			return value;
+		}
+
+		switch (field.type) {
+			case "number": {
+				// Convert to number if it's a numeric string
+				if (typeof value === "string") {
+					const numValue = Number(value);
+					if (!isNaN(numValue)) {
+						return numValue;
+					}
+				}
+				return value;
+			}
+
+			case "string": {
+				// Keep as string, preserve leading zeros
+				if (typeof value === "number") {
+					return String(value);
+				}
+				return value;
+			}
+
+			case "boolean": {
+				// Convert to 1/0 for MySQL TINYINT
+				if (typeof value === "boolean") {
+					return value ? 1 : 0;
+				}
+				if (typeof value === "string") {
+					if (value.toLowerCase() === "true") return 1;
+					if (value.toLowerCase() === "false") return 0;
+				}
+				return value;
+			}
+
+			case "date": {
+				// Keep Date objects as-is
+				if (value instanceof Date) {
+					return value;
+				}
+				// Convert string to Date
+				if (typeof value === "string") {
+					return new Date(value);
+				}
+				return value;
+			}
+
+			case "json":
+			case "array": {
+				// Convert to JSON string for MySQL JSON type
+				if (
+					Array.isArray(value) ||
+					(typeof value === "object" && !(value instanceof Date))
+				) {
+					return JSON.stringify(value);
+				}
+				return value;
+			}
+
+			case "enum": {
+				// Keep as string
+				return String(value);
+			}
+
+			default:
+				return this.defaultValueConversion(value);
+		}
+	}
+
+	/**
+	 * Default value conversion (when no schema context)
+	 */
+	private defaultValueConversion(value: unknown): unknown {
+		// Convert arrays and objects to JSON string for MySQL JSON type
+		if (
+			Array.isArray(value) ||
+			(typeof value === "object" && value !== null && !(value instanceof Date))
+		) {
+			return JSON.stringify(value);
+		}
+
+		// Keep other values as-is (don't auto-convert strings to numbers)
+		return value;
 	}
 
 	/**
@@ -121,10 +243,7 @@ export class MySQLQueryTranslator implements QueryTranslator {
 	/**
 	 * Translate main query
 	 */
-	translate(query: QueryObject): {
-		readonly sql: string;
-		readonly params: readonly unknown[];
-	} {
+	translate<T extends ForjaEntry>(query: QueryObject<T>): TranslateResult {
 		this.reset();
 
 		try {
@@ -133,7 +252,7 @@ export class MySQLQueryTranslator implements QueryTranslator {
 			switch (query.type) {
 				case "select":
 				case "count":
-					sql = this.translateSelect(query);
+					sql = this.translateSelect(query as MySQLQueryObject<T>);
 					break;
 				case "insert":
 					sql = this.translateInsert(query);
@@ -153,6 +272,7 @@ export class MySQLQueryTranslator implements QueryTranslator {
 			return {
 				sql,
 				params: [...this.params],
+				needAggregation: false,
 			};
 		} catch (error) {
 			if (error instanceof QueryError) {
@@ -168,42 +288,118 @@ export class MySQLQueryTranslator implements QueryTranslator {
 	/**
 	 * Translate SELECT query
 	 */
-	private translateSelect(query: QueryObject): string {
+	private translateSelect<T extends ForjaEntry>(
+		query: MySQLQueryObject<T> | QueryCountObject<T>,
+	): string {
 		const parts: string[] = [];
 
-		if (query.type === "count") {
-			parts.push("SELECT COUNT(*)");
-		} else {
-			parts.push(
-				`SELECT ${this.translateSelectClause(query.select, query.table)}`,
-			);
+		// Schema lookup ONCE at the beginning
+		let currentSchema: SchemaDefinition | undefined;
+		const modelName = this.schemaRegistry.findModelByTableName(query.table);
+		if (modelName) {
+			currentSchema = this.schemaRegistry.get(modelName);
 		}
 
+		// SELECT clause
+		if (query.type === "count") {
+			parts.push("SELECT COUNT(*) as `count`");
+		} else {
+			const baseSelect = this.translateSelectClause(query.select, query.table);
+
+			const metadata = query._metadata;
+			const populateAggregations = metadata?.populateAggregations as
+				| string
+				| undefined;
+
+			if (populateAggregations) {
+				parts.push(`SELECT ${baseSelect}, ${populateAggregations}`);
+			} else {
+				parts.push(`SELECT ${baseSelect}`);
+			}
+		}
+
+		// DISTINCT
 		if ("distinct" in query && query.distinct) {
 			parts[0] = parts[0]!.replace("SELECT", "SELECT DISTINCT");
 		}
 
+		// FROM clause
 		parts.push(`FROM ${this.escapeIdentifier(query.table)}`);
 
-		const joins = this.generateJoins(query);
-		if (joins) {
-			parts.push(joins);
-		}
-
+		// WHERE clause (collect JOINs)
+		let whereSQL: string | undefined;
+		let whereJoins: string[] = [];
 		if (query.where) {
-			const whereResult = this.translateWhere(query.where, this.paramIndex);
-			parts.push(`WHERE ${whereResult.sql}`);
+			const whereResult = this.translateWhere(
+				query.where,
+				this.paramIndex,
+				query.table,
+			);
+			whereSQL = whereResult.sql;
+			whereJoins = whereResult.joins;
 			this.paramIndex += whereResult.params.length;
 			this.params.push(...whereResult.params);
 		}
 
-		if ("groupBy" in query && query.groupBy && query.groupBy.length > 0) {
+		// Add populate JOINs
+		const metadata = query._metadata;
+		const populateJoins = metadata?.populateJoins as string | undefined;
+
+		if (populateJoins) {
+			parts.push(populateJoins);
+		}
+
+		// Add WHERE JOINs (only if not already in populate JOINs)
+		if (whereJoins.length > 0) {
+			const populateJoinSQL = populateJoins || "";
+			const uniqueWhereJoins = whereJoins.filter(
+				(join) => !populateJoinSQL.includes(join),
+			);
+
+			if (uniqueWhereJoins.length > 0) {
+				parts.push(uniqueWhereJoins.join(" "));
+			}
+		}
+
+		// Add WHERE clause
+		if (whereSQL) {
+			parts.push(`WHERE ${whereSQL}`);
+		}
+
+		// GROUP BY (required for JSON aggregations)
+		const hasAggregations = metadata?.populateAggregations;
+		if (hasAggregations && query.populate) {
+			const tableEsc = this.escapeIdentifier(query.table);
+			const groupByFields: string[] = [`${tableEsc}.\`id\``];
+
+			// Add populated relation primary keys to GROUP BY
+			// ONLY for belongsTo and hasOne (single record relations)
+			if (currentSchema) {
+				for (const relationName of Object.keys(query.populate)) {
+					const field = currentSchema.fields[relationName];
+					if (field && field.type === "relation") {
+						const relKind = (field as { kind?: string }).kind;
+						if (relKind === "belongsTo" || relKind === "hasOne") {
+							const relationAlias = this.escapeIdentifier(relationName);
+							groupByFields.push(`${relationAlias}.\`id\``);
+						}
+					}
+				}
+			}
+
+			parts.push(`GROUP BY ${groupByFields.join(", ")}`);
+		} else if (
+			"groupBy" in query &&
+			query.groupBy &&
+			query.groupBy.length > 0
+		) {
 			const groupByFields = query.groupBy
 				.map((field) => this.escapeIdentifier(field))
 				.join(", ");
 			parts.push(`GROUP BY ${groupByFields}`);
 		}
 
+		// HAVING
 		if ("having" in query && query.having) {
 			const havingResult = this.translateWhere(query.having, this.paramIndex);
 			parts.push(`HAVING ${havingResult.sql}`);
@@ -211,14 +407,17 @@ export class MySQLQueryTranslator implements QueryTranslator {
 			this.params.push(...havingResult.params);
 		}
 
+		// ORDER BY
 		if (query.orderBy && query.orderBy.length > 0) {
 			parts.push(`ORDER BY ${this.translateOrderBy(query.orderBy)}`);
 		}
 
+		// LIMIT
 		if (query.limit !== undefined) {
 			parts.push(`LIMIT ${this.addParam(query.limit)}`);
 		}
 
+		// OFFSET
 		if (query.offset !== undefined) {
 			parts.push(`OFFSET ${this.addParam(query.offset)}`);
 		}
@@ -230,10 +429,10 @@ export class MySQLQueryTranslator implements QueryTranslator {
 	 * Translate SELECT fields with aliases
 	 */
 	private translateSelectClause(
-		select: SelectClause | undefined,
+		select: QuerySelect | undefined,
 		tableAlias?: string,
 	): string {
-		if (!select || select === "*") {
+		if (!select) {
 			return tableAlias ? `${this.escapeIdentifier(tableAlias)}.*` : "*";
 		}
 
@@ -248,101 +447,44 @@ export class MySQLQueryTranslator implements QueryTranslator {
 	}
 
 	/**
-	 * Generate JOIN clauses from populate and relation metadata
+	 * Translate INSERT query with bulk support
 	 */
-	private generateJoins(query: QueryObject): string {
-		if (!query.populate) {
-			return "";
-		}
+	private translateInsert<T extends ForjaEntry>(
+		query: QueryInsertObject<T>,
+	): string {
+		const dataArray = Array.isArray(query.data) ? query.data : [query.data];
 
-		// Find current schema from table name
-		const currentModelName = this.schemaRegistry.findModelByTableName(
-			query.table,
-		);
-		if (!currentModelName) {
-			throw new QueryError(`Model not found for table: ${query.table}`);
-		}
-
-		const currentSchema = this.schemaRegistry.get(currentModelName);
-		if (!currentSchema) {
-			throw new QueryError(`Schema not found for model: ${currentModelName}`);
-		}
-
-		const parts: string[] = [];
-
-		for (const [relationName, _options] of Object.entries(query.populate)) {
-			// Get relation field from current schema
-			const relationField = currentSchema.fields[relationName];
-			if (!relationField) {
-				throw new QueryError(
-					`Relation field '${relationName}' not found in schema '${currentSchema.name}'`,
-				);
-			}
-
-			if (relationField.type !== "relation") {
-				throw new QueryError(
-					`Field '${relationName}' is not a relation field in schema '${currentSchema.name}'`,
-				);
-			}
-
-			const relField = relationField as RelationField;
-			const targetModelName = relField.model;
-			const foreignKey = relField.foreignKey!;
-			const kind = relField.kind;
-
-			// Get target schema
-			const targetSchema = this.schemaRegistry.get(targetModelName);
-			if (!targetSchema) {
-				throw new QueryError(
-					`Target model '${targetModelName}' not found for relation '${relationName}'`,
-				);
-			}
-
-			const targetTable = this.escapeIdentifier(
-				targetSchema.tableName ?? targetModelName.toLowerCase(),
-			);
-			const sourceTable = this.escapeIdentifier(query.table);
-			const fk = this.escapeIdentifier(foreignKey);
-
-			// Generate JOIN based on relation kind
-			if (kind === "belongsTo") {
-				// Source has FK: source.foreignKey = target.id
-				parts.push(
-					`LEFT JOIN ${targetTable} ON ${sourceTable}.${fk} = ${targetTable}.\`id\``,
-				);
-			} else if (kind === "hasOne" || kind === "hasMany") {
-				// Target has FK: source.id = target.foreignKey
-				parts.push(
-					`LEFT JOIN ${targetTable} ON ${sourceTable}.\`id\` = ${targetTable}.${fk}`,
-				);
-			}
-			// TODO: Handle manyToMany with join tables
-		}
-
-		return parts.join(" ");
-	}
-
-	/**
-	 * Translate INSERT query
-	 * Note: MySQL doesn't support RETURNING, use lastInsertId instead
-	 */
-	private translateInsert(query: QueryObject): string {
-		if (!query.data || Object.keys(query.data).length === 0) {
+		if (dataArray.length === 0 || !dataArray[0]) {
 			throw new QueryError("INSERT query requires data");
 		}
 
-		const parts: string[] = [];
-		const columns: string[] = [];
-		const values: string[] = [];
-
-		for (const [key, value] of Object.entries(query.data)) {
-			columns.push(this.escapeIdentifier(key));
-			values.push(this.addParam(value));
+		// Schema lookup ONCE
+		let currentSchema: SchemaDefinition | undefined;
+		const modelName = this.schemaRegistry.findModelByTableName(query.table);
+		if (modelName) {
+			currentSchema = this.schemaRegistry.get(modelName);
 		}
 
+		// Use keys from first item as columns
+		const firstItem = dataArray[0] as Record<string, unknown>;
+		const columns = Object.keys(firstItem).map((k) =>
+			this.escapeIdentifier(k),
+		);
+
+		// Build VALUES rows
+		const valueRows: string[] = [];
+		for (const item of dataArray) {
+			const row = item as Record<string, unknown>;
+			const values = Object.keys(firstItem).map((key) =>
+				this.addParam(row[key], currentSchema, key),
+			);
+			valueRows.push(`(${values.join(", ")})`);
+		}
+
+		const parts: string[] = [];
 		parts.push(`INSERT INTO ${this.escapeIdentifier(query.table)}`);
 		parts.push(`(${columns.join(", ")})`);
-		parts.push(`VALUES (${values.join(", ")})`);
+		parts.push(`VALUES ${valueRows.join(", ")}`);
 
 		return parts.join(" ");
 	}
@@ -350,9 +492,18 @@ export class MySQLQueryTranslator implements QueryTranslator {
 	/**
 	 * Translate UPDATE query
 	 */
-	private translateUpdate(query: QueryObject): string {
+	private translateUpdate<T extends ForjaEntry>(
+		query: QueryUpdateObject<T>,
+	): string {
 		if (!query.data || Object.keys(query.data).length === 0) {
 			throw new QueryError("UPDATE query requires data");
+		}
+
+		// Schema lookup ONCE
+		let currentSchema: SchemaDefinition | undefined;
+		const modelName = this.schemaRegistry.findModelByTableName(query.table);
+		if (modelName) {
+			currentSchema = this.schemaRegistry.get(modelName);
 		}
 
 		const parts: string[] = [];
@@ -361,13 +512,26 @@ export class MySQLQueryTranslator implements QueryTranslator {
 		parts.push(`UPDATE ${this.escapeIdentifier(query.table)}`);
 
 		for (const [key, value] of Object.entries(query.data)) {
-			sets.push(`${this.escapeIdentifier(key)} = ${this.addParam(value)}`);
+			sets.push(
+				`${this.escapeIdentifier(key)} = ${this.addParam(value, currentSchema, key)}`,
+			);
 		}
 
 		parts.push(`SET ${sets.join(", ")}`);
 
+		// WHERE clause
 		if (query.where) {
-			const whereResult = this.translateWhere(query.where, this.paramIndex);
+			const whereResult = this.translateWhere(
+				query.where,
+				this.paramIndex,
+				query.table,
+			);
+
+			// Add WHERE JOINs if any
+			if (whereResult.joins.length > 0) {
+				parts.push(whereResult.joins.join(" "));
+			}
+
 			parts.push(`WHERE ${whereResult.sql}`);
 			this.paramIndex += whereResult.params.length;
 			this.params.push(...whereResult.params);
@@ -379,13 +543,26 @@ export class MySQLQueryTranslator implements QueryTranslator {
 	/**
 	 * Translate DELETE query
 	 */
-	private translateDelete(query: QueryObject): string {
+	private translateDelete<T extends ForjaEntry>(
+		query: QueryDeleteObject<T>,
+	): string {
 		const parts: string[] = [];
 
 		parts.push(`DELETE FROM ${this.escapeIdentifier(query.table)}`);
 
+		// WHERE clause
 		if (query.where) {
-			const whereResult = this.translateWhere(query.where, this.paramIndex);
+			const whereResult = this.translateWhere(
+				query.where,
+				this.paramIndex,
+				query.table,
+			);
+
+			// Add WHERE JOINs if any
+			if (whereResult.joins.length > 0) {
+				parts.push(whereResult.joins.join(" "));
+			}
+
 			parts.push(`WHERE ${whereResult.sql}`);
 			this.paramIndex += whereResult.params.length;
 			this.params.push(...whereResult.params);
@@ -417,28 +594,49 @@ export class MySQLQueryTranslator implements QueryTranslator {
 	/**
 	 * Translate WHERE clause
 	 */
-	translateWhere(
-		where: WhereClause,
+	translateWhere<T extends ForjaEntry>(
+		where: WhereClause<T>,
 		startIndex: number,
+		tableName?: string,
 	): {
 		readonly sql: string;
 		readonly params: readonly unknown[];
+		readonly joins: string[];
 	} {
 		const savedIndex = this.paramIndex;
 		const savedParams = [...this.params];
 
 		this.paramIndex = startIndex;
 		this.params = [];
+		const whereJoins: string[] = [];
 
 		try {
-			const sql = this.translateWhereConditions(where);
+			// Schema lookup - ONLY ONCE at the beginning
+			let currentSchema: SchemaDefinition | undefined;
+			if (tableName) {
+				const modelName = this.schemaRegistry.findModelByTableName(tableName);
+				if (modelName) {
+					currentSchema = this.schemaRegistry.get(modelName);
+				}
+			}
+
+			const sql = this.translateWhereConditions(
+				where,
+				0,
+				tableName,
+				undefined,
+				whereJoins,
+				currentSchema,
+			);
 			const params = [...this.params];
 
+			// Restore state
 			this.paramIndex = savedIndex;
 			this.params = savedParams;
 
-			return { sql, params };
+			return { sql, params, joins: whereJoins };
 		} catch (error) {
+			// Restore state on error
 			this.paramIndex = savedIndex;
 			this.params = savedParams;
 			throw error;
@@ -447,8 +645,23 @@ export class MySQLQueryTranslator implements QueryTranslator {
 
 	/**
 	 * Translate WHERE conditions recursively
+	 *
+	 * @param where - WHERE clause to translate
+	 * @param depth - Current nesting depth
+	 * @param tableName - Table name (for JOIN generation)
+	 * @param tableAlias - Table alias (for qualified field names)
+	 * @param joins - Array to collect JOIN clauses
+	 * @param currentSchema - Current schema context (passed down, avoids repeated lookups)
 	 */
-	private translateWhereConditions(where: WhereClause, depth = 0): string {
+	private translateWhereConditions<T extends ForjaEntry>(
+		where: WhereClause<T>,
+		depth = 0,
+		tableName?: string,
+		tableAlias?: string,
+		joins?: string[],
+		currentSchema?: SchemaDefinition,
+	): string {
+		// Check depth limit to prevent stack overflow
 		if (depth > MAX_WHERE_DEPTH) {
 			throw new QueryError(
 				`WHERE clause exceeds maximum nesting depth of ${MAX_WHERE_DEPTH}`,
@@ -456,13 +669,15 @@ export class MySQLQueryTranslator implements QueryTranslator {
 		}
 
 		const conditions: string[] = [];
+		const currentTableAlias = tableAlias || tableName;
 
 		for (const [key, value] of Object.entries(where)) {
+			// Handle logical operators
 			if (key === "$and") {
-				const andConditions = (value as readonly WhereClause[])
+				const andConditions = (value as readonly WhereClause<T>[])
 					.map(
 						(condition) =>
-							`(${this.translateWhereConditions(condition, depth + 1)})`,
+							`(${this.translateWhereConditions(condition, depth + 1, tableName, tableAlias, joins, currentSchema)})`,
 					)
 					.join(" AND ");
 				conditions.push(`(${andConditions})`);
@@ -470,10 +685,10 @@ export class MySQLQueryTranslator implements QueryTranslator {
 			}
 
 			if (key === "$or") {
-				const orConditions = (value as readonly WhereClause[])
+				const orConditions = (value as readonly WhereClause<T>[])
 					.map(
 						(condition) =>
-							`(${this.translateWhereConditions(condition, depth + 1)})`,
+							`(${this.translateWhereConditions(condition, depth + 1, tableName, tableAlias, joins, currentSchema)})`,
 					)
 					.join(" OR ");
 				conditions.push(`(${orConditions})`);
@@ -482,15 +697,168 @@ export class MySQLQueryTranslator implements QueryTranslator {
 
 			if (key === "$not") {
 				const notCondition = this.translateWhereConditions(
-					value as WhereClause,
+					value as WhereClause<T>,
 					depth + 1,
+					tableName,
+					tableAlias,
+					joins,
+					currentSchema,
 				);
 				conditions.push(`NOT (${notCondition})`);
 				continue;
 			}
 
-			const fieldName = this.escapeIdentifier(key);
+			// Check if this is a relation field (use currentSchema - no lookup!)
+			if (currentSchema) {
+				const field = currentSchema.fields[key];
 
+				if (field && field.type === "relation") {
+					// Relation field with nested conditions
+					const relationField = field as {
+						foreignKey?: string;
+						model?: string;
+						kind?: string;
+					};
+
+					// Case 1: Simple value (number/string) -> foreign key equality
+					if (
+						typeof value === "number" ||
+						typeof value === "string" ||
+						value === null
+					) {
+						if (relationField.foreignKey) {
+							const fkFieldName = this.escapeIdentifier(
+								relationField.foreignKey,
+							);
+							const qualifiedFK = currentTableAlias
+								? `${this.escapeIdentifier(currentTableAlias)}.${fkFieldName}`
+								: fkFieldName;
+
+							if (value === null) {
+								conditions.push(`${qualifiedFK} IS NULL`);
+							} else {
+								conditions.push(
+									`${qualifiedFK} = ${this.addParam(value, currentSchema, relationField.foreignKey)}`,
+								);
+							}
+							continue;
+						}
+					}
+
+					// Case 2: Nested object (relation filtering)
+					if (
+						typeof value === "object" &&
+						value !== null &&
+						!Array.isArray(value) &&
+						!(value instanceof Date)
+					) {
+						const nestedValue = value as Record<string, unknown>;
+
+						// Check if this is a simple foreign key filter (id with operators)
+						const hasOnlyId =
+							Object.keys(nestedValue).length === 1 && "id" in nestedValue;
+
+						if (hasOnlyId && relationField.foreignKey) {
+							// Simple case: { category: { id: { $ne: 1 } } } -> categoryId <> 1
+							const idValue = nestedValue["id"];
+							const fkFieldName = this.escapeIdentifier(
+								relationField.foreignKey,
+							);
+							const qualifiedFK = currentTableAlias
+								? `${this.escapeIdentifier(currentTableAlias)}.${fkFieldName}`
+								: fkFieldName;
+
+							if (
+								typeof idValue === "object" &&
+								idValue !== null &&
+								!Array.isArray(idValue)
+							) {
+								// Has operators: { id: { $ne: 1 } }
+								const ops = idValue as ComparisonOperators;
+								for (const [operator, opValue] of Object.entries(ops)) {
+									conditions.push(
+										this.translateComparisonOperator(
+											qualifiedFK,
+											operator,
+											opValue,
+										),
+									);
+								}
+							} else {
+								// Simple equality: { id: 1 }
+								if (idValue === null) {
+									conditions.push(`${qualifiedFK} IS NULL`);
+								} else {
+									conditions.push(
+										`${qualifiedFK} = ${this.addParam(idValue, currentSchema, relationField.foreignKey)}`,
+									);
+								}
+							}
+							continue;
+						} else {
+							// Complex nested relation filtering - requires JOIN
+							const targetSchema = this.schemaRegistry.get(relationField.model!);
+							if (!targetSchema) {
+								throw new QueryError(
+									`Target model '${relationField.model}' not found for relation '${key}'`,
+								);
+							}
+
+							const targetTable =
+								targetSchema.tableName ?? relationField.model!.toLowerCase();
+							const foreignKey = relationField.foreignKey!;
+
+							const sourceTableEsc = this.escapeIdentifier(
+								currentTableAlias || tableName!,
+							);
+							const targetTableEsc = this.escapeIdentifier(targetTable);
+							const relationAlias = this.escapeIdentifier(key);
+							const foreignKeyEsc = this.escapeIdentifier(foreignKey);
+
+							// Generate JOIN based on relation kind
+							let joinSQL: string;
+							const relKind = relationField.kind;
+
+							if (relKind === "belongsTo") {
+								// Source has FK: source.foreignKey = target.id
+								joinSQL = `LEFT JOIN ${targetTableEsc} AS ${relationAlias} ON ${sourceTableEsc}.${foreignKeyEsc} = ${relationAlias}.\`id\``;
+							} else if (relKind === "hasOne" || relKind === "hasMany") {
+								// Target has FK: source.id = target.foreignKey
+								joinSQL = `LEFT JOIN ${targetTableEsc} AS ${relationAlias} ON ${sourceTableEsc}.\`id\` = ${relationAlias}.${foreignKeyEsc}`;
+							} else {
+								throw new QueryError(
+									`Relation kind '${relKind}' not yet supported for nested WHERE filtering`,
+								);
+							}
+
+							// Add JOIN to collection
+							if (joins && !joins.includes(joinSQL)) {
+								joins.push(joinSQL);
+							}
+
+							// Recursively translate nested conditions with TARGET SCHEMA context
+							const nestedCondition = this.translateWhereConditions(
+								nestedValue as WhereClause<T>,
+								depth + 1,
+								targetTable,
+								key, // Use relation name as alias
+								joins,
+								targetSchema,
+							);
+
+							conditions.push(nestedCondition);
+							continue;
+						}
+					}
+				}
+			}
+
+			// Regular field handling
+			const fieldName = currentTableAlias
+				? `${this.escapeIdentifier(currentTableAlias)}.${this.escapeIdentifier(key)}`
+				: this.escapeIdentifier(key);
+
+			// Handle comparison operators
 			if (
 				typeof value === "object" &&
 				value !== null &&
@@ -500,14 +868,23 @@ export class MySQLQueryTranslator implements QueryTranslator {
 				const ops = value as ComparisonOperators;
 				for (const [operator, opValue] of Object.entries(ops)) {
 					conditions.push(
-						this.translateComparisonOperator(fieldName, operator, opValue),
+						this.translateComparisonOperator(
+							fieldName,
+							operator,
+							opValue,
+							currentSchema,
+							key,
+						),
 					);
 				}
 			} else {
+				// Simple equality
 				if (value === null) {
 					conditions.push(`${fieldName} IS NULL`);
 				} else {
-					conditions.push(`${fieldName} = ${this.addParam(value)}`);
+					conditions.push(
+						`${fieldName} = ${this.addParam(value, currentSchema, key)}`,
+					);
 				}
 			}
 		}
@@ -522,29 +899,31 @@ export class MySQLQueryTranslator implements QueryTranslator {
 		fieldName: string,
 		operator: string,
 		value: unknown,
+		currentSchema?: SchemaDefinition,
+		fieldPath?: string,
 	): string {
 		switch (operator) {
 			case "$eq":
 				return value === null
 					? `${fieldName} IS NULL`
-					: `${fieldName} = ${this.addParam(value)}`;
+					: `${fieldName} = ${this.addParam(value, currentSchema, fieldPath)}`;
 
 			case "$ne":
 				return value === null
 					? `${fieldName} IS NOT NULL`
-					: `${fieldName} <> ${this.addParam(value)}`;
+					: `${fieldName} <> ${this.addParam(value, currentSchema, fieldPath)}`;
 
 			case "$gt":
-				return `${fieldName} > ${this.addParam(value)}`;
+				return `${fieldName} > ${this.addParam(value, currentSchema, fieldPath)}`;
 
 			case "$gte":
-				return `${fieldName} >= ${this.addParam(value)}`;
+				return `${fieldName} >= ${this.addParam(value, currentSchema, fieldPath)}`;
 
 			case "$lt":
-				return `${fieldName} < ${this.addParam(value)}`;
+				return `${fieldName} < ${this.addParam(value, currentSchema, fieldPath)}`;
 
 			case "$lte":
-				return `${fieldName} <= ${this.addParam(value)}`;
+				return `${fieldName} <= ${this.addParam(value, currentSchema, fieldPath)}`;
 
 			case "$in":
 				if (!Array.isArray(value)) {
@@ -553,7 +932,7 @@ export class MySQLQueryTranslator implements QueryTranslator {
 				if (value.length === 0) {
 					return "FALSE";
 				}
-				return `${fieldName} IN (${value.map((v) => this.addParam(v)).join(", ")})`;
+				return `${fieldName} IN (${value.map((v) => this.addParam(v, currentSchema, fieldPath)).join(", ")})`;
 
 			case "$nin":
 				if (!Array.isArray(value)) {
@@ -562,34 +941,42 @@ export class MySQLQueryTranslator implements QueryTranslator {
 				if (value.length === 0) {
 					return "TRUE";
 				}
-				return `${fieldName} NOT IN (${value.map((v) => this.addParam(v)).join(", ")})`;
+				return `${fieldName} NOT IN (${value.map((v) => this.addParam(v, currentSchema, fieldPath)).join(", ")})`;
 
 			case "$like":
-				return `${fieldName} LIKE ${this.addParam(value)}`;
+				return `${fieldName} LIKE ${this.addParam(value, currentSchema, fieldPath)}`;
 
 			case "$ilike":
-				return `LOWER(${fieldName}) LIKE LOWER(${this.addParam(value)})`;
+				// MySQL doesn't have ILIKE, use LOWER() workaround
+				return `LOWER(${fieldName}) LIKE LOWER(${this.addParam(value, currentSchema, fieldPath)})`;
 
 			case "$contains":
-				return `LOWER(${fieldName}) LIKE LOWER(${this.addParam(`%${String(value)}%`)})`;
+				return `LOWER(${fieldName}) LIKE LOWER(${this.addParam(`%${String(value)}%`, currentSchema, fieldPath)})`;
+
+			case "$notContains":
+				return `LOWER(${fieldName}) NOT LIKE LOWER(${this.addParam(`%${String(value)}%`, currentSchema, fieldPath)})`;
 
 			case "$startsWith":
-				return `LOWER(${fieldName}) LIKE LOWER(${this.addParam(`${String(value)}%`)})`;
+				return `LOWER(${fieldName}) LIKE LOWER(${this.addParam(`${String(value)}%`, currentSchema, fieldPath)})`;
 
 			case "$endsWith":
-				return `LOWER(${fieldName}) LIKE LOWER(${this.addParam(`%${String(value)}`)})`;
+				return `LOWER(${fieldName}) LIKE LOWER(${this.addParam(`%${String(value)}`, currentSchema, fieldPath)})`;
 
 			case "$regex":
+				// MySQL uses REGEXP
 				if (value instanceof RegExp) {
-					return `${fieldName} REGEXP ${this.addParam(value.source)}`;
+					return `${fieldName} REGEXP ${this.addParam(value.source, currentSchema, fieldPath)}`;
 				}
-				return `${fieldName} REGEXP ${this.addParam(value)}`;
+				return `${fieldName} REGEXP ${this.addParam(value, currentSchema, fieldPath)}`;
 
 			case "$exists":
 				return value ? `${fieldName} IS NOT NULL` : `${fieldName} IS NULL`;
 
 			case "$null":
 				return value ? `${fieldName} IS NULL` : `${fieldName} IS NOT NULL`;
+
+			case "$notNull":
+				return value ? `${fieldName} IS NOT NULL` : `${fieldName} IS NULL`;
 
 			default:
 				throw new QueryError(`Unsupported operator: ${operator}`);

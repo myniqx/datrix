@@ -1,5 +1,5 @@
 /**
- * PostgreSQL Populate Types
+ * MySQL Populate Types
  *
  * Type definitions for populate functionality.
  */
@@ -11,7 +11,7 @@ import type { QuerySelect } from "forja-types/core/query-builder";
  */
 export type PopulateStrategy =
 	| "json-aggregation" // Subquery-based aggregation (default)
-	| "lateral-joins" // LATERAL joins for complex options
+	| "lateral-joins" // LATERAL joins for complex options (MySQL 8.0.14+)
 	| "batched-queries"; // Batch queries for deep nesting or high cardinality
 
 /**

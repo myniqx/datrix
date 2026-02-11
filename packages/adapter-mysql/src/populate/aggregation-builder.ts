@@ -1,19 +1,18 @@
 /**
- * PostgreSQL Aggregation Builder
+ * MySQL Aggregation Builder
  *
  * Generates JSON aggregation SQL for populate functionality.
- * Handles json_agg(), row_to_json(), and LATERAL subqueries.
+ * Uses JSON_ARRAYAGG(), JSON_OBJECT() for MySQL 5.7+/8.0+.
  */
 
 import type {
 	QueryPopulate,
 	OrderByItem,
 	QueryPopulateOptions,
-	QuerySelect,
 } from "forja-types/core/query-builder";
 import type { SchemaRegistry } from "forja-core/schema";
 import type { ForjaEntry, RelationField } from "forja-types/core/schema";
-import type { PostgresQueryTranslator } from "../query-translator";
+import type { MySQLQueryTranslator } from "../query-translator";
 import type { AggregationClause, PopulateFieldSelection } from "./types";
 import {
 	throwModelNotFound,
@@ -31,16 +30,16 @@ import {
  */
 export class AggregationBuilder {
 	constructor(
-		private translator: PostgresQueryTranslator,
+		private translator: MySQLQueryTranslator,
 		private schemaRegistry: SchemaRegistry,
-	) {}
+	) { }
 
 	/**
 	 * Build all aggregation clauses for a query
 	 *
 	 * For json-aggregation strategy:
-	 * - belongsTo/hasOne: Uses row_to_json with JOINed table
-	 * - hasMany/manyToMany: Uses subquery with json_agg (no JOIN, no row explosion)
+	 * - belongsTo/hasOne: Uses JSON_OBJECT with JOINed table
+	 * - hasMany/manyToMany: Uses subquery with JSON_ARRAYAGG (no JOIN, no row explosion)
 	 *
 	 * @param tableName - Source table name
 	 * @param populate - Populate clause
@@ -117,8 +116,8 @@ export class AggregationBuilder {
 		switch (relation.kind) {
 			case "belongsTo":
 			case "hasOne":
-				// Single object: row_to_json() with specific fields
-				sql = `row_to_json((SELECT r FROM (SELECT ${fieldSelection.sql}) r)) AS ${relationAlias}`;
+				// Single object: JSON_OBJECT() from JOINed table
+				sql = this.buildJsonObjectSelect(relationAlias, fieldSelection);
 				break;
 
 			case "hasMany":
@@ -154,17 +153,35 @@ export class AggregationBuilder {
 	}
 
 	/**
+	 * Build JSON_OBJECT select for belongsTo/hasOne
+	 *
+	 * MySQL doesn't have row_to_json, so we build JSON_OBJECT manually
+	 */
+	private buildJsonObjectSelect(
+		relationAlias: string,
+		fieldSelection: PopulateFieldSelection,
+	): string {
+		// Build JSON_OBJECT with specific fields
+		const fields = fieldSelection.fields as readonly string[];
+		const jsonPairs = fields
+			.map((field) => {
+				const fieldEsc = this.translator.escapeIdentifier(field);
+				return `'${field}', ${relationAlias}.${fieldEsc}`;
+			})
+			.join(", ");
+
+		return `CASE WHEN ${relationAlias}.\`id\` IS NOT NULL THEN JSON_OBJECT(${jsonPairs}) ELSE NULL END AS ${relationAlias}`;
+	}
+
+	/**
 	 * Build hasMany subquery (no JOIN, no row explosion)
 	 *
 	 * Generates:
 	 * ```sql
 	 * (
-	 *   SELECT COALESCE(json_agg(row_to_json(t.*)), '[]'::jsonb)
-	 *   FROM (
-	 *     SELECT target.*
-	 *     FROM target_table target
-	 *     WHERE target.foreignKey = source_table.id
-	 *   ) t
+	 *   SELECT COALESCE(JSON_ARRAYAGG(JSON_OBJECT(...)), JSON_ARRAY())
+	 *   FROM target_table
+	 *   WHERE target.foreignKey = source_table.id
 	 * ) AS relationName
 	 * ```
 	 */
@@ -187,39 +204,19 @@ export class AggregationBuilder {
 		const foreignKeyEsc = this.translator.escapeIdentifier(foreignKey);
 		const relationAlias = this.translator.escapeIdentifier(relationName);
 
-		const selectFields = fieldSelection.sql || `${targetTableEsc}.*`;
+		// Build JSON_OBJECT for inner select
+		const jsonObject = this.buildJsonObjectForSubquery(
+			targetTableEsc,
+			fieldSelection,
+		);
 
-		const subquery = `
-      (
-        SELECT COALESCE(jsonb_agg(row_to_json(t.*)), '[]'::jsonb)
-        FROM (
-          SELECT ${selectFields}
-          FROM ${targetTableEsc}
-          WHERE ${targetTableEsc}.${foreignKeyEsc} = ${sourceTableEsc}."id"
-        ) t
-      ) AS ${relationAlias}
-    `
-			.trim()
-			.replace(/\s+/g, " ");
+		const subquery = `( SELECT COALESCE(JSON_ARRAYAGG(${jsonObject}), JSON_ARRAY()) FROM ${targetTableEsc} WHERE ${targetTableEsc}.${foreignKeyEsc} = ${sourceTableEsc}.\`id\` ) AS ${relationAlias}`;
 
 		return subquery;
 	}
 
 	/**
 	 * Build manyToMany subquery with junction table (no JOIN, no row explosion)
-	 *
-	 * Generates:
-	 * ```sql
-	 * (
-	 *   SELECT COALESCE(json_agg(row_to_json(t.*)), '[]'::jsonb)
-	 *   FROM (
-	 *     SELECT target.*
-	 *     FROM target_table target
-	 *     INNER JOIN junction_table ON target.id = junction_table.TargetId
-	 *     WHERE junction_table.SourceId = source_table.id
-	 *   ) t
-	 * ) AS relationName
-	 * ```
 	 */
 	private buildManyToManySubquery(
 		sourceTable: string,
@@ -256,43 +253,38 @@ export class AggregationBuilder {
 		const targetFKEsc = this.translator.escapeIdentifier(targetFK);
 		const relationAlias = this.translator.escapeIdentifier(relationName);
 
-		const selectFields = fieldSelection.sql || `${targetTableEsc}.*`;
+		// Build JSON_OBJECT for inner select
+		const jsonObject = this.buildJsonObjectForSubquery(
+			targetTableEsc,
+			fieldSelection,
+		);
 
-		const subquery = `
-      (
-        SELECT COALESCE(jsonb_agg(row_to_json(t.*)), '[]'::jsonb)
-        FROM (
-          SELECT ${selectFields}
-          FROM ${targetTableEsc}
-          INNER JOIN ${junctionTableEsc} ON ${targetTableEsc}."id" = ${junctionTableEsc}.${targetFKEsc}
-          WHERE ${junctionTableEsc}.${sourceFKEsc} = ${sourceTableEsc}."id"
-        ) t
-      ) AS ${relationAlias}
-    `
-			.trim()
-			.replace(/\s+/g, " ");
+		const subquery = `( SELECT COALESCE(JSON_ARRAYAGG(${jsonObject}), JSON_ARRAY()) FROM ${targetTableEsc} INNER JOIN ${junctionTableEsc} ON ${targetTableEsc}.\`id\` = ${junctionTableEsc}.${targetFKEsc} WHERE ${junctionTableEsc}.${sourceFKEsc} = ${sourceTableEsc}.\`id\` ) AS ${relationAlias}`;
 
 		return subquery;
 	}
 
 	/**
-	 * Build LATERAL subquery for complex populate options
-	 *
-	 * Generates:
-	 * ```sql
-	 * LEFT JOIN LATERAL (
-	 *   SELECT json_agg(row_to_json(t.*)) as data
-	 *   FROM (
-	 *     SELECT fields...
-	 *     FROM target_table
-	 *     WHERE target.fk = source.id
-	 *       AND additional_where_conditions
-	 *     ORDER BY field ASC
-	 *     LIMIT 10
-	 *     OFFSET 20
-	 *   ) t
-	 * ) relation_data ON true
-	 * ```
+	 * Build JSON_OBJECT for subquery
+	 */
+	private buildJsonObjectForSubquery(
+		tableEsc: string,
+		fieldSelection: PopulateFieldSelection,
+	): string {
+		// fields is always an array (normalizer guarantees select is provided)
+		const fields = fieldSelection.fields as readonly string[];
+		const jsonPairs = fields
+			.map((field) => {
+				const fieldEsc = this.translator.escapeIdentifier(field);
+				return `'${field}', ${tableEsc}.${fieldEsc}`;
+			})
+			.join(", ");
+
+		return `JSON_OBJECT(${jsonPairs})`;
+	}
+
+	/**
+	 * Build LATERAL subquery for complex populate options (MySQL 8.0.14+)
 	 */
 	buildLateralSubquery<T extends ForjaEntry>(
 		sourceTable: string,
@@ -325,21 +317,24 @@ export class AggregationBuilder {
 			relation,
 			options,
 		);
-		const selectFields = fieldSelection.sql || `${targetTableEsc}.*`;
+
+		// Build JSON_OBJECT
+		const jsonObject = this.buildJsonObjectForSubquery(
+			targetTableEsc,
+			fieldSelection,
+		);
 
 		// Build WHERE clause
 		const whereConditions: string[] = [];
 
 		// FK condition
 		if (relation.kind === "belongsTo") {
-			// belongsTo: source.fk = target.id
 			whereConditions.push(
-				`${targetTableEsc}."id" = ${sourceTableEsc}.${foreignKeyEsc}`,
+				`${targetTableEsc}.\`id\` = ${sourceTableEsc}.${foreignKeyEsc}`,
 			);
 		} else {
-			// hasOne/hasMany: target.fk = source.id
 			whereConditions.push(
-				`${targetTableEsc}.${foreignKeyEsc} = ${sourceTableEsc}."id"`,
+				`${targetTableEsc}.${foreignKeyEsc} = ${sourceTableEsc}.\`id\``,
 			);
 		}
 
@@ -371,26 +366,17 @@ export class AggregationBuilder {
 		// Determine aggregation type
 		const isArray =
 			relation.kind === "hasMany" || relation.kind === "manyToMany";
-		const aggregationFunc = isArray ? "json_agg" : "row_to_json";
+		const aggregationFunc = isArray ? "JSON_ARRAYAGG" : "";
 
 		// Build subquery
-		const subquery = `
-      LEFT JOIN LATERAL (
-        SELECT ${aggregationFunc}(row_to_json(t.*)) as data
-        FROM (
-          SELECT ${selectFields}
-          FROM ${targetTableEsc}
-          WHERE ${whereClause}
-          ${orderByClause}
-          ${limitClause}
-          ${offsetClause}
-        ) t
-      ) ${relationAlias} ON true
-    `
-			.trim()
-			.replace(/\s+/g, " ");
+		let subquery: string;
+		if (isArray) {
+			subquery = `LEFT JOIN LATERAL ( SELECT ${aggregationFunc}(${jsonObject}) as data FROM ${targetTableEsc} WHERE ${whereClause} ${orderByClause} ${limitClause} ${offsetClause} ) ${relationAlias} ON TRUE`;
+		} else {
+			subquery = `LEFT JOIN LATERAL ( SELECT ${jsonObject} as data FROM ${targetTableEsc} WHERE ${whereClause} ${orderByClause} LIMIT 1 ) ${relationAlias} ON TRUE`;
+		}
 
-		return subquery;
+		return subquery.trim().replace(/\s+/g, " ");
 	}
 
 	/**
@@ -445,13 +431,18 @@ export class AggregationBuilder {
 			relation,
 			options,
 		);
-		const selectFields = fieldSelection.sql || `${targetTableEsc}.*`;
+
+		// Build JSON_OBJECT
+		const jsonObject = this.buildJsonObjectForSubquery(
+			targetTableEsc,
+			fieldSelection,
+		);
 
 		// Build WHERE for target table
 		let targetWhereClause = "";
 		if (opts.where) {
 			const whereResult = this.translator.translateWhere(opts.where, 1);
-			targetWhereClause = `WHERE ${whereResult.sql}`;
+			targetWhereClause = `AND ${whereResult.sql}`;
 		}
 
 		// Build ORDER BY
@@ -472,25 +463,9 @@ export class AggregationBuilder {
 		}
 
 		// Build subquery with junction join
-		const subquery = `
-      LEFT JOIN LATERAL (
-        SELECT json_agg(row_to_json(t.*)) as data
-        FROM (
-          SELECT ${selectFields}
-          FROM ${targetTableEsc}
-          INNER JOIN ${junctionTableEsc} ON ${targetTableEsc}."id" = ${junctionTableEsc}.${targetFKEsc}
-          WHERE ${junctionTableEsc}.${sourceFKEsc} = ${sourceTableEsc}."id"
-          ${targetWhereClause ? `AND ${targetWhereClause.replace("WHERE", "")}` : ""}
-          ${orderByClause}
-          ${limitClause}
-          ${offsetClause}
-        ) t
-      ) ${relationAlias} ON true
-    `
-			.trim()
-			.replace(/\s+/g, " ");
+		const subquery = `LEFT JOIN LATERAL ( SELECT JSON_ARRAYAGG(${jsonObject}) as data FROM ${targetTableEsc} INNER JOIN ${junctionTableEsc} ON ${targetTableEsc}.\`id\` = ${junctionTableEsc}.${targetFKEsc} WHERE ${junctionTableEsc}.${sourceFKEsc} = ${sourceTableEsc}.\`id\` ${targetWhereClause} ${orderByClause} ${limitClause} ${offsetClause} ) ${relationAlias} ON TRUE`;
 
-		return subquery;
+		return subquery.trim().replace(/\s+/g, " ");
 	}
 
 	/**
@@ -512,7 +487,7 @@ export class AggregationBuilder {
 		// select is always provided by normalizer (getCachedSelectFields)
 		const fields = options.select as readonly string[];
 
-		// Build field list
+		// Build field list SQL
 		const fieldSQL = fields
 			.map((field) => {
 				const fieldEsc = this.translator.escapeIdentifier(field);
@@ -528,19 +503,21 @@ export class AggregationBuilder {
 
 	/**
 	 * Build ORDER BY clause
+	 * Note: MySQL doesn't support NULLS FIRST/LAST natively
 	 */
 	private buildOrderBy(orderBy: readonly OrderByItem[]): string {
 		return orderBy
 			.map((item) => {
 				const field = this.translator.escapeIdentifier(item.field);
 				const direction = item.direction.toUpperCase();
-				let clause = `${field} ${direction}`;
 
 				if (item.nulls) {
-					clause += ` NULLS ${item.nulls.toUpperCase()}`;
+					// MySQL workaround for NULLS FIRST/LAST
+					const nullsFirst = item.nulls.toUpperCase() === "FIRST";
+					return `CASE WHEN ${field} IS NULL THEN ${nullsFirst ? 0 : 1} ELSE ${nullsFirst ? 1 : 0} END, ${field} ${direction}`;
 				}
 
-				return clause;
+				return `${field} ${direction}`;
 			})
 			.join(", ");
 	}

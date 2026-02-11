@@ -1,5 +1,5 @@
 /**
- * PostgreSQL Result Processor
+ * MySQL Result Processor
  *
  * Processes query results from populate operations.
  * Handles JSON parsing and nested structure creation.
@@ -21,7 +21,7 @@ export class ResultProcessor {
 	/**
 	 * Process JSON aggregation results
 	 *
-	 * PostgreSQL json_agg() and row_to_json() return JSON strings.
+	 * MySQL JSON_ARRAYAGG() and JSON_OBJECT() return JSON.
 	 * This method parses them and handles nested populate.
 	 *
 	 * @param rows - Raw rows from database
@@ -63,7 +63,7 @@ export class ResultProcessor {
 				continue;
 			}
 
-			// Parse JSON if it's a string
+			// Parse JSON if it's a string (MySQL may return JSON as string)
 			if (typeof value === "string") {
 				try {
 					processed[relationName as keyof T] = JSON.parse(value) as T[keyof T];
@@ -123,34 +123,6 @@ export class ResultProcessor {
 	 *
 	 * When using basic JOINs without aggregation, results come as flat rows.
 	 * This method groups them by primary key and nests relations.
-	 *
-	 * Example input (flat):
-	 * ```
-	 * [
-	 *   { post_id: 1, title: "A", comment_id: 1, text: "C1" },
-	 *   { post_id: 1, title: "A", comment_id: 2, text: "C2" },
-	 *   { post_id: 2, title: "B", comment_id: 3, text: "C3" }
-	 * ]
-	 * ```
-	 *
-	 * Example output (nested):
-	 * ```
-	 * [
-	 *   {
-	 *     id: 1,
-	 *     title: "A",
-	 *     comments: [
-	 *       { id: 1, text: "C1" },
-	 *       { id: 2, text: "C2" }
-	 *     ]
-	 *   },
-	 *   {
-	 *     id: 2,
-	 *     title: "B",
-	 *     comments: [{ id: 3, text: "C3" }]
-	 *   }
-	 * ]
-	 * ```
 	 */
 	processFlatJoinResults<T extends ForjaEntry>(
 		rows: T[],

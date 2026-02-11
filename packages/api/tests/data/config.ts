@@ -8,18 +8,19 @@ import { getAdapter, getAdapterType } from "./adapter";
 /**
  * Test Configuration
  *
- * Uses configurable adapter (json or postgres)
+ * Uses configurable adapter (json, postgres, or mysql)
  * API plugin enabled WITHOUT authentication
  *
  * Switch adapter via environment variable:
  * - ADAPTER=json npm test (default, fast in-memory)
- * - ADAPTER=postgres npm test (real database)
+ * - ADAPTER=postgres npm test (PostgreSQL database)
+ * - ADAPTER=mysql npm test (MySQL database)
  */
-export function createTestConfig(tmpDir: string) {
-	return defineConfig(() => {
-		const adapterType = getAdapterType();
-		const adapter = getAdapter(adapterType, tmpDir);
+export async function createTestConfig(tmpDir: string) {
+	const adapterType = getAdapterType();
+	const adapter = await getAdapter(adapterType, tmpDir);
 
+	return defineConfig(() => {
 		const config: ForjaConfig = {
 			adapter,
 

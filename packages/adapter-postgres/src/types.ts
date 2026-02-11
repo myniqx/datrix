@@ -4,7 +4,7 @@
  * Type definitions specific to PostgreSQL adapter.
  */
 
-import { PopulateClause, QueryMetadata, QueryObject } from "forja-types";
+import { QueryPopulate, QueryMetadata, QueryObject } from "forja-types";
 import { FieldType, ForjaEntry } from "forja-types/core/schema";
 import { PopulateStrategy } from "./populate";
 
@@ -306,6 +306,6 @@ export interface PostgresQueryObject<
 		populateAggregations?: string | undefined;
 		populateJoins?: string | undefined;
 		populateStrategy?: PopulateStrategy | undefined;
-		populateClause?: PopulateClause<T> | undefined;
+		populateClause?: QueryPopulate<T> | undefined;
 	};
 }

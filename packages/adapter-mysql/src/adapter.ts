@@ -14,9 +14,11 @@ import type {
 import { createPool } from "mysql2/promise";
 
 import { MySQLQueryTranslator } from "./query-translator";
-import type { MySQLConfig } from "./types";
+import { MySQLPopulator } from "./populate";
+import type { MySQLConfig, MySQLQueryObject } from "./types";
 import { getMySQLTypeWithModifiers, parseConnectionString } from "./types";
-import { QueryObject } from "forja-types/core/query-builder";
+import { QueryObject, QuerySelectObject } from "forja-types/core/query-builder";
+import { ForjaEntry } from "forja-types";
 import {
 	AlterOperation,
 	ConnectionError,
@@ -49,6 +51,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 	private pool: Pool | undefined;
 	private state: ConnectionState = "disconnected";
 	private readonly translator: MySQLQueryTranslator;
+	private populator: MySQLPopulator | undefined;
 
 	constructor(config: MySQLConfig) {
 		if (config.connectionString) {
@@ -99,6 +102,14 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			const connection = await this.pool.getConnection();
 			connection.release();
 
+			// Initialize populator
+			const schemaRegistry = Forja.getInstance().getSchemas();
+			this.populator = new MySQLPopulator(
+				this.pool,
+				this.translator,
+				schemaRegistry,
+			);
+
 			this.state = "connected";
 			return { success: true, data: undefined };
 		} catch (error) {
@@ -126,6 +137,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			if (this.pool) {
 				await this.pool.end();
 				this.pool = undefined;
+				this.populator = undefined;
 			}
 
 			this.state = "disconnected";
@@ -159,14 +171,14 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 	/**
 	 * Execute query
 	 */
-	async executeQuery<TResult>(
-		query: QueryObject,
-	): Promise<Result<QueryResult<TResult>, QueryError>> {
+	async executeQuery<TResult extends ForjaEntry>(
+		query: QueryObject<TResult>,
+	): Promise<Result<QueryResult<TResult>, QueryError<TResult>>> {
 		const validation = validateQueryObject(query);
 		if (!validation.success) {
 			return {
 				success: false,
-				error: new QueryError(
+				error: new QueryError<TResult>(
 					`Invalid QueryObject: ${validation.error.message}`,
 					{ query },
 				),
@@ -176,17 +188,28 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 		if (!this.pool) {
 			return {
 				success: false,
-				error: new QueryError("Not connected to database", {
+				error: new QueryError<TResult>("Not connected to database", {
 					code: "CONNECTION_ERROR",
 					query,
 				}),
 			};
 		}
 
+		// Handle SELECT with populate
+		if (
+			query.type === "select" &&
+			query.populate &&
+			Object.keys(query.populate).length > 0 &&
+			this.populator
+		) {
+			return this.executeWithPopulate<TResult>(query);
+		}
+
 		let lastSql: string | undefined;
 
 		try {
-			const { sql, params } = this.translator.translate(query);
+			const mysqlQuery = query as MySQLQueryObject<ForjaEntry>;
+			const { sql, params } = this.translator.translate(mysqlQuery);
 			lastSql = sql;
 
 			const [result] = await this.pool.execute(sql, params as unknown[]);
@@ -232,13 +255,49 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 	}
 
 	/**
+	 * Execute query with populate
+	 */
+	private async executeWithPopulate<TResult extends ForjaEntry>(
+		query: QuerySelectObject<TResult>,
+	): Promise<Result<QueryResult<TResult>, QueryError<TResult>>> {
+		if (!this.populator) {
+			return {
+				success: false,
+				error: new QueryError<TResult>("Populator not initialized", { query }),
+			};
+		}
+
+		try {
+			const rows = await this.populator.populate<TResult>(query);
+
+			const metadata: QueryMetadata = {
+				rowCount: rows.length,
+				affectedRows: rows.length,
+			};
+
+			return {
+				success: true,
+				data: {
+					rows: rows as readonly TResult[],
+					metadata,
+				},
+			};
+		} catch (error) {
+			return {
+				success: false,
+				error: this.mapMySQLError(error, query),
+			};
+		}
+	}
+
+	/**
 	 * Map MySQL errors to standardized QueryError
 	 */
-	private mapMySQLError(
+	private mapMySQLError<TResult extends ForjaEntry = ForjaEntry>(
 		error: unknown,
-		query?: QueryObject,
+		query?: QueryObject<TResult>,
 		sql?: string,
-	): QueryError {
+	): QueryError<TResult> {
 		const message = error instanceof Error ? error.message : String(error);
 		const details = error as {
 			code?: string;
@@ -267,7 +326,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			}
 		}
 
-		return new QueryError(`Query execution failed: ${message}`, {
+		return new QueryError<TResult>(`Query execution failed: ${message}`, {
 			code,
 			query,
 			sql,
@@ -278,14 +337,14 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 	/**
 	 * Execute raw SQL query
 	 */
-	async executeRawQuery<TResult>(
+	async executeRawQuery<TResult extends ForjaEntry>(
 		sql: string,
 		params: readonly unknown[],
-	): Promise<Result<QueryResult<TResult>, QueryError>> {
+	): Promise<Result<QueryResult<TResult>, QueryError<TResult>>> {
 		if (!this.pool) {
 			return {
 				success: false,
-				error: new QueryError("Not connected to database", {
+				error: new QueryError<TResult>("Not connected to database", {
 					code: "CONNECTION_ERROR",
 					sql,
 				}),
@@ -569,7 +628,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 	/**
 	 * Get all table names
 	 */
-	async getTables(): Promise<Result<readonly string[], QueryError>> {
+	async getTables<TResult extends ForjaEntry>(): Promise<Result<readonly string[], QueryError<TResult>>> {
 		if (!this.pool) {
 			return {
 				success: false,
@@ -601,9 +660,9 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 	/**
 	 * Get table schema (introspection)
 	 */
-	async getTableSchema(
+	async getTableSchema<TResult extends ForjaEntry>(
 		tableName: string,
-	): Promise<Result<SchemaDefinition, QueryError>> {
+	): Promise<Result<SchemaDefinition, QueryError<TResult>>> {
 		if (!this.pool) {
 			return {
 				success: false,
@@ -775,15 +834,15 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 /**
  * MySQL transaction implementation
  */
-class MySQLTransaction implements Transaction {
+class MySQLTransaction<T extends ForjaEntry> implements Transaction {
 	readonly id: string;
 	private connection: PoolConnection;
 	private translator: MySQLQueryTranslator;
 	private errorMapper: (
 		error: unknown,
-		query?: QueryObject,
+		query?: QueryObject<T>,
 		sql?: string,
-	) => QueryError;
+	) => QueryError<T>;
 	private committed = false;
 	private rolledBack = false;
 	private aborted = false;
@@ -793,9 +852,9 @@ class MySQLTransaction implements Transaction {
 		translator: MySQLQueryTranslator,
 		errorMapper: (
 			error: unknown,
-			query?: QueryObject,
+			query?: QueryObject<T>,
 			sql?: string,
-		) => QueryError,
+		) => QueryError<T>,
 		id: string,
 	) {
 		this.connection = connection;
@@ -807,9 +866,9 @@ class MySQLTransaction implements Transaction {
 	/**
 	 * Execute query within transaction
 	 */
-	async query<TResult>(
-		query: QueryObject,
-	): Promise<Result<QueryResult<TResult>, QueryError>> {
+	async executeQuery<TResult extends ForjaEntry = T>(
+		query: QueryObject<TResult>,
+	): Promise<Result<QueryResult<TResult>, QueryError<TResult>>> {
 		if (this.committed || this.rolledBack) {
 			return {
 				success: false,
@@ -864,10 +923,10 @@ class MySQLTransaction implements Transaction {
 	/**
 	 * Execute raw SQL within transaction
 	 */
-	async rawQuery<TResult>(
+	async executeRawQuery<TResult extends ForjaEntry>(
 		sql: string,
 		params: readonly unknown[],
-	): Promise<Result<QueryResult<TResult>, QueryError>> {
+	): Promise<Result<QueryResult<TResult>, QueryError<TResult>>> {
 		if (this.committed || this.rolledBack) {
 			return {
 				success: false,

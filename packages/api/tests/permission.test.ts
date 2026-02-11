@@ -67,7 +67,7 @@ describe("Schema-Level Permission Tests", () => {
 		await fs.mkdir(tmpDir, { recursive: true });
 
 		// Initialize Forja with auth config
-		const getForja = createTestConfigWithAuth(tmpDir);
+		const getForja = await createTestConfigWithAuth(tmpDir);
 		forja = await getForja();
 
 		// Create tables

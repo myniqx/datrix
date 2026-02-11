@@ -22,18 +22,19 @@ export const testJwtSecret = "test-jwt-secret-key-for-unit-tests-32-chars-min";
 /**
  * Test Configuration with Authentication
  *
- * Uses configurable adapter (json or postgres)
+ * Uses configurable adapter (json, postgres, or mysql)
  * API plugin enabled WITH authentication and permission system
  *
  * Switch adapter via environment variable:
  * - ADAPTER=json npm test (default, fast in-memory)
- * - ADAPTER=postgres npm test (real database)
+ * - ADAPTER=postgres npm test (PostgreSQL database)
+ * - ADAPTER=mysql npm test (MySQL database)
  */
-export function createTestConfigWithAuth(tmpDir: string) {
-	return defineConfig(() => {
-		const adapterType = getAdapterType();
-		const adapter = getAdapter(adapterType, tmpDir);
+export async function createTestConfigWithAuth(tmpDir: string) {
+	const adapterType = getAdapterType();
+	const adapter = await getAdapter(adapterType, tmpDir);
 
+	return defineConfig(() => {
 		const config: ForjaConfig = {
 			adapter,
 

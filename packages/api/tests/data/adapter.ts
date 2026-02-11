@@ -7,77 +7,80 @@
 
 import { JsonAdapter } from "../../../adapter-json/src/index";
 import { PostgresAdapter } from "../../../adapter-postgres/src/index";
+import { MySQLAdapter } from "../../../adapter-mysql/src/index";
+import { createTestDatabase as createPostgresTestDatabase } from "../../../adapter-postgres/src/test-utils";
+import { createTestDatabase as createMySQLTestDatabase } from "../../../adapter-mysql/src/test-utils";
 import type { DatabaseAdapter } from "forja-types/core/adapter";
+import { createHash } from "node:crypto";
 
 /**
  * Supported adapter types for testing
  */
-export type AdapterType = "json" | "postgres";
+export type AdapterType = "json" | "postgres" | "mysql";
+
+/**
+ * Generate a safe database name from root path
+ */
+function generateDbName(root: string): string {
+	const hash = createHash("md5").update(root).digest("hex").slice(0, 8);
+	return `forja_test_${hash}`;
+}
 
 /**
  * Get database adapter for testing
  *
- * @param type - Adapter type ('json' or 'postgres')
- * @param tmpDir - Temporary directory for JsonAdapter (ignored for Postgres)
+ * For JSON adapter, root is used as the data directory.
+ * For PostgreSQL/MySQL, root is hashed to create a unique database name.
+ * The database is dropped and recreated to ensure a clean state.
+ *
+ * @param type - Adapter type ('json', 'postgres', or 'mysql')
+ * @param root - Root directory (JSON) or unique identifier for DB name (PostgreSQL/MySQL)
  * @returns Database adapter instance
  *
  * @example
  * // Use JsonAdapter for fast in-memory tests
- * const adapter = getAdapter('json', tmpDir);
+ * const adapter = await getAdapter('json', tmpDir);
  *
  * @example
- * // Use PostgresAdapter for real database tests
- * const adapter = getAdapter('postgres');
+ * // Use PostgresAdapter with isolated database
+ * const adapter = await getAdapter('postgres', 'my-test-suite');
+ *
+ * @example
+ * // Use MySQLAdapter with isolated database
+ * const adapter = await getAdapter('mysql', 'my-test-suite');
  */
-export function getAdapter(
+export async function getAdapter(
 	type: AdapterType,
-	tmpDir?: string,
-): DatabaseAdapter {
+	root: string,
+): Promise<DatabaseAdapter> {
 	switch (type) {
 		case "json":
-			if (!tmpDir) {
-				throw new Error("tmpDir is required for JsonAdapter");
-			}
 			return new JsonAdapter({
-				root: tmpDir,
+				root,
 				cache: true,
 				readLock: false,
 				lockTimeout: 5000,
 				staleTimeout: 10000,
 			});
 
-		case "postgres":
-			// Parse DATABASE_URL or use individual env vars
-			const databaseUrl =
-				process.env.DATABASE_URL ||
-				"postgres://fc_user:Fc123@localhost:5432/forja_test";
+		case "postgres": {
+			const dbName = generateDbName(root);
 
-			if (databaseUrl) {
-				// Parse postgres://user:password@host:port/database
-				const url = new URL(databaseUrl);
-				const params = {
-					host: url.hostname,
-					port: parseInt(url.port || "5432", 10),
-					database: url.pathname.slice(1), // Remove leading slash
-					user: url.username,
-					password: url.password,
-					ssl: false,
-					max: 10,
-					min: 2,
-					connectionTimeoutMillis: 5000,
-					idleTimeoutMillis: 10000,
-					applicationName: "forja-test",
-				};
-				return new PostgresAdapter(params);
-			}
+			// Parse connection config from env
+			const host = process.env.POSTGRES_HOST ?? "localhost";
+			const port = parseInt(process.env.POSTGRES_PORT ?? "5432", 10);
+			const user = process.env.POSTGRES_USER ?? "postgres";
+			const password = process.env.POSTGRES_PASSWORD ?? "postgres";
 
-			// Fallback to individual env vars
+			// Create fresh database
+			await createPostgresTestDatabase(dbName, { host, port, user, password });
+
 			return new PostgresAdapter({
-				host: process.env.POSTGRES_HOST || "localhost",
-				port: parseInt(process.env.POSTGRES_PORT || "5432", 10),
-				database: process.env.POSTGRES_DB || "forja_test",
-				user: process.env.POSTGRES_USER || "postgres",
-				password: process.env.POSTGRES_PASSWORD || "postgres",
+				host,
+				port,
+				database: dbName,
+				user,
+				password,
 				ssl: false,
 				max: 10,
 				min: 2,
@@ -85,6 +88,30 @@ export function getAdapter(
 				idleTimeoutMillis: 10000,
 				applicationName: "forja-test",
 			});
+		}
+
+		case "mysql": {
+			const dbName = generateDbName(root);
+
+			// Parse connection config from env
+			const host = process.env.MYSQL_HOST ?? "localhost";
+			const port = parseInt(process.env.MYSQL_PORT ?? "3306", 10);
+			const user = process.env.MYSQL_USER ?? "root";
+			const password = process.env.MYSQL_PASSWORD ?? "";
+
+			// Create fresh database
+			await createMySQLTestDatabase(dbName, { host, port, user, password });
+
+			return new MySQLAdapter({
+				host,
+				port,
+				database: dbName,
+				user,
+				password,
+				connectionLimit: 10,
+				connectTimeout: 5000,
+			});
+		}
 
 		default:
 			throw new Error(`Unknown adapter type: ${type}`);
@@ -99,10 +126,11 @@ export function getAdapter(
  * // Run tests with different adapters
  * // npm test                    → json (default)
  * // ADAPTER=postgres npm test   → postgres
+ * // ADAPTER=mysql npm test      → mysql
  */
 export function getAdapterType(): AdapterType {
 	const adapterEnv = process.env.ADAPTER?.toLowerCase();
-	if (adapterEnv === "postgres" || adapterEnv === "json") {
+	if (adapterEnv === "postgres" || adapterEnv === "mysql" || adapterEnv === "json") {
 		return adapterEnv;
 	}
 	return "json"; // Default

@@ -77,7 +77,7 @@ describe("CRUD Relation API Tests", () => {
 		await fs.mkdir(tmpDir, { recursive: true });
 
 		// Get Forja instance
-		const getForja = createTestConfig(tmpDir);
+		const getForja = await createTestConfig(tmpDir);
 		forja = await getForja();
 
 		// Create tables
