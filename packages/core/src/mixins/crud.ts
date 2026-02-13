@@ -22,6 +22,7 @@ import {
   deleteFrom,
 } from "../query-builder";
 import { QueryExecutor } from "../query-executor/executor";
+import { throwRecordNotFound } from "../query-executor/error-helper";
 
 /**
  * CRUD Operations Class
@@ -171,9 +172,7 @@ export class CrudOperations implements IRawCrud {
       builder.populate(options.populate);
     }
     if (options?.orderBy) {
-      for (const order of options.orderBy) {
-        builder.orderBy(order.field, order.direction);
-      }
+      builder.orderBy(options?.orderBy);
     }
     if (options?.limit !== undefined) {
       builder.limit(options.limit);
@@ -325,6 +324,11 @@ export class CrudOperations implements IRawCrud {
       ...options,
       action: options?.action ?? "update",
     });
+
+    if (result.length === 0) {
+      throwRecordNotFound("update", model, id);
+    }
+
     return result[0]!;
   }
 
@@ -362,8 +366,8 @@ export class CrudOperations implements IRawCrud {
     const builder = updateTable(model, data, this.schemas)
       .where(where);
 
-    if (options?.select) {
-      builder.select(options.select);
+    if (options?.select || !options?.noReturning) {
+      builder.select(options?.select ?? "*");
     }
 
     if (options?.populate) {
@@ -403,10 +407,14 @@ export class CrudOperations implements IRawCrud {
       { id } as WhereClause<T>,
       {
         ...options,
-        noReturning: options?.noReturning ?? !(options?.select && options?.populate),
+        noReturning: options?.noReturning ?? false,
         action: options?.action ?? "delete",
       }
     );
+
+    if (result.length === 0) {
+      throwRecordNotFound("delete", model, id);
+    }
 
     return result[0]!;
   }
@@ -439,8 +447,8 @@ export class CrudOperations implements IRawCrud {
     const queryBuilder = deleteFrom<T>(model, this.schemas)
       .where(where)
 
-    if (options?.select)
-      queryBuilder.select(options.select);
+    if (options?.select || !options?.noReturning)
+      queryBuilder.select(options?.select ?? "*");
 
     if (options?.populate)
       queryBuilder.populate(options.populate);
@@ -449,7 +457,7 @@ export class CrudOperations implements IRawCrud {
 
     const result = await this.executor.execute<T, T[]>(query, {
       noDispatcher: this.getDispatcher === null,
-      noReturning: options?.noReturning ?? !(options?.select && options?.populate),
+      noReturning: options?.noReturning ?? !(query?.select || query?.populate),
       action: options?.action ?? "deleteMany",
     });
 

@@ -249,12 +249,28 @@ export function processData<T extends ForjaEntry>(
 
 	for (const [key, value] of Object.entries(rawRelations)) {
 		const field = schema.fields[key] as RelationField;
+		const isSingular = field.kind === "belongsTo" || field.kind === "hasOne";
 
 		// Normalize relation shortcuts to NormalizedRelationOperations
 		let normalized: NormalizedRelationOperations<T>;
 
+		// Case 0: null value - clear/disconnect relation
+		if (value === null) {
+			if (isSingular) {
+				// belongsTo/hasOne: null means disconnect (FK = NULL)
+				normalized = { disconnect: [] };
+			} else {
+				// hasMany/manyToMany: null is not allowed (prevent accidental mass deletion)
+				throwInvalidValue(
+					"data",
+					`relation ${key}`,
+					"null",
+					"`[]` or `{ set: [] }` to clear all relations",
+				);
+			}
+		}
 		// Case 1: Direct ID shortcut (category: 5)
-		if (typeof value === "number" || typeof value === "string") {
+		else if (typeof value === "number" || typeof value === "string") {
 			normalized = { set: extractIds(value) };
 		}
 		// Case 2: Array shortcut (tags: [1, 2, 3] or [{id: 1}, {id: 2}])
@@ -269,7 +285,7 @@ export function processData<T extends ForjaEntry>(
 			}
 		}
 		// Case 3: RelationInput object - normalize each operation to number arrays
-		else if (typeof value === "object" && value !== null) {
+		else if (typeof value === "object") {
 			const relInput = value as RelationInput<T>;
 			normalized = {};
 

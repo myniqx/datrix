@@ -118,8 +118,9 @@ export class JsonQueryRunner {
 			result = data.map((item) => {
 				const projected: any = {};
 				for (const field of select) {
-					if (field in (item as any)) {
-						projected[field] = (item as any)[field];
+					projected[field] = item[field]
+					if (projected[field] === undefined) {
+						projected[field] = null
 					}
 				}
 				return projected;
@@ -408,42 +409,35 @@ export class JsonQueryRunner {
 				case "$ne":
 					if (this.compareValues(value, opValue, fieldName)) return false;
 					break;
-				case "$gt":
-					if (
-						!(
-							this.coerceForComparison(value, fieldName) >
-							this.coerceForComparison(opValue, fieldName)
-						)
-					)
-						return false;
+				case "$gt": {
+					// NULL comparisons always return false (SQL behavior)
+					if (value === null || value === undefined) return false;
+					const coercedVal = this.coerceForComparison(value, fieldName);
+					const coercedOp = this.coerceForComparison(opValue, fieldName);
+					if (!((coercedVal as number) > (coercedOp as number))) return false;
 					break;
-				case "$gte":
-					if (
-						!(
-							this.coerceForComparison(value, fieldName) >=
-							this.coerceForComparison(opValue, fieldName)
-						)
-					)
-						return false;
+				}
+				case "$gte": {
+					if (value === null || value === undefined) return false;
+					const coercedVal = this.coerceForComparison(value, fieldName);
+					const coercedOp = this.coerceForComparison(opValue, fieldName);
+					if (!((coercedVal as number) >= (coercedOp as number))) return false;
 					break;
-				case "$lt":
-					if (
-						!(
-							this.coerceForComparison(value, fieldName) <
-							this.coerceForComparison(opValue, fieldName)
-						)
-					)
-						return false;
+				}
+				case "$lt": {
+					if (value === null || value === undefined) return false;
+					const coercedVal = this.coerceForComparison(value, fieldName);
+					const coercedOp = this.coerceForComparison(opValue, fieldName);
+					if (!((coercedVal as number) < (coercedOp as number))) return false;
 					break;
-				case "$lte":
-					if (
-						!(
-							this.coerceForComparison(value, fieldName) <=
-							this.coerceForComparison(opValue, fieldName)
-						)
-					)
-						return false;
+				}
+				case "$lte": {
+					if (value === null || value === undefined) return false;
+					const coercedVal = this.coerceForComparison(value, fieldName);
+					const coercedOp = this.coerceForComparison(opValue, fieldName);
+					if (!((coercedVal as number) <= (coercedOp as number))) return false;
 					break;
+				}
 				case "$in": {
 					const coercedValue = this.coerceForComparison(value, fieldName);
 					const coercedArray = (opValue as unknown[]).map((v) =>
@@ -500,8 +494,13 @@ export class JsonQueryRunner {
 		return true;
 	}
 
-	private coerceForComparison(value: any, fieldName: string): any {
-		const schema = this.table.schema as any;
+	private coerceForComparison(value: unknown, fieldName: string): unknown {
+		// Preserve null/undefined as-is
+		if (value === null || value === undefined) {
+			return value;
+		}
+
+		const schema = this.table.schema as { fields?: Record<string, { type?: string }> };
 		const fieldDef = schema?.fields?.[fieldName];
 
 		if (!fieldDef) return value;

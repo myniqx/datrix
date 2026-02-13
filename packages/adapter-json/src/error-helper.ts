@@ -324,3 +324,33 @@ export function throwTargetModelNotFound(
 		},
 	);
 }
+
+/**
+ * Throw foreign key constraint error
+ *
+ * Thrown when trying to insert/update a record with a foreign key
+ * that references a non-existent record in the target table.
+ *
+ * @param foreignKey - Foreign key field name (e.g., "categoryId")
+ * @param value - The invalid foreign key value
+ * @param targetModel - Target model name (e.g., "category")
+ * @param table - Source table name
+ */
+export function throwForeignKeyConstraint(
+	foreignKey: string,
+	value: unknown,
+	targetModel: string,
+	table: string,
+): never {
+	throw new ForjaJsonAdapterError(
+		`Foreign key constraint failed: ${targetModel} with id '${value}' does not exist`,
+		{
+			code: "ADAPTER_FOREIGN_KEY_CONSTRAINT",
+			operation: "query",
+			context: { foreignKey, value, targetModel, table },
+			suggestion: `Ensure ${targetModel} with id '${value}' exists before referencing it`,
+			expected: `existing ${targetModel} id`,
+			received: value,
+		},
+	);
+}

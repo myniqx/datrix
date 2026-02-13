@@ -187,7 +187,7 @@ export type PopulateOptions<T extends ForjaEntry> = {
 	readonly populate?: PopulateClause<T> | undefined; // Nested populate
 	readonly limit?: number | undefined;
 	readonly offset?: number | undefined;
-	readonly orderBy?: OrderBy | undefined;
+	readonly orderBy?: QueryOrderBy | undefined;
 };
 
 /**
@@ -216,13 +216,38 @@ export type OrderDirection = "asc" | "desc";
 /**
  * Order by item
  */
-export type OrderByItem = {
-	readonly field: string;
+export type OrderByItem<T extends ForjaEntry> = {
+	readonly field: keyof T;
 	readonly direction: OrderDirection;
 	readonly nulls?: "first" | "last"; // NULL ordering
 };
 
-export type OrderBy = readonly OrderByItem[];
+export type QueryOrderBy<T extends ForjaEntry = ForjaRecord> = readonly OrderByItem<T>[];
+
+/**
+ * OrderByClause - Input format for orderBy (before normalization)
+ *
+ * Supports three formats:
+ * 1. Full format: [{ field: "age", direction: "asc", nulls: "last" }]
+ * 2. Object shortcut: { age: "asc" } (single field only, order not guaranteed for multiple)
+ * 3. String array: ["age", "-name"] (- prefix = desc, order guaranteed)
+ *
+ * @example
+ * ```ts
+ * // Full format - most explicit, supports nulls
+ * orderBy: [{ field: "age", direction: "asc", nulls: "last" }]
+ *
+ * // Object shortcut - simple single field
+ * orderBy: { age: "asc" }
+ *
+ * // String array - multiple fields with guaranteed order
+ * orderBy: ["age", "-createdAt"]  // age ASC, createdAt DESC
+ * ```
+ */
+export type OrderByClause<T extends ForjaEntry = ForjaRecord> =
+	| QueryOrderBy<T>
+	| Partial<Record<keyof T, OrderDirection>>
+	| readonly (keyof T | `-${string & keyof T}`)[]
 
 /**
  * QuerySelect - Normalized form of SelectClause (always array, never '*')
@@ -239,7 +264,7 @@ export type QueryPopulateOptions<T extends ForjaEntry> = {
 	readonly populate?: QueryPopulate<T> | undefined;
 	readonly limit?: number | undefined;
 	readonly offset?: number | undefined;
-	readonly orderBy?: OrderBy | undefined;
+	readonly orderBy?: QueryOrderBy | undefined;
 };
 
 /**
@@ -367,7 +392,7 @@ export interface QuerySelectObject<T extends ForjaEntry> extends QueryBase {
 	readonly select: QuerySelect<T> | undefined;
 	where?: WhereClause<T>;
 	readonly populate?: QueryPopulate<T> | undefined;
-	readonly orderBy?: OrderBy | undefined;
+	readonly orderBy?: QueryOrderBy | undefined;
 	readonly limit?: number | undefined;
 	readonly offset?: number | undefined;
 	readonly distinct?: boolean | undefined;

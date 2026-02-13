@@ -27,6 +27,7 @@ import {
 	throwQueryMissingData,
 	throwUniqueConstraintField,
 	throwUniqueConstraintIndex,
+	throwForeignKeyConstraint,
 } from "./error-helper";
 import { ForjaError } from "forja-types/errors";
 
@@ -453,9 +454,20 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 					}
 
 					const insertedIds: number[] = [];
+					const isJunctionTable = tableData.schema?._isJunctionTable === true;
 
 					for (const item of query.data) {
 						const newItem = { ...item };
+
+						// Junction table: skip existing relations silently (idempotent connect)
+						if (isJunctionTable) {
+							const alreadyExists = tableData.data.some((row) =>
+								Object.keys(newItem).every(
+									(key) => key === "id" || row[key] === newItem[key],
+								),
+							);
+							if (alreadyExists) continue;
+						}
 
 						if (!newItem["id"]) {
 							tableData.meta.lastInsertId =
@@ -471,6 +483,11 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 							}
 						}
 
+						// Apply default values from schema (like SQL DEFAULT)
+						this.applyDefaultValues(tableData, newItem);
+
+						// Check constraints before inserting
+						await this.checkForeignKeyConstraints(tableData, newItem);
 						this.checkUniqueConstraints(tableData, newItem);
 						tableData.data.push(newItem);
 						insertedIds.push(newItem["id"] as number);
@@ -495,9 +512,10 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 					};
 					const rowsToUpdate = await runner.filterAndSort(updateQuery);
 
-					// Check unique constraints for each row being updated
+					// Check constraints for each row being updated
 					for (const row of rowsToUpdate) {
 						const updatedData = { ...row, ...query.data };
+						await this.checkForeignKeyConstraints(tableData, updatedData);
 						this.checkUniqueConstraints(
 							tableData,
 							updatedData,
@@ -782,6 +800,105 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		}
 
 		return result;
+	}
+
+	/**
+	 * Apply default values from schema for fields not provided
+	 *
+	 * This mimics SQL DEFAULT behavior - if a field has a default value
+	 * defined in the schema and the field is not provided (undefined),
+	 * the default value is applied.
+	 *
+	 * @param tableData - Table data with schema
+	 * @param data - Data being inserted (mutated in place)
+	 */
+	private applyDefaultValues(
+		tableData: JsonTableFile,
+		data: Record<string, unknown>,
+	): void {
+		const schema = tableData.schema;
+		if (!schema?.fields) return;
+
+		for (const [fieldName, fieldDef] of Object.entries(schema.fields)) {
+			// Skip if value is already provided (including null - explicit null is intentional)
+			if (fieldName in data) continue;
+
+			// Check if field has a default value
+			const defaultValue = (fieldDef as { default?: unknown }).default;
+			if (defaultValue !== undefined) {
+				data[fieldName] = defaultValue;
+			}
+		}
+	}
+
+	/**
+	 * Check foreign key constraints before insert/update
+	 *
+	 * Validates that all foreign key values reference existing records
+	 * in their target tables. This mimics SQL FK constraint behavior.
+	 *
+	 * @param tableData - Table data with schema
+	 * @param data - Data to be inserted/updated
+	 * @throws ForjaJsonAdapterError if FK constraint violated
+	 */
+	private async checkForeignKeyConstraints(
+		tableData: JsonTableFile,
+		data: Record<string, unknown>,
+	): Promise<void> {
+		const schema = tableData.schema;
+		if (!schema?.fields) return;
+
+		for (const [fieldName, fieldDef] of Object.entries(schema.fields)) {
+			// Only check relation fields with foreignKey
+			if (fieldDef.type !== "relation") continue;
+
+			const relationField = fieldDef as {
+				type: "relation";
+				model: string;
+				foreignKey?: string;
+				kind?: string;
+			};
+
+			// Only belongsTo/hasOne have inline foreign keys
+			if (relationField.kind !== "belongsTo" && relationField.kind !== "hasOne") {
+				continue;
+			}
+
+			const foreignKey = relationField.foreignKey ?? `${fieldName}Id`;
+			const fkValue = data[foreignKey];
+
+			// Skip if FK is not in data or is null (null is allowed)
+			if (fkValue === undefined || fkValue === null) continue;
+
+			// Get target table
+			const targetSchema = await this.getSchemaByModelName(relationField.model);
+			if (!targetSchema) {
+				// Target model not found - skip check (will fail elsewhere)
+				continue;
+			}
+
+			const targetTable = targetSchema.tableName ?? relationField.model.toLowerCase();
+			const targetData = await this.getCachedTable(targetTable);
+
+			if (!targetData) {
+				// Target table not found - skip check
+				continue;
+			}
+
+			// Check if referenced record exists
+			const exists = targetData.data.some(
+				(row) => row["id"] === fkValue,
+			);
+
+			if (!exists) {
+				throwForeignKeyConstraint(
+					foreignKey,
+					fkValue,
+					relationField.model,
+					schema.tableName ?? "unknown",
+				);
+			}
+		}
 	}
 
 	/**

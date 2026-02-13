@@ -752,6 +752,11 @@ export class SchemaRegistry {
 
 	/**
 	 * Create junction table for manyToMany relation
+	 *
+	 * Uses relation fields instead of plain number fields.
+	 * This enables FK constraint support in all adapters:
+	 * - SQL adapters create REFERENCES constraints
+	 * - JSON adapter validates FK existence
 	 */
 	private createJunctionTable(
 		schemaName: string,
@@ -764,18 +769,38 @@ export class SchemaRegistry {
 			return { success: true, data: undefined };
 		}
 
-		// Create junction table schema
+		// Create junction table schema with relation fields AND their FK fields
+		// FK fields are added directly here since processRelations() won't re-process junction tables
+		const sourceFk = `${schemaName}Id`;
+		const targetFk = `${relation.model}Id`;
+
 		const junctionSchema: SchemaDefinition = {
 			name: junctionTableName,
 			tableName: junctionTableName,
 			fields: {
-				id: { type: "number", required: false, autoIncrement: true }, // ✅ EKLE
-				[`${schemaName}Id`]: { type: "number", required: true },
-				[`${relation.model}Id`]: { type: "number", required: true },
+				id: { type: "number", required: false, autoIncrement: true },
+				// Relation fields
+				[schemaName]: {
+					type: "relation",
+					kind: "belongsTo",
+					model: schemaName,
+					foreignKey: sourceFk,
+					required: true,
+				} as RelationField,
+				[relation.model]: {
+					type: "relation",
+					kind: "belongsTo",
+					model: relation.model,
+					foreignKey: targetFk,
+					required: true,
+				} as RelationField,
+				// FK fields (added directly, not via processRelations)
+				[sourceFk]: { type: "number", required: true, hidden: true },
+				[targetFk]: { type: "number", required: true, hidden: true },
 			},
 			indexes: [
 				{
-					fields: [`${schemaName}Id`, `${relation.model}Id`],
+					fields: [sourceFk, targetFk],
 					unique: true,
 				},
 			],

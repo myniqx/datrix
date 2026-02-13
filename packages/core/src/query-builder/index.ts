@@ -14,3 +14,6 @@ export {
 	countFrom,
 	ForjaQueryBuilder,
 } from "./builder";
+
+// Export normalizers
+export { normalizeOrderBy } from "./orderby";

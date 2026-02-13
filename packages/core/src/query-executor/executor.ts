@@ -446,11 +446,12 @@ export class QueryExecutor {
 			return recordIds;
 		}
 
+		// Use updated record IDs for select (not original where, which may no longer match)
 		const selectQuery: QuerySelectObject<T> = {
 			type: "select",
 			table: query.table,
 			select: query.select ?? undefined,
-			...(query.where !== undefined && { where: query.where }),
+			where: { id: { $in: recordIds.map((r) => r.id) } } as WhereClause<T>,
 			...(query.populate !== undefined && { populate: query.populate }),
 		};
 

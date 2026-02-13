@@ -85,7 +85,7 @@ export {
 	type PopulateClause,
 	type OrderDirection,
 	type OrderByItem,
-	type OrderBy,
+	type QueryOrderBy as OrderBy,
 	type QuerySelectObject,
 	type QueryCountObject,
 	type QueryInsertObject,

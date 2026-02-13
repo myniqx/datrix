@@ -13,12 +13,14 @@ import type {
 	PopulateClause,
 	OrderByItem,
 	OrderDirection,
+	OrderByClause,
 } from "forja-types/core/query-builder";
 
 import { normalizeWhere } from "./where";
 import { normalizePopulateArray } from "./populate";
 import { normalizeSelect } from "./select";
 import { processData } from "./data";
+import { normalizeOrderBy } from "./orderby";
 import {
 	throwSchemaNotFound,
 	throwInvalidQueryType,
@@ -70,7 +72,7 @@ interface MutableQueryState<T extends ForjaEntry> {
 	select?: SelectClause<T>[];
 	where?: WhereClause<T>[];
 	populate?: PopulateClause<T>[];
-	orderBy?: OrderByItem[];
+	orderBy?: OrderByClause<T>;
 	limit?: number;
 	offset?: number;
 	data?: Partial<T>;
@@ -176,11 +178,48 @@ export class ForjaQueryBuilder<
 	}
 
 	/**
-	 * Order by field
+	 * Order by field(s)
+	 *
+	 * Supports multiple formats:
+	 * - Fluent: .orderBy("age", "asc")
+	 * - Full: .orderBy([{ field: "age", direction: "asc" }])
+	 * - Object: .orderBy({ age: "asc" })
+	 * - Array: .orderBy(["age", "-name"])
+	 *
+	 * @example
+	 * ```ts
+	 * // Fluent API (single field)
+	 * builder.orderBy("age", "asc").orderBy("name", "desc");
+	 *
+	 * // Full format
+	 * builder.orderBy([{ field: "age", direction: "asc", nulls: "last" }]);
+	 *
+	 * // Object shortcut
+	 * builder.orderBy({ age: "asc" });
+	 *
+	 * // String array
+	 * builder.orderBy(["age", "-name"]);
+	 * ```
 	 */
-	orderBy(field: string, direction: OrderDirection = "asc"): this {
-		const orderByItem: OrderByItem = { field, direction };
-		this.query.orderBy = [...(this.query.orderBy || []), orderByItem];
+	orderBy(clause: OrderByClause<TSchema>): this;
+	orderBy(field: keyof TSchema, direction?: OrderDirection): this;
+	orderBy(
+		fieldOrClause: keyof TSchema | OrderByClause<TSchema>,
+		direction: OrderDirection = "asc",
+	): this {
+		// Fluent API: orderBy("field", "asc")
+		if (typeof fieldOrClause === "string" && !Array.isArray(fieldOrClause)) {
+			const normalized = normalizeOrderBy(this.query.orderBy);
+			const newItem: OrderByItem<TSchema> = {
+				field: fieldOrClause as keyof TSchema,
+				direction,
+			};
+			this.query.orderBy = [...(normalized || []), newItem];
+			return this;
+		}
+
+		// Clause format: orderBy([...]) or orderBy({...})
+		this.query.orderBy = fieldOrClause as OrderByClause<TSchema>;
 		return this;
 	}
 
@@ -308,6 +347,7 @@ export class ForjaQueryBuilder<
 			this._modelName,
 			this._registry,
 		);
+		const normalizedOrderBy = normalizeOrderBy(this.query.orderBy);
 
 		// Spread helpers for reuse
 		const selectSpread = normalizedSelect !== undefined
@@ -328,8 +368,8 @@ export class ForjaQueryBuilder<
 					...selectSpread,
 					...whereSpread,
 					...populateSpread,
-					...(this.query.orderBy !== undefined && {
-						orderBy: this.query.orderBy as readonly OrderByItem[],
+					...(normalizedOrderBy !== undefined && {
+						orderBy: normalizedOrderBy,
 					}),
 					...(this.query.limit !== undefined && { limit: this.query.limit }),
 					...(this.query.offset !== undefined && { offset: this.query.offset }),

@@ -151,6 +151,7 @@ export async function expectForjaErrorAsync(
 		await fn();
 	} catch (error) {
 		caughtError = error;
+		console.log("Error", JSON.stringify(caughtError, null, 2));
 	}
 
 	expect(caughtError).toBeInstanceOf(ForjaError);
