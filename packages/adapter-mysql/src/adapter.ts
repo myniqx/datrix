@@ -834,11 +834,11 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 /**
  * MySQL transaction implementation
  */
-class MySQLTransaction<T extends ForjaEntry> implements Transaction {
+class MySQLTransaction implements Transaction {
 	readonly id: string;
 	private connection: PoolConnection;
 	private translator: MySQLQueryTranslator;
-	private errorMapper: (
+	private errorMapper: <T extends ForjaEntry> (
 		error: unknown,
 		query?: QueryObject<T>,
 		sql?: string,
@@ -850,7 +850,7 @@ class MySQLTransaction<T extends ForjaEntry> implements Transaction {
 	constructor(
 		connection: PoolConnection,
 		translator: MySQLQueryTranslator,
-		errorMapper: (
+		errorMapper: <T extends ForjaEntry> (
 			error: unknown,
 			query?: QueryObject<T>,
 			sql?: string,

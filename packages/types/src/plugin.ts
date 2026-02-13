@@ -81,11 +81,11 @@ export interface ForjaPlugin<
 	// Query hooks
 	onSchemaLoad?(schemas: SchemaRegistry): Promise<void>;
 	onCreateQueryContext?(context: QueryContext): Promise<QueryContext>;
-	onBeforeQuery?(
+	onBeforeQuery?<T extends ForjaEntry>(
 		query: QueryObject<T>,
 		context: QueryContext,
 	): Promise<QueryObject<T>>;
-	onAfterQuery?<TResult>(
+	onAfterQuery?<TResult extends ForjaEntry>(
 		result: TResult,
 		context: QueryContext,
 	): Promise<TResult>;

@@ -11,7 +11,7 @@ import { CrudErrorCode, CrudErrorContext, CrudOperation, ForjaCrudError, ForjaEr
  * Options for throwing CRUD errors
  */
 export interface ThrowCrudErrorOptions {
-	readonly operation: CrudOperation | "insert";
+	readonly operation: CrudOperation;
 	readonly model: string;
 	readonly code: CrudErrorCode;
 	readonly message?: string;
@@ -140,7 +140,7 @@ export function throwUnsupportedQueryType(queryType: unknown): never {
  * Most common use case in CRUD operations
  */
 export function throwQueryExecutionError<T extends ForjaEntry>(
-	operation: CrudOperation | "insert",
+	operation: CrudOperation,
 	model: string,
 	query: QueryObject<T>,
 	cause: Error,

@@ -153,7 +153,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	async executeQuery<TResult extends ForjaEntry>(
 		query: QueryObject<TResult>,
 		client?: PoolClient,
-	): Promise<Result<QueryResult<TResult>, QueryError>> {
+	): Promise<Result<QueryResult<TResult>, QueryError<TResult>>> {
 		// Runtime validation of QueryObject structure
 		const validation = validateQueryObject(query);
 		if (!validation.success) {
@@ -183,7 +183,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 		let lastSql: string | undefined;
 
 		try {
-			if (query.populate && query.type === "select") {
+			if (query.type === "select" && query.populate) {
 				const schemaRegistry = Forja.getInstance().getSchemas();
 				const populator = new PostgresPopulator(
 					queryRunner,
@@ -204,7 +204,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 			const result = await queryRunner.query<QueryResultRow>(sql, params as unknown[]);
 
 			if (query.type === "select") {
-				const rows = result.rows as readonly TResult[];
+				const rows = result.rows as unknown as readonly TResult[];
 				const metadata: QueryMetadata = {
 					rowCount: rows.length,
 					affectedRows: 0,
@@ -251,11 +251,11 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	/**
 	 * Map Postgres errors to standardized QueryError
 	 */
-	private mapPostgresError(
+	private mapPostgresError<TResult extends ForjaEntry>(
 		error: unknown,
-		query?: QueryObject,
+		query?: QueryObject<TResult>,
 		sql?: string,
-	): QueryError {
+	): QueryError<TResult> {
 		const message = error instanceof Error ? error.message : String(error);
 		const details = error as {
 			code?: string;
@@ -297,10 +297,10 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	/**
 	 * Execute raw SQL query
 	 */
-	async executeRawQuery<TResult>(
+	async executeRawQuery<TResult extends ForjaEntry>(
 		sql: string,
 		params: readonly unknown[],
-	): Promise<Result<QueryResult<TResult>, QueryError>> {
+	): Promise<Result<QueryResult<TResult>, QueryError<TResult>>> {
 		if (!this.pool) {
 			return {
 				success: false,
@@ -613,7 +613,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	/**
 	 * Get all table names
 	 */
-	async getTables(): Promise<Result<readonly string[], QueryError>> {
+	async getTables<TResult extends ForjaEntry>(): Promise<Result<readonly string[], QueryError<TResult>>> {
 		if (!this.pool) {
 			return {
 				success: false,
@@ -646,9 +646,9 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	/**
 	 * Get table schema (introspection)
 	 */
-	async getTableSchema(
+	async getTableSchema<TResult extends ForjaEntry>(
 		tableName: string,
-	): Promise<Result<SchemaDefinition, QueryError>> {
+	): Promise<Result<SchemaDefinition, QueryError<TResult>>> {
 		if (!this.pool) {
 			return {
 				success: false,
@@ -886,7 +886,7 @@ class PostgresTransaction implements Transaction {
 	 */
 	async executeQuery<TResult extends ForjaEntry>(
 		query: QueryObject<TResult>,
-	): Promise<Result<QueryResult<TResult>, QueryError>> {
+	): Promise<Result<QueryResult<TResult>, QueryError<TResult>>> {
 		if (this.committed || this.rolledBack) {
 			return {
 				success: false,
@@ -917,7 +917,7 @@ class PostgresTransaction implements Transaction {
 	async executeRawQuery<TResult extends ForjaEntry>(
 		sql: string,
 		params: readonly unknown[],
-	): Promise<Result<QueryResult<TResult>, QueryError>> {
+	): Promise<Result<QueryResult<TResult>, QueryError<TResult>>> {
 		if (this.committed || this.rolledBack) {
 			return {
 				success: false,

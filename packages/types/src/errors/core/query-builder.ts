@@ -31,6 +31,7 @@ export type QueryBuilderErrorCode =
 	| "EMPTY_CLAUSE"
 	| "DUPLICATE_FIELD"
 	| "COERCION_FAILED"
+	| "DELETE_WITHOUT_WHERE"
 	| "RELATION_IN_SELECT"
 	| "SCHEMA_NOT_FOUND"
 	| "UNKNOWN_FIELD";
@@ -39,13 +40,13 @@ export type QueryBuilderErrorCode =
  * Query builder error context
  */
 export interface QueryBuilderErrorContext {
-	readonly field?: string;
-	readonly operator?: string;
-	readonly value?: unknown;
-	readonly availableFields?: readonly string[];
-	readonly validOperators?: readonly string[];
-	readonly depth?: number;
-	readonly maxDepth?: number;
+	readonly field?: string | undefined;
+	readonly operator?: string | undefined;
+	readonly value?: unknown | undefined;
+	readonly availableFields?: readonly string[] | undefined;
+	readonly validOperators?: readonly string[] | undefined;
+	readonly depth?: number | undefined;
+	readonly maxDepth?: number | undefined;
 	readonly [key: string]: unknown;
 }
 
@@ -89,9 +90,9 @@ export class ForjaQueryBuilderError extends ForjaError<QueryBuilderErrorContext>
 		const normalizedOptions: ForjaQueryBuilderErrorOptions =
 			typeof options === "string" || options === undefined
 				? {
-						code: (options as QueryBuilderErrorCode) || "INVALID_VALUE",
-						component: "builder",
-					}
+					code: (options as QueryBuilderErrorCode) || "INVALID_VALUE",
+					component: "builder",
+				}
 				: options;
 
 		super(message, {

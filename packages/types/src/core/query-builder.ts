@@ -265,7 +265,7 @@ export type QueryPopulate<T extends ForjaEntry = ForjaRecord> = {
  */
 export type NormalizedNestedData<T extends ForjaEntry> = {
 	readonly data: Partial<T>;
-	readonly relations?: QueryRelations<T>;
+	readonly relations?: QueryRelations<T> | undefined;
 };
 
 /**

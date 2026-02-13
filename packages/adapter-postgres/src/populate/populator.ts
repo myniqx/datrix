@@ -329,8 +329,8 @@ export class PostgresPopulator {
 	 */
 	private buildJsonAggregationQuery<T extends ForjaEntry>(
 		query: QuerySelectObject<T>,
-	): PostgresQuerySelectObject<T> {
-		const pgQuery = query as PostgresQuerySelectObject<T>;
+	): PostgresQueryObject<T> {
+		const pgQuery = query as PostgresQueryObject<T>;
 		const joins = this.joinBuilder.buildJoins(pgQuery, "json-aggregation");
 		const aggregations = this.aggregationBuilder.buildAggregations(
 			query.table,
@@ -347,7 +347,7 @@ export class PostgresPopulator {
 				populateJoins: joinSQL,
 				populateAggregations: aggregationSQL,
 			},
-		} as PostgresQuerySelectObject<T>;
+		} as PostgresQueryObject<T>;
 	}
 
 	/**
@@ -355,14 +355,14 @@ export class PostgresPopulator {
 	 */
 	private buildLateralJoinsQuery<T extends ForjaEntry>(
 		query: QuerySelectObject<T>,
-	): PostgresQuerySelectObject<T> {
+	): PostgresQueryObject<T> {
 		return {
 			...query,
 			_metadata: {
 				populateStrategy: "lateral-joins" as const,
 				populateClause: query.populate,
 			},
-		} as PostgresQuerySelectObject<T>;
+		} as PostgresQueryObject<T>;
 	}
 
 	/**

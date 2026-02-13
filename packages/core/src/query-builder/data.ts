@@ -22,6 +22,7 @@ import type {
 	NormalizedNestedData,
 	NormalizedRelationOperations,
 	NormalizedRelationUpdate,
+	QueryRelations,
 } from "forja-types/core/query-builder";
 import { throwInvalidField, throwInvalidValue } from "./error-helper";
 
@@ -444,7 +445,7 @@ export function processData<T extends ForjaEntry>(
 		data: scalars as Partial<T>,
 		relations:
 			Object.keys(normalizedRelations).length > 0
-				? normalizedRelations
+				? normalizedRelations as unknown as QueryRelations<T>
 				: undefined,
 	};
 }

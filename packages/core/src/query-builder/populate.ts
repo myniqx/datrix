@@ -177,7 +177,7 @@ export function normalizePopulate<T extends ForjaEntry>(
 function normalizePopulateDotNotation<T extends ForjaEntry>(
 	paths: readonly string[],
 	schema: SchemaDefinition,
-	modelName: string,
+	_modelName: string,
 	registry: SchemaRegistry,
 ): Record<string, PopulateOptions<T>> {
 	const result: Record<string, any> = {};
@@ -328,12 +328,12 @@ export function mergePopulateClauses<T extends ForjaEntry>(
 						? { where: newOptions.where || existing.where }
 						: {}),
 					...(newOptions.populate !== undefined ||
-					existing.populate !== undefined
+						existing.populate !== undefined
 						? {
-								populate: newOptions.populate
-									? mergePopulateClauses(existing.populate, newOptions.populate)
-									: existing.populate,
-							}
+							populate: newOptions.populate
+								? mergePopulateClauses(existing.populate, newOptions.populate)
+								: existing.populate,
+						}
 						: {}),
 					...(newOptions.limit !== undefined || existing.limit !== undefined
 						? { limit: newOptions.limit ?? existing.limit }

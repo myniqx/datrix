@@ -6,7 +6,7 @@
  */
 
 import { QueryObject } from "forja-types/core/query-builder";
-import { SchemaRegistry, SchemaDefinition } from "forja-types/core/schema";
+import { SchemaRegistry, SchemaDefinition, ForjaEntry } from "forja-types/core/schema";
 import {
 	ForjaPlugin,
 	PluginContext,
@@ -84,10 +84,10 @@ export abstract class BasePlugin<
 	 *
 	 * Default implementation returns query unchanged
 	 */
-	async onBeforeQuery(
-		query: QueryObject,
+	async onBeforeQuery<T extends ForjaEntry>(
+		query: QueryObject<T>,
 		_context: QueryContext,
-	): Promise<QueryObject> {
+	): Promise<QueryObject<T>> {
 		return query;
 	}
 
@@ -96,7 +96,7 @@ export abstract class BasePlugin<
 	 *
 	 * Default implementation returns result unchanged
 	 */
-	async onAfterQuery<TResult>(
+	async onAfterQuery<TResult extends ForjaEntry>(
 		result: TResult,
 		_context: QueryContext,
 	): Promise<TResult> {

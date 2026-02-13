@@ -1,10 +1,12 @@
 import {
-	QueryObject,
 	WhereClause,
 	OrderByItem,
 	ComparisonOperators,
+	QuerySelectObject,
+	QuerySelect,
+	QueryCountObject,
 } from "forja-types/core/query-builder";
-import { RelationField, SchemaDefinition } from "forja-types/core/schema";
+import { ForjaEntry, RelationField, SchemaDefinition } from "forja-types/core/schema";
 import { JsonTableFile } from "./types";
 import type { JsonAdapter } from "./adapter";
 import {
@@ -16,9 +18,9 @@ export class JsonQueryRunner {
 	constructor(
 		private table: JsonTableFile,
 		private adapter: JsonAdapter,
-	) {}
+	) { }
 
-	async run<T = Record<string, unknown>>(query: QueryObject): Promise<T[]> {
+	async run<T extends ForjaEntry>(query: QuerySelectObject<T> | QueryCountObject<T>): Promise<Partial<T>[]> {
 		let result = this.table.data as T[];
 
 		// 1. Filter (async for nested relation WHERE support)
@@ -27,14 +29,18 @@ export class JsonQueryRunner {
 				result.map((item) => this.match(item, query.where!)),
 			);
 			result = result.filter((_, i) => matchResults[i]);
-		} else if (query.orderBy && query.orderBy.length > 0) {
+		} else if (query.type === "select" && query.orderBy && query.orderBy.length > 0) {
 			// No filter but need sort - must copy to avoid mutating original
 			result = [...result];
 		}
 
+		if (query.type === "count") {
+			return result
+		}
+
 		// 3. Project & Distinct
 		if (query.select || query.distinct) {
-			result = this.project(result, query.select, query.distinct);
+			result = this.project(result, query.select, query.distinct) as T[];
 		}
 
 		// 4. Sort (mutates array in-place)
@@ -58,8 +64,8 @@ export class JsonQueryRunner {
 	 * Run query without projection (for populate workflow)
 	 * Applies WHERE, ORDER BY, OFFSET, LIMIT but keeps all fields
 	 */
-	async filterAndSort<T = Record<string, unknown>>(
-		query: QueryObject,
+	async filterAndSort<T extends ForjaEntry>(
+		query: QuerySelectObject<T>,
 	): Promise<T[]> {
 		let result = this.table.data as T[];
 
@@ -92,23 +98,23 @@ export class JsonQueryRunner {
 	}
 
 	// Exposed for Adapter's RETURNING clause usage
-	public projectData<T>(
+	public projectData<T extends ForjaEntry>(
 		data: T[],
-		select?: readonly string[] | "*",
+		select?: QuerySelect<T>,
 		distinct?: boolean,
 	): Partial<T>[] {
 		return this.project(data, select, distinct);
 	}
 
-	private project<T>(
+	private project<T extends ForjaEntry>(
 		data: T[],
-		select?: readonly string[] | "*",
+		select?: QuerySelect<T>,
 		distinct?: boolean,
-	): any[] {
+	): Partial<T>[] {
 		let result: any[] = data;
 
 		// Projection
-		if (select && select !== "*") {
+		if (select && (select as unknown as string) !== "*") {
 			result = data.map((item) => {
 				const projected: any = {};
 				for (const field of select) {
@@ -157,9 +163,9 @@ export class JsonQueryRunner {
 	 * })
 	 * ```
 	 */
-	private async match(
+	private async match<T extends ForjaEntry>(
 		item: any,
-		where: WhereClause,
+		where: WhereClause<T>,
 		overrideSchema?: SchemaDefinition,
 	): Promise<boolean> {
 		const schema = overrideSchema ?? this.table.schema;
@@ -168,7 +174,7 @@ export class JsonQueryRunner {
 			// Handle logical operators
 			if (key === "$and") {
 				const results = await Promise.all(
-					(value as WhereClause[]).map((cond) =>
+					(value as WhereClause<T>[]).map((cond) =>
 						this.match(item, cond, schema),
 					),
 				);
@@ -177,7 +183,7 @@ export class JsonQueryRunner {
 			}
 			if (key === "$or") {
 				const results = await Promise.all(
-					(value as WhereClause[]).map((cond) =>
+					(value as WhereClause<T>[]).map((cond) =>
 						this.match(item, cond, schema),
 					),
 				);
@@ -185,7 +191,7 @@ export class JsonQueryRunner {
 				continue;
 			}
 			if (key === "$not") {
-				if (await this.match(item, value as WhereClause, schema)) return false;
+				if (await this.match(item, value as WhereClause<T>, schema)) return false;
 				continue;
 			}
 
@@ -196,8 +202,8 @@ export class JsonQueryRunner {
 				const matched = await this.matchRelation(
 					item,
 					key,
-					value as WhereClause,
-					fieldDef as RelationField,
+					value as WhereClause<T>,
+					fieldDef,
 				);
 				if (!matched) {
 					return false;
@@ -252,10 +258,10 @@ export class JsonQueryRunner {
 	 * @param relationField - Relation field definition
 	 * @returns True if relation matches
 	 */
-	private async matchRelation(
+	private async matchRelation<T extends ForjaEntry>(
 		item: any,
 		relationName: string,
-		relationWhere: WhereClause,
+		relationWhere: WhereClause<T>,
 		relationField: RelationField,
 	): Promise<boolean> {
 		const foreignKey = relationField.foreignKey!;

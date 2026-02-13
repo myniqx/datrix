@@ -5,7 +5,7 @@
  * Supports nested relations and circular reference detection.
  */
 
-import type { FieldDefinition } from "forja-types/core/schema";
+import type { FieldDefinition, ForjaEntry } from "forja-types/core/schema";
 import type {
 	PopulateOptions,
 	SelectClause,
@@ -329,14 +329,14 @@ function serializeRelationRecord(
 /**
  * Get fields to include from select clause
  */
-function getFieldsToInclude(
-	select: SelectClause | undefined,
+function getFieldsToInclude<T extends ForjaEntry>(
+	select: SelectClause<T> | undefined,
 ): readonly string[] | "*" {
 	if (!select || select === "*") {
 		return "*";
 	}
 
-	return select;
+	return select as readonly string[];
 }
 
 /**

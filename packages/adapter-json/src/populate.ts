@@ -1,6 +1,6 @@
-import { QueryObject } from "forja-types/core/query-builder";
+import { QuerySelect, QuerySelectObject, WhereClause } from "forja-types/core/query-builder";
 import type { JsonAdapter } from "./adapter";
-import type { RelationField } from "forja-types/core/schema";
+import type { ForjaEntry, RelationField } from "forja-types/core/schema";
 import {
 	throwSchemaNotFound,
 	throwRelationNotFound,
@@ -10,12 +10,12 @@ import {
 import { JsonQueryRunner } from "./runner";
 
 export class JsonPopulator {
-	constructor(private adapter: JsonAdapter) {}
+	constructor(private adapter: JsonAdapter) { }
 
-	async populate(
-		rows: Record<string, unknown>[],
-		query: QueryObject,
-	): Promise<Record<string, unknown>[]> {
+	async populate<T extends ForjaEntry>(
+		rows: T[],
+		query: QuerySelectObject<T>,
+	): Promise<T[]> {
 		if (!query.populate || rows.length === 0) {
 			return rows;
 		}
@@ -77,16 +77,16 @@ export class JsonPopulator {
 				// Source has FK (e.g. Post.authorId -> User.id)
 				const ids = new Set(
 					result
-						.map((r) => r[foreignKey])
+						.map((r) => r[foreignKey as keyof T] as number)
 						.filter(
-							(id): id is string | number => id !== null && id !== undefined,
+							(id): id is number => id !== null && id !== undefined,
 						),
 				);
 
-				const relatedMap = new Map<string | number, Record<string, unknown>>();
+				const relatedMap = new Map<number, Record<string, unknown>>();
 				if (ids.size > 0) {
 					for (const item of relatedData) {
-						const itemId = item["id"] as string | number;
+						const itemId = item["id"] as number;
 						if (ids.has(itemId)) {
 							relatedMap.set(itemId, item);
 						}
@@ -94,11 +94,11 @@ export class JsonPopulator {
 				}
 
 				for (const row of result) {
-					const fkValue = row[foreignKey] as string | number | null | undefined;
+					const fkValue = row[foreignKey as keyof T] as number | null | undefined;
 					if (fkValue !== null && fkValue !== undefined) {
-						row[relationName] = relatedMap.get(fkValue) ?? null;
+						row[relationName as keyof T] = (relatedMap.get(fkValue) ?? null) as T[keyof T];
 					} else {
-						row[relationName] = null;
+						row[relationName as keyof T] = null as T[keyof T];
 					}
 				}
 			} else if (kind === "hasMany" || kind === "hasOne") {
@@ -107,7 +107,7 @@ export class JsonPopulator {
 					result
 						.map((r) => r["id"])
 						.filter(
-							(id): id is string | number => id !== null && id !== undefined,
+							(id): id is number => id !== null && id !== undefined,
 						),
 				);
 
@@ -115,7 +115,6 @@ export class JsonPopulator {
 				const grouped = new Map<string | number, Record<string, unknown>[]>();
 				for (const item of relatedData) {
 					const fkValue = item[foreignKey] as
-						| string
 						| number
 						| null
 						| undefined;
@@ -134,9 +133,9 @@ export class JsonPopulator {
 					const rowId = row["id"] as string | number;
 					const group = grouped.get(rowId) ?? [];
 					if (kind === "hasOne") {
-						row[relationName] = group[0] ?? null;
+						row[relationName as keyof T] = (group[0] ?? null) as T[keyof T];
 					} else {
-						row[relationName] = group;
+						row[relationName as keyof T] = group as T[keyof T];
 					}
 				}
 			} else if (kind === "manyToMany") {
@@ -158,7 +157,7 @@ export class JsonPopulator {
 				const sourceIds = result
 					.map((r) => r["id"])
 					.filter(
-						(id): id is string | number => id !== null && id !== undefined,
+						(id): id is number => id !== null && id !== undefined,
 					);
 
 				if (sourceIds.length === 0) continue;
@@ -168,15 +167,16 @@ export class JsonPopulator {
 				const relevantJunctions = await junctionRunner.run({
 					type: "select",
 					table: junctionTableName,
-					where: { [sourceFK]: { $in: sourceIds } },
-				});
+					where: { [sourceFK]: { $in: sourceIds } } as WhereClause<T>,
+					select: "*" as unknown as QuerySelect<T>,
+				} satisfies QuerySelectObject<T>);
 
 				// Build mapping: sourceId -> targetIds[]
 				// Normalize all IDs to number for consistent comparison
 				const mapping = new Map<number, number[]>();
 				for (const junction of relevantJunctions) {
-					const srcId = junction[sourceFK];
-					const tgtId = junction[targetFK];
+					const srcId = junction[sourceFK as keyof T];
+					const tgtId = junction[targetFK as keyof T];
 
 					// Normalize to number
 					const normalizedSrcId =
@@ -208,7 +208,8 @@ export class JsonPopulator {
 				const targetRecords = await targetRunner.run({
 					type: "select",
 					table: targetTable,
-					where: { id: { $in: Array.from(allTargetIds) } },
+					where: { id: { $in: Array.from(allTargetIds) } } as WhereClause<T>,
+					select: "*" as unknown as QuerySelect<T>,
 				});
 
 				// Map to result rows
@@ -226,20 +227,20 @@ export class JsonPopulator {
 						return targetIds.includes(normalizedRID);
 					});
 
-					row[relationName] = relatedRecords;
+					row[relationName as keyof T] = relatedRecords as T[keyof T];
 				}
 			}
 
 			// Nested populate (recursion)
 			if (typeof _options === "object" && _options.populate) {
-				const nextRows: Record<string, unknown>[] = [];
+				const nextRows: T[] = [];
 				for (const row of result) {
-					const val = row[relationName];
+					const val = row[relationName as keyof T] as T;
 					if (!val) continue;
 					if (Array.isArray(val)) {
-						nextRows.push(...(val as Record<string, unknown>[]));
+						nextRows.push(...val);
 					} else {
-						nextRows.push(val as Record<string, unknown>);
+						nextRows.push(val);
 					}
 				}
 
@@ -248,6 +249,7 @@ export class JsonPopulator {
 						type: "select",
 						table: targetTable,
 						populate: _options.populate,
+						select: "*" as unknown as QuerySelect<T>,
 					});
 				}
 			}

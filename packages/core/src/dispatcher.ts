@@ -39,7 +39,7 @@ export class Dispatcher {
 	constructor(
 		private readonly registry: PluginRegistry,
 		private readonly forja: Forja,
-	) {}
+	) { }
 
 	/**
 	 * Create and populate query context
@@ -96,7 +96,7 @@ export class Dispatcher {
 	 * 3. Execute query
 	 * 4. onAfterQuery hooks
 	 */
-	async executeQuery<TResult extends ForjaEntry, R = ForjaEntry>(
+	async executeQuery<TResult extends ForjaEntry, R extends ForjaEntry = ForjaEntry>(
 		action: QueryAction,
 		schema: SchemaDefinition,
 		query: QueryObject<TResult>,
@@ -105,7 +105,7 @@ export class Dispatcher {
 		const context = await this.buildQueryContext(action, schema);
 		const modifiedQuery = await this.dispatchBeforeQuery(query, context);
 		const result = await executor(modifiedQuery);
-		const finalResult = await this.dispatchAfterQuery(result, context);
+		const finalResult = await this.dispatchAfterQuery<R>(result, context);
 		return finalResult;
 	}
 
@@ -134,7 +134,8 @@ export class Dispatcher {
 						context,
 					);
 
-					const validation = validateQueryObject(modifiedQuery);
+					// TODO: her pluginden sonra tekrar full bir validasyon yerine en son tek bir validasyon yap.
+					const validation = validateQueryObject<TResult>(modifiedQuery);
 					if (validation.success) {
 						currentQuery = validation.data;
 					} else {
@@ -159,7 +160,7 @@ export class Dispatcher {
 	 * Dispatch onAfterQuery hook to all plugins (serial execution)
 	 * Plugins can modify the result.
 	 */
-	private async dispatchAfterQuery<TResult>(
+	private async dispatchAfterQuery<TResult extends ForjaEntry>(
 		result: TResult,
 		context: QueryContext,
 	): Promise<TResult> {

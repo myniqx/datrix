@@ -5,9 +5,10 @@
  * Provides consistent error messages and suggestions.
  */
 
+import { ForjaEntry } from "forja-types";
 import { ForjaPostgresAdapterError } from "./error";
 import type { PopulateStrategy } from "./populate/types";
-import type { QueryObject } from "forja-types/core/query-builder";
+import type { QueryObject, QuerySelectObject } from "forja-types/core/query-builder";
 
 // ============================================================================
 // SQL Truncation Utility
@@ -19,7 +20,7 @@ import type { QueryObject } from "forja-types/core/query-builder";
  * Production: truncated to 500 chars
  */
 export function truncateSqlForError(sql: string): string {
-	if (process.env.NODE_ENV === "development") {
+	if (process.env["NODE_ENV"] === "development") {
 		return sql;
 	}
 	return sql.length > 500 ? sql.substring(0, 500) + "..." : sql;
@@ -302,8 +303,8 @@ export function throwResultProcessingError(
  * @param strategy - Populate strategy used
  * @param params - Query parameters (optional)
  */
-export function throwPopulateQueryError(
-	query: QueryObject,
+export function throwPopulateQueryError<T extends ForjaEntry>(
+	query: QuerySelectObject<T>,
 	sql: string,
 	cause: Error,
 	strategy?: PopulateStrategy,

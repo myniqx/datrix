@@ -9,6 +9,7 @@ import type {
 	QueryPopulate,
 	OrderByItem,
 	QueryPopulateOptions,
+	QuerySelect,
 } from "forja-types/core/query-builder";
 import type { SchemaRegistry } from "forja-core/schema";
 import type { ForjaEntry, RelationField } from "forja-types/core/schema";
@@ -308,9 +309,6 @@ export class AggregationBuilder {
 			`${relationName}_data`,
 		);
 
-		// Parse options
-		const opts = this.parseQueryPopulateOptions(options);
-
 		// Build field selection
 		const fieldSelection = this.buildFieldSelection(
 			relationName,
@@ -339,8 +337,8 @@ export class AggregationBuilder {
 		}
 
 		// Additional WHERE conditions from options
-		if (opts.where) {
-			const whereResult = this.translator.translateWhere(opts.where, 1);
+		if (options.where) {
+			const whereResult = this.translator.translateWhere(options.where, 1);
 			whereConditions.push(`(${whereResult.sql})`);
 		}
 
@@ -348,19 +346,19 @@ export class AggregationBuilder {
 
 		// Build ORDER BY
 		let orderByClause = "";
-		if (opts.orderBy && opts.orderBy.length > 0) {
-			orderByClause = `ORDER BY ${this.buildOrderBy(opts.orderBy)}`;
+		if (options.orderBy && options.orderBy.length > 0) {
+			orderByClause = `ORDER BY ${this.buildOrderBy(options.orderBy)}`;
 		}
 
 		// Build LIMIT/OFFSET
 		let limitClause = "";
-		if (opts.limit !== undefined) {
-			limitClause = `LIMIT ${opts.limit}`;
+		if (options.limit !== undefined) {
+			limitClause = `LIMIT ${options.limit}`;
 		}
 
 		let offsetClause = "";
-		if (opts.offset !== undefined) {
-			offsetClause = `OFFSET ${opts.offset}`;
+		if (options.offset !== undefined) {
+			offsetClause = `OFFSET ${options.offset}`;
 		}
 
 		// Determine aggregation type
@@ -422,9 +420,6 @@ export class AggregationBuilder {
 			`${relationName}_data`,
 		);
 
-		// Parse options
-		const opts = this.parseQueryPopulateOptions(options);
-
 		// Build field selection
 		const fieldSelection = this.buildFieldSelection(
 			relationName,
@@ -440,26 +435,26 @@ export class AggregationBuilder {
 
 		// Build WHERE for target table
 		let targetWhereClause = "";
-		if (opts.where) {
-			const whereResult = this.translator.translateWhere(opts.where, 1);
+		if (options.where) {
+			const whereResult = this.translator.translateWhere(options.where, 1);
 			targetWhereClause = `AND ${whereResult.sql}`;
 		}
 
 		// Build ORDER BY
 		let orderByClause = "";
-		if (opts.orderBy && opts.orderBy.length > 0) {
-			orderByClause = `ORDER BY ${this.buildOrderBy(opts.orderBy)}`;
+		if (options.orderBy && options.orderBy.length > 0) {
+			orderByClause = `ORDER BY ${this.buildOrderBy(options.orderBy)}`;
 		}
 
 		// Build LIMIT/OFFSET
 		let limitClause = "";
-		if (opts.limit !== undefined) {
-			limitClause = `LIMIT ${opts.limit}`;
+		if (options.limit !== undefined) {
+			limitClause = `LIMIT ${options.limit}`;
 		}
 
 		let offsetClause = "";
-		if (opts.offset !== undefined) {
-			offsetClause = `OFFSET ${opts.offset}`;
+		if (options.offset !== undefined) {
+			offsetClause = `OFFSET ${options.offset}`;
 		}
 
 		// Build subquery with junction join

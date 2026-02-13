@@ -300,10 +300,41 @@ export class MySQLQueryTranslator implements QueryTranslator {
 			currentSchema = this.schemaRegistry.get(modelName);
 		}
 
-		// SELECT clause
+		// Handle COUNT separately (only has where, groupBy, having)
 		if (query.type === "count") {
 			parts.push("SELECT COUNT(*) as `count`");
-		} else {
+			parts.push(`FROM ${this.escapeIdentifier(query.table)}`);
+
+			if (query.where) {
+				const whereResult = this.translateWhere(
+					query.where,
+					this.paramIndex,
+					query.table,
+				);
+				parts.push(`WHERE ${whereResult.sql}`);
+				this.paramIndex += whereResult.params.length;
+				this.params.push(...whereResult.params);
+			}
+
+			if (query.groupBy && query.groupBy.length > 0) {
+				const groupByFields = query.groupBy
+					.map((field) => this.escapeIdentifier(field))
+					.join(", ");
+				parts.push(`GROUP BY ${groupByFields}`);
+			}
+
+			if (query.having) {
+				const havingResult = this.translateWhere(query.having, this.paramIndex);
+				parts.push(`HAVING ${havingResult.sql}`);
+				this.paramIndex += havingResult.params.length;
+				this.params.push(...havingResult.params);
+			}
+
+			return parts.join(" ");
+		}
+
+		// SELECT clause for non-count queries
+		{
 			const baseSelect = this.translateSelectClause(query.select, query.table);
 
 			const metadata = query._metadata;
@@ -428,8 +459,8 @@ export class MySQLQueryTranslator implements QueryTranslator {
 	/**
 	 * Translate SELECT fields with aliases
 	 */
-	private translateSelectClause(
-		select: QuerySelect | undefined,
+	private translateSelectClause<T extends ForjaEntry>(
+		select: QuerySelect<T> | undefined,
 		tableAlias?: string,
 	): string {
 		if (!select) {
@@ -438,7 +469,7 @@ export class MySQLQueryTranslator implements QueryTranslator {
 
 		return select
 			.map((field) => {
-				const escaped = this.escapeIdentifier(field);
+				const escaped = this.escapeIdentifier(field as string);
 				return tableAlias
 					? `${this.escapeIdentifier(tableAlias)}.${escaped}`
 					: escaped;

@@ -11,7 +11,7 @@ import {
 	Transaction,
 	TransactionError,
 } from "forja-types/adapter";
-import { QueryObject } from "forja-types/core/query-builder";
+import { QueryObject, QuerySelectObject } from "forja-types/core/query-builder";
 import {
 	ForjaEntry,
 	IndexDefinition,
@@ -335,7 +335,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 
 	async executeQuery<TResult extends ForjaEntry>(
 		query: QueryObject<TResult>,
-	): Promise<Result<QueryResult<TResult>, QueryError>> {
+	): Promise<Result<QueryResult<TResult>, QueryError<TResult>>> {
 		const validation = validateQueryObject(query);
 		if (!validation.success) {
 			return {
@@ -402,7 +402,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 
 			const runner = new JsonQueryRunner(tableData, this);
 
-			let rows: Record<string, unknown>[] = [];
+			let rows: TResult[] = [];
 			const metadata: {
 				rowCount: number;
 				affectedRows: number;
@@ -427,7 +427,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 						rows = await populator.populate(rows, query);
 
 						// Step 3: Apply select recursively (preserves populated fields, applies nested selects)
-						rows = this.applySelectRecursive(
+						rows = this.applySelectRecursive<TResult>(
 							rows,
 							query.select,
 							query.populate,
@@ -476,7 +476,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 						insertedIds.push(newItem["id"] as number);
 					}
 
-					rows = insertedIds.map((id) => ({ id }));
+					rows = insertedIds.map((id) => ({ id })) as TResult[];
 					metadata.affectedRows = insertedIds.length;
 					metadata.insertIds = insertedIds;
 					shouldWrite = true;
@@ -487,12 +487,12 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 					if (!query.data) {
 						throwQueryMissingData("update", query.table);
 					}
-					const updateQuery: QueryObject = {
-						...query,
+					const updateQuery: QuerySelectObject<TResult> = {
+						...query as unknown as QuerySelectObject<TResult>,
 						limit: undefined,
 						offset: undefined,
 						orderBy: undefined,
-					} as QueryObject;
+					};
 					const rowsToUpdate = await runner.filterAndSort(updateQuery);
 
 					// Check unique constraints for each row being updated
@@ -510,29 +510,29 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 					}
 
 					const updatedIds = rowsToUpdate.map((r) => r["id"] as number);
-					rows = updatedIds.map((id) => ({ id }));
+					rows = updatedIds.map((id) => ({ id })) as TResult[];
 					metadata.affectedRows = updatedIds.length;
 					shouldWrite = true;
 					break;
 				}
 
 				case "delete": {
-					const deleteQuery: QueryObject = {
-						...query,
+					const deleteQuery: QuerySelectObject<TResult> = {
+						...query as unknown as QuerySelectObject<TResult>,
 						limit: undefined,
 						offset: undefined,
 						orderBy: undefined,
-					} as QueryObject;
+					};
 					const rowsToDelete = await runner.filterAndSort(deleteQuery);
-					const idsToDelete = new Set(rowsToDelete.map((r) => r["id"]));
+					const idsToDelete = new Set(rowsToDelete.map((r) => r.id));
 
 					const originalLength = tableData.data.length;
 					tableData.data = tableData.data.filter(
-						(d) => !idsToDelete.has(d["id"]),
+						(d) => !idsToDelete.has(d["id"] as number),
 					);
 
 					const deletedIds = rowsToDelete.map((r) => r["id"] as number);
-					rows = deletedIds.map((id) => ({ id }));
+					rows = deletedIds.map((id) => ({ id })) as TResult[];
 					metadata.affectedRows = originalLength - tableData.data.length;
 					shouldWrite = true;
 					break;
@@ -578,9 +578,9 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		}
 	}
 
-	async executeRawQuery<TResult>(
+	async executeRawQuery<TResult extends ForjaEntry>(
 		sql: string,
-	): Promise<Result<QueryResult<TResult>, QueryError>> {
+	): Promise<Result<QueryResult<TResult>, QueryError<TResult>>> {
 		return {
 			success: false,
 			error: new QueryError("executeRawQuery is not supported by JsonAdapter", {
@@ -716,31 +716,31 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 	 * @param populate - Populate configuration (contains nested selects)
 	 * @returns Rows with select applied recursively
 	 */
-	private applySelectRecursive(
-		rows: Record<string, unknown>[],
-		select?: readonly string[] | "*",
-		populate?: QueryObject["populate"],
-	): Record<string, unknown>[] {
+	private applySelectRecursive<T extends ForjaEntry>(
+		rows: T[],
+		select?: QuerySelectObject<T>["select"],
+		populate?: QuerySelectObject<T>["populate"],
+	): Partial<T>[] {
 		if (!rows || rows.length === 0) {
 			return rows;
 		}
 
-		let result = rows;
+		let result = rows as Partial<T>[];
 
 		// Apply top-level select (but preserve populated fields)
-		if (select && select !== "*") {
+		if (select && (select as unknown as string) !== "*") {
 			const fieldsToKeep = new Set(select);
 
 			// Add populated relation fields to keep them
 			if (populate) {
 				for (const relationName of Object.keys(populate)) {
-					fieldsToKeep.add(relationName);
+					fieldsToKeep.add(relationName as keyof T);
 				}
 			}
 
 			// Project fields
 			result = rows.map((row) => {
-				const projected: Record<string, unknown> = {};
+				const projected: Partial<T> = {};
 				for (const field of fieldsToKeep) {
 					if (field in row) {
 						projected[field] = row[field];
@@ -759,23 +759,23 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 				const nestedPopulate = options === "*" ? undefined : options.populate;
 
 				for (const row of result) {
-					const relationValue = row[relationName];
+					const relationValue = row[relationName as keyof T] as T;
 					if (!relationValue) continue;
 
 					if (Array.isArray(relationValue)) {
 						// hasMany relation
-						row[relationName] = this.applySelectRecursive(
-							relationValue as Record<string, unknown>[],
+						row[relationName as keyof T] = this.applySelectRecursive<T>(
+							relationValue,
 							nestedSelect,
 							nestedPopulate,
-						);
+						) as T[keyof T];
 					} else {
 						// belongsTo/hasOne relation
-						row[relationName] = this.applySelectRecursive(
-							[relationValue as Record<string, unknown>],
+						row[relationName as keyof T] = this.applySelectRecursive<T>(
+							[relationValue],
 							nestedSelect,
 							nestedPopulate,
-						)[0];
+						)[0] as T[keyof T];
 					}
 				}
 			}

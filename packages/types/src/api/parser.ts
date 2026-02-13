@@ -6,7 +6,7 @@
  */
 
 import { ForjaEntry, ForjaRecord } from "../core/schema";
-import { OrderByItem, QueryObject } from "../core/query-builder";
+import { OrderBy, OrderByItem, PopulateClause, SelectClause, WhereClause } from "../core/query-builder";
 import { ParserError } from "../errors/api/parser";
 import { Result } from "../utils";
 
@@ -24,10 +24,10 @@ export type RawQueryParams = Record<
  */
 
 export interface ParsedQuery<T extends ForjaEntry = ForjaRecord> {
-	readonly select?: QueryObject<T>["select"];
-	readonly where?: QueryObject<T>["where"];
-	readonly populate?: QueryObject<T>["populate"];
-	readonly orderBy?: QueryObject<T>["orderBy"];
+	readonly select?: SelectClause<T>;
+	readonly where?: WhereClause<T>;
+	readonly populate?: PopulateClause<T>;
+	readonly orderBy?: OrderBy;
 	readonly page?: number;
 	readonly pageSize?: number;
 }

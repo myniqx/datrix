@@ -14,7 +14,6 @@ import {
 import { WhereClause } from "forja-types/core/query-builder";
 import { Dispatcher } from "../dispatcher";
 import { IRawCrud, RawCrudOptions, RawFindManyOptions } from "forja-types/forja";
-import { ParsedQuery } from "forja-types";
 import {
   selectFrom,
   countFrom,
@@ -83,7 +82,7 @@ export class CrudOperations implements IRawCrud {
   async findOne<T extends ForjaEntry = ForjaEntry>(
     model: string,
     where: WhereClause<T>,
-    options?: Pick<ParsedQuery<T>, "select" | "populate">,
+    options?: RawCrudOptions<T>,
   ): Promise<T | null> {
     const builder = selectFrom<T>(model, this.schemas)
       .where(where)
@@ -122,7 +121,7 @@ export class CrudOperations implements IRawCrud {
   async findById<T extends ForjaEntry = ForjaRecord>(
     model: string,
     id: number,
-    options?: Pick<ParsedQuery<T>, "select" | "populate">,
+    options?: RawCrudOptions<T>,
   ): Promise<T | null> {
     return this.findOne<T>(model, { id } as WhereClause<T>, options);
   }

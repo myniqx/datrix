@@ -4,9 +4,10 @@
  * Type definitions specific to PostgreSQL adapter.
  */
 
-import { QueryPopulate, QueryMetadata, QueryObject } from "forja-types";
+import { QuerySelectObject } from "forja-types";
 import { FieldType, ForjaEntry } from "forja-types/core/schema";
 import { PopulateStrategy } from "./populate";
+import { QueryPopulate } from "forja-types/core/query-builder";
 
 export interface TranslateResult {
 	readonly sql: string;
@@ -24,13 +25,13 @@ export interface PostgresConfig {
 	readonly user: string;
 	readonly password: string;
 	readonly ssl?:
-		| boolean
-		| {
-				readonly rejectUnauthorized?: boolean;
-				readonly ca?: string;
-				readonly cert?: string;
-				readonly key?: string;
-		  };
+	| boolean
+	| {
+		readonly rejectUnauthorized?: boolean;
+		readonly ca?: string;
+		readonly cert?: string;
+		readonly key?: string;
+	};
 	readonly connectionTimeoutMillis?: number;
 	readonly idleTimeoutMillis?: number;
 	readonly max?: number; // Maximum pool size
@@ -301,7 +302,7 @@ export function fromPostgresValue(
 
 export interface PostgresQueryObject<
 	T extends ForjaEntry,
-> extends QueryObject<T> {
+> extends QuerySelectObject<T> {
 	_metadata?: {
 		populateAggregations?: string | undefined;
 		populateJoins?: string | undefined;

@@ -8,9 +8,13 @@
 import type {
 	QueryObject,
 	WhereClause,
-	SelectClause,
 	ComparisonOperators,
 	OrderByItem,
+	QueryCountObject,
+	QueryInsertObject,
+	QueryUpdateObject,
+	QueryDeleteObject,
+	QuerySelect,
 } from "forja-types/core/query-builder";
 import type { QueryTranslator } from "forja-types/adapter";
 import { QueryError } from "forja-types/adapter";
@@ -247,7 +251,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
 	 * Translate main query
 	 */
 	translate<T extends ForjaEntry>(
-		query: PostgresQueryObject<T>,
+		query: QueryObject<T>,
 	): TranslateResult {
 		this.reset();
 
@@ -294,7 +298,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
 	 * Translate SELECT query
 	 */
 	private translateSelect<T extends ForjaEntry>(
-		query: PostgresQueryObject<T>,
+		query: PostgresQueryObject<T> | QueryCountObject<T>,
 	): string {
 		const parts: string[] = [];
 
@@ -305,10 +309,41 @@ export class PostgresQueryTranslator implements QueryTranslator {
 			currentSchema = this.schemaRegistry.get(modelName);
 		}
 
-		// SELECT clause
+		// Handle COUNT separately (only has where, groupBy, having)
 		if (query.type === "count") {
 			parts.push("SELECT COUNT(*)");
-		} else {
+			parts.push(`FROM ${this.escapeIdentifier(query.table)}`);
+
+			if (query.where) {
+				const whereResult = this.translateWhere(
+					query.where,
+					this.paramIndex,
+					query.table,
+				);
+				parts.push(`WHERE ${whereResult.sql}`);
+				this.paramIndex += whereResult.params.length;
+				this.params.push(...whereResult.params);
+			}
+
+			if (query.groupBy && query.groupBy.length > 0) {
+				const groupByFields = query.groupBy
+					.map((field) => this.escapeIdentifier(field))
+					.join(", ");
+				parts.push(`GROUP BY ${groupByFields}`);
+			}
+
+			if (query.having) {
+				const havingResult = this.translateWhere(query.having, this.paramIndex);
+				parts.push(`HAVING ${havingResult.sql}`);
+				this.paramIndex += havingResult.params.length;
+				this.params.push(...havingResult.params);
+			}
+
+			return parts.join(" ");
+		}
+
+		// SELECT clause for non-count queries
+		{
 			const baseSelect = this.translateSelectClause(query.select, query.table);
 
 			const metadata = query._metadata;
@@ -437,17 +472,14 @@ export class PostgresQueryTranslator implements QueryTranslator {
 	/**
 	 * Translate SELECT fields with aliases
 	 */
-	private translateSelectClause(
-		select: SelectClause | undefined,
+	private translateSelectClause<T extends ForjaEntry>(
+		select: QuerySelect<T>,
 		tableAlias?: string,
 	): string {
-		if (!select || select === "*") {
-			return tableAlias ? `${this.escapeIdentifier(tableAlias)}.*` : "*";
-		}
 
 		return select
 			.map((field) => {
-				const escaped = this.escapeIdentifier(field);
+				const escaped = this.escapeIdentifier(field as string);
 				return tableAlias
 					? `${this.escapeIdentifier(tableAlias)}.${escaped}`
 					: escaped;
@@ -459,7 +491,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
 	 * Translate INSERT query
 	 */
 	private translateInsert<T extends ForjaEntry>(
-		query: PostgresQueryObject<T>,
+		query: QueryInsertObject<T>,
 	): string {
 		const dataArray = Array.isArray(query.data) ? query.data : [query.data];
 
@@ -503,7 +535,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
 	 * Translate UPDATE query
 	 */
 	private translateUpdate<T extends ForjaEntry>(
-		query: PostgresQueryObject<T>,
+		query: QueryUpdateObject<T>,
 	): string {
 		if (!query.data || Object.keys(query.data).length === 0) {
 			throw new QueryError("UPDATE query requires data");
@@ -556,7 +588,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
 	 * Translate DELETE query
 	 */
 	private translateDelete<T extends ForjaEntry>(
-		query: PostgresQueryObject<T>,
+		query: QueryDeleteObject<T>,
 	): string {
 		const parts: string[] = [];
 
@@ -688,7 +720,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
 		for (const [key, value] of Object.entries(where)) {
 			// Handle logical operators
 			if (key === "$and") {
-				const andConditions = (value as readonly WhereClause[])
+				const andConditions = (value as readonly WhereClause<T>[])
 					.map(
 						(condition) =>
 							`(${this.translateWhereConditions(condition, depth + 1, tableName, tableAlias, joins, currentSchema)})`,
@@ -699,7 +731,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
 			}
 
 			if (key === "$or") {
-				const orConditions = (value as readonly WhereClause[])
+				const orConditions = (value as readonly WhereClause<T>[])
 					.map(
 						(condition) =>
 							`(${this.translateWhereConditions(condition, depth + 1, tableName, tableAlias, joins, currentSchema)})`,
@@ -711,7 +743,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
 
 			if (key === "$not") {
 				const notCondition = this.translateWhereConditions(
-					value as WhereClause,
+					value as WhereClause<T>,
 					depth + 1,
 					tableName,
 					tableAlias,
@@ -813,7 +845,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
 						} else {
 							// Complex nested relation filtering - requires JOIN
 							// Lookup target schema ONCE for nested level
-							const targetSchema = this.schemaRegistry.get(relationField.model);
+							const targetSchema = this.schemaRegistry.get(relationField.model!);
 							if (!targetSchema) {
 								throw new QueryError(
 									`Target model '${relationField.model}' not found for relation '${key}'`,
@@ -821,7 +853,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
 							}
 
 							const targetTable =
-								targetSchema.tableName ?? relationField.model.toLowerCase();
+								targetSchema.tableName ?? relationField.model!.toLowerCase();
 							const foreignKey = relationField.foreignKey!;
 
 							const sourceTableEsc = this.escapeIdentifier(
@@ -855,12 +887,12 @@ export class PostgresQueryTranslator implements QueryTranslator {
 							// Recursively translate nested conditions with TARGET SCHEMA context
 							// THIS IS THE KEY: We pass targetSchema for the nested level!
 							const nestedCondition = this.translateWhereConditions(
-								nestedValue as WhereClause,
+								nestedValue as WhereClause<T>,
 								depth + 1,
 								targetTable,
 								key, // Use relation name as alias
 								joins,
-								targetSchema, // 👈 PASS TARGET SCHEMA!
+								targetSchema,
 							);
 
 							conditions.push(nestedCondition);
