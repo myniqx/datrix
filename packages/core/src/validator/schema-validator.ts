@@ -1,14 +1,20 @@
 /**
- * Schema Validator Implementation (~150 LOC)
+ * Schema Validator Implementation
  *
  * Validates entire objects against schema definitions.
  * Orchestrates field-level validation for all fields.
+ *
+ * Architecture:
+ * - validateSchema: Full validation - iterates ALL schema fields, checks required
+ * - validatePartial: Partial validation - iterates ONLY data keys, still checks required
+ * - Both use validateSingleField for actual field validation (no code duplication)
  */
 
 import type {
 	SchemaDefinition,
 	FieldDefinition,
 	ForjaEntry,
+	RelationField,
 } from "forja-types/core/schema";
 import type { ValidatorOptions } from "forja-types/core/validator";
 import { validateField } from "./field-validator";
@@ -17,18 +23,6 @@ import {
 	throwValidationMultiple,
 	ValidationErrorCollection,
 } from "./errors";
-
-/**
- * Create a non-required version of a field definition for partial validation
- */
-function makeFieldOptional(field: FieldDefinition): FieldDefinition {
-	// Create a properly typed partial field that maintains all properties
-	// except required which is explicitly set to false
-	return {
-		...field,
-		required: false,
-	} as FieldDefinition;
-}
 
 /**
  * Default validator options
@@ -41,7 +35,128 @@ const DEFAULT_OPTIONS: Required<ValidatorOptions> = {
 };
 
 /**
- * Validate data against schema
+ * Reserved field names that are auto-managed
+ */
+const RESERVED_FIELDS = ["id", "createdAt", "updatedAt"];
+
+/**
+ * Check if a field is a relation with foreign key
+ */
+function isRelationWithForeignKey(
+	fieldDef: FieldDefinition,
+): fieldDef is RelationField {
+	return (
+		fieldDef.type === "relation" &&
+		(fieldDef.kind === "belongsTo" || fieldDef.kind === "hasOne")
+	);
+}
+
+/**
+ * Get value from input data, handling relation foreign key fallback
+ */
+function getFieldValue(
+	inputData: Record<string, unknown>,
+	fieldName: string,
+	fieldDef: FieldDefinition,
+): unknown {
+	let value = inputData[fieldName];
+
+	// Fallback to foreign key for belongsTo/hasOne relations
+	if (!value && isRelationWithForeignKey(fieldDef) && fieldDef.foreignKey) {
+		value = inputData[fieldDef.foreignKey];
+	}
+
+	return value;
+}
+
+/**
+ * Validate a single field and collect errors
+ *
+ * This is the shared validation logic used by both validateSchema and validatePartial.
+ * Uses the ORIGINAL field definition (required is NOT modified).
+ */
+function validateSingleField(
+	value: unknown,
+	fieldDef: FieldDefinition,
+	fieldName: string,
+	errors: ValidationErrorCollection,
+	opts: Required<ValidatorOptions>,
+	schemaName: string,
+): { errors: ValidationErrorCollection; validatedValue?: unknown } {
+	const result = validateField(value, fieldDef, fieldName);
+
+	if (!result.success) {
+		errors = errors.addMany(result.error);
+
+		if (opts.abortEarly) {
+			throwValidationMultiple(schemaName, errors.getAll());
+		}
+
+		return { errors };
+	}
+
+	return { errors, validatedValue: result.data };
+}
+
+/**
+ * Handle unknown fields based on options
+ */
+function handleUnknownFields(
+	inputData: Record<string, unknown>,
+	schemaFields: Record<string, FieldDefinition>,
+	validatedData: Record<string, unknown>,
+	errors: ValidationErrorCollection,
+	opts: Required<ValidatorOptions>,
+	schemaName: string,
+): ValidationErrorCollection {
+	if (opts.strict) {
+		for (const key of Object.keys(inputData)) {
+			if (!(key in schemaFields)) {
+				errors = errors.add(
+					createValidationError(
+						key,
+						"UNKNOWN",
+						`Unknown field '${key}' in schema '${schemaName}'`,
+					),
+				);
+
+				if (opts.abortEarly) {
+					throwValidationMultiple(schemaName, errors.getAll());
+				}
+			}
+		}
+	} else if (!opts.stripUnknown) {
+		// Include unknown fields in validated data
+		for (const [key, value] of Object.entries(inputData)) {
+			if (!(key in schemaFields)) {
+				validatedData[key] = value;
+			}
+		}
+	}
+
+	return errors;
+}
+
+/**
+ * Validate input is a valid object
+ */
+function assertValidObject(data: unknown, schemaName: string): asserts data is Record<string, unknown> {
+	if (typeof data !== "object" || data === null || Array.isArray(data)) {
+		throwValidationMultiple(schemaName, [
+			createValidationError(
+				schemaName,
+				"TYPE_MISMATCH",
+				`Expected object, got ${Array.isArray(data) ? "array" : typeof data}`,
+			),
+		]);
+	}
+}
+
+/**
+ * Validate data against schema (full validation for CREATE)
+ *
+ * Iterates ALL schema fields and validates each one.
+ * Required fields that are missing will fail validation.
  */
 export function validateSchema<T extends ForjaEntry>(
 	data: unknown,
@@ -51,35 +166,19 @@ export function validateSchema<T extends ForjaEntry>(
 	const opts = { ...DEFAULT_OPTIONS, ...options };
 	let errors = new ValidationErrorCollection();
 
-	// Check if data is an object
-	if (typeof data !== "object" || data === null || Array.isArray(data)) {
-		throwValidationMultiple(schema.name, [
-			createValidationError(
-				schema.name,
-				"TYPE_MISMATCH",
-				`Expected object, got ${typeof data}`,
-			),
-		]);
-	}
+	assertValidObject(data, schema.name);
 
 	const inputData = data as Record<string, unknown>;
 	const validatedData: Record<string, unknown> = {};
 
 	// Validate each field in schema
 	for (const [fieldName, fieldDef] of Object.entries(schema.fields)) {
-		// Skip 'id' field - auto-generated by database/adapter
-		if (fieldName === "id") {
+		// Skip reserved fields - auto-generated by database/adapter
+		if (RESERVED_FIELDS.includes(fieldName)) {
 			continue;
 		}
 
-		let value = inputData[fieldName];
-		if (
-			!value &&
-			fieldDef.type === "relation" &&
-			(fieldDef.kind === "belongsTo" || fieldDef.kind === "hasOne")
-		) {
-			value = inputData[fieldDef.foreignKey!]; // if there is a foreign key, meaning it's inlined.
-		}
+		const value = getFieldValue(inputData, fieldName, fieldDef);
 
 		// Skip hidden fields if not provided - these are typically auto-managed (like FKs)
 		// and will be filled later in the CRUD flow or by the database.
@@ -87,51 +186,32 @@ export function validateSchema<T extends ForjaEntry>(
 			continue;
 		}
 
-		// Validate field
-		const result = validateField(value, fieldDef, fieldName);
+		// Validate field with original definition (required check included)
+		const result = validateSingleField(
+			value,
+			fieldDef,
+			fieldName,
+			errors,
+			opts,
+			schema.name,
+		);
 
-		if (!result.success) {
-			errors = errors.addMany(result.error);
-
-			// Abort early if option is set
-			if (opts.abortEarly) {
-				throwValidationMultiple(schema.name, errors.getAll());
-			}
-		} else if (result.data !== undefined) {
-			validatedData[fieldName] = result.data;
+		errors = result.errors;
+		if (result.validatedValue !== undefined) {
+			validatedData[fieldName] = result.validatedValue;
 		}
 	}
 
-	// Check for unknown fields (strict mode)
-	if (opts.strict) {
-		for (const key of Object.keys(inputData)) {
-			if (!(key in schema.fields)) {
-				errors = errors.add(
-					createValidationError(
-						key,
-						"UNKNOWN",
-						`Unknown field '${key}' in schema '${schema.name}'`,
-					),
-				);
+	// Handle unknown fields
+	errors = handleUnknownFields(
+		inputData,
+		schema.fields,
+		validatedData,
+		errors,
+		opts,
+		schema.name,
+	);
 
-				// Abort early if option is set
-				if (opts.abortEarly) {
-					throwValidationMultiple(schema.name, errors.getAll());
-				}
-			}
-		}
-	} else if (opts.stripUnknown) {
-		// Just ignore unknown fields
-	} else {
-		// Include unknown fields in validated data
-		for (const [key, value] of Object.entries(inputData)) {
-			if (!(key in schema.fields)) {
-				validatedData[key] = value;
-			}
-		}
-	}
-
-	// Return result
 	if (errors.hasErrors()) {
 		throwValidationMultiple(schema.name, errors.getAll());
 	}
@@ -140,7 +220,15 @@ export function validateSchema<T extends ForjaEntry>(
 }
 
 /**
- * Validate partial data (for updates)
+ * Validate partial data (for UPDATE operations)
+ *
+ * Iterates ONLY the fields present in input data.
+ * Each provided field is validated with its ORIGINAL definition (required check included).
+ *
+ * Key difference from validateSchema:
+ * - validateSchema: Missing required field = ERROR (field not in data)
+ * - validatePartial: Missing required field = OK (field not in data, not being updated)
+ * - validatePartial: Required field set to null = ERROR (explicitly setting to null)
  */
 export function validatePartial<T extends ForjaEntry>(
 	data: unknown,
@@ -150,22 +238,18 @@ export function validatePartial<T extends ForjaEntry>(
 	const opts = { ...DEFAULT_OPTIONS, ...options };
 	let errors = new ValidationErrorCollection();
 
-	// Check if data is an object
-	if (typeof data !== "object" || data === null || Array.isArray(data)) {
-		throwValidationMultiple(schema.name, [
-			createValidationError(
-				schema.name,
-				"TYPE_MISMATCH",
-				`Expected object, got ${typeof data}`,
-			),
-		]);
-	}
+	assertValidObject(data, schema.name);
 
 	const inputData = data as Record<string, unknown>;
 	const validatedData: Record<string, unknown> = {};
 
-	// Only validate fields that are present in input
+	// Validate ONLY fields that are present in input
 	for (const [fieldName, value] of Object.entries(inputData)) {
+		// Skip reserved fields - cannot be modified
+		if (RESERVED_FIELDS.includes(fieldName)) {
+			continue;
+		}
+
 		const fieldDef = schema.fields[fieldName];
 
 		// Check if field exists in schema
@@ -188,33 +272,32 @@ export function validatePartial<T extends ForjaEntry>(
 			continue;
 		}
 
-		// Create non-required version of field for partial validation
-		const partialFieldDef = makeFieldOptional(fieldDef);
+		// Validate field with ORIGINAL definition (required check included)
+		// If user explicitly sets a required field to null, it will fail
+		const result = validateSingleField(
+			value,
+			fieldDef,
+			fieldName,
+			errors,
+			opts,
+			schema.name,
+		);
 
-		// Validate field
-		const result = validateField(value, partialFieldDef, fieldName);
-
-		if (!result.success) {
-			errors = errors.addMany(result.error);
-
-			if (opts.abortEarly) {
-				throwValidationMultiple(schema.name, errors.getAll());
-			}
-		} else {
-			validatedData[fieldName] = result.data;
+		errors = result.errors;
+		if (result.validatedValue !== undefined) {
+			validatedData[fieldName] = result.validatedValue;
 		}
 	}
 
-	// Return result
 	if (errors.hasErrors()) {
 		throwValidationMultiple(schema.name, errors.getAll());
 	}
 
-	return validatedData as T;
+	return validatedData as Partial<T>;
 }
 
 /**
- * Validate array of data
+ * Validate array of data (for bulk CREATE)
  */
 export function validateMany<T extends ForjaEntry>(
 	dataArray: unknown,
@@ -223,7 +306,6 @@ export function validateMany<T extends ForjaEntry>(
 ): readonly T[] {
 	const opts = { ...DEFAULT_OPTIONS, ...options };
 
-	// Check if data is an array
 	if (!Array.isArray(dataArray)) {
 		throwValidationMultiple(schema.name, [
 			createValidationError(
@@ -236,7 +318,6 @@ export function validateMany<T extends ForjaEntry>(
 
 	const validatedArray: T[] = [];
 
-	// Validate each item
 	for (let i = 0; i < dataArray.length; i++) {
 		const item = dataArray[i];
 		const result = validateSchema<T>(item, schema, opts);
@@ -247,15 +328,19 @@ export function validateMany<T extends ForjaEntry>(
 }
 
 /**
- * Check if data matches schema (returns boolean)
+ * Check if data matches schema (returns boolean, does not throw)
  */
 export function isValid(
 	data: unknown,
 	schema: SchemaDefinition,
 	options?: ValidatorOptions,
 ): boolean {
-	validateSchema(data, schema, options);
-	return true;
+	try {
+		validateSchema(data, schema, options);
+		return true;
+	} catch {
+		return false;
+	}
 }
 
 /**

@@ -459,9 +459,9 @@ export class JsonQueryRunner {
 					if (!opValue && value !== undefined && value !== null) return false;
 					break;
 				case "$null":
-					// Checks if value is null
-					if (opValue && value !== null) return false;
-					if (!opValue && value === null) return false;
+					// Checks if value is null or undefined (no value)
+					if (opValue && value !== null && value !== undefined) return false;
+					if (!opValue && (value === null || value === undefined)) return false;
 					break;
 				case "$like":
 				case "$ilike": {
@@ -486,8 +486,9 @@ export class JsonQueryRunner {
 					if (!String(value ?? "").endsWith(String(opValue))) return false;
 					break;
 				case "$notNull":
-					if (opValue && value === null) return false;
-					if (!opValue && value !== null) return false;
+					// Checks if value is NOT null/undefined (has value)
+					if (opValue && (value === null || value === undefined)) return false;
+					if (!opValue && value !== null && value !== undefined) return false;
 					break;
 			}
 		}

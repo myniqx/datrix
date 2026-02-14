@@ -144,6 +144,9 @@ export const userSchema = defineSchema({
 			minLength: 2,
 			maxLength: 100,
 		},
+		lastName: {
+			type: 'string',
+		},
 		age: {
 			type: "number",
 			min: 0,

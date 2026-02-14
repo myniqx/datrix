@@ -386,32 +386,49 @@ export function validateWhereClause<T extends ForjaEntry>(
 
 		const fieldDef = schema.fields[key]!;
 
-		// Handle relation fields with nested WHERE
-		if (
-			fieldDef.type === "relation" &&
-			typeof value === "object" &&
-			value !== null &&
-			!(value instanceof Date)
-		) {
+		// Handle relation fields
+		if (fieldDef.type === "relation") {
 			const relationField = fieldDef as RelationField;
 
-			// Check if it's a primitive value (shortcut)
+			// Primitive value shortcut: { category: 2 }
 			if (typeof value === "string" || typeof value === "number") {
-				// Primitive shortcut - will be normalized later
 				continue;
 			}
 
-			// Nested WHERE for relation - validate against target schema
-			if (schemaRegistry) {
-				const targetSchema = schemaRegistry.get(relationField.model);
-				if (targetSchema) {
-					// Recursively validate nested WHERE against target schema
-					validateWhereClause(
-						value as WhereClause<T>,
-						targetSchema,
-						schemaRegistry,
-						depth + 1,
-					);
+			// Object value - could be $null/$notNull or nested WHERE
+			if (
+				typeof value === "object" &&
+				value !== null &&
+				!(value instanceof Date)
+			) {
+				const valueObj = value as Record<string, unknown>;
+				const keys = Object.keys(valueObj);
+
+				// Check for $null or $notNull operators on relation (FK null check)
+				// { organization: { $null: true } } - valid for belongsTo/hasOne
+				if (
+					keys.length === 1 &&
+					(keys[0] === "$null" || keys[0] === "$notNull")
+				) {
+					const opValue = valueObj[keys[0]];
+					// Validate that the value is boolean or string that can be coerced
+					if (typeof opValue !== "boolean" && typeof opValue !== "string") {
+						throwInvalidValue("where", key, opValue, "boolean or string");
+					}
+					continue;
+				}
+
+				// Nested WHERE for relation - validate against target schema
+				if (schemaRegistry) {
+					const targetSchema = schemaRegistry.get(relationField.model);
+					if (targetSchema) {
+						validateWhereClause(
+							value as WhereClause<T>,
+							targetSchema,
+							schemaRegistry,
+							depth + 1,
+						);
+					}
 				}
 			}
 			continue;
@@ -552,39 +569,57 @@ function normalizeWhereClause<T extends ForjaEntry>(
 			const relationField = fieldDef as RelationField;
 			const kind = relationField.kind;
 
-			// Only normalize primitive values for belongsTo/hasOne
-			// (hasMany/manyToMany with primitive values are semantic errors - validation catches)
-			if (
-				(kind === "belongsTo" || kind === "hasOne") &&
-				(typeof value === "string" || typeof value === "number")
-			) {
-				// Coerce and convert relation shortcut to FK filter
-				// { category: "2" } → { categoryId: { $eq: 2 } }
+			// Only normalize for belongsTo/hasOne (they have FK in current table)
+			if (kind === "belongsTo" || kind === "hasOne") {
 				const foreignKey = relationField.foreignKey!;
-				const coercedValue = coerceValue(value, { type: "number" }, key);
-				normalized[foreignKey] = { $eq: coercedValue };
-				continue;
-			}
 
-			// For object values (nested WHERE), recursively normalize with target schema
-			if (
-				typeof value === "object" &&
-				value !== null &&
-				!(value instanceof Date)
-			) {
-				const targetSchema = registry.get(relationField.model);
-				if (targetSchema) {
-					// Recursively normalize nested WHERE clause
-					normalized[key] = normalizeWhereClause(
-						value as WhereClause<T>,
-						targetSchema,
-						registry,
-					);
+				// Primitive value shortcut: { category: 2 } → { categoryId: { $eq: 2 } }
+				if (typeof value === "string" || typeof value === "number") {
+					const coercedValue = coerceValue(value, { type: "number" }, key);
+					normalized[foreignKey] = { $eq: coercedValue };
 					continue;
+				}
+
+				// Object value - check if it's $null/$notNull operator for FK
+				if (
+					typeof value === "object" &&
+					value !== null &&
+					!(value instanceof Date)
+				) {
+					const valueObj = value as Record<string, unknown>;
+					const keys = Object.keys(valueObj);
+
+					// Check for $null or $notNull operators on relation
+					// { organization: { $null: true } } → { organizationId: { $null: true } }
+					if (
+						keys.length === 1 &&
+						(keys[0] === "$null" || keys[0] === "$notNull")
+					) {
+						const operator = keys[0];
+						const operatorValue = valueObj[operator];
+						const coercedValue = coerceValue(
+							operatorValue,
+							{ type: "boolean" },
+							key,
+						);
+						normalized[foreignKey] = { [operator]: coercedValue };
+						continue;
+					}
+
+					// Nested WHERE - recursively normalize with target schema
+					const targetSchema = registry.get(relationField.model);
+					if (targetSchema) {
+						normalized[key] = normalizeWhereClause(
+							value as WhereClause<T>,
+							targetSchema,
+							registry,
+						);
+						continue;
+					}
 				}
 			}
 
-			// Fallback: keep as-is
+			// hasMany/manyToMany or fallback: keep as-is
 			normalized[key] = value;
 			continue;
 		}
