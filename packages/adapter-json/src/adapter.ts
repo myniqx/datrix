@@ -30,10 +30,24 @@ import {
 	throwForeignKeyConstraint,
 } from "./error-helper";
 import { ForjaError } from "forja-types/errors";
+import { JsonTransaction } from "./transaction";
 
-interface CacheEntry {
+/**
+ * Cache entry for table data
+ */
+export interface CacheEntry {
 	data: JsonTableFile;
 	mtime: number;
+}
+
+/**
+ * Options for executeQuery to support transactions
+ */
+export interface ExecuteQueryOptions {
+	/** Skip lock acquisition (transaction already holds lock) */
+	skipLock?: boolean;
+	/** Skip writing to disk (transaction will write on commit) */
+	skipWrite?: boolean;
 }
 
 /**
@@ -47,6 +61,18 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 	private lock: SimpleLock;
 	private cacheEnabled: boolean;
 	private readLockEnabled: boolean;
+
+	/**
+	 * Active transaction cache reference
+	 * When a transaction is active, all reads/writes go through this cache first.
+	 * Set by beginTransaction, cleared by commit/rollback.
+	 */
+	private activeTransactionCache: Map<string, CacheEntry> | null = null;
+
+	/**
+	 * Track modified tables during transaction for commit
+	 */
+	private activeTransactionModifiedTables: Set<string> | null = null;
 
 	constructor(config: JsonAdapterConfig) {
 		this.config = config;
@@ -140,29 +166,58 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 
 	/**
 	 * Read table with cache support
-	 * Uses mtime validation to ensure cache freshness across processes
-	 * Throws on file not found or parse errors (caller must handle)
+	 *
+	 * Cache lookup order:
+	 * 1. Transaction cache (if active)
+	 * 2. Main cache (with mtime validation)
+	 * 3. Disk
+	 *
+	 * When transaction is active, new reads are cached in transaction cache.
+	 * This ensures isolation - transaction sees its own writes.
 	 */
 	private async readTable(tableName: string): Promise<JsonTableFile> {
 		const filePath = this.getTablePath(tableName);
 
+		// 1. Check transaction cache first (if transaction active)
+		if (this.activeTransactionCache) {
+			const txCached = this.activeTransactionCache.get(tableName);
+			if (txCached) {
+				return txCached.data;
+			}
+		}
+
+		// 2. Check main cache (with mtime validation)
 		if (this.cacheEnabled) {
 			const stat = await fs.stat(filePath);
 			const mtime = stat.mtimeMs;
 
 			const cached = this.cache.get(tableName);
 			if (cached && cached.mtime === mtime) {
+				// If transaction active, copy to tx cache for isolation
+				if (this.activeTransactionCache) {
+					// Deep copy to prevent mutation of main cache
+					const txData = JSON.parse(JSON.stringify(cached.data));
+					this.activeTransactionCache.set(tableName, { data: txData, mtime });
+					return txData;
+				}
 				return cached.data;
 			}
 
-			// Cache miss or stale - read and parse fresh
+			// Cache miss or stale - read from disk
 			const content = await fs.readFile(filePath, "utf-8");
 			const data: JsonTableFile = JSON.parse(content);
 
-			this.cache.set(tableName, { data, mtime });
+			// Store in appropriate cache
+			if (this.activeTransactionCache) {
+				this.activeTransactionCache.set(tableName, { data, mtime });
+			} else {
+				this.cache.set(tableName, { data, mtime });
+			}
+
 			return data;
 		}
 
+		// 3. No cache - read from disk
 		const content = await fs.readFile(filePath, "utf-8");
 		return JSON.parse(content);
 	}
@@ -334,9 +389,33 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		}
 	}
 
+	/**
+	 * Execute query (public interface)
+	 *
+	 * This is the standard DatabaseAdapter interface method.
+	 * Internally calls executeQueryWithOptions with default options.
+	 */
 	async executeQuery<TResult extends ForjaEntry>(
 		query: QueryObject<TResult>,
 	): Promise<Result<QueryResult<TResult>, QueryError<TResult>>> {
+		return this.executeQueryWithOptions(query);
+	}
+
+	/**
+	 * Execute query with options (for transaction support)
+	 *
+	 * @param query - Query to execute
+	 * @param options - Execution options
+	 * @param options.skipLock - Skip lock acquisition (transaction already holds lock)
+	 * @param options.skipWrite - Skip writing to disk (transaction will write on commit)
+	 */
+	async executeQueryWithOptions<TResult extends ForjaEntry>(
+		query: QueryObject<TResult>,
+		options?: ExecuteQueryOptions,
+	): Promise<Result<QueryResult<TResult>, QueryError<TResult>>> {
+		const skipLock = options?.skipLock ?? false;
+		const skipWrite = options?.skipWrite ?? false;
+
 		const validation = validateQueryObject(query);
 		if (!validation.success) {
 			return {
@@ -361,7 +440,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		}
 
 		const isWriteOp = ["insert", "update", "delete"].includes(query.type);
-		const needsLock = isWriteOp || this.readLockEnabled;
+		const needsLock = !skipLock && (isWriteOp || this.readLockEnabled);
 		let lockAcquired = false;
 
 		if (needsLock) {
@@ -557,15 +636,24 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 				}
 			}
 
+			// Handle write
 			if (shouldWrite) {
-				tableData.meta.updatedAt = new Date().toISOString();
-				const filePath = this.getTablePath(query.table);
-				await fs.writeFile(
-					filePath,
-					JSON.stringify(tableData, null, 2),
-					"utf-8",
-				);
-				await this.updateCache(query.table, tableData);
+				if (skipWrite) {
+					// Transaction mode: track modified table, don't write to disk
+					if (this.activeTransactionModifiedTables) {
+						this.activeTransactionModifiedTables.add(query.table);
+					}
+				} else {
+					// Normal mode: write to disk immediately
+					tableData.meta.updatedAt = new Date().toISOString();
+					const filePath = this.getTablePath(query.table);
+					await fs.writeFile(
+						filePath,
+						JSON.stringify(tableData, null, 2),
+						"utf-8",
+					);
+					await this.updateCache(query.table, tableData);
+				}
 			}
 
 			metadata.rowCount = rows.length;
@@ -607,13 +695,100 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		};
 	}
 
+	/**
+	 * Begin a new transaction
+	 *
+	 * Acquires lock and creates isolated transaction cache.
+	 * All reads/writes within transaction use txCache.
+	 */
 	async beginTransaction(): Promise<Result<Transaction, TransactionError>> {
-		return {
-			success: false,
-			error: new TransactionError(
-				"Transactions are not fully supported by JsonAdapter yet",
-			),
-		};
+		if (!this.isConnected()) {
+			return {
+				success: false,
+				error: new TransactionError("Not connected to database"),
+			};
+		}
+
+		if (this.activeTransactionCache) {
+			return {
+				success: false,
+				error: new TransactionError("A transaction is already active"),
+			};
+		}
+
+		try {
+			// Acquire lock for entire transaction duration
+			await this.lock.acquire();
+
+			// Initialize transaction state
+			this.activeTransactionCache = new Map<string, CacheEntry>();
+			this.activeTransactionModifiedTables = new Set<string>();
+
+			// Create transaction with commit/rollback callbacks
+			const transaction = new JsonTransaction(
+				this,
+				// Commit callback
+				async () => {
+					await this.commitTransaction();
+				},
+				// Rollback callback
+				async () => {
+					await this.rollbackTransaction();
+				},
+			);
+
+			return { success: true, data: transaction };
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			return {
+				success: false,
+				error: new TransactionError(`Failed to begin transaction: ${message}`, err),
+			};
+		}
+	}
+
+	/**
+	 * Commit transaction - write modified tables to disk
+	 * @internal Called by JsonTransaction.commit()
+	 */
+	private async commitTransaction(): Promise<void> {
+		if (!this.activeTransactionCache || !this.activeTransactionModifiedTables) {
+			throw new TransactionError("No active transaction to commit");
+		}
+
+		try {
+			// Write all modified tables to disk
+			for (const tableName of this.activeTransactionModifiedTables) {
+				const entry = this.activeTransactionCache.get(tableName);
+				if (entry) {
+					// Write to disk
+					entry.data.meta.updatedAt = new Date().toISOString();
+					const filePath = this.getTablePath(tableName);
+					await fs.writeFile(filePath, JSON.stringify(entry.data, null, 2), "utf-8");
+
+					// Update mtime and merge to main cache
+					const stat = await fs.stat(filePath);
+					entry.mtime = stat.mtimeMs;
+					this.cache.set(tableName, entry);
+				}
+			}
+		} finally {
+			// Clear transaction state and release lock
+			this.activeTransactionCache = null;
+			this.activeTransactionModifiedTables = null;
+			await this.lock.release();
+		}
+	}
+
+	/**
+	 * Rollback transaction - discard changes
+	 * @internal Called by JsonTransaction.rollback()
+	 */
+	private async rollbackTransaction(): Promise<void> {
+		// Simply discard transaction cache - main cache unchanged
+		this.activeTransactionCache = null;
+		this.activeTransactionModifiedTables = null;
+		await this.lock.release();
 	}
 
 	async alterTable(

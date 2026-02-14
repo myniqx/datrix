@@ -520,7 +520,7 @@ export class JsonQueryRunner {
 		return value;
 	}
 
-	private sort(a: any, b: any, orderBy: readonly OrderByItem[]): number {
+	private sort(a: any, b: any, orderBy: readonly OrderByItem<ForjaEntry>[]): number {
 		for (const order of orderBy) {
 			const fieldName = order.field;
 			const valA = this.coerceForComparison(a[fieldName], fieldName);
