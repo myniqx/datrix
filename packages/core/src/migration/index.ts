@@ -4,6 +4,9 @@
  * Exports all migration system components.
  */
 
+// Migration Schema
+export { getMigrationSchema, DEFAULT_MIGRATION_MODEL } from "./schema";
+
 // Schema Differ
 export { ForgeSchemaDiffer, createSchemaDiffer } from "./differ";
 

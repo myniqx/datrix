@@ -86,6 +86,12 @@ export interface MigrationConfig {
 	 * @default './migrations'
 	 */
 	readonly directory?: string;
+
+	/**
+	 * Table name for storing migration history
+	 * @default '_forja_migrations'
+	 */
+	readonly modelName?: string;
 }
 
 /**
@@ -221,6 +227,7 @@ export const DEFAULT_API_AUTH_CONFIG = {
 export const DEFAULT_MIGRATION_CONFIG: Required<MigrationConfig> = {
 	auto: false,
 	directory: "./migrations",
+	modelName: "_forja_migration",
 } as const;
 
 /**

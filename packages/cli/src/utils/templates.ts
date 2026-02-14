@@ -1,44 +1,37 @@
 /**
- * Code Templates Utility (~200 LOC)
+ * Code Templates Utility
  *
  * Generates code templates for schemas, migrations, and config files.
  */
 
 /**
  * Generate schema template
+ *
+ * Note: Forja automatically adds id, createdAt, updatedAt fields.
+ * Do not define them manually in the schema.
  */
 export function schemaTemplate(name: string): string {
 	const schemaVarName = name.charAt(0).toLowerCase() + name.slice(1);
+	const schemaNameLower = name.toLowerCase();
 
-	return `import { defineSchema } from 'forja';
+	return `import { defineSchema } from 'forja-types/core/schema';
 
 export const ${schemaVarName}Schema = defineSchema({
-  name: '${name}',
+  name: '${schemaNameLower}',
 
   fields: {
-    id: {
-      type: 'string',
-      required: true,
-      unique: true,
-    },
-
     // Add your fields here
-    // Example string field:
+    // Note: id, createdAt, updatedAt are automatically added by Forja
+
+    // String field example:
     // name: {
     //   type: 'string',
     //   required: true,
     //   minLength: 2,
-    //   maxLength: 50,
+    //   maxLength: 100,
     // },
 
-    // Example number field:
-    // age: {
-    //   type: 'number',
-    //   min: 0,
-    //   max: 120,
-    // },
-
-    // Example email field:
+    // Email field example:
     // email: {
     //   type: 'string',
     //   required: true,
@@ -46,39 +39,70 @@ export const ${schemaVarName}Schema = defineSchema({
     //   pattern: /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/,
     // },
 
-    // Example enum field:
+    // Number field example:
+    // age: {
+    //   type: 'number',
+    //   min: 0,
+    //   max: 150,
+    // },
+
+    // Boolean field example:
+    // isActive: {
+    //   type: 'boolean',
+    //   default: true,
+    // },
+
+    // Enum field example:
     // status: {
     //   type: 'enum',
-    //   values: ['active', 'inactive', 'pending'] as const,
-    //   default: 'pending',
+    //   values: ['draft', 'published', 'archived'] as const,
+    //   default: 'draft',
     // },
 
-    // Example relation field:
-    // userId: {
+    // JSON field example:
+    // metadata: {
+    //   type: 'json',
+    // },
+
+    // Relation examples:
+    // belongsTo (N:1) - Foreign key is auto-generated as {fieldName}Id
+    // author: {
     //   type: 'relation',
-    //   model: 'User',
     //   kind: 'belongsTo',
-    //   foreignKey: 'userId',
+    //   model: 'user',
     // },
 
-    createdAt: {
-      type: 'date',
-      autoCreate: true,
-    },
+    // hasMany (1:N) - Inverse of belongsTo
+    // posts: {
+    //   type: 'relation',
+    //   kind: 'hasMany',
+    //   model: 'post',
+    //   foreignKey: 'authorId',
+    // },
 
-    updatedAt: {
-      type: 'date',
-      autoUpdate: true,
-    },
+    // manyToMany (N:N) - Junction table is auto-created
+    // tags: {
+    //   type: 'relation',
+    //   kind: 'manyToMany',
+    //   model: 'tag',
+    // },
   },
 
   indexes: [
     // Add indexes here
-    // Example:
     // { fields: ['email'], unique: true },
+    // { fields: ['name'] },
   ],
+
+  permission: {
+    create: true,
+    read: true,
+    update: true,
+    delete: true,
+  },
 } as const);
 
+// Type inference from schema
 export type ${name} = typeof ${schemaVarName}Schema['__type'];
 `;
 }
@@ -87,7 +111,7 @@ export type ${name} = typeof ${schemaVarName}Schema['__type'];
  * Generate migration template
  */
 export function migrationTemplate(name: string, timestamp: string): string {
-	return `import type { Migration } from '@core/migration/types';
+	return `import type { Migration } from 'forja-types/core/migration';
 
 export const migration: Migration = {
   metadata: {
@@ -98,17 +122,17 @@ export const migration: Migration = {
   },
 
   up: [
-    // Add migration operations here
-    // Example - Create table:
+    // Migration operations (applied in order)
+
+    // Create table example:
     // {
     //   type: 'createTable',
     //   schema: {
-    //     name: 'users',
+    //     name: 'user',
     //     fields: {
-    //       id: { type: 'string', required: true, unique: true },
     //       email: { type: 'string', required: true, unique: true },
-    //       name: { type: 'string', required: true },
-    //       createdAt: { type: 'date', autoCreate: true },
+    //       name: { type: 'string', required: true, maxLength: 100 },
+    //       isActive: { type: 'boolean', default: true },
     //     },
     //     indexes: [
     //       { fields: ['email'], unique: true },
@@ -116,52 +140,52 @@ export const migration: Migration = {
     //   },
     // },
 
-    // Example - Add column:
+    // Add column example:
     // {
     //   type: 'alterTable',
-    //   tableName: 'users',
+    //   tableName: 'user',
     //   operations: [
-    //     {
-    //       type: 'addColumn',
-    //       name: 'age',
-    //       definition: { type: 'number', min: 0 },
-    //     },
+    //     { type: 'addColumn', column: 'age', definition: { type: 'number', min: 0 } },
     //   ],
     // },
 
-    // Example - Create index:
+    // Create index example:
     // {
     //   type: 'createIndex',
-    //   tableName: 'users',
-    //   index: { fields: ['email'], unique: true },
+    //   tableName: 'user',
+    //   index: { fields: ['name'], unique: false },
+    // },
+
+    // Raw SQL example (use sparingly, adapter-specific):
+    // {
+    //   type: 'raw',
+    //   sql: 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp"',
     // },
   ],
 
   down: [
-    // Add rollback operations here (reverse of up)
-    // Example - Drop table:
+    // Rollback operations (reverse order of up)
+
+    // Drop table example:
     // {
     //   type: 'dropTable',
-    //   tableName: 'users',
+    //   tableName: 'user',
     // },
 
-    // Example - Remove column:
+    // Drop column example:
     // {
     //   type: 'alterTable',
-    //   tableName: 'users',
+    //   tableName: 'user',
     //   operations: [
-    //     {
-    //       type: 'dropColumn',
-    //       name: 'age',
-    //     },
+    //     { type: 'dropColumn', column: 'age' },
     //   ],
     // },
 
-    // Example - Drop index:
+    // Drop index example:
     // {
     //   type: 'dropIndex',
-    //   tableName: 'users',
-    //   indexName: 'users_email_unique',
+    //   tableName: 'user',
+    //   indexName: 'user_name_idx',
     // },
   ],
 };
@@ -172,61 +196,60 @@ export const migration: Migration = {
  * Generate config template
  */
 export function configTemplate(
-	dbType: "postgres" | "mysql" | "mongodb",
+	dbType: "postgres" | "mysql" | "json",
 ): string {
-	const connectionConfig: Record<string, string> = {
-		postgres: `{
-      host: 'localhost',
-      port: 5432,
-      database: 'myapp',
-      user: 'postgres',
-      password: 'password',
-    }`,
-		mysql: `{
-      host: 'localhost',
-      port: 3306,
-      database: 'myapp',
-      user: 'root',
-      password: 'password',
-    }`,
-		mongodb: `{
-      url: 'mongodb://localhost:27017/myapp',
-    }`,
+	const adapterImport: Record<string, string> = {
+		postgres: "import { createPostgresAdapter } from 'forja-adapter-postgres';",
+		mysql: "import { createMySqlAdapter } from 'forja-adapter-mysql';",
+		json: "import { createJsonAdapter } from 'forja-adapter-json';",
 	};
 
-	const config = connectionConfig[dbType];
+	const connectionConfig: Record<string, string> = {
+		postgres: `createPostgresAdapter({
+    host: process.env.DB_HOST ?? 'localhost',
+    port: Number(process.env.DB_PORT) || 5432,
+    database: process.env.DB_NAME ?? 'myapp',
+    user: process.env.DB_USER ?? 'postgres',
+    password: process.env.DB_PASSWORD ?? 'password',
+  })`,
+		mysql: `createMySqlAdapter({
+    host: process.env.DB_HOST ?? 'localhost',
+    port: Number(process.env.DB_PORT) || 3306,
+    database: process.env.DB_NAME ?? 'myapp',
+    user: process.env.DB_USER ?? 'root',
+    password: process.env.DB_PASSWORD ?? 'password',
+  })`,
+		json: `createJsonAdapter({
+    directory: './data',
+  })`,
+	};
 
-	return `import { defineConfig } from 'forja';
+	const importLine = adapterImport[dbType];
+	const adapterConfig = connectionConfig[dbType];
 
-export default defineConfig({
-  database: {
-    adapter: '${dbType}',
-    connection: ${config}
-  },
+	return `${importLine}
+import { createForja } from 'forja-core';
 
-  schemas: {
-    path: './schemas/**/*.schema.ts',
-  },
+// Import your schemas here
+// import { userSchema } from './schemas/user.schema';
 
-  plugins: [
-    // Uncomment plugins you want to use:
-    // 'auth',
-    // 'upload',
-    // 'hooks',
-    // 'soft-delete',
-  ],
+export default async function createApp() {
+  const adapter = ${adapterConfig};
 
-  api: {
-    prefix: '/api',
-    defaultPageSize: 25,
-    maxPageSize: 100,
-  },
+  const forja = await createForja({
+    adapter,
+    schemas: [
+      // Add your schemas here
+      // userSchema,
+    ],
+    migration: {
+      tableName: 'forja_migrations',
+      autoRun: false,
+    },
+  });
 
-  migration: {
-    directory: './migrations',
-    auto: false,
-  },
-});
+  return forja;
+}
 `;
 }
 

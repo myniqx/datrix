@@ -28,6 +28,7 @@ import { SchemaRegistry } from "./schema";
 import { ForjaEntry } from "forja-types";
 import { IForja, RawCrudOptions, RawFindManyOptions } from "forja-types/forja";
 import { ForjaError } from "forja-types/errors";
+import { getMigrationSchema, DEFAULT_MIGRATION_MODEL } from "./migration/schema";
 
 /**
  * Forja initialization options
@@ -177,7 +178,22 @@ export class Forja implements IForja {
 				}
 			}
 
-			// 4. Finalize registry (process relations, create junction tables)
+			// 4. Register internal migration schema
+			const migrationModelName =
+				config.migration?.modelName ?? DEFAULT_MIGRATION_MODEL;
+			const migrationSchema = getMigrationSchema(migrationModelName);
+			const migrationRegisterResult = this._schemas.register(migrationSchema);
+			if (!migrationRegisterResult.success) {
+				return {
+					success: false,
+					error: new ForjaError(
+						`Failed to register migration schema: ${migrationRegisterResult.error.message}`,
+						{ code: "MIGRATION_SCHEMA_REGISTRATION_FAILED" },
+					),
+				};
+			}
+
+			// 5. Finalize registry (process relations, create junction tables)
 			const finalizeResult = this._schemas.finalizeRegistry();
 			if (!finalizeResult.success) {
 				return {

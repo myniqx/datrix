@@ -115,6 +115,7 @@ export interface DatabaseAdapter<TConfig = Record<string, unknown>> extends Quer
 	// Schema operations (for migrations)
 	createTable(schema: SchemaDefinition): Promise<Result<void, MigrationError>>;
 	dropTable(tableName: string): Promise<Result<void, MigrationError>>;
+	renameTable(from: string, to: string): Promise<Result<void, MigrationError>>;
 	alterTable(
 		tableName: string,
 		operations: readonly AlterOperation[],

@@ -37,21 +37,6 @@ export class ForgeMigrationRunner implements MigrationRunner {
 	}
 
 	/**
-	 * Escape SQL identifier to prevent injection
-	 */
-	private escapeIdentifier(identifier: string): string {
-		// Validate identifier format
-		if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(identifier)) {
-			throw new Error(`Invalid identifier: ${identifier}`);
-		}
-		if (identifier.length > 63) {
-			throw new Error(`Identifier too long: ${identifier}`);
-		}
-		// PostgreSQL double-quote escaping
-		return `"${identifier.replace(/"/g, '""')}"`;
-	}
-
-	/**
 	 * Get pending migrations
 	 */
 	async getPending(): Promise<
@@ -612,27 +597,7 @@ export class ForgeMigrationRunner implements MigrationRunner {
 				);
 
 			case "renameTable":
-				// Use raw SQL for table rename (not in base adapter interface)
-				// Escape identifiers to prevent SQL injection
-				try {
-					const fromTable = this.escapeIdentifier(operation.from);
-					const toTable = this.escapeIdentifier(operation.to);
-
-					return await this.adapter
-						.executeRawQuery(
-							`ALTER TABLE ${fromTable} RENAME TO ${toTable}`,
-							[],
-						)
-						.then((result) => {
-							if (result.success) {
-								return { success: true, data: undefined };
-							}
-							return { success: false, error: result.error };
-						});
-				} catch (error) {
-					const err = error instanceof Error ? error : new Error(String(error));
-					return { success: false, error: err };
-				}
+				return await this.adapter.renameTable(operation.from, operation.to);
 
 			case "raw":
 				return await this.adapter

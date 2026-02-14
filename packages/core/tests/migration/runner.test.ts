@@ -146,6 +146,14 @@ class MockDatabaseAdapter implements DatabaseAdapter {
 		return { success: true, data: undefined };
 	}
 
+	async renameTable(from: string, to: string): Promise<Result<void, QueryError>> {
+		if (this._shouldFail && this._failOperation === "renameTable") {
+			return { success: false, error: new QueryError("Rename table failed") };
+		}
+		this._operations.push({ type: "renameTable", data: { from, to } });
+		return { success: true, data: undefined };
+	}
+
 	async alterTable(
 		tableName: string,
 		operations: readonly AlterOperation[],
@@ -886,7 +894,7 @@ describe("MigrationRunner", () => {
 			expect(operations[2]?.type).toBe("alterTable");
 		});
 
-		it("should handle renameTable operation with raw SQL", async () => {
+		it("should handle renameTable operation", async () => {
 			const migration: Migration = {
 				metadata: {
 					name: "rename",
@@ -917,12 +925,13 @@ describe("MigrationRunner", () => {
 				expect(result.data.status).toBe("completed");
 			}
 
-			// Verify raw SQL was executed
 			const operations = adapter.getOperations();
 			expect(operations).toHaveLength(1);
-			expect(operations[0]?.type).toBe("raw");
-			if (operations[0]?.type === "raw") {
-				expect(operations[0].data).toContain("RENAME");
+			expect(operations[0]?.type).toBe("renameTable");
+			if (operations[0]?.type === "renameTable") {
+				const data = operations[0].data as { from: string; to: string };
+				expect(data.from).toBe("old_table");
+				expect(data.to).toBe("new_table");
 			}
 		});
 

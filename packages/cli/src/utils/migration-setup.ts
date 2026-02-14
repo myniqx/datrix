@@ -35,11 +35,8 @@ export async function createMigrationSetup(
 		const schemaRegistry = forja.getSchemas();
 		const migrationConfig = forja.getMigrationConfig();
 
-		// Create history tracker
-		const history = createMigrationHistory(
-			adapter,
-			migrationConfig.tableName,
-		);
+		// Create history tracker (uses forja.raw for CRUD operations)
+		const history = createMigrationHistory(forja, migrationConfig.modelName);
 
 		// Get current schemas as record
 		const allSchemas = schemaRegistry.getAll();

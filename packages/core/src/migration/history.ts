@@ -1,12 +1,11 @@
 /**
- * Migration History Manager Implementation (~150 LOC)
+ * Migration History Manager Implementation
  *
  * Manages migration execution history in the database.
- * Tracks which migrations have been applied and provides rollback support.
+ * Uses forja.raw for all CRUD operations - no raw SQL.
  */
 
 import { createHash } from "crypto";
-import { DatabaseAdapter } from "forja-types/adapter";
 import {
 	Migration,
 	MigrationHistory,
@@ -15,48 +14,41 @@ import {
 	MigrationSystemError,
 } from "forja-types/core/migration";
 import { Result } from "forja-types/utils";
+import { IForja } from "forja-types/forja";
+import { ForjaEntry } from "forja-types";
+import { DEFAULT_MIGRATION_MODEL } from "./schema";
+
+/**
+ * Migration history entry type (matches the schema)
+ */
+interface MigrationEntry extends ForjaEntry {
+	name: string;
+	version: string;
+	executionTime: number;
+	status: MigrationStatus;
+	checksum?: string;
+	error?: string;
+	appliedAt: Date;
+}
 
 /**
  * Migration history manager implementation
  */
 export class ForgeMigrationHistory implements MigrationHistory {
-	private readonly adapter: DatabaseAdapter;
-	private readonly tableName: string;
+	private readonly forja: IForja;
+	private readonly modelName: string;
 	private initialized = false;
 
-	constructor(adapter: DatabaseAdapter, tableName = "forja_migrations") {
-		this.adapter = adapter;
-		this.tableName = this.sanitizeIdentifier(tableName);
-	}
-
-	/**
-	 * Sanitize table name to prevent SQL injection
-	 */
-	private sanitizeIdentifier(identifier: string): string {
-		// Only allow alphanumeric, underscore, and must start with letter/underscore
-		if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(identifier)) {
-			throw new Error(
-				`Invalid table name: ${identifier}. Must match /^[a-zA-Z_][a-zA-Z0-9_]*$/`,
-			);
-		}
-		// PostgreSQL max identifier length
-		if (identifier.length > 63) {
-			throw new Error(
-				`Table name too long: ${identifier}. Maximum 63 characters.`,
-			);
-		}
-		return identifier;
-	}
-
-	/**
-	 * Escape identifier for SQL (double-quote style)
-	 */
-	private escapeIdentifier(identifier: string): string {
-		return `"${identifier.replace(/"/g, '""')}"`;
+	constructor(forja: IForja, modelName: string = DEFAULT_MIGRATION_MODEL) {
+		this.forja = forja;
+		this.modelName = modelName;
 	}
 
 	/**
 	 * Initialize migrations tracking table
+	 *
+	 * The table is created via adapter.createTable using the migration schema.
+	 * Schema is already registered in Forja initialization.
 	 */
 	async initialize(): Promise<Result<void, MigrationSystemError>> {
 		if (this.initialized) {
@@ -64,35 +56,30 @@ export class ForgeMigrationHistory implements MigrationHistory {
 		}
 
 		try {
-			// Check if table exists
-			const exists = await this.adapter.tableExists(this.tableName);
+			const schema = this.forja.getSchemas().get(this.modelName);
+			if (!schema) {
+				return {
+					success: false,
+					error: new MigrationSystemError(
+						`Migration schema '${this.modelName}' not found in registry`,
+						"MIGRATION_ERROR",
+					),
+				};
+			}
+
+			const tableName = schema.tableName ?? schema.name;
+			const adapter = this.forja.getAdapter();
+			const exists = await adapter.tableExists(tableName);
 
 			if (!exists) {
-				// Create migrations table (use escaped identifier)
-				const escapedTable = this.escapeIdentifier(this.tableName);
-				const sql = `
-          CREATE TABLE ${escapedTable} (
-            id SERIAL PRIMARY KEY,
-            name VARCHAR(255) NOT NULL,
-            version VARCHAR(255) NOT NULL UNIQUE,
-            applied_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-            execution_time INTEGER NOT NULL,
-            status VARCHAR(50) NOT NULL,
-            checksum VARCHAR(64),
-            error TEXT,
-            created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-          )
-        `;
-
-				const result = await this.adapter.executeRawQuery(sql, []);
-
-				if (!result.success) {
+				const createResult = await adapter.createTable(schema);
+				if (!createResult.success) {
 					return {
 						success: false,
 						error: new MigrationSystemError(
-							`Failed to create migrations table: ${result.error.message}`,
+							`Failed to create migrations table: ${createResult.error.message}`,
 							"MIGRATION_ERROR",
-							result.error,
+							createResult.error,
 						),
 					};
 				}
@@ -124,33 +111,16 @@ export class ForgeMigrationHistory implements MigrationHistory {
 	): Promise<Result<void, MigrationSystemError>> {
 		try {
 			const checksum = this.calculateChecksum(migration);
-			const errorMessage = error ? error.message : undefined;
 
-			const escapedTable = this.escapeIdentifier(this.tableName);
-			const sql = `
-        INSERT INTO ${escapedTable} (name, version, execution_time, status, checksum, error)
-        VALUES ($1, $2, $3, $4, $5, $6)
-      `;
-
-			const result = await this.adapter.executeRawQuery(sql, [
-				migration.metadata.name,
-				migration.metadata.version,
+			await this.forja.raw.create<MigrationEntry>(this.modelName, {
+				name: migration.metadata.name,
+				version: migration.metadata.version,
 				executionTime,
 				status,
 				checksum,
-				errorMessage,
-			]);
-
-			if (!result.success) {
-				return {
-					success: false,
-					error: new MigrationSystemError(
-						`Failed to record migration: ${result.error.message}`,
-						"MIGRATION_ERROR",
-						result.error,
-					),
-				};
-			}
+				error: error?.message,
+				appliedAt: new Date(),
+			});
 
 			return { success: true, data: undefined };
 		} catch (error) {
@@ -173,44 +143,22 @@ export class ForgeMigrationHistory implements MigrationHistory {
 		Result<readonly MigrationHistoryRecord[], MigrationSystemError>
 	> {
 		try {
-			const escapedTable = this.escapeIdentifier(this.tableName);
-			const sql = `
-        SELECT id, name, version, applied_at, execution_time, status, checksum, error
-        FROM ${escapedTable}
-        ORDER BY applied_at ASC
-      `;
+			const entries = await this.forja.raw.findMany<MigrationEntry>(
+				this.modelName,
+				{
+					orderBy: { appliedAt: "asc" },
+				},
+			);
 
-			const result = await this.adapter.executeRawQuery<{
-				id: number;
-				name: string;
-				version: string;
-				applied_at: Date;
-				execution_time: number;
-				status: MigrationStatus;
-				checksum: string | null;
-				error: string | null;
-			}>(sql, []);
-
-			if (!result.success) {
-				return {
-					success: false,
-					error: new MigrationSystemError(
-						`Failed to get migration history: ${result.error.message}`,
-						"MIGRATION_ERROR",
-						result.error,
-					),
-				};
-			}
-
-			const records: MigrationHistoryRecord[] = result.data.rows.map((row) => ({
-				id: row.id,
-				name: row.name,
-				version: row.version,
-				appliedAt: new Date(row.applied_at),
-				executionTime: row.execution_time,
-				status: row.status,
-				...(row.checksum !== null && { checksum: row.checksum }),
-				...(row.error !== null && { error: row.error }),
+			const records: MigrationHistoryRecord[] = entries.map((entry) => ({
+				id: entry.id,
+				name: entry.name,
+				version: entry.version,
+				appliedAt: entry.appliedAt,
+				executionTime: entry.executionTime,
+				status: entry.status,
+				...(entry.checksum && { checksum: entry.checksum }),
+				...(entry.error && { error: entry.error }),
 			}));
 
 			return { success: true, data: records };
@@ -234,55 +182,29 @@ export class ForgeMigrationHistory implements MigrationHistory {
 		Result<MigrationHistoryRecord | undefined, MigrationSystemError>
 	> {
 		try {
-			const escapedTable = this.escapeIdentifier(this.tableName);
-			const sql = `
-        SELECT id, name, version, applied_at, execution_time, status, checksum, error
-        FROM ${escapedTable}
-        WHERE status = 'completed'
-        ORDER BY applied_at DESC
-        LIMIT 1
-      `;
+			const entries = await this.forja.raw.findMany<MigrationEntry>(
+				this.modelName,
+				{
+					where: { status: "completed" },
+					orderBy: { appliedAt: "desc" },
+					limit: 1,
+				},
+			);
 
-			const result = await this.adapter.executeRawQuery<{
-				id: number;
-				name: string;
-				version: string;
-				applied_at: Date;
-				execution_time: number;
-				status: MigrationStatus;
-				checksum: string | null;
-				error: string | null;
-			}>(sql, []);
-
-			if (!result.success) {
-				return {
-					success: false,
-					error: new MigrationSystemError(
-						`Failed to get last migration: ${result.error.message}`,
-						"MIGRATION_ERROR",
-						result.error,
-					),
-				};
-			}
-
-			if (result.data.rows.length === 0) {
-				return { success: true, data: undefined };
-			}
-
-			const row = result.data.rows[0];
-			if (!row) {
+			const entry = entries[0];
+			if (!entry) {
 				return { success: true, data: undefined };
 			}
 
 			const record: MigrationHistoryRecord = {
-				id: row.id,
-				name: row.name,
-				version: row.version,
-				appliedAt: new Date(row.applied_at),
-				executionTime: row.execution_time,
-				status: row.status,
-				...(row.checksum !== null && { checksum: row.checksum }),
-				...(row.error !== null && { error: row.error }),
+				id: entry.id,
+				name: entry.name,
+				version: entry.version,
+				appliedAt: entry.appliedAt,
+				executionTime: entry.executionTime,
+				status: entry.status,
+				...(entry.checksum && { checksum: entry.checksum }),
+				...(entry.error && { error: entry.error }),
 			};
 
 			return { success: true, data: record };
@@ -306,31 +228,11 @@ export class ForgeMigrationHistory implements MigrationHistory {
 		version: string,
 	): Promise<Result<boolean, MigrationSystemError>> {
 		try {
-			const escapedTable = this.escapeIdentifier(this.tableName);
-			const sql = `
-        SELECT COUNT(*) as count
-        FROM ${escapedTable}
-        WHERE version = $1 AND status = 'completed'
-      `;
-
-			const result = await this.adapter.executeRawQuery<{ count: number }>(
-				sql,
-				[version],
+			const count = await this.forja.raw.count<MigrationEntry>(
+				this.modelName,
+				{ version, status: "completed" },
 			);
 
-			if (!result.success) {
-				return {
-					success: false,
-					error: new MigrationSystemError(
-						`Failed to check migration status: ${result.error.message}`,
-						"MIGRATION_ERROR",
-						result.error,
-					),
-				};
-			}
-
-			const row = result.data.rows[0];
-			const count = row ? row.count : 0;
 			return { success: true, data: count > 0 };
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
@@ -350,24 +252,9 @@ export class ForgeMigrationHistory implements MigrationHistory {
 	 */
 	async remove(version: string): Promise<Result<void, MigrationSystemError>> {
 		try {
-			const escapedTable = this.escapeIdentifier(this.tableName);
-			const sql = `
-        DELETE FROM ${escapedTable}
-        WHERE version = $1
-      `;
-
-			const result = await this.adapter.executeRawQuery(sql, [version]);
-
-			if (!result.success) {
-				return {
-					success: false,
-					error: new MigrationSystemError(
-						`Failed to remove migration record: ${result.error.message}`,
-						"MIGRATION_ERROR",
-						result.error,
-					),
-				};
-			}
+			await this.forja.raw.deleteMany<MigrationEntry>(this.modelName, {
+				version,
+			});
 
 			return { success: true, data: undefined };
 		} catch (error) {
@@ -403,7 +290,7 @@ export class ForgeMigrationHistory implements MigrationHistory {
 		record: MigrationHistoryRecord,
 	): boolean {
 		if (!record.checksum) {
-			return true; // No checksum to verify
+			return true;
 		}
 
 		const currentChecksum = this.calculateChecksum(migration);
@@ -415,8 +302,8 @@ export class ForgeMigrationHistory implements MigrationHistory {
  * Create migration history manager
  */
 export function createMigrationHistory(
-	adapter: DatabaseAdapter,
+	forja: IForja,
 	tableName?: string,
 ): MigrationHistory {
-	return new ForgeMigrationHistory(adapter, tableName);
+	return new ForgeMigrationHistory(forja, tableName);
 }

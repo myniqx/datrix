@@ -456,6 +456,39 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	}
 
 	/**
+	 * Rename table
+	 */
+	async renameTable(
+		from: string,
+		to: string,
+	): Promise<Result<void, MigrationError>> {
+		if (!this.pool) {
+			return {
+				success: false,
+				error: new MigrationError("Not connected to database"),
+			};
+		}
+
+		try {
+			const translator = this.getTranslator();
+			const escapedFrom = translator.escapeIdentifier(from);
+			const escapedTo = translator.escapeIdentifier(to);
+			await this.pool.query(`ALTER TABLE ${escapedFrom} RENAME TO ${escapedTo}`);
+
+			return { success: true, data: undefined };
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			return {
+				success: false,
+				error: new MigrationError(
+					`Failed to rename table '${from}' to '${to}': ${message}`,
+					error,
+				),
+			};
+		}
+	}
+
+	/**
 	 * Alter table
 	 */
 	async alterTable(
