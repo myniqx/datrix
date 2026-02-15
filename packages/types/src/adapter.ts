@@ -49,9 +49,38 @@ export interface QueryRunner {
 }
 
 /**
- * Transaction interface
+ * Schema operations interface - shared by DatabaseAdapter and Transaction.
+ * Migrations should use Transaction for atomic DDL operations.
  */
-export interface Transaction extends QueryRunner {
+export interface SchemaOperations {
+	// Table operations
+	createTable(schema: SchemaDefinition): Promise<Result<void, MigrationError>>;
+	dropTable(tableName: string): Promise<Result<void, MigrationError>>;
+	renameTable(from: string, to: string): Promise<Result<void, MigrationError>>;
+	alterTable(
+		tableName: string,
+		operations: readonly AlterOperation[],
+	): Promise<Result<void, MigrationError>>;
+
+	// Index operations
+	addIndex(
+		tableName: string,
+		index: IndexDefinition,
+	): Promise<Result<void, MigrationError>>;
+	dropIndex(
+		tableName: string,
+		indexName: string,
+	): Promise<Result<void, MigrationError>>;
+}
+
+/**
+ * Transaction interface
+ *
+ * Extends both QueryRunner and SchemaOperations to support:
+ * - Query execution within transaction
+ * - Schema modifications within transaction (for atomic migrations)
+ */
+export interface Transaction extends QueryRunner, SchemaOperations {
 	readonly id: string;
 
 	commit(): Promise<Result<void, TransactionError>>;
@@ -96,9 +125,14 @@ export type ConnectionState =
 /**
  * Database adapter interface
  *
- * ALL database adapters MUST implement this interface
+ * ALL database adapters MUST implement this interface.
+ * Extends QueryRunner for query execution and SchemaOperations for DDL.
+ *
+ * Note: For migrations, prefer using Transaction (from beginTransaction())
+ * to ensure atomic DDL operations where supported by the database.
  */
-export interface DatabaseAdapter<TConfig = Record<string, unknown>> extends QueryRunner {
+export interface DatabaseAdapter<TConfig = Record<string, unknown>>
+	extends QueryRunner, SchemaOperations {
 	// Metadata
 	readonly name: string;
 	readonly config: TConfig;
@@ -111,25 +145,6 @@ export interface DatabaseAdapter<TConfig = Record<string, unknown>> extends Quer
 
 	// Transaction support
 	beginTransaction(): Promise<Result<Transaction, TransactionError>>;
-
-	// Schema operations (for migrations)
-	createTable(schema: SchemaDefinition): Promise<Result<void, MigrationError>>;
-	dropTable(tableName: string): Promise<Result<void, MigrationError>>;
-	renameTable(from: string, to: string): Promise<Result<void, MigrationError>>;
-	alterTable(
-		tableName: string,
-		operations: readonly AlterOperation[],
-	): Promise<Result<void, MigrationError>>;
-
-	// Index operations
-	addIndex(
-		tableName: string,
-		index: IndexDefinition,
-	): Promise<Result<void, MigrationError>>;
-	dropIndex(
-		tableName: string,
-		indexName: string,
-	): Promise<Result<void, MigrationError>>;
 
 	// Introspection
 	getTables(): Promise<Result<readonly string[], QueryError>>;

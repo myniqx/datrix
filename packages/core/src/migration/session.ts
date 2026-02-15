@@ -28,17 +28,46 @@ import { ForgeMigrationHistory } from "./history";
 import { ForgeMigrationRunner } from "./runner";
 
 /**
+ * Ambiguous change types
+ */
+export type AmbiguousChangeType =
+	| "column_rename_or_replace"
+	| "table_rename_or_replace"
+	| "fk_column_drop"
+	| "junction_table_drop"
+	| "junction_table_rename_or_replace"
+	| "relation_upgrade_single_to_many"
+	| "relation_downgrade_many_to_single"
+	| "fk_model_change"
+	| "relation_direction_flip";
+
+/**
+ * Ambiguous action types
+ */
+export type AmbiguousActionType =
+	| "rename"
+	| "drop_and_add"
+	| "confirm_drop"
+	| "migrate_to_junction"
+	| "migrate_first"
+	| "fresh_start"
+	| "keep_column"
+	| "drop_and_recreate";
+
+/**
  * Ambiguous change that requires user input
  */
 export interface AmbiguousChange {
 	readonly id: string;
 	readonly tableName: string;
-	readonly type: "column_rename_or_replace" | "table_rename_or_replace";
+	readonly type: AmbiguousChangeType;
 	readonly removedName: string;
 	readonly addedName: string;
 	readonly removedDefinition?: FieldDefinition;
 	readonly addedDefinition?: FieldDefinition;
 	readonly possibleActions: readonly AmbiguousAction[];
+	readonly warning?: string;
+	readonly affectedRows?: number;
 	resolved: boolean;
 	resolvedAction?: AmbiguousAction;
 }
@@ -47,7 +76,7 @@ export interface AmbiguousChange {
  * Possible action for ambiguous change
  */
 export interface AmbiguousAction {
-	readonly type: "rename" | "drop_and_add";
+	readonly type: AmbiguousActionType;
 	readonly description: string;
 }
 
@@ -183,10 +212,10 @@ export class MigrationSession {
 	}
 
 	/**
-	 * Detect ambiguous changes (potential renames)
+	 * Detect ambiguous changes (potential renames, relation changes, etc.)
 	 */
 	private detectAmbiguousChanges(): void {
-		// Group by table
+		// Group diffs by type and table
 		const removedFields = new Map<string, SchemaDiff[]>();
 		const addedFields = new Map<string, SchemaDiff[]>();
 		const removedTables: SchemaDiff[] = [];
@@ -212,24 +241,277 @@ export class MigrationSession {
 			}
 		}
 
-		// Check for potential column renames (same table, one removed, one added)
-		for (const [tableName, removed] of removedFields) {
-			const added = addedFields.get(tableName);
-			if (!added) continue;
+		// Track which diffs are handled by relation detection
+		const handledDiffs = new Set<string>();
 
-			// For each removed field, check if there's a potential rename candidate
+		// 1. Detect relation type changes (belongsTo ↔ manyToMany)
+		this.detectRelationTypeChanges(
+			removedFields,
+			addedFields,
+			removedTables,
+			addedTables,
+			handledDiffs,
+		);
+
+		// 2. Detect junction table drops (manyToMany removal)
+		this.detectJunctionTableDrops(removedTables, handledDiffs);
+
+		// 3. Detect junction table renames (through name change)
+		this.detectJunctionTableRenames(removedTables, addedTables, handledDiffs);
+
+		// 4. Detect FK column changes (rename or drop)
+		this.detectFkColumnChanges(removedFields, addedFields, handledDiffs);
+
+		// 5. Detect column renames (generic, non-FK columns)
+		this.detectColumnRenames(removedFields, addedFields, handledDiffs);
+
+		// 6. Detect table renames
+		this.detectTableRenames(removedTables, addedTables, handledDiffs);
+	}
+
+	/**
+	 * Detect relation type changes (belongsTo ↔ manyToMany)
+	 */
+	private detectRelationTypeChanges(
+		removedFields: Map<string, SchemaDiff[]>,
+		addedFields: Map<string, SchemaDiff[]>,
+		removedTables: SchemaDiff[],
+		addedTables: SchemaDiff[],
+		handledDiffs: Set<string>,
+	): void {
+		// belongsTo → manyToMany: FK column removed + junction table added
+		for (const [tableName, removed] of removedFields) {
 			for (const removedDiff of removed) {
 				if (removedDiff.type !== "fieldRemoved") continue;
 
+				// Check if this looks like a FK column (ends with 'Id')
+				if (!removedDiff.fieldName.endsWith("Id")) continue;
+
+				const relationName = removedDiff.fieldName.slice(0, -2); // remove 'Id'
+
+				// Look for a new junction table that involves this table
+				for (const addedTable of addedTables) {
+					if (addedTable.type !== "tableAdded") continue;
+
+					const junctionName = addedTable.schema.tableName ?? addedTable.schema.name;
+
+					// Check if junction table name contains both table names
+					if (this.isJunctionTableFor(junctionName, tableName, relationName)) {
+						const diffKey = `${tableName}.${removedDiff.fieldName}`;
+						handledDiffs.add(diffKey);
+						handledDiffs.add(`table:${junctionName}`);
+
+						this._ambiguous.push({
+							id: `relation_upgrade:${tableName}.${relationName}`,
+							tableName,
+							type: "relation_upgrade_single_to_many",
+							removedName: removedDiff.fieldName,
+							addedName: junctionName,
+							warning: "Existing single relations can be migrated to junction table.",
+							possibleActions: [
+								{
+									type: "migrate_to_junction",
+									description: `Migrate existing ${removedDiff.fieldName} values to junction table '${junctionName}' (preserves data)`,
+								},
+								{
+									type: "fresh_start",
+									description: `Drop '${removedDiff.fieldName}' and create empty junction table (data loss)`,
+								},
+							],
+							resolved: false,
+						});
+					}
+				}
+			}
+		}
+
+		// manyToMany → belongsTo: junction table removed + FK column added
+		for (const removedTable of removedTables) {
+			if (removedTable.type !== "tableRemoved") continue;
+
+			const junctionName = removedTable.tableName;
+
+			// Check if this looks like a junction table
+			if (!this.looksLikeJunctionTable(junctionName)) continue;
+
+			// Look for a new FK column on one of the related tables
+			for (const [tableName, added] of addedFields) {
 				for (const addedDiff of added) {
 					if (addedDiff.type !== "fieldAdded") continue;
 
-					// Same type = potential rename
-					if (
-						removedDiff.type === "fieldRemoved" &&
-						addedDiff.type === "fieldAdded" &&
-						this.couldBeRename(undefined, addedDiff.definition)
-					) {
+					// Check if this looks like a FK column
+					if (!addedDiff.fieldName.endsWith("Id")) continue;
+
+					const relationName = addedDiff.fieldName.slice(0, -2);
+
+					// Check if junction table relates these
+					if (this.isJunctionTableFor(junctionName, tableName, relationName)) {
+						const diffKey = `table:${junctionName}`;
+						handledDiffs.add(diffKey);
+						handledDiffs.add(`${tableName}.${addedDiff.fieldName}`);
+
+						this._ambiguous.push({
+							id: `relation_downgrade:${tableName}.${relationName}`,
+							tableName,
+							type: "relation_downgrade_many_to_single",
+							removedName: junctionName,
+							addedName: addedDiff.fieldName,
+							warning: "Records with multiple relations will lose data! Only first relation will be kept.",
+							possibleActions: [
+								{
+									type: "migrate_first",
+									description: `Migrate first relation from '${junctionName}' to '${addedDiff.fieldName}' (partial data loss)`,
+								},
+								{
+									type: "fresh_start",
+									description: `Drop junction table and create empty '${addedDiff.fieldName}' column (full data loss)`,
+								},
+							],
+							resolved: false,
+						});
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * Detect junction table drops (manyToMany relation removed)
+	 */
+	private detectJunctionTableDrops(
+		removedTables: SchemaDiff[],
+		handledDiffs: Set<string>,
+	): void {
+		for (const removedTable of removedTables) {
+			if (removedTable.type !== "tableRemoved") continue;
+
+			const tableName = removedTable.tableName;
+			const diffKey = `table:${tableName}`;
+
+			// Skip if already handled by relation type change detection
+			if (handledDiffs.has(diffKey)) continue;
+
+			// Check if this looks like a junction table
+			if (this.looksLikeJunctionTable(tableName)) {
+				handledDiffs.add(diffKey);
+
+				this._ambiguous.push({
+					id: `junction_drop:${tableName}`,
+					tableName,
+					type: "junction_table_drop",
+					removedName: tableName,
+					addedName: "",
+					warning: "All relations in this junction table will be lost.",
+					possibleActions: [
+						{
+							type: "confirm_drop",
+							description: `Confirm dropping junction table '${tableName}' (data loss)`,
+						},
+					],
+					resolved: false,
+				});
+			}
+		}
+	}
+
+	/**
+	 * Detect junction table renames (through name change)
+	 */
+	private detectJunctionTableRenames(
+		removedTables: SchemaDiff[],
+		addedTables: SchemaDiff[],
+		handledDiffs: Set<string>,
+	): void {
+		for (const removedTable of removedTables) {
+			if (removedTable.type !== "tableRemoved") continue;
+
+			const oldName = removedTable.tableName;
+			const oldDiffKey = `table:${oldName}`;
+
+			if (handledDiffs.has(oldDiffKey)) continue;
+			if (!this.looksLikeJunctionTable(oldName)) continue;
+
+			for (const addedTable of addedTables) {
+				if (addedTable.type !== "tableAdded") continue;
+
+				const newName = addedTable.schema.tableName ?? addedTable.schema.name;
+				const newDiffKey = `table:${newName}`;
+
+				if (handledDiffs.has(newDiffKey)) continue;
+				if (!this.looksLikeJunctionTable(newName)) continue;
+
+				// Check if they have similar structure (both junction tables for same models)
+				if (this.couldBeJunctionRename(oldName, newName)) {
+					handledDiffs.add(oldDiffKey);
+					handledDiffs.add(newDiffKey);
+
+					this._ambiguous.push({
+						id: `junction_rename:${oldName}->${newName}`,
+						tableName: oldName,
+						type: "junction_table_rename_or_replace",
+						removedName: oldName,
+						addedName: newName,
+						warning: "Renaming junction tables may cause issues if referenced elsewhere.",
+						possibleActions: [
+							{
+								type: "rename",
+								description: `Rename junction table '${oldName}' to '${newName}' (preserves data)`,
+							},
+							{
+								type: "drop_and_recreate",
+								description: `Drop '${oldName}' and create '${newName}' (data loss)`,
+							},
+						],
+						resolved: false,
+					});
+				}
+			}
+		}
+	}
+
+	/**
+	 * Detect FK column changes (rename or drop)
+	 *
+	 * Handles:
+	 * - FK rename: authorId removed + writerId added → column_rename_or_replace
+	 * - FK drop: authorId removed + no new FK added → fk_column_drop
+	 */
+	private detectFkColumnChanges(
+		removedFields: Map<string, SchemaDiff[]>,
+		addedFields: Map<string, SchemaDiff[]>,
+		handledDiffs: Set<string>,
+	): void {
+		for (const [tableName, removed] of removedFields) {
+			const added = addedFields.get(tableName) ?? [];
+
+			// Get all added FK columns in this table (not yet handled)
+			const addedFkColumns = added.filter(
+				(d) =>
+					d.type === "fieldAdded" &&
+					d.fieldName.endsWith("Id") &&
+					!handledDiffs.has(`${tableName}.${d.fieldName}`),
+			);
+
+			for (const removedDiff of removed) {
+				if (removedDiff.type !== "fieldRemoved") continue;
+				if (!removedDiff.fieldName.endsWith("Id")) continue;
+
+				const removedKey = `${tableName}.${removedDiff.fieldName}`;
+				if (handledDiffs.has(removedKey)) continue;
+
+				// Check if there's a new FK column added - could be a rename
+				if (addedFkColumns.length > 0) {
+					// Find the first unhandled added FK column
+					const addedDiff = addedFkColumns.find(
+						(d) => !handledDiffs.has(`${tableName}.${d.fieldName}`),
+					);
+
+					if (addedDiff && addedDiff.type === "fieldAdded") {
+						const addedKey = `${tableName}.${addedDiff.fieldName}`;
+
+						handledDiffs.add(removedKey);
+						handledDiffs.add(addedKey);
+
 						this._ambiguous.push({
 							id: `${tableName}.${removedDiff.fieldName}->${addedDiff.fieldName}`,
 							tableName,
@@ -249,20 +531,114 @@ export class MigrationSession {
 							],
 							resolved: false,
 						});
+
+						continue;
+					}
+				}
+
+				// No matching added FK column - this is a pure FK drop
+				handledDiffs.add(removedKey);
+
+				this._ambiguous.push({
+					id: `fk_drop:${tableName}.${removedDiff.fieldName}`,
+					tableName,
+					type: "fk_column_drop",
+					removedName: removedDiff.fieldName,
+					addedName: "",
+					warning: "All foreign key references will be lost.",
+					possibleActions: [
+						{
+							type: "confirm_drop",
+							description: `Confirm dropping FK column '${removedDiff.fieldName}' from '${tableName}' (data loss)`,
+						},
+					],
+					resolved: false,
+				});
+			}
+		}
+	}
+
+	/**
+	 * Detect potential column renames
+	 */
+	private detectColumnRenames(
+		removedFields: Map<string, SchemaDiff[]>,
+		addedFields: Map<string, SchemaDiff[]>,
+		handledDiffs: Set<string>,
+	): void {
+		for (const [tableName, removed] of removedFields) {
+			const added = addedFields.get(tableName);
+			if (!added) continue;
+
+			for (const removedDiff of removed) {
+				if (removedDiff.type !== "fieldRemoved") continue;
+
+				const removedKey = `${tableName}.${removedDiff.fieldName}`;
+				if (handledDiffs.has(removedKey)) continue;
+
+				for (const addedDiff of added) {
+					if (addedDiff.type !== "fieldAdded") continue;
+
+					const addedKey = `${tableName}.${addedDiff.fieldName}`;
+					if (handledDiffs.has(addedKey)) continue;
+
+					// Check if could be rename
+					if (this.couldBeRename(undefined, addedDiff.definition)) {
+						handledDiffs.add(removedKey);
+						handledDiffs.add(addedKey);
+
+						this._ambiguous.push({
+							id: `${tableName}.${removedDiff.fieldName}->${addedDiff.fieldName}`,
+							tableName,
+							type: "column_rename_or_replace",
+							removedName: removedDiff.fieldName,
+							addedName: addedDiff.fieldName,
+							addedDefinition: addedDiff.definition,
+							possibleActions: [
+								{
+									type: "rename",
+									description: `Rename column '${removedDiff.fieldName}' to '${addedDiff.fieldName}' (preserves data)`,
+								},
+								{
+									type: "drop_and_add",
+									description: `Drop '${removedDiff.fieldName}' and add '${addedDiff.fieldName}' (data loss)`,
+								},
+							],
+							resolved: false,
+						});
+
+						// Only match one pair per removed field
+						break;
 					}
 				}
 			}
 		}
+	}
 
-		// Check for potential table renames
+	/**
+	 * Detect potential table renames
+	 */
+	private detectTableRenames(
+		removedTables: SchemaDiff[],
+		addedTables: SchemaDiff[],
+		handledDiffs: Set<string>,
+	): void {
 		for (const removedDiff of removedTables) {
 			if (removedDiff.type !== "tableRemoved") continue;
+
+			const removedKey = `table:${removedDiff.tableName}`;
+			if (handledDiffs.has(removedKey)) continue;
 
 			for (const addedDiff of addedTables) {
 				if (addedDiff.type !== "tableAdded") continue;
 
-				// Similar structure = potential rename
+				const addedKey = `table:${addedDiff.schema.tableName ?? addedDiff.schema.name}`;
+				if (handledDiffs.has(addedKey)) continue;
+
 				if (this.couldBeTableRename(removedDiff.tableName, addedDiff.schema)) {
+					handledDiffs.add(removedKey);
+					handledDiffs.add(addedKey);
+
 					this._ambiguous.push({
 						id: `table:${removedDiff.tableName}->${addedDiff.schema.name}`,
 						tableName: removedDiff.tableName,
@@ -281,9 +657,89 @@ export class MigrationSession {
 						],
 						resolved: false,
 					});
+
+					break;
 				}
 			}
 		}
+	}
+
+	/**
+	 * Check if table name looks like a junction table
+	 */
+	private looksLikeJunctionTable(tableName: string): boolean {
+		// Junction tables typically have underscore: post_tag, category_post, etc.
+		return tableName.includes("_") && !tableName.startsWith("_");
+	}
+
+	/**
+	 * Check if junction table is for given table and relation
+	 */
+	private isJunctionTableFor(
+		junctionName: string,
+		tableName: string,
+		relationName: string,
+	): boolean {
+		const parts = junctionName.split("_");
+		if (parts.length !== 2) return false;
+
+		// Junction table should contain both model names (singular form)
+		const singularTable = this.singularize(tableName);
+		const singularRelation = relationName.toLowerCase();
+
+		const containsTable = parts.some(
+			(p) => p === singularTable || p === tableName.toLowerCase(),
+		);
+		const containsRelation = parts.some(
+			(p) => p === singularRelation || p === this.pluralize(singularRelation),
+		);
+
+		return containsTable && containsRelation;
+	}
+
+	/**
+	 * Check if two junction tables could be a rename
+	 */
+	private couldBeJunctionRename(oldName: string, newName: string): boolean {
+		const oldParts = new Set(oldName.split("_"));
+		const newParts = new Set(newName.split("_"));
+
+		// At least one part should be common
+		let commonParts = 0;
+		for (const part of oldParts) {
+			if (newParts.has(part)) commonParts++;
+		}
+
+		return commonParts >= 1;
+	}
+
+	/**
+	 * Simple singularize helper
+	 */
+	private singularize(word: string): string {
+		if (word.endsWith("ies")) {
+			return word.slice(0, -3) + "y";
+		}
+		if (word.endsWith("es")) {
+			return word.slice(0, -2);
+		}
+		if (word.endsWith("s") && !word.endsWith("ss")) {
+			return word.slice(0, -1);
+		}
+		return word;
+	}
+
+	/**
+	 * Simple pluralize helper
+	 */
+	private pluralize(word: string): string {
+		if (word.endsWith("y")) {
+			return word.slice(0, -1) + "ies";
+		}
+		if (word.endsWith("s") || word.endsWith("x") || word.endsWith("ch") || word.endsWith("sh")) {
+			return word + "es";
+		}
+		return word + "s";
 	}
 
 	/**
@@ -300,6 +756,9 @@ export class MigrationSession {
 
 	/**
 	 * Check if table change could be a rename
+	 *
+	 * Excludes common system fields (id, createdAt, updatedAt) from comparison
+	 * to focus on user-defined fields only.
 	 */
 	private couldBeTableRename(
 		oldTableName: string,
@@ -308,16 +767,43 @@ export class MigrationSession {
 		const oldSchema = this.databaseSchemas.get(oldTableName);
 		if (!oldSchema) return false;
 
-		// Compare field count and types
-		const oldFields = Object.keys(oldSchema.fields);
-		const newFields = Object.keys(newSchema.fields);
+		// Exclude system fields from comparison
+		const systemFields = new Set(["id", "createdAt", "updatedAt"]);
 
-		// If field count is similar, might be rename
-		const similarity =
-			Math.min(oldFields.length, newFields.length) /
-			Math.max(oldFields.length, newFields.length);
+		const oldFields = new Set(
+			Object.keys(oldSchema.fields).filter((f) => !systemFields.has(f)),
+		);
+		const newFields = new Set(
+			Object.keys(newSchema.fields).filter((f) => !systemFields.has(f)),
+		);
 
-		return similarity > 0.7; // 70% similar = potential rename
+		// Need at least 1 user-defined field to compare
+		if (oldFields.size === 0 || newFields.size === 0) {
+			return false;
+		}
+
+		// Count common fields
+		let commonFields = 0;
+		for (const field of oldFields) {
+			if (newFields.has(field)) {
+				commonFields++;
+			}
+		}
+
+		// Need at least 70% of fields to match by name (stricter threshold)
+		const totalUniqueFields = new Set([...oldFields, ...newFields]).size;
+		const fieldNameSimilarity = commonFields / totalUniqueFields;
+
+		if (fieldNameSimilarity < 0.7) {
+			return false;
+		}
+
+		// Also check field count similarity
+		const countSimilarity =
+			Math.min(oldFields.size, newFields.size) /
+			Math.max(oldFields.size, newFields.size);
+
+		return countSimilarity > 0.7;
 	}
 
 	/**
@@ -385,7 +871,7 @@ export class MigrationSession {
 	 */
 	resolveAmbiguous(
 		id: string,
-		action: "rename" | "drop_and_add",
+		action: AmbiguousActionType,
 	): Result<void, MigrationSystemError> {
 		const ambiguous = this._ambiguous.find((a) => a.id === id);
 		if (!ambiguous) {
@@ -415,56 +901,124 @@ export class MigrationSession {
 		ambiguous.resolvedAction = selectedAction;
 
 		// Update differences based on resolution
-		if (action === "rename") {
-			this.applyRenameResolution(ambiguous);
-		}
-		// drop_and_add keeps original differences
+		this.applyResolution(ambiguous, action);
 
 		return { success: true, data: undefined };
 	}
 
 	/**
-	 * Apply rename resolution - replace drop+add with rename
+	 * Apply resolution - update differences based on chosen action
 	 */
-	private applyRenameResolution(ambiguous: AmbiguousChange): void {
-		if (ambiguous.type === "column_rename_or_replace") {
-			// Remove the fieldRemoved and fieldAdded diffs
-			this.differences = this.differences.filter((d) => {
-				if (d.type === "fieldRemoved" && d.tableName === ambiguous.tableName && d.fieldName === ambiguous.removedName) {
-					return false;
+	private applyResolution(
+		ambiguous: AmbiguousChange,
+		action: AmbiguousActionType,
+	): void {
+		switch (ambiguous.type) {
+			case "column_rename_or_replace":
+				if (action === "rename") {
+					this.applyColumnRename(ambiguous);
 				}
-				if (d.type === "fieldAdded" && d.tableName === ambiguous.tableName && d.fieldName === ambiguous.addedName) {
-					return false;
-				}
-				return true;
-			});
+				// drop_and_add: keep original diffs
+				break;
 
-			// Add fieldRenamed diff
-			this.differences.push({
-				type: "fieldRenamed",
-				tableName: ambiguous.tableName,
-				from: ambiguous.removedName,
-				to: ambiguous.addedName,
-			});
-		} else if (ambiguous.type === "table_rename_or_replace") {
-			// Remove tableRemoved and tableAdded diffs
-			this.differences = this.differences.filter((d) => {
-				if (d.type === "tableRemoved" && d.tableName === ambiguous.removedName) {
-					return false;
+			case "table_rename_or_replace":
+				if (action === "rename") {
+					this.applyTableRename(ambiguous);
 				}
-				if (d.type === "tableAdded" && d.schema.name === ambiguous.addedName) {
-					return false;
-				}
-				return true;
-			});
+				// drop_and_add: keep original diffs
+				break;
 
-			// Add tableRenamed diff
-			this.differences.push({
-				type: "tableRenamed",
-				from: ambiguous.removedName,
-				to: ambiguous.addedName,
-			});
+			case "junction_table_rename_or_replace":
+				if (action === "rename") {
+					this.applyTableRename(ambiguous);
+				}
+				// drop_and_recreate: keep original diffs
+				break;
+
+			case "fk_column_drop":
+			case "junction_table_drop":
+				// confirm_drop: keep original diffs (just confirming)
+				break;
+
+			case "relation_upgrade_single_to_many":
+				if (action === "migrate_to_junction") {
+					// TODO: Add data migration operation
+					// For now, keep original diffs but mark for data migration
+				}
+				// fresh_start: keep original diffs (no data migration)
+				break;
+
+			case "relation_downgrade_many_to_single":
+				if (action === "migrate_first") {
+					// TODO: Add data migration operation
+					// For now, keep original diffs but mark for data migration
+				}
+				// fresh_start: keep original diffs (no data migration)
+				break;
+
+			case "fk_model_change":
+				// Both keep_column and drop_and_recreate: keep original diffs for now
+				break;
+
+			case "relation_direction_flip":
+				// drop_both_and_recreate: keep original diffs
+				break;
 		}
+	}
+
+	/**
+	 * Apply column rename - replace drop+add with rename
+	 */
+	private applyColumnRename(ambiguous: AmbiguousChange): void {
+		// Remove the fieldRemoved and fieldAdded diffs
+		this.differences = this.differences.filter((d) => {
+			if (
+				d.type === "fieldRemoved" &&
+				d.tableName === ambiguous.tableName &&
+				d.fieldName === ambiguous.removedName
+			) {
+				return false;
+			}
+			if (
+				d.type === "fieldAdded" &&
+				d.tableName === ambiguous.tableName &&
+				d.fieldName === ambiguous.addedName
+			) {
+				return false;
+			}
+			return true;
+		});
+
+		// Add fieldRenamed diff
+		this.differences.push({
+			type: "fieldRenamed",
+			tableName: ambiguous.tableName,
+			from: ambiguous.removedName,
+			to: ambiguous.addedName,
+		});
+	}
+
+	/**
+	 * Apply table rename - replace drop+add with rename
+	 */
+	private applyTableRename(ambiguous: AmbiguousChange): void {
+		// Remove tableRemoved and tableAdded diffs
+		this.differences = this.differences.filter((d) => {
+			if (d.type === "tableRemoved" && d.tableName === ambiguous.removedName) {
+				return false;
+			}
+			if (d.type === "tableAdded" && d.schema.name === ambiguous.addedName) {
+				return false;
+			}
+			return true;
+		});
+
+		// Add tableRenamed diff
+		this.differences.push({
+			type: "tableRenamed",
+			from: ambiguous.removedName,
+			to: ambiguous.addedName,
+		});
 	}
 
 	/**
@@ -502,7 +1056,7 @@ export class MigrationSession {
 				tablesToCreate: this.tablesToCreate,
 				tablesToDrop: this.tablesToDrop,
 				tablesToAlter: this.tablesToAlter,
-				operations: operationsResult.data.up,
+				operations: operationsResult.data,
 				hasChanges: this.hasChanges(),
 			},
 		};

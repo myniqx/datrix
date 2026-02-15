@@ -433,4 +433,117 @@ describe("Populate", () => {
 			).rejects.toThrow();
 		});
 	});
+
+	// ==========================================================================
+	// HasOne Populate
+	// ==========================================================================
+
+	describe("HasOne Populate", () => {
+		let userWithFavCatId: number;
+		let favCategoryId: number;
+
+		beforeAll(async () => {
+			// Create a category for hasOne relation
+			const favCategory = await forja.create("category", {
+				name: "Favorite Category",
+				slug: "favorite-category",
+			});
+			favCategoryId = favCategory.id;
+
+			// Create user with favoriteCategory (hasOne relation)
+			const userWithFavCat = await forja.create("user", {
+				email: "hasone-test@test.com",
+				name: "HasOne Test User",
+				favoriteCategory: favCategoryId,
+			});
+			userWithFavCatId = userWithFavCat.id;
+		});
+
+		it("should populate hasOne relation", async () => {
+			const user = await forja.findById("user", userWithFavCatId, {
+				populate: { favoriteCategory: true },
+			});
+
+			expect(user).toBeDefined();
+			expect(user!.favoriteCategory).toBeDefined();
+			expect(user!.favoriteCategory).not.toBeNull();
+
+			const favCat = user!.favoriteCategory as { id: number; name: string; slug: string };
+			expect(favCat.id).toBe(favCategoryId);
+			expect(favCat.name).toBe("Favorite Category");
+			expect(favCat.slug).toBe("favorite-category");
+		});
+
+		it("should populate hasOne with select", async () => {
+			const user = await forja.findById("user", userWithFavCatId, {
+				populate: {
+					favoriteCategory: {
+						select: ["id", "name"],
+					},
+				},
+			});
+
+			const favCat = user!.favoriteCategory as Record<string, unknown>;
+			expect(favCat).toHaveProperty("id");
+			expect(favCat).toHaveProperty("name");
+			expect(favCat).not.toHaveProperty("slug");
+			expect(favCat).not.toHaveProperty("description");
+		});
+
+		it("should return null for hasOne when not set", async () => {
+			// Create user without favoriteCategory
+			const userWithoutFav = await forja.create("user", {
+				email: "no-fav-cat@test.com",
+				name: "No Favorite User",
+			});
+
+			const user = await forja.findById("user", userWithoutFav.id, {
+				populate: { favoriteCategory: true },
+			});
+
+			expect(user!.favoriteCategory).toBeNull();
+		});
+
+		it("should populate hasOne in findMany", async () => {
+			const users = await forja.findMany("user", {
+				where: { email: { $in: ["hasone-test@test.com", "no-fav-cat@test.com"] } },
+				populate: { favoriteCategory: true },
+			});
+
+			expect(users.length).toBe(2);
+
+			const withFav = users.find((u) => u.email === "hasone-test@test.com");
+			const withoutFav = users.find((u) => u.email === "no-fav-cat@test.com");
+
+			expect(withFav!.favoriteCategory).not.toBeNull();
+			expect(withoutFav!.favoriteCategory).toBeNull();
+		});
+
+		it("should populate hasOne with nested relation", async () => {
+			// Category has parent (self-referencing belongsTo)
+			const parentCat = await forja.create("category", {
+				name: "Parent of Favorite",
+				slug: "parent-of-favorite",
+			});
+
+			// Update favorite category to have parent
+			await forja.update("category", favCategoryId, {
+				parent: parentCat.id,
+			});
+
+			const user = await forja.findById("user", userWithFavCatId, {
+				populate: {
+					favoriteCategory: {
+						populate: {
+							parent: true,
+						},
+					},
+				},
+			});
+
+			const favCat = user!.favoriteCategory as { parent: { name: string } };
+			expect(favCat.parent).toBeDefined();
+			expect(favCat.parent.name).toBe("Parent of Favorite");
+		});
+	});
 });

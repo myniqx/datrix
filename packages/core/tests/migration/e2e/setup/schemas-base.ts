@@ -15,6 +15,7 @@ export const TABLE_NAMES = {
 	post: "posts",
 	category: "categories",
 	tag: "tags",
+	profile: "profiles",
 } as const;
 
 /**
@@ -67,6 +68,31 @@ export const baseTagSchema = defineSchema({
 	fields: {
 		name: { type: "string", required: true },
 		color: { type: "string" },
+	},
+});
+
+/**
+ * Profile schema - for hasOne relation tests
+ */
+export const baseProfileSchema = defineSchema({
+	name: "profile",
+	tableName: "profiles",
+	fields: {
+		bio: { type: "string" },
+		avatar: { type: "string" },
+	},
+});
+
+/**
+ * Post schema without author relation - for testing relation addition
+ */
+export const basePostSchemaNoRelation = defineSchema({
+	name: "post",
+	tableName: TABLE_NAMES.post,
+	fields: {
+		title: { type: "string", required: true },
+		content: { type: "string" },
+		published: { type: "boolean", default: false },
 	},
 });
 

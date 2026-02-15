@@ -47,15 +47,12 @@ export class ForgeMigrationGenerator implements MigrationGenerator {
 				return operationsResult;
 			}
 
-			const { up, down } = operationsResult.data;
-
 			const migration: Migration = {
 				metadata: {
 					...metadata,
 					timestamp: Date.now(),
 				},
-				up,
-				down,
+				operations: operationsResult.data,
 			};
 
 			return { success: true, data: migration };
@@ -73,29 +70,20 @@ export class ForgeMigrationGenerator implements MigrationGenerator {
 	}
 
 	/**
-	 * Generate up and down operations from differences
+	 * Generate operations from differences
 	 */
-	generateOperations(differences: readonly SchemaDiff[]): Result<
-		{
-			readonly up: readonly MigrationOperation[];
-			readonly down: readonly MigrationOperation[];
-		},
-		MigrationSystemError
-	> {
+	generateOperations(
+		differences: readonly SchemaDiff[],
+	): Result<readonly MigrationOperation[], MigrationSystemError> {
 		try {
-			const up: MigrationOperation[] = [];
-			const down: MigrationOperation[] = [];
+			const operations: MigrationOperation[] = [];
 
 			for (const diff of differences) {
-				const ops = this.generateOperationPair(diff);
-				up.push(ops.up);
-				down.push(ops.down);
+				const op = this.generateOperation(diff);
+				operations.push(op);
 			}
 
-			return {
-				success: true,
-				data: { up, down },
-			};
+			return { success: true, data: operations };
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			return {
@@ -110,178 +98,92 @@ export class ForgeMigrationGenerator implements MigrationGenerator {
 	}
 
 	/**
-	 * Generate up/down operation pair for a single difference
+	 * Generate operation for a single difference
 	 */
-	private generateOperationPair(diff: SchemaDiff): {
-		up: MigrationOperation;
-		down: MigrationOperation;
-	} {
+	private generateOperation(diff: SchemaDiff): MigrationOperation {
 		switch (diff.type) {
 			case "tableAdded":
 				return {
-					up: {
-						type: "createTable",
-						schema: diff.schema,
-					},
-					down: {
-						type: "dropTable",
-						tableName: diff.schema.name,
-					},
+					type: "createTable",
+					schema: diff.schema,
 				};
 
 			case "tableRemoved":
-				// Note: We don't have the schema for down migration
-				// This is a limitation - ideally store schema before removal
 				return {
-					up: {
-						type: "dropTable",
-						tableName: diff.tableName,
-					},
-					down: {
-						type: "raw",
-						sql: `-- TODO: Add CREATE TABLE statement for ${diff.tableName}`,
-						params: [],
-					},
+					type: "dropTable",
+					tableName: diff.tableName,
 				};
 
 			case "tableRenamed":
 				return {
-					up: {
-						type: "renameTable",
-						from: diff.from,
-						to: diff.to,
-					},
-					down: {
-						type: "renameTable",
-						from: diff.to,
-						to: diff.from,
-					},
+					type: "renameTable",
+					from: diff.from,
+					to: diff.to,
 				};
 
 			case "fieldAdded":
 				return {
-					up: {
-						type: "alterTable",
-						tableName: diff.tableName,
-						operations: [
-							{
-								type: "addColumn",
-								column: diff.fieldName,
-								definition: diff.definition,
-							},
-						],
-					},
-					down: {
-						type: "alterTable",
-						tableName: diff.tableName,
-						operations: [
-							{
-								type: "dropColumn",
-								column: diff.fieldName,
-							},
-						],
-					},
+					type: "alterTable",
+					tableName: diff.tableName,
+					operations: [
+						{
+							type: "addColumn",
+							column: diff.fieldName,
+							definition: diff.definition,
+						},
+					],
 				};
 
 			case "fieldRemoved":
 				return {
-					up: {
-						type: "alterTable",
-						tableName: diff.tableName,
-						operations: [
-							{
-								type: "dropColumn",
-								column: diff.fieldName,
-							},
-						],
-					},
-					down: {
-						type: "raw",
-						sql: `-- TODO: Add column ${diff.fieldName} to ${diff.tableName}`,
-						params: [],
-					},
+					type: "alterTable",
+					tableName: diff.tableName,
+					operations: [
+						{
+							type: "dropColumn",
+							column: diff.fieldName,
+						},
+					],
 				};
 
 			case "fieldModified":
 				return {
-					up: {
-						type: "alterTable",
-						tableName: diff.tableName,
-						operations: [
-							{
-								type: "modifyColumn",
-								column: diff.fieldName,
-								newDefinition: diff.newDefinition,
-							},
-						],
-					},
-					down: {
-						type: "alterTable",
-						tableName: diff.tableName,
-						operations: [
-							{
-								type: "modifyColumn",
-								column: diff.fieldName,
-								newDefinition: diff.oldDefinition,
-							},
-						],
-					},
+					type: "alterTable",
+					tableName: diff.tableName,
+					operations: [
+						{
+							type: "modifyColumn",
+							column: diff.fieldName,
+							newDefinition: diff.newDefinition,
+						},
+					],
 				};
 
 			case "fieldRenamed":
 				return {
-					up: {
-						type: "alterTable",
-						tableName: diff.tableName,
-						operations: [
-							{
-								type: "renameColumn",
-								from: diff.from,
-								to: diff.to,
-							},
-						],
-					},
-					down: {
-						type: "alterTable",
-						tableName: diff.tableName,
-						operations: [
-							{
-								type: "renameColumn",
-								from: diff.to,
-								to: diff.from,
-							},
-						],
-					},
+					type: "alterTable",
+					tableName: diff.tableName,
+					operations: [
+						{
+							type: "renameColumn",
+							from: diff.from,
+							to: diff.to,
+						},
+					],
 				};
 
 			case "indexAdded":
 				return {
-					up: {
-						type: "createIndex",
-						tableName: diff.tableName,
-						index: diff.index,
-					},
-					down: {
-						type: "dropIndex",
-						tableName: diff.tableName,
-						indexName:
-							diff.index.name ??
-							`idx_${diff.tableName}_${diff.index.fields.join("_")}`,
-					},
+					type: "createIndex",
+					tableName: diff.tableName,
+					index: diff.index,
 				};
 
 			case "indexRemoved":
 				return {
-					up: {
-						type: "dropIndex",
-						tableName: diff.tableName,
-						indexName: diff.indexName,
-					},
-					down: {
-						type: "raw",
-						sql: `-- TODO: Add CREATE INDEX statement for ${diff.indexName}`,
-						params: [],
-					},
+					type: "dropIndex",
+					tableName: diff.tableName,
+					indexName: diff.indexName,
 				};
 		}
 	}
@@ -290,10 +192,9 @@ export class ForgeMigrationGenerator implements MigrationGenerator {
 	 * Generate TypeScript migration file content
 	 */
 	generateFile(migration: Migration): string {
-		const { metadata, up, down } = migration;
+		const { metadata, operations } = migration;
 
-		const upCode = this.generateOperationsCode(up, 2);
-		const downCode = this.generateOperationsCode(down, 2);
+		const operationsCode = this.generateOperationsCode(operations, 2);
 
 		// Escape metadata strings to prevent injection
 		const escapedName = this.escapeString(metadata.name);
@@ -313,7 +214,7 @@ export class ForgeMigrationGenerator implements MigrationGenerator {
  ${escapedAuthor ? `* Author: ${escapedAuthor}` : ""}
  */
 
-import type { Migration, MigrationOperation } from '@core/migration/types';
+import type { Migration } from 'forja-types/core/migration';
 
 export const migration: Migration = {
   metadata: {
@@ -324,12 +225,8 @@ export const migration: Migration = {
     ${escapedAuthor ? `author: '${escapedAuthor}',` : ""}
   },
 
-  up: [
-${upCode}
-  ],
-
-  down: [
-${downCode}
+  operations: [
+${operationsCode}
   ]
 };
 

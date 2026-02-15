@@ -12,7 +12,13 @@
 
 // Public API
 export { MigrationSession, createMigrationSession } from "./session";
-export type { AmbiguousChange, AmbiguousAction, MigrationPlan } from "./session";
+export type {
+	AmbiguousChange,
+	AmbiguousAction,
+	AmbiguousChangeType,
+	AmbiguousActionType,
+	MigrationPlan,
+} from "./session";
 
 // Internal - used by Forja class only
 export { getMigrationSchema, DEFAULT_MIGRATION_MODEL } from "./schema";

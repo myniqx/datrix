@@ -11,17 +11,7 @@ import { FieldDefinition, IndexDefinition, SchemaDefinition } from "./schema";
 /**
  * Migration status
  */
-export type MigrationStatus =
-	| "pending"
-	| "running"
-	| "completed"
-	| "failed"
-	| "rolled_back";
-
-/**
- * Migration direction
- */
-export type MigrationDirection = "up" | "down";
+export type MigrationStatus = "pending" | "running" | "completed" | "failed";
 
 /**
  * Migration metadata
@@ -39,7 +29,6 @@ export interface MigrationMetadata {
  */
 export interface MigrationContext {
 	readonly version: string;
-	readonly direction: MigrationDirection;
 	readonly dryRun?: boolean;
 }
 
@@ -140,8 +129,7 @@ export type MigrationOperation =
  */
 export interface Migration {
 	readonly metadata: MigrationMetadata;
-	readonly up: readonly MigrationOperation[];
-	readonly down: readonly MigrationOperation[];
+	readonly operations: readonly MigrationOperation[];
 }
 
 /**
@@ -300,7 +288,6 @@ export interface MigrationExecutionResult {
  */
 export interface MigrationPlan {
 	readonly migrations: readonly Migration[];
-	readonly direction: MigrationDirection;
 	readonly target?: string; // Target version (undefined = latest)
 }
 
@@ -358,13 +345,9 @@ export interface MigrationGenerator {
 	/**
 	 * Generate migration operations from differences
 	 */
-	generateOperations(differences: readonly SchemaDiff[]): Result<
-		{
-			readonly up: readonly MigrationOperation[];
-			readonly down: readonly MigrationOperation[];
-		},
-		MigrationSystemError
-	>;
+	generateOperations(
+		differences: readonly SchemaDiff[],
+	): Result<readonly MigrationOperation[], MigrationSystemError>;
 
 	/**
 	 * Generate TypeScript migration file content
@@ -403,29 +386,13 @@ export interface MigrationRunner {
 	 */
 	runOne(
 		migration: Migration,
-		direction: MigrationDirection,
 	): Promise<Result<MigrationExecutionResult, MigrationSystemError>>;
-
-	/**
-	 * Rollback last migration
-	 */
-	rollbackLast(): Promise<
-		Result<MigrationExecutionResult, MigrationSystemError>
-	>;
-
-	/**
-	 * Rollback to specific version
-	 */
-	rollbackTo(
-		version: string,
-	): Promise<Result<readonly MigrationExecutionResult[], MigrationSystemError>>;
 
 	/**
 	 * Get migration plan
 	 */
 	getPlan(options?: {
 		readonly target?: string;
-		readonly direction?: MigrationDirection;
 	}): Result<MigrationPlan, MigrationSystemError>;
 }
 
@@ -466,11 +433,6 @@ export interface MigrationHistory {
 	 * Check if migration was applied
 	 */
 	isApplied(version: string): Promise<Result<boolean, MigrationSystemError>>;
-
-	/**
-	 * Remove migration record (for rollback)
-	 */
-	remove(version: string): Promise<Result<void, MigrationSystemError>>;
 
 	/**
 	 * Calculate migration checksum

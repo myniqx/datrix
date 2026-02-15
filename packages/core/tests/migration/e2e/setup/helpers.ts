@@ -29,13 +29,56 @@ function getTableName(forja: Forja, modelName: string): string {
 
 /**
  * Auto-resolve all ambiguous changes with given strategy
+ *
+ * Maps generic strategies to specific action types:
+ * - "rename" → rename, confirm_drop (for drops)
+ * - "drop_and_add" → drop_and_add, fresh_start, drop_and_recreate, confirm_drop
+ * - "migrate" → migrate_to_junction, migrate_first
+ * - "fresh_start" → fresh_start
  */
 export function autoResolveAmbiguous(
 	session: MigrationSession,
-	strategy: "rename" | "drop_and_add",
+	strategy: "rename" | "drop_and_add" | "migrate" | "fresh_start",
 ): void {
 	for (const change of session.ambiguous) {
-		const result = session.resolveAmbiguous(change.id, strategy);
+		let action: string;
+
+		switch (change.type) {
+			case "column_rename_or_replace":
+			case "table_rename_or_replace":
+			case "junction_table_rename_or_replace":
+				action = strategy === "rename" ? "rename" : "drop_and_add";
+				if (change.type === "junction_table_rename_or_replace" && strategy !== "rename") {
+					action = "drop_and_recreate";
+				}
+				break;
+
+			case "fk_column_drop":
+			case "junction_table_drop":
+				action = "confirm_drop";
+				break;
+
+			case "relation_upgrade_single_to_many":
+				action = strategy === "migrate" ? "migrate_to_junction" : "fresh_start";
+				break;
+
+			case "relation_downgrade_many_to_single":
+				action = strategy === "migrate" ? "migrate_first" : "fresh_start";
+				break;
+
+			case "fk_model_change":
+				action = strategy === "rename" ? "keep_column" : "drop_and_recreate";
+				break;
+
+			case "relation_direction_flip":
+				action = "drop_and_add";
+				break;
+
+			default:
+				action = strategy;
+		}
+
+		const result = session.resolveAmbiguous(change.id, action as Parameters<typeof session.resolveAmbiguous>[1]);
 		if (!result.success) {
 			throw new Error(`Failed to resolve ambiguous '${change.id}': ${result.error.message}`);
 		}
@@ -48,9 +91,9 @@ export function autoResolveAmbiguous(
 export function resolveAmbiguousById(
 	session: MigrationSession,
 	id: string,
-	strategy: "rename" | "drop_and_add",
+	action: Parameters<typeof session.resolveAmbiguous>[1],
 ): void {
-	const result = session.resolveAmbiguous(id, strategy);
+	const result = session.resolveAmbiguous(id, action);
 	if (!result.success) {
 		throw new Error(`Failed to resolve ambiguous '${id}': ${result.error.message}`);
 	}
@@ -61,7 +104,7 @@ export function resolveAmbiguousById(
  */
 export async function applyMigration(
 	session: MigrationSession,
-	ambiguousStrategy: "rename" | "drop_and_add" = "drop_and_add",
+	ambiguousStrategy: "rename" | "drop_and_add" | "migrate" | "fresh_start" = "drop_and_add",
 ): Promise<void> {
 	// Resolve any ambiguous changes
 	if (session.ambiguous.length > 0) {
@@ -344,4 +387,112 @@ export function assertHasChanges(session: MigrationSession): void {
  */
 export function assertNoChanges(session: MigrationSession): void {
 	expect(session.hasChanges(), "Expected session to have NO changes").toBe(false);
+}
+
+// ============================================
+// Ambiguous Type Helpers
+// ============================================
+
+/**
+ * Assert ambiguous change exists with specific type
+ */
+export function assertAmbiguousExists(
+	session: MigrationSession,
+	type: string,
+	tableName?: string,
+): AmbiguousChange {
+	const found = session.ambiguous.find(
+		(a) => a.type === type && (tableName === undefined || a.tableName === tableName),
+	);
+
+	expect(
+		found,
+		`Expected ambiguous change of type '${type}'${tableName ? ` for table '${tableName}'` : ""}`,
+	).toBeDefined();
+
+	return found!;
+}
+
+/**
+ * Get ambiguous changes by type
+ */
+export function getAmbiguousByType(
+	session: MigrationSession,
+	type: string,
+): AmbiguousChange[] {
+	return session.ambiguous.filter((a) => a.type === type) as AmbiguousChange[];
+}
+
+/**
+ * Assert session has specific table in tablesToCreate
+ */
+export function assertTableInCreate(
+	session: MigrationSession,
+	tableName: string,
+): void {
+	const found = session.tablesToCreate.find(
+		(s) => s.tableName === tableName || s.name === tableName,
+	);
+	expect(
+		found,
+		`Expected '${tableName}' in tablesToCreate. Found: ${session.tablesToCreate.map((s) => s.tableName).join(", ")}`,
+	).toBeDefined();
+}
+
+/**
+ * Assert session has specific table in tablesToDrop
+ */
+export function assertTableInDrop(
+	session: MigrationSession,
+	tableName: string,
+): void {
+	const found = session.tablesToDrop.includes(tableName);
+	expect(
+		found,
+		`Expected '${tableName}' in tablesToDrop. Found: ${session.tablesToDrop.join(", ")}`,
+	).toBe(true);
+}
+
+/**
+ * Assert specific column is being added to a table
+ */
+export function assertColumnInAdd(
+	session: MigrationSession,
+	tableName: string,
+	columnName: string,
+): void {
+	const tableAlter = session.tablesToAlter.find((t) => t.tableName === tableName);
+	expect(tableAlter, `Table '${tableName}' not found in tablesToAlter`).toBeDefined();
+
+	if (tableAlter) {
+		const fieldAdd = tableAlter.changes.find(
+			(c) => c.type === "fieldAdded" && c.fieldName === columnName,
+		);
+		expect(
+			fieldAdd,
+			`Column '${columnName}' not found in fieldAdded changes for '${tableName}'`,
+		).toBeDefined();
+	}
+}
+
+/**
+ * Assert specific column is being dropped from a table
+ */
+export function assertColumnInDrop(
+	session: MigrationSession,
+	tableName: string,
+	columnName: string,
+): void {
+	const tableAlter = session.tablesToAlter.find((t) => t.tableName === tableName);
+	expect(tableAlter, `Table '${tableName}' not found in tablesToAlter`).toBeDefined();
+
+	if (tableAlter) {
+		const fieldRemove = tableAlter.changes.find(
+			(c) => c.type === "fieldRemoved" && c.fieldName === columnName,
+		);
+		expect(
+			fieldRemove,
+			`Column '${columnName}' not found in fieldRemoved changes for '${tableName}'`,
+		).toBeDefined();
+	}
 }

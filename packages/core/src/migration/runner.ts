@@ -1,7 +1,7 @@
 /**
- * Migration Runner Implementation (~200 LOC)
+ * Migration Runner Implementation
  *
- * Executes migrations, handles rollbacks, and manages migration plans.
+ * Executes migrations and manages migration plans.
  */
 
 import { Result } from "forja-types/utils";
@@ -12,11 +12,10 @@ import type {
 	MigrationHistoryRecord,
 	MigrationExecutionResult,
 	MigrationPlan,
-	MigrationDirection,
 	MigrationOperation,
 } from "forja-types/core/migration";
 import { MigrationSystemError } from "forja-types/core/migration";
-import { DatabaseAdapter } from "forja-types/adapter";
+import { DatabaseAdapter, Transaction } from "forja-types/adapter";
 
 /**
  * Migration runner implementation
@@ -158,7 +157,7 @@ export class ForgeMigrationRunner implements MigrationRunner {
 			const results: MigrationExecutionResult[] = [];
 
 			for (const migration of migrationsToRun) {
-				const result = await this.runOne(migration, "up");
+				const result = await this.runOne(migration);
 
 				if (!result.success) {
 					return { success: false, error: result.error };
@@ -191,7 +190,6 @@ export class ForgeMigrationRunner implements MigrationRunner {
 	 */
 	async runOne(
 		migration: Migration,
-		direction: MigrationDirection,
 	): Promise<Result<MigrationExecutionResult, MigrationSystemError>> {
 		const startTime = Date.now();
 
@@ -210,15 +208,14 @@ export class ForgeMigrationRunner implements MigrationRunner {
 			}
 
 			const tx = txResult.data;
-			const operations = direction === "up" ? migration.up : migration.down;
 
 			try {
-				// Execute all operations
-				for (const operation of operations) {
-					const opResult = await this.executeOperation(operation);
+				// Execute all operations within transaction
+				for (const operation of migration.operations) {
+					const opResult = await this.executeOperation(tx, operation);
 
 					if (!opResult.success) {
-						// Rollback transaction
+						// Rollback transaction on failure
 						await tx.rollback();
 
 						const executionTime = Date.now() - startTime;
@@ -262,11 +259,10 @@ export class ForgeMigrationRunner implements MigrationRunner {
 				const executionTime = Date.now() - startTime;
 
 				// Record success
-				const recordStatus = direction === "up" ? "completed" : "rolled_back";
 				const recordResult = await this.history.record(
 					migration,
 					executionTime,
-					recordStatus,
+					"completed",
 				);
 
 				// Collect warning if recording fails, but don't fail the migration
@@ -281,7 +277,7 @@ export class ForgeMigrationRunner implements MigrationRunner {
 					success: true,
 					data: {
 						migration,
-						status: recordStatus,
+						status: "completed",
 						executionTime,
 						...(warnings.length > 0 && { warnings }),
 					},
@@ -332,194 +328,12 @@ export class ForgeMigrationRunner implements MigrationRunner {
 	}
 
 	/**
-	 * Rollback last migration
-	 */
-	async rollbackLast(): Promise<
-		Result<MigrationExecutionResult, MigrationSystemError>
-	> {
-		try {
-			const lastResult = await this.history.getLast();
-			if (!lastResult.success) {
-				return { success: false, error: lastResult.error };
-			}
-
-			if (!lastResult.data) {
-				return {
-					success: false,
-					error: new MigrationSystemError(
-						"No migrations to rollback",
-						"MIGRATION_ERROR",
-					),
-				};
-			}
-
-			const lastRecord = lastResult.data;
-
-			// Find migration
-			const migration = this.migrations.find(
-				(m) => m.metadata.version === lastRecord.version,
-			);
-
-			if (!migration) {
-				return {
-					success: false,
-					error: new MigrationSystemError(
-						`Migration ${lastRecord.version} not found`,
-						"MIGRATION_ERROR",
-					),
-				};
-			}
-
-			// Run down migration
-			const result = await this.runOne(migration, "down");
-			if (!result.success) {
-				return result;
-			}
-
-			// Remove from history if successful
-			if (result.data.status !== "failed") {
-				const removeResult = await this.history.remove(
-					migration.metadata.version,
-				);
-				if (!removeResult.success) {
-					// Add warning to result
-					const warnings = [
-						...(result.data.warnings ?? []),
-						`Failed to remove migration from history: ${removeResult.error.message}`,
-					];
-					return {
-						success: true,
-						data: {
-							...result.data,
-							warnings,
-						},
-					};
-				}
-			}
-
-			return result;
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new MigrationSystemError(
-					`Failed to rollback migration: ${message}`,
-					"MIGRATION_ERROR",
-					error,
-				),
-			};
-		}
-	}
-
-	/**
-	 * Rollback to specific version
-	 */
-	async rollbackTo(
-		version: string,
-	): Promise<
-		Result<readonly MigrationExecutionResult[], MigrationSystemError>
-	> {
-		try {
-			const appliedResult = await this.history.getAll();
-			if (!appliedResult.success) {
-				return { success: false, error: appliedResult.error };
-			}
-
-			const applied = appliedResult.data.filter(
-				(record) => record.status === "completed",
-			);
-
-			// Find target version index
-			const targetIndex = applied.findIndex(
-				(record) => record.version === version,
-			);
-
-			if (targetIndex === -1) {
-				return {
-					success: false,
-					error: new MigrationSystemError(
-						`Target version ${version} not found in migration history`,
-						"MIGRATION_ERROR",
-					),
-				};
-			}
-
-			// Get migrations to rollback (in reverse order)
-			const toRollback = applied.slice(targetIndex + 1).reverse();
-
-			const results: MigrationExecutionResult[] = [];
-
-			for (const record of toRollback) {
-				const migration = this.migrations.find(
-					(m) => m.metadata.version === record.version,
-				);
-
-				if (!migration) {
-					return {
-						success: false,
-						error: new MigrationSystemError(
-							`Migration ${record.version} not found`,
-							"MIGRATION_ERROR",
-						),
-					};
-				}
-
-				const result = await this.runOne(migration, "down");
-				if (!result.success) {
-					return { success: false, error: result.error };
-				}
-
-				let executionResult = result.data;
-
-				// Remove from history if successful
-				if (result.data.status !== "failed") {
-					const removeResult = await this.history.remove(
-						migration.metadata.version,
-					);
-					if (!removeResult.success) {
-						// Add warning to result
-						const warnings = [
-							...(result.data.warnings ?? []),
-							`Failed to remove migration from history: ${removeResult.error.message}`,
-						];
-						executionResult = {
-							...result.data,
-							warnings,
-						};
-					}
-				}
-
-				results.push(executionResult);
-
-				// Stop on failure
-				if (result.data.status === "failed") {
-					break;
-				}
-			}
-
-			return { success: true, data: results };
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new MigrationSystemError(
-					`Failed to rollback to version ${version}: ${message}`,
-					"MIGRATION_ERROR",
-					error,
-				),
-			};
-		}
-	}
-
-	/**
 	 * Get migration plan
 	 */
 	getPlan(options?: {
 		readonly target?: string;
-		readonly direction?: MigrationDirection;
 	}): Result<MigrationPlan, MigrationSystemError> {
 		try {
-			const direction = options?.direction ?? "up";
 			let migrations = [...this.migrations];
 
 			if (options?.target) {
@@ -540,15 +354,10 @@ export class ForgeMigrationRunner implements MigrationRunner {
 				migrations = migrations.slice(0, targetIndex + 1);
 			}
 
-			if (direction === "down") {
-				migrations = migrations.reverse();
-			}
-
 			return {
 				success: true,
 				data: {
 					migrations,
-					direction,
 					...(options?.target !== undefined && { target: options.target }),
 				},
 			};
@@ -566,47 +375,48 @@ export class ForgeMigrationRunner implements MigrationRunner {
 	}
 
 	/**
-	 * Execute a single migration operation
+	 * Execute a single migration operation within a transaction
 	 */
 	private async executeOperation(
+		tx: Transaction,
 		operation: MigrationOperation,
 	): Promise<Result<void, Error>> {
 		switch (operation.type) {
 			case "createTable":
-				return await this.adapter.createTable(operation.schema);
+				return await tx.createTable(operation.schema);
 
 			case "dropTable":
-				return await this.adapter.dropTable(operation.tableName);
+				return await tx.dropTable(operation.tableName);
 
 			case "alterTable":
-				return await this.adapter.alterTable(
+				return await tx.alterTable(
 					operation.tableName,
 					operation.operations,
 				);
 
 			case "createIndex":
-				return await this.adapter.addIndex(
+				return await tx.addIndex(
 					operation.tableName,
 					operation.index,
 				);
 
 			case "dropIndex":
-				return await this.adapter.dropIndex(
+				return await tx.dropIndex(
 					operation.tableName,
 					operation.indexName,
 				);
 
 			case "renameTable":
-				return await this.adapter.renameTable(operation.from, operation.to);
+				return await tx.renameTable(operation.from, operation.to);
 
 			case "raw":
-				return await this.adapter
+				return await tx
 					.executeRawQuery(operation.sql, operation.params ?? [])
 					.then((result) => {
 						if (result.success) {
-							return { success: true, data: undefined };
+							return { success: true as const, data: undefined };
 						}
-						return { success: false, error: result.error };
+						return { success: false as const, error: result.error };
 					});
 		}
 	}

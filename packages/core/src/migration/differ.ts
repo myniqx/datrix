@@ -149,7 +149,7 @@ export class ForgeSchemaDiffer implements SchemaDiffer {
 		newSchema: SchemaDefinition,
 	): SchemaDiff[] {
 		const differences: SchemaDiff[] = [];
-		const tableName = newSchema.name;
+		const tableName = newSchema.tableName ?? newSchema.name;
 
 		const oldFieldNames = new Set(Object.keys(oldSchema.fields));
 		const newFieldNames = new Set(Object.keys(newSchema.fields));

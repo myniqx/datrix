@@ -304,8 +304,8 @@ async function processRelation<T extends ForjaEntry>({
 	const relation = field;
 	const foreignKey = relation.foreignKey ?? `${fieldName}Id`;
 
-	// belongsTo / hasOne → Update THIS record's foreign key
-	if (relation.kind === "belongsTo" || relation.kind === "hasOne") {
+	// belongsTo → Update THIS record's foreign key (FK is on owner)
+	if (relation.kind === "belongsTo") {
 		const updateData: Partial<ForjaRecord> = {};
 
 		if (ops.connect.length > 0) {
@@ -331,7 +331,76 @@ async function processRelation<T extends ForjaEntry>({
 		}
 	}
 
-	// hasMany → Update TARGET records' foreign key
+	// hasOne → Update TARGET record's foreign key (FK is on target, singular)
+	if (relation.kind === "hasOne") {
+		const reverseForeignKey = relation.foreignKey ?? `${parentModel}Id`;
+		const relationSchema = schemaRegistry.get(relation.model)!;
+
+		// For hasOne, we need to ensure only one target is linked
+		if (ops.connect.length > 0) {
+			// First, disconnect any existing target
+			const disconnectResult = await runner.executeQuery<T>({
+				table: relationSchema.tableName!,
+				type: "update",
+				data: { [reverseForeignKey]: null } as Partial<T>,
+				where: { [reverseForeignKey]: parentId } as WhereClause<T>,
+			});
+			if (!disconnectResult.success) {
+				throw disconnectResult.error;
+			}
+
+			// Then connect the new target (only first one for hasOne)
+			const result = await runner.executeQuery<T>({
+				table: relationSchema.tableName!,
+				type: "update",
+				data: { [reverseForeignKey]: parentId } as Partial<T>,
+				where: { id: ops.connect[0] } as WhereClause<T>,
+			});
+			if (!result.success) {
+				throw result.error;
+			}
+		}
+
+		if (ops.disconnect.length > 0) {
+			const result = await runner.executeQuery<T>({
+				table: relationSchema.tableName!,
+				type: "update",
+				data: { [reverseForeignKey]: null } as Partial<T>,
+				where: { id: { $in: ops.disconnect } } as WhereClause<T>,
+			});
+			if (!result.success) {
+				throw result.error;
+			}
+		}
+
+		if (ops.set !== undefined) {
+			// 1. Disconnect current
+			const disconnectResult = await runner.executeQuery<T>({
+				table: relationSchema.tableName!,
+				type: "update",
+				data: { [reverseForeignKey]: null } as Partial<T>,
+				where: { [reverseForeignKey]: parentId } as WhereClause<T>,
+			});
+			if (!disconnectResult.success) {
+				throw disconnectResult.error;
+			}
+
+			// 2. Connect new one (if any)
+			if (ops.set.length > 0) {
+				const connectResult = await runner.executeQuery<T>({
+					table: relationSchema.tableName!,
+					type: "update",
+					data: { [reverseForeignKey]: parentId } as Partial<T>,
+					where: { id: ops.set[0] } as WhereClause<T>,
+				});
+				if (!connectResult.success) {
+					throw connectResult.error;
+				}
+			}
+		}
+	}
+
+	// hasMany → Update TARGET records' foreign key (FK is on target, plural)
 	if (relation.kind === "hasMany") {
 		const reverseForeignKey = relation.foreignKey ?? `${parentModel}Id`;
 		const relationSchema = schemaRegistry.get(relation.model)!;

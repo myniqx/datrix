@@ -671,8 +671,8 @@ export class SchemaRegistry {
 					};
 				}
 
-				// belongsTo / hasOne → Add foreign key to THIS schema
-				if (relation.kind === "belongsTo" || relation.kind === "hasOne") {
+				// belongsTo → Add foreign key to THIS schema (owner has FK)
+				if (relation.kind === "belongsTo") {
 					const foreignKey = relation.foreignKey ?? `${fieldName}Id`;
 
 					if (!(foreignKey in enhancedFields)) {
@@ -690,8 +690,8 @@ export class SchemaRegistry {
 					};
 				}
 
-				// hasMany → Add foreign key to TARGET schema
-				if (relation.kind === "hasMany") {
+				// hasOne / hasMany → Add foreign key to TARGET schema (target has FK)
+				if (relation.kind === "hasOne" || relation.kind === "hasMany") {
 					const foreignKey = relation.foreignKey ?? `${schemaName}Id`;
 					const targetFields = { ...targetSchema.fields };
 

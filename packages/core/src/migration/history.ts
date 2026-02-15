@@ -248,35 +248,11 @@ export class ForgeMigrationHistory implements MigrationHistory {
 	}
 
 	/**
-	 * Remove migration record (for rollback)
-	 */
-	async remove(version: string): Promise<Result<void, MigrationSystemError>> {
-		try {
-			await this.forja.raw.deleteMany<MigrationEntry>(this.modelName, {
-				version,
-			});
-
-			return { success: true, data: undefined };
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new MigrationSystemError(
-					`Failed to remove migration record: ${message}`,
-					"MIGRATION_ERROR",
-					error,
-				),
-			};
-		}
-	}
-
-	/**
 	 * Calculate migration checksum
 	 */
 	calculateChecksum(migration: Migration): string {
 		const content = JSON.stringify({
-			up: migration.up,
-			down: migration.down,
+			operations: migration.operations,
 		});
 
 		return createHash("sha256").update(content).digest("hex");

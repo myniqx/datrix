@@ -256,9 +256,12 @@ export function processData<T extends ForjaEntry>(
 
 		// Case 0: null value - clear/disconnect relation
 		if (value === null) {
-			if (isSingular) {
-				// belongsTo/hasOne: null means disconnect (FK = NULL)
+			if (field.kind === "belongsTo") {
+				// belongsTo: FK is on owner, disconnect triggers inlining FK = null
 				normalized = { disconnect: [] };
+			} else if (field.kind === "hasOne") {
+				// hasOne: FK is on target, use set: [] to clear the relation
+				normalized = { set: [] };
 			} else {
 				// hasMany/manyToMany: null is not allowed (prevent accidental mass deletion)
 				throwInvalidValue(
@@ -406,8 +409,9 @@ export function processData<T extends ForjaEntry>(
 			normalized = {};
 		}
 
-		// Inline foreign keys for belongsTo/hasOne
-		if (field.kind === "belongsTo" || field.kind === "hasOne") {
+		// Inline foreign keys for belongsTo only
+		// hasOne FK is on TARGET table, not on owner - cannot inline into owner's scalars
+		if (field.kind === "belongsTo") {
 			// Singular relations can only reference one record total
 			const totalRefs =
 				(normalized.connect?.length ?? 0) +
@@ -419,7 +423,7 @@ export function processData<T extends ForjaEntry>(
 					"data",
 					`relation ${key} (${field.kind})`,
 					`${totalRefs} references`,
-					"a single reference — belongsTo/hasOne can only reference one record",
+					"a single reference — belongsTo can only reference one record",
 				);
 			}
 
@@ -451,6 +455,12 @@ export function processData<T extends ForjaEntry>(
 				// Cannot inline (e.g., only create/update/delete), keep as async relation
 				normalizedRelations[key] = normalized;
 			}
+		} else if (field.kind === "hasOne") {
+			// hasOne: FK is on TARGET table
+			// User cannot directly set the relation by passing ID to owner
+			// Instead, target record must be created/updated with owner's ID
+			// Keep as async relation for create/update operations
+			normalizedRelations[key] = normalized;
 		} else {
 			// hasMany or manyToMany - cannot inline, always async
 			normalizedRelations[key] = normalized;

@@ -51,6 +51,16 @@ export interface ExecuteQueryOptions {
 }
 
 /**
+ * Options for schema operations to support transactions
+ */
+export interface SchemaOperationOptions {
+	/** Skip lock acquisition (transaction already holds lock) */
+	skipLock?: boolean;
+	/** Skip writing to disk (transaction will write on commit) */
+	skipWrite?: boolean;
+}
+
+/**
  * JSON File Adapter
  */
 export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
@@ -73,6 +83,12 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 	 * Track modified tables during transaction for commit
 	 */
 	private activeTransactionModifiedTables: Set<string> | null = null;
+
+	/**
+	 * Tombstone set for tables deleted during transaction.
+	 * Prevents fallback to main cache or disk for dropped tables.
+	 */
+	private activeTransactionDeletedTables: Set<string> | null = null;
 
 	constructor(config: JsonAdapterConfig) {
 		this.config = config;
@@ -168,9 +184,10 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 	 * Read table with cache support
 	 *
 	 * Cache lookup order:
-	 * 1. Transaction cache (if active)
-	 * 2. Main cache (with mtime validation)
-	 * 3. Disk
+	 * 1. Check tombstone (if transaction active and table was dropped)
+	 * 2. Transaction cache (if active)
+	 * 3. Main cache (with mtime validation)
+	 * 4. Disk
 	 *
 	 * When transaction is active, new reads are cached in transaction cache.
 	 * This ensures isolation - transaction sees its own writes.
@@ -178,7 +195,12 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 	private async readTable(tableName: string): Promise<JsonTableFile> {
 		const filePath = this.getTablePath(tableName);
 
-		// 1. Check transaction cache first (if transaction active)
+		// 1. Check tombstone first - table was dropped in this transaction
+		if (this.activeTransactionDeletedTables?.has(tableName)) {
+			throw new Error(`Table '${tableName}' does not exist`);
+		}
+
+		// 2. Check transaction cache (if transaction active)
 		if (this.activeTransactionCache) {
 			const txCached = this.activeTransactionCache.get(tableName);
 			if (txCached) {
@@ -315,6 +337,18 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 	async createTable(
 		schema: SchemaDefinition,
 	): Promise<Result<void, MigrationError>> {
+		return this.createTableWithOptions(schema);
+	}
+
+	/**
+	 * Create table with options (for transaction support)
+	 */
+	async createTableWithOptions(
+		schema: SchemaDefinition,
+		options?: SchemaOperationOptions,
+	): Promise<Result<void, MigrationError>> {
+		const skipWrite = options?.skipWrite ?? false;
+
 		if (!this.isConnected()) {
 			return {
 				success: false,
@@ -330,16 +364,33 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		}
 
 		try {
-			const filePath = this.getTablePath(tableName);
-
-			try {
-				await fs.access(filePath);
+			// Check if table exists in transaction cache first
+			if (this.activeTransactionCache?.has(tableName)) {
 				return {
 					success: false,
 					error: new MigrationError(`Table '${schema.name}' already exists`),
 				};
-			} catch {
-				// File does not exist, proceed
+			}
+
+			// Check if table was deleted in this transaction - allow recreation
+			const wasDeleted = this.activeTransactionDeletedTables?.has(tableName);
+			if (wasDeleted) {
+				// Remove from tombstone - we're recreating
+				this.activeTransactionDeletedTables!.delete(tableName);
+			}
+
+			// Check disk only if not in transaction or table wasn't deleted
+			if (!wasDeleted) {
+				const filePath = this.getTablePath(tableName);
+				try {
+					await fs.access(filePath);
+					return {
+						success: false,
+						error: new MigrationError(`Table '${schema.name}' already exists`),
+					};
+				} catch {
+					// File does not exist, proceed
+				}
 			}
 
 			const initialContent: JsonTableFile = {
@@ -352,11 +403,24 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 				data: [],
 			};
 
-			await fs.writeFile(
-				filePath,
-				JSON.stringify(initialContent, null, 2),
-				"utf-8",
-			);
+			if (skipWrite) {
+				// Transaction mode: write to transaction cache
+				this.activeTransactionCache!.set(tableName, {
+					data: initialContent,
+					mtime: Date.now(),
+				});
+				this.activeTransactionModifiedTables!.add(tableName);
+			} else {
+				// Normal mode: write to disk and update cache
+				const filePath = this.getTablePath(tableName);
+				await fs.writeFile(
+					filePath,
+					JSON.stringify(initialContent, null, 2),
+					"utf-8",
+				);
+				await this.updateCache(tableName, initialContent);
+			}
+
 			return { success: true, data: undefined };
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
@@ -368,6 +432,18 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 	}
 
 	async dropTable(tableName: string): Promise<Result<void, MigrationError>> {
+		return this.dropTableWithOptions(tableName);
+	}
+
+	/**
+	 * Drop table with options (for transaction support)
+	 */
+	async dropTableWithOptions(
+		tableName: string,
+		options?: SchemaOperationOptions,
+	): Promise<Result<void, MigrationError>> {
+		const skipWrite = options?.skipWrite ?? false;
+
 		if (!this.isConnected()) {
 			return {
 				success: false,
@@ -376,9 +452,47 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		}
 
 		try {
-			const filePath = this.getTablePath(tableName);
-			await fs.unlink(filePath);
-			this.invalidateCache(tableName);
+			// Check if table was already deleted in this transaction
+			if (this.activeTransactionDeletedTables?.has(tableName)) {
+				return {
+					success: false,
+					error: new MigrationError(`Table '${tableName}' does not exist`),
+				};
+			}
+
+			// Check if table exists (in tx cache, main cache, or disk)
+			const existsInTxCache = this.activeTransactionCache?.has(tableName);
+			const existsInMainCache = this.cache.has(tableName);
+			let existsOnDisk = false;
+
+			if (!existsInTxCache && !existsInMainCache) {
+				const filePath = this.getTablePath(tableName);
+				try {
+					await fs.access(filePath);
+					existsOnDisk = true;
+				} catch {
+					// Not on disk
+				}
+			}
+
+			if (!existsInTxCache && !existsInMainCache && !existsOnDisk) {
+				return {
+					success: false,
+					error: new MigrationError(`Table '${tableName}' does not exist`),
+				};
+			}
+
+			if (skipWrite) {
+				// Transaction mode: add to tombstone, remove from tx cache
+				this.activeTransactionDeletedTables!.add(tableName);
+				this.activeTransactionCache!.delete(tableName);
+			} else {
+				// Normal mode: delete from disk
+				const filePath = this.getTablePath(tableName);
+				await fs.unlink(filePath);
+				this.invalidateCache(tableName);
+			}
+
 			return { success: true, data: undefined };
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
@@ -498,7 +612,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 						rows = await runner.filterAndSort(query);
 					} else {
 						// No populate - use normal flow with projection
-						rows = await runner.run(query);
+						rows = await runner.run(query) as TResult[];
 					}
 
 					// Step 2: Populate (all fields available)
@@ -511,7 +625,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 							rows,
 							query.select,
 							query.populate,
-						);
+						) as TResult[];
 					}
 
 					if (query.type === "count") {
@@ -723,6 +837,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 			// Initialize transaction state
 			this.activeTransactionCache = new Map<string, CacheEntry>();
 			this.activeTransactionModifiedTables = new Set<string>();
+			this.activeTransactionDeletedTables = new Set<string>();
 
 			// Create transaction with commit/rollback callbacks
 			const transaction = new JsonTransaction(
@@ -757,8 +872,25 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		}
 
 		try {
-			// Write all modified tables to disk
+			// 1. Delete dropped tables from disk
+			if (this.activeTransactionDeletedTables) {
+				for (const tableName of this.activeTransactionDeletedTables) {
+					const filePath = this.getTablePath(tableName);
+					try {
+						await fs.unlink(filePath);
+					} catch {
+						// File might not exist on disk (created and dropped in same tx)
+					}
+					// Remove from main cache
+					this.cache.delete(tableName);
+				}
+			}
+
+			// 2. Write all modified tables to disk
 			for (const tableName of this.activeTransactionModifiedTables) {
+				// Skip if table was deleted
+				if (this.activeTransactionDeletedTables?.has(tableName)) continue;
+
 				const entry = this.activeTransactionCache.get(tableName);
 				if (entry) {
 					// Write to disk
@@ -776,6 +908,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 			// Clear transaction state and release lock
 			this.activeTransactionCache = null;
 			this.activeTransactionModifiedTables = null;
+			this.activeTransactionDeletedTables = null;
 			await this.lock.release();
 		}
 	}
@@ -788,13 +921,27 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		// Simply discard transaction cache - main cache unchanged
 		this.activeTransactionCache = null;
 		this.activeTransactionModifiedTables = null;
+		this.activeTransactionDeletedTables = null;
 		await this.lock.release();
 	}
 
 	async alterTable(
 		tableName: string,
-		_operations: readonly AlterOperation[],
+		operations: readonly AlterOperation[],
 	): Promise<Result<void, MigrationError>> {
+		return this.alterTableWithOptions(tableName, operations);
+	}
+
+	/**
+	 * Alter table with options (for transaction support)
+	 */
+	async alterTableWithOptions(
+		tableName: string,
+		operations: readonly AlterOperation[],
+		options?: SchemaOperationOptions,
+	): Promise<Result<void, MigrationError>> {
+		const skipWrite = options?.skipWrite ?? false;
+
 		if (!this.isConnected()) {
 			return {
 				success: false,
@@ -805,10 +952,185 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		try {
 			const json = await this.readTable(tableName);
 
+			if (!json.schema) {
+				return {
+					success: false,
+					error: new MigrationError(`Table '${tableName}' has no schema`),
+				};
+			}
+
+			// Apply each operation
+			for (const op of operations) {
+				switch (op.type) {
+					case "addColumn": {
+						// Add field to schema
+						json.schema.fields[op.column] = op.definition;
+
+						// Add default value to existing rows
+						const defaultValue = (op.definition as { default?: unknown }).default;
+						for (const row of json.data) {
+							if (!(op.column in row)) {
+								row[op.column] = defaultValue ?? null;
+							}
+						}
+						break;
+					}
+
+					case "dropColumn": {
+						// Remove field from schema
+						delete json.schema.fields[op.column];
+
+						// Remove column from all rows
+						for (const row of json.data) {
+							delete row[op.column];
+						}
+						break;
+					}
+
+					case "modifyColumn": {
+						// Update field definition in schema
+						json.schema.fields[op.column] = op.newDefinition;
+						break;
+					}
+
+					case "renameColumn": {
+						// Rename field in schema
+						const fieldDef = json.schema.fields[op.from];
+						if (fieldDef) {
+							delete json.schema.fields[op.from];
+							json.schema.fields[op.to] = fieldDef;
+						}
+
+						// Rename column in all rows
+						for (const row of json.data) {
+							if (op.from in row) {
+								row[op.to] = row[op.from];
+								delete row[op.from];
+							}
+						}
+						break;
+					}
+				}
+			}
+
 			json.meta.updatedAt = new Date().toISOString();
-			const filePath = this.getTablePath(tableName);
-			await fs.writeFile(filePath, JSON.stringify(json, null, 2), "utf-8");
-			await this.updateCache(tableName, json);
+
+			if (skipWrite) {
+				// Transaction mode: update transaction cache
+				this.activeTransactionCache!.set(tableName, {
+					data: json,
+					mtime: Date.now(),
+				});
+				this.activeTransactionModifiedTables!.add(tableName);
+			} else {
+				// Normal mode: write to disk
+				const filePath = this.getTablePath(tableName);
+				await fs.writeFile(filePath, JSON.stringify(json, null, 2), "utf-8");
+				await this.updateCache(tableName, json);
+			}
+
+			return { success: true, data: undefined };
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			return {
+				success: false,
+				error: new MigrationError(`Adapter error: ${message}`, error),
+			};
+		}
+	}
+
+	async renameTable(
+		from: string,
+		to: string,
+	): Promise<Result<void, MigrationError>> {
+		return this.renameTableWithOptions(from, to);
+	}
+
+	/**
+	 * Rename table with options (for transaction support)
+	 */
+	async renameTableWithOptions(
+		from: string,
+		to: string,
+		options?: SchemaOperationOptions,
+	): Promise<Result<void, MigrationError>> {
+		const skipWrite = options?.skipWrite ?? false;
+
+		if (!this.isConnected()) {
+			return {
+				success: false,
+				error: new MigrationError("Not connected to database"),
+			};
+		}
+
+		const validation = this.validateTableName(to);
+		if (!validation.success) {
+			return validation;
+		}
+
+		try {
+			// Check source table exists
+			if (this.activeTransactionDeletedTables?.has(from)) {
+				return {
+					success: false,
+					error: new MigrationError(`Table '${from}' does not exist`),
+				};
+			}
+
+			// Check target table doesn't exist
+			const targetExistsInTxCache = this.activeTransactionCache?.has(to);
+			const targetExistsInMainCache = this.cache.has(to);
+			let targetExistsOnDisk = false;
+
+			if (!targetExistsInTxCache && !targetExistsInMainCache) {
+				const toPath = this.getTablePath(to);
+				try {
+					await fs.access(toPath);
+					targetExistsOnDisk = true;
+				} catch {
+					// Not on disk - good
+				}
+			}
+
+			// Target exists and not in tombstone = error
+			const targetInTombstone = this.activeTransactionDeletedTables?.has(to);
+			if ((targetExistsInTxCache || targetExistsInMainCache || targetExistsOnDisk) && !targetInTombstone) {
+				return {
+					success: false,
+					error: new MigrationError(`Table '${to}' already exists`),
+				};
+			}
+
+			// Read source table (will throw if doesn't exist)
+			const json = await this.readTable(from);
+
+			// Update schema tableName
+			if (json.schema) {
+				(json as any).schema = { ...json.schema, tableName: to };
+			}
+			json.meta.updatedAt = new Date().toISOString();
+
+			if (skipWrite) {
+				// Transaction mode: add new table to cache, tombstone old table
+				this.activeTransactionCache!.set(to, {
+					data: json,
+					mtime: Date.now(),
+				});
+				this.activeTransactionModifiedTables!.add(to);
+				this.activeTransactionDeletedTables!.add(from);
+				this.activeTransactionCache!.delete(from);
+				// Remove target from tombstone if it was there (we're overwriting)
+				this.activeTransactionDeletedTables!.delete(to);
+			} else {
+				// Normal mode: rename file on disk
+				const fromPath = this.getTablePath(from);
+				const toPath = this.getTablePath(to);
+				await fs.writeFile(toPath, JSON.stringify(json, null, 2), "utf-8");
+				await fs.unlink(fromPath);
+				this.invalidateCache(from);
+				await this.updateCache(to, json);
+			}
+
 			return { success: true, data: undefined };
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
@@ -820,15 +1142,39 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 	}
 
 	async addIndex(
+		tableName: string,
+		index: IndexDefinition,
+	): Promise<Result<void, MigrationError>> {
+		return this.addIndexWithOptions(tableName, index);
+	}
+
+	/**
+	 * Add index with options (for transaction support)
+	 * Note: JSON adapter doesn't actually create indexes, but we track the operation
+	 */
+	async addIndexWithOptions(
 		_tableName: string,
 		_index: IndexDefinition,
+		_options?: SchemaOperationOptions,
 	): Promise<Result<void, MigrationError>> {
 		return { success: true, data: undefined };
 	}
 
 	async dropIndex(
+		tableName: string,
+		indexName: string,
+	): Promise<Result<void, MigrationError>> {
+		return this.dropIndexWithOptions(tableName, indexName);
+	}
+
+	/**
+	 * Drop index with options (for transaction support)
+	 * Note: JSON adapter doesn't actually manage indexes, but we track the operation
+	 */
+	async dropIndexWithOptions(
 		_tableName: string,
 		_indexName: string,
+		_options?: SchemaOperationOptions,
 	): Promise<Result<void, MigrationError>> {
 		return { success: true, data: undefined };
 	}

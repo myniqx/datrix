@@ -15,11 +15,13 @@
 import {
 	Transaction,
 	TransactionError,
+	MigrationError,
 	QueryResult,
 	QueryError,
+	AlterOperation,
 } from "forja-types/adapter";
 import { QueryObject } from "forja-types/core/query-builder";
-import { ForjaEntry } from "forja-types/core/schema";
+import { ForjaEntry, IndexDefinition, SchemaDefinition } from "forja-types/core/schema";
 import { Result } from "forja-types/utils";
 import type { JsonAdapter } from "./adapter";
 
@@ -83,6 +85,72 @@ export class JsonTransaction implements Transaction {
 			success: false,
 			error: new QueryError("Raw SQL queries are not supported by JSON adapter"),
 		};
+	}
+
+	// ========================================
+	// SchemaOperations implementation
+	// ========================================
+
+	/**
+	 * Create table within transaction
+	 */
+	async createTable(
+		schema: SchemaDefinition,
+	): Promise<Result<void, MigrationError>> {
+		this.assertActive();
+		return this.adapter.createTableWithOptions(schema, { skipWrite: true });
+	}
+
+	/**
+	 * Drop table within transaction
+	 */
+	async dropTable(tableName: string): Promise<Result<void, MigrationError>> {
+		this.assertActive();
+		return this.adapter.dropTableWithOptions(tableName, { skipWrite: true });
+	}
+
+	/**
+	 * Rename table within transaction
+	 */
+	async renameTable(
+		from: string,
+		to: string,
+	): Promise<Result<void, MigrationError>> {
+		this.assertActive();
+		return this.adapter.renameTableWithOptions(from, to, { skipWrite: true });
+	}
+
+	/**
+	 * Alter table within transaction
+	 */
+	async alterTable(
+		tableName: string,
+		operations: readonly AlterOperation[],
+	): Promise<Result<void, MigrationError>> {
+		this.assertActive();
+		return this.adapter.alterTableWithOptions(tableName, operations, { skipWrite: true });
+	}
+
+	/**
+	 * Add index within transaction
+	 */
+	async addIndex(
+		tableName: string,
+		index: IndexDefinition,
+	): Promise<Result<void, MigrationError>> {
+		this.assertActive();
+		return this.adapter.addIndexWithOptions(tableName, index, { skipWrite: true });
+	}
+
+	/**
+	 * Drop index within transaction
+	 */
+	async dropIndex(
+		tableName: string,
+		indexName: string,
+	): Promise<Result<void, MigrationError>> {
+		this.assertActive();
+		return this.adapter.dropIndexWithOptions(tableName, indexName, { skipWrite: true });
 	}
 
 	/**

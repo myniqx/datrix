@@ -501,4 +501,120 @@ describe("Create with Relations", () => {
 			).rejects.toThrow();
 		});
 	});
+
+	// ==========================================================================
+	// HasOne Relations
+	// ==========================================================================
+
+	describe("HasOne - Connect by ID", () => {
+		it("should create user with hasOne relation (favoriteCategory)", async () => {
+			const category = await forja.create("category", {
+				name: "HasOne Category",
+				slug: "hasone-category",
+			});
+
+			const user = await forja.create(
+				"user",
+				{
+					email: "hasone-create@test.com",
+					name: "HasOne Create User",
+					favoriteCategory: category.id,
+				},
+				{ populate: { favoriteCategory: true } },
+			);
+
+			expect(user.favoriteCategory).toBeDefined();
+			expect((user.favoriteCategory as { id: number }).id).toBe(category.id);
+			expect((user.favoriteCategory as { name: string }).name).toBe("HasOne Category");
+		});
+
+		it("should create user without hasOne relation (null)", async () => {
+			const user = await forja.create(
+				"user",
+				{
+					email: "hasone-null@test.com",
+					name: "HasOne Null User",
+				},
+				{ populate: { favoriteCategory: true } },
+			);
+
+			expect(user.favoriteCategory).toBeNull();
+		});
+
+		it("should update hasOne relation", async () => {
+			const cat1 = await forja.create("category", {
+				name: "HasOne Cat1",
+				slug: "hasone-cat1",
+			});
+
+			const cat2 = await forja.create("category", {
+				name: "HasOne Cat2",
+				slug: "hasone-cat2",
+			});
+
+			// Create with cat1
+			const user = await forja.create("user", {
+				email: "hasone-update@test.com",
+				name: "HasOne Update User",
+				favoriteCategory: cat1.id,
+			});
+
+			// Update to cat2
+			const updated = await forja.update(
+				"user",
+				user.id,
+				{ favoriteCategory: cat2.id },
+				{ populate: { favoriteCategory: true } },
+			);
+
+			expect((updated.favoriteCategory as { id: number }).id).toBe(cat2.id);
+			expect((updated.favoriteCategory as { name: string }).name).toBe("HasOne Cat2");
+		});
+
+		it("should clear hasOne relation by setting to null", async () => {
+			const cat = await forja.create("category", {
+				name: "HasOne Clear Cat",
+				slug: "hasone-clear-cat",
+			});
+
+			const user = await forja.create("user", {
+				email: "hasone-clear@test.com",
+				name: "HasOne Clear User",
+				favoriteCategory: cat.id,
+			});
+
+			// Clear the relation
+			const updated = await forja.update(
+				"user",
+				user.id,
+				{ favoriteCategory: null },
+				{ populate: { favoriteCategory: true } },
+			);
+
+			expect(updated.favoriteCategory).toBeNull();
+		});
+	});
+
+	describe("HasOne - Nested Create", () => {
+		it("should create user with nested hasOne create", async () => {
+			const user = await forja.create(
+				"user",
+				{
+					email: "hasone-nested@test.com",
+					name: "HasOne Nested User",
+					favoriteCategory: {
+						create: {
+							name: "Nested Favorite",
+							slug: "nested-favorite",
+						},
+					},
+				},
+				{ populate: { favoriteCategory: true } },
+			);
+
+			expect(user.favoriteCategory).toBeDefined();
+			expect((user.favoriteCategory as { name: string }).name).toBe("Nested Favorite");
+			expect((user.favoriteCategory as { slug: string }).slug).toBe("nested-favorite");
+		});
+	});
 });

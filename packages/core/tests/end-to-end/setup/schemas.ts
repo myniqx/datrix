@@ -37,6 +37,16 @@ export const organizationSchema = defineSchema({
 			type: "boolean",
 			default: true,
 		},
+		departments: {
+			type: "relation",
+			kind: "hasMany",
+			model: "department",
+		},
+		users: {
+			type: "relation",
+			kind: "hasMany",
+			model: "user",
+		},
 	},
 	indexes: [{ fields: ["name"], unique: true }],
 	permission: {
@@ -173,6 +183,16 @@ export const userSchema = defineSchema({
 			type: "relation",
 			kind: "manyToMany",
 			model: "role",
+		},
+		favoriteCategory: {
+			type: "relation",
+			kind: "hasOne",
+			model: "category",
+		},
+		posts: {
+			type: "relation",
+			kind: "hasMany",
+			model: "post",
 		},
 	},
 	indexes: [
@@ -336,6 +356,11 @@ export const postSchema = defineSchema({
 			type: "relation",
 			kind: "manyToMany",
 			model: "tag",
+		},
+		comments: {
+			type: "relation",
+			kind: "hasMany",
+			model: "comment",
 		},
 	},
 	indexes: [
