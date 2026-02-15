@@ -1,20 +1,18 @@
 /**
  * Migration System Entry Point
  *
- * Exports all migration system components.
+ * Public API: Only MigrationSession is exported.
+ * All internal components (differ, generator, history, runner) are not exported.
+ *
+ * Usage:
+ *   const session = await forja.beginMigrate();
+ *   // ... review changes, resolve ambiguous ...
+ *   await session.apply();
  */
 
-// Migration Schema
+// Public API
+export { MigrationSession, createMigrationSession } from "./session";
+export type { AmbiguousChange, AmbiguousAction, MigrationPlan } from "./session";
+
+// Internal - used by Forja class only
 export { getMigrationSchema, DEFAULT_MIGRATION_MODEL } from "./schema";
-
-// Schema Differ
-export { ForgeSchemaDiffer, createSchemaDiffer } from "./differ";
-
-// Migration Generator
-export { ForgeMigrationGenerator, createMigrationGenerator } from "./generator";
-
-// Migration History
-export { ForgeMigrationHistory, createMigrationHistory } from "./history";
-
-// Migration Runner
-export { ForgeMigrationRunner, createMigrationRunner } from "./runner";

@@ -151,27 +151,25 @@ async function main(): Promise<void> {
 				}
 				const forja = configResult.data;
 
-				const toValue = args.options["to"];
-
 				const migrateOptions: MigrateCommandOptions = {
 					config: getConfigPath(args.options),
 					verbose: Boolean(args.options["verbose"]),
 					down: Boolean(args.options["down"]),
-					to: typeof toValue === "string" ? toValue : undefined,
+					to: typeof args.options["to"] === "string" ? args.options["to"] : undefined,
 					dryRun: Boolean(args.options["dry-run"]),
 				};
 
-				// Create migration runner from Forja instance
+				// Create migration session from Forja instance
 				const setupResult = await createMigrationSetup(forja);
 				if (!setupResult.success) {
 					logger.error(setupResult.error.message);
 					process.exit(1);
 				}
-				const runner = setupResult.data;
+				const session = setupResult.data;
 
 				// Status check
 				if (args.options["status"]) {
-					const statusResult = await displayMigrationStatus(runner);
+					const statusResult = await displayMigrationStatus(session);
 					if (!statusResult.success) {
 						logger.error(statusResult.error.message);
 						process.exit(1);
@@ -179,8 +177,8 @@ async function main(): Promise<void> {
 					break;
 				}
 
-				// Run or rollback migrations
-				const result = await migrateCommand(migrateOptions, runner);
+				// Run migrations
+				const result = await migrateCommand(migrateOptions, session);
 				if (!result.success) {
 					logger.error(result.error.message);
 					if (args.options["verbose"]) {

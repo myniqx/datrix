@@ -29,6 +29,7 @@ import { ForjaEntry } from "forja-types";
 import { IForja, RawCrudOptions, RawFindManyOptions } from "forja-types/forja";
 import { ForjaError } from "forja-types/errors";
 import { getMigrationSchema, DEFAULT_MIGRATION_MODEL } from "./migration/schema";
+import { MigrationSession, createMigrationSession } from "./migration/session";
 
 /**
  * Forja initialization options
@@ -341,6 +342,50 @@ export class Forja implements IForja {
 
 	isInitialized(): boolean {
 		return this.initialized;
+	}
+
+	/**
+	 * Begin a migration session
+	 *
+	 * Compares current schemas with database state and returns a session
+	 * for reviewing and applying changes.
+	 *
+	 * @example
+	 * ```ts
+	 * const session = await forja.beginMigrate();
+	 *
+	 * // Check what will change
+	 * console.log(session.tablesToCreate);
+	 * console.log(session.tablesToDrop);
+	 * console.log(session.tablesToAlter);
+	 *
+	 * // Resolve ambiguous changes (e.g., rename vs drop+add)
+	 * if (session.ambiguous.length > 0) {
+	 *   session.resolveAmbiguous('user.name->lastname', 'rename');
+	 * }
+	 *
+	 * // Preview operations
+	 * const plan = session.getPlan();
+	 *
+	 * // Apply migrations
+	 * await session.apply();
+	 * ```
+	 */
+	async beginMigrate(): Promise<Result<MigrationSession, ForjaError>> {
+		this.ensureInitialized();
+
+		const result = await createMigrationSession(this);
+		if (!result.success) {
+			return {
+				success: false,
+				error: new ForjaError(
+					`Failed to start migration session: ${result.error.message}`,
+					{ code: "MIGRATION_SESSION_FAILED" },
+				),
+			};
+		}
+
+		return { success: true, data: result.data };
 	}
 
 	get crud(): CrudOperations {
