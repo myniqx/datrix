@@ -292,6 +292,8 @@ describe("Migration E2E - Data Preservation", () => {
 			const post1 = await forja1.create("post", {
 				title: "Tech Post",
 				category: { set: tech.id },
+			}, {
+				populate: true
 			});
 			const post2 = await forja1.create("post", {
 				title: "News Post",
@@ -325,18 +327,23 @@ describe("Migration E2E - Data Preservation", () => {
 			const session = sessionResult.data;
 			assertHasChanges(session);
 
-			// TODO: Resolve as 'migrate_to_junction' when implemented
-			// For now, just apply (will lose data)
+			autoResolveAmbiguous(session, "migrate");
 			await applyMigration(session);
 
 			// Verify junction table exists
 			await assertTableExists(forja, "category_post");
 
-			// TODO: When data migration is implemented, verify:
-			// const junctions = await forja.findMany("category_post", {});
-			// expect(junctions).toHaveLength(3);
-			// expect(junctions.find(j => j.postId === post1.id)?.categoryId).toBe(tech.id);
-			// expect(junctions.find(j => j.postId === post2.id)?.categoryId).toBe(news.id);
+			// Verify data migrated to junction table
+			const post1WithCats = await forja.findOne("post", { id: { $eq: post1.id } }, { populate: true });
+			const post2WithCats = await forja.findOne("post", { id: { $eq: post2.id } }, { populate: true });
+			const post3WithCats = await forja.findOne("post", { id: { $eq: post3.id } }, { populate: true });
+
+			expect(post1WithCats?.categories).toHaveLength(1);
+			expect(post1WithCats?.categories[0]?.id).toBe(tech.id);
+			expect(post2WithCats?.categories).toHaveLength(1);
+			expect(post2WithCats?.categories[0]?.id).toBe(news.id);
+			expect(post3WithCats?.categories).toHaveLength(1);
+			expect(post3WithCats?.categories[0]?.id).toBe(tech.id);
 
 			await forja.shutdown();
 		});
@@ -396,19 +403,17 @@ describe("Migration E2E - Data Preservation", () => {
 			const session = sessionResult.data;
 			assertHasChanges(session);
 
-			// TODO: Resolve as 'migrate_first' when implemented
-			// For now, just apply
+			autoResolveAmbiguous(session, "migrate");
 			await applyMigration(session);
 
 			// Verify junction table dropped
 			await assertTableNotExists(adapter, "post_tag");
 
-			// Verify FK column exists
+			// Verify FK column exists with first tag's ID
 			await assertColumnExists(forja, "post", "tagId");
 
-			// TODO: When data migration is implemented, verify:
-			// const updatedPost = await forja.findOne("post", { id: post.id }, { populate: true });
-			// expect(updatedPost.tag.id).toBe(js.id); // First tag kept
+			const updatedPost = await forja.findOne("post", { id: { $eq: post.id } }, { populate: true });
+			expect(updatedPost?.tag?.id).toBe(js.id);
 
 			await forja.shutdown();
 		});

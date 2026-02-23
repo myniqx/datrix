@@ -11,11 +11,12 @@
  * - Preview and apply migrations
  */
 
-import { DatabaseAdapter } from "forja-types/adapter";
+import { DatabaseAdapter, QueryRunner } from "forja-types/adapter";
 import { SchemaDefinition, FieldDefinition } from "forja-types/core/schema";
 import {
 	Migration,
 	MigrationOperation,
+	DataTransferOperation,
 	MigrationSystemError,
 	SchemaDiff,
 	MigrationResult,
@@ -241,6 +242,18 @@ export class MigrationSession {
 			}
 		}
 
+		// Collect fieldModified diffs for relation-specific detection
+		const modifiedFields = new Map<string, SchemaDiff[]>();
+		for (const diff of this.differences) {
+			if (diff.type === "fieldModified") {
+				const key = diff.tableName;
+				if (!modifiedFields.has(key)) {
+					modifiedFields.set(key, []);
+				}
+				modifiedFields.get(key)!.push(diff);
+			}
+		}
+
 		// Track which diffs are handled by relation detection
 		const handledDiffs = new Set<string>();
 
@@ -253,20 +266,26 @@ export class MigrationSession {
 			handledDiffs,
 		);
 
-		// 2. Detect junction table drops (manyToMany removal)
-		this.detectJunctionTableDrops(removedTables, handledDiffs);
-
-		// 3. Detect junction table renames (through name change)
+		// 2. Detect junction table renames (through name change) - must run before drops
 		this.detectJunctionTableRenames(removedTables, addedTables, handledDiffs);
 
-		// 4. Detect FK column changes (rename or drop)
+		// 3. Detect junction table drops (manyToMany removal)
+		this.detectJunctionTableDrops(removedTables, handledDiffs);
+
+		// 4. Detect relation direction flips (FK moves from one table to another) - before FK drop detection
+		this.detectRelationDirectionFlips(removedFields, addedFields, handledDiffs);
+
+		// 5. Detect FK column changes (rename or drop)
 		this.detectFkColumnChanges(removedFields, addedFields, handledDiffs);
 
-		// 5. Detect column renames (generic, non-FK columns)
+		// 6. Detect column renames (generic, non-FK columns)
 		this.detectColumnRenames(removedFields, addedFields, handledDiffs);
 
-		// 6. Detect table renames
+		// 7. Detect table renames
 		this.detectTableRenames(removedTables, addedTables, handledDiffs);
+
+		// 8. Detect FK model changes (belongsTo pointing to different model)
+		this.detectFkModelChanges(modifiedFields, handledDiffs);
 	}
 
 	/**
@@ -659,6 +678,129 @@ export class MigrationSession {
 					});
 
 					break;
+				}
+			}
+		}
+	}
+
+	/**
+	 * Detect FK model changes (belongsTo pointing to a different model).
+	 * The FK column name stays the same but the referenced model changes.
+	 */
+	private detectFkModelChanges(
+		modifiedFields: Map<string, SchemaDiff[]>,
+		handledDiffs: Set<string>,
+	): void {
+		for (const [tableName, modified] of modifiedFields) {
+			for (const diff of modified) {
+				if (diff.type !== "fieldModified") continue;
+
+				const oldDef = diff.oldDefinition;
+				const newDef = diff.newDefinition;
+
+				if (oldDef.type !== "relation" || newDef.type !== "relation") continue;
+				if (oldDef.kind !== "belongsTo" || newDef.kind !== "belongsTo") continue;
+				if (oldDef.model === newDef.model) continue;
+
+				const diffKey = `${tableName}.${diff.fieldName}`;
+				if (handledDiffs.has(diffKey)) continue;
+				handledDiffs.add(diffKey);
+
+				const fkColumn = newDef.foreignKey ?? `${newDef.model}Id`;
+
+				this._ambiguous.push({
+					id: `fk_model_change:${tableName}.${diff.fieldName}`,
+					tableName,
+					type: "fk_model_change",
+					removedName: oldDef.model,
+					addedName: newDef.model,
+					warning: `Existing data in '${fkColumn}' will reference '${newDef.model}' instead of '${oldDef.model}'. Ensure data integrity before migrating.`,
+					possibleActions: [
+						{
+							type: "keep_column",
+							description: `Keep column '${fkColumn}' as-is and change the referenced model (data may be inconsistent)`,
+						},
+						{
+							type: "drop_and_recreate",
+							description: `Drop '${fkColumn}' and recreate it (data loss)`,
+						},
+					],
+					resolved: false,
+				});
+			}
+		}
+	}
+
+	/**
+	 * Detect relation direction flips.
+	 * A hasOne/hasMany FK is removed from one table and an equivalent FK
+	 * is added to another table — the relation ownership is flipping sides.
+	 *
+	 * Pattern: fieldRemoved (FK column on tableA) + fieldAdded (FK column on tableB)
+	 * where both columns represent the same logical relation but point in
+	 * opposite directions.
+	 */
+	private detectRelationDirectionFlips(
+		removedFields: Map<string, SchemaDiff[]>,
+		addedFields: Map<string, SchemaDiff[]>,
+		handledDiffs: Set<string>,
+	): void {
+		for (const [removedTable, removed] of removedFields) {
+			for (const removedDiff of removed) {
+				if (removedDiff.type !== "fieldRemoved") continue;
+				if (!removedDiff.fieldName.endsWith("Id")) continue;
+
+				const removedKey = `${removedTable}.${removedDiff.fieldName}`;
+				if (handledDiffs.has(removedKey)) continue;
+
+				// Look for a new FK column on a different table
+				for (const [addedTable, added] of addedFields) {
+					if (addedTable === removedTable) continue;
+
+					for (const addedDiff of added) {
+						if (addedDiff.type !== "fieldAdded") continue;
+						if (!addedDiff.fieldName.endsWith("Id")) continue;
+
+						const addedKey = `${addedTable}.${addedDiff.fieldName}`;
+						if (handledDiffs.has(addedKey)) continue;
+
+						// Check if these two FK columns are related to the same models
+						// removedTable has a FK pointing to some model (ends with Id)
+						// addedTable has a new FK pointing to some model
+						// They're a direction flip if one points to the other's table
+						const removedModelHint = removedDiff.fieldName.slice(0, -2);
+						const addedModelHint = addedDiff.fieldName.slice(0, -2);
+
+						const removedTableBase = this.singularize(removedTable);
+						const addedTableBase = this.singularize(addedTable);
+
+						const isFlip =
+							removedModelHint === addedTableBase ||
+							addedModelHint === removedTableBase;
+
+						if (isFlip) {
+							handledDiffs.add(removedKey);
+							handledDiffs.add(addedKey);
+
+							this._ambiguous.push({
+								id: `direction_flip:${removedTable}.${removedDiff.fieldName}->${addedTable}.${addedDiff.fieldName}`,
+								tableName: removedTable,
+								type: "relation_direction_flip",
+								removedName: `${removedTable}.${removedDiff.fieldName}`,
+								addedName: `${addedTable}.${addedDiff.fieldName}`,
+								warning: `Relation direction is changing. '${removedDiff.fieldName}' on '${removedTable}' will be replaced by '${addedDiff.fieldName}' on '${addedTable}'. Existing relation data will be lost.`,
+								possibleActions: [
+									{
+										type: "drop_and_recreate",
+										description: `Drop '${removedDiff.fieldName}' from '${removedTable}' and add '${addedDiff.fieldName}' to '${addedTable}' (data loss)`,
+									},
+								],
+								resolved: false,
+							});
+
+							break;
+						}
+					}
 				}
 			}
 		}
@@ -1094,7 +1236,14 @@ export class MigrationSession {
 			};
 		}
 
-		const migration = migrationResult.data;
+		const baseMigration = migrationResult.data;
+
+		// Inject data transfer operations for resolved migrate_to_junction / migrate_first
+		const enrichedOperations = this.injectDataTransferOperations(baseMigration.operations);
+		const migration: Migration = {
+			...baseMigration,
+			operations: enrichedOperations,
+		};
 
 		// Create runner and execute
 		const runner = new ForgeMigrationRunner(
@@ -1112,6 +1261,148 @@ export class MigrationSession {
 		}
 
 		return { success: true, data: runResult.data };
+	}
+
+	/**
+	 * Inject data transfer operations into the migration operation list.
+	 *
+	 * For each resolved ambiguous change with a data migration action,
+	 * inserts a dataTransfer step at the correct position:
+	 * - migrate_to_junction: after createTable(junction), before dropColumn(fkCol)
+	 * - migrate_first: after addColumn(fkCol), before dropTable(junction)
+	 */
+	private injectDataTransferOperations(
+		operations: readonly MigrationOperation[],
+	): readonly MigrationOperation[] {
+		const result: MigrationOperation[] = [...operations];
+
+		for (const ambiguous of this._ambiguous) {
+			if (!ambiguous.resolved) continue;
+
+			if (ambiguous.resolvedAction?.type === "migrate_to_junction") {
+				const sourceFkCol = ambiguous.removedName; // e.g. "categoryId"
+				const junctionTable = ambiguous.addedName; // e.g. "category_post"
+				const sourceTable = ambiguous.tableName; // e.g. "posts"
+
+				// Find insert position: after createTable(junction)
+				const createIdx = result.findIndex(
+					(op) => op.type === "createTable" &&
+						((op.schema.tableName ?? op.schema.name) === junctionTable),
+				);
+
+				// Find drop position: before alterTable(sourceTable) that drops fkCol
+				const dropIdx = result.findIndex(
+					(op) => op.type === "alterTable" &&
+						op.tableName === sourceTable &&
+						op.operations.some((o) => o.type === "dropColumn" && o.column === sourceFkCol),
+				);
+
+				if (createIdx === -1 || dropIdx === -1) continue;
+
+				const transferOp: DataTransferOperation = {
+					type: "dataTransfer",
+					description: `Migrate '${sourceTable}.${sourceFkCol}' values to junction table '${junctionTable}'`,
+					execute: async (runner: QueryRunner) => {
+						const selectResult = await runner.executeQuery<{ id: string | number; [key: string]: unknown }>({
+							type: "select",
+							table: sourceTable,
+							select: ["id", sourceFkCol],
+						});
+						if (!selectResult.success) throw selectResult.error;
+
+						const rows = selectResult.data.rows;
+
+						// Junction FK col for source: derived from FK col on target (e.g. "categoryId" → target model "category")
+						// Source FK col in junction: singular of sourceTable + "Id" (e.g. "posts" → "postId")
+						const sourceModelName = this.singularize(sourceTable);
+						const sourceJunctionFkCol = `${sourceModelName}Id`;
+
+						const junctionRows = rows
+							.filter((row) => row[sourceFkCol] != null)
+							.map((row) => ({
+								[sourceJunctionFkCol]: row.id,
+								[sourceFkCol]: row[sourceFkCol],
+							}));
+
+						if (junctionRows.length === 0) return;
+
+						const insertResult = await runner.executeQuery({
+							type: "insert",
+							table: junctionTable,
+							data: junctionRows,
+						});
+						if (!insertResult.success) throw insertResult.error;
+					},
+				};
+
+				// Insert after createTable, but before drop
+				const insertAt = Math.min(createIdx + 1, dropIdx);
+				result.splice(insertAt, 0, transferOp);
+
+			} else if (ambiguous.resolvedAction?.type === "migrate_first") {
+				const junctionTable = ambiguous.removedName; // e.g. "post_tag"
+				const targetFkCol = ambiguous.addedName; // e.g. "tagId"
+				const targetTable = ambiguous.tableName; // e.g. "posts"
+
+				// Find insert position: after addColumn(targetFkCol) on targetTable
+				const addColIdx = result.findIndex(
+					(op) => op.type === "alterTable" &&
+						op.tableName === targetTable &&
+						op.operations.some((o) => o.type === "addColumn" && o.column === targetFkCol),
+				);
+
+				// Find drop position: before dropTable(junction)
+				const dropTableIdx = result.findIndex(
+					(op) => op.type === "dropTable" && op.tableName === junctionTable,
+				);
+
+				if (addColIdx === -1 || dropTableIdx === -1) continue;
+
+				// Junction FK col for target table: singular of targetTable + "Id" (e.g. "posts" → "postId")
+				const targetModelName = this.singularize(targetTable);
+				const sourceFkCol = `${targetModelName}Id`; // e.g. "postId"
+				const relatedFkCol = targetFkCol; // e.g. "tagId"
+
+				const transferOp: DataTransferOperation = {
+					type: "dataTransfer",
+					description: `Migrate first relation from '${junctionTable}' to '${targetTable}.${targetFkCol}'`,
+					execute: async (runner: QueryRunner) => {
+						const selectResult = await runner.executeQuery<{ [key: string]: unknown }>({
+							type: "select",
+							table: junctionTable,
+							select: [sourceFkCol, relatedFkCol],
+						});
+						if (!selectResult.success) throw selectResult.error;
+
+						// Group by sourceFk, keep first occurrence per source record
+						const firstBySource = new Map<unknown, unknown>();
+						for (const row of selectResult.data.rows) {
+							const sourceId = row[sourceFkCol];
+							if (!firstBySource.has(sourceId)) {
+								firstBySource.set(sourceId, row[relatedFkCol]);
+							}
+						}
+
+						// Update each source record with its first related FK
+						for (const [sourceId, relatedId] of firstBySource) {
+							const updateResult = await runner.executeQuery({
+								type: "update",
+								table: targetTable,
+								where: { id: { $eq: sourceId } },
+								data: { [relatedFkCol]: relatedId },
+							});
+							if (!updateResult.success) throw updateResult.error;
+						}
+					},
+				};
+
+				// Insert after addColumn, but before dropTable
+				const insertAt = Math.min(addColIdx + 1, dropTableIdx);
+				result.splice(insertAt, 0, transferOp);
+			}
+		}
+
+		return result;
 	}
 
 	/**

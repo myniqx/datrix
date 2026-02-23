@@ -92,11 +92,8 @@ export function resolveAmbiguousById(
 	session: MigrationSession,
 	id: string,
 	action: Parameters<typeof session.resolveAmbiguous>[1],
-): void {
-	const result = session.resolveAmbiguous(id, action);
-	if (!result.success) {
-		throw new Error(`Failed to resolve ambiguous '${id}': ${result.error.message}`);
-	}
+): ReturnType<typeof session.resolveAmbiguous> {
+	return session.resolveAmbiguous(id, action);
 }
 
 /**
@@ -386,7 +383,11 @@ export function assertHasChanges(session: MigrationSession): void {
  * Assert session has NO changes
  */
 export function assertNoChanges(session: MigrationSession): void {
-	expect(session.hasChanges(), "Expected session to have NO changes").toBe(false);
+	const hasChanges = session.hasChanges();
+	if (hasChanges) {
+		console.warn("Session has changes: ", session.differences);
+	}
+	expect(hasChanges, "Expected session to have NO changes").toBe(false);
 }
 
 // ============================================
@@ -404,6 +405,10 @@ export function assertAmbiguousExists(
 	const found = session.ambiguous.find(
 		(a) => a.type === type && (tableName === undefined || a.tableName === tableName),
 	);
+
+	if (!found) {
+		console.log("Ambiguous Changes: ", session.ambiguous.map((a) => a.possibleActions = JSON.stringify(a.possibleActions)));
+	}
 
 	expect(
 		found,

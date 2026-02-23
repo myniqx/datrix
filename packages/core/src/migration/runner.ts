@@ -418,6 +418,17 @@ export class ForgeMigrationRunner implements MigrationRunner {
 						}
 						return { success: false as const, error: result.error };
 					});
+
+			case "dataTransfer":
+				try {
+					await operation.execute(tx);
+					return { success: true, data: undefined };
+				} catch (error) {
+					return {
+						success: false,
+						error: error instanceof Error ? error : new Error(String(error)),
+					};
+				}
 		}
 	}
 }

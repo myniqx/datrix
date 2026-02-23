@@ -280,6 +280,8 @@ export class Forja implements IForja {
 			this._schemas.clear();
 			this.dispatcher = null;
 			this.initialized = false;
+			Forja.instance = null;
+			Forja.initPromise = null;
 
 			return { success: true, data: undefined };
 		} catch (error) {

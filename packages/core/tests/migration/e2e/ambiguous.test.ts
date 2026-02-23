@@ -82,14 +82,12 @@ describe("Migration E2E - Ambiguous Detection", () => {
 		});
 
 		it("should apply as RENAME when resolved", async () => {
-			// Setup
 			await dropAllTables(adapter);
 			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
 			const s1 = await forja1.beginMigrate();
 			if (s1.success) await applyMigration(s1.data);
 			await forja1.shutdown();
 
-			// Change
 			const userRenamed = cloneSchema(baseUserSchema, {
 				removeFields: ["name"],
 				addFields: {
@@ -106,28 +104,22 @@ describe("Migration E2E - Ambiguous Detection", () => {
 
 			const session = sessionResult.data;
 
-			// Resolve as rename
 			autoResolveAmbiguous(session, "rename");
-
-			// Apply
 			await applyMigration(session);
 
-			// Verify
 			await assertColumnExists(forja, "user", "fullName");
 			await assertColumnNotExists(forja, "user", "name");
 
 			await forja.shutdown();
 		});
 
-		it("should apply as DROP+ADD when resolved", async () => {
-			// Setup
+		it("should resolve specific ambiguous by ID", async () => {
 			await dropAllTables(adapter);
 			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
 			const s1 = await forja1.beginMigrate();
 			if (s1.success) await applyMigration(s1.data);
 			await forja1.shutdown();
 
-			// Change
 			const userRenamed = cloneSchema(baseUserSchema, {
 				removeFields: ["name"],
 				addFields: {
@@ -144,13 +136,142 @@ describe("Migration E2E - Ambiguous Detection", () => {
 
 			const session = sessionResult.data;
 
-			// Resolve as drop+add
-			autoResolveAmbiguous(session, "drop_and_add");
+			expect(session.ambiguous.length).toBe(1);
+			const ambiguousId = session.ambiguous[0]!.id;
 
-			// Apply
+			const resolveResult = session.resolveAmbiguous(ambiguousId, "rename");
+			expect(resolveResult.success).toBe(true);
+			expect(session.hasUnresolvedAmbiguous()).toBe(false);
+
 			await applyMigration(session);
 
-			// Verify
+			await assertColumnExists(forja, "user", "fullName");
+			await assertColumnNotExists(forja, "user", "name");
+
+			await forja.shutdown();
+		});
+
+		it("should fail to resolve with invalid action", async () => {
+			await dropAllTables(adapter);
+			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
+			const s1 = await forja1.beginMigrate();
+			if (s1.success) await applyMigration(s1.data);
+			await forja1.shutdown();
+
+			const userRenamed = cloneSchema(baseUserSchema, {
+				removeFields: ["name"],
+				addFields: {
+					fullName: { type: "string", required: true },
+				},
+			});
+
+			const forja = await createForjaWithSchemas(tmpDir, [userRenamed]);
+			const sessionResult = await forja.beginMigrate();
+			if (!sessionResult.success) {
+				await forja.shutdown();
+				return;
+			}
+
+			const session = sessionResult.data;
+			const ambiguousId = session.ambiguous[0]!.id;
+
+			// Invalid action for column_rename_or_replace
+			const resolveResult = resolveAmbiguousById(session, ambiguousId, "confirm_drop");
+			expect(resolveResult.success).toBe(false);
+
+			// Still unresolved
+			expect(session.hasUnresolvedAmbiguous()).toBe(true);
+
+			await forja.shutdown();
+		});
+
+		it("should fail to resolve non-existent ambiguous ID", async () => {
+			await dropAllTables(adapter);
+			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
+			const s1 = await forja1.beginMigrate();
+			if (s1.success) await applyMigration(s1.data);
+			await forja1.shutdown();
+
+			const userRenamed = cloneSchema(baseUserSchema, {
+				removeFields: ["name"],
+				addFields: {
+					fullName: { type: "string", required: true },
+				},
+			});
+
+			const forja = await createForjaWithSchemas(tmpDir, [userRenamed]);
+			const sessionResult = await forja.beginMigrate();
+			if (!sessionResult.success) {
+				await forja.shutdown();
+				return;
+			}
+
+			const session = sessionResult.data;
+
+			const resolveResult = resolveAmbiguousById(session, "nonexistent-id", "rename");
+			expect(resolveResult.success).toBe(false);
+
+			await forja.shutdown();
+		});
+
+		it("should block apply when ambiguous not resolved", async () => {
+			await dropAllTables(adapter);
+			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
+			const s1 = await forja1.beginMigrate();
+			if (s1.success) await applyMigration(s1.data);
+			await forja1.shutdown();
+
+			const userRenamed = cloneSchema(baseUserSchema, {
+				removeFields: ["name"],
+				addFields: {
+					fullName: { type: "string", required: true },
+				},
+			});
+
+			const forja = await createForjaWithSchemas(tmpDir, [userRenamed]);
+			const sessionResult = await forja.beginMigrate();
+			if (!sessionResult.success) {
+				await forja.shutdown();
+				return;
+			}
+
+			const session = sessionResult.data;
+
+			expect(session.hasUnresolvedAmbiguous()).toBe(true);
+
+			// Apply without resolving should fail
+			const applyResult = await session.apply();
+			expect(applyResult.success).toBe(false);
+
+			await forja.shutdown();
+		});
+
+		it("should apply as DROP+ADD when resolved", async () => {
+			await dropAllTables(adapter);
+			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
+			const s1 = await forja1.beginMigrate();
+			if (s1.success) await applyMigration(s1.data);
+			await forja1.shutdown();
+
+			const userRenamed = cloneSchema(baseUserSchema, {
+				removeFields: ["name"],
+				addFields: {
+					fullName: { type: "string", required: true },
+				},
+			});
+
+			const forja = await createForjaWithSchemas(tmpDir, [userRenamed]);
+			const sessionResult = await forja.beginMigrate();
+			if (!sessionResult.success) {
+				await forja.shutdown();
+				return;
+			}
+
+			const session = sessionResult.data;
+
+			autoResolveAmbiguous(session, "drop_and_add");
+			await applyMigration(session);
+
 			await assertColumnExists(forja, "user", "fullName");
 			await assertColumnNotExists(forja, "user", "name");
 
@@ -159,7 +280,7 @@ describe("Migration E2E - Ambiguous Detection", () => {
 	});
 
 	describe("Complex scenarios (2+ removed, 2+ added)", () => {
-		it("should handle 2 removed + 1 added", async () => {
+		it("should handle 2 removed + 1 added: one ambiguous pair, one plain drop", async () => {
 			// Setup: user with firstName, lastName
 			await dropAllTables(adapter);
 			const userWithNames = cloneSchema(baseUserSchema, {
@@ -174,7 +295,8 @@ describe("Migration E2E - Ambiguous Detection", () => {
 			if (s1.success) await applyMigration(s1.data);
 			await forja1.shutdown();
 
-			// Change: remove firstName, lastName; add fullName
+			// Remove firstName + lastName, add fullName
+			// Algorithm matches first pair (firstName->fullName), lastName is plain drop
 			const userFullName = cloneSchema(baseUserSchema, {
 				removeFields: ["name"],
 				addFields: {
@@ -192,16 +314,21 @@ describe("Migration E2E - Ambiguous Detection", () => {
 
 			const session = sessionResult.data;
 
-			// Should detect multiple ambiguous (2 removed, 1 added = 2 possible pairs)
 			assertHasChanges(session);
-			// Implementation decision: could be 2 ambiguous entries
-			// or algorithm might handle differently
-			expect(session.ambiguous.length).toBeGreaterThanOrEqual(1);
+			// 1 ambiguous pair (one removed matched with the added)
+			assertAmbiguousCount(session, 1);
+
+			autoResolveAmbiguous(session, "drop_and_add");
+			await applyMigration(session);
+
+			await assertColumnExists(forja, "user", "fullName");
+			await assertColumnNotExists(forja, "user", "firstName");
+			await assertColumnNotExists(forja, "user", "lastName");
 
 			await forja.shutdown();
 		});
 
-		it("should handle 1 removed + 2 added", async () => {
+		it("should handle 1 removed + 2 added: one ambiguous pair, one plain add", async () => {
 			// Setup: user with name
 			await dropAllTables(adapter);
 			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
@@ -209,7 +336,8 @@ describe("Migration E2E - Ambiguous Detection", () => {
 			if (s1.success) await applyMigration(s1.data);
 			await forja1.shutdown();
 
-			// Change: remove name; add firstName, lastName
+			// Remove name, add firstName + lastName
+			// Algorithm matches first pair (name->firstName), lastName is plain add
 			const userSplitName = cloneSchema(baseUserSchema, {
 				removeFields: ["name"],
 				addFields: {
@@ -228,14 +356,21 @@ describe("Migration E2E - Ambiguous Detection", () => {
 
 			const session = sessionResult.data;
 
-			// Should detect ambiguous (1 removed, 2 added = 2 possible pairs)
 			assertHasChanges(session);
-			expect(session.ambiguous.length).toBeGreaterThanOrEqual(1);
+			// 1 ambiguous pair (removed matched with one added)
+			assertAmbiguousCount(session, 1);
+
+			autoResolveAmbiguous(session, "drop_and_add");
+			await applyMigration(session);
+
+			await assertColumnExists(forja, "user", "firstName");
+			await assertColumnExists(forja, "user", "lastName");
+			await assertColumnNotExists(forja, "user", "name");
 
 			await forja.shutdown();
 		});
 
-		it("should handle 2 removed + 2 added (pairs)", async () => {
+		it("should handle 2 removed + 2 added: two ambiguous pairs", async () => {
 			// Setup: user with firstName, lastName
 			await dropAllTables(adapter);
 			const userWithNames = cloneSchema(baseUserSchema, {
@@ -250,7 +385,7 @@ describe("Migration E2E - Ambiguous Detection", () => {
 			if (s1.success) await applyMigration(s1.data);
 			await forja1.shutdown();
 
-			// Change: remove firstName, lastName; add givenName, familyName
+			// Remove firstName + lastName, add givenName + familyName
 			const userRenamedBoth = cloneSchema(baseUserSchema, {
 				removeFields: ["name"],
 				addFields: {
@@ -269,10 +404,17 @@ describe("Migration E2E - Ambiguous Detection", () => {
 
 			const session = sessionResult.data;
 
-			// Should detect multiple ambiguous (4 possible pairs: 2x2)
 			assertHasChanges(session);
-			// At least some ambiguous detected
-			expect(session.ambiguous.length).toBeGreaterThanOrEqual(1);
+			// Each removed field is paired with one added field
+			assertAmbiguousCount(session, 2);
+
+			autoResolveAmbiguous(session, "drop_and_add");
+			await applyMigration(session);
+
+			await assertColumnExists(forja, "user", "givenName");
+			await assertColumnExists(forja, "user", "familyName");
+			await assertColumnNotExists(forja, "user", "firstName");
+			await assertColumnNotExists(forja, "user", "lastName");
 
 			await forja.shutdown();
 		});

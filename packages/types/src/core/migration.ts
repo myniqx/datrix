@@ -4,7 +4,7 @@
  * Types for database schema migrations, diffing, and history tracking.
  */
 
-import { AlterOperation } from "../adapter";
+import { AlterOperation, QueryRunner } from "../adapter";
 import { Result } from "../utils";
 import { FieldDefinition, IndexDefinition, SchemaDefinition } from "./schema";
 
@@ -42,7 +42,8 @@ export type MigrationOperationType =
 	| "createIndex"
 	| "dropIndex"
 	| "renameTable"
-	| "raw";
+	| "raw"
+	| "dataTransfer";
 
 /**
  * Base migration operation
@@ -113,6 +114,16 @@ export interface RawSQLOperation extends BaseMigrationOperation {
 }
 
 /**
+ * Data transfer operation — runs a callback with the transaction runner.
+ * Used for migrating data between tables (e.g. FK → junction, junction → FK).
+ */
+export interface DataTransferOperation extends BaseMigrationOperation {
+	readonly type: "dataTransfer";
+	readonly description: string;
+	readonly execute: (runner: QueryRunner) => Promise<void>;
+}
+
+/**
  * Union of all migration operations
  */
 export type MigrationOperation =
@@ -122,7 +133,8 @@ export type MigrationOperation =
 	| CreateIndexOperation
 	| DropIndexOperation
 	| RenameTableOperation
-	| RawSQLOperation;
+	| RawSQLOperation
+	| DataTransferOperation;
 
 /**
  * Migration definition

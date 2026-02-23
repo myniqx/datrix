@@ -220,8 +220,7 @@ describe("Migration E2E - Relation Changes", () => {
 				assertHasChanges(session);
 				assertColumnInDrop(session, TABLE_NAMES.post, "authorId");
 
-				// TODO: Should have ambiguous confirmation for FK drop
-				// assertAmbiguousExists(session, "fk_column_drop", TABLE_NAMES.post);
+				assertAmbiguousExists(session, "fk_column_drop", TABLE_NAMES.post);
 
 				await forja.shutdown();
 			});
@@ -422,8 +421,7 @@ describe("Migration E2E - Relation Changes", () => {
 				const session = sessionResult.data;
 
 				// Model change should be detected
-				// TODO: Should have specific ambiguous type for model change
-				// assertAmbiguousExists(session, "fk_model_change", TABLE_NAMES.post);
+				assertAmbiguousExists(session, "fk_model_change", TABLE_NAMES.post);
 				assertHasChanges(session);
 
 				await forja.shutdown();
@@ -594,7 +592,7 @@ describe("Migration E2E - Relation Changes", () => {
 	// ============================================
 
 	describe("hasOne relation", () => {
-		it("should add FK column to target table (same as hasMany)", async () => {
+		it("should add FK column to target table", async () => {
 			await dropAllTables(adapter);
 
 			const forja1 = await createForjaWithSchemas(tmpDir, [
@@ -607,7 +605,6 @@ describe("Migration E2E - Relation Changes", () => {
 			}
 			await forja1.shutdown();
 
-			// Add hasOne relation to user
 			const userWithProfile = cloneSchema(baseUserSchema, {
 				addFields: {
 					profile: { type: "relation", kind: "hasOne", model: "profile" },
@@ -627,33 +624,110 @@ describe("Migration E2E - Relation Changes", () => {
 
 			const session = sessionResult.data;
 
-			// DEBUG: Log session state
-			console.log("=== DEBUG hasOne test ===");
-			console.log("tablesToCreate:", JSON.stringify(session.tablesToCreate.map(t => t.name), null, 2));
-			console.log("tablesToDrop:", JSON.stringify(session.tablesToDrop, null, 2));
-			console.log("tablesToAlter:", JSON.stringify(session.tablesToAlter, null, 2));
-			console.log("ambiguous:", JSON.stringify(session.ambiguous, null, 2));
-			console.log("differences:", JSON.stringify(session.differences, null, 2));
-			console.log("currentSchemas:", JSON.stringify(Array.from(forja.getSchemas().entries()).map(([k, v]) => ({ name: k, fields: Object.keys(v.fields) })), null, 2));
-			console.log("databaseSchemas:", JSON.stringify(session.databaseSchemas, null, 2));
-
-			// Should add FK to profile table
 			assertHasChanges(session);
 			assertColumnInAdd(session, TABLE_NAMES.profile, "userId");
 
 			await applyMigration(session);
 
-			// Verify FK on target
 			await assertColumnExists(forja, "profile", "userId");
 
 			await forja.shutdown();
 		});
 
-		it("should handle hasOne to hasMany conversion without schema change", async () => {
-			// hasOne and hasMany produce same FK structure
+		it("should add FK column with custom foreignKey", async () => {
 			await dropAllTables(adapter);
 
-			// Setup with hasOne
+			const forja1 = await createForjaWithSchemas(tmpDir, [
+				baseUserSchema,
+				baseProfileSchema,
+			]);
+			const session1Result = await forja1.beginMigrate();
+			if (session1Result.success) {
+				await applyMigration(session1Result.data);
+			}
+			await forja1.shutdown();
+
+			const userWithProfile = cloneSchema(baseUserSchema, {
+				addFields: {
+					profile: {
+						type: "relation",
+						kind: "hasOne",
+						model: "profile",
+						foreignKey: "ownerId",
+					},
+				},
+			});
+
+			const forja = await createForjaWithSchemas(tmpDir, [
+				userWithProfile,
+				baseProfileSchema,
+			]);
+			const sessionResult = await forja.beginMigrate();
+			expect(sessionResult.success).toBe(true);
+			if (!sessionResult.success) {
+				await forja.shutdown();
+				return;
+			}
+
+			const session = sessionResult.data;
+
+			assertHasChanges(session);
+			assertColumnInAdd(session, TABLE_NAMES.profile, "ownerId");
+
+			await applyMigration(session);
+
+			await assertColumnExists(forja, "profile", "ownerId");
+			await assertColumnNotExists(forja, "profile", "userId");
+
+			await forja.shutdown();
+		});
+
+		it("should drop FK column from target table when hasOne is removed", async () => {
+			await dropAllTables(adapter);
+
+			const userWithProfile = cloneSchema(baseUserSchema, {
+				addFields: {
+					profile: { type: "relation", kind: "hasOne", model: "profile" },
+				},
+			});
+
+			const forja1 = await createForjaWithSchemas(tmpDir, [
+				userWithProfile,
+				baseProfileSchema,
+			]);
+			const session1Result = await forja1.beginMigrate();
+			if (session1Result.success) {
+				await applyMigration(session1Result.data);
+			}
+			await assertColumnExists(forja1, "profile", "userId");
+			await forja1.shutdown();
+
+			const forja = await createForjaWithSchemas(tmpDir, [
+				baseUserSchema,
+				baseProfileSchema,
+			]);
+			const sessionResult = await forja.beginMigrate();
+			expect(sessionResult.success).toBe(true);
+			if (!sessionResult.success) {
+				await forja.shutdown();
+				return;
+			}
+
+			const session = sessionResult.data;
+
+			assertHasChanges(session);
+			assertColumnInDrop(session, TABLE_NAMES.profile, "userId");
+
+			await applyMigration(session);
+
+			await assertColumnNotExists(forja, "profile", "userId");
+
+			await forja.shutdown();
+		});
+
+		it("should not change DB when hasOne switches to hasMany (field name changes)", async () => {
+			await dropAllTables(adapter);
+
 			const userWithProfileOne = cloneSchema(baseUserSchema, {
 				addFields: {
 					profile: { type: "relation", kind: "hasOne", model: "profile" },
@@ -670,7 +744,6 @@ describe("Migration E2E - Relation Changes", () => {
 			}
 			await forja1.shutdown();
 
-			// Change to hasMany (same FK structure)
 			const userWithProfileMany = cloneSchema(baseUserSchema, {
 				addFields: {
 					profiles: { type: "relation", kind: "hasMany", model: "profile" },
@@ -688,21 +761,232 @@ describe("Migration E2E - Relation Changes", () => {
 				return;
 			}
 
+			assertNoChanges(sessionResult.data);
+
+			await forja.shutdown();
+		});
+
+		it("should not change DB when hasOne switches to hasMany (field name same)", async () => {
+			await dropAllTables(adapter);
+
+			const userWithProfileOne = cloneSchema(baseUserSchema, {
+				addFields: {
+					profile: { type: "relation", kind: "hasOne", model: "profile" },
+				},
+			});
+
+			const forja1 = await createForjaWithSchemas(tmpDir, [
+				userWithProfileOne,
+				baseProfileSchema,
+			]);
+			const session1Result = await forja1.beginMigrate();
+			if (session1Result.success) {
+				await applyMigration(session1Result.data);
+			}
+			await forja1.shutdown();
+
+			const userWithProfileMany = cloneSchema(baseUserSchema, {
+				addFields: {
+					profile: { type: "relation", kind: "hasMany", model: "profile" },
+				},
+			});
+
+			const forja = await createForjaWithSchemas(tmpDir, [
+				userWithProfileMany,
+				baseProfileSchema,
+			]);
+			const sessionResult = await forja.beginMigrate();
+			expect(sessionResult.success).toBe(true);
+			if (!sessionResult.success) {
+				await forja.shutdown();
+				return;
+			}
+
+			assertNoChanges(sessionResult.data);
+
+			await forja.shutdown();
+		});
+
+		it("should not change DB when hasMany switches to hasOne", async () => {
+			await dropAllTables(adapter);
+
+			const userWithProfiles = cloneSchema(baseUserSchema, {
+				addFields: {
+					profiles: { type: "relation", kind: "hasMany", model: "profile" },
+				},
+			});
+
+			const forja1 = await createForjaWithSchemas(tmpDir, [
+				userWithProfiles,
+				baseProfileSchema,
+			]);
+			const session1Result = await forja1.beginMigrate();
+			if (session1Result.success) {
+				await applyMigration(session1Result.data);
+			}
+			await forja1.shutdown();
+
+			const userWithProfileOne = cloneSchema(baseUserSchema, {
+				addFields: {
+					profile: { type: "relation", kind: "hasOne", model: "profile" },
+				},
+			});
+
+			const forja = await createForjaWithSchemas(tmpDir, [
+				userWithProfileOne,
+				baseProfileSchema,
+			]);
+			const sessionResult = await forja.beginMigrate();
+			expect(sessionResult.success).toBe(true);
+			if (!sessionResult.success) {
+				await forja.shutdown();
+				return;
+			}
+
+			assertNoChanges(sessionResult.data);
+
+			await forja.shutdown();
+		});
+
+		it("should change DB when foreignKey differs in hasOne to hasMany switch", async () => {
+			await dropAllTables(adapter);
+
+			const userWithProfile = cloneSchema(baseUserSchema, {
+				addFields: {
+					profile: {
+						type: "relation",
+						kind: "hasOne",
+						model: "profile",
+						foreignKey: "ownerId",
+					},
+				},
+			});
+
+			const forja1 = await createForjaWithSchemas(tmpDir, [
+				userWithProfile,
+				baseProfileSchema,
+			]);
+			const session1Result = await forja1.beginMigrate();
+			if (session1Result.success) {
+				await applyMigration(session1Result.data);
+			}
+			await forja1.shutdown();
+
+			const userWithProfiles = cloneSchema(baseUserSchema, {
+				addFields: {
+					profiles: {
+						type: "relation",
+						kind: "hasMany",
+						model: "profile",
+						foreignKey: "userId",
+					},
+				},
+			});
+
+			const forja = await createForjaWithSchemas(tmpDir, [
+				userWithProfiles,
+				baseProfileSchema,
+			]);
+			const sessionResult = await forja.beginMigrate();
+			expect(sessionResult.success).toBe(true);
+			if (!sessionResult.success) {
+				await forja.shutdown();
+				return;
+			}
+
 			const session = sessionResult.data;
 
-			// DEBUG: Log session state
-			console.log("=== DEBUG hasOne->hasMany test ===");
-			console.log("tablesToCreate:", JSON.stringify(session.tablesToCreate.map(t => t.name), null, 2));
-			console.log("tablesToDrop:", JSON.stringify(session.tablesToDrop, null, 2));
-			console.log("tablesToAlter:", JSON.stringify(session.tablesToAlter, null, 2));
-			console.log("ambiguous:", JSON.stringify(session.ambiguous, null, 2));
-			console.log("differences:", JSON.stringify(session.differences, null, 2));
-			console.log("currentSchemas:", JSON.stringify(Array.from(forja.getSchemas().entries()).map(([k, v]) => ({ name: k, fields: Object.keys(v.fields) })), null, 2));
-			console.log("databaseSchemas:", JSON.stringify(session.databaseSchemas, null, 2));
+			assertHasChanges(session);
+			assertColumnInDrop(session, TABLE_NAMES.profile, "ownerId");
+			assertColumnInAdd(session, TABLE_NAMES.profile, "userId");
 
-			// Should have NO schema changes (same FK structure)
-			// Only difference is query behavior, not database schema
-			assertNoChanges(session);
+			await forja.shutdown();
+		});
+
+		it("should not change DB when switching from hasOne to belongsTo with same FK column", async () => {
+			await dropAllTables(adapter);
+
+			const userWithProfile = cloneSchema(baseUserSchema, {
+				addFields: {
+					profile: { type: "relation", kind: "hasOne", model: "profile" },
+				},
+			});
+
+			const forja1 = await createForjaWithSchemas(tmpDir, [
+				userWithProfile,
+				baseProfileSchema,
+			]);
+			const session1Result = await forja1.beginMigrate();
+			if (session1Result.success) {
+				await applyMigration(session1Result.data);
+			}
+			await assertColumnExists(forja1, "profile", "userId");
+			await forja1.shutdown();
+
+			// profiles.userId already exists from hasOne
+			// belongsTo on profile side also uses profiles.userId — no change
+			const profileWithUser = cloneSchema(baseProfileSchema, {
+				addFields: {
+					user: { type: "relation", kind: "belongsTo", model: "user" },
+				},
+			});
+
+			const forja = await createForjaWithSchemas(tmpDir, [
+				baseUserSchema,
+				profileWithUser,
+			]);
+			const sessionResult = await forja.beginMigrate();
+			expect(sessionResult.success).toBe(true);
+			if (!sessionResult.success) {
+				await forja.shutdown();
+				return;
+			}
+
+			assertNoChanges(sessionResult.data);
+
+			await forja.shutdown();
+		});
+
+		it("should not change DB when switching from belongsTo to hasMany with same FK column", async () => {
+			await dropAllTables(adapter);
+
+			const profileWithUser = cloneSchema(baseProfileSchema, {
+				addFields: {
+					user: { type: "relation", kind: "belongsTo", model: "user" },
+				},
+			});
+
+			const forja1 = await createForjaWithSchemas(tmpDir, [
+				baseUserSchema,
+				profileWithUser,
+			]);
+			const session1Result = await forja1.beginMigrate();
+			if (session1Result.success) {
+				await applyMigration(session1Result.data);
+			}
+			await assertColumnExists(forja1, "profile", "userId");
+			await forja1.shutdown();
+
+			// profiles.userId already exists from belongsTo
+			// hasMany on user side also uses profiles.userId — no change
+			const userWithProfiles = cloneSchema(baseUserSchema, {
+				addFields: {
+					profiles: { type: "relation", kind: "hasMany", model: "profile" },
+				},
+			});
+
+			const forja = await createForjaWithSchemas(tmpDir, [
+				userWithProfiles,
+				baseProfileSchema,
+			]);
+			const sessionResult = await forja.beginMigrate();
+			expect(sessionResult.success).toBe(true);
+			if (!sessionResult.success) {
+				await forja.shutdown();
+				return;
+			}
+
+			assertNoChanges(sessionResult.data);
 
 			await forja.shutdown();
 		});
@@ -747,16 +1031,6 @@ describe("Migration E2E - Relation Changes", () => {
 				}
 
 				const session = sessionResult.data;
-
-				// DEBUG: Log session state
-				console.log("=== DEBUG manyToMany test ===");
-				console.log("tablesToCreate:", JSON.stringify(session.tablesToCreate.map(t => t.name), null, 2));
-				console.log("tablesToDrop:", JSON.stringify(session.tablesToDrop, null, 2));
-				console.log("tablesToAlter:", JSON.stringify(session.tablesToAlter, null, 2));
-				console.log("ambiguous:", JSON.stringify(session.ambiguous, null, 2));
-				console.log("differences:", JSON.stringify(session.differences, null, 2));
-				console.log("currentSchemas:", JSON.stringify(Array.from(forja.getSchemas().entries()).map(([k, v]) => ({ name: k, fields: Object.keys(v.fields) })), null, 2));
-				console.log("databaseSchemas:", JSON.stringify(session.databaseSchemas, null, 2));
 
 				// Should detect junction table creation
 				assertHasChanges(session);
@@ -929,8 +1203,7 @@ describe("Migration E2E - Relation Changes", () => {
 				assertTablesToDrop(session, 1);
 				assertTableInDrop(session, "post_tag");
 
-				// TODO: Should have ambiguous confirmation
-				// assertAmbiguousExists(session, "junction_table_drop");
+				assertAmbiguousExists(session, "junction_table_drop");
 
 				await forja.shutdown();
 			});
@@ -1034,8 +1307,7 @@ describe("Migration E2E - Relation Changes", () => {
 				assertTableInDrop(session, "post_tags");
 				assertTableInCreate(session, "article_tags");
 
-				// TODO: Should have specific ambiguous type
-				// assertAmbiguousExists(session, "junction_table_rename_or_replace");
+				assertAmbiguousExists(session, "junction_table_rename_or_replace");
 
 				await forja.shutdown();
 			});
@@ -1100,8 +1372,7 @@ describe("Migration E2E - Relation Changes", () => {
 				assertColumnInDrop(session, TABLE_NAMES.post, "categoryId");
 				assertTableInCreate(session, "category_post");
 
-				// TODO: Should detect as relation upgrade opportunity
-				// assertAmbiguousExists(session, "relation_upgrade_single_to_many");
+				assertAmbiguousExists(session, "relation_upgrade_single_to_many");
 
 				await forja.shutdown();
 			});
@@ -1163,8 +1434,7 @@ describe("Migration E2E - Relation Changes", () => {
 				assertTableInDrop(session, "post_tag");
 				assertColumnInAdd(session, TABLE_NAMES.post, "tagId");
 
-				// TODO: Should detect as relation downgrade opportunity
-				// assertAmbiguousExists(session, "relation_downgrade_many_to_single");
+				assertAmbiguousExists(session, "relation_downgrade_many_to_single");
 
 				await forja.shutdown();
 			});
@@ -1223,8 +1493,367 @@ describe("Migration E2E - Relation Changes", () => {
 				assertColumnInDrop(session, TABLE_NAMES.post, "userId");
 				assertColumnInAdd(session, TABLE_NAMES.user, "postId");
 
-				// TODO: Should warn about direction flip
-				// assertAmbiguousExists(session, "relation_direction_flip");
+				assertAmbiguousExists(session, "relation_direction_flip");
+
+				await forja.shutdown();
+			});
+		});
+	});
+
+	// ============================================
+	// 6. Cross-Schema Relation Mirror Tests
+	// ============================================
+
+	describe("Cross-schema relation mirrors", () => {
+		describe("hasOne/hasMany ↔ belongsTo flip", () => {
+			it("should not change DB when hasOne owner side is removed and belongsTo target side is added", async () => {
+				await dropAllTables(adapter);
+
+				const userWithProfile = cloneSchema(baseUserSchema, {
+					addFields: {
+						profile: { type: "relation", kind: "hasOne", model: "profile" },
+					},
+				});
+
+				const forja1 = await createForjaWithSchemas(tmpDir, [
+					userWithProfile,
+					baseProfileSchema,
+				]);
+				const session1Result = await forja1.beginMigrate();
+				if (session1Result.success) {
+					await applyMigration(session1Result.data);
+				}
+				await assertColumnExists(forja1, "profile", "userId");
+				await forja1.shutdown();
+
+				// Remove hasOne from user, add belongsTo on profile side
+				// Both point to the same profiles.userId column
+				const profileWithUser = cloneSchema(baseProfileSchema, {
+					addFields: {
+						user: { type: "relation", kind: "belongsTo", model: "user" },
+					},
+				});
+
+				const forja = await createForjaWithSchemas(tmpDir, [
+					baseUserSchema,
+					profileWithUser,
+				]);
+				const sessionResult = await forja.beginMigrate();
+				expect(sessionResult.success).toBe(true);
+				if (!sessionResult.success) {
+					await forja.shutdown();
+					return;
+				}
+
+				assertNoChanges(sessionResult.data);
+
+				await forja.shutdown();
+			});
+
+			it("should not change DB when hasMany owner side is removed and belongsTo target side is added", async () => {
+				await dropAllTables(adapter);
+
+				const userWithProfiles = cloneSchema(baseUserSchema, {
+					addFields: {
+						profiles: { type: "relation", kind: "hasMany", model: "profile" },
+					},
+				});
+
+				const forja1 = await createForjaWithSchemas(tmpDir, [
+					userWithProfiles,
+					baseProfileSchema,
+				]);
+				const session1Result = await forja1.beginMigrate();
+				if (session1Result.success) {
+					await applyMigration(session1Result.data);
+				}
+				await assertColumnExists(forja1, "profile", "userId");
+				await forja1.shutdown();
+
+				// Remove hasMany from user, add belongsTo on profile side
+				const profileWithUser = cloneSchema(baseProfileSchema, {
+					addFields: {
+						user: { type: "relation", kind: "belongsTo", model: "user" },
+					},
+				});
+
+				const forja = await createForjaWithSchemas(tmpDir, [
+					baseUserSchema,
+					profileWithUser,
+				]);
+				const sessionResult = await forja.beginMigrate();
+				expect(sessionResult.success).toBe(true);
+				if (!sessionResult.success) {
+					await forja.shutdown();
+					return;
+				}
+
+				assertNoChanges(sessionResult.data);
+
+				await forja.shutdown();
+			});
+
+			it("should not change DB when belongsTo target side is removed and hasOne owner side is added", async () => {
+				await dropAllTables(adapter);
+
+				const profileWithUser = cloneSchema(baseProfileSchema, {
+					addFields: {
+						user: { type: "relation", kind: "belongsTo", model: "user" },
+					},
+				});
+
+				const forja1 = await createForjaWithSchemas(tmpDir, [
+					baseUserSchema,
+					profileWithUser,
+				]);
+				const session1Result = await forja1.beginMigrate();
+				if (session1Result.success) {
+					await applyMigration(session1Result.data);
+				}
+				await assertColumnExists(forja1, "profile", "userId");
+				await forja1.shutdown();
+
+				// Remove belongsTo from profile, add hasOne on user side
+				const userWithProfile = cloneSchema(baseUserSchema, {
+					addFields: {
+						profile: { type: "relation", kind: "hasOne", model: "profile" },
+					},
+				});
+
+				const forja = await createForjaWithSchemas(tmpDir, [
+					userWithProfile,
+					baseProfileSchema,
+				]);
+				const sessionResult = await forja.beginMigrate();
+				expect(sessionResult.success).toBe(true);
+				if (!sessionResult.success) {
+					await forja.shutdown();
+					return;
+				}
+
+				assertNoChanges(sessionResult.data);
+
+				await forja.shutdown();
+			});
+		});
+
+		describe("manyToMany bidirectional", () => {
+			it("should not change DB when second side of manyToMany is added", async () => {
+				await dropAllTables(adapter);
+
+				// Only post side has the manyToMany relation
+				const postWithTags = cloneSchema(basePostSchemaNoRelation, {
+					addFields: {
+						tags: { type: "relation", kind: "manyToMany", model: "tag" },
+					},
+				});
+
+				const forja1 = await createForjaWithSchemas(tmpDir, [
+					postWithTags,
+					baseTagSchema,
+				]);
+				const session1Result = await forja1.beginMigrate();
+				if (session1Result.success) {
+					await applyMigration(session1Result.data);
+				}
+				await forja1.shutdown();
+
+				// Now tag side also declares the manyToMany relation
+				// Junction table post_tag already exists
+				const tagWithPosts = cloneSchema(baseTagSchema, {
+					addFields: {
+						posts: { type: "relation", kind: "manyToMany", model: "post" },
+					},
+				});
+
+				const forja = await createForjaWithSchemas(tmpDir, [
+					postWithTags,
+					tagWithPosts,
+				]);
+				const sessionResult = await forja.beginMigrate();
+				expect(sessionResult.success).toBe(true);
+				if (!sessionResult.success) {
+					await forja.shutdown();
+					return;
+				}
+
+				assertNoChanges(sessionResult.data);
+
+				await forja.shutdown();
+			});
+
+			it("should not change DB when first side of manyToMany is removed and second side remains", async () => {
+				await dropAllTables(adapter);
+
+				const postWithTags = cloneSchema(basePostSchemaNoRelation, {
+					addFields: {
+						tags: { type: "relation", kind: "manyToMany", model: "tag" },
+					},
+				});
+
+				const tagWithPosts = cloneSchema(baseTagSchema, {
+					addFields: {
+						posts: { type: "relation", kind: "manyToMany", model: "post" },
+					},
+				});
+
+				const forja1 = await createForjaWithSchemas(tmpDir, [
+					postWithTags,
+					tagWithPosts,
+				]);
+				const session1Result = await forja1.beginMigrate();
+				if (session1Result.success) {
+					await applyMigration(session1Result.data);
+				}
+				await forja1.shutdown();
+
+				// Remove manyToMany from post side — tag side still has it
+				// Junction table should NOT be dropped
+				const forja = await createForjaWithSchemas(tmpDir, [
+					basePostSchemaNoRelation,
+					tagWithPosts,
+				]);
+				const sessionResult = await forja.beginMigrate();
+				expect(sessionResult.success).toBe(true);
+				if (!sessionResult.success) {
+					await forja.shutdown();
+					return;
+				}
+
+				assertNoChanges(sessionResult.data);
+
+				await forja.shutdown();
+			});
+
+			it("should drop junction table only when both sides are removed", async () => {
+				await dropAllTables(adapter);
+
+				const postWithTags = cloneSchema(basePostSchemaNoRelation, {
+					addFields: {
+						tags: { type: "relation", kind: "manyToMany", model: "tag" },
+					},
+				});
+
+				const tagWithPosts = cloneSchema(baseTagSchema, {
+					addFields: {
+						posts: { type: "relation", kind: "manyToMany", model: "post" },
+					},
+				});
+
+				const forja1 = await createForjaWithSchemas(tmpDir, [
+					postWithTags,
+					tagWithPosts,
+				]);
+				const session1Result = await forja1.beginMigrate();
+				if (session1Result.success) {
+					await applyMigration(session1Result.data);
+				}
+				await forja1.shutdown();
+
+				// Remove manyToMany from both sides
+				const forja = await createForjaWithSchemas(tmpDir, [
+					basePostSchemaNoRelation,
+					baseTagSchema,
+				]);
+				const sessionResult = await forja.beginMigrate();
+				expect(sessionResult.success).toBe(true);
+				if (!sessionResult.success) {
+					await forja.shutdown();
+					return;
+				}
+
+				assertHasChanges(sessionResult.data);
+				assertTableInDrop(sessionResult.data, "post_tag");
+
+				await forja.shutdown();
+			});
+		});
+
+		describe("belongsTo mirror (both sides declared)", () => {
+			it("should not change DB when hasMany is added to owner side while belongsTo already exists on target", async () => {
+				await dropAllTables(adapter);
+
+				const profileWithUser = cloneSchema(baseProfileSchema, {
+					addFields: {
+						user: { type: "relation", kind: "belongsTo", model: "user" },
+					},
+				});
+
+				const forja1 = await createForjaWithSchemas(tmpDir, [
+					baseUserSchema,
+					profileWithUser,
+				]);
+				const session1Result = await forja1.beginMigrate();
+				if (session1Result.success) {
+					await applyMigration(session1Result.data);
+				}
+				await assertColumnExists(forja1, "profile", "userId");
+				await forja1.shutdown();
+
+				// Add hasMany on user side — profiles.userId already exists
+				const userWithProfiles = cloneSchema(baseUserSchema, {
+					addFields: {
+						profiles: { type: "relation", kind: "hasMany", model: "profile" },
+					},
+				});
+
+				const forja = await createForjaWithSchemas(tmpDir, [
+					userWithProfiles,
+					profileWithUser,
+				]);
+				const sessionResult = await forja.beginMigrate();
+				expect(sessionResult.success).toBe(true);
+				if (!sessionResult.success) {
+					await forja.shutdown();
+					return;
+				}
+
+				assertNoChanges(sessionResult.data);
+
+				await forja.shutdown();
+			});
+		});
+
+		describe("manyToMany ownership transfer", () => {
+			it("should not change DB when manyToMany is removed from A and added to B simultaneously", async () => {
+				await dropAllTables(adapter);
+
+				// Only post side declares the relation
+				const postWithTags = cloneSchema(basePostSchemaNoRelation, {
+					addFields: {
+						tags: { type: "relation", kind: "manyToMany", model: "tag" },
+					},
+				});
+
+				const forja1 = await createForjaWithSchemas(tmpDir, [
+					postWithTags,
+					baseTagSchema,
+				]);
+				const session1Result = await forja1.beginMigrate();
+				if (session1Result.success) {
+					await applyMigration(session1Result.data);
+				}
+				await forja1.shutdown();
+
+				// Remove from post, add to tag — junction table post_tag must stay
+				const tagWithPosts = cloneSchema(baseTagSchema, {
+					addFields: {
+						posts: { type: "relation", kind: "manyToMany", model: "post" },
+					},
+				});
+
+				const forja = await createForjaWithSchemas(tmpDir, [
+					basePostSchemaNoRelation,
+					tagWithPosts,
+				]);
+				const sessionResult = await forja.beginMigrate();
+				expect(sessionResult.success).toBe(true);
+				if (!sessionResult.success) {
+					await forja.shutdown();
+					return;
+				}
+
+				assertNoChanges(sessionResult.data);
 
 				await forja.shutdown();
 			});
