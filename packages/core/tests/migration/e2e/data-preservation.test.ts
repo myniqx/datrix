@@ -33,6 +33,7 @@ import {
 	assertColumnExists,
 	assertColumnNotExists,
 	assertHasChanges,
+	assertAmbiguousExists,
 	applyMigration,
 	autoResolveAmbiguous,
 } from "./setup/helpers";
@@ -467,10 +468,9 @@ describe("Migration E2E - Data Preservation", () => {
 
 			const session = sessionResult.data;
 
-			// TODO: Should have ambiguous with data loss warning
-			// const ambiguous = assertAmbiguousExists(session, "relation_downgrade_many_to_single");
-			// expect(ambiguous.warning).toContain("data loss");
-			// expect(ambiguous.affectedRows).toBe(1); // 1 post with multiple tags
+			// relation_downgrade_many_to_single ambiguous is detected with data loss warning
+			const ambiguous = assertAmbiguousExists(session, "relation_downgrade_many_to_single");
+			expect(ambiguous.warning).toContain("lose data");
 
 			await forja.shutdown();
 		});

@@ -11,7 +11,7 @@ import type { DevCommandOptions } from "../types";
 import { CLIError } from "../types";
 import { logger, green, cyan, yellow, formatError } from "../utils/logger";
 import { Result } from "forja-types/utils";
-import { MigrationRunner } from "forja-types/core/migration";
+import type { Forja } from "forja-core";
 
 /**
  * File change event
@@ -142,48 +142,44 @@ class FileWatcher {
  * Run initial migration
  */
 async function runInitialMigration(
-	runner: MigrationRunner,
+	forja: Forja,
 ): Promise<Result<void, CLIError>> {
 	try {
 		logger.info("Running initial migration check...");
 		logger.log("");
 
-		const pendingResult = await runner.getPending();
-
-		if (!pendingResult.success) {
+		const sessionResult = await forja.beginMigrate();
+		if (!sessionResult.success) {
 			return {
 				success: false,
 				error: new CLIError(
-					`Failed to check migrations: ${formatError(pendingResult.error)}`,
+					`Failed to begin migration: ${formatError(sessionResult.error)}`,
 					"EXECUTION_ERROR",
-					pendingResult.error,
+					sessionResult.error,
 				),
 			};
 		}
 
-		const pending = pendingResult.data;
+		const session = sessionResult.data;
 
-		if (pending.length === 0) {
+		if (!session.hasChanges()) {
 			logger.info("Database is up to date");
 			return { success: true, data: undefined };
 		}
 
-		logger.info(`Found ${pending.length} pending migration(s)`);
-
-		const runResult = await runner.runPending({ dryRun: false });
-
-		if (!runResult.success) {
+		const applyResult = await session.apply();
+		if (!applyResult.success) {
 			return {
 				success: false,
 				error: new CLIError(
-					`Failed to run migrations: ${formatError(runResult.error)}`,
+					`Failed to run migrations: ${formatError(applyResult.error)}`,
 					"EXECUTION_ERROR",
-					runResult.error,
+					applyResult.error,
 				),
 			};
 		}
 
-		logger.success("Migrations completed");
+		logger.success(`Migrations completed (${applyResult.data.length} applied)`);
 
 		return { success: true, data: undefined };
 	} catch (error) {
@@ -203,7 +199,7 @@ async function runInitialMigration(
  */
 async function handleSchemaChange(
 	filename: string,
-	runner: MigrationRunner,
+	forja: Forja,
 ): Promise<void> {
 	try {
 		logger.log("");
@@ -212,32 +208,26 @@ async function handleSchemaChange(
 		logger.info(cyan("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
 		logger.log("");
 
-		// Check for pending migrations
-		const pendingResult = await runner.getPending();
-
-		if (!pendingResult.success) {
-			logger.error(
-				`Failed to check migrations: ${formatError(pendingResult.error)}`,
-			);
+		const sessionResult = await forja.beginMigrate();
+		if (!sessionResult.success) {
+			logger.error(`Failed to begin migration: ${formatError(sessionResult.error)}`);
+			logger.log("");
+			logger.info(green("✨ Watching for changes..."));
 			return;
 		}
 
-		const pending = pendingResult.data;
+		const session = sessionResult.data;
 
-		if (pending.length === 0) {
+		if (!session.hasChanges()) {
 			logger.info("No new migrations to run");
 			logger.log("");
 			logger.info(green("✨ Watching for changes..."));
 			return;
 		}
 
-		logger.info(`Found ${pending.length} new migration(s)`);
-
-		// Run migrations
-		const runResult = await runner.runPending({ dryRun: false });
-
-		if (!runResult.success) {
-			logger.error(`Migration failed: ${formatError(runResult.error)}`);
+		const applyResult = await session.apply();
+		if (!applyResult.success) {
+			logger.error(`Migration failed: ${formatError(applyResult.error)}`);
 			logger.log("");
 			logger.info(green("✨ Watching for changes..."));
 			return;
@@ -258,7 +248,7 @@ async function handleSchemaChange(
  */
 export async function devCommand(
 	options: DevCommandOptions,
-	runner: MigrationRunner,
+	forja: Forja,
 	schemasDir: string = join(process.cwd(), "schemas"),
 ): Promise<Result<void, CLIError>> {
 	try {
@@ -269,7 +259,7 @@ export async function devCommand(
 		logger.log("");
 
 		// Run initial migration
-		const initialResult = await runInitialMigration(runner);
+		const initialResult = await runInitialMigration(forja);
 
 		if (!initialResult.success) {
 			return initialResult;
@@ -283,7 +273,7 @@ export async function devCommand(
 		// Create debouncer
 		let lastChangedFile: string = "";
 		const debouncer = new ChangeDebouncer(async (): Promise<void> => {
-			await handleSchemaChange(lastChangedFile, runner);
+			await handleSchemaChange(lastChangedFile, forja);
 		}, 500);
 
 		// Create watcher

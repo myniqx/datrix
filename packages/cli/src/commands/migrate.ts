@@ -106,6 +106,11 @@ async function resolveAmbiguousChanges(
 
 	for (const change of ambiguous) {
 		logger.log(cyan(`${change.id}`));
+
+		if (change.warning) {
+			logger.log(yellow(`  ⚠ ${change.warning}`));
+		}
+
 		logger.log("");
 
 		for (let i = 0; i < change.possibleActions.length; i++) {
@@ -116,28 +121,30 @@ async function resolveAmbiguousChanges(
 		}
 		logger.log("");
 
-		const answer = await askQuestion("Choose option (1 or 2): ");
+		const validRange = `1-${change.possibleActions.length}`;
+		const answer = await askQuestion(`Choose option (${validRange}): `);
 		const choice = parseInt(answer, 10);
 
-		if (choice === 1) {
-			const result = session.resolveAmbiguous(change.id, "rename");
-			if (!result.success) {
-				return {
-					success: false,
-					error: new CLIError(result.error.message, "EXECUTION_ERROR"),
-				};
-			}
-			logger.log(green("  → Resolved as RENAME"));
-		} else {
-			const result = session.resolveAmbiguous(change.id, "drop_and_add");
-			if (!result.success) {
-				return {
-					success: false,
-					error: new CLIError(result.error.message, "EXECUTION_ERROR"),
-				};
-			}
-			logger.log(yellow("  → Resolved as DROP and ADD"));
+		if (isNaN(choice) || choice < 1 || choice > change.possibleActions.length) {
+			return {
+				success: false,
+				error: new CLIError(
+					`Invalid choice '${answer}'. Expected a number between ${validRange}.`,
+					"EXECUTION_ERROR",
+				),
+			};
 		}
+
+		const selectedAction = change.possibleActions[choice - 1]!;
+		const result = session.resolveAmbiguous(change.id, selectedAction.type);
+		if (!result.success) {
+			return {
+				success: false,
+				error: new CLIError(result.error.message, "EXECUTION_ERROR"),
+			};
+		}
+
+		logger.log(green(`  → Resolved as: ${selectedAction.description}`));
 		logger.log("");
 	}
 
@@ -238,18 +245,6 @@ export async function migrateCommand(
 		logger.log("");
 		logger.info("Forja Migration Tool");
 		logger.log("");
-
-		// Currently only forward migration is supported via session
-		// Rollback would require different approach (history-based)
-		if (options.down) {
-			return {
-				success: false,
-				error: new CLIError(
-					"Rollback (--down) is not yet supported in this version",
-					"EXECUTION_ERROR",
-				),
-			};
-		}
 
 		return await runPendingMigrations(session, options);
 	} catch (error) {

@@ -9,11 +9,11 @@
 	},
 	"dependencies": {
 		"@tanstack/react-query": "^5.90.20",
-		"forja-adapter-json": "workspace:*",
-		"forja-api": "workspace:*",
-		"forja-core": "workspace:*",
-		"forja-plugin-upload": "workspace:*",
-		"forja-types": "workspace:*",
+		"forja-adapter-json": "file:../../packages/adapter-json",
+		"forja-api": "file:../../packages/api",
+		"forja-core": "file:../../packages/core",
+		"forja-plugin-upload": "file:../../packages/plugin-upload",
+		"forja-types": "file:../../packages/types",
 		"next": "16.1.1",
 		"react": "19.2.3",
 		"react-dom": "19.2.3"

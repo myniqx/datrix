@@ -77,8 +77,6 @@ ${bold("USAGE")}
 ${bold("COMMANDS")}
   ${cyan("migrate")}                       Run database migrations
     ${bold("Options:")}
-      --down                      Rollback last migration
-      --to <version>              Migrate/rollback to specific version
       --dry-run                   Show what would be done without applying
       --status                    Show migration status
 
@@ -103,8 +101,7 @@ ${bold("GLOBAL OPTIONS")}
 
 ${bold("EXAMPLES")}
   forja migrate                   # Run pending migrations
-  forja migrate --down            # Rollback last migration
-  forja migrate --to 20250101     # Migrate to specific version
+  forja migrate --dry-run         # Preview without applying
   forja migrate --status          # Show migration status
   forja generate schema User      # Generate User schema template
   forja generate migration add-users-table
@@ -154,8 +151,6 @@ async function main(): Promise<void> {
 				const migrateOptions: MigrateCommandOptions = {
 					config: getConfigPath(args.options),
 					verbose: Boolean(args.options["verbose"]),
-					down: Boolean(args.options["down"]),
-					to: typeof args.options["to"] === "string" ? args.options["to"] : undefined,
 					dryRun: Boolean(args.options["dry-run"]),
 				};
 
@@ -251,15 +246,7 @@ async function main(): Promise<void> {
 					watch: args.options["watch"] !== false, // Default true
 				};
 
-				// Create migration runner from Forja instance
-				const setupResult = await createMigrationSetup(forja);
-				if (!setupResult.success) {
-					logger.error(setupResult.error.message);
-					process.exit(1);
-				}
-				const runner = setupResult.data;
-
-				const devResult = await devCommand(devOptions, runner);
+				const devResult = await devCommand(devOptions, forja);
 				if (!devResult.success) {
 					logger.error(devResult.error.message);
 					process.exit(1);

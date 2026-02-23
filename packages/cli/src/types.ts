@@ -45,8 +45,6 @@ export interface BaseCommandOptions {
  * Migrate command options
  */
 export interface MigrateCommandOptions extends BaseCommandOptions {
-	readonly down?: boolean | undefined;
-	readonly to?: string | undefined;
 	readonly dryRun?: boolean | undefined;
 }
 
