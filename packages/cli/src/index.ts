@@ -88,6 +88,10 @@ ${bold("COMMANDS")}
     ${bold("Options:")}
       --output <path>             Custom output directory
 
+  ${cyan("generate types")}                Generate TypeScript types from schemas
+    ${bold("Options:")}
+      --output <path>             Output file path (default: ./types/forja.ts)
+
   ${cyan("dev")}                            Development mode with auto-reload
     ${bold("Options:")}
       --watch                     Enable file watching (default: true)
@@ -105,6 +109,7 @@ ${bold("EXAMPLES")}
   forja migrate --status          # Show migration status
   forja generate schema User      # Generate User schema template
   forja generate migration add-users-table
+  forja generate types            # Generate TypeScript types from schemas
   forja dev                       # Start development mode
 
 ${bold("MORE INFO")}
@@ -187,21 +192,13 @@ async function main(): Promise<void> {
 			case "generate": {
 				if (!args.subcommand) {
 					logger.error("Missing subcommand for generate");
-					logger.info("Usage: forja generate <schema|migration> <name>");
+					logger.info("Usage: forja generate <schema|migration|types> <name>");
 					process.exit(1);
 				}
 
 				if (!isValidGenerateType(args.subcommand)) {
 					logger.error(`Invalid generate type: ${args.subcommand}`);
-					logger.info("Valid types: schema, migration");
-					process.exit(1);
-				}
-
-				const name = args.args[0];
-
-				if (!name) {
-					logger.error("Name is required");
-					logger.info(`Usage: forja generate ${args.subcommand} <name>`);
+					logger.info("Valid types: schema, migration, types");
 					process.exit(1);
 				}
 
@@ -213,6 +210,39 @@ async function main(): Promise<void> {
 							? args.options["output"]
 							: undefined,
 				};
+
+				if (args.subcommand === "types") {
+					const configResult = await loadConfig(getConfigPath(args.options));
+					if (!configResult.success) {
+						logger.error(configResult.error.message);
+						process.exit(1);
+					}
+					const forja = configResult.data;
+
+					const typesResult = await generateCommand(
+						"types",
+						"",
+						generateOptions,
+						forja,
+					);
+
+					if (!typesResult.success) {
+						logger.error(typesResult.error.message);
+						if (args.options["verbose"]) {
+							logger.error(String(typesResult.error.details));
+						}
+						process.exit(1);
+					}
+					break;
+				}
+
+				const name = args.args[0];
+
+				if (!name) {
+					logger.error("Name is required");
+					logger.info(`Usage: forja generate ${args.subcommand} <name>`);
+					process.exit(1);
+				}
 
 				const generateResult = await generateCommand(
 					args.subcommand,

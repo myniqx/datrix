@@ -85,7 +85,11 @@ export async function loadConfig(
 	try {
 		// 2. Import config file using jiti
 		const { createJiti } = await import("jiti");
-		const jiti = createJiti(import.meta.url, {
+		const jitiBase =
+			typeof import.meta?.url === "string"
+				? import.meta.url
+				: `file://${__filename}`;
+		const jiti = createJiti(jitiBase, {
 			interopDefault: true,
 		});
 

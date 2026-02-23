@@ -49,6 +49,10 @@ export {
 	type RelationKind,
 	type RelationField,
 	type RelationInput,
+	type RelationBelongsTo,
+	type RelationHasOne,
+	type RelationHasMany,
+	type RelationManyToMany,
 	type FileField,
 	type FieldDefinition,
 	// Index

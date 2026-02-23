@@ -516,6 +516,26 @@ export type Relation<T extends ForjaEntry> = T & {
 };
 
 /**
+ * Branded relation type for belongsTo (N:1) - write operations
+ */
+export type RelationBelongsTo<T extends ForjaEntry> = RelationInput<T>;
+
+/**
+ * Branded relation type for hasOne (1:1) - write operations
+ */
+export type RelationHasOne<T extends ForjaEntry> = RelationInput<T>;
+
+/**
+ * Branded relation type for hasMany (1:N) - write operations
+ */
+export type RelationHasMany<T extends ForjaEntry> = RelationInput<T>;
+
+/**
+ * Branded relation type for manyToMany (N:N) - write operations
+ */
+export type RelationManyToMany<T extends ForjaEntry> = RelationInput<T>;
+
+/**
  * Check if a type is a Relation brand
  * Utility type for conditional type logic
  */

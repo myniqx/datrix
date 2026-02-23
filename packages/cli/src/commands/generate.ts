@@ -19,11 +19,13 @@ import {
 	toKebabCase,
 } from "../utils/templates";
 import { Result } from "forja-types/utils";
+import type { Forja } from "forja-core";
+import { generateTypesFile } from "../type-generator/schema-types";
 
 /**
- * Generate type (schema or migration)
+ * Generate type (schema, migration, or types)
  */
-export type GenerateType = "schema" | "migration";
+export type GenerateType = "schema" | "migration" | "types";
 
 /**
  * Ensure directory exists
@@ -225,12 +227,53 @@ async function generateMigration(
 }
 
 /**
+ * Generate TypeScript types from registered schemas
+ */
+async function generateTypes(
+	forja: Forja,
+	options: GenerateCommandOptions,
+): Promise<Result<void, CLIError>> {
+	try {
+		const schemas = forja.getAllSchemas();
+		const outputPath = options.output ?? join(process.cwd(), "types", "generated.ts");
+
+		logger.log("");
+		logger.info(`Generating types for ${schemas.length} schemas`);
+		logger.info(`Output: ${outputPath}`);
+
+		const content = generateTypesFile(schemas);
+
+		const writeResult = await writeFileSafe(outputPath, content, true);
+
+		if (!writeResult.success) {
+			return writeResult;
+		}
+
+		logger.log("");
+		logger.success(`Types generated: ${outputPath}`);
+		logger.log("");
+
+		return { success: true, data: undefined };
+	} catch (error) {
+		return {
+			success: false,
+			error: new CLIError(
+				`Failed to generate types: ${formatError(error)}`,
+				"EXECUTION_ERROR",
+				error,
+			),
+		};
+	}
+}
+
+/**
  * Generate command handler
  */
 export async function generateCommand(
 	type: GenerateType,
 	name: string,
 	options: GenerateCommandOptions,
+	forja?: Forja,
 ): Promise<Result<void, CLIError>> {
 	try {
 		switch (type) {
@@ -239,6 +282,19 @@ export async function generateCommand(
 
 			case "migration":
 				return await generateMigration(name, options);
+
+			case "types": {
+				if (!forja) {
+					return {
+						success: false,
+						error: new CLIError(
+							"Forja instance is required for generate types",
+							"CONFIG_ERROR",
+						),
+					};
+				}
+				return await generateTypes(forja, options);
+			}
 
 			default: {
 				// Exhaustive check
@@ -268,5 +324,5 @@ export async function generateCommand(
  * Validate generate type
  */
 export function isValidGenerateType(type: string): type is GenerateType {
-	return type === "schema" || type === "migration";
+	return type === "schema" || type === "migration" || type === "types";
 }
