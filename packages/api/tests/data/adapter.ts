@@ -133,5 +133,5 @@ export function getAdapterType(): AdapterType {
 	if (adapterEnv === "postgres" || adapterEnv === "mysql" || adapterEnv === "json") {
 		return adapterEnv;
 	}
-	return "json"; // Default
+	return "postgres"; // Default
 }

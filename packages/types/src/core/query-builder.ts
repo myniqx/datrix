@@ -389,7 +389,7 @@ interface QueryBase {
  */
 export interface QuerySelectObject<T extends ForjaEntry> extends QueryBase {
 	readonly type: "select";
-	readonly select: QuerySelect<T> | undefined;
+	readonly select: QuerySelect<T>;
 	where?: WhereClause<T>;
 	readonly populate?: QueryPopulate<T> | undefined;
 	readonly orderBy?: QueryOrderBy | undefined;

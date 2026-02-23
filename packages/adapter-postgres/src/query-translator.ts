@@ -320,6 +320,9 @@ export class PostgresQueryTranslator implements QueryTranslator {
 					this.paramIndex,
 					query.table,
 				);
+				if (whereResult.joins.length > 0) {
+					parts.push(whereResult.joins.join(" "));
+				}
 				parts.push(`WHERE ${whereResult.sql}`);
 				this.paramIndex += whereResult.params.length;
 				this.params.push(...whereResult.params);
