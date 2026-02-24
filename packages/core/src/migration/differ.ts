@@ -121,7 +121,11 @@ export class ForgeSchemaDiffer implements SchemaDiffer {
 				}
 			}
 
-			const resolvedDifferences = this.resolveCrossSchemaNoOps(differences, oldSchemas, newSchemas);
+			const resolvedDifferences = this.resolveCrossSchemaNoOps(
+				differences,
+				oldSchemas,
+				newSchemas,
+			);
 
 			return {
 				success: true,
@@ -164,19 +168,37 @@ export class ForgeSchemaDiffer implements SchemaDiffer {
 		const toRemove = new Set<number>();
 
 		// Index diffs for fast lookup
-		const fieldAdded: Array<{ index: number; diff: SchemaDiff & { type: "fieldAdded" } }> = [];
-		const fieldRemoved: Array<{ index: number; diff: SchemaDiff & { type: "fieldRemoved" } }> = [];
-		const tableRemoved: Array<{ index: number; diff: SchemaDiff & { type: "tableRemoved" } }> = [];
+		const fieldAdded: Array<{
+			index: number;
+			diff: SchemaDiff & { type: "fieldAdded" };
+		}> = [];
+		const fieldRemoved: Array<{
+			index: number;
+			diff: SchemaDiff & { type: "fieldRemoved" };
+		}> = [];
+		const tableRemoved: Array<{
+			index: number;
+			diff: SchemaDiff & { type: "tableRemoved" };
+		}> = [];
 
 		for (let i = 0; i < differences.length; i++) {
 			const diff = differences[i];
 			if (diff === undefined) continue;
 			if (diff.type === "fieldAdded") {
-				fieldAdded.push({ index: i, diff: diff as SchemaDiff & { type: "fieldAdded" } });
+				fieldAdded.push({
+					index: i,
+					diff: diff as SchemaDiff & { type: "fieldAdded" },
+				});
 			} else if (diff.type === "fieldRemoved") {
-				fieldRemoved.push({ index: i, diff: diff as SchemaDiff & { type: "fieldRemoved" } });
+				fieldRemoved.push({
+					index: i,
+					diff: diff as SchemaDiff & { type: "fieldRemoved" },
+				});
 			} else if (diff.type === "tableRemoved") {
-				tableRemoved.push({ index: i, diff: diff as SchemaDiff & { type: "tableRemoved" } });
+				tableRemoved.push({
+					index: i,
+					diff: diff as SchemaDiff & { type: "tableRemoved" },
+				});
 			}
 		}
 
@@ -241,10 +263,12 @@ export class ForgeSchemaDiffer implements SchemaDiffer {
 			if (toRemove.has(added.index)) continue;
 
 			const addedDef = added.diff.definition;
-			if (addedDef.type !== "relation" || addedDef.kind !== "manyToMany") continue;
+			if (addedDef.type !== "relation" || addedDef.kind !== "manyToMany")
+				continue;
 
-			const ownerSchema = newSchemaByTable.get(added.diff.tableName)
-				?? newSchemas[added.diff.tableName];
+			const ownerSchema =
+				newSchemaByTable.get(added.diff.tableName) ??
+				newSchemas[added.diff.tableName];
 			const ownerModelName = ownerSchema?.name ?? added.diff.tableName;
 
 			const junctionName = this.resolveJunctionTableName(
@@ -278,17 +302,23 @@ export class ForgeSchemaDiffer implements SchemaDiffer {
 			if (addedDef.type !== "relation") continue;
 			if (addedDef.kind !== "hasOne" && addedDef.kind !== "hasMany") continue;
 
-			const ownerSchema = newSchemaByTable.get(added.diff.tableName)
-				?? newSchemas[added.diff.tableName];
+			const ownerSchema =
+				newSchemaByTable.get(added.diff.tableName) ??
+				newSchemas[added.diff.tableName];
 			const ownerModelName = ownerSchema?.name ?? added.diff.tableName;
 
-			const fkTable = this.resolveModelTableName(addedDef.model, newSchemaByTable, newSchemas);
+			const fkTable = this.resolveModelTableName(
+				addedDef.model,
+				newSchemaByTable,
+				newSchemas,
+			);
 			const fkColumn = addedDef.foreignKey ?? `${ownerModelName}Id`;
 
 			if (fkTable === undefined) continue;
 
 			// Check if this FK column already exists in old schemas (already in DB)
-			const fkTableOldSchema = oldSchemaByTable.get(fkTable) ?? oldSchemas[fkTable];
+			const fkTableOldSchema =
+				oldSchemaByTable.get(fkTable) ?? oldSchemas[fkTable];
 			if (fkTableOldSchema && fkColumn in fkTableOldSchema.fields) {
 				toRemove.add(added.index);
 			}
@@ -324,10 +354,16 @@ export class ForgeSchemaDiffer implements SchemaDiffer {
 				oldSchemas,
 			);
 
-			if (!removedField || removedField.type !== "relation" || removedField.kind !== "manyToMany") continue;
+			if (
+				!removedField ||
+				removedField.type !== "relation" ||
+				removedField.kind !== "manyToMany"
+			)
+				continue;
 
-			const ownerSchema = oldSchemaByTable.get(removed.diff.tableName)
-				?? oldSchemas[removed.diff.tableName];
+			const ownerSchema =
+				oldSchemaByTable.get(removed.diff.tableName) ??
+				oldSchemas[removed.diff.tableName];
 			const ownerModelName = ownerSchema?.name ?? removed.diff.tableName;
 
 			const junctionName = this.resolveJunctionTableName(
@@ -395,22 +431,36 @@ export class ForgeSchemaDiffer implements SchemaDiffer {
 	): boolean {
 		// Resolve FK location for the removed side using old schema context
 		const removedFkTable = this.resolveFkTable(
-			removedTableName, removedField, oldSchemaByTable, oldSchemas,
+			removedTableName,
+			removedField,
+			oldSchemaByTable,
+			oldSchemas,
 		);
 		const removedFkColumn = this.resolveFkColumn(
-			removedTableName, removedField, oldSchemaByTable, oldSchemas,
+			removedTableName,
+			removedField,
+			oldSchemaByTable,
+			oldSchemas,
 		);
 
 		// Resolve FK location for the added side using new schema context
 		const addedFkTable = this.resolveFkTable(
-			addedTableName, addedField, newSchemaByTable, newSchemas,
+			addedTableName,
+			addedField,
+			newSchemaByTable,
+			newSchemas,
 		);
 		const addedFkColumn = this.resolveFkColumn(
-			addedTableName, addedField, newSchemaByTable, newSchemas,
+			addedTableName,
+			addedField,
+			newSchemaByTable,
+			newSchemas,
 		);
 
-		if (removedFkTable === undefined || addedFkTable === undefined) return false;
-		if (removedFkColumn === undefined || addedFkColumn === undefined) return false;
+		if (removedFkTable === undefined || addedFkTable === undefined)
+			return false;
+		if (removedFkColumn === undefined || addedFkColumn === undefined)
+			return false;
 
 		return removedFkTable === addedFkTable && removedFkColumn === addedFkColumn;
 	}
@@ -576,14 +626,16 @@ export class ForgeSchemaDiffer implements SchemaDiffer {
 			if (oldFieldNames.has(newFieldName)) continue;
 
 			const newField = newSchema.fields[newFieldName];
-			if (!isFieldDefinition(newField) || newField.type !== "relation") continue;
+			if (!isFieldDefinition(newField) || newField.type !== "relation")
+				continue;
 
 			for (const oldFieldName of oldFieldNames) {
 				if (newFieldNames.has(oldFieldName)) continue;
 				if (skippedOldFields.has(oldFieldName)) continue;
 
 				const oldField = oldSchema.fields[oldFieldName];
-				if (!isFieldDefinition(oldField) || oldField.type !== "relation") continue;
+				if (!isFieldDefinition(oldField) || oldField.type !== "relation")
+					continue;
 
 				if (this.isSameRelationDbStructure(oldField, newField)) {
 					skippedOldFields.add(oldFieldName);

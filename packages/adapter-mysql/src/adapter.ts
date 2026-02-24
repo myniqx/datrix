@@ -628,7 +628,9 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 	/**
 	 * Get all table names
 	 */
-	async getTables<TResult extends ForjaEntry>(): Promise<Result<readonly string[], QueryError<TResult>>> {
+	async getTables<TResult extends ForjaEntry>(): Promise<
+		Result<readonly string[], QueryError<TResult>>
+	> {
 		if (!this.pool) {
 			return {
 				success: false,
@@ -838,7 +840,7 @@ class MySQLTransaction implements Transaction {
 	readonly id: string;
 	private connection: PoolConnection;
 	private translator: MySQLQueryTranslator;
-	private errorMapper: <T extends ForjaEntry> (
+	private errorMapper: <T extends ForjaEntry>(
 		error: unknown,
 		query?: QueryObject<T>,
 		sql?: string,
@@ -850,7 +852,7 @@ class MySQLTransaction implements Transaction {
 	constructor(
 		connection: PoolConnection,
 		translator: MySQLQueryTranslator,
-		errorMapper: <T extends ForjaEntry> (
+		errorMapper: <T extends ForjaEntry>(
 			error: unknown,
 			query?: QueryObject<T>,
 			sql?: string,

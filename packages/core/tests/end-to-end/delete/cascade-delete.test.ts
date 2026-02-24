@@ -13,11 +13,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { Forja } from "forja-core";
 import fs from "node:fs/promises";
-import {
-	createTestConfig,
-	getTmpDir,
-	setupTables,
-} from "../setup";
+import { createTestConfig, getTmpDir, setupTables } from "../setup";
 
 describe("Cascade Delete", () => {
 	let forja: Forja;
@@ -231,9 +227,21 @@ describe("Cascade Delete", () => {
 
 			// Create users in each org
 			await forja.createMany("user", [
-				{ email: "active-org-user1@test.com", name: "Active 1", organization: activeOrg.id },
-				{ email: "active-org-user2@test.com", name: "Active 2", organization: activeOrg.id },
-				{ email: "inactive-org-user@test.com", name: "Inactive", organization: inactiveOrg.id },
+				{
+					email: "active-org-user1@test.com",
+					name: "Active 1",
+					organization: activeOrg.id,
+				},
+				{
+					email: "active-org-user2@test.com",
+					name: "Active 2",
+					organization: activeOrg.id,
+				},
+				{
+					email: "inactive-org-user@test.com",
+					name: "Inactive",
+					organization: inactiveOrg.id,
+				},
 			]);
 
 			// Delete users in inactive org
@@ -294,9 +302,21 @@ describe("Cascade Delete", () => {
 
 			// Create users sharing the role
 			const users = await forja.createMany("user", [
-				{ email: "bulk-m2m-1@test.com", name: "Bulk M2M 1", roles: { connect: [sharedRole.id] } },
-				{ email: "bulk-m2m-2@test.com", name: "Bulk M2M 2", roles: { connect: [sharedRole.id] } },
-				{ email: "bulk-m2m-3@test.com", name: "Bulk M2M 3", roles: { connect: [sharedRole.id] } },
+				{
+					email: "bulk-m2m-1@test.com",
+					name: "Bulk M2M 1",
+					roles: { connect: [sharedRole.id] },
+				},
+				{
+					email: "bulk-m2m-2@test.com",
+					name: "Bulk M2M 2",
+					roles: { connect: [sharedRole.id] },
+				},
+				{
+					email: "bulk-m2m-3@test.com",
+					name: "Bulk M2M 3",
+					roles: { connect: [sharedRole.id] },
+				},
 			]);
 
 			// Delete all users with this role
@@ -457,9 +477,24 @@ describe("Cascade Delete", () => {
 
 		it("should handle delete with complex $and/$or in where", async () => {
 			await forja.createMany("user", [
-				{ email: "complex-del-a@test.com", name: "Complex A", age: 20, isActive: true },
-				{ email: "complex-del-b@test.com", name: "Complex B", age: 40, isActive: true },
-				{ email: "complex-del-c@test.com", name: "Complex C", age: 30, isActive: false },
+				{
+					email: "complex-del-a@test.com",
+					name: "Complex A",
+					age: 20,
+					isActive: true,
+				},
+				{
+					email: "complex-del-b@test.com",
+					name: "Complex B",
+					age: 40,
+					isActive: true,
+				},
+				{
+					email: "complex-del-c@test.com",
+					name: "Complex C",
+					age: 30,
+					isActive: false,
+				},
 			]);
 
 			// Delete: (young AND active) OR (old AND active)

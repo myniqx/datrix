@@ -115,8 +115,7 @@ export async function loadConfig(
 
 		return { success: true, data: forja };
 	} catch (error) {
-		const message =
-			error instanceof Error ? error.message : String(error);
+		const message = error instanceof Error ? error.message : String(error);
 		return {
 			success: false,
 			error: new CLIError(
@@ -135,9 +134,7 @@ export async function loadConfig(
  * - export default defineConfig(...)  → module is the factory itself
  * - module.default = defineConfig(...) → module.default is the factory
  */
-function extractFactory(
-	configModule: unknown,
-): (() => Promise<Forja>) | null {
+function extractFactory(configModule: unknown): (() => Promise<Forja>) | null {
 	if (typeof configModule === "function") {
 		return configModule as () => Promise<Forja>;
 	}
@@ -148,7 +145,9 @@ function extractFactory(
 		"default" in configModule &&
 		typeof (configModule as Record<string, unknown>)["default"] === "function"
 	) {
-		return (configModule as Record<string, unknown>)["default"] as () => Promise<Forja>;
+		return (configModule as Record<string, unknown>)[
+			"default"
+		] as () => Promise<Forja>;
 	}
 
 	return null;

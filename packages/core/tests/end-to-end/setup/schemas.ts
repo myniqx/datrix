@@ -90,10 +90,7 @@ export const departmentSchema = defineSchema({
 			model: "department",
 		},
 	},
-	indexes: [
-		{ fields: ["code"], unique: true },
-		{ fields: ["organizationId"] },
-	],
+	indexes: [{ fields: ["code"], unique: true }, { fields: ["organizationId"] }],
 	permission: {
 		create: true,
 		read: true,
@@ -155,7 +152,7 @@ export const userSchema = defineSchema({
 			maxLength: 100,
 		},
 		lastName: {
-			type: 'string',
+			type: "string",
 		},
 		age: {
 			type: "number",
@@ -272,10 +269,7 @@ export const categorySchema = defineSchema({
 			model: "category",
 		},
 	},
-	indexes: [
-		{ fields: ["slug"], unique: true },
-		{ fields: ["name"] },
-	],
+	indexes: [{ fields: ["slug"], unique: true }, { fields: ["name"] }],
 	permission: {
 		create: true,
 		read: true,
@@ -409,10 +403,7 @@ export const commentSchema = defineSchema({
 			model: "comment",
 		},
 	},
-	indexes: [
-		{ fields: ["postId"] },
-		{ fields: ["authorId"] },
-	],
+	indexes: [{ fields: ["postId"] }, { fields: ["authorId"] }],
 	permission: {
 		create: true,
 		read: true,
@@ -431,7 +422,9 @@ export const commentSchema = defineSchema({
  * @param count - Number of fields to generate
  * @returns Record of field definitions
  */
-export function generateFakeFields(count: number): Record<string, FieldDefinition> {
+export function generateFakeFields(
+	count: number,
+): Record<string, FieldDefinition> {
 	const fields: Record<string, FieldDefinition> = {};
 	const types = ["string", "number", "boolean"] as const;
 
@@ -443,7 +436,7 @@ export function generateFakeFields(count: number): Record<string, FieldDefinitio
 			case "string":
 				fields[`field_str_${i}`] = {
 					type: "string",
-					maxLength: 100 + (i * 10),
+					maxLength: 100 + i * 10,
 				};
 				break;
 			case "number":

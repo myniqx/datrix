@@ -263,8 +263,16 @@ describe("Transaction-Like Behavior", () => {
 			});
 
 			const users = await forja.createMany("user", [
-				{ email: "fk-user-1@test.com", name: "FK User 1", organization: org.id },
-				{ email: "fk-user-2@test.com", name: "FK User 2", organization: org.id },
+				{
+					email: "fk-user-1@test.com",
+					name: "FK User 1",
+					organization: org.id,
+				},
+				{
+					email: "fk-user-2@test.com",
+					name: "FK User 2",
+					organization: org.id,
+				},
 			]);
 
 			// Delete organization
@@ -382,7 +390,9 @@ describe("Transaction-Like Behavior", () => {
 			});
 
 			expect(fetchedComment).not.toBeNull();
-			expect((fetchedComment!.author as { name: string }).name).toBe("Flow User");
+			expect((fetchedComment!.author as { name: string }).name).toBe(
+				"Flow User",
+			);
 
 			const postData = fetchedComment!.post as {
 				title: string;

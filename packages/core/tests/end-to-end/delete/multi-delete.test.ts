@@ -47,9 +47,27 @@ describe("Multi Delete", () => {
 
 		// Create fresh test data
 		await forja.createMany("user", [
-			{ email: "del1@test.com", name: "User 1", age: 25, isActive: true, organization: orgId },
-			{ email: "del2@test.com", name: "User 2", age: 30, isActive: true, organization: orgId },
-			{ email: "del3@test.com", name: "User 3", age: 35, isActive: false, organization: orgId },
+			{
+				email: "del1@test.com",
+				name: "User 1",
+				age: 25,
+				isActive: true,
+				organization: orgId,
+			},
+			{
+				email: "del2@test.com",
+				name: "User 2",
+				age: 30,
+				isActive: true,
+				organization: orgId,
+			},
+			{
+				email: "del3@test.com",
+				name: "User 3",
+				age: 35,
+				isActive: false,
+				organization: orgId,
+			},
 			{ email: "del4@test.com", name: "User 4", age: 40, isActive: true },
 			{ email: "del5@test.com", name: "User 5", age: 45, isActive: false },
 		]);
@@ -85,7 +103,9 @@ describe("Multi Delete", () => {
 		});
 
 		it("should delete single record when where matches one", async () => {
-			const deleted = await forja.deleteMany("user", { email: "del5@test.com" });
+			const deleted = await forja.deleteMany("user", {
+				email: "del5@test.com",
+			});
 
 			expect(deleted).toHaveLength(1);
 			expect(deleted[0].email).toBe("del5@test.com");
@@ -140,10 +160,7 @@ describe("Multi Delete", () => {
 	describe("Delete with Complex Where", () => {
 		it("should delete with $and", async () => {
 			const deleted = await forja.deleteMany("user", {
-				$and: [
-					{ isActive: false },
-					{ age: { $gte: 40 } },
-				],
+				$and: [{ isActive: false }, { age: { $gte: 40 } }],
 			});
 
 			// Inactive AND age >= 40: User 5 (45) = 1
@@ -152,10 +169,7 @@ describe("Multi Delete", () => {
 
 		it("should delete with $or", async () => {
 			const deleted = await forja.deleteMany("user", {
-				$or: [
-					{ age: 25 },
-					{ age: 45 },
-				],
+				$or: [{ age: 25 }, { age: 45 }],
 			});
 
 			// age 25 or 45: User 1, User 5 = 2
@@ -249,7 +263,9 @@ describe("Multi Delete", () => {
 
 			for (const user of deleted) {
 				expect(user.organization).toBeDefined();
-				expect((user.organization as { name: string }).name).toBe("Multi Delete Org");
+				expect((user.organization as { name: string }).name).toBe(
+					"Multi Delete Org",
+				);
 			}
 		});
 	});

@@ -612,7 +612,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 						rows = await runner.filterAndSort(query);
 					} else {
 						// No populate - use normal flow with projection
-						rows = await runner.run(query) as TResult[];
+						rows = (await runner.run(query)) as TResult[];
 					}
 
 					// Step 2: Populate (all fields available)
@@ -698,7 +698,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 						throwQueryMissingData("update", query.table);
 					}
 					const updateQuery: QuerySelectObject<TResult> = {
-						...query as unknown as QuerySelectObject<TResult>,
+						...(query as unknown as QuerySelectObject<TResult>),
 						limit: undefined,
 						offset: undefined,
 						orderBy: undefined,
@@ -729,7 +729,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 
 				case "delete": {
 					const deleteQuery: QuerySelectObject<TResult> = {
-						...query as unknown as QuerySelectObject<TResult>,
+						...(query as unknown as QuerySelectObject<TResult>),
 						limit: undefined,
 						offset: undefined,
 						orderBy: undefined,
@@ -857,7 +857,10 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 			const message = err instanceof Error ? err.message : String(err);
 			return {
 				success: false,
-				error: new TransactionError(`Failed to begin transaction: ${message}`, err),
+				error: new TransactionError(
+					`Failed to begin transaction: ${message}`,
+					err,
+				),
 			};
 		}
 	}
@@ -896,7 +899,11 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 					// Write to disk
 					entry.data.meta.updatedAt = new Date().toISOString();
 					const filePath = this.getTablePath(tableName);
-					await fs.writeFile(filePath, JSON.stringify(entry.data, null, 2), "utf-8");
+					await fs.writeFile(
+						filePath,
+						JSON.stringify(entry.data, null, 2),
+						"utf-8",
+					);
 
 					// Update mtime and merge to main cache
 					const stat = await fs.stat(filePath);
@@ -967,7 +974,8 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 						json.schema.fields[op.column] = op.definition;
 
 						// Add default value to existing rows
-						const defaultValue = (op.definition as { default?: unknown }).default;
+						const defaultValue = (op.definition as { default?: unknown })
+							.default;
 						for (const row of json.data) {
 							if (!(op.column in row)) {
 								row[op.column] = defaultValue ?? null;
@@ -1094,7 +1102,12 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 
 			// Target exists and not in tombstone = error
 			const targetInTombstone = this.activeTransactionDeletedTables?.has(to);
-			if ((targetExistsInTxCache || targetExistsInMainCache || targetExistsOnDisk) && !targetInTombstone) {
+			if (
+				(targetExistsInTxCache ||
+					targetExistsInMainCache ||
+					targetExistsOnDisk) &&
+				!targetInTombstone
+			) {
 				return {
 					success: false,
 					error: new MigrationError(`Table '${to}' already exists`),
@@ -1381,7 +1394,10 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 			};
 
 			// Only belongsTo/hasOne have inline foreign keys
-			if (relationField.kind !== "belongsTo" && relationField.kind !== "hasOne") {
+			if (
+				relationField.kind !== "belongsTo" &&
+				relationField.kind !== "hasOne"
+			) {
 				continue;
 			}
 
@@ -1398,7 +1414,8 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 				continue;
 			}
 
-			const targetTable = targetSchema.tableName ?? relationField.model.toLowerCase();
+			const targetTable =
+				targetSchema.tableName ?? relationField.model.toLowerCase();
 			const targetData = await this.getCachedTable(targetTable);
 
 			if (!targetData) {
@@ -1407,9 +1424,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 			}
 
 			// Check if referenced record exists
-			const exists = targetData.data.some(
-				(row) => row["id"] === fkValue,
-			);
+			const exists = targetData.data.some((row) => row["id"] === fkValue);
 
 			if (!exists) {
 				throwForeignKeyConstraint(

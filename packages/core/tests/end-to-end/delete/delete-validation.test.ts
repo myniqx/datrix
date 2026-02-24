@@ -56,9 +56,7 @@ describe("Delete Validation", () => {
 
 	describe("Record Not Found", () => {
 		it("should fail when deleting non-existent record by id", async () => {
-			await expect(
-				forja.delete("user", 99999),
-			).rejects.toThrow();
+			await expect(forja.delete("user", 99999)).rejects.toThrow();
 		});
 
 		it("should include record id in error message", async () => {
@@ -241,8 +239,8 @@ describe("Delete Validation", () => {
 				const message = (error as Error).message.toLowerCase();
 				expect(
 					message.includes("delete") ||
-					message.includes("not found") ||
-					message.includes("record"),
+						message.includes("not found") ||
+						message.includes("record"),
 				).toBe(true);
 			}
 		});
@@ -263,9 +261,7 @@ describe("Delete Validation", () => {
 			await forja.delete("user", user.id);
 
 			// Second delete should fail
-			await expect(
-				forja.delete("user", user.id),
-			).rejects.toThrow();
+			await expect(forja.delete("user", user.id)).rejects.toThrow();
 		});
 
 		it("should handle concurrent delete attempts", async () => {

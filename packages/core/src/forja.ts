@@ -28,7 +28,10 @@ import { SchemaRegistry } from "./schema";
 import { ForjaEntry } from "forja-types";
 import { IForja, RawCrudOptions, RawFindManyOptions } from "forja-types/forja";
 import { ForjaError } from "forja-types/errors";
-import { getMigrationSchema, DEFAULT_MIGRATION_MODEL } from "./migration/schema";
+import {
+	getMigrationSchema,
+	DEFAULT_MIGRATION_MODEL,
+} from "./migration/schema";
 import { MigrationSession, createMigrationSession } from "./migration/session";
 
 /**
@@ -62,7 +65,7 @@ export class Forja implements IForja {
 	private _crud!: CrudOperations;
 	private _rawCrud!: CrudOperations;
 
-	private constructor() { }
+	private constructor() {}
 
 	static getInstance(): Forja {
 		if (!Forja.instance) {

@@ -51,16 +51,13 @@ export function throwModelNotFound(table: string): never {
  * @param modelName - Model name
  */
 export function throwSchemaNotFound(modelName: string): never {
-	throw new ForjaMySQLAdapterError(
-		`Schema not found for model: ${modelName}`,
-		{
-			code: "ADAPTER_SCHEMA_NOT_FOUND",
-			operation: "populate",
-			context: { model: modelName },
-			suggestion: "Ensure schema is registered in schema registry",
-			expected: "registered schema",
-		},
-	);
+	throw new ForjaMySQLAdapterError(`Schema not found for model: ${modelName}`, {
+		code: "ADAPTER_SCHEMA_NOT_FOUND",
+		operation: "populate",
+		context: { model: modelName },
+		suggestion: "Ensure schema is registered in schema registry",
+		expected: "registered schema",
+	});
 }
 
 /**

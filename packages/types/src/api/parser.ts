@@ -6,7 +6,13 @@
  */
 
 import { ForjaEntry, ForjaRecord } from "../core/schema";
-import { QueryOrderBy, OrderByItem, PopulateClause, SelectClause, WhereClause } from "../core/query-builder";
+import {
+	QueryOrderBy,
+	OrderByItem,
+	PopulateClause,
+	SelectClause,
+	WhereClause,
+} from "../core/query-builder";
 import { ParserError } from "../errors/api/parser";
 import { Result } from "../utils";
 

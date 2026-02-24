@@ -15,11 +15,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { Forja } from "forja-core";
 import fs from "node:fs/promises";
-import {
-	createTestConfig,
-	getTmpDir,
-	setupTables,
-} from "../setup";
+import { createTestConfig, getTmpDir, setupTables } from "../setup";
 import { expectForjaErrorAsync } from "forja-types/test/helpers";
 
 describe("Delete Operations", () => {
@@ -178,8 +174,10 @@ describe("Delete Operations", () => {
 				name: "Junction Test User",
 				roles: {
 					connect: [
-						(await forja.create("role", { name: "JunctionRole1", level: 10 })).id,
-						(await forja.create("role", { name: "JunctionRole2", level: 20 })).id,
+						(await forja.create("role", { name: "JunctionRole1", level: 10 }))
+							.id,
+						(await forja.create("role", { name: "JunctionRole2", level: 20 }))
+							.id,
 					],
 				},
 			});
@@ -362,9 +360,24 @@ describe("Delete Operations", () => {
 
 		it("should handle deleteMany with complex where", async () => {
 			await forja.createMany("user", [
-				{ email: "complex-del-1@test.com", name: "Complex Del 1", age: 25, isActive: true },
-				{ email: "complex-del-2@test.com", name: "Complex Del 2", age: 30, isActive: true },
-				{ email: "complex-del-3@test.com", name: "Complex Del 3", age: 35, isActive: false },
+				{
+					email: "complex-del-1@test.com",
+					name: "Complex Del 1",
+					age: 25,
+					isActive: true,
+				},
+				{
+					email: "complex-del-2@test.com",
+					name: "Complex Del 2",
+					age: 30,
+					isActive: true,
+				},
+				{
+					email: "complex-del-3@test.com",
+					name: "Complex Del 3",
+					age: 35,
+					isActive: false,
+				},
 			]);
 
 			// Delete active users over 25

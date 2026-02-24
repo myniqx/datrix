@@ -110,41 +110,32 @@ describe("Single Create", () => {
 
 	describe("Validation Errors", () => {
 		it("should throw error when required field is missing", async () => {
-			await expectForjaErrorAsync(
-				async () => {
-					await forja.create("organization", {
-						country: "USA",
-						// name is required but missing
-					} as Parameters<typeof forja.create>[1]);
-				},
-				"VALIDATION_FAILED",
-			);
+			await expectForjaErrorAsync(async () => {
+				await forja.create("organization", {
+					country: "USA",
+					// name is required but missing
+				} as Parameters<typeof forja.create>[1]);
+			}, "VALIDATION_FAILED");
 		});
 
 		it("should throw error when string is too short (minLength)", async () => {
-			await expectForjaErrorAsync(
-				async () => {
-					await forja.create("organization", {
-						name: "A", // minLength is 2
-						country: "USA",
-					});
-				},
-				"VALIDATION_FAILED",
-			);
+			await expectForjaErrorAsync(async () => {
+				await forja.create("organization", {
+					name: "A", // minLength is 2
+					country: "USA",
+				});
+			}, "VALIDATION_FAILED");
 		});
 
 		it("should throw error when string is too long (maxLength)", async () => {
 			const longName = "A".repeat(201); // maxLength is 200
 
-			await expectForjaErrorAsync(
-				async () => {
-					await forja.create("organization", {
-						name: longName,
-						country: "USA",
-					});
-				},
-				"VALIDATION_FAILED",
-			);
+			await expectForjaErrorAsync(async () => {
+				await forja.create("organization", {
+					name: longName,
+					country: "USA",
+				});
+			}, "VALIDATION_FAILED");
 		});
 
 		it("should throw error when number is below min", async () => {
@@ -154,29 +145,23 @@ describe("Single Create", () => {
 				country: "USA",
 			});
 
-			await expectForjaErrorAsync(
-				async () => {
-					await forja.create("department", {
-						name: "Test Dept",
-						code: "TEST",
-						budget: -100, // min is 0
-						organization: org.id,
-					});
-				},
-				"VALIDATION_FAILED",
-			);
+			await expectForjaErrorAsync(async () => {
+				await forja.create("department", {
+					name: "Test Dept",
+					code: "TEST",
+					budget: -100, // min is 0
+					organization: org.id,
+				});
+			}, "VALIDATION_FAILED");
 		});
 
 		it("should throw error when number is above max", async () => {
-			await expectForjaErrorAsync(
-				async () => {
-					await forja.create("role", {
-						name: "High Level Role",
-						level: 150, // max is 100
-					});
-				},
-				"VALIDATION_FAILED",
-			);
+			await expectForjaErrorAsync(async () => {
+				await forja.create("role", {
+					name: "High Level Role",
+					level: 150, // max is 100
+				});
+			}, "VALIDATION_FAILED");
 		});
 
 		it("should throw error when pattern does not match", async () => {
@@ -185,28 +170,22 @@ describe("Single Create", () => {
 				country: "USA",
 			});
 
-			await expectForjaErrorAsync(
-				async () => {
-					await forja.create("department", {
-						name: "Test Dept",
-						code: "lowercase", // pattern requires ^[A-Z]{2,10}$
-						organization: org.id,
-					});
-				},
-				"VALIDATION_FAILED",
-			);
+			await expectForjaErrorAsync(async () => {
+				await forja.create("department", {
+					name: "Test Dept",
+					code: "lowercase", // pattern requires ^[A-Z]{2,10}$
+					organization: org.id,
+				});
+			}, "VALIDATION_FAILED");
 		});
 
 		it("should throw error when email pattern is invalid", async () => {
-			await expectForjaErrorAsync(
-				async () => {
-					await forja.create("user", {
-						email: "invalid-email", // must match email pattern
-						name: "Test User",
-					});
-				},
-				"VALIDATION_FAILED",
-			);
+			await expectForjaErrorAsync(async () => {
+				await forja.create("user", {
+					email: "invalid-email", // must match email pattern
+					name: "Test User",
+				});
+			}, "VALIDATION_FAILED");
 		});
 	});
 
@@ -223,15 +202,12 @@ describe("Single Create", () => {
 			});
 
 			// Try to create duplicate - adapter throws ADAPTER_UNIQUE_CONSTRAINT
-			await expectForjaErrorAsync(
-				async () => {
-					await forja.create("organization", {
-						name: "Unique Org", // name is unique
-						country: "UK",
-					});
-				},
-				"ADAPTER_UNIQUE_CONSTRAINT",
-			);
+			await expectForjaErrorAsync(async () => {
+				await forja.create("organization", {
+					name: "Unique Org", // name is unique
+					country: "UK",
+				});
+			}, "ADAPTER_UNIQUE_CONSTRAINT");
 		});
 
 		it("should throw error when unique email already exists", async () => {
@@ -240,15 +216,12 @@ describe("Single Create", () => {
 				name: "First User",
 			});
 
-			await expectForjaErrorAsync(
-				async () => {
-					await forja.create("user", {
-						email: "unique@test.com", // email is unique
-						name: "Second User",
-					});
-				},
-				"ADAPTER_UNIQUE_CONSTRAINT",
-			);
+			await expectForjaErrorAsync(async () => {
+				await forja.create("user", {
+					email: "unique@test.com", // email is unique
+					name: "Second User",
+				});
+			}, "ADAPTER_UNIQUE_CONSTRAINT");
 		});
 	});
 

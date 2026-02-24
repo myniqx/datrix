@@ -13,11 +13,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { Forja } from "forja-core";
 import fs from "node:fs/promises";
-import {
-	createTestConfig,
-	getTmpDir,
-	setupTables,
-} from "../setup";
+import { createTestConfig, getTmpDir, setupTables } from "../setup";
 
 describe("Update Relations", () => {
 	let forja: Forja;
@@ -67,7 +63,9 @@ describe("Update Relations", () => {
 			);
 
 			expect((updated.organization as { id: number }).id).toBe(org2.id);
-			expect((updated.organization as { name: string }).name).toBe("BT Change Org 2");
+			expect((updated.organization as { name: string }).name).toBe(
+				"BT Change Org 2",
+			);
 		});
 
 		it("should set belongsTo to null", async () => {
@@ -126,9 +124,18 @@ describe("Update Relations", () => {
 
 	describe("ManyToMany - Connect", () => {
 		it("should connect additional records", async () => {
-			const role1 = await forja.create("role", { name: "M2M Conn Role 1", level: 10 });
-			const role2 = await forja.create("role", { name: "M2M Conn Role 2", level: 20 });
-			const role3 = await forja.create("role", { name: "M2M Conn Role 3", level: 30 });
+			const role1 = await forja.create("role", {
+				name: "M2M Conn Role 1",
+				level: 10,
+			});
+			const role2 = await forja.create("role", {
+				name: "M2M Conn Role 2",
+				level: 20,
+			});
+			const role3 = await forja.create("role", {
+				name: "M2M Conn Role 3",
+				level: 30,
+			});
 
 			const user = await forja.create("user", {
 				email: "m2m-connect@test.com",
@@ -154,7 +161,10 @@ describe("Update Relations", () => {
 		});
 
 		it("should not duplicate when connecting existing", async () => {
-			const role = await forja.create("role", { name: "M2M Dup Role", level: 40 });
+			const role = await forja.create("role", {
+				name: "M2M Dup Role",
+				level: 40,
+			});
 
 			const user = await forja.create("user", {
 				email: "m2m-dup@test.com",
@@ -256,9 +266,18 @@ describe("Update Relations", () => {
 
 	describe("ManyToMany - Set", () => {
 		it("should replace all relations with set", async () => {
-			const role1 = await forja.create("role", { name: "Set Role 1", level: 70 });
-			const role2 = await forja.create("role", { name: "Set Role 2", level: 80 });
-			const role3 = await forja.create("role", { name: "Set Role 3", level: 90 });
+			const role1 = await forja.create("role", {
+				name: "Set Role 1",
+				level: 70,
+			});
+			const role2 = await forja.create("role", {
+				name: "Set Role 2",
+				level: 80,
+			});
+			const role3 = await forja.create("role", {
+				name: "Set Role 3",
+				level: 90,
+			});
 
 			const user = await forja.create("user", {
 				email: "m2m-set@test.com",
@@ -308,12 +327,16 @@ describe("Update Relations", () => {
 			);
 
 			expect((updated.roles as unknown[]).length).toBe(2);
-			const roleNames = (updated.roles as { name: string }[]).map((r) => r.name);
+			const roleNames = (updated.roles as { name: string }[]).map(
+				(r) => r.name,
+			);
 			expect(roleNames).toContain("Created Role A");
 			expect(roleNames).toContain("Created Role B");
 
 			// Verify roles were actually created in DB
-			const createdRoleA = await forja.findOne("role", { name: "Created Role A" });
+			const createdRoleA = await forja.findOne("role", {
+				name: "Created Role A",
+			});
 			expect(createdRoleA).not.toBeNull();
 		});
 	});
@@ -347,15 +370,26 @@ describe("Update Relations", () => {
 			);
 
 			expect((updated.roles as unknown[]).length).toBe(2);
-			const roleNames = (updated.roles as { name: string }[]).map((r) => r.name);
+			const roleNames = (updated.roles as { name: string }[]).map(
+				(r) => r.name,
+			);
 			expect(roleNames).toContain("Existing Mixed Role");
 			expect(roleNames).toContain("New Mixed Update Role");
 		});
 
 		it("should disconnect and connect in same update", async () => {
-			const role1 = await forja.create("role", { name: "DC Role 1", level: 55 });
-			const role2 = await forja.create("role", { name: "DC Role 2", level: 65 });
-			const role3 = await forja.create("role", { name: "DC Role 3", level: 75 });
+			const role1 = await forja.create("role", {
+				name: "DC Role 1",
+				level: 55,
+			});
+			const role2 = await forja.create("role", {
+				name: "DC Role 2",
+				level: 65,
+			});
+			const role3 = await forja.create("role", {
+				name: "DC Role 3",
+				level: 75,
+			});
 
 			const user = await forja.create("user", {
 				email: "dc-update@test.com",

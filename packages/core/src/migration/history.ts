@@ -228,10 +228,10 @@ export class ForgeMigrationHistory implements MigrationHistory {
 		version: string,
 	): Promise<Result<boolean, MigrationSystemError>> {
 		try {
-			const count = await this.forja.raw.count<MigrationEntry>(
-				this.modelName,
-				{ version, status: "completed" },
-			);
+			const count = await this.forja.raw.count<MigrationEntry>(this.modelName, {
+				version,
+				status: "completed",
+			});
 
 			return { success: true, data: count > 0 };
 		} catch (error) {

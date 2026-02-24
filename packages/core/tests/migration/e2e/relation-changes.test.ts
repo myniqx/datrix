@@ -91,7 +91,11 @@ describe("Migration E2E - Relation Changes", () => {
 				// Add category relation to post
 				const postWithCategory = cloneSchema(basePostSchemaNoRelation, {
 					addFields: {
-						category: { type: "relation", kind: "belongsTo", model: "category" },
+						category: {
+							type: "relation",
+							kind: "belongsTo",
+							model: "category",
+						},
 					},
 				});
 
@@ -1083,7 +1087,11 @@ describe("Migration E2E - Relation Changes", () => {
 					...bananaSchema,
 					fields: {
 						...bananaSchema.fields,
-						apples: { type: "relation" as const, kind: "manyToMany" as const, model: "apple" },
+						apples: {
+							type: "relation" as const,
+							kind: "manyToMany" as const,
+							model: "apple",
+						},
 					},
 				};
 
@@ -1179,8 +1187,14 @@ describe("Migration E2E - Relation Changes", () => {
 				await forja1.create("tag", { name: "JavaScript" });
 				await forja1.create("tag", { name: "TypeScript" });
 				const post = await forja1.create("post", { title: "Test Post" });
-				await forja1.create("post_tag", { post: { set: post.id }, tag: { set: 1 } });
-				await forja1.create("post_tag", { post: { set: post.id }, tag: { set: 2 } });
+				await forja1.create("post_tag", {
+					post: { set: post.id },
+					tag: { set: 1 },
+				});
+				await forja1.create("post_tag", {
+					post: { set: post.id },
+					tag: { set: 2 },
+				});
 
 				await forja1.shutdown();
 
@@ -1326,7 +1340,11 @@ describe("Migration E2E - Relation Changes", () => {
 				// Setup: post with category belongsTo
 				const postWithCategory = cloneSchema(basePostSchemaNoRelation, {
 					addFields: {
-						category: { type: "relation", kind: "belongsTo", model: "category" },
+						category: {
+							type: "relation",
+							kind: "belongsTo",
+							model: "category",
+						},
 					},
 				});
 
@@ -1348,7 +1366,11 @@ describe("Migration E2E - Relation Changes", () => {
 				// Change to manyToMany
 				const postWithCategories = cloneSchema(basePostSchemaNoRelation, {
 					addFields: {
-						categories: { type: "relation", kind: "manyToMany", model: "category" },
+						categories: {
+							type: "relation",
+							kind: "manyToMany",
+							model: "category",
+						},
 					},
 				});
 
@@ -1402,8 +1424,14 @@ describe("Migration E2E - Relation Changes", () => {
 				await forja1.create("tag", { name: "JS" });
 				await forja1.create("tag", { name: "TS" });
 				const post = await forja1.create("post", { title: "Post1" });
-				await forja1.create("post_tag", { post: { set: post.id }, tag: { set: 1 } });
-				await forja1.create("post_tag", { post: { set: post.id }, tag: { set: 2 } });
+				await forja1.create("post_tag", {
+					post: { set: post.id },
+					tag: { set: 1 },
+				});
+				await forja1.create("post_tag", {
+					post: { set: post.id },
+					tag: { set: 2 },
+				});
 
 				await forja1.shutdown();
 

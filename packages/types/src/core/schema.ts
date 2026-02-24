@@ -131,6 +131,17 @@ export interface StringField<
 }
 
 /**
+ * Foreign key reference definition
+ * Used by NumberField.references to generate FOREIGN KEY constraints in adapters
+ */
+export interface ForeignKeyReference {
+	readonly table: string;
+	readonly column?: string; // defaults to "id"
+	readonly onDelete?: "cascade" | "setNull" | "restrict";
+	readonly onUpdate?: "cascade" | "restrict";
+}
+
+/**
  * Number field definition
  */
 export interface NumberField<
@@ -143,6 +154,7 @@ export interface NumberField<
 	readonly unique?: boolean;
 	readonly autoIncrement?: boolean;
 	readonly validator?: (value: number) => true | string;
+	readonly references?: ForeignKeyReference;
 }
 
 /**

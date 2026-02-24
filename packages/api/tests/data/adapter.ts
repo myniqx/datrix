@@ -130,7 +130,11 @@ export async function getAdapter(
  */
 export function getAdapterType(): AdapterType {
 	const adapterEnv = process.env.ADAPTER?.toLowerCase();
-	if (adapterEnv === "postgres" || adapterEnv === "mysql" || adapterEnv === "json") {
+	if (
+		adapterEnv === "postgres" ||
+		adapterEnv === "mysql" ||
+		adapterEnv === "json"
+	) {
 		return adapterEnv;
 	}
 	return "postgres"; // Default

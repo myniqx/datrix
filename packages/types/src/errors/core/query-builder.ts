@@ -90,9 +90,9 @@ export class ForjaQueryBuilderError extends ForjaError<QueryBuilderErrorContext>
 		const normalizedOptions: ForjaQueryBuilderErrorOptions =
 			typeof options === "string" || options === undefined
 				? {
-					code: (options as QueryBuilderErrorCode) || "INVALID_VALUE",
-					component: "builder",
-				}
+						code: (options as QueryBuilderErrorCode) || "INVALID_VALUE",
+						component: "builder",
+					}
 				: options;
 
 		super(message, {

@@ -155,7 +155,10 @@ describe("Complex Populate", () => {
 			expect(post!.author).toBeDefined();
 			expect(typeof post!.author).toBe("object");
 
-			const author = post!.author as { name: string; organization: { name: string } };
+			const author = post!.author as {
+				name: string;
+				organization: { name: string };
+			};
 			expect(author.name).toBe("Deep User");
 			expect(author.organization).toBeDefined();
 			expect(author.organization.name).toBe("Deep Test Org");
@@ -171,7 +174,10 @@ describe("Complex Populate", () => {
 			expect(post).not.toBeNull();
 			expect(post!.author).toBeDefined();
 
-			const author = post!.author as { name: string; organization: { name: string } };
+			const author = post!.author as {
+				name: string;
+				organization: { name: string };
+			};
 			expect(author.name).toBe("Deep User");
 			expect(author.organization).toBeDefined();
 			expect(author.organization.name).toBe("Deep Test Org");
@@ -380,7 +386,9 @@ describe("Complex Populate", () => {
 
 			expect(category).not.toBeNull();
 			expect(category!.parent).toBeDefined();
-			expect((category!.parent as { name: string }).name).toBe("Parent Category");
+			expect((category!.parent as { name: string }).name).toBe(
+				"Parent Category",
+			);
 		});
 
 		it("should populate 2 levels of self-reference", async () => {
@@ -394,7 +402,10 @@ describe("Complex Populate", () => {
 			});
 
 			expect(category).not.toBeNull();
-			const parent = category!.parent as { name: string; parent: { name: string } };
+			const parent = category!.parent as {
+				name: string;
+				parent: { name: string };
+			};
 			expect(parent.name).toBe("Child Category");
 			expect(parent.parent.name).toBe("Parent Category");
 		});

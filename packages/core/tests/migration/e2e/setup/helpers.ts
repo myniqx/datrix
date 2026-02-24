@@ -48,7 +48,10 @@ export function autoResolveAmbiguous(
 			case "table_rename_or_replace":
 			case "junction_table_rename_or_replace":
 				action = strategy === "rename" ? "rename" : "drop_and_add";
-				if (change.type === "junction_table_rename_or_replace" && strategy !== "rename") {
+				if (
+					change.type === "junction_table_rename_or_replace" &&
+					strategy !== "rename"
+				) {
 					action = "drop_and_recreate";
 				}
 				break;
@@ -78,9 +81,14 @@ export function autoResolveAmbiguous(
 				action = strategy;
 		}
 
-		const result = session.resolveAmbiguous(change.id, action as Parameters<typeof session.resolveAmbiguous>[1]);
+		const result = session.resolveAmbiguous(
+			change.id,
+			action as Parameters<typeof session.resolveAmbiguous>[1],
+		);
 		if (!result.success) {
-			throw new Error(`Failed to resolve ambiguous '${change.id}': ${result.error.message}`);
+			throw new Error(
+				`Failed to resolve ambiguous '${change.id}': ${result.error.message}`,
+			);
 		}
 	}
 }
@@ -101,7 +109,11 @@ export function resolveAmbiguousById(
  */
 export async function applyMigration(
 	session: MigrationSession,
-	ambiguousStrategy: "rename" | "drop_and_add" | "migrate" | "fresh_start" = "drop_and_add",
+	ambiguousStrategy:
+		| "rename"
+		| "drop_and_add"
+		| "migrate"
+		| "fresh_start" = "drop_and_add",
 ): Promise<void> {
 	// Resolve any ambiguous changes
 	if (session.ambiguous.length > 0) {
@@ -129,7 +141,10 @@ export async function assertTableExists(
 	const tableName = getTableName(forja, modelName);
 	const adapter = forja.getAdapter();
 	const exists = await adapter.tableExists(tableName);
-	expect(exists, `Table '${tableName}' (model: ${modelName}) should exist`).toBe(true);
+	expect(
+		exists,
+		`Table '${tableName}' (model: ${modelName}) should exist`,
+	).toBe(true);
 }
 
 /**
@@ -155,7 +170,9 @@ export async function assertColumnExists(
 	const tableName = getTableName(forja, modelName);
 	const adapter = forja.getAdapter();
 	const schemaResult = await adapter.getTableSchema(tableName);
-	expect(schemaResult.success, `Failed to get schema for '${tableName}'`).toBe(true);
+	expect(schemaResult.success, `Failed to get schema for '${tableName}'`).toBe(
+		true,
+	);
 
 	if (schemaResult.success) {
 		const fields = Object.keys(schemaResult.data.fields);
@@ -177,7 +194,9 @@ export async function assertColumnNotExists(
 	const tableName = getTableName(forja, modelName);
 	const adapter = forja.getAdapter();
 	const schemaResult = await adapter.getTableSchema(tableName);
-	expect(schemaResult.success, `Failed to get schema for '${tableName}'`).toBe(true);
+	expect(schemaResult.success, `Failed to get schema for '${tableName}'`).toBe(
+		true,
+	);
 
 	if (schemaResult.success) {
 		const fields = Object.keys(schemaResult.data.fields);
@@ -199,7 +218,9 @@ export async function assertTableColumns(
 	const tableName = getTableName(forja, modelName);
 	const adapter = forja.getAdapter();
 	const schemaResult = await adapter.getTableSchema(tableName);
-	expect(schemaResult.success, `Failed to get schema for '${tableName}'`).toBe(true);
+	expect(schemaResult.success, `Failed to get schema for '${tableName}'`).toBe(
+		true,
+	);
 
 	if (schemaResult.success) {
 		const allFields = Object.keys(schemaResult.data.fields);
@@ -208,10 +229,9 @@ export async function assertTableColumns(
 			(f) => !["id", "createdAt", "updatedAt"].includes(f),
 		);
 
-		expect(
-			userFields.sort(),
-			`Table '${tableName}' columns mismatch`,
-		).toEqual([...expectedColumns].sort());
+		expect(userFields.sort(), `Table '${tableName}' columns mismatch`).toEqual(
+			[...expectedColumns].sort(),
+		);
 	}
 }
 
@@ -226,7 +246,9 @@ export async function getTableColumns(
 	const adapter = forja.getAdapter();
 	const schemaResult = await adapter.getTableSchema(tableName);
 	if (!schemaResult.success) {
-		throw new Error(`Failed to get schema for '${tableName}': ${schemaResult.error.message}`);
+		throw new Error(
+			`Failed to get schema for '${tableName}': ${schemaResult.error.message}`,
+		);
 	}
 
 	const allFields = Object.keys(schemaResult.data.fields);
@@ -260,7 +282,11 @@ export async function dropAllTables(adapter: DatabaseAdapter): Promise<void> {
  */
 export async function setupTablesFromSchemas(
 	adapter: DatabaseAdapter,
-	schemas: readonly { name: string; fields: Record<string, unknown>; indexes?: readonly unknown[] }[],
+	schemas: readonly {
+		name: string;
+		fields: Record<string, unknown>;
+		indexes?: readonly unknown[];
+	}[],
 ): Promise<void> {
 	for (const schema of schemas) {
 		// Drop if exists
@@ -271,9 +297,13 @@ export async function setupTablesFromSchemas(
 		}
 
 		// Create
-		const result = await adapter.createTable(schema as Parameters<typeof adapter.createTable>[0]);
+		const result = await adapter.createTable(
+			schema as Parameters<typeof adapter.createTable>[0],
+		);
 		if (!result.success) {
-			throw new Error(`Failed to create table '${schema.name}': ${result.error.message}`);
+			throw new Error(
+				`Failed to create table '${schema.name}': ${result.error.message}`,
+			);
 		}
 	}
 }
@@ -403,11 +433,17 @@ export function assertAmbiguousExists(
 	tableName?: string,
 ): AmbiguousChange {
 	const found = session.ambiguous.find(
-		(a) => a.type === type && (tableName === undefined || a.tableName === tableName),
+		(a) =>
+			a.type === type && (tableName === undefined || a.tableName === tableName),
 	);
 
 	if (!found) {
-		console.log("Ambiguous Changes: ", session.ambiguous.map((a) => a.possibleActions = JSON.stringify(a.possibleActions)));
+		console.log(
+			"Ambiguous Changes: ",
+			session.ambiguous.map(
+				(a) => (a.possibleActions = JSON.stringify(a.possibleActions)),
+			),
+		);
 	}
 
 	expect(
@@ -466,8 +502,13 @@ export function assertColumnInAdd(
 	tableName: string,
 	columnName: string,
 ): void {
-	const tableAlter = session.tablesToAlter.find((t) => t.tableName === tableName);
-	expect(tableAlter, `Table '${tableName}' not found in tablesToAlter`).toBeDefined();
+	const tableAlter = session.tablesToAlter.find(
+		(t) => t.tableName === tableName,
+	);
+	expect(
+		tableAlter,
+		`Table '${tableName}' not found in tablesToAlter`,
+	).toBeDefined();
 
 	if (tableAlter) {
 		const fieldAdd = tableAlter.changes.find(
@@ -488,8 +529,13 @@ export function assertColumnInDrop(
 	tableName: string,
 	columnName: string,
 ): void {
-	const tableAlter = session.tablesToAlter.find((t) => t.tableName === tableName);
-	expect(tableAlter, `Table '${tableName}' not found in tablesToAlter`).toBeDefined();
+	const tableAlter = session.tablesToAlter.find(
+		(t) => t.tableName === tableName,
+	);
+	expect(
+		tableAlter,
+		`Table '${tableName}' not found in tablesToAlter`,
+	).toBeDefined();
 
 	if (tableAlter) {
 		const fieldRemove = tableAlter.changes.find(

@@ -8,11 +8,7 @@ import { describe, it, beforeAll, afterAll, expect } from "vitest";
 import { Forja } from "forja-core";
 import { createForjaWithSchemas, getTmpDir } from "./setup/config";
 import { getAdapter, getAdapterType } from "./setup/adapter";
-import {
-	baseUserSchema,
-	cloneSchema,
-	TABLE_NAMES,
-} from "./setup/schemas-base";
+import { baseUserSchema, cloneSchema, TABLE_NAMES } from "./setup/schemas-base";
 import {
 	dropAllTables,
 	assertTableExists,
@@ -339,7 +335,9 @@ describe("Migration E2E - Column Changes", () => {
 			assertTablesToAlter(session, 1);
 
 			// Check that tablesToAlter contains fieldModified
-			const userAlter = session.tablesToAlter.find((t) => t.tableName === TABLE_NAMES.user);
+			const userAlter = session.tablesToAlter.find(
+				(t) => t.tableName === TABLE_NAMES.user,
+			);
 			expect(userAlter).toBeDefined();
 			if (userAlter) {
 				const fieldMod = userAlter.changes.find(

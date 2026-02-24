@@ -158,10 +158,10 @@ export type LogicalOperators<T extends ForjaEntry = ForjaEntry> = {
 type Writable<T> = { -readonly [K in keyof T]: T[K] };
 export type WhereClause<T extends ForjaEntry> = Writable<{
 	[K in keyof T]?: T[K] extends Relation<infer R>
-	? WhereClause<R>
-	: T[K] extends ScalarValue
-	? T[K] | ComparisonOperators<T[K]>
-	: unknown;
+		? WhereClause<R>
+		: T[K] extends ScalarValue
+			? T[K] | ComparisonOperators<T[K]>
+			: unknown;
 }> &
 	LogicalOperators<T>;
 
@@ -205,8 +205,8 @@ export type PopulateClause<T extends ForjaEntry = ForjaRecord> =
 	| "true"
 	| keyof T[]
 	| {
-		readonly [relation: string]: PopulateOptions<T> | "*" | boolean;
-	};
+			readonly [relation: string]: PopulateOptions<T> | "*" | boolean;
+	  };
 
 /**
  * Order direction
@@ -222,7 +222,8 @@ export type OrderByItem<T extends ForjaEntry> = {
 	readonly nulls?: "first" | "last"; // NULL ordering
 };
 
-export type QueryOrderBy<T extends ForjaEntry = ForjaRecord> = readonly OrderByItem<T>[];
+export type QueryOrderBy<T extends ForjaEntry = ForjaRecord> =
+	readonly OrderByItem<T>[];
 
 /**
  * OrderByClause - Input format for orderBy (before normalization)
@@ -247,7 +248,7 @@ export type QueryOrderBy<T extends ForjaEntry = ForjaRecord> = readonly OrderByI
 export type OrderByClause<T extends ForjaEntry = ForjaRecord> =
 	| QueryOrderBy<T>
 	| Partial<Record<keyof T, OrderDirection>>
-	| readonly (keyof T | `-${string & keyof T}`)[]
+	| readonly (keyof T | `-${string & keyof T}`)[];
 
 /**
  * QuerySelect - Normalized form of SelectClause (always array, never '*')
@@ -275,8 +276,8 @@ export type QueryPopulateOptions<T extends ForjaEntry> = {
  */
 export type QueryPopulate<T extends ForjaEntry = ForjaRecord> = {
 	readonly [K in keyof T]?: T[K] extends Relation<infer R>
-	? QueryPopulateOptions<R>
-	: never;
+		? QueryPopulateOptions<R>
+		: never;
 };
 
 /**
@@ -373,8 +374,8 @@ export interface NormalizedRelationUpdate<
  */
 export type QueryRelations<T extends ForjaEntry> = {
 	readonly [K in keyof T]?: T[K] extends Relation<infer R>
-	? NormalizedRelationOperations<R>
-	: never;
+		? NormalizedRelationOperations<R>
+		: never;
 };
 
 /**
@@ -473,12 +474,11 @@ export type QueryObjectForType<
 > = TType extends "select"
 	? QuerySelectObject<T>
 	: TType extends "count"
-	? QueryCountObject<T>
-	: TType extends "insert"
-	? QueryInsertObject<T>
-	: TType extends "update"
-	? QueryUpdateObject<T>
-	: TType extends "delete"
-	? QueryDeleteObject<T>
-	: QueryObject<T>;
-
+		? QueryCountObject<T>
+		: TType extends "insert"
+			? QueryInsertObject<T>
+			: TType extends "update"
+				? QueryUpdateObject<T>
+				: TType extends "delete"
+					? QueryDeleteObject<T>
+					: QueryObject<T>;

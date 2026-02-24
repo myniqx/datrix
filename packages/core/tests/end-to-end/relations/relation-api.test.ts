@@ -191,7 +191,9 @@ describe("Relation API", () => {
 				});
 
 				expect(fetched!.author).toBeDefined();
-				expect((fetched!.author as { name: string }).name).toBe("Nested Author");
+				expect((fetched!.author as { name: string }).name).toBe(
+					"Nested Author",
+				);
 			});
 		});
 
@@ -289,7 +291,9 @@ describe("Relation API", () => {
 				});
 
 				expect(fetched!.favoriteCategory).toBeDefined();
-				expect((fetched!.favoriteCategory as { id: number }).id).toBe(category.id);
+				expect((fetched!.favoriteCategory as { id: number }).id).toBe(
+					category.id,
+				);
 			});
 
 			it("should change hasOne relation with set on update", async () => {
@@ -342,7 +346,9 @@ describe("Relation API", () => {
 					populate: { favoriteCategory: true },
 				});
 
-				expect((fetched!.favoriteCategory as { id: number }).id).toBe(category.id);
+				expect((fetched!.favoriteCategory as { id: number }).id).toBe(
+					category.id,
+				);
 			});
 		});
 
@@ -414,7 +420,9 @@ describe("Relation API", () => {
 				});
 
 				expect(fetched!.favoriteCategory).toBeDefined();
-				expect((fetched!.favoriteCategory as { name: string }).name).toBe("Nested Favorite");
+				expect((fetched!.favoriteCategory as { name: string }).name).toBe(
+					"Nested Favorite",
+				);
 			});
 		});
 
@@ -445,7 +453,9 @@ describe("Relation API", () => {
 					populate: { favoriteCategory: true },
 				});
 
-				expect((fetched!.favoriteCategory as { name: string }).name).toBe("Updated Category Name");
+				expect((fetched!.favoriteCategory as { name: string }).name).toBe(
+					"Updated Category Name",
+				);
 			});
 		});
 
@@ -501,10 +511,14 @@ describe("Relation API", () => {
 		describe("set (shortcut)", () => {
 			it("should set hasMany relation with array shortcut", async () => {
 				// Step 1: Create user with no posts
-				const user = await forja.create("user", {
-					email: "hasmany-set@test.com",
-					name: "HasMany Set User",
-				}, { populate: { posts: true } });
+				const user = await forja.create(
+					"user",
+					{
+						email: "hasmany-set@test.com",
+						name: "HasMany Set User",
+					},
+					{ populate: { posts: true } },
+				);
 
 				expect((user.posts as []).length).toBe(0);
 
@@ -523,21 +537,32 @@ describe("Relation API", () => {
 				});
 
 				// Step 3: Set posts to user using array shortcut
-				const updated = await forja.update("user", user.id, {
-					posts: [post1.id, post2.id],
-				}, { populate: { posts: true } });
+				const updated = await forja.update(
+					"user",
+					user.id,
+					{
+						posts: [post1.id, post2.id],
+					},
+					{ populate: { posts: true } },
+				);
 
 				const posts = updated!.posts as { id: number }[];
 				expect(posts.length).toBe(2);
-				expect(posts.map((p) => p.id).sort()).toEqual([post1.id, post2.id].sort());
+				expect(posts.map((p) => p.id).sort()).toEqual(
+					[post1.id, post2.id].sort(),
+				);
 			});
 
 			it("should replace hasMany relations with set", async () => {
 				// Step 1: Create user
-				const user = await forja.create("user", {
-					email: "hasmany-replace@test.com",
-					name: "HasMany Replace User",
-				}, { populate: { posts: true } });
+				const user = await forja.create(
+					"user",
+					{
+						email: "hasmany-replace@test.com",
+						name: "HasMany Replace User",
+					},
+					{ populate: { posts: true } },
+				);
 
 				expect((user.posts as []).length).toBe(0);
 
@@ -556,16 +581,26 @@ describe("Relation API", () => {
 				});
 
 				// Step 3: Set both posts to user
-				const withBoth = await forja.update("user", user.id, {
-					posts: { set: [post1.id, post2.id] },
-				}, { populate: { posts: true } });
+				const withBoth = await forja.update(
+					"user",
+					user.id,
+					{
+						posts: { set: [post1.id, post2.id] },
+					},
+					{ populate: { posts: true } },
+				);
 
 				expect((withBoth!.posts as []).length).toBe(2);
 
 				// Step 4: Replace with only post2
-				const replaced = await forja.update("user", user.id, {
-					posts: { set: [post2.id] },
-				}, { populate: { posts: true } });
+				const replaced = await forja.update(
+					"user",
+					user.id,
+					{
+						posts: { set: [post2.id] },
+					},
+					{ populate: { posts: true } },
+				);
 
 				const posts = replaced!.posts as { id: number }[];
 				expect(posts.length).toBe(1);
@@ -591,9 +626,14 @@ describe("Relation API", () => {
 				});
 
 				// Step 2: Clear all posts
-				const cleared = await forja.update("user", user.id, {
-					posts: { set: [] },
-				}, { populate: { posts: true } });
+				const cleared = await forja.update(
+					"user",
+					user.id,
+					{
+						posts: { set: [] },
+					},
+					{ populate: { posts: true } },
+				);
 
 				expect((cleared!.posts as []).length).toBe(0);
 			});
@@ -602,10 +642,14 @@ describe("Relation API", () => {
 		describe("connect", () => {
 			it("should connect hasMany relations", async () => {
 				// Step 1: Create user with no posts
-				const user = await forja.create("user", {
-					email: "hasmany-connect@test.com",
-					name: "HasMany Connect User",
-				}, { populate: { posts: true } });
+				const user = await forja.create(
+					"user",
+					{
+						email: "hasmany-connect@test.com",
+						name: "HasMany Connect User",
+					},
+					{ populate: { posts: true } },
+				);
 
 				expect((user.posts as []).length).toBe(0);
 
@@ -618,9 +662,14 @@ describe("Relation API", () => {
 				});
 
 				// Step 3: Connect post to user
-				const updated = await forja.update("user", user.id, {
-					posts: { connect: [post.id] },
-				}, { populate: { posts: true } });
+				const updated = await forja.update(
+					"user",
+					user.id,
+					{
+						posts: { connect: [post.id] },
+					},
+					{ populate: { posts: true } },
+				);
 
 				const posts = updated!.posts as { id: number }[];
 				expect(posts.length).toBe(1);
@@ -642,9 +691,14 @@ describe("Relation API", () => {
 					category: categoryId,
 				});
 
-				const withPost1 = await forja.update("user", user.id, {
-					posts: { connect: [post1.id] },
-				}, { populate: { posts: true } });
+				const withPost1 = await forja.update(
+					"user",
+					user.id,
+					{
+						posts: { connect: [post1.id] },
+					},
+					{ populate: { posts: true } },
+				);
 
 				expect((withPost1!.posts as []).length).toBe(1);
 
@@ -656,9 +710,14 @@ describe("Relation API", () => {
 					category: categoryId,
 				});
 
-				const withBoth = await forja.update("user", user.id, {
-					posts: { connect: [post2.id] },
-				}, { populate: { posts: true } });
+				const withBoth = await forja.update(
+					"user",
+					user.id,
+					{
+						posts: { connect: [post2.id] },
+					},
+					{ populate: { posts: true } },
+				);
 
 				const posts = withBoth!.posts as { id: number }[];
 				expect(posts.length).toBe(2);
@@ -686,16 +745,26 @@ describe("Relation API", () => {
 					category: categoryId,
 				});
 
-				const withBoth = await forja.update("user", user.id, {
-					posts: { set: [post1.id, post2.id] },
-				}, { populate: { posts: true } });
+				const withBoth = await forja.update(
+					"user",
+					user.id,
+					{
+						posts: { set: [post1.id, post2.id] },
+					},
+					{ populate: { posts: true } },
+				);
 
 				expect((withBoth!.posts as []).length).toBe(2);
 
 				// Step 2: Disconnect post1
-				const afterDisconnect = await forja.update("user", user.id, {
-					posts: { disconnect: [post1.id] },
-				}, { populate: { posts: true } });
+				const afterDisconnect = await forja.update(
+					"user",
+					user.id,
+					{
+						posts: { disconnect: [post1.id] },
+					},
+					{ populate: { posts: true } },
+				);
 
 				const posts = afterDisconnect!.posts as { id: number }[];
 				expect(posts.length).toBe(1);
@@ -705,30 +774,37 @@ describe("Relation API", () => {
 
 		describe("create (nested)", () => {
 			it("should create hasMany relations inline", async () => {
-				const user = await forja.create("user", {
-					email: "hasmany-nested@test.com",
-					name: "HasMany Nested User",
-					posts: {
-						create: [
-							{
-								title: "Nested Post 1",
-								content: "Content",
-								slug: "hm-nested-post-1",
-								category: categoryId,
-							},
-							{
-								title: "Nested Post 2",
-								content: "Content",
-								slug: "hm-nested-post-2",
-								category: categoryId,
-							},
-						],
+				const user = await forja.create(
+					"user",
+					{
+						email: "hasmany-nested@test.com",
+						name: "HasMany Nested User",
+						posts: {
+							create: [
+								{
+									title: "Nested Post 1",
+									content: "Content",
+									slug: "hm-nested-post-1",
+									category: categoryId,
+								},
+								{
+									title: "Nested Post 2",
+									content: "Content",
+									slug: "hm-nested-post-2",
+									category: categoryId,
+								},
+							],
+						},
 					},
-				}, { populate: { posts: true } });
+					{ populate: { posts: true } },
+				);
 
 				const posts = user.posts as { title: string }[];
 				expect(posts.length).toBe(2);
-				expect(posts.map((p) => p.title).sort()).toEqual(["Nested Post 1", "Nested Post 2"]);
+				expect(posts.map((p) => p.title).sort()).toEqual([
+					"Nested Post 1",
+					"Nested Post 2",
+				]);
 			});
 		});
 
@@ -797,9 +873,14 @@ describe("Relation API", () => {
 				});
 
 				// Step 2: Delete post1
-				const afterDelete = await forja.update("user", user.id, {
-					posts: { delete: [post1.id] },
-				}, { populate: { posts: true } });
+				const afterDelete = await forja.update(
+					"user",
+					user.id,
+					{
+						posts: { delete: [post1.id] },
+					},
+					{ populate: { posts: true } },
+				);
 
 				const posts = afterDelete!.posts as { id: number }[];
 				expect(posts.length).toBe(1);
@@ -822,9 +903,18 @@ describe("Relation API", () => {
 		let roleId3: number;
 
 		beforeAll(async () => {
-			const role1 = await forja.create("role", { name: "M2M Role 1", level: 10 });
-			const role2 = await forja.create("role", { name: "M2M Role 2", level: 20 });
-			const role3 = await forja.create("role", { name: "M2M Role 3", level: 30 });
+			const role1 = await forja.create("role", {
+				name: "M2M Role 1",
+				level: 10,
+			});
+			const role2 = await forja.create("role", {
+				name: "M2M Role 2",
+				level: 20,
+			});
+			const role3 = await forja.create("role", {
+				name: "M2M Role 3",
+				level: 30,
+			});
 			roleId1 = role1.id;
 			roleId2 = role2.id;
 			roleId3 = role3.id;
@@ -844,7 +934,9 @@ describe("Relation API", () => {
 
 				const roles = fetched!.roles as { id: number }[];
 				expect(roles.length).toBe(2);
-				expect(roles.map((r) => r.id).sort()).toEqual([roleId1, roleId2].sort());
+				expect(roles.map((r) => r.id).sort()).toEqual(
+					[roleId1, roleId2].sort(),
+				);
 			});
 
 			it("should replace manyToMany relations with set", async () => {
@@ -972,7 +1064,10 @@ describe("Relation API", () => {
 
 				const roles = fetched!.roles as { name: string }[];
 				expect(roles.length).toBe(2);
-				expect(roles.map((r) => r.name).sort()).toEqual(["Nested Role 1", "Nested Role 2"]);
+				expect(roles.map((r) => r.name).sort()).toEqual([
+					"Nested Role 1",
+					"Nested Role 2",
+				]);
 			});
 
 			it("should mix connect and create in manyToMany", async () => {
@@ -999,7 +1094,10 @@ describe("Relation API", () => {
 		describe("update (nested)", () => {
 			it("should update manyToMany relations inline", async () => {
 				// Create a role that will be updated
-				const role = await forja.create("role", { name: "M2M Update Role", level: 80 });
+				const role = await forja.create("role", {
+					name: "M2M Update Role",
+					level: 80,
+				});
 
 				const user = await forja.create("user", {
 					email: "m2m-update@test.com",
@@ -1030,7 +1128,10 @@ describe("Relation API", () => {
 		describe("delete (nested)", () => {
 			it("should delete manyToMany relations (removes record entirely)", async () => {
 				// Create a role that will be deleted
-				const tempRole = await forja.create("role", { name: "Temp Role", level: 70 });
+				const tempRole = await forja.create("role", {
+					name: "Temp Role",
+					level: 70,
+				});
 
 				const user = await forja.create("user", {
 					email: "m2m-delete@test.com",

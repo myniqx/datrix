@@ -350,15 +350,14 @@ export class ForjaQueryBuilder<
 		const normalizedOrderBy = normalizeOrderBy(this.query.orderBy);
 
 		// Spread helpers for reuse
-		const selectSpread = normalizedSelect !== undefined
-			? { select: normalizedSelect }
-			: { select: undefined };
-		const populateSpread = normalizedPopulate !== undefined
-			? { populate: normalizedPopulate }
-			: {};
-		const whereSpread = normalizedWhere !== undefined
-			? { where: normalizedWhere }
-			: {};
+		const selectSpread =
+			normalizedSelect !== undefined
+				? { select: normalizedSelect }
+				: { select: undefined };
+		const populateSpread =
+			normalizedPopulate !== undefined ? { populate: normalizedPopulate } : {};
+		const whereSpread =
+			normalizedWhere !== undefined ? { where: normalizedWhere } : {};
 
 		switch (type) {
 			case "select": {
@@ -403,7 +402,9 @@ export class ForjaQueryBuilder<
 				const processedItems = (this.query.dataItems ?? []).map((item) =>
 					processData<TSchema>(item, this._schema, this._registry),
 				);
-				const dataArray = processedItems.map((p) => p.data) as readonly Partial<TSchema>[];
+				const dataArray = processedItems.map(
+					(p) => p.data,
+				) as readonly Partial<TSchema>[];
 				const relations = processedItems[0]?.relations;
 				return {
 					type: "insert" as const,
@@ -419,10 +420,10 @@ export class ForjaQueryBuilder<
 				const processedData =
 					this.query.data !== undefined
 						? processData<TSchema>(
-							this.query.data,
-							this._schema,
-							this._registry,
-						)
+								this.query.data,
+								this._schema,
+								this._registry,
+							)
 						: undefined;
 				return {
 					type,

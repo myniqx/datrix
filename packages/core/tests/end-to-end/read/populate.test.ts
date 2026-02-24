@@ -17,11 +17,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { Forja } from "forja-core";
 import fs from "node:fs/promises";
-import {
-	createTestConfig,
-	getTmpDir,
-	setupTables,
-} from "../setup";
+import { createTestConfig, getTmpDir, setupTables } from "../setup";
 
 describe("Populate", () => {
 	let forja: Forja;
@@ -113,7 +109,9 @@ describe("Populate", () => {
 			expect(user!.organization).toBeDefined();
 			expect(typeof user!.organization).toBe("object");
 			expect((user!.organization as { id: number }).id).toBe(orgId);
-			expect((user!.organization as { name: string }).name).toBe("Populate Test Org");
+			expect((user!.organization as { name: string }).name).toBe(
+				"Populate Test Org",
+			);
 		});
 
 		it("should not populate when not requested", async () => {
@@ -129,7 +127,9 @@ describe("Populate", () => {
 			});
 
 			expect(dept!.organization).toBeDefined();
-			expect((dept!.organization as { name: string }).name).toBe("Populate Test Org");
+			expect((dept!.organization as { name: string }).name).toBe(
+				"Populate Test Org",
+			);
 		});
 	});
 
@@ -148,8 +148,12 @@ describe("Populate", () => {
 
 			expect(user!.organization).toBeDefined();
 			expect(user!.department).toBeDefined();
-			expect((user!.organization as { name: string }).name).toBe("Populate Test Org");
-			expect((user!.department as { name: string }).name).toBe("Populate Test Dept");
+			expect((user!.organization as { name: string }).name).toBe(
+				"Populate Test Org",
+			);
+			expect((user!.department as { name: string }).name).toBe(
+				"Populate Test Dept",
+			);
 		});
 
 		it("should populate belongsTo and manyToMany together", async () => {
@@ -468,7 +472,11 @@ describe("Populate", () => {
 			expect(user!.favoriteCategory).toBeDefined();
 			expect(user!.favoriteCategory).not.toBeNull();
 
-			const favCat = user!.favoriteCategory as { id: number; name: string; slug: string };
+			const favCat = user!.favoriteCategory as {
+				id: number;
+				name: string;
+				slug: string;
+			};
 			expect(favCat.id).toBe(favCategoryId);
 			expect(favCat.name).toBe("Favorite Category");
 			expect(favCat.slug).toBe("favorite-category");
@@ -506,7 +514,9 @@ describe("Populate", () => {
 
 		it("should populate hasOne in findMany", async () => {
 			const users = await forja.findMany("user", {
-				where: { email: { $in: ["hasone-test@test.com", "no-fav-cat@test.com"] } },
+				where: {
+					email: { $in: ["hasone-test@test.com", "no-fav-cat@test.com"] },
+				},
 				populate: { favoriteCategory: true },
 			});
 

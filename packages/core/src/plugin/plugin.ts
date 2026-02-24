@@ -6,7 +6,11 @@
  */
 
 import { QueryObject } from "forja-types/core/query-builder";
-import { SchemaRegistry, SchemaDefinition, ForjaEntry } from "forja-types/core/schema";
+import {
+	SchemaRegistry,
+	SchemaDefinition,
+	ForjaEntry,
+} from "forja-types/core/schema";
 import {
 	ForjaPlugin,
 	PluginContext,

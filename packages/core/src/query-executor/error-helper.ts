@@ -5,7 +5,13 @@
  */
 
 import { ForjaEntry, QueryObject } from "forja-types";
-import { CrudErrorCode, CrudErrorContext, CrudOperation, ForjaCrudError, ForjaError } from "forja-types/errors";
+import {
+	CrudErrorCode,
+	CrudErrorContext,
+	CrudOperation,
+	ForjaCrudError,
+	ForjaError,
+} from "forja-types/errors";
 
 /**
  * Options for throwing CRUD errors
@@ -66,7 +72,6 @@ export function throwCrudError(options: ThrowCrudErrorOptions): never {
 	});
 }
 
-
 /**
  * Enhance context with adapter error details if available
  */
@@ -83,7 +88,6 @@ function enhanceContext(
 		adapterError: cause.message,
 	};
 }
-
 
 /**
  * Generate a default error message based on operation and code
@@ -112,7 +116,6 @@ function generateDefaultMessage(
 			return `CRUD operation failed for ${model}`;
 	}
 }
-
 
 /**
  * Throw unsupported query type error
@@ -231,9 +234,10 @@ export function throwRelationTargetNotFound(
 	targetModel: string,
 	missingIds: readonly number[],
 ): never {
-	const idsStr = missingIds.length === 1
-		? `id ${missingIds[0]}`
-		: `ids [${missingIds.join(", ")}]`;
+	const idsStr =
+		missingIds.length === 1
+			? `id ${missingIds[0]}`
+			: `ids [${missingIds.join(", ")}]`;
 
 	throwCrudError({
 		operation: "update",

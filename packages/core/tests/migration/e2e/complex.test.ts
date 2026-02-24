@@ -184,7 +184,9 @@ describe("Migration E2E - Complex Scenarios", () => {
 			assertHasChanges(session);
 
 			// Check for index addition in changes
-			const userAlter = session.tablesToAlter.find((t) => t.tableName === TABLE_NAMES.user);
+			const userAlter = session.tablesToAlter.find(
+				(t) => t.tableName === TABLE_NAMES.user,
+			);
 			expect(userAlter).toBeDefined();
 			if (userAlter) {
 				const indexAdd = userAlter.changes.find((c) => c.type === "indexAdded");
@@ -222,10 +224,14 @@ describe("Migration E2E - Complex Scenarios", () => {
 			assertHasChanges(session);
 
 			// Check for index removal in changes
-			const userAlter = session.tablesToAlter.find((t) => t.tableName === TABLE_NAMES.user);
+			const userAlter = session.tablesToAlter.find(
+				(t) => t.tableName === TABLE_NAMES.user,
+			);
 			expect(userAlter).toBeDefined();
 			if (userAlter) {
-				const indexRemove = userAlter.changes.find((c) => c.type === "indexRemoved");
+				const indexRemove = userAlter.changes.find(
+					(c) => c.type === "indexRemoved",
+				);
 				expect(indexRemove).toBeDefined();
 			}
 

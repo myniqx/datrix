@@ -49,15 +49,53 @@ describe("Count", () => {
 
 		// Create users with various attributes
 		await forja.createMany("user", [
-			{ email: "user1@test.com", name: "User 1", age: 25, isActive: true, organization: orgId, department: deptId },
-			{ email: "user2@test.com", name: "User 2", age: 30, isActive: true, organization: orgId },
-			{ email: "user3@test.com", name: "User 3", age: 35, isActive: false, organization: orgId },
+			{
+				email: "user1@test.com",
+				name: "User 1",
+				age: 25,
+				isActive: true,
+				organization: orgId,
+				department: deptId,
+			},
+			{
+				email: "user2@test.com",
+				name: "User 2",
+				age: 30,
+				isActive: true,
+				organization: orgId,
+			},
+			{
+				email: "user3@test.com",
+				name: "User 3",
+				age: 35,
+				isActive: false,
+				organization: orgId,
+			},
 			{ email: "user4@test.com", name: "User 4", age: 40, isActive: true },
 			{ email: "user5@test.com", name: "User 5", age: 45, isActive: false },
-			{ email: "user6@test.com", name: "User 6", age: 25, isActive: true, organization: orgId },
+			{
+				email: "user6@test.com",
+				name: "User 6",
+				age: 25,
+				isActive: true,
+				organization: orgId,
+			},
 			{ email: "user7@test.com", name: "User 7", age: 30, isActive: true },
-			{ email: "user8@test.com", name: "User 8", age: 35, isActive: false, organization: orgId },
-			{ email: "user9@test.com", name: "User 9", age: 40, isActive: true, organization: orgId, department: deptId },
+			{
+				email: "user8@test.com",
+				name: "User 8",
+				age: 35,
+				isActive: false,
+				organization: orgId,
+			},
+			{
+				email: "user9@test.com",
+				name: "User 9",
+				age: 40,
+				isActive: true,
+				organization: orgId,
+				department: deptId,
+			},
 			{ email: "user10@test.com", name: "User 10", age: 50, isActive: true },
 		]);
 	});
@@ -190,10 +228,7 @@ describe("Count", () => {
 	describe("Count with Complex Where", () => {
 		it("should count with $and", async () => {
 			const count = await forja.count("user", {
-				$and: [
-					{ isActive: true },
-					{ age: { $gte: 30 } },
-				],
+				$and: [{ isActive: true }, { age: { $gte: 30 } }],
 			});
 
 			// Active AND age >= 30: User 2(30), User 4(40), User 7(30), User 9(40), User 10(50) = 5
@@ -202,10 +237,7 @@ describe("Count", () => {
 
 		it("should count with $or", async () => {
 			const count = await forja.count("user", {
-				$or: [
-					{ age: 25 },
-					{ age: 50 },
-				],
+				$or: [{ age: 25 }, { age: 50 }],
 			});
 
 			// age 25 or 50: User 1, User 6, User 10 = 3
@@ -217,10 +249,7 @@ describe("Count", () => {
 				$and: [
 					{ isActive: true },
 					{
-						$or: [
-							{ age: { $lt: 30 } },
-							{ age: { $gt: 45 } },
-						],
+						$or: [{ age: { $lt: 30 } }, { age: { $gt: 45 } }],
 					},
 				],
 			});

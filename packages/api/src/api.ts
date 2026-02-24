@@ -28,7 +28,8 @@ import { QueryObject } from "forja-types";
 
 export class ApiPlugin<TRole extends string = string>
 	extends BasePlugin<ApiConfig<TRole>>
-	implements IApiPlugin<TRole> {
+	implements IApiPlugin<TRole>
+{
 	readonly name = "api";
 	readonly version = "1.0.0";
 
@@ -250,9 +251,7 @@ export class ApiPlugin<TRole extends string = string>
 		}
 
 		// User created → create authentication record
-		if (
-			context.metadata["api:createAuth"]
-		) {
+		if (context.metadata["api:createAuth"]) {
 			const { id: userId } = Array.isArray(result) ? result[0] : result;
 			if (typeof userId === "number") {
 				const user = {

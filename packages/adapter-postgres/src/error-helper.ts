@@ -8,7 +8,10 @@
 import { ForjaEntry } from "forja-types";
 import { ForjaPostgresAdapterError } from "./error";
 import type { PopulateStrategy } from "./populate/types";
-import type { QueryObject, QuerySelectObject } from "forja-types/core/query-builder";
+import type {
+	QueryObject,
+	QuerySelectObject,
+} from "forja-types/core/query-builder";
 
 // ============================================================================
 // SQL Truncation Utility

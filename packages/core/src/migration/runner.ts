@@ -389,22 +389,13 @@ export class ForgeMigrationRunner implements MigrationRunner {
 				return await tx.dropTable(operation.tableName);
 
 			case "alterTable":
-				return await tx.alterTable(
-					operation.tableName,
-					operation.operations,
-				);
+				return await tx.alterTable(operation.tableName, operation.operations);
 
 			case "createIndex":
-				return await tx.addIndex(
-					operation.tableName,
-					operation.index,
-				);
+				return await tx.addIndex(operation.tableName, operation.index);
 
 			case "dropIndex":
-				return await tx.dropIndex(
-					operation.tableName,
-					operation.indexName,
-				);
+				return await tx.dropIndex(operation.tableName, operation.indexName);
 
 			case "renameTable":
 				return await tx.renameTable(operation.from, operation.to);

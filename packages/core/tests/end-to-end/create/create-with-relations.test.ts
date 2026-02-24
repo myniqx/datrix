@@ -15,11 +15,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { Forja } from "forja-core";
 import fs from "node:fs/promises";
-import {
-	createTestConfig,
-	getTmpDir,
-	setupTables,
-} from "../setup";
+import { createTestConfig, getTmpDir, setupTables } from "../setup";
 
 describe("Create with Relations", () => {
 	let forja: Forja;
@@ -62,7 +58,9 @@ describe("Create with Relations", () => {
 
 			expect(user.organization).toBeDefined();
 			expect((user.organization as { id: number }).id).toBe(org.id);
-			expect((user.organization as { name: string }).name).toBe("BelongsTo Org");
+			expect((user.organization as { name: string }).name).toBe(
+				"BelongsTo Org",
+			);
 		});
 
 		it("should create with multiple belongsTo relations", async () => {
@@ -135,7 +133,8 @@ describe("Create with Relations", () => {
 			);
 
 			expect((level3.parent as { id: number }).id).toBe(level2.id);
-			const parentOfParent = (level3.parent as { parent: { id: number } }).parent;
+			const parentOfParent = (level3.parent as { parent: { id: number } })
+				.parent;
 			expect(parentOfParent.id).toBe(level1.id);
 		});
 	});
@@ -162,11 +161,17 @@ describe("Create with Relations", () => {
 			);
 
 			expect(dept.organization).toBeDefined();
-			expect((dept.organization as { name: string }).name).toBe("Inline Created Org");
-			expect((dept.organization as { country: string }).country).toBe("Germany");
+			expect((dept.organization as { name: string }).name).toBe(
+				"Inline Created Org",
+			);
+			expect((dept.organization as { country: string }).country).toBe(
+				"Germany",
+			);
 
 			// Verify org was actually created
-			const org = await forja.findOne("organization", { name: "Inline Created Org" });
+			const org = await forja.findOne("organization", {
+				name: "Inline Created Org",
+			});
 			expect(org).not.toBeNull();
 		});
 
@@ -200,7 +205,10 @@ describe("Create with Relations", () => {
 			);
 
 			expect(user.department).toBeDefined();
-			const dept = user.department as { name: string; organization: { name: string } };
+			const dept = user.department as {
+				name: string;
+				organization: { name: string };
+			};
 			expect(dept.name).toBe("Deep Nested Dept");
 			expect(dept.organization.name).toBe("Deep Nested Org");
 		});
@@ -434,7 +442,7 @@ describe("Create with Relations", () => {
 					populate: {
 						author: {
 							select: ["email"],
-							populate: { organization: true }
+							populate: { organization: true },
 						},
 						category: true,
 						tags: true,
@@ -444,8 +452,12 @@ describe("Create with Relations", () => {
 
 			// Verify author
 			expect(post.author).toBeDefined();
-			expect((post.author as { email: string }).email).toBe("complex-author@test.com");
-			expect((post.author as { organization: { name: string } }).organization.name).toBe("Complex Org");
+			expect((post.author as { email: string }).email).toBe(
+				"complex-author@test.com",
+			);
+			expect(
+				(post.author as { organization: { name: string } }).organization.name,
+			).toBe("Complex Org");
 
 			// Verify category
 			expect(post.category).toBeDefined();
@@ -525,7 +537,9 @@ describe("Create with Relations", () => {
 
 			expect(user.favoriteCategory).toBeDefined();
 			expect((user.favoriteCategory as { id: number }).id).toBe(category.id);
-			expect((user.favoriteCategory as { name: string }).name).toBe("HasOne Category");
+			expect((user.favoriteCategory as { name: string }).name).toBe(
+				"HasOne Category",
+			);
 		});
 
 		it("should create user without hasOne relation (null)", async () => {
@@ -568,7 +582,9 @@ describe("Create with Relations", () => {
 			);
 
 			expect((updated.favoriteCategory as { id: number }).id).toBe(cat2.id);
-			expect((updated.favoriteCategory as { name: string }).name).toBe("HasOne Cat2");
+			expect((updated.favoriteCategory as { name: string }).name).toBe(
+				"HasOne Cat2",
+			);
 		});
 
 		it("should clear hasOne relation by setting to null", async () => {
@@ -613,8 +629,12 @@ describe("Create with Relations", () => {
 			);
 
 			expect(user.favoriteCategory).toBeDefined();
-			expect((user.favoriteCategory as { name: string }).name).toBe("Nested Favorite");
-			expect((user.favoriteCategory as { slug: string }).slug).toBe("nested-favorite");
+			expect((user.favoriteCategory as { name: string }).name).toBe(
+				"Nested Favorite",
+			);
+			expect((user.favoriteCategory as { slug: string }).slug).toBe(
+				"nested-favorite",
+			);
 		});
 	});
 });

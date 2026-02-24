@@ -315,7 +315,9 @@ export class PostgresPopulator {
 					);
 				}
 
-				let relatedRows: ForjaEntry[] = batchResult.rows.map((r) => r.data as ForjaEntry);
+				let relatedRows: ForjaEntry[] = batchResult.rows.map(
+					(r) => r.data as ForjaEntry,
+				);
 
 				// Recursive nested populate
 				const nestedPopulate = (options as Record<string, unknown>)?.populate;
@@ -331,7 +333,8 @@ export class PostgresPopulator {
 
 				for (const row of rows) {
 					const fkValue = row[fkColumn as keyof T];
-					row[relationName as keyof T] = (dataMap.get(fkValue as number) || null) as T[keyof T];
+					row[relationName as keyof T] = (dataMap.get(fkValue as number) ||
+						null) as T[keyof T];
 					// Remove the hidden FK column injected for this lookup
 					delete row[fkColumn as keyof T];
 				}
@@ -355,7 +358,10 @@ export class PostgresPopulator {
 					);
 				}
 
-				let allRelatedRows: ForjaEntry[] = batchResult.rows.map((r) => ({ ...r.data as ForjaEntry, _fk: r._fk }));
+				let allRelatedRows: ForjaEntry[] = batchResult.rows.map((r) => ({
+					...(r.data as ForjaEntry),
+					_fk: r._fk,
+				}));
 
 				// Recursive nested populate
 				const nestedPopulate = (options as Record<string, unknown>)?.populate;
@@ -375,7 +381,8 @@ export class PostgresPopulator {
 				}
 
 				for (const row of rows) {
-					row[relationName as keyof T] = (groupMap.get(row.id) || []) as T[keyof T];
+					row[relationName as keyof T] = (groupMap.get(row.id) ||
+						[]) as T[keyof T];
 				}
 			} else if (relation.kind === "manyToMany") {
 				const junctionTable = relation.through!;
@@ -402,7 +409,10 @@ export class PostgresPopulator {
 					);
 				}
 
-				let allRelatedRows: ForjaEntry[] = batchResult.rows.map((r) => ({ ...r.data as ForjaEntry, _fk: r._fk }));
+				let allRelatedRows: ForjaEntry[] = batchResult.rows.map((r) => ({
+					...(r.data as ForjaEntry),
+					_fk: r._fk,
+				}));
 
 				// Recursive nested populate
 				const nestedPopulate = (options as Record<string, unknown>)?.populate;
@@ -422,7 +432,8 @@ export class PostgresPopulator {
 				}
 
 				for (const row of rows) {
-					row[relationName as keyof T] = (groupMap.get(row.id) || []) as T[keyof T];
+					row[relationName as keyof T] = (groupMap.get(row.id) ||
+						[]) as T[keyof T];
 				}
 			} else {
 				continue;
@@ -459,7 +470,8 @@ export class PostgresPopulator {
 			const targetSchema = this.schemaRegistry.get(relation.model);
 			if (!targetSchema) continue;
 
-			const targetTable = targetSchema.tableName ?? relation.model.toLowerCase();
+			const targetTable =
+				targetSchema.tableName ?? relation.model.toLowerCase();
 
 			if (relation.kind === "belongsTo" || relation.kind === "hasOne") {
 				const fkColumn = relation.foreignKey!;
@@ -476,7 +488,9 @@ export class PostgresPopulator {
         `;
 				const batchResult = await this.pool.query(batchQuery, [fkValues]);
 
-				let relatedRows: ForjaEntry[] = batchResult.rows.map((r) => r.data as ForjaEntry);
+				let relatedRows: ForjaEntry[] = batchResult.rows.map(
+					(r) => r.data as ForjaEntry,
+				);
 
 				const nestedPopulate = (options as Record<string, unknown>)?.populate;
 				if (nestedPopulate && relatedRows.length > 0) {
@@ -490,7 +504,8 @@ export class PostgresPopulator {
 				const dataMap = new Map(relatedRows.map((r) => [r.id, r]));
 				for (const row of rows) {
 					const fkValue = row[fkColumn as keyof T];
-					row[relationName as keyof T] = (dataMap.get(fkValue as number) || null) as T[keyof T];
+					row[relationName as keyof T] = (dataMap.get(fkValue as number) ||
+						null) as T[keyof T];
 					delete row[fkColumn as keyof T];
 				}
 			} else if (relation.kind === "hasMany") {
@@ -504,7 +519,10 @@ export class PostgresPopulator {
         `;
 				const batchResult = await this.pool.query(batchQuery, [parentIds]);
 
-				let allRelatedRows: ForjaEntry[] = batchResult.rows.map((r) => ({ ...r.data as ForjaEntry, _fk: r._fk }));
+				let allRelatedRows: ForjaEntry[] = batchResult.rows.map((r) => ({
+					...(r.data as ForjaEntry),
+					_fk: r._fk,
+				}));
 
 				const nestedPopulate = (options as Record<string, unknown>)?.populate;
 				if (nestedPopulate && allRelatedRows.length > 0) {
@@ -522,7 +540,8 @@ export class PostgresPopulator {
 					groupMap.get(fk)!.push(r);
 				}
 				for (const row of rows) {
-					row[relationName as keyof T] = (groupMap.get(row.id) || []) as T[keyof T];
+					row[relationName as keyof T] = (groupMap.get(row.id) ||
+						[]) as T[keyof T];
 				}
 			} else if (relation.kind === "manyToMany") {
 				const junctionTable = relation.through!;
@@ -539,7 +558,10 @@ export class PostgresPopulator {
         `;
 				const batchResult = await this.pool.query(batchQuery, [parentIds]);
 
-				let allRelatedRows: ForjaEntry[] = batchResult.rows.map((r) => ({ ...r.data as ForjaEntry, _fk: r._fk }));
+				let allRelatedRows: ForjaEntry[] = batchResult.rows.map((r) => ({
+					...(r.data as ForjaEntry),
+					_fk: r._fk,
+				}));
 
 				const nestedPopulate = (options as Record<string, unknown>)?.populate;
 				if (nestedPopulate && allRelatedRows.length > 0) {
@@ -557,7 +579,8 @@ export class PostgresPopulator {
 					groupMap.get(fk)!.push(r);
 				}
 				for (const row of rows) {
-					row[relationName as keyof T] = (groupMap.get(row.id) || []) as T[keyof T];
+					row[relationName as keyof T] = (groupMap.get(row.id) ||
+						[]) as T[keyof T];
 				}
 			}
 		}

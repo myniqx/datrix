@@ -213,7 +213,8 @@ export function throwDeleteWithoutWhere(): never {
 		{
 			code: "DELETE_WITHOUT_WHERE",
 			component: "builder",
-			suggestion: "Add .where() clause or use deleteAll() for full table deletion",
+			suggestion:
+				"Add .where() clause or use deleteAll() for full table deletion",
 		},
 	);
 }

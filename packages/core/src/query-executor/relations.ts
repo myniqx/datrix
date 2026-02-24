@@ -103,8 +103,7 @@ export async function resolveRelationCUD<T extends ForjaEntry>(
 	const resolved: Record<string, ResolvedRelationOps> = {};
 
 	for (const [fieldName, relationData] of Object.entries(relations)) {
-		const relData =
-			relationData as NormalizedRelationOperations<ForjaEntry>;
+		const relData = relationData as NormalizedRelationOperations<ForjaEntry>;
 		const field = schema.fields[fieldName];
 		if (!field || field.type !== "relation") {
 			continue;
@@ -146,11 +145,16 @@ export async function resolveRelationCUD<T extends ForjaEntry>(
 			// Bulk insert plain items (no nested relations)
 			if (plainItems.length > 0) {
 				const validatedBulkData = plainItems.map((item) =>
-					validateData<ForjaEntry, false>(item.data, item.relations, relSchema, {
-						partial: false,
-						isCreate: true,
-						isRawMode: true,
-					}),
+					validateData<ForjaEntry, false>(
+						item.data,
+						item.relations,
+						relSchema,
+						{
+							partial: false,
+							isCreate: true,
+							isRawMode: true,
+						},
+					),
 				);
 				const bulkResult = await runner.executeQuery<ForjaEntry>({
 					type: "insert",
@@ -172,11 +176,16 @@ export async function resolveRelationCUD<T extends ForjaEntry>(
 
 			// Items with nested relations must be inserted individually
 			for (const createItem of nestedItems) {
-				const validatedData = validateData<ForjaEntry, false>(createItem.data, createItem.relations, relSchema, {
-					partial: false,
-					isCreate: true,
-					isRawMode: true,
-				});
+				const validatedData = validateData<ForjaEntry, false>(
+					createItem.data,
+					createItem.relations,
+					relSchema,
+					{
+						partial: false,
+						isCreate: true,
+						isRawMode: true,
+					},
+				);
 				const createResult = await runner.executeQuery<ForjaEntry>({
 					type: "insert",
 					table: relSchema.tableName!,
@@ -218,11 +227,16 @@ export async function resolveRelationCUD<T extends ForjaEntry>(
 			for (const updateItem of relData.update) {
 				const { where, data, relations: nestedRelations } = updateItem;
 
-				const validatedData = validateData<ForjaEntry, true>(data, nestedRelations, relSchema, {
-					partial: true,
-					isCreate: false,
-					isRawMode: true,
-				});
+				const validatedData = validateData<ForjaEntry, true>(
+					data,
+					nestedRelations,
+					relSchema,
+					{
+						partial: true,
+						isCreate: false,
+						isRawMode: true,
+					},
+				);
 				const updateResult = await runner.executeQuery<ForjaEntry>({
 					type: "update",
 					table: relSchema.tableName!,

@@ -198,7 +198,9 @@ describe("Edge Cases", () => {
 				title: "Post with newlines",
 				content: "Line 1\nLine 2\nLine 3",
 				slug: "post-newlines",
-				author: (await forja.create("user", { email: "newline@test.com", name: "NL" })).id,
+				author: (
+					await forja.create("user", { email: "newline@test.com", name: "NL" })
+				).id,
 			});
 
 			expect(post.content).toContain("\n");
@@ -259,7 +261,7 @@ describe("Edge Cases", () => {
 			});
 
 			const found = await forja.findOne("user", {
-				name: { $like: "%🔥%" }
+				name: { $like: "%🔥%" },
 			});
 
 			expect(found).not.toBeNull();
@@ -443,16 +445,10 @@ describe("Edge Cases", () => {
 				where: {
 					$or: [
 						{
-							$and: [
-								{ isActive: true },
-								{ age: { $gte: 30 } },
-							],
+							$and: [{ isActive: true }, { age: { $gte: 30 } }],
 						},
 						{
-							$and: [
-								{ isActive: false },
-								{ age: { $lt: 30 } },
-							],
+							$and: [{ isActive: false }, { age: { $lt: 30 } }],
 						},
 					],
 				},

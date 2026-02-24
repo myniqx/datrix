@@ -1,4 +1,8 @@
-import { QuerySelect, QuerySelectObject, WhereClause } from "forja-types/core/query-builder";
+import {
+	QuerySelect,
+	QuerySelectObject,
+	WhereClause,
+} from "forja-types/core/query-builder";
 import type { JsonAdapter } from "./adapter";
 import type { ForjaEntry, RelationField } from "forja-types/core/schema";
 import {
@@ -10,7 +14,7 @@ import {
 import { JsonQueryRunner } from "./runner";
 
 export class JsonPopulator {
-	constructor(private adapter: JsonAdapter) { }
+	constructor(private adapter: JsonAdapter) {}
 
 	async populate<T extends ForjaEntry>(
 		rows: T[],
@@ -78,9 +82,7 @@ export class JsonPopulator {
 				const ids = new Set(
 					result
 						.map((r) => r[foreignKey as keyof T] as number)
-						.filter(
-							(id): id is number => id !== null && id !== undefined,
-						),
+						.filter((id): id is number => id !== null && id !== undefined),
 				);
 
 				const relatedMap = new Map<number, Record<string, unknown>>();
@@ -94,9 +96,13 @@ export class JsonPopulator {
 				}
 
 				for (const row of result) {
-					const fkValue = row[foreignKey as keyof T] as number | null | undefined;
+					const fkValue = row[foreignKey as keyof T] as
+						| number
+						| null
+						| undefined;
 					if (fkValue !== null && fkValue !== undefined) {
-						row[relationName as keyof T] = (relatedMap.get(fkValue) ?? null) as T[keyof T];
+						row[relationName as keyof T] = (relatedMap.get(fkValue) ??
+							null) as T[keyof T];
 					} else {
 						row[relationName as keyof T] = null as T[keyof T];
 					}
@@ -106,18 +112,13 @@ export class JsonPopulator {
 				const sourceIds = new Set(
 					result
 						.map((r) => r["id"])
-						.filter(
-							(id): id is number => id !== null && id !== undefined,
-						),
+						.filter((id): id is number => id !== null && id !== undefined),
 				);
 
 				// Group related items by FK
 				const grouped = new Map<string | number, Record<string, unknown>[]>();
 				for (const item of relatedData) {
-					const fkValue = item[foreignKey] as
-						| number
-						| null
-						| undefined;
+					const fkValue = item[foreignKey] as number | null | undefined;
 					if (
 						fkValue !== null &&
 						fkValue !== undefined &&
@@ -156,9 +157,7 @@ export class JsonPopulator {
 				// Collect source IDs
 				const sourceIds = result
 					.map((r) => r["id"])
-					.filter(
-						(id): id is number => id !== null && id !== undefined,
-					);
+					.filter((id): id is number => id !== null && id !== undefined);
 
 				if (sourceIds.length === 0) continue;
 

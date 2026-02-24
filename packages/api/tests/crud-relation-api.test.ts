@@ -574,7 +574,9 @@ describe("CRUD Relation API Tests", () => {
 
 		it("should merge created tag IDs with existing connect IDs (manyToMany create + connect)", async () => {
 			// Create existing tag
-			const existingTagRes = await postRequest("/api/tags", { name: "existing-merge-tag" });
+			const existingTagRes = await postRequest("/api/tags", {
+				name: "existing-merge-tag",
+			});
 			const existingTag = await expectApiSingle(existingTagRes, 201);
 
 			// Create post: connect existing + create new
@@ -613,19 +615,18 @@ describe("CRUD Relation API Tests", () => {
 			const post = await expectApiSingle(createRes, 201);
 
 			// Update: set (replaces all) + create (new tag merged into set)
-			const updateRes = await putRequest(
-				`/api/posts/${post.id}`,
-				{
-					tags: {
-						set: [], // Remove all existing
-						create: [{ name: "fresh-set-tag" }], // Create new, should merge into set
-					},
+			const updateRes = await putRequest(`/api/posts/${post.id}`, {
+				tags: {
+					set: [], // Remove all existing
+					create: [{ name: "fresh-set-tag" }], // Create new, should merge into set
 				},
-			);
+			});
 			await expectApiSingle(updateRes);
 
 			// Verify: only the new tag should be connected
-			const fetchRes = await getRequest(`/api/posts/${post.id}?populate[tags]=true`);
+			const fetchRes = await getRequest(
+				`/api/posts/${post.id}?populate[tags]=true`,
+			);
 			const fetched = await expectApiSingle(fetchRes);
 			expect(fetched.tags).toHaveLength(1);
 			expect(fetched.tags[0].name).toBe("fresh-set-tag");
@@ -709,21 +710,20 @@ describe("CRUD Relation API Tests", () => {
 			const post = await expectApiSingle(postRes, 201);
 
 			// Update post with nested author update
-			const updateRes = await putRequest(
-				`/api/posts/${post.id}`,
-				{
-					author: {
-						update: {
-							where: { id: author.id },
-							data: { name: "Renamed Author" },
-						},
+			const updateRes = await putRequest(`/api/posts/${post.id}`, {
+				author: {
+					update: {
+						where: { id: author.id },
+						data: { name: "Renamed Author" },
 					},
 				},
-			);
+			});
 			await expectApiSingle(updateRes);
 
 			// Verify author name changed
-			const fetchAuthorRes = await getRequest(`/api/authors/${author.id}?populate=true`);
+			const fetchAuthorRes = await getRequest(
+				`/api/authors/${author.id}?populate=true`,
+			);
 			const fetchedAuthor = await expectApiSingle(fetchAuthorRes);
 			expect(fetchedAuthor.name).toBe("Renamed Author");
 		});
@@ -816,10 +816,7 @@ describe("CRUD Relation API Tests", () => {
 						},
 					},
 					tags: {
-						create: [
-							{ name: "multi-rel-tag-1" },
-							{ name: "multi-rel-tag-2" },
-						],
+						create: [{ name: "multi-rel-tag-1" }, { name: "multi-rel-tag-2" }],
 					},
 				},
 				{
@@ -854,20 +851,19 @@ describe("CRUD Relation API Tests", () => {
 			const post = await expectApiSingle(postRes, 201);
 
 			// Mixed: create new + connect existing + disconnect existing
-			const updateRes = await putRequest(
-				`/api/posts/${post.id}`,
-				{
-					tags: {
-						create: [{ name: "brand-new-tag" }],
-						connect: [tag3.id],
-						disconnect: [tag2.id],
-					},
+			const updateRes = await putRequest(`/api/posts/${post.id}`, {
+				tags: {
+					create: [{ name: "brand-new-tag" }],
+					connect: [tag3.id],
+					disconnect: [tag2.id],
 				},
-			);
+			});
 			await expectApiSingle(updateRes);
 
 			// Verify final state
-			const fetchRes = await getRequest(`/api/posts/${post.id}?populate[tags]=true`);
+			const fetchRes = await getRequest(
+				`/api/posts/${post.id}?populate[tags]=true`,
+			);
 			const fetched = await expectApiSingle(fetchRes);
 
 			// Should have: keep-tag, add-tag, brand-new-tag (3 total)
@@ -896,18 +892,17 @@ describe("CRUD Relation API Tests", () => {
 			expect(author.company.name).toBe("OldCo");
 
 			// Update: create new company (replaces old via belongsTo)
-			const updateRes = await putRequest(
-				`/api/authors/${author.id}`,
-				{
-					company: {
-						create: { name: "NewCo", country: "DE" },
-					},
+			const updateRes = await putRequest(`/api/authors/${author.id}`, {
+				company: {
+					create: { name: "NewCo", country: "DE" },
 				},
-			);
+			});
 			await expectApiSingle(updateRes);
 
 			// Verify new company is assigned
-			const fetchRes = await getRequest(`/api/authors/${author.id}?populate[company]=true`);
+			const fetchRes = await getRequest(
+				`/api/authors/${author.id}?populate[company]=true`,
+			);
 			const fetched = await expectApiSingle(fetchRes);
 			expect(fetched.company).toBeDefined();
 			expect(fetched.company.name).toBe("NewCo");

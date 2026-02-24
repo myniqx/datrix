@@ -4,7 +4,10 @@
  * Type definitions specific to MySQL adapter.
  */
 import { FieldType, ForjaEntry } from "forja-types/core/schema";
-import { QueryPopulate, QuerySelectObject } from "forja-types/core/query-builder";
+import {
+	QueryPopulate,
+	QuerySelectObject,
+} from "forja-types/core/query-builder";
 import { PopulateStrategy } from "./populate/types";
 
 /**
@@ -48,13 +51,13 @@ export interface MySQLConfig {
 	 * SSL configuration
 	 */
 	readonly ssl?:
-	| boolean
-	| {
-		readonly rejectUnauthorized?: boolean;
-		readonly ca?: string;
-		readonly cert?: string;
-		readonly key?: string;
-	};
+		| boolean
+		| {
+				readonly rejectUnauthorized?: boolean;
+				readonly ca?: string;
+				readonly cert?: string;
+				readonly key?: string;
+		  };
 
 	/**
 	 * Maximum number of connections in pool
@@ -411,8 +414,9 @@ export interface TranslateResult {
 /**
  * MySQL query object with metadata (extends QuerySelectObject since populate is only for SELECT)
  */
-export interface MySQLQueryObject<T extends ForjaEntry>
-	extends QuerySelectObject<T> {
+export interface MySQLQueryObject<
+	T extends ForjaEntry,
+> extends QuerySelectObject<T> {
 	_metadata?: {
 		populateAggregations?: string | undefined;
 		populateJoins?: string | undefined;

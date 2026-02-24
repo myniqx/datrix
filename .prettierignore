@@ -5,6 +5,10 @@ pnpm-lock.yaml
 # Build outputs
 dist
 build
+.next
+.nuxt
+.output
+.svelte-kit
 *.tsbuildinfo
 
 # Coverage

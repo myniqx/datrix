@@ -235,7 +235,8 @@ async function generateTypes(
 ): Promise<Result<void, CLIError>> {
 	try {
 		const schemas = forja.getAllSchemas();
-		const outputPath = options.output ?? join(process.cwd(), "types", "generated.ts");
+		const outputPath =
+			options.output ?? join(process.cwd(), "types", "generated.ts");
 
 		logger.log("");
 		logger.info(`Generating types for ${schemas.length} schemas`);

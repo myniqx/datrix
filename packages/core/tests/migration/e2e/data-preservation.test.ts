@@ -288,14 +288,24 @@ describe("Migration E2E - Data Preservation", () => {
 			}
 
 			// Insert test data
-			const tech = await forja1.create("category", { name: "Tech", slug: "tech" });
-			const news = await forja1.create("category", { name: "News", slug: "news" });
-			const post1 = await forja1.create("post", {
-				title: "Tech Post",
-				category: { set: tech.id },
-			}, {
-				populate: true
+			const tech = await forja1.create("category", {
+				name: "Tech",
+				slug: "tech",
 			});
+			const news = await forja1.create("category", {
+				name: "News",
+				slug: "news",
+			});
+			const post1 = await forja1.create(
+				"post",
+				{
+					title: "Tech Post",
+					category: { set: tech.id },
+				},
+				{
+					populate: true,
+				},
+			);
 			const post2 = await forja1.create("post", {
 				title: "News Post",
 				category: { set: news.id },
@@ -310,7 +320,11 @@ describe("Migration E2E - Data Preservation", () => {
 			// Change to manyToMany
 			const postWithCategories = cloneSchema(basePostSchemaNoRelation, {
 				addFields: {
-					categories: { type: "relation", kind: "manyToMany", model: "category" },
+					categories: {
+						type: "relation",
+						kind: "manyToMany",
+						model: "category",
+					},
 				},
 			});
 
@@ -335,9 +349,21 @@ describe("Migration E2E - Data Preservation", () => {
 			await assertTableExists(forja, "category_post");
 
 			// Verify data migrated to junction table
-			const post1WithCats = await forja.findOne("post", { id: { $eq: post1.id } }, { populate: true });
-			const post2WithCats = await forja.findOne("post", { id: { $eq: post2.id } }, { populate: true });
-			const post3WithCats = await forja.findOne("post", { id: { $eq: post3.id } }, { populate: true });
+			const post1WithCats = await forja.findOne(
+				"post",
+				{ id: { $eq: post1.id } },
+				{ populate: true },
+			);
+			const post2WithCats = await forja.findOne(
+				"post",
+				{ id: { $eq: post2.id } },
+				{ populate: true },
+			);
+			const post3WithCats = await forja.findOne(
+				"post",
+				{ id: { $eq: post3.id } },
+				{ populate: true },
+			);
 
 			expect(post1WithCats?.categories).toHaveLength(1);
 			expect(post1WithCats?.categories[0]?.id).toBe(tech.id);
@@ -377,9 +403,18 @@ describe("Migration E2E - Data Preservation", () => {
 			const post = await forja1.create("post", { title: "Multi-tag Post" });
 
 			// Add multiple tags to post
-			await forja1.create("post_tag", { post: { set: post.id }, tag: { set: js.id } });
-			await forja1.create("post_tag", { post: { set: post.id }, tag: { set: ts.id } });
-			await forja1.create("post_tag", { post: { set: post.id }, tag: { set: react.id } });
+			await forja1.create("post_tag", {
+				post: { set: post.id },
+				tag: { set: js.id },
+			});
+			await forja1.create("post_tag", {
+				post: { set: post.id },
+				tag: { set: ts.id },
+			});
+			await forja1.create("post_tag", {
+				post: { set: post.id },
+				tag: { set: react.id },
+			});
 
 			await forja1.shutdown();
 
@@ -413,7 +448,11 @@ describe("Migration E2E - Data Preservation", () => {
 			// Verify FK column exists with first tag's ID
 			await assertColumnExists(forja, "post", "tagId");
 
-			const updatedPost = await forja.findOne("post", { id: { $eq: post.id } }, { populate: true });
+			const updatedPost = await forja.findOne(
+				"post",
+				{ id: { $eq: post.id } },
+				{ populate: true },
+			);
 			expect(updatedPost?.tag?.id).toBe(js.id);
 
 			await forja.shutdown();
@@ -442,9 +481,18 @@ describe("Migration E2E - Data Preservation", () => {
 			const tag2 = await forja1.create("tag", { name: "Tag2" });
 			const tag3 = await forja1.create("tag", { name: "Tag3" });
 			const post = await forja1.create("post", { title: "Post" });
-			await forja1.create("post_tag", { post: { set: post.id }, tag: { set: tag1.id } });
-			await forja1.create("post_tag", { post: { set: post.id }, tag: { set: tag2.id } });
-			await forja1.create("post_tag", { post: { set: post.id }, tag: { set: tag3.id } });
+			await forja1.create("post_tag", {
+				post: { set: post.id },
+				tag: { set: tag1.id },
+			});
+			await forja1.create("post_tag", {
+				post: { set: post.id },
+				tag: { set: tag2.id },
+			});
+			await forja1.create("post_tag", {
+				post: { set: post.id },
+				tag: { set: tag3.id },
+			});
 
 			await forja1.shutdown();
 
@@ -469,7 +517,10 @@ describe("Migration E2E - Data Preservation", () => {
 			const session = sessionResult.data;
 
 			// relation_downgrade_many_to_single ambiguous is detected with data loss warning
-			const ambiguous = assertAmbiguousExists(session, "relation_downgrade_many_to_single");
+			const ambiguous = assertAmbiguousExists(
+				session,
+				"relation_downgrade_many_to_single",
+			);
 			expect(ambiguous.warning).toContain("lose data");
 
 			await forja.shutdown();

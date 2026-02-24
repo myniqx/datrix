@@ -201,7 +201,10 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 
 			const { sql, params } = this.getTranslator().translate(query);
 			lastSql = sql;
-			const result = await queryRunner.query<QueryResultRow>(sql, params as unknown[]);
+			const result = await queryRunner.query<QueryResultRow>(
+				sql,
+				params as unknown[],
+			);
 
 			if (query.type === "select") {
 				const rows = result.rows as unknown as readonly TResult[];
@@ -213,7 +216,9 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 			}
 
 			if (query.type === "count") {
-				const countRow = result.rows[0] as { count: string | number } | undefined;
+				const countRow = result.rows[0] as
+					| { count: string | number }
+					| undefined;
 				const count = countRow
 					? typeof countRow.count === "string"
 						? parseInt(countRow.count, 10)
@@ -383,19 +388,41 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 
 		try {
 			const columns: string[] = [];
+			const foreignKeyConstraints: string[] = [];
 
 			// Add fields
 			for (const [fieldName, field] of Object.entries(schema.fields)) {
 				if (field.type === "relation") continue;
 				const columnDef = this.buildColumnDefinition(fieldName, field);
 				columns.push(columnDef);
+
+				// Collect FOREIGN KEY constraints from number fields with references
+				if (field.type === "number" && field.references) {
+					const col = this.getTranslator().escapeIdentifier(fieldName);
+					const refTable = this.getTranslator().escapeIdentifier(
+						field.references.table,
+					);
+					const refCol = this.getTranslator().escapeIdentifier(
+						field.references.column ?? "id",
+					);
+					const onDelete = field.references.onDelete
+						? ` ON DELETE ${field.references.onDelete === "setNull" ? "SET NULL" : field.references.onDelete.toUpperCase()}`
+						: "";
+					const onUpdate = field.references.onUpdate
+						? ` ON UPDATE ${field.references.onUpdate.toUpperCase()}`
+						: "";
+					foreignKeyConstraints.push(
+						`FOREIGN KEY (${col}) REFERENCES ${refTable} (${refCol})${onDelete}${onUpdate}`,
+					);
+				}
 			}
 
 			// Build CREATE TABLE statement
 			const tableName = this.getTranslator().escapeIdentifier(
 				schema.tableName!,
 			);
-			const sql = `CREATE TABLE ${tableName} (\n  ${columns.join(",\n  ")}\n)`;
+			const allDefinitions = [...columns, ...foreignKeyConstraints];
+			const sql = `CREATE TABLE ${tableName} (\n  ${allDefinitions.join(",\n  ")}\n)`;
 
 			console.log("Creating Schema", { sql });
 			await this.pool.query(sql);
@@ -473,7 +500,9 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 			const translator = this.getTranslator();
 			const escapedFrom = translator.escapeIdentifier(from);
 			const escapedTo = translator.escapeIdentifier(to);
-			await this.pool.query(`ALTER TABLE ${escapedFrom} RENAME TO ${escapedTo}`);
+			await this.pool.query(
+				`ALTER TABLE ${escapedFrom} RENAME TO ${escapedTo}`,
+			);
 
 			return { success: true, data: undefined };
 		} catch (error) {
@@ -646,7 +675,9 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	/**
 	 * Get all table names
 	 */
-	async getTables<TResult extends ForjaEntry>(): Promise<Result<readonly string[], QueryError<TResult>>> {
+	async getTables<TResult extends ForjaEntry>(): Promise<
+		Result<readonly string[], QueryError<TResult>>
+	> {
 		if (!this.pool) {
 			return {
 				success: false,
@@ -901,11 +932,7 @@ class PostgresTransaction implements Transaction {
 	private rolledBack = false;
 	private aborted = false;
 
-	constructor(
-		client: PoolClient,
-		adapter: PostgresAdapter,
-		id: string,
-	) {
+	constructor(client: PoolClient, adapter: PostgresAdapter, id: string) {
 		this.client = client;
 		this.adapter = adapter;
 		this.id = id;
@@ -988,7 +1015,10 @@ class PostgresTransaction implements Transaction {
 			const message = error instanceof Error ? error.message : String(error);
 			return {
 				success: false,
-				error: new QueryError(`Raw query failed: ${message}`, { sql, details: error }),
+				error: new QueryError(`Raw query failed: ${message}`, {
+					sql,
+					details: error,
+				}),
 			};
 		}
 	}

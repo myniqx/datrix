@@ -195,9 +195,7 @@ export const migration: Migration = {
 /**
  * Generate config template
  */
-export function configTemplate(
-	dbType: "postgres" | "mysql" | "json",
-): string {
+export function configTemplate(dbType: "postgres" | "mysql" | "json"): string {
 	const adapterImport: Record<string, string> = {
 		postgres: "import { createPostgresAdapter } from 'forja-adapter-postgres';",
 		mysql: "import { createMySqlAdapter } from 'forja-adapter-mysql';",

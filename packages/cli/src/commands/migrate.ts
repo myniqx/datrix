@@ -8,10 +8,23 @@
  * - Status display (--status)
  */
 
-import type { MigrationSession, MigrationPlan, AmbiguousChange } from "forja-core";
+import type {
+	MigrationSession,
+	MigrationPlan,
+	AmbiguousChange,
+} from "forja-core";
 import type { MigrateCommandOptions } from "../types";
 import { CLIError } from "../types";
-import { logger, spinner, formatError, printTable, green, yellow, red, cyan } from "../utils/logger";
+import {
+	logger,
+	spinner,
+	formatError,
+	printTable,
+	green,
+	yellow,
+	red,
+	cyan,
+} from "../utils/logger";
 import { Result } from "forja-types/utils";
 import * as readline from "readline";
 
@@ -101,7 +114,9 @@ async function resolveAmbiguousChanges(
 
 	logger.log("");
 	logger.log(yellow("Ambiguous changes detected:"));
-	logger.log("The following changes could be either renames or drop+add operations.");
+	logger.log(
+		"The following changes could be either renames or drop+add operations.",
+	);
 	logger.log("");
 
 	for (const change of ambiguous) {
@@ -217,10 +232,13 @@ async function runPendingMigrations(
 	// Display results
 	logger.log("");
 	logger.log("Results:");
-	const rows: (readonly string[])[] = [["Migration", "Status", "Time (ms)"] as const];
+	const rows: (readonly string[])[] = [
+		["Migration", "Status", "Time (ms)"] as const,
+	];
 
 	for (const result of applyResult.data) {
-		const status = result.status === "completed" ? green("✔ Success") : red("✖ Failed");
+		const status =
+			result.status === "completed" ? green("✔ Success") : red("✖ Failed");
 		rows.push([
 			result.migration.metadata.name,
 			status,
@@ -291,7 +309,9 @@ export async function displayMigrationStatus(
 				logger.log(`Tables to alter: ${plan.tablesToAlter.length}`);
 				logger.log(`Total operations: ${plan.operations.length}`);
 			} else {
-				logger.log("Pending changes detected (resolve ambiguous changes to see details)");
+				logger.log(
+					"Pending changes detected (resolve ambiguous changes to see details)",
+				);
 			}
 		}
 

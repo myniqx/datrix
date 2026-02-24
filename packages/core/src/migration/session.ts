@@ -312,7 +312,8 @@ export class MigrationSession {
 				for (const addedTable of addedTables) {
 					if (addedTable.type !== "tableAdded") continue;
 
-					const junctionName = addedTable.schema.tableName ?? addedTable.schema.name;
+					const junctionName =
+						addedTable.schema.tableName ?? addedTable.schema.name;
 
 					// Check if junction table name contains both table names
 					if (this.isJunctionTableFor(junctionName, tableName, relationName)) {
@@ -326,7 +327,8 @@ export class MigrationSession {
 							type: "relation_upgrade_single_to_many",
 							removedName: removedDiff.fieldName,
 							addedName: junctionName,
-							warning: "Existing single relations can be migrated to junction table.",
+							warning:
+								"Existing single relations can be migrated to junction table.",
 							possibleActions: [
 								{
 									type: "migrate_to_junction",
@@ -375,7 +377,8 @@ export class MigrationSession {
 							type: "relation_downgrade_many_to_single",
 							removedName: junctionName,
 							addedName: addedDiff.fieldName,
-							warning: "Records with multiple relations will lose data! Only first relation will be kept.",
+							warning:
+								"Records with multiple relations will lose data! Only first relation will be kept.",
 							possibleActions: [
 								{
 									type: "migrate_first",
@@ -470,7 +473,8 @@ export class MigrationSession {
 						type: "junction_table_rename_or_replace",
 						removedName: oldName,
 						addedName: newName,
-						warning: "Renaming junction tables may cause issues if referenced elsewhere.",
+						warning:
+							"Renaming junction tables may cause issues if referenced elsewhere.",
 						possibleActions: [
 							{
 								type: "rename",
@@ -699,7 +703,8 @@ export class MigrationSession {
 				const newDef = diff.newDefinition;
 
 				if (oldDef.type !== "relation" || newDef.type !== "relation") continue;
-				if (oldDef.kind !== "belongsTo" || newDef.kind !== "belongsTo") continue;
+				if (oldDef.kind !== "belongsTo" || newDef.kind !== "belongsTo")
+					continue;
 				if (oldDef.model === newDef.model) continue;
 
 				const diffKey = `${tableName}.${diff.fieldName}`;
@@ -878,7 +883,12 @@ export class MigrationSession {
 		if (word.endsWith("y")) {
 			return word.slice(0, -1) + "ies";
 		}
-		if (word.endsWith("s") || word.endsWith("x") || word.endsWith("ch") || word.endsWith("sh")) {
+		if (
+			word.endsWith("s") ||
+			word.endsWith("x") ||
+			word.endsWith("ch") ||
+			word.endsWith("sh")
+		) {
 			return word + "es";
 		}
 		return word + "s";
@@ -954,7 +964,9 @@ export class MigrationSession {
 	get tablesToCreate(): readonly SchemaDefinition[] {
 		return this.differences
 			.filter((d) => d.type === "tableAdded")
-			.map((d) => (d as { type: "tableAdded"; schema: SchemaDefinition }).schema);
+			.map(
+				(d) => (d as { type: "tableAdded"; schema: SchemaDefinition }).schema,
+			);
 	}
 
 	/**
@@ -969,7 +981,10 @@ export class MigrationSession {
 	/**
 	 * Get tables to alter
 	 */
-	get tablesToAlter(): readonly { tableName: string; changes: readonly SchemaDiff[] }[] {
+	get tablesToAlter(): readonly {
+		tableName: string;
+		changes: readonly SchemaDiff[];
+	}[] {
 		const alterations = new Map<string, SchemaDiff[]>();
 
 		for (const diff of this.differences) {
@@ -1184,7 +1199,9 @@ export class MigrationSession {
 			};
 		}
 
-		const operationsResult = this.generator.generateOperations(this.differences);
+		const operationsResult = this.generator.generateOperations(
+			this.differences,
+		);
 		if (!operationsResult.success) {
 			return {
 				success: false,
@@ -1207,7 +1224,9 @@ export class MigrationSession {
 	/**
 	 * Apply migrations
 	 */
-	async apply(): Promise<Result<readonly MigrationResult[], MigrationSystemError>> {
+	async apply(): Promise<
+		Result<readonly MigrationResult[], MigrationSystemError>
+	> {
 		if (this.hasUnresolvedAmbiguous()) {
 			return {
 				success: false,
@@ -1239,18 +1258,18 @@ export class MigrationSession {
 		const baseMigration = migrationResult.data;
 
 		// Inject data transfer operations for resolved migrate_to_junction / migrate_first
-		const enrichedOperations = this.injectDataTransferOperations(baseMigration.operations);
+		const enrichedOperations = this.injectDataTransferOperations(
+			baseMigration.operations,
+		);
 		const migration: Migration = {
 			...baseMigration,
 			operations: enrichedOperations,
 		};
 
 		// Create runner and execute
-		const runner = new ForgeMigrationRunner(
-			this.adapter,
-			this.history,
-			[migration],
-		);
+		const runner = new ForgeMigrationRunner(this.adapter, this.history, [
+			migration,
+		]);
 
 		const runResult = await runner.runPending();
 		if (!runResult.success) {
@@ -1286,15 +1305,19 @@ export class MigrationSession {
 
 				// Find insert position: after createTable(junction)
 				const createIdx = result.findIndex(
-					(op) => op.type === "createTable" &&
-						((op.schema.tableName ?? op.schema.name) === junctionTable),
+					(op) =>
+						op.type === "createTable" &&
+						(op.schema.tableName ?? op.schema.name) === junctionTable,
 				);
 
 				// Find drop position: before alterTable(sourceTable) that drops fkCol
 				const dropIdx = result.findIndex(
-					(op) => op.type === "alterTable" &&
+					(op) =>
+						op.type === "alterTable" &&
 						op.tableName === sourceTable &&
-						op.operations.some((o) => o.type === "dropColumn" && o.column === sourceFkCol),
+						op.operations.some(
+							(o) => o.type === "dropColumn" && o.column === sourceFkCol,
+						),
 				);
 
 				if (createIdx === -1 || dropIdx === -1) continue;
@@ -1303,7 +1326,10 @@ export class MigrationSession {
 					type: "dataTransfer",
 					description: `Migrate '${sourceTable}.${sourceFkCol}' values to junction table '${junctionTable}'`,
 					execute: async (runner: QueryRunner) => {
-						const selectResult = await runner.executeQuery<{ id: string | number; [key: string]: unknown }>({
+						const selectResult = await runner.executeQuery<{
+							id: string | number;
+							[key: string]: unknown;
+						}>({
 							type: "select",
 							table: sourceTable,
 							select: ["id", sourceFkCol],
@@ -1338,7 +1364,6 @@ export class MigrationSession {
 				// Insert after createTable, but before drop
 				const insertAt = Math.min(createIdx + 1, dropIdx);
 				result.splice(insertAt, 0, transferOp);
-
 			} else if (ambiguous.resolvedAction?.type === "migrate_first") {
 				const junctionTable = ambiguous.removedName; // e.g. "post_tag"
 				const targetFkCol = ambiguous.addedName; // e.g. "tagId"
@@ -1346,9 +1371,12 @@ export class MigrationSession {
 
 				// Find insert position: after addColumn(targetFkCol) on targetTable
 				const addColIdx = result.findIndex(
-					(op) => op.type === "alterTable" &&
+					(op) =>
+						op.type === "alterTable" &&
 						op.tableName === targetTable &&
-						op.operations.some((o) => o.type === "addColumn" && o.column === targetFkCol),
+						op.operations.some(
+							(o) => o.type === "addColumn" && o.column === targetFkCol,
+						),
 				);
 
 				// Find drop position: before dropTable(junction)
@@ -1367,7 +1395,9 @@ export class MigrationSession {
 					type: "dataTransfer",
 					description: `Migrate first relation from '${junctionTable}' to '${targetTable}.${targetFkCol}'`,
 					execute: async (runner: QueryRunner) => {
-						const selectResult = await runner.executeQuery<{ [key: string]: unknown }>({
+						const selectResult = await runner.executeQuery<{
+							[key: string]: unknown;
+						}>({
 							type: "select",
 							table: junctionTable,
 							select: [sourceFkCol, relatedFkCol],
@@ -1408,7 +1438,9 @@ export class MigrationSession {
 	/**
 	 * Get dry-run preview of what would be applied
 	 */
-	async preview(): Promise<Result<readonly MigrationOperation[], MigrationSystemError>> {
+	async preview(): Promise<
+		Result<readonly MigrationOperation[], MigrationSystemError>
+	> {
 		const planResult = this.getPlan();
 		if (!planResult.success) {
 			return {

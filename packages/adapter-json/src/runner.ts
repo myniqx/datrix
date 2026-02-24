@@ -6,7 +6,11 @@ import {
 	QuerySelect,
 	QueryCountObject,
 } from "forja-types/core/query-builder";
-import { ForjaEntry, RelationField, SchemaDefinition } from "forja-types/core/schema";
+import {
+	ForjaEntry,
+	RelationField,
+	SchemaDefinition,
+} from "forja-types/core/schema";
 import { JsonTableFile } from "./types";
 import type { JsonAdapter } from "./adapter";
 import {
@@ -18,9 +22,11 @@ export class JsonQueryRunner {
 	constructor(
 		private table: JsonTableFile,
 		private adapter: JsonAdapter,
-	) { }
+	) {}
 
-	async run<T extends ForjaEntry>(query: QuerySelectObject<T> | QueryCountObject<T>): Promise<Partial<T>[]> {
+	async run<T extends ForjaEntry>(
+		query: QuerySelectObject<T> | QueryCountObject<T>,
+	): Promise<Partial<T>[]> {
 		let result = this.table.data as T[];
 
 		// 1. Filter (async for nested relation WHERE support)
@@ -29,13 +35,17 @@ export class JsonQueryRunner {
 				result.map((item) => this.match(item, query.where!)),
 			);
 			result = result.filter((_, i) => matchResults[i]);
-		} else if (query.type === "select" && query.orderBy && query.orderBy.length > 0) {
+		} else if (
+			query.type === "select" &&
+			query.orderBy &&
+			query.orderBy.length > 0
+		) {
 			// No filter but need sort - must copy to avoid mutating original
 			result = [...result];
 		}
 
 		if (query.type === "count") {
-			return result
+			return result;
 		}
 
 		// 3. Project & Distinct
@@ -118,9 +128,9 @@ export class JsonQueryRunner {
 			result = data.map((item) => {
 				const projected: any = {};
 				for (const field of select) {
-					projected[field] = item[field]
+					projected[field] = item[field];
 					if (projected[field] === undefined) {
-						projected[field] = null
+						projected[field] = null;
 					}
 				}
 				return projected;
@@ -192,7 +202,8 @@ export class JsonQueryRunner {
 				continue;
 			}
 			if (key === "$not") {
-				if (await this.match(item, value as WhereClause<T>, schema)) return false;
+				if (await this.match(item, value as WhereClause<T>, schema))
+					return false;
 				continue;
 			}
 
@@ -501,7 +512,9 @@ export class JsonQueryRunner {
 			return value;
 		}
 
-		const schema = this.table.schema as { fields?: Record<string, { type?: string }> };
+		const schema = this.table.schema as {
+			fields?: Record<string, { type?: string }>;
+		};
 		const fieldDef = schema?.fields?.[fieldName];
 
 		if (!fieldDef) return value;
@@ -520,7 +533,11 @@ export class JsonQueryRunner {
 		return value;
 	}
 
-	private sort(a: any, b: any, orderBy: readonly OrderByItem<ForjaEntry>[]): number {
+	private sort(
+		a: any,
+		b: any,
+		orderBy: readonly OrderByItem<ForjaEntry>[],
+	): number {
 		for (const order of orderBy) {
 			const fieldName = order.field;
 			const valA = this.coerceForComparison(a[fieldName], fieldName);

@@ -676,10 +676,19 @@ export class SchemaRegistry {
 					const foreignKey = relation.foreignKey ?? `${fieldName}Id`;
 
 					if (!(foreignKey in enhancedFields)) {
+						const targetTableName =
+							targetSchema.tableName ??
+							this.pluralize(relation.model.toLowerCase());
 						enhancedFields[foreignKey] = {
 							type: "number",
-							required: (field as any).required ?? false,
-							hidden: true, // Hide foreign keys from responses
+							required: relation.required ?? false,
+							hidden: true,
+							references: {
+								table: targetTableName,
+								column: "id",
+								onDelete: relation.onDelete,
+								onUpdate: relation.onUpdate,
+							},
 						};
 					}
 
@@ -696,10 +705,18 @@ export class SchemaRegistry {
 					const targetFields = { ...targetSchema.fields };
 
 					if (!(foreignKey in targetFields)) {
+						const sourceTableName =
+							schema.tableName ?? this.pluralize(schemaName.toLowerCase());
 						targetFields[foreignKey] = {
 							type: "number",
 							required: false,
-							hidden: true, // Hide foreign keys from responses
+							hidden: true,
+							references: {
+								table: sourceTableName,
+								column: "id",
+								onDelete: relation.onDelete,
+								onUpdate: relation.onUpdate,
+							},
 						};
 					}
 
@@ -795,8 +812,26 @@ export class SchemaRegistry {
 					required: true,
 				} as RelationField,
 				// FK fields (added directly, not via processRelations)
-				[sourceFk]: { type: "number", required: true, hidden: true },
-				[targetFk]: { type: "number", required: true, hidden: true },
+				[sourceFk]: {
+					type: "number",
+					required: true,
+					hidden: true,
+					references: {
+						table: this.pluralize(schemaName.toLowerCase()),
+						column: "id",
+						onDelete: "cascade" as const,
+					},
+				},
+				[targetFk]: {
+					type: "number",
+					required: true,
+					hidden: true,
+					references: {
+						table: this.pluralize(relation.model.toLowerCase()),
+						column: "id",
+						onDelete: "cascade" as const,
+					},
+				},
 			},
 			indexes: [
 				{

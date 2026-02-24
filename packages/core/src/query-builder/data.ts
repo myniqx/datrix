@@ -342,7 +342,13 @@ export function processData<T extends ForjaEntry>(
 					normalized = {
 						...normalized,
 						create: [
-							processData(relInput.create, targetSchema, registry, depth + 1, nextVisited),
+							processData(
+								relInput.create,
+								targetSchema,
+								registry,
+								depth + 1,
+								nextVisited,
+							),
 						],
 					};
 				}
@@ -471,7 +477,7 @@ export function processData<T extends ForjaEntry>(
 		data: scalars as Partial<T>,
 		relations:
 			Object.keys(normalizedRelations).length > 0
-				? normalizedRelations as unknown as QueryRelations<T>
+				? (normalizedRelations as unknown as QueryRelations<T>)
 				: undefined,
 	};
 }

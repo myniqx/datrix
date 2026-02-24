@@ -146,7 +146,10 @@ class MockDatabaseAdapter implements DatabaseAdapter {
 		return { success: true, data: undefined };
 	}
 
-	async renameTable(from: string, to: string): Promise<Result<void, QueryError>> {
+	async renameTable(
+		from: string,
+		to: string,
+	): Promise<Result<void, QueryError>> {
 		if (this._shouldFail && this._failOperation === "renameTable") {
 			return { success: false, error: new QueryError("Rename table failed") };
 		}

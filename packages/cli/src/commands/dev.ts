@@ -210,7 +210,9 @@ async function handleSchemaChange(
 
 		const sessionResult = await forja.beginMigrate();
 		if (!sessionResult.success) {
-			logger.error(`Failed to begin migration: ${formatError(sessionResult.error)}`);
+			logger.error(
+				`Failed to begin migration: ${formatError(sessionResult.error)}`,
+			);
 			logger.log("");
 			logger.info(green("✨ Watching for changes..."));
 			return;

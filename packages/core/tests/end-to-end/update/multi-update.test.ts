@@ -40,9 +40,27 @@ describe("Multi Update", () => {
 		orgId = org.id;
 
 		await forja.createMany("user", [
-			{ email: "multi1@test.com", name: "User 1", age: 25, isActive: true, organization: orgId },
-			{ email: "multi2@test.com", name: "User 2", age: 30, isActive: true, organization: orgId },
-			{ email: "multi3@test.com", name: "User 3", age: 35, isActive: false, organization: orgId },
+			{
+				email: "multi1@test.com",
+				name: "User 1",
+				age: 25,
+				isActive: true,
+				organization: orgId,
+			},
+			{
+				email: "multi2@test.com",
+				name: "User 2",
+				age: 30,
+				isActive: true,
+				organization: orgId,
+			},
+			{
+				email: "multi3@test.com",
+				name: "User 3",
+				age: 35,
+				isActive: false,
+				organization: orgId,
+			},
 			{ email: "multi4@test.com", name: "User 4", age: 40, isActive: true },
 			{ email: "multi5@test.com", name: "User 5", age: 45, isActive: false },
 		]);
@@ -141,10 +159,7 @@ describe("Multi Update", () => {
 			const updated = await forja.updateMany(
 				"user",
 				{
-					$and: [
-						{ isActive: false },
-						{ age: { $gte: 40 } },
-					],
+					$and: [{ isActive: false }, { age: { $gte: 40 } }],
 				},
 				{ name: "Inactive Senior" },
 			);
@@ -160,10 +175,7 @@ describe("Multi Update", () => {
 			const updated = await forja.updateMany(
 				"user",
 				{
-					$or: [
-						{ age: 25 },
-						{ age: 45 },
-					],
+					$or: [{ age: 25 }, { age: 45 }],
 				},
 				{ metadata: { ageGroup: "extreme" } },
 			);
@@ -237,11 +249,7 @@ describe("Multi Update", () => {
 		it("should update all records with empty where", async () => {
 			const beforeCount = await forja.count("user");
 
-			const updated = await forja.updateMany(
-				"user",
-				{},
-				{ isActive: true },
-			);
+			const updated = await forja.updateMany("user", {}, { isActive: true });
 
 			expect(updated.length).toBe(beforeCount);
 		});
@@ -253,11 +261,7 @@ describe("Multi Update", () => {
 
 	describe("Return Values", () => {
 		it("should return updated records with new values", async () => {
-			const updated = await forja.updateMany(
-				"user",
-				{ age: 25 },
-				{ age: 26 },
-			);
+			const updated = await forja.updateMany("user", { age: 25 }, { age: 26 });
 
 			for (const user of updated) {
 				expect(user.age).toBe(26);
@@ -277,7 +281,9 @@ describe("Multi Update", () => {
 			);
 
 			for (const user of updated) {
-				expect(new Date(user.updatedAt).getTime()).toBeGreaterThan(before.getTime());
+				expect(new Date(user.updatedAt).getTime()).toBeGreaterThan(
+					before.getTime(),
+				);
 			}
 		});
 
@@ -291,7 +297,9 @@ describe("Multi Update", () => {
 
 			for (const user of updated) {
 				expect(user.organization).toBeDefined();
-				expect((user.organization as { name: string }).name).toBe("Multi Update Org");
+				expect((user.organization as { name: string }).name).toBe(
+					"Multi Update Org",
+				);
 			}
 		});
 	});

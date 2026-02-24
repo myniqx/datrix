@@ -16,7 +16,12 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { Forja } from "forja-core";
 import fs from "node:fs/promises";
-import { createTestConfig, getTmpDir, setupTables, createLargeSchema } from "../setup";
+import {
+	createTestConfig,
+	getTmpDir,
+	setupTables,
+	createLargeSchema,
+} from "../setup";
 
 describe("Large Data Performance", () => {
 	let forja: Forja;
@@ -142,7 +147,9 @@ describe("Large Data Performance", () => {
 
 			expect(duration).toBeLessThan(3000); // 3 seconds
 
-			console.log(`Complex query returned ${users.length} records in ${duration.toFixed(2)}ms`);
+			console.log(
+				`Complex query returned ${users.length} records in ${duration.toFixed(2)}ms`,
+			);
 		});
 	});
 
@@ -184,7 +191,9 @@ describe("Large Data Performance", () => {
 			const avgPageTime = pages.reduce((a, b) => a + b, 0) / pages.length;
 			expect(avgPageTime).toBeLessThan(500); // 500ms per page average
 
-			console.log(`Paginated ${total} records in ${pages.length - 1} pages, total ${totalDuration.toFixed(2)}ms, avg ${avgPageTime.toFixed(2)}ms/page`);
+			console.log(
+				`Paginated ${total} records in ${pages.length - 1} pages, total ${totalDuration.toFixed(2)}ms, avg ${avgPageTime.toFixed(2)}ms/page`,
+			);
 		});
 
 		it("should handle large offset efficiently", async () => {
@@ -240,7 +249,9 @@ describe("Large Data Performance", () => {
 
 			expect(duration).toBeLessThan(10000); // 10 seconds
 
-			console.log(`${updated.length} records updated with complex where in ${duration.toFixed(2)}ms`);
+			console.log(
+				`${updated.length} records updated with complex where in ${duration.toFixed(2)}ms`,
+			);
 		});
 	});
 
@@ -307,7 +318,9 @@ describe("Large Data Performance", () => {
 
 			expect(duration).toBeLessThan(1500); // 1.5 seconds
 
-			console.log(`Complex count returned ${count} in ${duration.toFixed(2)}ms`);
+			console.log(
+				`Complex count returned ${count} in ${duration.toFixed(2)}ms`,
+			);
 		});
 	});
 

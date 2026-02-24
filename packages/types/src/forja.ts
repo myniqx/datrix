@@ -1,23 +1,31 @@
 import { DatabaseAdapter } from "./adapter";
 import { DevConfig, ForjaConfig, MigrationConfig } from "./config";
-import { QueryOrderBy, PopulateClause, SelectClause, WhereClause, OrderByClause } from "./core/query-builder";
+import {
+	QueryOrderBy,
+	PopulateClause,
+	SelectClause,
+	WhereClause,
+	OrderByClause,
+} from "./core/query-builder";
 import { ForjaEntry, SchemaRegistry } from "./core/schema";
 import { ForjaError } from "./errors/forja-error";
 import { ForjaPlugin, QueryAction } from "./plugin";
 import { Result } from "./utils";
 
 export interface RawCrudOptions<T extends ForjaEntry> {
-	select?: SelectClause<T> | undefined
-	populate?: PopulateClause<T> | undefined
-	action?: QueryAction
-	noReturning?: boolean
+	select?: SelectClause<T> | undefined;
+	populate?: PopulateClause<T> | undefined;
+	action?: QueryAction;
+	noReturning?: boolean;
 }
 
-export interface RawFindManyOptions<T extends ForjaEntry> extends RawCrudOptions<T> {
-	orderBy?: OrderByClause<T> | undefined
-	limit?: number | undefined
-	offset?: number | undefined
-	where?: WhereClause<T> | undefined
+export interface RawFindManyOptions<
+	T extends ForjaEntry,
+> extends RawCrudOptions<T> {
+	orderBy?: OrderByClause<T> | undefined;
+	limit?: number | undefined;
+	offset?: number | undefined;
+	where?: WhereClause<T> | undefined;
 }
 
 /**

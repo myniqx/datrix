@@ -14,11 +14,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { Forja } from "forja-core";
 import fs from "node:fs/promises";
-import {
-	createTestConfig,
-	getTmpDir,
-	setupTables,
-} from "../setup";
+import { createTestConfig, getTmpDir, setupTables } from "../setup";
 
 describe("Where Operators", () => {
 	let forja: Forja;
@@ -37,8 +33,18 @@ describe("Where Operators", () => {
 		await forja.createMany("user", [
 			{ email: "alice@test.com", name: "Alice Smith", age: 25, isActive: true },
 			{ email: "bob@test.com", name: "Bob Johnson", age: 30, isActive: true },
-			{ email: "charlie@test.com", name: "Charlie Brown", age: 35, isActive: false },
-			{ email: "diana@test.com", name: "Diana Prince", age: 28, isActive: true },
+			{
+				email: "charlie@test.com",
+				name: "Charlie Brown",
+				age: 35,
+				isActive: false,
+			},
+			{
+				email: "diana@test.com",
+				name: "Diana Prince",
+				age: 28,
+				isActive: true,
+			},
 			{ email: "eve@test.com", name: "Eve Wilson", age: null, isActive: false },
 		]);
 
@@ -409,7 +415,10 @@ describe("Where Operators", () => {
 		it("should work with different fields", async () => {
 			const results = await forja.findMany("user", {
 				where: {
-					$or: [{ name: { $startsWith: "Alice" } }, { name: { $startsWith: "Bob" } }],
+					$or: [
+						{ name: { $startsWith: "Alice" } },
+						{ name: { $startsWith: "Bob" } },
+					],
 				},
 			});
 
@@ -465,8 +474,10 @@ describe("Where Operators", () => {
 			});
 
 			for (const user of results) {
-				const isOldAndActive = (user.age as number) >= 30 && user.isActive === true;
-				const isYoungAndActive = (user.age as number) < 26 && user.isActive === true;
+				const isOldAndActive =
+					(user.age as number) >= 30 && user.isActive === true;
+				const isYoungAndActive =
+					(user.age as number) < 26 && user.isActive === true;
 				expect(isOldAndActive || isYoungAndActive).toBe(true);
 			}
 		});

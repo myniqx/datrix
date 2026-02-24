@@ -140,7 +140,10 @@ function handleUnknownFields(
 /**
  * Validate input is a valid object
  */
-function assertValidObject(data: unknown, schemaName: string): asserts data is Record<string, unknown> {
+function assertValidObject(
+	data: unknown,
+	schemaName: string,
+): asserts data is Record<string, unknown> {
 	if (typeof data !== "object" || data === null || Array.isArray(data)) {
 		throwValidationMultiple(schemaName, [
 			createValidationError(

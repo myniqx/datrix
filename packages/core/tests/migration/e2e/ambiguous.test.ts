@@ -9,11 +9,7 @@ import { describe, it, beforeAll, afterAll, expect } from "vitest";
 import { Forja } from "forja-core";
 import { createForjaWithSchemas, getTmpDir } from "./setup/config";
 import { getAdapter, getAdapterType } from "./setup/adapter";
-import {
-	baseUserSchema,
-	cloneSchema,
-	TABLE_NAMES,
-} from "./setup/schemas-base";
+import { baseUserSchema, cloneSchema, TABLE_NAMES } from "./setup/schemas-base";
 import {
 	dropAllTables,
 	assertColumnExists,
@@ -176,7 +172,11 @@ describe("Migration E2E - Ambiguous Detection", () => {
 			const ambiguousId = session.ambiguous[0]!.id;
 
 			// Invalid action for column_rename_or_replace
-			const resolveResult = resolveAmbiguousById(session, ambiguousId, "confirm_drop");
+			const resolveResult = resolveAmbiguousById(
+				session,
+				ambiguousId,
+				"confirm_drop",
+			);
 			expect(resolveResult.success).toBe(false);
 
 			// Still unresolved
@@ -208,7 +208,11 @@ describe("Migration E2E - Ambiguous Detection", () => {
 
 			const session = sessionResult.data;
 
-			const resolveResult = resolveAmbiguousById(session, "nonexistent-id", "rename");
+			const resolveResult = resolveAmbiguousById(
+				session,
+				"nonexistent-id",
+				"rename",
+			);
 			expect(resolveResult.success).toBe(false);
 
 			await forja.shutdown();
@@ -576,7 +580,9 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userWithUserFullName]);
+			const forja = await createForjaWithSchemas(tmpDir, [
+				userWithUserFullName,
+			]);
 			const sessionResult = await forja.beginMigrate();
 			expect(sessionResult.success).toBe(true);
 			if (!sessionResult.success) {

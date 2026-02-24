@@ -291,9 +291,9 @@ describe("Pagination & Sort", () => {
 			);
 
 			// Inactive users come last
-			expect(
-				users.slice(activeUsers.length).every((u) => !u.isActive),
-			).toBe(true);
+			expect(users.slice(activeUsers.length).every((u) => !u.isActive)).toBe(
+				true,
+			);
 		});
 	});
 
@@ -338,7 +338,9 @@ describe("Pagination & Sort", () => {
 
 			// Should be in descending age order
 			for (let i = 1; i < results.length; i++) {
-				expect(results[i].age).toBeLessThanOrEqual(results[i - 1].age as number);
+				expect(results[i].age).toBeLessThanOrEqual(
+					results[i - 1].age as number,
+				);
 			}
 		});
 	});

@@ -58,7 +58,7 @@ export class QueryExecutor {
 		private readonly schemas: SchemaRegistry,
 		private readonly getAdapter: () => DatabaseAdapter,
 		private readonly getDispatcher: () => Dispatcher,
-	) { }
+	) {}
 
 	/**
 	 * Execute a query
@@ -182,9 +182,11 @@ export class QueryExecutor {
 		try {
 			// 2. Pre-fetch: needed for returning results OR m2m cascade
 			const m2mRelations = Object.entries(schema.fields).filter(
-				([_, field]) => field.type === "relation" && field.kind === "manyToMany",
+				([_, field]) =>
+					field.type === "relation" && field.kind === "manyToMany",
 			);
-			const needsReturnSelect = !options.noReturning && (query.select || query.populate);
+			const needsReturnSelect =
+				!options.noReturning && (query.select || query.populate);
 			const needsPreFetch = needsReturnSelect || m2mRelations.length > 0;
 
 			let prefetchedRows: readonly T[] | undefined;
@@ -194,11 +196,17 @@ export class QueryExecutor {
 					type: "select",
 					table: query.table,
 					where: query.where,
-					select: query.select ?? ['id'],
-					...(needsReturnSelect && query.populate !== undefined && { populate: query.populate }),
+					select: query.select ?? ["id"],
+					...(needsReturnSelect &&
+						query.populate !== undefined && { populate: query.populate }),
 				});
 				if (!selectResult.success) {
-					throwQueryExecutionError("findMany", schema.name, query, selectResult.error);
+					throwQueryExecutionError(
+						"findMany",
+						schema.name,
+						query,
+						selectResult.error,
+					);
 				}
 				prefetchedRows = selectResult.data.rows;
 
@@ -208,7 +216,11 @@ export class QueryExecutor {
 			}
 
 			// 3. CASCADE DELETE: Clean up junction tables for manyToMany relations
-			if (m2mRelations.length > 0 && prefetchedRows && prefetchedRows.length > 0) {
+			if (
+				m2mRelations.length > 0 &&
+				prefetchedRows &&
+				prefetchedRows.length > 0
+			) {
 				const idsToDelete = prefetchedRows.map((r) => r.id);
 
 				for (const [_, field] of m2mRelations) {
@@ -516,8 +528,12 @@ export class QueryExecutor {
 		// Transaction not supported or failed — fallback to adapter (no transaction)
 		return {
 			runner: adapter,
-			commit: async () => { /* noop */ },
-			rollback: async () => { /* noop */ },
+			commit: async () => {
+				/* noop */
+			},
+			rollback: async () => {
+				/* noop */
+			},
 		};
 	}
 

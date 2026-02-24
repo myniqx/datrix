@@ -13,11 +13,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { Forja } from "forja-core";
 import fs from "node:fs/promises";
-import {
-	createTestConfig,
-	getTmpDir,
-	setupTables,
-} from "../setup";
+import { createTestConfig, getTmpDir, setupTables } from "../setup";
 
 describe("Nested Where", () => {
 	let forja: Forja;
@@ -122,8 +118,14 @@ describe("Nested Where", () => {
 			isActive: false,
 		});
 
-		const tag1 = await forja.create("tag", { name: "JavaScript", color: "#F7DF1E" });
-		const tag2 = await forja.create("tag", { name: "Python", color: "#3776AB" });
+		const tag1 = await forja.create("tag", {
+			name: "JavaScript",
+			color: "#F7DF1E",
+		});
+		const tag2 = await forja.create("tag", {
+			name: "Python",
+			color: "#3776AB",
+		});
 
 		await forja.create("post", {
 			title: "JavaScript Tips",
@@ -314,10 +316,7 @@ describe("Nested Where", () => {
 		it("should use $and with nested where", async () => {
 			const results = await forja.findMany("user", {
 				where: {
-					$and: [
-						{ organization: { isActive: true } },
-						{ isActive: true },
-					],
+					$and: [{ organization: { isActive: true } }, { isActive: true }],
 				},
 			});
 

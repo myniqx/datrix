@@ -21,7 +21,11 @@ import {
 	AlterOperation,
 } from "forja-types/adapter";
 import { QueryObject } from "forja-types/core/query-builder";
-import { ForjaEntry, IndexDefinition, SchemaDefinition } from "forja-types/core/schema";
+import {
+	ForjaEntry,
+	IndexDefinition,
+	SchemaDefinition,
+} from "forja-types/core/schema";
 import { Result } from "forja-types/utils";
 import type { JsonAdapter } from "./adapter";
 
@@ -83,7 +87,9 @@ export class JsonTransaction implements Transaction {
 	): Promise<Result<QueryResult<TResult>, QueryError<TResult>>> {
 		return {
 			success: false,
-			error: new QueryError("Raw SQL queries are not supported by JSON adapter"),
+			error: new QueryError(
+				"Raw SQL queries are not supported by JSON adapter",
+			),
 		};
 	}
 
@@ -128,7 +134,9 @@ export class JsonTransaction implements Transaction {
 		operations: readonly AlterOperation[],
 	): Promise<Result<void, MigrationError>> {
 		this.assertActive();
-		return this.adapter.alterTableWithOptions(tableName, operations, { skipWrite: true });
+		return this.adapter.alterTableWithOptions(tableName, operations, {
+			skipWrite: true,
+		});
 	}
 
 	/**
@@ -139,7 +147,9 @@ export class JsonTransaction implements Transaction {
 		index: IndexDefinition,
 	): Promise<Result<void, MigrationError>> {
 		this.assertActive();
-		return this.adapter.addIndexWithOptions(tableName, index, { skipWrite: true });
+		return this.adapter.addIndexWithOptions(tableName, index, {
+			skipWrite: true,
+		});
 	}
 
 	/**
@@ -150,7 +160,9 @@ export class JsonTransaction implements Transaction {
 		indexName: string,
 	): Promise<Result<void, MigrationError>> {
 		this.assertActive();
-		return this.adapter.dropIndexWithOptions(tableName, indexName, { skipWrite: true });
+		return this.adapter.dropIndexWithOptions(tableName, indexName, {
+			skipWrite: true,
+		});
 	}
 
 	/**
@@ -183,7 +195,9 @@ export class JsonTransaction implements Transaction {
 		if (this.committed) {
 			return {
 				success: false,
-				error: new TransactionError("Cannot rollback: transaction already committed"),
+				error: new TransactionError(
+					"Cannot rollback: transaction already committed",
+				),
 			};
 		}
 
@@ -210,7 +224,9 @@ export class JsonTransaction implements Transaction {
 	async savepoint(_name: string): Promise<Result<void, TransactionError>> {
 		return {
 			success: false,
-			error: new TransactionError("Savepoints are not yet supported by JSON adapter"),
+			error: new TransactionError(
+				"Savepoints are not yet supported by JSON adapter",
+			),
 		};
 	}
 
@@ -220,7 +236,9 @@ export class JsonTransaction implements Transaction {
 	async rollbackTo(_name: string): Promise<Result<void, TransactionError>> {
 		return {
 			success: false,
-			error: new TransactionError("Savepoints are not yet supported by JSON adapter"),
+			error: new TransactionError(
+				"Savepoints are not yet supported by JSON adapter",
+			),
 		};
 	}
 
@@ -230,7 +248,9 @@ export class JsonTransaction implements Transaction {
 	async release(_name: string): Promise<Result<void, TransactionError>> {
 		return {
 			success: false,
-			error: new TransactionError("Savepoints are not yet supported by JSON adapter"),
+			error: new TransactionError(
+				"Savepoints are not yet supported by JSON adapter",
+			),
 		};
 	}
 }

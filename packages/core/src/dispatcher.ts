@@ -39,7 +39,7 @@ export class Dispatcher {
 	constructor(
 		private readonly registry: PluginRegistry,
 		private readonly forja: Forja,
-	) { }
+	) {}
 
 	/**
 	 * Create and populate query context
@@ -96,7 +96,10 @@ export class Dispatcher {
 	 * 3. Execute query
 	 * 4. onAfterQuery hooks
 	 */
-	async executeQuery<TResult extends ForjaEntry, R extends ForjaEntry = ForjaEntry>(
+	async executeQuery<
+		TResult extends ForjaEntry,
+		R extends ForjaEntry = ForjaEntry,
+	>(
 		action: QueryAction,
 		schema: SchemaDefinition,
 		query: QueryObject<TResult>,

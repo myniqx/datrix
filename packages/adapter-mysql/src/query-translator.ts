@@ -19,7 +19,10 @@ import type {
 import type { QueryTranslator } from "forja-types/adapter";
 import { QueryError } from "forja-types/adapter";
 import type { SchemaRegistry } from "forja-core/schema";
-import type { SchemaDefinition, FieldDefinition } from "forja-types/core/schema";
+import type {
+	SchemaDefinition,
+	FieldDefinition,
+} from "forja-types/core/schema";
 import { ForjaEntry } from "forja-types";
 import { MySQLQueryObject, TranslateResult } from "./types";
 
@@ -498,9 +501,7 @@ export class MySQLQueryTranslator implements QueryTranslator {
 
 		// Use keys from first item as columns
 		const firstItem = dataArray[0] as Record<string, unknown>;
-		const columns = Object.keys(firstItem).map((k) =>
-			this.escapeIdentifier(k),
-		);
+		const columns = Object.keys(firstItem).map((k) => this.escapeIdentifier(k));
 
 		// Build VALUES rows
 		const valueRows: string[] = [];
@@ -828,7 +829,9 @@ export class MySQLQueryTranslator implements QueryTranslator {
 							continue;
 						} else {
 							// Complex nested relation filtering - requires JOIN
-							const targetSchema = this.schemaRegistry.get(relationField.model!);
+							const targetSchema = this.schemaRegistry.get(
+								relationField.model!,
+							);
 							if (!targetSchema) {
 								throw new QueryError(
 									`Target model '${relationField.model}' not found for relation '${key}'`,

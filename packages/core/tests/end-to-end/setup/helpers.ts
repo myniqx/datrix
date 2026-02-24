@@ -51,9 +51,24 @@ export async function seedBasicData(forja: Forja): Promise<SeedResult> {
 
 	// Departments
 	const departments = await forja.createMany("department", [
-		{ name: "Engineering", code: "ENG", budget: 100000, organization: organizations[0].id },
-		{ name: "Marketing", code: "MKT", budget: 50000, organization: organizations[0].id },
-		{ name: "Sales", code: "SLS", budget: 75000, organization: organizations[1].id },
+		{
+			name: "Engineering",
+			code: "ENG",
+			budget: 100000,
+			organization: organizations[0].id,
+		},
+		{
+			name: "Marketing",
+			code: "MKT",
+			budget: 50000,
+			organization: organizations[0].id,
+		},
+		{
+			name: "Sales",
+			code: "SLS",
+			budget: 75000,
+			organization: organizations[1].id,
+		},
 	]);
 
 	// Roles
