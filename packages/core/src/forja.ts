@@ -31,6 +31,8 @@ import { ForjaError } from "forja-types/errors";
 import {
 	getMigrationSchema,
 	DEFAULT_MIGRATION_MODEL,
+	getForjaMetaSchema,
+	FORJA_META_MODEL,
 } from "./migration/schema";
 import { MigrationSession, createMigrationSession } from "./migration/session";
 
@@ -122,7 +124,20 @@ export class Forja implements IForja {
 				}
 			}
 
-			// 1. Register user schemas
+			// 1. Register internal _forja metadata schema
+			const forjaMetaSchema = getForjaMetaSchema();
+			const forjaMetaRegisterResult = this._schemas.register(forjaMetaSchema);
+			if (!forjaMetaRegisterResult.success) {
+				return {
+					success: false,
+					error: new ForjaError(
+						`Failed to register internal schema '${FORJA_META_MODEL}': ${forjaMetaRegisterResult.error.message}`,
+						{ code: "SCHEMA_REGISTRATION_FAILED" },
+					),
+				};
+			}
+
+			// 2. Register user schemas
 			if (!options.skipSchemas && config.schemas.length > 0) {
 				for (const schema of config.schemas) {
 					const registerResult = this._schemas.register(schema);
@@ -138,7 +153,7 @@ export class Forja implements IForja {
 				}
 			}
 
-			// 2. Register plugin schemas
+			// 3. Register plugin schemas
 			if (!options.skipPlugins) {
 				for (const plugin of this.pluginRegistry.getAll()) {
 					if (plugin.getSchemas) {
@@ -159,7 +174,7 @@ export class Forja implements IForja {
 				}
 			}
 
-			// 3. Apply schema extensions
+			// 4. Apply schema extensions
 			if (!options.skipPlugins) {
 				const extensionContext = new SchemaExtensionContextImpl(
 					this._schemas.getAll(),
@@ -182,7 +197,7 @@ export class Forja implements IForja {
 				}
 			}
 
-			// 4. Register internal migration schema
+			// 5. Register internal migration schema
 			const migrationModelName =
 				config.migration?.modelName ?? DEFAULT_MIGRATION_MODEL;
 			const migrationSchema = getMigrationSchema(migrationModelName);

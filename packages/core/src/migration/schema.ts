@@ -85,3 +85,48 @@ export function getMigrationSchema(
  * Migration history schema type
  */
 export type MigrationHistorySchema = ReturnType<typeof getMigrationSchema>;
+
+/**
+ * Default model name for internal Forja metadata store
+ */
+export const FORJA_META_MODEL = "_forja";
+
+/**
+ * Get internal Forja metadata schema definition
+ *
+ * Stores per-table schema snapshots as JSON for migration diffing.
+ * key: table name, value: full Forja SchemaDefinition as JSON string
+ */
+export function getForjaMetaSchema() {
+	return defineSchema({
+		name: FORJA_META_MODEL,
+		tableName: FORJA_META_MODEL,
+
+		fields: {
+			key: {
+				type: "string",
+				required: true,
+				unique: true,
+				maxLength: 255,
+				description: "Table name",
+			},
+			value: {
+				type: "string",
+				required: true,
+				description: "Forja SchemaDefinition as JSON string",
+			},
+		},
+
+		permission: {
+			create: false,
+			read: false,
+			update: false,
+			delete: false,
+		},
+	} as const);
+}
+
+/**
+ * Forja metadata schema type
+ */
+export type ForjaMetaSchema = ReturnType<typeof getForjaMetaSchema>;

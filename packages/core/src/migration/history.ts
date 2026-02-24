@@ -16,7 +16,7 @@ import {
 import { Result } from "forja-types/utils";
 import { IForja } from "forja-types/forja";
 import { ForjaEntry } from "forja-types";
-import { DEFAULT_MIGRATION_MODEL } from "./schema";
+import { DEFAULT_MIGRATION_MODEL, FORJA_META_MODEL } from "./schema";
 
 /**
  * Migration history entry type (matches the schema)
@@ -67,8 +67,35 @@ export class ForgeMigrationHistory implements MigrationHistory {
 				};
 			}
 
-			const tableName = schema.tableName ?? schema.name;
 			const adapter = this.forja.getAdapter();
+
+			// Ensure _forja metadata table exists before any other table operation
+			const metaExists = await adapter.tableExists(FORJA_META_MODEL);
+			if (!metaExists) {
+				const metaSchema = this.forja.getSchemas().get(FORJA_META_MODEL);
+				if (!metaSchema) {
+					return {
+						success: false,
+						error: new MigrationSystemError(
+							`Schema '${FORJA_META_MODEL}' not found in registry`,
+							"MIGRATION_ERROR",
+						),
+					};
+				}
+				const metaResult = await adapter.createTable(metaSchema);
+				if (!metaResult.success) {
+					return {
+						success: false,
+						error: new MigrationSystemError(
+							`Failed to create _forja metadata table: ${metaResult.error.message}`,
+							"MIGRATION_ERROR",
+							metaResult.error,
+						),
+					};
+				}
+			}
+
+			const tableName = schema.tableName ?? schema.name;
 			const exists = await adapter.tableExists(tableName);
 
 			if (!exists) {

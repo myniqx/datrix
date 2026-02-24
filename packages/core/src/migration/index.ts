@@ -21,4 +21,9 @@ export type {
 } from "./session";
 
 // Internal - used by Forja class only
-export { getMigrationSchema, DEFAULT_MIGRATION_MODEL } from "./schema";
+export {
+	getMigrationSchema,
+	DEFAULT_MIGRATION_MODEL,
+	getForjaMetaSchema,
+	FORJA_META_MODEL,
+} from "./schema";

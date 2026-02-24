@@ -298,11 +298,20 @@ export function processData<T extends ForjaEntry>(
 			}
 
 			// Normalize disconnect to number array
+			// Special case: disconnect: true for hasOne/belongsTo means "clear this relation"
 			if (relInput.disconnect !== undefined) {
-				normalized = {
-					...normalized,
-					disconnect: extractIds(relInput.disconnect),
-				};
+				if (relInput.disconnect === true) {
+					if (field.kind === "hasOne") {
+						normalized = { ...normalized, set: [] };
+					} else {
+						normalized = { ...normalized, disconnect: [] };
+					}
+				} else {
+					normalized = {
+						...normalized,
+						disconnect: extractIds(relInput.disconnect),
+					};
+				}
 			}
 
 			// Normalize set to number array

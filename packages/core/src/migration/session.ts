@@ -142,7 +142,7 @@ export class MigrationSession {
 			const registry = this.forja.getSchemas();
 			for (const schema of registry.getAll()) {
 				// Skip internal migration schema
-				if (schema.name.startsWith("_forja_")) {
+				if (schema.name.startsWith("_forja")) {
 					continue;
 				}
 				this.currentSchemas.set(schema.name, schema);
@@ -163,7 +163,7 @@ export class MigrationSession {
 
 			for (const tableName of tablesResult.data) {
 				// Skip internal tables
-				if (tableName.startsWith("_forja_")) {
+				if (tableName.startsWith("_forja")) {
 					continue;
 				}
 

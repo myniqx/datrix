@@ -1,5 +1,3 @@
-import { SchemaDefinition } from "forja-types";
-
 /**
  * JSON Adapter Configuration
  */
@@ -38,6 +36,5 @@ export interface JsonTableFile<T = Record<string, unknown>> {
 		updatedAt: string;
 		name: string;
 	};
-	readonly schema?: SchemaDefinition;
 	data: T[];
 }

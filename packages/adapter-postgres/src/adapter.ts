@@ -33,8 +33,10 @@ import {
 	IndexDefinition,
 	SchemaDefinition,
 } from "forja-types/core/schema";
-import { Forja } from "forja-core";
+import { Forja, FORJA_META_MODEL } from "forja-core";
 import { PostgresPopulator } from "./populate";
+
+const FORJA_META_KEY_PREFIX = "_schema_";
 
 /**
  * PostgreSQL adapter implementation
@@ -378,8 +380,10 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	 */
 	async createTable(
 		schema: SchemaDefinition,
+		client?: PoolClient,
 	): Promise<Result<void, MigrationError>> {
-		if (!this.pool) {
+		const queryRunner = client ?? this.pool;
+		if (!queryRunner) {
 			return {
 				success: false,
 				error: new MigrationError("Not connected to database"),
@@ -425,7 +429,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 			const sql = `CREATE TABLE ${tableName} (\n  ${allDefinitions.join(",\n  ")}\n)`;
 
 			console.log("Creating Schema", { sql });
-			await this.pool.query(sql);
+			await queryRunner.query(sql);
 
 			// Create indexes (including unique constraints)
 			if (schema.indexes && schema.indexes.length > 0) {
@@ -434,10 +438,32 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 						schema.tableName!,
 						index,
 						schema,
+						client,
 					);
 					if (!indexResult.success) {
 						return indexResult;
 					}
+				}
+			}
+
+			// Track schema in _forja (skip for _forja itself — it tracks others)
+			if (schema.name !== FORJA_META_MODEL) {
+				const metaExists = await this.tableExists(FORJA_META_MODEL);
+				if (!metaExists) {
+					return {
+						success: false,
+						error: new MigrationError(
+							`Cannot create table '${schema.name}': '${FORJA_META_MODEL}' table does not exist yet. Create '${FORJA_META_MODEL}' first.`,
+						),
+					};
+				}
+
+				const metaWriteResult = await this.upsertSchemaMeta(
+					schema,
+					queryRunner,
+				);
+				if (!metaWriteResult.success) {
+					return metaWriteResult;
 				}
 			}
 
@@ -457,8 +483,12 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	/**
 	 * Drop table
 	 */
-	async dropTable(tableName: string): Promise<Result<void, MigrationError>> {
-		if (!this.pool) {
+	async dropTable(
+		tableName: string,
+		client?: PoolClient,
+	): Promise<Result<void, MigrationError>> {
+		const queryRunner = client ?? this.pool;
+		if (!queryRunner) {
 			return {
 				success: false,
 				error: new MigrationError("Not connected to database"),
@@ -467,7 +497,18 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 
 		try {
 			const escapedTable = this.getTranslator().escapeIdentifier(tableName);
-			await this.pool.query(`DROP TABLE IF EXISTS ${escapedTable}`);
+			await queryRunner.query(`DROP TABLE IF EXISTS ${escapedTable}`);
+
+			// Remove schema from _forja
+			if (tableName !== FORJA_META_MODEL) {
+				const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
+				const escapedMetaTable =
+					this.getTranslator().escapeIdentifier(FORJA_META_MODEL);
+				await queryRunner.query(
+					`DELETE FROM ${escapedMetaTable} WHERE "key" = $1`,
+					[metaKey],
+				);
+			}
 
 			return { success: true, data: undefined };
 		} catch (error) {
@@ -488,8 +529,10 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	async renameTable(
 		from: string,
 		to: string,
+		client?: PoolClient,
 	): Promise<Result<void, MigrationError>> {
-		if (!this.pool) {
+		const queryRunner = client ?? this.pool;
+		if (!queryRunner) {
 			return {
 				success: false,
 				error: new MigrationError("Not connected to database"),
@@ -500,9 +543,20 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 			const translator = this.getTranslator();
 			const escapedFrom = translator.escapeIdentifier(from);
 			const escapedTo = translator.escapeIdentifier(to);
-			await this.pool.query(
+			await queryRunner.query(
 				`ALTER TABLE ${escapedFrom} RENAME TO ${escapedTo}`,
 			);
+
+			// Update key in _forja
+			if (from !== FORJA_META_MODEL && to !== FORJA_META_MODEL) {
+				const oldKey = `${FORJA_META_KEY_PREFIX}${from}`;
+				const newKey = `${FORJA_META_KEY_PREFIX}${to}`;
+				const escapedMetaTable = translator.escapeIdentifier(FORJA_META_MODEL);
+				await queryRunner.query(
+					`UPDATE ${escapedMetaTable} SET "key" = $1 WHERE "key" = $2`,
+					[newKey, oldKey],
+				);
+			}
 
 			return { success: true, data: undefined };
 		} catch (error) {
@@ -523,8 +577,10 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	async alterTable(
 		tableName: string,
 		operations: readonly AlterOperation[],
+		client?: PoolClient,
 	): Promise<Result<void, MigrationError>> {
-		if (!this.pool) {
+		const queryRunner = client ?? this.pool;
+		if (!queryRunner) {
 			return {
 				success: false,
 				error: new MigrationError("Not connected to database"),
@@ -570,7 +626,19 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 				}
 
 				if (sql) {
-					await this.pool.query(sql);
+					await queryRunner.query(sql);
+				}
+			}
+
+			// Update schema in _forja
+			if (tableName !== FORJA_META_MODEL) {
+				const updatedSchemaResult = await this.applyOperationsToMetaSchema(
+					tableName,
+					operations,
+					queryRunner,
+				);
+				if (!updatedSchemaResult.success) {
+					return updatedSchemaResult;
 				}
 			}
 
@@ -594,8 +662,10 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 		tableNameParam: string,
 		index: IndexDefinition,
 		schema?: SchemaDefinition,
+		client?: PoolClient,
 	): Promise<Result<void, MigrationError>> {
-		if (!this.pool) {
+		const queryRunner = client ?? this.pool;
+		if (!queryRunner) {
 			return {
 				success: false,
 				error: new MigrationError("Not connected to database"),
@@ -627,7 +697,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 			const unique = index.unique ? "UNIQUE " : "";
 			const using = index.type ? ` USING ${index.type.toUpperCase()}` : "";
 			const sql = `CREATE ${unique}INDEX ${escapedIndexName} ON ${escapedTable}${using} (${fields})`;
-			await this.pool.query(sql);
+			await queryRunner.query(sql);
 			return { success: true, data: undefined };
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
@@ -647,8 +717,10 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	async dropIndex(
 		_tableName: string,
 		indexName: string,
+		client?: PoolClient,
 	): Promise<Result<void, MigrationError>> {
-		if (!this.pool) {
+		const queryRunner = client ?? this.pool;
+		if (!queryRunner) {
 			return {
 				success: false,
 				error: new MigrationError("Not connected to database"),
@@ -657,7 +729,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 
 		try {
 			const escapedIndexName = this.getTranslator().escapeIdentifier(indexName);
-			await this.pool.query(`DROP INDEX IF EXISTS ${escapedIndexName}`);
+			await queryRunner.query(`DROP INDEX IF EXISTS ${escapedIndexName}`);
 
 			return { success: true, data: undefined };
 		} catch (error) {
@@ -723,57 +795,25 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 		}
 
 		try {
-			// Query information_schema for column details
-			const columnResult = await this.pool.query<{
-				column_name: string;
-				data_type: string;
-				udt_name: string;
-				is_nullable: string;
-				column_default: string | null;
-			}>(
-				`SELECT column_name, data_type, udt_name, is_nullable, column_default
-         FROM information_schema.columns
-         WHERE table_schema = 'public'
-         AND table_name = $1
-         ORDER BY ordinal_position`,
-				[tableName],
+			const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
+			const escapedMetaTable =
+				this.getTranslator().escapeIdentifier(FORJA_META_MODEL);
+			const metaResult = await this.pool.query<{ value: string }>(
+				`SELECT "value" FROM ${escapedMetaTable} WHERE "key" = $1`,
+				[metaKey],
 			);
 
-			if (columnResult.rows.length === 0) {
+			if (metaResult.rows.length === 0) {
 				return {
 					success: false,
-					error: new QueryError(`Table '${tableName}' not found`, {
+					error: new QueryError(`Table '${tableName}' not found in _forja`, {
 						code: "TABLE_NOT_FOUND",
 					}),
 				};
 			}
 
-			const fields: Record<string, FieldDefinition> = {};
-
-			for (const row of columnResult.rows) {
-				const fieldType = this.mapPostgresTypeToFieldType(
-					row.data_type,
-					row.udt_name,
-				);
-
-				const fieldDef = {
-					type: fieldType,
-					required: row.is_nullable === "NO",
-					...(row.column_default !== null && {
-						default: this.parsePostgresDefault(row.column_default),
-					}),
-				} as FieldDefinition;
-
-				fields[row.column_name] = fieldDef;
-			}
-
-			return {
-				success: true,
-				data: {
-					name: tableName,
-					fields,
-				},
-			};
+			const schema = JSON.parse(metaResult.rows[0]!.value) as SchemaDefinition;
+			return { success: true, data: schema };
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			return {
@@ -888,6 +928,108 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 			return result.rows[0]?.exists ?? false;
 		} catch {
 			return false;
+		}
+	}
+
+	/**
+	 * Upsert schema into _forja metadata table
+	 */
+	private async upsertSchemaMeta(
+		schema: SchemaDefinition,
+		queryRunner: Pool | PoolClient,
+	): Promise<Result<void, MigrationError>> {
+		try {
+			const metaKey = `${FORJA_META_KEY_PREFIX}${schema.tableName ?? schema.name}`;
+			const metaValue = JSON.stringify(schema);
+			const escapedMetaTable =
+				this.getTranslator().escapeIdentifier(FORJA_META_MODEL);
+			await queryRunner.query(
+				`INSERT INTO ${escapedMetaTable} ("key", "value", "createdAt", "updatedAt")
+				 VALUES ($1, $2, NOW(), NOW())
+				 ON CONFLICT ("key") DO UPDATE SET "value" = EXCLUDED."value", "updatedAt" = NOW()`,
+				[metaKey, metaValue],
+			);
+			return { success: true, data: undefined };
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			return {
+				success: false,
+				error: new MigrationError(
+					`Failed to upsert schema meta for '${schema.name}': ${message}`,
+					error,
+				),
+			};
+		}
+	}
+
+	/**
+	 * Read schema from _forja, apply AlterOperations, write back
+	 */
+	private async applyOperationsToMetaSchema(
+		tableName: string,
+		operations: readonly AlterOperation[],
+		queryRunner: Pool | PoolClient,
+	): Promise<Result<void, MigrationError>> {
+		try {
+			const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
+			const escapedMetaTable =
+				this.getTranslator().escapeIdentifier(FORJA_META_MODEL);
+			const metaResult = await queryRunner.query<{ value: string }>(
+				`SELECT "value" FROM ${escapedMetaTable} WHERE "key" = $1`,
+				[metaKey],
+			);
+
+			if (metaResult.rows.length === 0) {
+				return {
+					success: false,
+					error: new MigrationError(
+						`Schema meta for table '${tableName}' not found in _forja`,
+					),
+				};
+			}
+
+			const schema = JSON.parse(metaResult.rows[0]!.value) as SchemaDefinition;
+			const fields = { ...schema.fields };
+
+			for (const op of operations) {
+				switch (op.type) {
+					case "addColumn":
+						fields[op.column] = op.definition;
+						break;
+					case "dropColumn":
+						delete fields[op.column];
+						break;
+					case "modifyColumn":
+						fields[op.column] = op.newDefinition;
+						break;
+					case "renameColumn": {
+						const fieldDef = fields[op.from];
+						if (fieldDef !== undefined) {
+							fields[op.to] = fieldDef;
+							delete fields[op.from];
+						}
+						break;
+					}
+				}
+			}
+
+			const updatedSchema: SchemaDefinition = { ...schema, fields };
+			const updatedValue = JSON.stringify(updatedSchema);
+			await queryRunner.query(
+				`UPDATE ${escapedMetaTable} SET "value" = $1, "updatedAt" = NOW() WHERE "key" = $2`,
+				[updatedValue, metaKey],
+			);
+
+			return { success: true, data: undefined };
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			return {
+				success: false,
+				error: new MigrationError(
+					`Failed to update schema meta for '${tableName}': ${message}`,
+					error,
+				),
+			};
 		}
 	}
 
@@ -1154,6 +1296,44 @@ class PostgresTransaction implements Transaction {
 				),
 			};
 		}
+	}
+
+	async createTable(
+		schema: SchemaDefinition,
+	): Promise<Result<void, MigrationError>> {
+		return this.adapter.createTable(schema, this.client);
+	}
+
+	async dropTable(tableName: string): Promise<Result<void, MigrationError>> {
+		return this.adapter.dropTable(tableName, this.client);
+	}
+
+	async renameTable(
+		from: string,
+		to: string,
+	): Promise<Result<void, MigrationError>> {
+		return this.adapter.renameTable(from, to, this.client);
+	}
+
+	async alterTable(
+		tableName: string,
+		operations: readonly AlterOperation[],
+	): Promise<Result<void, MigrationError>> {
+		return this.adapter.alterTable(tableName, operations, this.client);
+	}
+
+	async addIndex(
+		tableName: string,
+		index: IndexDefinition,
+	): Promise<Result<void, MigrationError>> {
+		return this.adapter.addIndex(tableName, index, undefined, this.client);
+	}
+
+	async dropIndex(
+		tableName: string,
+		indexName: string,
+	): Promise<Result<void, MigrationError>> {
+		return this.adapter.dropIndex(tableName, indexName, this.client);
 	}
 }
 

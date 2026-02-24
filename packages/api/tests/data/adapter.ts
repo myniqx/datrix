@@ -137,5 +137,5 @@ export function getAdapterType(): AdapterType {
 	) {
 		return adapterEnv;
 	}
-	return "postgres"; // Default
+	return "json"; // Default
 }

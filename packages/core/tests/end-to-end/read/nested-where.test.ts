@@ -23,6 +23,8 @@ describe("Nested Where", () => {
 	let orgs: { acme: number; tech: number };
 	let depts: { eng: number; sales: number; hr: number };
 	let users: { alice: number; bob: number; charlie: number };
+	let roles: { admin: number; dev: number };
+	let tags: { js: number; python: number };
 
 	beforeAll(async () => {
 		await fs.rm(tmpDir, { recursive: true, force: true });
@@ -76,6 +78,7 @@ describe("Nested Where", () => {
 			name: "Developer",
 			level: 50,
 		});
+		roles = { admin: adminRole.id, dev: devRole.id };
 
 		// Create users
 		const alice = await forja.create("user", {
@@ -126,6 +129,7 @@ describe("Nested Where", () => {
 			name: "Python",
 			color: "#3776AB",
 		});
+		tags = { js: tag1.id, python: tag2.id };
 
 		await forja.create("post", {
 			title: "JavaScript Tips",
@@ -376,6 +380,130 @@ describe("Nested Where", () => {
 
 			expect(results).toHaveLength(1);
 			expect(results[0].name).toBe("Child Category");
+		});
+	});
+
+	// ==========================================================================
+	// ManyToMany Nested Where
+	// ==========================================================================
+
+	describe("ManyToMany Relation Where", () => {
+		it("should filter users by role name", async () => {
+			const results = await forja.findMany("user", {
+				where: {
+					roles: { name: "Admin" },
+				},
+			});
+
+			expect(results).toHaveLength(1);
+			expect(results[0]!.name).toBe("Alice");
+		});
+
+		it("should filter users by role level", async () => {
+			const results = await forja.findMany("user", {
+				where: {
+					roles: { level: { $gte: 50 } },
+				},
+			});
+
+			// Alice has Admin(100) + Developer(50), Bob has Developer(50)
+			expect(results).toHaveLength(2);
+			const names = results.map((u) => u.name);
+			expect(names).toContain("Alice");
+			expect(names).toContain("Bob");
+		});
+
+		it("should filter users who have no matching role (empty result)", async () => {
+			const results = await forja.findMany("user", {
+				where: {
+					roles: { name: "NonExistentRole" },
+				},
+			});
+
+			expect(results).toHaveLength(0);
+		});
+
+		it("should filter posts by tag name", async () => {
+			const results = await forja.findMany("post", {
+				where: {
+					tags: { name: "JavaScript" },
+				},
+			});
+
+			expect(results).toHaveLength(1);
+			expect(results[0]!.slug).toBe("js-tips");
+		});
+
+		it("should filter posts by tag color", async () => {
+			const results = await forja.findMany("post", {
+				where: {
+					tags: { color: "#3776AB" },
+				},
+			});
+
+			expect(results).toHaveLength(1);
+			expect(results[0]!.slug).toBe("python-basics");
+		});
+	});
+
+	// ==========================================================================
+	// HasMany Nested Where
+	// ==========================================================================
+
+	describe("HasMany Relation Where", () => {
+		it("should filter organizations by department name", async () => {
+			const results = await forja.findMany("organization", {
+				where: {
+					departments: { name: "Engineering" },
+				},
+			});
+
+			expect(results).toHaveLength(1);
+			expect(results[0]!.name).toBe("Acme Corp");
+		});
+
+		it("should filter organizations by department budget", async () => {
+			const results = await forja.findMany("organization", {
+				where: {
+					departments: { budget: { $gte: 100000 } },
+				},
+			});
+
+			expect(results).toHaveLength(1);
+			expect(results[0]!.name).toBe("Acme Corp");
+		});
+
+		it("should filter organizations that have no matching department (empty result)", async () => {
+			const results = await forja.findMany("organization", {
+				where: {
+					departments: { code: "NONEXISTENT" },
+				},
+			});
+
+			expect(results).toHaveLength(0);
+		});
+
+		it("should filter users by post published status", async () => {
+			const results = await forja.findMany("user", {
+				where: {
+					posts: { isPublished: true },
+				},
+			});
+
+			expect(results).toHaveLength(1);
+			expect(results[0]!.name).toBe("Alice");
+		});
+
+		it("should combine hasMany where with local field", async () => {
+			const results = await forja.findMany("user", {
+				where: {
+					isActive: true,
+					posts: { isPublished: false },
+				},
+			});
+
+			expect(results).toHaveLength(1);
+			expect(results[0]!.name).toBe("Bob");
 		});
 	});
 

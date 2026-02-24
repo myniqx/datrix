@@ -19,10 +19,15 @@ import {
 } from "./error-helper";
 
 export class JsonQueryRunner {
+	private schema: SchemaDefinition | undefined;
+
 	constructor(
 		private table: JsonTableFile,
 		private adapter: JsonAdapter,
-	) {}
+		schema?: SchemaDefinition,
+	) {
+		this.schema = schema;
+	}
 
 	async run<T extends ForjaEntry>(
 		query: QuerySelectObject<T> | QueryCountObject<T>,
@@ -179,7 +184,7 @@ export class JsonQueryRunner {
 		where: WhereClause<T>,
 		overrideSchema?: SchemaDefinition,
 	): Promise<boolean> {
-		const schema = overrideSchema ?? this.table.schema;
+		const schema = overrideSchema ?? this.schema;
 
 		for (const [key, value] of Object.entries(where)) {
 			// Handle logical operators
@@ -295,7 +300,7 @@ export class JsonQueryRunner {
 			if (hasOnlyComparisonOperators) {
 				throwInvalidRelationWhereSyntax(
 					relationName,
-					this.table.schema?.name ?? "unknown",
+					this.schema?.name ?? "unknown",
 					foreignKey,
 				);
 			}
@@ -330,8 +335,117 @@ export class JsonQueryRunner {
 			return await this.match(relatedRecord, relationWhere, targetSchema);
 		}
 
-		// TODO: hasMany and manyToMany support
-		// For now, these are not supported in WHERE (only in populate)
+		if (kind === "hasMany" || kind === "hasOne") {
+			// Target table holds the FK pointing back to this record
+			const sourceId = item["id"] as number | string | undefined;
+			if (sourceId === null || sourceId === undefined) {
+				return false;
+			}
+
+			const targetSchema =
+				await this.adapter.getSchemaByModelName(targetModelName);
+			if (!targetSchema) {
+				return false;
+			}
+
+			// The FK stored in relationField may use the default naming (schemaName + "Id"),
+			// but the actual column in the target table may have a different name (e.g. "authorId"
+			// instead of "userId"). Find the real FK by looking at the target schema's belongsTo
+			// field that references the current model.
+			const currentModelName = this.schema?.name ?? "";
+			const resolvedForeignKey = this.resolveForeignKeyInTarget(
+				targetSchema,
+				currentModelName,
+				foreignKey,
+			);
+
+			const targetTable =
+				targetSchema.tableName ?? targetModelName.toLowerCase();
+			const targetTableData = await this.adapter.getCachedTable(targetTable);
+			if (!targetTableData) {
+				return false;
+			}
+
+			// Find any related record matching the nested WHERE
+			const relatedRecords = (
+				targetTableData.data as Record<string, unknown>[]
+			).filter(
+				(r) =>
+					r[resolvedForeignKey] === sourceId ||
+					r[resolvedForeignKey] === Number(sourceId),
+			);
+
+			for (const related of relatedRecords) {
+				const matches = await this.match(related, relationWhere, targetSchema);
+				if (matches) return true;
+			}
+			return false;
+		}
+
+		if (kind === "manyToMany") {
+			// Junction table bridges this record and target records
+			const junctionTableName = relationField.through;
+			if (!junctionTableName) {
+				return false;
+			}
+
+			const sourceId = item["id"] as number | string | undefined;
+			if (sourceId === null || sourceId === undefined) {
+				return false;
+			}
+
+			const junctionTableData =
+				await this.adapter.getCachedTable(junctionTableName);
+			if (!junctionTableData) {
+				return false;
+			}
+
+			// Determine FK column names in junction table (e.g. userId, roleId)
+			const currentModelName = this.schema?.name ?? "";
+			const sourceFK = `${currentModelName}Id`;
+			const targetFK = `${targetModelName}Id`;
+
+			// Collect target IDs from junction rows matching this source
+			const targetIds = (junctionTableData.data as Record<string, unknown>[])
+				.filter((row) => {
+					const rowSourceId = row[sourceFK];
+					return rowSourceId === sourceId || rowSourceId === Number(sourceId);
+				})
+				.map((row) => {
+					const rawId = row[targetFK];
+					return typeof rawId === "string" ? Number(rawId) : (rawId as number);
+				})
+				.filter((id): id is number => id !== null && id !== undefined);
+
+			if (targetIds.length === 0) {
+				return false;
+			}
+
+			const targetSchema =
+				await this.adapter.getSchemaByModelName(targetModelName);
+			if (!targetSchema) {
+				return false;
+			}
+
+			const targetTable =
+				targetSchema.tableName ?? targetModelName.toLowerCase();
+			const targetTableData = await this.adapter.getCachedTable(targetTable);
+			if (!targetTableData) {
+				return false;
+			}
+
+			// Check if any target record matches the nested WHERE
+			const targetRecords = (
+				targetTableData.data as Record<string, unknown>[]
+			).filter((r) => targetIds.includes(r["id"] as number));
+
+			for (const target of targetRecords) {
+				const matches = await this.match(target, relationWhere, targetSchema);
+				if (matches) return true;
+			}
+			return false;
+		}
+
 		return false;
 	}
 
@@ -373,12 +487,34 @@ export class JsonQueryRunner {
 		}
 	}
 
+	/**
+	 * Resolve the actual FK column name in a target schema for a hasMany/hasOne relation.
+	 *
+	 * Registry generates a default FK using "sourceModelName + Id", but the target schema
+	 * may have a belongsTo field with a custom FK name (e.g. "authorId" instead of "userId").
+	 * This method finds the correct FK by scanning the target schema's belongsTo fields.
+	 */
+	private resolveForeignKeyInTarget(
+		targetSchema: SchemaDefinition,
+		sourceModelName: string,
+		fallbackForeignKey: string,
+	): string {
+		for (const fieldDef of Object.values(targetSchema.fields)) {
+			if (fieldDef.type !== "relation") continue;
+			const rel = fieldDef as import("forja-types/core/schema").RelationField;
+			if (rel.kind !== "belongsTo" && rel.kind !== "hasOne") continue;
+			if (rel.model !== sourceModelName) continue;
+			if (rel.foreignKey) return rel.foreignKey;
+		}
+		return fallbackForeignKey;
+	}
+
 	private compareValues(
 		itemValue: any,
 		queryValue: any,
 		fieldName: string,
 	): boolean {
-		const schema = this.table.schema as any;
+		const schema = this.schema as any;
 		const fieldDef = schema?.fields?.[fieldName];
 
 		// No schema or field definition - use strict equality
@@ -512,7 +648,7 @@ export class JsonQueryRunner {
 			return value;
 		}
 
-		const schema = this.table.schema as {
+		const schema = this.schema as {
 			fields?: Record<string, { type?: string }>;
 		};
 		const fieldDef = schema?.fields?.[fieldName];

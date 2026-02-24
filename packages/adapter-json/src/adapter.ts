@@ -31,6 +31,9 @@ import {
 } from "./error-helper";
 import { ForjaError } from "forja-types/errors";
 import { JsonTransaction } from "./transaction";
+import { FORJA_META_MODEL } from "forja-core";
+
+const FORJA_META_KEY_PREFIX = "_schema_";
 
 /**
  * Cache entry for table data
@@ -265,8 +268,11 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 	async getSchemaByTableName(
 		tableName: string,
 	): Promise<SchemaDefinition | null> {
-		const tableData = await this.getCachedTable(tableName);
-		return tableData?.schema ?? null;
+		try {
+			return await this.readTableSchema(tableName);
+		} catch {
+			return null;
+		}
 	}
 
 	/**
@@ -307,6 +313,134 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 	async findTableNameByModelName(modelName: string): Promise<string | null> {
 		const schema = await this.getSchemaByModelName(modelName);
 		return schema?.tableName ?? null;
+	}
+
+	/**
+	 * Read schema for a table from _forja metadata table.
+	 * Transaction-aware: reads from tx cache when inside a transaction.
+	 *
+	 * @param tableName - Physical table name (e.g. "users")
+	 */
+	async readTableSchema(tableName: string): Promise<SchemaDefinition> {
+		const metaFile = await this.readTable(FORJA_META_MODEL);
+		const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
+		const row = metaFile.data.find(
+			(r) => (r as Record<string, unknown>)["key"] === metaKey,
+		);
+		if (!row) {
+			throw new Error(`Schema for '${tableName}' not found in _forja`);
+		}
+		return JSON.parse(
+			(row as Record<string, unknown>)["value"] as string,
+		) as SchemaDefinition;
+	}
+
+	/**
+	 * Upsert schema into _forja metadata table
+	 */
+	private async upsertSchemaMeta(
+		schema: SchemaDefinition,
+		skipWrite: boolean,
+	): Promise<Result<void, MigrationError>> {
+		try {
+			const metaKey = `${FORJA_META_KEY_PREFIX}${schema.tableName ?? schema.name}`;
+			const metaValue = JSON.stringify(schema);
+			const metaFile = await this.readTable(FORJA_META_MODEL);
+
+			const existingIndex = metaFile.data.findIndex(
+				(r) => (r as Record<string, unknown>)["key"] === metaKey,
+			);
+
+			if (existingIndex >= 0) {
+				(metaFile.data[existingIndex] as Record<string, unknown>)["value"] =
+					metaValue;
+			} else {
+				const lastInsertId = (metaFile.meta.lastInsertId ?? 0) + 1;
+				metaFile.meta.lastInsertId = lastInsertId;
+				metaFile.data.push({
+					id: lastInsertId,
+					key: metaKey,
+					value: metaValue,
+				} as Record<string, unknown>);
+			}
+
+			metaFile.meta.updatedAt = new Date().toISOString();
+
+			if (skipWrite) {
+				this.activeTransactionCache!.set(FORJA_META_MODEL, {
+					data: metaFile,
+					mtime: Date.now(),
+				});
+				this.activeTransactionModifiedTables!.add(FORJA_META_MODEL);
+			} else {
+				const filePath = this.getTablePath(FORJA_META_MODEL);
+				await fs.writeFile(
+					filePath,
+					JSON.stringify(metaFile, null, 2),
+					"utf-8",
+				);
+				await this.updateCache(FORJA_META_MODEL, metaFile);
+			}
+
+			return { success: true, data: undefined };
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			return {
+				success: false,
+				error: new MigrationError(
+					`Failed to upsert schema meta for '${schema.name}': ${message}`,
+					error,
+				),
+			};
+		}
+	}
+
+	/**
+	 * Apply AlterOperations to schema in _forja and write back
+	 */
+	private async applyOperationsToMetaSchema(
+		tableName: string,
+		operations: readonly AlterOperation[],
+		skipWrite: boolean,
+	): Promise<Result<void, MigrationError>> {
+		try {
+			const schema = await this.readTableSchema(tableName);
+			const fields = { ...schema.fields };
+
+			for (const op of operations) {
+				switch (op.type) {
+					case "addColumn":
+						fields[op.column] = op.definition;
+						break;
+					case "dropColumn":
+						delete fields[op.column];
+						break;
+					case "modifyColumn":
+						fields[op.column] = op.newDefinition;
+						break;
+					case "renameColumn": {
+						const fieldDef = fields[op.from];
+						if (fieldDef !== undefined) {
+							fields[op.to] = fieldDef;
+							delete fields[op.from];
+						}
+						break;
+					}
+				}
+			}
+
+			const updatedSchema: SchemaDefinition = { ...schema, fields };
+			return this.upsertSchemaMeta(updatedSchema, skipWrite);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			return {
+				success: false,
+				error: new MigrationError(
+					`Failed to update schema meta for '${tableName}': ${message}`,
+					error,
+				),
+			};
+		}
 	}
 
 	/**
@@ -399,7 +533,6 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 					updatedAt: new Date().toISOString(),
 					name: schema.name,
 				},
-				schema: schema,
 				data: [],
 			};
 
@@ -419,6 +552,23 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 					"utf-8",
 				);
 				await this.updateCache(tableName, initialContent);
+			}
+
+			// Track schema in _forja (skip for _forja itself)
+			if (schema.name !== FORJA_META_MODEL) {
+				const metaExists = await this.tableExists(FORJA_META_MODEL);
+				if (!metaExists) {
+					return {
+						success: false,
+						error: new MigrationError(
+							`Cannot create table '${schema.name}': '${FORJA_META_MODEL}' table does not exist yet. Create '${FORJA_META_MODEL}' first.`,
+						),
+					};
+				}
+				const metaWriteResult = await this.upsertSchemaMeta(schema, skipWrite);
+				if (!metaWriteResult.success) {
+					return metaWriteResult;
+				}
 			}
 
 			return { success: true, data: undefined };
@@ -491,6 +641,32 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 				const filePath = this.getTablePath(tableName);
 				await fs.unlink(filePath);
 				this.invalidateCache(tableName);
+			}
+
+			// Remove schema from _forja
+			if (tableName !== FORJA_META_MODEL) {
+				const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
+				const metaFile = await this.readTable(FORJA_META_MODEL);
+				metaFile.data = metaFile.data.filter(
+					(r) => (r as Record<string, unknown>)["key"] !== metaKey,
+				);
+				metaFile.meta.updatedAt = new Date().toISOString();
+
+				if (skipWrite) {
+					this.activeTransactionCache!.set(FORJA_META_MODEL, {
+						data: metaFile,
+						mtime: Date.now(),
+					});
+					this.activeTransactionModifiedTables!.add(FORJA_META_MODEL);
+				} else {
+					const filePath = this.getTablePath(FORJA_META_MODEL);
+					await fs.writeFile(
+						filePath,
+						JSON.stringify(metaFile, null, 2),
+						"utf-8",
+					);
+					await this.updateCache(FORJA_META_MODEL, metaFile);
+				}
 			}
 
 			return { success: true, data: undefined };
@@ -594,7 +770,15 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 				tableData.data = [];
 			}
 
-			const runner = new JsonQueryRunner(tableData, this);
+			// Load schema from _forja for this table (transaction-aware)
+			let tableSchema: SchemaDefinition | undefined;
+			try {
+				tableSchema = await this.readTableSchema(query.table);
+			} catch {
+				// Schema not found in _forja — proceed without it
+			}
+
+			const runner = new JsonQueryRunner(tableData, this, tableSchema);
 
 			let rows: TResult[] = [];
 			const metadata: {
@@ -647,7 +831,9 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 					}
 
 					const insertedIds: number[] = [];
-					const isJunctionTable = tableData.schema?._isJunctionTable === true;
+					const isJunctionTable =
+						(tableSchema as unknown as { _isJunctionTable?: boolean })
+							?._isJunctionTable === true;
 
 					for (const item of query.data) {
 						const newItem = { ...item };
@@ -677,11 +863,11 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 						}
 
 						// Apply default values from schema (like SQL DEFAULT)
-						this.applyDefaultValues(tableData, newItem);
+						this.applyDefaultValues(tableSchema, newItem);
 
 						// Check constraints before inserting
-						await this.checkForeignKeyConstraints(tableData, newItem);
-						this.checkUniqueConstraints(tableData, newItem);
+						await this.checkForeignKeyConstraints(tableSchema, newItem);
+						this.checkUniqueConstraints(tableData, tableSchema, newItem);
 						tableData.data.push(newItem);
 						insertedIds.push(newItem["id"] as number);
 					}
@@ -708,9 +894,10 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 					// Check constraints for each row being updated
 					for (const row of rowsToUpdate) {
 						const updatedData = { ...row, ...query.data };
-						await this.checkForeignKeyConstraints(tableData, updatedData);
+						await this.checkForeignKeyConstraints(tableSchema, updatedData);
 						this.checkUniqueConstraints(
 							tableData,
+							tableSchema,
 							updatedData,
 							row["id"] as number,
 						);
@@ -959,61 +1146,38 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		try {
 			const json = await this.readTable(tableName);
 
-			if (!json.schema) {
-				return {
-					success: false,
-					error: new MigrationError(`Table '${tableName}' has no schema`),
-				};
-			}
-
-			// Apply each operation
+			// Apply each operation to table data rows
 			for (const op of operations) {
 				switch (op.type) {
 					case "addColumn": {
-						// Add field to schema
-						json.schema.fields[op.column] = op.definition;
-
-						// Add default value to existing rows
 						const defaultValue = (op.definition as { default?: unknown })
 							.default;
 						for (const row of json.data) {
 							if (!(op.column in row)) {
-								row[op.column] = defaultValue ?? null;
+								(row as Record<string, unknown>)[op.column] =
+									defaultValue ?? null;
 							}
 						}
 						break;
 					}
 
 					case "dropColumn": {
-						// Remove field from schema
-						delete json.schema.fields[op.column];
-
-						// Remove column from all rows
 						for (const row of json.data) {
-							delete row[op.column];
+							delete (row as Record<string, unknown>)[op.column];
 						}
 						break;
 					}
 
 					case "modifyColumn": {
-						// Update field definition in schema
-						json.schema.fields[op.column] = op.newDefinition;
 						break;
 					}
 
 					case "renameColumn": {
-						// Rename field in schema
-						const fieldDef = json.schema.fields[op.from];
-						if (fieldDef) {
-							delete json.schema.fields[op.from];
-							json.schema.fields[op.to] = fieldDef;
-						}
-
-						// Rename column in all rows
 						for (const row of json.data) {
-							if (op.from in row) {
-								row[op.to] = row[op.from];
-								delete row[op.from];
+							const r = row as Record<string, unknown>;
+							if (op.from in r) {
+								r[op.to] = r[op.from];
+								delete r[op.from];
 							}
 						}
 						break;
@@ -1035,6 +1199,18 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 				const filePath = this.getTablePath(tableName);
 				await fs.writeFile(filePath, JSON.stringify(json, null, 2), "utf-8");
 				await this.updateCache(tableName, json);
+			}
+
+			// Update schema in _forja
+			if (tableName !== FORJA_META_MODEL) {
+				const metaResult = await this.applyOperationsToMetaSchema(
+					tableName,
+					operations,
+					skipWrite,
+				);
+				if (!metaResult.success) {
+					return metaResult;
+				}
 			}
 
 			return { success: true, data: undefined };
@@ -1116,11 +1292,6 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 
 			// Read source table (will throw if doesn't exist)
 			const json = await this.readTable(from);
-
-			// Update schema tableName
-			if (json.schema) {
-				(json as any).schema = { ...json.schema, tableName: to };
-			}
 			json.meta.updatedAt = new Date().toISOString();
 
 			if (skipWrite) {
@@ -1142,6 +1313,36 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 				await fs.unlink(fromPath);
 				this.invalidateCache(from);
 				await this.updateCache(to, json);
+			}
+
+			// Update key in _forja
+			if (from !== FORJA_META_MODEL && to !== FORJA_META_MODEL) {
+				const oldKey = `${FORJA_META_KEY_PREFIX}${from}`;
+				const newKey = `${FORJA_META_KEY_PREFIX}${to}`;
+				const metaFile = await this.readTable(FORJA_META_MODEL);
+				const row = metaFile.data.find(
+					(r) => (r as Record<string, unknown>)["key"] === oldKey,
+				);
+				if (row) {
+					(row as Record<string, unknown>)["key"] = newKey;
+					metaFile.meta.updatedAt = new Date().toISOString();
+
+					if (skipWrite) {
+						this.activeTransactionCache!.set(FORJA_META_MODEL, {
+							data: metaFile,
+							mtime: Date.now(),
+						});
+						this.activeTransactionModifiedTables!.add(FORJA_META_MODEL);
+					} else {
+						const metaPath = this.getTablePath(FORJA_META_MODEL);
+						await fs.writeFile(
+							metaPath,
+							JSON.stringify(metaFile, null, 2),
+							"utf-8",
+						);
+						await this.updateCache(FORJA_META_MODEL, metaFile);
+					}
+				}
 			}
 
 			return { success: true, data: undefined };
@@ -1228,16 +1429,8 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 			};
 		}
 		try {
-			const json = await this.readTable(tableName);
-
-			if (json.schema) {
-				return { success: true, data: json.schema as SchemaDefinition };
-			}
-
-			return {
-				success: false,
-				error: new QueryError(`Schema not found for table '${tableName}'`),
-			};
+			const schema = await this.readTableSchema(tableName);
+			return { success: true, data: schema };
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			return {
@@ -1347,10 +1540,9 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 	 * @param data - Data being inserted (mutated in place)
 	 */
 	private applyDefaultValues(
-		tableData: JsonTableFile,
+		schema: SchemaDefinition | undefined,
 		data: Record<string, unknown>,
 	): void {
-		const schema = tableData.schema;
 		if (!schema?.fields) return;
 
 		for (const [fieldName, fieldDef] of Object.entries(schema.fields)) {
@@ -1376,10 +1568,9 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 	 * @throws ForjaJsonAdapterError if FK constraint violated
 	 */
 	private async checkForeignKeyConstraints(
-		tableData: JsonTableFile,
+		schema: SchemaDefinition | undefined,
 		data: Record<string, unknown>,
 	): Promise<void> {
-		const schema = tableData.schema;
 		if (!schema?.fields) return;
 
 		for (const [fieldName, fieldDef] of Object.entries(schema.fields)) {
@@ -1447,10 +1638,12 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 	 */
 	private checkUniqueConstraints(
 		tableData: JsonTableFile,
+		schema: SchemaDefinition | undefined,
 		newData: Record<string, unknown>,
 		excludeId?: number | string,
 	): void {
-		const schema = tableData.schema!;
+		if (!schema?.fields) return;
+
 		const existingData = tableData.data;
 
 		// 1. Check unique fields (field.unique === true)
@@ -1468,7 +1661,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 				throwUniqueConstraintField(
 					fieldName,
 					value,
-					tableData.schema?.tableName ?? "unknown",
+					schema.tableName ?? "unknown",
 				);
 			}
 		}
@@ -1479,7 +1672,6 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		for (const index of schema.indexes) {
 			if (!index.unique) continue;
 
-			// Get values for all fields in index
 			const indexValues = index.fields.map((f) => newData[f]);
 
 			// Skip if any value is undefined
@@ -1493,10 +1685,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 			);
 
 			if (duplicate) {
-				throwUniqueConstraintIndex(
-					index.fields,
-					tableData.schema?.tableName ?? "unknown",
-				);
+				throwUniqueConstraintIndex(index.fields, schema.tableName ?? "unknown");
 			}
 		}
 	}
