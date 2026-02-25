@@ -22,18 +22,20 @@ import { validateQueryObject } from "forja-types/utils/query";
 import { JsonAdapterConfig, JsonTableFile } from "./types";
 import { JsonQueryRunner } from "./runner";
 import { SimpleLock } from "./lock";
-import { JsonPopulator } from "./populate";
-import {
-	throwQueryMissingData,
-	throwUniqueConstraintField,
-	throwUniqueConstraintIndex,
-	throwForeignKeyConstraint,
-} from "./error-helper";
 import { ForjaError } from "forja-types/errors";
 import { JsonTransaction } from "./transaction";
-import { FORJA_META_MODEL } from "forja-core";
-
-const FORJA_META_KEY_PREFIX = "_schema_";
+import {
+	FORJA_META_MODEL,
+	FORJA_META_KEY_PREFIX,
+} from "forja-types/core/constants";
+import { createMetaTable, validateTableName } from "./table-utils";
+import {
+	handleCount,
+	handleDelete,
+	handleInsert,
+	handleSelect,
+	handleUpdate,
+} from "./query-handlers";
 
 /**
  * Cache entry for table data
@@ -117,6 +119,16 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		try {
 			await fs.mkdir(this.config.root, { recursive: true });
 			this.state = "connected";
+
+			// Standalone mode: bootstrap _forja metadata table automatically
+			if (this.config.standalone) {
+				const metaResult = await createMetaTable(this);
+				if (!metaResult.success) {
+					this.state = "error";
+					return metaResult;
+				}
+			}
+
 			return { success: true, data: undefined };
 		} catch (error) {
 			this.state = "error";
@@ -142,38 +154,6 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 
 	getConnectionState(): ConnectionState {
 		return this.state;
-	}
-
-	/**
-	 * Validate table name for security
-	 */
-	private validateTableName(tableName: string): Result<void, MigrationError> {
-		if (tableName.includes("\x00")) {
-			return {
-				success: false,
-				error: new MigrationError("Invalid table name: contains null byte"),
-			};
-		}
-
-		if (tableName.includes("/") || tableName.includes("\\")) {
-			return {
-				success: false,
-				error: new MigrationError(
-					"Invalid table name: contains path separators",
-				),
-			};
-		}
-
-		if (tableName.includes("..")) {
-			return {
-				success: false,
-				error: new MigrationError(
-					"Invalid table name: contains parent directory reference",
-				),
-			};
-		}
-
-		return { success: true, data: undefined };
 	}
 
 	/**
@@ -483,6 +463,17 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 	): Promise<Result<void, MigrationError>> {
 		const skipWrite = options?.skipWrite ?? false;
 
+		// Standalone mode: ensure id field exists since registry is not present to add it
+		if (this.config.standalone && !("id" in schema.fields)) {
+			schema = {
+				...schema,
+				fields: {
+					id: { type: "number", autoIncrement: true },
+					...schema.fields,
+				},
+			};
+		}
+
 		if (!this.isConnected()) {
 			return {
 				success: false,
@@ -492,7 +483,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 
 		const tableName = schema.tableName!;
 
-		const validation = this.validateTableName(tableName);
+		const validation = validateTableName(tableName);
 		if (!validation.success) {
 			return validation;
 		}
@@ -645,6 +636,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 
 			// Remove schema from _forja
 			if (tableName !== FORJA_META_MODEL) {
+				// TODO: _forja table diger tablelar gibi bir table. burada kod tekrari yapmak yerine executeQuery({delete from _forja where key = metaKey}) gibi bir sey yapilabilir. eger lock problem cikarmiyorsa
 				const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
 				const metaFile = await this.readTable(FORJA_META_MODEL);
 				metaFile.data = metaFile.data.filter(
@@ -780,162 +772,39 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 
 			const runner = new JsonQueryRunner(tableData, this, tableSchema);
 
-			let rows: TResult[] = [];
-			const metadata: {
-				rowCount: number;
-				affectedRows: number;
-				insertIds?: number[];
-			} = { rowCount: 0, affectedRows: 0 };
-			let shouldWrite = false;
+			let handlerResult: Awaited<ReturnType<typeof handleSelect>>;
 
 			switch (query.type) {
-				case "select":
-				case "count": {
-					// Step 1: Filter and sort (WITHOUT projection - keep all fields for populate)
-					if (query.type === "select" && query.populate) {
-						rows = await runner.filterAndSort(query);
-					} else {
-						// No populate - use normal flow with projection
-						rows = (await runner.run(query)) as TResult[];
-					}
-
-					// Step 2: Populate (all fields available)
-					if (query.type === "select" && query.populate) {
-						const populator = new JsonPopulator(this);
-						rows = await populator.populate(rows, query);
-
-						// Step 3: Apply select recursively (preserves populated fields, applies nested selects)
-						rows = this.applySelectRecursive<TResult>(
-							rows,
-							query.select,
-							query.populate,
-						) as TResult[];
-					}
-
-					if (query.type === "count") {
+				case "count":
+					handlerResult = await handleCount({ runner, query });
+					if (handlerResult.earlyReturn) {
 						if (lockAcquired) await this.lock.release();
 						return {
 							success: true,
 							data: {
 								rows: [] as TResult[],
-								metadata: { rowCount: 0, affectedRows: 0, count: rows.length },
+								metadata: handlerResult.metadata,
 							},
 						};
 					}
 					break;
-				}
-
-				case "insert": {
-					if (!query.data || !Array.isArray(query.data)) {
-						throwQueryMissingData("insert", query.table);
-					}
-
-					const insertedIds: number[] = [];
-					const isJunctionTable =
-						(tableSchema as unknown as { _isJunctionTable?: boolean })
-							?._isJunctionTable === true;
-
-					for (const item of query.data) {
-						const newItem = { ...item };
-
-						// Junction table: skip existing relations silently (idempotent connect)
-						if (isJunctionTable) {
-							const alreadyExists = tableData.data.some((row) =>
-								Object.keys(newItem).every(
-									(key) => key === "id" || row[key] === newItem[key],
-								),
-							);
-							if (alreadyExists) continue;
-						}
-
-						if (!newItem["id"]) {
-							tableData.meta.lastInsertId =
-								(tableData.meta.lastInsertId ?? 0) + 1;
-							newItem["id"] = tableData.meta.lastInsertId;
-						} else {
-							const manualId = Number(newItem["id"]);
-							if (
-								!isNaN(manualId) &&
-								manualId > (tableData.meta.lastInsertId ?? 0)
-							) {
-								tableData.meta.lastInsertId = manualId;
-							}
-						}
-
-						// Apply default values from schema (like SQL DEFAULT)
-						this.applyDefaultValues(tableSchema, newItem);
-
-						// Check constraints before inserting
-						await this.checkForeignKeyConstraints(tableSchema, newItem);
-						this.checkUniqueConstraints(tableData, tableSchema, newItem);
-						tableData.data.push(newItem);
-						insertedIds.push(newItem["id"] as number);
-					}
-
-					rows = insertedIds.map((id) => ({ id })) as TResult[];
-					metadata.affectedRows = insertedIds.length;
-					metadata.insertIds = insertedIds;
-					shouldWrite = true;
+				case "select":
+					handlerResult = await handleSelect({ runner, query, adapter: this });
 					break;
-				}
-
-				case "update": {
-					if (!query.data) {
-						throwQueryMissingData("update", query.table);
-					}
-					const updateQuery: QuerySelectObject<TResult> = {
-						...(query as unknown as QuerySelectObject<TResult>),
-						limit: undefined,
-						offset: undefined,
-						orderBy: undefined,
-					};
-					const rowsToUpdate = await runner.filterAndSort(updateQuery);
-
-					// Check constraints for each row being updated
-					for (const row of rowsToUpdate) {
-						const updatedData = { ...row, ...query.data };
-						await this.checkForeignKeyConstraints(tableSchema, updatedData);
-						this.checkUniqueConstraints(
-							tableData,
-							tableSchema,
-							updatedData,
-							row["id"] as number,
-						);
-					}
-
-					for (const row of rowsToUpdate) {
-						Object.assign(row, query.data);
-					}
-
-					const updatedIds = rowsToUpdate.map((r) => r["id"] as number);
-					rows = updatedIds.map((id) => ({ id })) as TResult[];
-					metadata.affectedRows = updatedIds.length;
-					shouldWrite = true;
+				case "insert":
+					handlerResult = await handleInsert({ runner, query });
 					break;
-				}
-
-				case "delete": {
-					const deleteQuery: QuerySelectObject<TResult> = {
-						...(query as unknown as QuerySelectObject<TResult>),
-						limit: undefined,
-						offset: undefined,
-						orderBy: undefined,
-					};
-					const rowsToDelete = await runner.filterAndSort(deleteQuery);
-					const idsToDelete = new Set(rowsToDelete.map((r) => r.id));
-
-					const originalLength = tableData.data.length;
-					tableData.data = tableData.data.filter(
-						(d) => !idsToDelete.has(d["id"] as number),
-					);
-
-					const deletedIds = rowsToDelete.map((r) => r["id"] as number);
-					rows = deletedIds.map((id) => ({ id })) as TResult[];
-					metadata.affectedRows = originalLength - tableData.data.length;
-					shouldWrite = true;
+				case "update":
+					handlerResult = await handleUpdate({ runner, query });
 					break;
-				}
+				case "delete":
+					handlerResult = await handleDelete({ runner, query });
+					break;
 			}
+
+			const rows = handlerResult!.rows as TResult[];
+			const metadata = handlerResult!.metadata;
+			const shouldWrite = handlerResult!.shouldWrite;
 
 			// Handle write
 			if (shouldWrite) {
@@ -973,7 +842,10 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 
 			// Re-throw ForjaError as-is (already has detailed context)
 			if (error instanceof ForjaError) {
-				throw error;
+				return {
+					success: false,
+					error: error as QueryError<TResult>,
+				};
 			}
 
 			// Wrap unexpected errors
@@ -1247,7 +1119,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 			};
 		}
 
-		const validation = this.validateTableName(to);
+		const validation = validateTableName(to);
 		if (!validation.success) {
 			return validation;
 		}
@@ -1447,246 +1319,6 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 			return true;
 		} catch {
 			return false;
-		}
-	}
-
-	/**
-	 * Apply SELECT recursively (preserves populated fields)
-	 * This ensures that:
-	 * 1. Top-level select keeps populated relation fields
-	 * 2. Nested populate selects are applied to related data
-	 *
-	 * @param rows - Data rows (may contain populated relations)
-	 * @param select - Fields to select at this level
-	 * @param populate - Populate configuration (contains nested selects)
-	 * @returns Rows with select applied recursively
-	 */
-	private applySelectRecursive<T extends ForjaEntry>(
-		rows: T[],
-		select?: QuerySelectObject<T>["select"],
-		populate?: QuerySelectObject<T>["populate"],
-	): Partial<T>[] {
-		if (!rows || rows.length === 0) {
-			return rows;
-		}
-
-		let result = rows as Partial<T>[];
-
-		// Apply top-level select (but preserve populated fields)
-		if (select && (select as unknown as string) !== "*") {
-			const fieldsToKeep = new Set(select);
-
-			// Add populated relation fields to keep them
-			if (populate) {
-				for (const relationName of Object.keys(populate)) {
-					fieldsToKeep.add(relationName as keyof T);
-				}
-			}
-
-			// Project fields
-			result = rows.map((row) => {
-				const projected: Partial<T> = {};
-				for (const field of fieldsToKeep) {
-					if (field in row) {
-						projected[field] = row[field];
-					}
-				}
-				return projected;
-			});
-		}
-
-		// Apply nested select to populated relations
-		if (populate) {
-			for (const [relationName, options] of Object.entries(populate)) {
-				if (typeof options === "boolean") continue;
-
-				const nestedSelect = options === "*" ? "*" : options.select;
-				const nestedPopulate = options === "*" ? undefined : options.populate;
-
-				for (const row of result) {
-					const relationValue = row[relationName as keyof T] as T;
-					if (!relationValue) continue;
-
-					if (Array.isArray(relationValue)) {
-						// hasMany relation
-						row[relationName as keyof T] = this.applySelectRecursive<T>(
-							relationValue,
-							nestedSelect,
-							nestedPopulate,
-						) as T[keyof T];
-					} else {
-						// belongsTo/hasOne relation
-						row[relationName as keyof T] = this.applySelectRecursive<T>(
-							[relationValue],
-							nestedSelect,
-							nestedPopulate,
-						)[0] as T[keyof T];
-					}
-				}
-			}
-		}
-
-		return result;
-	}
-
-	/**
-	 * Apply default values from schema for fields not provided
-	 *
-	 * This mimics SQL DEFAULT behavior - if a field has a default value
-	 * defined in the schema and the field is not provided (undefined),
-	 * the default value is applied.
-	 *
-	 * @param tableData - Table data with schema
-	 * @param data - Data being inserted (mutated in place)
-	 */
-	private applyDefaultValues(
-		schema: SchemaDefinition | undefined,
-		data: Record<string, unknown>,
-	): void {
-		if (!schema?.fields) return;
-
-		for (const [fieldName, fieldDef] of Object.entries(schema.fields)) {
-			// Skip if value is already provided (including null - explicit null is intentional)
-			if (fieldName in data) continue;
-
-			// Check if field has a default value
-			const defaultValue = (fieldDef as { default?: unknown }).default;
-			if (defaultValue !== undefined) {
-				data[fieldName] = defaultValue;
-			}
-		}
-	}
-
-	/**
-	 * Check foreign key constraints before insert/update
-	 *
-	 * Validates that all foreign key values reference existing records
-	 * in their target tables. This mimics SQL FK constraint behavior.
-	 *
-	 * @param tableData - Table data with schema
-	 * @param data - Data to be inserted/updated
-	 * @throws ForjaJsonAdapterError if FK constraint violated
-	 */
-	private async checkForeignKeyConstraints(
-		schema: SchemaDefinition | undefined,
-		data: Record<string, unknown>,
-	): Promise<void> {
-		if (!schema?.fields) return;
-
-		for (const [fieldName, fieldDef] of Object.entries(schema.fields)) {
-			// Only check relation fields with foreignKey
-			if (fieldDef.type !== "relation") continue;
-
-			const relationField = fieldDef as {
-				type: "relation";
-				model: string;
-				foreignKey?: string;
-				kind?: string;
-			};
-
-			// Only belongsTo/hasOne have inline foreign keys
-			if (
-				relationField.kind !== "belongsTo" &&
-				relationField.kind !== "hasOne"
-			) {
-				continue;
-			}
-
-			const foreignKey = relationField.foreignKey ?? `${fieldName}Id`;
-			const fkValue = data[foreignKey];
-
-			// Skip if FK is not in data or is null (null is allowed)
-			if (fkValue === undefined || fkValue === null) continue;
-
-			// Get target table
-			const targetSchema = await this.getSchemaByModelName(relationField.model);
-			if (!targetSchema) {
-				// Target model not found - skip check (will fail elsewhere)
-				continue;
-			}
-
-			const targetTable =
-				targetSchema.tableName ?? relationField.model.toLowerCase();
-			const targetData = await this.getCachedTable(targetTable);
-
-			if (!targetData) {
-				// Target table not found - skip check
-				continue;
-			}
-
-			// Check if referenced record exists
-			const exists = targetData.data.some((row) => row["id"] === fkValue);
-
-			if (!exists) {
-				throwForeignKeyConstraint(
-					foreignKey,
-					fkValue,
-					relationField.model,
-					schema.tableName ?? "unknown",
-				);
-			}
-		}
-	}
-
-	/**
-	 * Check unique constraints before insert/update
-	 *
-	 * @param tableData - Table data with schema and existing records
-	 * @param newData - Data to be inserted/updated
-	 * @param excludeId - For updates, exclude current record from check
-	 * @throws Error if unique constraint violated
-	 */
-	private checkUniqueConstraints(
-		tableData: JsonTableFile,
-		schema: SchemaDefinition | undefined,
-		newData: Record<string, unknown>,
-		excludeId?: number | string,
-	): void {
-		if (!schema?.fields) return;
-
-		const existingData = tableData.data;
-
-		// 1. Check unique fields (field.unique === true)
-		for (const [fieldName, fieldDef] of Object.entries(schema.fields)) {
-			if (!(fieldDef as { unique: boolean }).unique) continue;
-
-			const value = newData[fieldName];
-			if (value === undefined || value === null) continue;
-
-			const duplicate = existingData.find(
-				(row) => row[fieldName] === value && row["id"] !== excludeId,
-			);
-
-			if (duplicate) {
-				throwUniqueConstraintField(
-					fieldName,
-					value,
-					schema.tableName ?? "unknown",
-				);
-			}
-		}
-
-		// 2. Check unique indexes
-		if (!schema.indexes) return;
-
-		for (const index of schema.indexes) {
-			if (!index.unique) continue;
-
-			const indexValues = index.fields.map((f) => newData[f]);
-
-			// Skip if any value is undefined
-			if (indexValues.some((v) => v === undefined || v === null)) continue;
-
-			// Check if combination exists
-			const duplicate = existingData.find(
-				(row) =>
-					index.fields.every((f) => row[f] === newData[f]) &&
-					row["id"] !== excludeId,
-			);
-
-			if (duplicate) {
-				throwUniqueConstraintIndex(index.fields, schema.tableName ?? "unknown");
-			}
 		}
 	}
 }

@@ -177,6 +177,16 @@ export function getOperatorValueType(
 }
 
 /**
+ * Internal metadata table name used by all adapters to store schema snapshots
+ */
+export const FORJA_META_MODEL = "_forja";
+
+/**
+ * Key prefix for schema entries stored in the _forja metadata table
+ */
+export const FORJA_META_KEY_PREFIX = "_schema_";
+
+/**
  * Field name validation pattern
  * Must start with letter or underscore, contain only alphanumeric, underscores, and dots
  */

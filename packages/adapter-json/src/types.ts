@@ -24,6 +24,11 @@ export interface JsonAdapterConfig extends Record<string, unknown> {
 	 * Enable this if you need strict read consistency in concurrent write scenarios
 	 */
 	readLock?: boolean;
+	/**
+	 * Standalone mode: automatically creates _forja metadata table on connect (default: false)
+	 * Use this when running the JSON adapter without Forja core (e.g. direct adapter usage or tests)
+	 */
+	standalone?: boolean;
 }
 
 /**

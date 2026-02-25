@@ -76,6 +76,9 @@ export {
 // Permission types
 export * from "./core/permission";
 
+// Core constants
+export { FORJA_META_MODEL, FORJA_META_KEY_PREFIX } from "./core/constants";
+
 // Query builder types
 export {
 	type QueryPrimitive,

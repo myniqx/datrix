@@ -6,6 +6,8 @@
  */
 
 import { defineSchema } from "forja-types/core/schema";
+import { FORJA_META_MODEL } from "forja-types/core/constants";
+export { FORJA_META_MODEL };
 
 /**
  * Default model name for migration history
@@ -85,11 +87,6 @@ export function getMigrationSchema(
  * Migration history schema type
  */
 export type MigrationHistorySchema = ReturnType<typeof getMigrationSchema>;
-
-/**
- * Default model name for internal Forja metadata store
- */
-export const FORJA_META_MODEL = "_forja";
 
 /**
  * Get internal Forja metadata schema definition

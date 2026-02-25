@@ -10,12 +10,15 @@ describe("JsonAdapter - Concurrent Access & Race Conditions", () => {
 
 	beforeEach(async () => {
 		await fs.rm(root, { recursive: true, force: true });
-		adapter = new JsonAdapter({ root });
+		adapter = new JsonAdapter({ root, standalone: true });
 		await adapter.connect();
 		await adapter.createTable({
 			name: "users",
 			tableName: "users",
-			fields: { name: { type: "string", required: true } },
+			fields: {
+				name: { type: "string", required: true },
+				id: { type: "number" },
+			},
 		});
 	});
 
@@ -30,7 +33,7 @@ describe("JsonAdapter - Concurrent Access & Race Conditions", () => {
 				adapter.executeQuery({
 					type: "insert",
 					table: "users",
-					data: { name: `User${i}` },
+					data: [{ name: `User${i}` }],
 				}),
 			);
 
@@ -53,17 +56,17 @@ describe("JsonAdapter - Concurrent Access & Race Conditions", () => {
 			await adapter.executeQuery({
 				type: "insert",
 				table: "users",
-				data: { name: "User1" },
+				data: [{ name: "User1" }],
 			});
 			await adapter.executeQuery({
 				type: "insert",
 				table: "users",
-				data: { name: "User2" },
+				data: [{ name: "User2" }],
 			});
 			await adapter.executeQuery({
 				type: "insert",
 				table: "users",
-				data: { name: "User3" },
+				data: [{ name: "User3" }],
 			});
 
 			const concurrentUpdates = [
@@ -103,7 +106,7 @@ describe("JsonAdapter - Concurrent Access & Race Conditions", () => {
 			await adapter.executeQuery({
 				type: "insert",
 				table: "users",
-				data: { name: "Original" },
+				data: [{ name: "Original" }],
 			});
 
 			const concurrentUpdates = Array.from({ length: 5 }, (_, i) =>
@@ -133,19 +136,19 @@ describe("JsonAdapter - Concurrent Access & Race Conditions", () => {
 			await adapter.executeQuery({
 				type: "insert",
 				table: "users",
-				data: { name: "Existing" },
+				data: [{ name: "Existing" }],
 			});
 
 			const mixedOperations = [
 				adapter.executeQuery({
 					type: "insert",
 					table: "users",
-					data: { name: "New1" },
+					data: [{ name: "New1" }],
 				}),
 				adapter.executeQuery({
 					type: "insert",
 					table: "users",
-					data: { name: "New2" },
+					data: [{ name: "New2" }],
 				}),
 				adapter.executeQuery({
 					type: "update",
@@ -157,7 +160,7 @@ describe("JsonAdapter - Concurrent Access & Race Conditions", () => {
 				adapter.executeQuery({
 					type: "insert",
 					table: "users",
-					data: { name: "New3" },
+					data: [{ name: "New3" }],
 				}),
 			];
 
@@ -186,7 +189,7 @@ describe("JsonAdapter - Concurrent Access & Race Conditions", () => {
 						adapter.executeQuery({
 							type: "insert",
 							table: "users",
-							data: { name: `User${i}` },
+							data: [{ name: `User${i}` }],
 						}),
 					);
 				} else {
@@ -218,12 +221,12 @@ describe("JsonAdapter - Concurrent Access & Race Conditions", () => {
 			await adapter.executeQuery({
 				type: "insert",
 				table: "users",
-				data: { name: "ToDelete" },
+				data: [{ name: "ToDelete" }],
 			});
 			await adapter.executeQuery({
 				type: "insert",
 				table: "users",
-				data: { name: "ToKeep" },
+				data: [{ name: "ToKeep" }],
 			});
 
 			const operations = [
@@ -252,12 +255,12 @@ describe("JsonAdapter - Concurrent Access & Race Conditions", () => {
 			await adapter.executeQuery({
 				type: "insert",
 				table: "users",
-				data: { name: "Alice" },
+				data: [{ name: "Alice" }],
 			});
 			await adapter.executeQuery({
 				type: "insert",
 				table: "users",
-				data: { name: "Bob" },
+				data: [{ name: "Bob" }],
 			});
 
 			const query = {
@@ -278,7 +281,7 @@ describe("JsonAdapter - Concurrent Access & Race Conditions", () => {
 			await adapter.executeQuery({
 				type: "insert",
 				table: "users",
-				data: { name: "Test" },
+				data: [{ name: "Test" }],
 			});
 
 			const identicalQueries = Array.from({ length: 10 }, () =>
@@ -301,7 +304,7 @@ describe("JsonAdapter - Concurrent Access & Race Conditions", () => {
 				adapter.executeQuery({
 					type: "insert",
 					table: "users",
-					data: { name: `User${i}` },
+					data: [{ name: `User${i}` }],
 				}),
 			);
 
@@ -315,7 +318,7 @@ describe("JsonAdapter - Concurrent Access & Race Conditions", () => {
 			await adapter.executeQuery({
 				type: "insert",
 				table: "users",
-				data: { name: "Initial" },
+				data: [{ name: "Initial" }],
 			});
 
 			const operations = Array.from({ length: 10 }, (_, i) => [
@@ -323,7 +326,7 @@ describe("JsonAdapter - Concurrent Access & Race Conditions", () => {
 					type: "update",
 					table: "users",
 					where: { id: 1 },
-					data: { name: `A${i}` },
+					data: [{ name: `A${i}` }],
 				}),
 				adapter.executeQuery({
 					type: "select",

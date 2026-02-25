@@ -11,7 +11,7 @@ describe("JsonAdapter - Happy Path", () => {
 
 	beforeEach(async () => {
 		await fs.rm(root, { recursive: true, force: true });
-		adapter = new JsonAdapter({ root });
+		adapter = new JsonAdapter({ root, standalone: true });
 		await adapter.connect();
 	});
 
@@ -52,11 +52,11 @@ describe("JsonAdapter - Happy Path", () => {
 			await adapter.executeQuery({
 				type: "insert",
 				table: "users",
-				data: { name: "Burak" },
+				data: [{ name: "Burak" }],
 			}),
 		);
 
-		expect(insertResult.metadata.insertId).toBe(1);
+		expect(insertResult.metadata.insertIds[0]).toBe(1);
 
 		// Select
 		const selectResult = expectSuccessData(
@@ -74,12 +74,15 @@ describe("JsonAdapter - Happy Path", () => {
 		await adapter.createTable({
 			name: "users",
 			tableName: "users",
-			fields: { name: { type: "string", required: true } },
+			fields: {
+				name: { type: "string", required: true },
+				id: { type: "number" },
+			},
 		});
 		await adapter.executeQuery({
 			type: "insert",
 			table: "users",
-			data: { name: "Old" },
+			data: [{ name: "Old" }],
 		});
 
 		const updateResult = expectSuccessData(
@@ -108,12 +111,15 @@ describe("JsonAdapter - Happy Path", () => {
 		await adapter.createTable({
 			name: "users",
 			tableName: "users",
-			fields: { name: { type: "string", required: true } },
+			fields: {
+				name: { type: "string", required: true },
+				id: { type: "number" },
+			},
 		});
 		await adapter.executeQuery({
 			type: "insert",
 			table: "users",
-			data: { name: "DeleteMe" },
+			data: [{ name: "DeleteMe" }],
 		});
 
 		const deleteResult = expectSuccessData(
@@ -148,7 +154,7 @@ describe("JsonAdapter - Happy Path", () => {
 				await adapter.executeQuery({
 					type: "insert",
 					table: "users",
-					data: { name: "First" },
+					data: [{ name: "First" }],
 				}),
 			);
 
@@ -156,7 +162,7 @@ describe("JsonAdapter - Happy Path", () => {
 				await adapter.executeQuery({
 					type: "insert",
 					table: "users",
-					data: { name: "Second" },
+					data: [{ name: "Second" }],
 				}),
 			);
 
@@ -164,13 +170,13 @@ describe("JsonAdapter - Happy Path", () => {
 				await adapter.executeQuery({
 					type: "insert",
 					table: "users",
-					data: { name: "Third" },
+					data: [{ name: "Third" }],
 				}),
 			);
 
-			expect(insert1.metadata.insertId).toBe(1);
-			expect(insert2.metadata.insertId).toBe(2);
-			expect(insert3.metadata.insertId).toBe(3);
+			expect(insert1.metadata.insertIds[0]).toBe(1);
+			expect(insert2.metadata.insertIds[0]).toBe(2);
+			expect(insert3.metadata.insertIds[0]).toBe(3);
 		});
 
 		it("should return consistent results for same query", async () => {
@@ -182,12 +188,12 @@ describe("JsonAdapter - Happy Path", () => {
 			await adapter.executeQuery({
 				type: "insert",
 				table: "users",
-				data: { name: "Alice" },
+				data: [{ name: "Alice" }],
 			});
 			await adapter.executeQuery({
 				type: "insert",
 				table: "users",
-				data: { name: "Bob" },
+				data: [{ name: "Bob" }],
 			});
 
 			const result1 = expectSuccessData(
@@ -225,7 +231,7 @@ describe("JsonAdapter - Happy Path", () => {
 			await adapter.executeQuery({
 				type: "insert",
 				table: "users",
-				data: data1,
+				data: [data1],
 			});
 
 			const result1 = expectSuccessData(
@@ -258,7 +264,7 @@ describe("JsonAdapter - Happy Path", () => {
 			await adapter.executeQuery({
 				type: "insert",
 				table: "users",
-				data: { name: "Persistent" },
+				data: [{ name: "Persistent" }],
 			});
 
 			await adapter.disconnect();
@@ -279,23 +285,26 @@ describe("JsonAdapter - Happy Path", () => {
 			await adapter.createTable({
 				name: "users",
 				tableName: "users",
-				fields: { name: { type: "string", required: true } },
+				fields: {
+					name: { type: "string", required: true },
+					id: { type: "number" },
+				},
 			});
 
 			await adapter.executeQuery({
 				type: "insert",
 				table: "users",
-				data: { name: "User1" },
+				data: [{ name: "User1" }],
 			});
 			await adapter.executeQuery({
 				type: "insert",
 				table: "users",
-				data: { name: "User2" },
+				data: [{ name: "User2" }],
 			});
 			await adapter.executeQuery({
 				type: "insert",
 				table: "users",
-				data: { name: "User3" },
+				data: [{ name: "User3" }],
 			});
 
 			const result = expectSuccessData(
@@ -329,7 +338,7 @@ describe("JsonAdapter - Happy Path", () => {
 				type: "insert",
 				table: "users",
 				// @ts-ignore - Invalid data
-				data: null,
+				data: [null],
 			});
 
 			const afterCount = expectSuccessData(

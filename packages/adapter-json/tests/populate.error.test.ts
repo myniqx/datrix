@@ -11,7 +11,7 @@ describe("JsonAdapter Populate - Error Handling", () => {
 
 	beforeEach(async () => {
 		await fs.rm(root, { recursive: true, force: true });
-		adapter = new JsonAdapter({ root });
+		adapter = new JsonAdapter({ root, standalone: true });
 		await adapter.connect();
 
 		await adapter.createTable({
@@ -67,11 +67,15 @@ describe("JsonAdapter Populate - Error Handling", () => {
 					authorId: { type: "number", required: false },
 				},
 			});
-
+			await adapter.executeQuery({
+				type: "insert",
+				table: "users",
+				data: [{ name: "Alice" }],
+			});
 			await adapter.executeQuery({
 				type: "insert",
 				table: "simple_posts",
-				data: { title: "Test", authorId: 1 },
+				data: [{ title: "Test", authorId: 1 }],
 			});
 
 			const query: QueryObject = {
@@ -100,7 +104,7 @@ describe("JsonAdapter Populate - Error Handling", () => {
 			await adapter.executeQuery({
 				type: "insert",
 				table: "invalid_posts",
-				data: { title: "Test", author: "John" },
+				data: [{ title: "Test", author: "John" }],
 			});
 
 			const query: QueryObject = {
@@ -134,7 +138,7 @@ describe("JsonAdapter Populate - Error Handling", () => {
 			await adapter.executeQuery({
 				type: "insert",
 				table: "bad_posts",
-				data: { title: "Test" },
+				data: [{ title: "Test" }],
 			});
 
 			const query: QueryObject = {
@@ -176,7 +180,7 @@ describe("JsonAdapter Populate - Error Handling", () => {
 			await adapter.executeQuery({
 				type: "insert",
 				table: "posts_bad_junction",
-				data: { title: "Test" },
+				data: [{ title: "Test" }],
 			});
 
 			const query: QueryObject = {
@@ -201,8 +205,13 @@ describe("JsonAdapter Populate - Error Handling", () => {
 		it("should throw when target table file is deleted (data corruption)", async () => {
 			await adapter.executeQuery({
 				type: "insert",
+				table: "users",
+				data: [{ name: "Alice" }],
+			});
+			await adapter.executeQuery({
+				type: "insert",
 				table: "posts",
-				data: { title: "Test Post", authorId: 1 },
+				data: [{ title: "Test Post", authorId: 1 }],
 			});
 
 			// Delete the target table file (simulates data corruption)
@@ -218,7 +227,7 @@ describe("JsonAdapter Populate - Error Handling", () => {
 			const result = await adapter.executeQuery(query);
 			expect(result.success).toBe(false);
 			if (!result.success) {
-				expect(result.error.code).toBe("QUERY_ERROR");
+				expect(result.error.code).toBe("ADAPTER_TARGET_MODEL_NOT_FOUND");
 				expect(result.error.message.toLowerCase()).toContain("not found");
 			}
 		});
@@ -241,20 +250,20 @@ describe("JsonAdapter Populate - Error Handling", () => {
 			await adapter.executeQuery({
 				type: "insert",
 				table: "users_missing_posts",
-				data: { name: "Alice" },
+				data: [{ name: "Alice" }],
 			});
 
 			const query: QueryObject = {
 				type: "select",
 				table: "users_missing_posts",
-				populate: { posts: {} },
+				populate: { posts: true },
 			};
 
 			// Should throw error for non-existent target model
 			const result = await adapter.executeQuery(query);
 			expect(result.success).toBe(false);
 			if (!result.success) {
-				expect(result.error.code).toBe("QUERY_ERROR");
+				expect(result.error.code).toBe("ADAPTER_TARGET_MODEL_NOT_FOUND");
 				expect(result.error.message.toLowerCase()).toMatch(
 					/not found|nonexistent/,
 				);
@@ -279,20 +288,20 @@ describe("JsonAdapter Populate - Error Handling", () => {
 			await adapter.executeQuery({
 				type: "insert",
 				table: "users_missing_profile",
-				data: { name: "Alice" },
+				data: [{ name: "Alice" }],
 			});
 
 			const query: QueryObject = {
 				type: "select",
 				table: "users_missing_profile",
-				populate: { profile: {} },
+				populate: { profile: true },
 			};
 
 			// Should throw error for non-existent target model
 			const result = await adapter.executeQuery(query);
 			expect(result.success).toBe(false);
 			if (!result.success) {
-				expect(result.error.code).toBe("QUERY_ERROR");
+				expect(result.error.code).toBe("ADAPTER_TARGET_MODEL_NOT_FOUND");
 				expect(result.error.message.toLowerCase()).toMatch(
 					/not found|nonexistent/,
 				);
@@ -305,7 +314,7 @@ describe("JsonAdapter Populate - Error Handling", () => {
 			await adapter.executeQuery({
 				type: "insert",
 				table: "posts",
-				data: { title: "Test Post", authorId: 1 },
+				data: [{ title: "Test Post", authorId: 1 }],
 			});
 
 			const usersPath = path.join(root, "users.json");
@@ -314,7 +323,7 @@ describe("JsonAdapter Populate - Error Handling", () => {
 			const query: QueryObject = {
 				type: "select",
 				table: "posts",
-				populate: { author: {} },
+				populate: { author: true },
 			};
 
 			const result = await adapter.executeQuery(query);
@@ -331,7 +340,7 @@ describe("JsonAdapter Populate - Error Handling", () => {
 			await adapter.executeQuery({
 				type: "insert",
 				table: "posts",
-				data: { title: "Test Post", authorId: 1 },
+				data: [{ title: "Test Post", authorId: 1 }],
 			});
 
 			const usersPath = path.join(root, "users.json");
@@ -342,12 +351,7 @@ describe("JsonAdapter Populate - Error Handling", () => {
 						version: 1,
 						name: "users",
 						updatedAt: new Date().toISOString(),
-					},
-					schema: {
-						name: "User",
-						tableName: "users",
-						fields: { name: { type: "string" } },
-					},
+					}
 				}),
 			);
 
@@ -400,7 +404,7 @@ describe("JsonAdapter Populate - Error Handling", () => {
 			await adapter.executeQuery({
 				type: "insert",
 				table: "posts_m2m",
-				data: { title: "Test Post" },
+				data: [{ title: "Test Post" }],
 			});
 
 			const junctionPath = path.join(root, "post_tags.json");
@@ -409,7 +413,7 @@ describe("JsonAdapter Populate - Error Handling", () => {
 			const query: QueryObject = {
 				type: "select",
 				table: "posts_m2m",
-				populate: { tags: {} },
+				populate: { tags: true },
 			};
 
 			const result = await adapter.executeQuery(query);
@@ -455,13 +459,13 @@ describe("JsonAdapter Populate - Error Handling", () => {
 			await adapter.executeQuery({
 				type: "insert",
 				table: "users_circular",
-				data: { name: "Alice" },
+				data: [{ name: "Alice" }],
 			});
 
 			await adapter.executeQuery({
 				type: "insert",
 				table: "posts_circular",
-				data: { title: "Post 1", authorId: 1 },
+				data: [{ title: "Post 1", authorId: 1 }],
 			});
 
 			const query: QueryObject = {
@@ -470,7 +474,7 @@ describe("JsonAdapter Populate - Error Handling", () => {
 				populate: {
 					author: {
 						populate: {
-							posts: {},
+							posts: true,
 						},
 					},
 				},
@@ -615,19 +619,19 @@ describe("JsonAdapter Populate - Error Handling", () => {
 			await adapter.executeQuery({
 				type: "insert",
 				table: "posts_orphan_test",
-				data: { title: "Post 1" },
+				data: [{ title: "Post 1" }],
 			});
 
 			await adapter.executeQuery({
 				type: "insert",
 				table: "post_tag_orphan",
-				data: { PostM2MId: 1, TagM2MId: 999 },
+				data: [{ PostM2MId: 1, TagM2MId: 999 }],
 			});
 
 			const query: QueryObject = {
 				type: "select",
 				table: "posts_orphan_test",
-				populate: { tags: {} },
+				populate: { tags: true },
 			};
 
 			const result = expectSuccessData(await adapter.executeQuery(query));

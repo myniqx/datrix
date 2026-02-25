@@ -29,6 +29,18 @@ export class JsonQueryRunner {
 		this.schema = schema;
 	}
 
+	get tableData(): JsonTableFile {
+		return this.table;
+	}
+
+	get tableSchema(): SchemaDefinition | undefined {
+		return this.schema;
+	}
+
+	get adapterRef(): JsonAdapter {
+		return this.adapter;
+	}
+
 	async run<T extends ForjaEntry>(
 		query: QuerySelectObject<T> | QueryCountObject<T>,
 	): Promise<Partial<T>[]> {

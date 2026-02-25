@@ -33,10 +33,12 @@ import {
 	IndexDefinition,
 	SchemaDefinition,
 } from "forja-types/core/schema";
-import { Forja, FORJA_META_MODEL } from "forja-core";
+import { Forja } from "forja-core";
+import {
+	FORJA_META_MODEL,
+	FORJA_META_KEY_PREFIX,
+} from "forja-types/core/constants";
 import { PostgresPopulator } from "./populate";
-
-const FORJA_META_KEY_PREFIX = "_schema_";
 
 /**
  * PostgreSQL adapter implementation

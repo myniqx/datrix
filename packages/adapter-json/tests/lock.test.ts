@@ -17,7 +17,7 @@ describe("JsonAdapter - Locking & Concurrency", () => {
 			}
 		}
 
-		const adapter = new JsonAdapter({ root });
+		const adapter = new JsonAdapter({ root, standalone: true });
 		await adapter.connect();
 		await adapter.createTable({
 			name: "counter",
@@ -28,7 +28,7 @@ describe("JsonAdapter - Locking & Concurrency", () => {
 		await adapter.executeQuery({
 			type: "insert",
 			table: "counter",
-			data: { val: 0 },
+			data: [{ val: 0 }],
 		});
 		await adapter.disconnect();
 	});
@@ -49,8 +49,16 @@ describe("JsonAdapter - Locking & Concurrency", () => {
 		"should serialize concurrent writes to avoid lost updates",
 		{ timeout: 10_000 },
 		async () => {
-			const adapter1 = new JsonAdapter({ root, lockTimeout: 5000 });
-			const adapter2 = new JsonAdapter({ root, lockTimeout: 5000 });
+			const adapter1 = new JsonAdapter({
+				root,
+				standalone: true,
+				lockTimeout: 5000,
+			});
+			const adapter2 = new JsonAdapter({
+				root,
+				standalone: true,
+				lockTimeout: 5000,
+			});
 			await adapter1.connect();
 			await adapter2.connect();
 
@@ -91,7 +99,7 @@ describe("JsonAdapter - Locking & Concurrency", () => {
 				await adapter1.executeQuery({
 					type: "insert",
 					table: "counter",
-					data: { val: i + 1 },
+					data: [{ val: i + 1 }],
 				});
 			});
 
@@ -118,6 +126,7 @@ describe("JsonAdapter - Locking & Concurrency", () => {
 	it("should recover from stale locks", async () => {
 		const adapter = new JsonAdapter({
 			root,
+			standalone: true,
 			lockTimeout: 1000,
 			staleTimeout: 500,
 		});
@@ -132,7 +141,7 @@ describe("JsonAdapter - Locking & Concurrency", () => {
 		await adapter.executeQuery({
 			type: "insert",
 			table: "counter",
-			data: { val: 999 },
+			data: [{ val: 999 }],
 		});
 
 		expect(Date.now() - start).toBeLessThan(2000); // Should be fast, not wait for lock timeout
@@ -141,6 +150,7 @@ describe("JsonAdapter - Locking & Concurrency", () => {
 	it("should fail if lock cannot be acquired within timeout", async () => {
 		const adapter = new JsonAdapter({
 			root,
+			standalone: true,
 			lockTimeout: 100,
 			staleTimeout: 5000,
 		});
@@ -154,7 +164,7 @@ describe("JsonAdapter - Locking & Concurrency", () => {
 		const result = await adapter.executeQuery({
 			type: "insert",
 			table: "counter",
-			data: { val: 888 },
+			data: [{ val: 888 }],
 		});
 
 		expect(result.success).toBe(false);

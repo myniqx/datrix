@@ -10,7 +10,7 @@ describe("JsonAdapter - Performance & Resource Usage", () => {
 
 	beforeEach(async () => {
 		await fs.rm(root, { recursive: true, force: true });
-		adapter = new JsonAdapter({ root });
+		adapter = new JsonAdapter({ root, standalone: true });
 		await adapter.connect();
 	});
 
@@ -30,7 +30,7 @@ describe("JsonAdapter - Performance & Resource Usage", () => {
 			await adapter.executeQuery({
 				type: "insert",
 				table: "users",
-				data: { name: "Test" },
+				data: [{ name: "Test" }],
 			});
 
 			const initialMemory = process.memoryUsage().heapUsed;
@@ -56,7 +56,7 @@ describe("JsonAdapter - Performance & Resource Usage", () => {
 				await adapter.executeQuery({
 					type: "insert",
 					table: "users",
-					data: { name: `User${i}` },
+					data: [{ name: `User${i}` }],
 				});
 			}
 
@@ -102,7 +102,7 @@ describe("JsonAdapter - Performance & Resource Usage", () => {
 			await adapter.executeQuery({
 				type: "insert",
 				table: "users",
-				data: { name: "Test" },
+				data: [{ name: "Test" }],
 			});
 
 			const start = Date.now();
@@ -127,7 +127,7 @@ describe("JsonAdapter - Performance & Resource Usage", () => {
 				await adapter.executeQuery({
 					type: "insert",
 					table: "users",
-					data: { name: `User${i}` },
+					data: [{ name: `User${i}` }],
 				});
 			}
 
@@ -157,7 +157,7 @@ describe("JsonAdapter - Performance & Resource Usage", () => {
 				await adapter.executeQuery({
 					type: "insert",
 					table: "users",
-					data: { name: `User${i}`, role: i % 2 === 0 ? "admin" : "user" },
+					data: [{ name: `User${i}`, role: i % 2 === 0 ? "admin" : "user" }],
 				});
 			}
 
@@ -192,7 +192,7 @@ describe("JsonAdapter - Performance & Resource Usage", () => {
 				await adapter.executeQuery({
 					type: "insert",
 					table: "users",
-					data: { name: `User${i}` },
+					data: [{ name: `User${i}` }],
 				});
 			}
 
@@ -205,14 +205,17 @@ describe("JsonAdapter - Performance & Resource Usage", () => {
 			await adapter.createTable({
 				name: "users",
 				tableName: "users",
-				fields: { name: { type: "string", required: true } },
+				fields: {
+					name: { type: "string", required: true },
+					id: { type: "number" },
+				},
 			});
 
 			for (let i = 0; i < 180; i++) {
 				await adapter.executeQuery({
 					type: "insert",
 					table: "users",
-					data: { name: `User${i}` },
+					data: [{ name: `User${i}` }],
 				});
 			}
 
@@ -234,14 +237,17 @@ describe("JsonAdapter - Performance & Resource Usage", () => {
 			await adapter.createTable({
 				name: "users",
 				tableName: "users",
-				fields: { name: { type: "string", required: true } },
+				fields: {
+					name: { type: "string", required: true },
+					id: { type: "number" },
+				},
 			});
 
 			for (let i = 0; i < 200; i++) {
 				await adapter.executeQuery({
 					type: "insert",
 					table: "users",
-					data: { name: `User${i}` },
+					data: [{ name: `User${i}` }],
 				});
 			}
 
@@ -271,7 +277,7 @@ describe("JsonAdapter - Performance & Resource Usage", () => {
 				await adapter.executeQuery({
 					type: "insert",
 					table: "users",
-					data: { name: `User${i}` },
+					data: [{ name: `User${i}` }],
 				});
 			}
 
@@ -292,14 +298,14 @@ describe("JsonAdapter - Performance & Resource Usage", () => {
 				await adapter.executeQuery({
 					type: "insert",
 					table: "users",
-					data: { name: `User${i}` },
+					data: [{ name: `User${i}` }],
 				});
 			}
 
 			const files = await fs.readdir(root);
 			const jsonFiles = files.filter((f) => f.endsWith(".json"));
 
-			expect(jsonFiles).toHaveLength(1);
+			expect(jsonFiles).toHaveLength(2); // users.json + _forja.json
 		}, 15000);
 	});
 
@@ -317,7 +323,7 @@ describe("JsonAdapter - Performance & Resource Usage", () => {
 					adapter.executeQuery({
 						type: "insert",
 						table: "users",
-						data: { name: `User${i}` },
+						data: [{ name: `User${i}` }],
 					}),
 				);
 			}
@@ -332,14 +338,17 @@ describe("JsonAdapter - Performance & Resource Usage", () => {
 			await adapter.createTable({
 				name: "users",
 				tableName: "users",
-				fields: { name: { type: "string", required: true } },
+				fields: {
+					name: { type: "string", required: true },
+					id: { type: "number" },
+				},
 			});
 
 			for (let i = 0; i < 30; i++) {
 				await adapter.executeQuery({
 					type: "insert",
 					table: "users",
-					data: { name: `Initial${i}` },
+					data: [{ name: `Initial${i}` }],
 				});
 			}
 
@@ -354,7 +363,7 @@ describe("JsonAdapter - Performance & Resource Usage", () => {
 					adapter.executeQuery({
 						type: "insert",
 						table: "users",
-						data: { name: `New${i}` },
+						data: [{ name: `New${i}` }],
 					}),
 				);
 				operations.push(

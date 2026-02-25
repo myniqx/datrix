@@ -13,7 +13,7 @@ describe("JsonAdapter - Error Path", () => {
 
 	beforeEach(async () => {
 		await fs.rm(root, { recursive: true, force: true });
-		adapter = new JsonAdapter({ root });
+		adapter = new JsonAdapter({ root, standalone: true });
 		await adapter.connect();
 	});
 
@@ -119,7 +119,7 @@ describe("JsonAdapter - Error Path", () => {
 			try {
 				await fs.chmod(readOnlyRoot, 0o444);
 
-				const restrictedAdapter = new JsonAdapter({ root: readOnlyRoot });
+				const restrictedAdapter = new JsonAdapter({ root: readOnlyRoot, standalone: true });
 				await restrictedAdapter.connect();
 
 				const result = await restrictedAdapter.createTable({
