@@ -25,8 +25,8 @@ import { SchemaExtensionContextImpl } from "./plugin/schema-extension-context";
 import { Dispatcher, createDispatcher } from "./dispatcher";
 import { PluginRegistry } from "forja-types/plugin";
 import { SchemaRegistry } from "./schema";
-import { ForjaEntry } from "forja-types";
-import { IForja, RawCrudOptions, RawFindManyOptions } from "forja-types/forja";
+import { ForjaEntry, ForjaRecord } from "forja-types";
+import { IForja, RawCrudOptions, RawFindManyOptions, FallbackInput } from "forja-types/forja";
 import { ForjaError } from "forja-types/errors";
 import {
 	getMigrationSchema,
@@ -433,7 +433,7 @@ export class Forja implements IForja {
 		return this._rawCrud;
 	}
 
-	async findOne<T extends ForjaEntry = ForjaEntry>(
+	async findOne<T extends ForjaEntry = ForjaRecord>(
 		model: string,
 		where: WhereClause<T>,
 		options?: RawCrudOptions<T>,
@@ -442,7 +442,7 @@ export class Forja implements IForja {
 		return this._crud.findOne<T>(model, where, options);
 	}
 
-	async findById<T extends ForjaEntry = ForjaEntry>(
+	async findById<T extends ForjaEntry = ForjaRecord>(
 		model: string,
 		id: number,
 		options?: RawCrudOptions<T>,
@@ -451,7 +451,7 @@ export class Forja implements IForja {
 		return this._crud.findById<T>(model, id, options);
 	}
 
-	async findMany<T extends ForjaEntry = ForjaEntry>(
+	async findMany<T extends ForjaEntry = ForjaRecord>(
 		model: string,
 		options?: RawFindManyOptions<T>,
 	): Promise<T[]> {
@@ -459,7 +459,7 @@ export class Forja implements IForja {
 		return this._crud.findMany<T>(model, options);
 	}
 
-	async count<T extends ForjaEntry = ForjaEntry>(
+	async count<T extends ForjaEntry = ForjaRecord>(
 		model: string,
 		where?: WhereClause<T>,
 	): Promise<number> {
@@ -467,45 +467,45 @@ export class Forja implements IForja {
 		return this._crud.count(model, where);
 	}
 
-	async create<T extends ForjaEntry = ForjaEntry>(
+	async create<T extends ForjaEntry = ForjaRecord, TInput extends FallbackInput = FallbackInput>(
 		model: string,
-		data: Partial<T>,
+		data: TInput,
 		options?: RawCrudOptions<T>,
 	): Promise<T> {
 		this.ensureInitialized();
-		return this._crud.create<T>(model, data, options);
+		return this._crud.create<T, TInput>(model, data, options);
 	}
 
-	async createMany<T extends ForjaEntry = ForjaEntry>(
+	async createMany<T extends ForjaEntry = ForjaRecord, TInput extends FallbackInput = FallbackInput>(
 		model: string,
-		data: Partial<T>[],
+		data: TInput[],
 		options?: RawCrudOptions<T>,
 	): Promise<T[]> {
 		this.ensureInitialized();
-		return this._crud.createMany<T>(model, data, options);
+		return this._crud.createMany<T, TInput>(model, data, options);
 	}
 
-	async update<T extends ForjaEntry = ForjaEntry>(
+	async update<T extends ForjaEntry = ForjaRecord, TInput extends FallbackInput = FallbackInput>(
 		model: string,
 		id: number,
-		data: Partial<T>,
+		data: TInput,
 		options?: RawCrudOptions<T>,
 	): Promise<T> {
 		this.ensureInitialized();
-		return this._crud.update<T>(model, id, data, options);
+		return this._crud.update<T, TInput>(model, id, data, options);
 	}
 
-	async updateMany<T extends ForjaEntry = ForjaEntry>(
+	async updateMany<T extends ForjaEntry = ForjaRecord, TInput extends FallbackInput = FallbackInput>(
 		model: string,
 		where: WhereClause<T>,
-		data: Partial<T>,
+		data: TInput,
 		options?: RawCrudOptions<T>,
 	): Promise<T[]> {
 		this.ensureInitialized();
-		return this._crud.updateMany(model, where, data, options);
+		return this._crud.updateMany<T, TInput>(model, where, data, options);
 	}
 
-	async delete<T extends ForjaEntry = ForjaEntry>(
+	async delete<T extends ForjaEntry = ForjaRecord>(
 		model: string,
 		id: number,
 		options?: RawCrudOptions<T>,
@@ -514,7 +514,7 @@ export class Forja implements IForja {
 		return this._crud.delete(model, id, options);
 	}
 
-	async deleteMany<T extends ForjaEntry = ForjaEntry>(
+	async deleteMany<T extends ForjaEntry = ForjaRecord>(
 		model: string,
 		where: WhereClause<T>,
 		options?: RawCrudOptions<T>,

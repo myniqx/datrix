@@ -79,8 +79,8 @@ describe("Relation API", () => {
 					populate: { author: true },
 				});
 
-				expect(fetched!.author).toBeDefined();
-				expect((fetched!.author as { id: number }).id).toBe(userId1);
+				expect(fetched!["author"]).toBeDefined();
+				expect((fetched!["author"] as { id: number }).id).toBe(userId1);
 			});
 
 			it("should change belongsTo relation with set on update", async () => {
@@ -101,7 +101,7 @@ describe("Relation API", () => {
 					populate: { author: true },
 				});
 
-				expect((fetched!.author as { id: number }).id).toBe(userId2);
+				expect((fetched!["author"] as { id: number }).id).toBe(userId2);
 			});
 		});
 
@@ -123,7 +123,7 @@ describe("Relation API", () => {
 					populate: { author: true },
 				});
 
-				expect((fetched!.author as { id: number }).id).toBe(userId1);
+				expect((fetched!["author"] as { id: number }).id).toBe(userId1);
 			});
 		});
 
@@ -146,7 +146,7 @@ describe("Relation API", () => {
 					populate: { author: true },
 				});
 
-				expect(fetched!.author).toBeNull();
+				expect(fetched!["author"]).toBeNull();
 			});
 
 			it("should disconnect belongsTo relation with disconnect operation", async () => {
@@ -167,7 +167,7 @@ describe("Relation API", () => {
 					populate: { author: true },
 				});
 
-				expect(fetched!.author).toBeNull();
+				expect(fetched!["author"]).toBeNull();
 			});
 		});
 
@@ -190,8 +190,8 @@ describe("Relation API", () => {
 					populate: { author: true },
 				});
 
-				expect(fetched!.author).toBeDefined();
-				expect((fetched!.author as { name: string }).name).toBe(
+				expect(fetched!["author"]).toBeDefined();
+				expect((fetched!["author"] as { name: string }).name).toBe(
 					"Nested Author",
 				);
 			});
@@ -227,7 +227,7 @@ describe("Relation API", () => {
 					populate: { author: true },
 				});
 
-				expect((fetched!.author as { name: string }).name).toBe("Updated Name");
+				expect((fetched!["author"] as { name: string }).name).toBe("Updated Name");
 			});
 		});
 
@@ -261,7 +261,7 @@ describe("Relation API", () => {
 					populate: { author: true },
 				});
 				expect(fetchedPost).toBeDefined();
-				expect(fetchedPost!.author).toBeNull();
+				expect(fetchedPost!["author"]).toBeNull();
 			});
 		});
 	});
@@ -290,8 +290,8 @@ describe("Relation API", () => {
 					populate: { favoriteCategory: true },
 				});
 
-				expect(fetched!.favoriteCategory).toBeDefined();
-				expect((fetched!.favoriteCategory as { id: number }).id).toBe(
+				expect(fetched!["favoriteCategory"]).toBeDefined();
+				expect((fetched!["favoriteCategory"] as { id: number }).id).toBe(
 					category.id,
 				);
 			});
@@ -321,7 +321,7 @@ describe("Relation API", () => {
 					populate: { favoriteCategory: true },
 				});
 
-				expect((fetched!.favoriteCategory as { id: number }).id).toBe(cat2.id);
+				expect((fetched!["favoriteCategory"] as { id: number }).id).toBe(cat2.id);
 			});
 		});
 
@@ -346,7 +346,7 @@ describe("Relation API", () => {
 					populate: { favoriteCategory: true },
 				});
 
-				expect((fetched!.favoriteCategory as { id: number }).id).toBe(
+				expect((fetched!["favoriteCategory"] as { id: number }).id).toBe(
 					category.id,
 				);
 			});
@@ -374,7 +374,7 @@ describe("Relation API", () => {
 					populate: { favoriteCategory: true },
 				});
 
-				expect(fetched!.favoriteCategory).toBeNull();
+				expect(fetched!["favoriteCategory"]).toBeNull();
 			});
 
 			it("should disconnect hasOne relation with disconnect operation", async () => {
@@ -398,7 +398,7 @@ describe("Relation API", () => {
 					populate: { favoriteCategory: true },
 				});
 
-				expect(fetched!.favoriteCategory).toBeNull();
+				expect(fetched!["favoriteCategory"]).toBeNull();
 			});
 		});
 
@@ -419,8 +419,8 @@ describe("Relation API", () => {
 					populate: { favoriteCategory: true },
 				});
 
-				expect(fetched!.favoriteCategory).toBeDefined();
-				expect((fetched!.favoriteCategory as { name: string }).name).toBe(
+				expect(fetched!["favoriteCategory"]).toBeDefined();
+				expect((fetched!["favoriteCategory"] as { name: string }).name).toBe(
 					"Nested Favorite",
 				);
 			});
@@ -453,7 +453,7 @@ describe("Relation API", () => {
 					populate: { favoriteCategory: true },
 				});
 
-				expect((fetched!.favoriteCategory as { name: string }).name).toBe(
+				expect((fetched!["favoriteCategory"] as { name: string }).name).toBe(
 					"Updated Category Name",
 				);
 			});
@@ -486,7 +486,7 @@ describe("Relation API", () => {
 					populate: { favoriteCategory: true },
 				});
 				expect(fetchedUser).toBeDefined();
-				expect(fetchedUser!.favoriteCategory).toBeNull();
+				expect(fetchedUser!["favoriteCategory"]).toBeNull();
 			});
 		});
 	});
@@ -520,7 +520,7 @@ describe("Relation API", () => {
 					{ populate: { posts: true } },
 				);
 
-				expect((user.posts as []).length).toBe(0);
+				expect((user["posts"] as []).length).toBe(0);
 
 				// Step 2: Create posts (not connected to user yet)
 				const post1 = await forja.create("post", {
@@ -546,7 +546,7 @@ describe("Relation API", () => {
 					{ populate: { posts: true } },
 				);
 
-				const posts = updated!.posts as { id: number }[];
+				const posts = updated!["posts"] as { id: number }[];
 				expect(posts.length).toBe(2);
 				expect(posts.map((p) => p.id).sort()).toEqual(
 					[post1.id, post2.id].sort(),
@@ -564,7 +564,7 @@ describe("Relation API", () => {
 					{ populate: { posts: true } },
 				);
 
-				expect((user.posts as []).length).toBe(0);
+				expect((user["posts"] as []).length).toBe(0);
 
 				// Step 2: Create post1 and post2
 				const post1 = await forja.create("post", {
@@ -590,7 +590,7 @@ describe("Relation API", () => {
 					{ populate: { posts: true } },
 				);
 
-				expect((withBoth!.posts as []).length).toBe(2);
+				expect((withBoth!["posts"] as []).length).toBe(2);
 
 				// Step 4: Replace with only post2
 				const replaced = await forja.update(
@@ -602,7 +602,7 @@ describe("Relation API", () => {
 					{ populate: { posts: true } },
 				);
 
-				const posts = replaced!.posts as { id: number }[];
+				const posts = replaced!["posts"] as { id: number }[];
 				expect(posts.length).toBe(1);
 				expect(posts[0].id).toBe(post2.id);
 			});
@@ -635,7 +635,7 @@ describe("Relation API", () => {
 					{ populate: { posts: true } },
 				);
 
-				expect((cleared!.posts as []).length).toBe(0);
+				expect((cleared!["posts"] as []).length).toBe(0);
 			});
 		});
 
@@ -651,7 +651,7 @@ describe("Relation API", () => {
 					{ populate: { posts: true } },
 				);
 
-				expect((user.posts as []).length).toBe(0);
+				expect((user["posts"] as []).length).toBe(0);
 
 				// Step 2: Create post
 				const post = await forja.create("post", {
@@ -671,7 +671,7 @@ describe("Relation API", () => {
 					{ populate: { posts: true } },
 				);
 
-				const posts = updated!.posts as { id: number }[];
+				const posts = updated!["posts"] as { id: number }[];
 				expect(posts.length).toBe(1);
 				expect(posts[0].id).toBe(post.id);
 			});
@@ -700,7 +700,7 @@ describe("Relation API", () => {
 					{ populate: { posts: true } },
 				);
 
-				expect((withPost1!.posts as []).length).toBe(1);
+				expect((withPost1!["posts"] as []).length).toBe(1);
 
 				// Step 3: Create and connect post2 (should add, not replace)
 				const post2 = await forja.create("post", {
@@ -719,7 +719,7 @@ describe("Relation API", () => {
 					{ populate: { posts: true } },
 				);
 
-				const posts = withBoth!.posts as { id: number }[];
+				const posts = withBoth!["posts"] as { id: number }[];
 				expect(posts.length).toBe(2);
 			});
 		});
@@ -754,7 +754,7 @@ describe("Relation API", () => {
 					{ populate: { posts: true } },
 				);
 
-				expect((withBoth!.posts as []).length).toBe(2);
+				expect((withBoth!["posts"] as []).length).toBe(2);
 
 				// Step 2: Disconnect post1
 				const afterDisconnect = await forja.update(
@@ -766,7 +766,7 @@ describe("Relation API", () => {
 					{ populate: { posts: true } },
 				);
 
-				const posts = afterDisconnect!.posts as { id: number }[];
+				const posts = afterDisconnect!["posts"] as { id: number }[];
 				expect(posts.length).toBe(1);
 				expect(posts[0].id).toBe(post2.id);
 			});
@@ -799,7 +799,7 @@ describe("Relation API", () => {
 					{ populate: { posts: true } },
 				);
 
-				const posts = user.posts as { title: string }[];
+				const posts = user["posts"] as { title: string }[];
 				expect(posts.length).toBe(2);
 				expect(posts.map((p) => p.title).sort()).toEqual([
 					"Nested Post 1",
@@ -841,7 +841,7 @@ describe("Relation API", () => {
 					populate: { posts: true },
 				});
 
-				const posts = fetched!.posts as { title: string }[];
+				const posts = fetched!["posts"] as { title: string }[];
 				expect(posts.length).toBe(1);
 				expect(posts[0].title).toBe("Updated Post Title");
 			});
@@ -882,7 +882,7 @@ describe("Relation API", () => {
 					{ populate: { posts: true } },
 				);
 
-				const posts = afterDelete!.posts as { id: number }[];
+				const posts = afterDelete!["posts"] as { id: number }[];
 				expect(posts.length).toBe(1);
 				expect(posts[0].id).toBe(post2.id);
 
@@ -932,7 +932,7 @@ describe("Relation API", () => {
 					populate: { roles: true },
 				});
 
-				const roles = fetched!.roles as { id: number }[];
+				const roles = fetched!["roles"] as { id: number }[];
 				expect(roles.length).toBe(2);
 				expect(roles.map((r) => r.id).sort()).toEqual(
 					[roleId1, roleId2].sort(),
@@ -955,7 +955,7 @@ describe("Relation API", () => {
 					populate: { roles: true },
 				});
 
-				const roles = fetched!.roles as { id: number }[];
+				const roles = fetched!["roles"] as { id: number }[];
 				expect(roles.length).toBe(1);
 				expect(roles[0].id).toBe(roleId3);
 			});
@@ -976,7 +976,7 @@ describe("Relation API", () => {
 					populate: { roles: true },
 				});
 
-				const roles = fetched!.roles as { id: number }[];
+				const roles = fetched!["roles"] as { id: number }[];
 				expect(roles.length).toBe(0);
 			});
 		});
@@ -997,7 +997,7 @@ describe("Relation API", () => {
 					populate: { roles: true },
 				});
 
-				const roles = fetched!.roles as { id: number }[];
+				const roles = fetched!["roles"] as { id: number }[];
 				expect(roles.length).toBe(2);
 			});
 
@@ -1017,7 +1017,7 @@ describe("Relation API", () => {
 					populate: { roles: true },
 				});
 
-				const roles = fetched!.roles as { id: number }[];
+				const roles = fetched!["roles"] as { id: number }[];
 				expect(roles.length).toBe(2);
 			});
 		});
@@ -1039,7 +1039,7 @@ describe("Relation API", () => {
 					populate: { roles: true },
 				});
 
-				const roles = fetched!.roles as { id: number }[];
+				const roles = fetched!["roles"] as { id: number }[];
 				expect(roles.length).toBe(2);
 				expect(roles.map((r) => r.id)).not.toContain(roleId1);
 			});
@@ -1062,7 +1062,7 @@ describe("Relation API", () => {
 					populate: { roles: true },
 				});
 
-				const roles = fetched!.roles as { name: string }[];
+				const roles = fetched!["roles"] as { name: string }[];
 				expect(roles.length).toBe(2);
 				expect(roles.map((r) => r.name).sort()).toEqual([
 					"Nested Role 1",
@@ -1084,7 +1084,7 @@ describe("Relation API", () => {
 					populate: { roles: true },
 				});
 
-				const roles = fetched!.roles as { id: number; name: string }[];
+				const roles = fetched!["roles"] as { id: number; name: string }[];
 				expect(roles.length).toBe(2);
 				expect(roles.some((r) => r.id === roleId1)).toBe(true);
 				expect(roles.some((r) => r.name === "Mixed New Role")).toBe(true);
@@ -1119,7 +1119,7 @@ describe("Relation API", () => {
 					populate: { roles: true },
 				});
 
-				const roles = fetched!.roles as { name: string }[];
+				const roles = fetched!["roles"] as { name: string }[];
 				expect(roles.length).toBe(1);
 				expect(roles[0].name).toBe("Updated Role Name");
 			});
@@ -1148,7 +1148,7 @@ describe("Relation API", () => {
 					populate: { roles: true },
 				});
 
-				const roles = fetched!.roles as { id: number }[];
+				const roles = fetched!["roles"] as { id: number }[];
 				expect(roles.length).toBe(1);
 				expect(roles[0].id).toBe(roleId1);
 

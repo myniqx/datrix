@@ -84,7 +84,7 @@ export type ComparisonOperators<T = QueryPrimitive> = {
  * };
  * ```
  */
-export type LogicalOperators<T extends ForjaEntry = ForjaEntry> = {
+export type LogicalOperators<T extends ForjaEntry = ForjaRecord> = {
 	readonly $and?: WhereClause<T>[];
 	readonly $or?: WhereClause<T>[];
 	readonly $not?: WhereClause<T>;
@@ -156,14 +156,33 @@ export type LogicalOperators<T extends ForjaEntry = ForjaEntry> = {
  * ```
  */
 type Writable<T> = { -readonly [K in keyof T]: T[K] };
-export type WhereClause<T extends ForjaEntry> = Writable<{
+
+/**
+ * Fallback WHERE clause for untyped queries.
+ * Accepts any field name with scalar values or comparison operators.
+ */
+export type FallbackWhereClause = {
+	[key: string]: QueryPrimitive | ComparisonOperators | FallbackWhereClause | FallbackWhereClause[] | undefined;
+	$and?: FallbackWhereClause[];
+	$or?: FallbackWhereClause[];
+	$not?: FallbackWhereClause;
+};
+
+/**
+ * Typed WHERE clause for specific model types.
+ */
+type TypedWhereClause<T extends ForjaEntry> = Writable<{
 	[K in keyof T]?: T[K] extends Relation<infer R>
-		? WhereClause<R>
-		: T[K] extends ScalarValue
-			? T[K] | ComparisonOperators<T[K]>
-			: unknown;
-}> &
-	LogicalOperators<T>;
+	? WhereClause<R>
+	: T[K] extends ScalarValue
+	? T[K] | ComparisonOperators<T[K]>
+	: unknown;
+}> & LogicalOperators<T>;
+
+export type WhereClause<T extends ForjaEntry = ForjaRecord> =
+	ForjaRecord extends T
+	? FallbackWhereClause
+	: TypedWhereClause<T>;
 
 /**
  * SELECT clause (fields to select) - Input format from user
@@ -173,7 +192,7 @@ export type WhereClause<T extends ForjaEntry> = Writable<{
  * - Single field name: 'name'
  * - Wildcard: '*' (all fields)
  */
-export type SelectClause<T extends ForjaEntry> =
+export type SelectClause<T extends ForjaEntry = ForjaRecord> =
 	| readonly (keyof T)[]
 	| "*"
 	| keyof T;
@@ -205,8 +224,8 @@ export type PopulateClause<T extends ForjaEntry = ForjaRecord> =
 	| "true"
 	| keyof T[]
 	| {
-			readonly [relation: string]: PopulateOptions<T> | "*" | boolean;
-	  };
+		readonly [relation: string]: PopulateOptions<T> | "*" | boolean;
+	};
 
 /**
  * Order direction
@@ -214,16 +233,27 @@ export type PopulateClause<T extends ForjaEntry = ForjaRecord> =
 export type OrderDirection = "asc" | "desc";
 
 /**
- * Order by item
+ * Order by item (typed — field constrained to model keys)
  */
 export type OrderByItem<T extends ForjaEntry> = {
 	readonly field: keyof T;
 	readonly direction: OrderDirection;
-	readonly nulls?: "first" | "last"; // NULL ordering
+	readonly nulls?: "first" | "last";
+};
+
+/**
+ * Order by item (fallback — field is any string)
+ */
+export type FallbackOrderByItem = {
+	readonly field: string;
+	readonly direction: OrderDirection;
+	readonly nulls?: "first" | "last";
 };
 
 export type QueryOrderBy<T extends ForjaEntry = ForjaRecord> =
-	readonly OrderByItem<T>[];
+	ForjaRecord extends T
+	? readonly FallbackOrderByItem[]
+	: readonly OrderByItem<T>[];
 
 /**
  * OrderByClause - Input format for orderBy (before normalization)
@@ -246,7 +276,11 @@ export type QueryOrderBy<T extends ForjaEntry = ForjaRecord> =
  * ```
  */
 export type OrderByClause<T extends ForjaEntry = ForjaRecord> =
-	| QueryOrderBy<T>
+	ForjaRecord extends T
+	? | readonly FallbackOrderByItem[]
+	| Record<string, OrderDirection>
+	| readonly string[]
+	: | QueryOrderBy<T>
 	| Partial<Record<keyof T, OrderDirection>>
 	| readonly (keyof T | `-${string & keyof T}`)[];
 
@@ -276,8 +310,8 @@ export type QueryPopulateOptions<T extends ForjaEntry> = {
  */
 export type QueryPopulate<T extends ForjaEntry = ForjaRecord> = {
 	readonly [K in keyof T]?: T[K] extends Relation<infer R>
-		? QueryPopulateOptions<R>
-		: never;
+	? QueryPopulateOptions<R>
+	: never;
 };
 
 /**
@@ -374,8 +408,8 @@ export interface NormalizedRelationUpdate<
  */
 export type QueryRelations<T extends ForjaEntry> = {
 	readonly [K in keyof T]?: T[K] extends Relation<infer R>
-		? NormalizedRelationOperations<R>
-		: never;
+	? NormalizedRelationOperations<R>
+	: never;
 };
 
 /**
@@ -458,7 +492,7 @@ export interface QueryDeleteObject<T extends ForjaEntry> extends QueryBase {
  * - UPDATE: data (single), where, relations
  * - DELETE: where
  */
-export type QueryObject<T extends ForjaEntry = ForjaEntry> =
+export type QueryObject<T extends ForjaEntry = ForjaRecord> =
 	| QuerySelectObject<T>
 	| QueryCountObject<T>
 	| QueryInsertObject<T>
@@ -474,11 +508,11 @@ export type QueryObjectForType<
 > = TType extends "select"
 	? QuerySelectObject<T>
 	: TType extends "count"
-		? QueryCountObject<T>
-		: TType extends "insert"
-			? QueryInsertObject<T>
-			: TType extends "update"
-				? QueryUpdateObject<T>
-				: TType extends "delete"
-					? QueryDeleteObject<T>
-					: QueryObject<T>;
+	? QueryCountObject<T>
+	: TType extends "insert"
+	? QueryInsertObject<T>
+	: TType extends "update"
+	? QueryUpdateObject<T>
+	: TType extends "delete"
+	? QueryDeleteObject<T>
+	: QueryObject<T>;

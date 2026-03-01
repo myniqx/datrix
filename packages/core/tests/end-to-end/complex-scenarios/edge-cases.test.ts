@@ -48,7 +48,7 @@ describe("Edge Cases", () => {
 				lastName: "",
 			});
 
-			expect(user.lastName).toBe("");
+			expect(user["lastName"]).toBe("");
 		});
 
 		it("should handle null in optional field", async () => {
@@ -58,7 +58,7 @@ describe("Edge Cases", () => {
 				age: null,
 			});
 
-			expect(user.age).toBeNull();
+			expect(user["age"]).toBeNull();
 		});
 
 		it("should handle empty object in JSON field", async () => {
@@ -68,7 +68,7 @@ describe("Edge Cases", () => {
 				metadata: {},
 			});
 
-			expect(user.metadata).toEqual({});
+			expect(user["metadata"]).toEqual({});
 		});
 
 		it("should handle empty array in JSON field", async () => {
@@ -78,7 +78,7 @@ describe("Edge Cases", () => {
 				metadata: [],
 			});
 
-			expect(user.metadata).toEqual([]);
+			expect(user["metadata"]).toEqual([]);
 		});
 
 		it("should handle null in JSON field", async () => {
@@ -88,7 +88,7 @@ describe("Edge Cases", () => {
 				metadata: null,
 			});
 
-			expect(user.metadata).toBeNull();
+			expect(user["metadata"]).toBeNull();
 		});
 	});
 
@@ -104,7 +104,7 @@ describe("Edge Cases", () => {
 				age: 0,
 			});
 
-			expect(user.age).toBe(0);
+			expect(user["age"]).toBe(0);
 		});
 
 		it("should handle age at maximum (150)", async () => {
@@ -114,7 +114,7 @@ describe("Edge Cases", () => {
 				age: 150,
 			});
 
-			expect(user.age).toBe(150);
+			expect(user["age"]).toBe(150);
 		});
 
 		it("should handle very long valid string", async () => {
@@ -125,7 +125,7 @@ describe("Edge Cases", () => {
 				lastName: longName,
 			});
 
-			expect(user.lastName).toBe(longName);
+			expect(user["lastName"]).toBe(longName);
 		});
 
 		it("should handle large budget number", async () => {
@@ -141,7 +141,7 @@ describe("Edge Cases", () => {
 				organization: org.id,
 			});
 
-			expect(dept.budget).toBe(999999999);
+			expect(dept["budget"]).toBe(999999999);
 		});
 
 		it("should handle decimal numbers", async () => {
@@ -157,7 +157,7 @@ describe("Edge Cases", () => {
 				organization: org.id,
 			});
 
-			expect(dept.budget).toBeCloseTo(12345.67);
+			expect(dept["budget"]).toBeCloseTo(12345.67);
 		});
 	});
 
@@ -172,7 +172,7 @@ describe("Edge Cases", () => {
 				name: 'User "with" quotes',
 			});
 
-			expect(user.name).toBe('User "with" quotes');
+			expect(user["name"]).toBe('User "with" quotes');
 		});
 
 		it("should handle single quotes", async () => {
@@ -181,7 +181,7 @@ describe("Edge Cases", () => {
 				name: "User's name",
 			});
 
-			expect(user.name).toBe("User's name");
+			expect(user["name"]).toBe("User's name");
 		});
 
 		it("should handle backslashes", async () => {
@@ -190,7 +190,7 @@ describe("Edge Cases", () => {
 				name: "User\\with\\backslash",
 			});
 
-			expect(user.name).toBe("User\\with\\backslash");
+			expect(user["name"]).toBe("User\\with\\backslash");
 		});
 
 		it("should handle newlines in string", async () => {
@@ -203,7 +203,7 @@ describe("Edge Cases", () => {
 				).id,
 			});
 
-			expect(post.content).toContain("\n");
+			expect(post["content"]).toContain("\n");
 		});
 
 		it("should handle SQL injection attempt in data", async () => {
@@ -213,7 +213,7 @@ describe("Edge Cases", () => {
 			});
 
 			// Should be stored as-is, not executed
-			expect(user.name).toBe("'; DROP TABLE users; --");
+			expect(user["name"]).toBe("'; DROP TABLE users; --");
 
 			// Table should still exist
 			const count = await forja.count("user");
@@ -232,7 +232,7 @@ describe("Edge Cases", () => {
 				name: "用户名称", // Chinese characters
 			});
 
-			expect(user.name).toBe("用户名称");
+			expect(user["name"]).toBe("用户名称");
 		});
 
 		it("should handle mixed unicode", async () => {
@@ -241,7 +241,7 @@ describe("Edge Cases", () => {
 				name: "Пользователь User ユーザー",
 			});
 
-			expect(user.name).toBe("Пользователь User ユーザー");
+			expect(user["name"]).toBe("Пользователь User ユーザー");
 		});
 
 		it("should handle emoji in string field", async () => {
@@ -250,8 +250,8 @@ describe("Edge Cases", () => {
 				name: "User 👋 Hello 🌍",
 			});
 
-			expect(user.name).toContain("👋");
-			expect(user.name).toContain("🌍");
+			expect(user["name"]).toContain("👋");
+			expect(user["name"]).toContain("🌍");
 		});
 
 		it("should handle emoji in search", async () => {
@@ -321,7 +321,7 @@ describe("Edge Cases", () => {
 				},
 			});
 
-			const meta = user.metadata as Record<string, unknown>;
+			const meta = user["metadata"] as Record<string, unknown>;
 			expect(meta.nullValue).toBeNull();
 			expect(meta.boolTrue).toBe(true);
 			expect(meta.boolFalse).toBe(false);

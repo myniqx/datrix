@@ -263,6 +263,7 @@ describe("JsonAdapter Populate - Happy Path", () => {
 			const query: QueryObject = {
 				type: "select",
 				table: "posts",
+				select: ["id"],
 				populate: {
 					author: {
 						select: ["name"],
@@ -298,7 +299,12 @@ describe("JsonAdapter Populate - Happy Path", () => {
 			const query: QueryObject = {
 				type: "select",
 				table: "posts",
-				populate: { author: true },
+				select: ["id"],
+				populate: {
+					author: {
+						select: ["name", "id"],
+					}
+				},
 			};
 
 			const result = expectSuccessData(await adapter.executeQuery(query));

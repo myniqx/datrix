@@ -15,7 +15,7 @@
 
 import { PostgresAdapter, PostgresConfig } from "../src";
 import { AlterOperation } from "../../types/src/adapter";
-import { SchemaDefinition } from "../../types/src/core/schema";
+import { ForjaEntry, SchemaDefinition } from "../../types/src/core/schema";
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 
 // =============================================================================
@@ -168,7 +168,7 @@ describe("PostgresAdapter - Schema Operations", () => {
 		);
 
 		// Verify defaults were applied
-		const result = await adapter.executeQuery<{
+		const result = await adapter.executeQuery<ForjaEntry & {
 			status: string;
 			count: number;
 			enabled: boolean;
@@ -366,7 +366,7 @@ describe("PostgresAdapter - Schema Operations", () => {
 		expect(result.success).toBe(true);
 
 		// Verify existing row got default value
-		const selectResult = await adapter.executeQuery<{ status: string }>({
+		const selectResult = await adapter.executeQuery<{ status: string } & ForjaEntry>({
 			type: "select",
 			table: "test_schema_table",
 			select: ["status"],

@@ -49,6 +49,7 @@ export {
 	type RelationKind,
 	type RelationField,
 	type RelationInput,
+	type AnyRelationInput,
 	type RelationBelongsTo,
 	type RelationHasOne,
 	type RelationHasMany,

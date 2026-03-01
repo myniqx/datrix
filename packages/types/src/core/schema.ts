@@ -50,6 +50,7 @@ export type ReservedFieldName = (typeof RESERVED_FIELDS)[number];
  * - updatedAt: Timestamp when record was last updated
  */
 export interface ForjaEntry {
+	[x: string]: any;
 	readonly id: number;
 	createdAt: Date;
 	updatedAt: Date;
@@ -265,42 +266,120 @@ export type RelationIdRef = number | { id: number };
 export type RelationIdRefs = RelationIdRef | RelationIdRef[];
 
 /**
- * Relation input for create/update operations
- * Supports Prisma-style relation API with flexible ID formats
+ * belongsTo (N:1) and hasOne (1:1) relation input - write operations
+ *
+ * Singular relations: only one record can be referenced at a time.
+ * Shortcuts: pass ID directly or null to disconnect.
  *
  * @example
  * ```ts
- * // All these are equivalent for connect:
- * { connect: 5 }
- * { connect: { id: 5 } }
- * { connect: [5] }
- * { connect: [{ id: 5 }] }
+ * // Shortcuts
+ * author: 5
+ * author: { id: 5 }
+ * author: null           // disconnect
  *
- * // Mixed formats work too:
- * { connect: [1, { id: 2 }, "uuid-3"] }
+ * // Explicit object form
+ * author: { connect: 5 }
+ * author: { connect: { id: 5 } }
+ * author: { set: 5 }
+ * author: { disconnect: true }
+ * author: { create: { name: 'John' } }
+ * author: { update: { where: { id: 5 }, data: { name: 'John' } } }
  * ```
  */
-export type RelationInput<T extends ForjaEntry> = {
-	// Connect existing records by ID (flexible format)
-	connect?: RelationIdRefs;
+export type RelationBelongsTo<T extends ForjaEntry> =
+	| RelationIdRef
+	| null
+	| {
+		connect?: RelationIdRef;
+		set?: RelationIdRef;
+		disconnect?: true;
+		create?: Partial<T>;
+		update?: { where: { id: number }; data: Partial<T> };
+		delete?: RelationIdRef;
+	};
 
-	// Disconnect records by ID (flexible format)
-	disconnect?: RelationIdRefs;
+/**
+ * hasOne (1:1) relation input - write operations
+ * Same constraints as belongsTo (singular).
+ */
+export type RelationHasOne<T extends ForjaEntry> = RelationBelongsTo<T>;
 
-	// Replace all relations (flexible format)
-	set?: RelationIdRefs;
-
-	// Create new records and connect
-	create?: Partial<T> | Partial<T>[];
-
-	// Update existing related records
-	update?:
+/**
+ * hasMany (1:N) relation input - write operations
+ *
+ * Plural relations: multiple records can be referenced.
+ * Shortcuts: single ID or array of IDs.
+ *
+ * @example
+ * ```ts
+ * // Shortcuts
+ * tags: 5
+ * tags: { id: 5 }
+ * tags: [1, 2, 3]
+ * tags: [{ id: 1 }, { id: 2 }]
+ *
+ * // Explicit object form
+ * tags: { connect: [1, 2] }
+ * tags: { disconnect: [3] }
+ * tags: { set: [1, 2, 3] }
+ * tags: { create: [{ name: 'Tag A' }, { name: 'Tag B' }] }
+ * tags: { delete: [4, 5] }
+ * ```
+ */
+export type RelationHasMany<T extends ForjaEntry> =
+	| RelationIdRefs
+	| {
+		connect?: RelationIdRefs;
+		disconnect?: RelationIdRefs;
+		set?: RelationIdRefs;
+		create?: Partial<T> | Partial<T>[];
+		update?:
 		| { where: { id: number }; data: Partial<T> }
 		| { where: { id: number }; data: Partial<T> }[];
+		delete?: RelationIdRefs;
+	};
 
-	// Delete related records (flexible format)
-	delete?: RelationIdRefs;
-};
+/**
+ * manyToMany (N:N) relation input - write operations
+ * Same constraints as hasMany (plural).
+ */
+export type RelationManyToMany<T extends ForjaEntry> = RelationHasMany<T>;
+
+/**
+ * Union of all relation input types.
+ * Used internally by the query builder and validator.
+ */
+export type RelationInput<T extends ForjaEntry> =
+	| RelationBelongsTo<T>
+	| RelationHasMany<T>;
+
+/**
+ * Relation input without generic — for use in untyped/fallback contexts.
+ * Covers ID-based operations only (no nested create/update).
+ * Provides intellisense for connect/set/disconnect/delete without requiring a model type.
+ *
+ * @example
+ * ```ts
+ * // Shortcuts
+ * author: 5
+ * tags: [1, 2, 3]
+ *
+ * // Explicit
+ * author: { connect: 5 }
+ * tags: { set: [1, 2, 3] }
+ * tags: { disconnect: [3] }
+ * ```
+ */
+export type AnyRelationInput =
+	| RelationIdRefs
+	| null
+	| {
+		connect?: RelationIdRefs;
+		disconnect?: RelationIdRefs | true;
+		set?: RelationIdRefs;
+		delete?: RelationIdRefs;
+	};
 
 /**
  * Normalized relation ID (always { id } format)
@@ -527,25 +606,6 @@ export type Relation<T extends ForjaEntry> = T & {
 	readonly [__relationBrand]: true;
 };
 
-/**
- * Branded relation type for belongsTo (N:1) - write operations
- */
-export type RelationBelongsTo<T extends ForjaEntry> = RelationInput<T>;
-
-/**
- * Branded relation type for hasOne (1:1) - write operations
- */
-export type RelationHasOne<T extends ForjaEntry> = RelationInput<T>;
-
-/**
- * Branded relation type for hasMany (1:N) - write operations
- */
-export type RelationHasMany<T extends ForjaEntry> = RelationInput<T>;
-
-/**
- * Branded relation type for manyToMany (N:N) - write operations
- */
-export type RelationManyToMany<T extends ForjaEntry> = RelationInput<T>;
 
 /**
  * Check if a type is a Relation brand
@@ -572,25 +632,25 @@ export type InferFieldType<F extends FieldDefinition<string>> = F extends {
 }
 	? string
 	: F extends { type: "number" }
-		? number
-		: F extends { type: "boolean" }
-			? boolean
-			: F extends { type: "date" }
-				? Date
-				: F extends { type: "json" }
-					? Record<string, unknown>
-					: F extends EnumField<infer T, string>
-						? T[number]
-						: F extends {
-									type: "array";
-									items: infer I extends FieldDefinition<string>;
-							  }
-							? Array<InferFieldType<I>>
-							: F extends { type: "relation"; model: string }
-								? string // Just the ID for relations (runtime representation)
-								: F extends { type: "file" }
-									? string // File URL/path
-									: never;
+	? number
+	: F extends { type: "boolean" }
+	? boolean
+	: F extends { type: "date" }
+	? Date
+	: F extends { type: "json" }
+	? Record<string, unknown>
+	: F extends EnumField<infer T, string>
+	? T[number]
+	: F extends {
+		type: "array";
+		items: infer I extends FieldDefinition<string>;
+	}
+	? Array<InferFieldType<I>>
+	: F extends { type: "relation"; model: string }
+	? string // Just the ID for relations (runtime representation)
+	: F extends { type: "file" }
+	? string // File URL/path
+	: never;
 
 /**
  * Infer TypeScript type from schema definition
@@ -634,8 +694,8 @@ export type InferFieldType<F extends FieldDefinition<string>> = F extends {
  */
 export type InferSchemaType<S extends SchemaDefinition<string>> = ForjaEntry & {
 	[K in keyof S["fields"]]: S["fields"][K] extends { required: true }
-		? InferFieldType<S["fields"][K]>
-		: InferFieldType<S["fields"][K]> | undefined;
+	? InferFieldType<S["fields"][K]>
+	: InferFieldType<S["fields"][K]> | undefined;
 };
 
 /**

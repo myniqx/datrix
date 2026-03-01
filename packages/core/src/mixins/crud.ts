@@ -17,6 +17,7 @@ import {
 	IRawCrud,
 	RawCrudOptions,
 	RawFindManyOptions,
+	FallbackInput,
 } from "forja-types/forja";
 import {
 	selectFrom,
@@ -249,12 +250,12 @@ export class CrudOperations implements IRawCrud {
 	 * });
 	 * ```
 	 */
-	async create<T extends ForjaEntry = ForjaRecord>(
+	async create<T extends ForjaEntry = ForjaRecord, TInput extends FallbackInput = FallbackInput>(
 		model: string,
-		data: Partial<T>,
+		data: TInput,
 		options?: RawCrudOptions<T>,
 	): Promise<T> {
-		const result = await this.createMany(model, [data], {
+		const result = await this.createMany<T, TInput>(model, [data], {
 			...options,
 			action: options?.action ?? "create",
 		});
@@ -277,9 +278,9 @@ export class CrudOperations implements IRawCrud {
 	 * ]);
 	 * ```
 	 */
-	async createMany<T extends ForjaEntry = ForjaRecord>(
+	async createMany<T extends ForjaEntry = ForjaRecord, TInput extends FallbackInput = FallbackInput>(
 		model: string,
-		data: Partial<T>[],
+		data: TInput[],
 		options?: RawCrudOptions<T>,
 	): Promise<T[]> {
 		const builder = insertInto(model, data, this.schemas);
@@ -316,10 +317,10 @@ export class CrudOperations implements IRawCrud {
 	 * });
 	 * ```
 	 */
-	async update<T extends ForjaEntry = ForjaRecord>(
+	async update<T extends ForjaEntry = ForjaRecord, TInput extends FallbackInput = FallbackInput>(
 		model: string,
 		id: number,
-		data: Partial<T>,
+		data: TInput,
 		options?: RawCrudOptions<T>,
 	): Promise<T> {
 		const result = await this.updateMany(
@@ -364,10 +365,10 @@ export class CrudOperations implements IRawCrud {
 	 * );
 	 * ```
 	 */
-	async updateMany<T extends ForjaEntry = ForjaRecord>(
+	async updateMany<T extends ForjaEntry = ForjaRecord, TInput extends FallbackInput = FallbackInput>(
 		model: string,
 		where: WhereClause<T>,
-		data: Partial<T>,
+		data: TInput,
 		options?: RawCrudOptions<T>,
 	): Promise<T[]> {
 		const builder = updateTable(model, data, this.schemas).where(where);

@@ -203,7 +203,7 @@ describe("Delete Operations", () => {
 			const postWithTags = await forja.findById("post", post.id, {
 				populate: { tags: true },
 			});
-			expect((postWithTags!.tags as unknown[]).length).toBe(2);
+			expect((postWithTags!["tags"] as unknown[]).length).toBe(2);
 
 			// Delete post
 			await forja.delete("post", post.id);
@@ -276,7 +276,7 @@ describe("Delete Operations", () => {
 				const postWithTags = await forja.findById("post", post.id, {
 					populate: { tags: true },
 				});
-				expect((postWithTags!.tags as unknown[]).length).toBe(0);
+				expect((postWithTags!["tags"] as unknown[]).length).toBe(0);
 			}
 		});
 	});

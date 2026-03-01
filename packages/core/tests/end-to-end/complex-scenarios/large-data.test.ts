@@ -20,7 +20,6 @@ import {
 	createTestConfig,
 	getTmpDir,
 	setupTables,
-	createLargeSchema,
 } from "../setup";
 
 describe("Large Data Performance", () => {
@@ -401,7 +400,7 @@ describe("Large Data Performance", () => {
 
 			expect(users.length).toBe(50);
 			for (const user of users) {
-				expect(user.organization).toBeDefined();
+				expect(user["organization"]).toBeDefined();
 			}
 			expect(duration).toBeLessThan(3000); // 3 seconds
 
