@@ -1,0 +1,40 @@
+{
+	"$schema": "https://unpkg.com/knip@5/schema.json",
+	"ignore": [
+		"examples/**",
+		"**/tests/**",
+		"**/*.test.ts",
+		"packages/adapter-postgres/src/test-utils.ts",
+		"packages/adapter-mysql/src/test-utils.ts",
+		"packages/adapter-mongodb/src/test-utils.ts"
+	],
+	"workspaces": {
+		"packages/types": {
+			"entry": ["src/index.ts"]
+		},
+		"packages/core": {
+			"entry": ["src/index.ts"]
+		},
+		"packages/adapter-json": {
+			"entry": ["src/index.ts"]
+		},
+		"packages/adapter-postgres": {
+			"entry": ["src/index.ts"]
+		},
+		"packages/adapter-mysql": {
+			"entry": ["src/index.ts"]
+		},
+		"packages/adapter-mongodb": {
+			"entry": ["src/index.ts!"]
+		},
+		"packages/api": {
+			"entry": ["src/index.ts"]
+		},
+		"packages/cli": {
+			"entry": ["src/index.ts"]
+		},
+		"packages/plugin-upload": {
+			"entry": ["src/index.ts"]
+		}
+	}
+}

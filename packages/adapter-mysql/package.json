@@ -28,6 +28,7 @@
 	},
 	"dependencies": {
 		"forja-types": "workspace:*",
+		"forja-core": "workspace:*",
 		"mysql2": "^3.9.1"
 	},
 	"devDependencies": {
