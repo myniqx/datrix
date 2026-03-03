@@ -14,7 +14,7 @@ import {
 import { JsonQueryRunner } from "./runner";
 
 export class JsonPopulator {
-	constructor(private adapter: JsonAdapter) {}
+	constructor(private adapter: JsonAdapter) { }
 
 	async populate<T extends ForjaEntry>(
 		rows: T[],
@@ -40,7 +40,7 @@ export class JsonPopulator {
 				throwRelationNotFound({
 					adapter: "json",
 					relationName,
-					modelName: currentSchema.name,
+					schemaName: currentSchema.name,
 				});
 			}
 
@@ -49,7 +49,7 @@ export class JsonPopulator {
 					adapter: "json",
 					relationName,
 					fieldType: relationField.type,
-					modelName: currentSchema.name,
+					schemaName: currentSchema.name,
 				});
 			}
 
@@ -66,7 +66,7 @@ export class JsonPopulator {
 					adapter: "json",
 					targetModel: targetModelName,
 					relationName,
-					modelName: currentSchema.name,
+					schemaName: currentSchema.name,
 				});
 			}
 

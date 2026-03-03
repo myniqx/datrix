@@ -1,5 +1,5 @@
 import { ForjaEntry } from "forja-types/core/schema";
-import { QueryObject, QuerySelectObject } from "forja-types/core/query-builder";
+import { QueryCountObject, QueryInsertObject, QueryObject, QuerySelectObject, QueryUpdateObject } from "forja-types/core/query-builder";
 import { JsonQueryRunner } from "./runner";
 import { JsonPopulator } from "./populate";
 import {
@@ -8,8 +8,8 @@ import {
 	checkForeignKeyConstraints,
 	checkUniqueConstraints,
 } from "./table-utils";
-import { throwQueryMissingData } from "./error-helper";
 import type { JsonAdapter } from "./adapter";
+import { throwQueryMissingData } from "forja-types/errors/adapter/adapter-helpers";
 
 export type QueryHandlerResult<T extends ForjaEntry> = {
 	rows: T[];
@@ -50,7 +50,7 @@ export async function handleSelect<T extends ForjaEntry>(ctx: {
 
 export async function handleCount<T extends ForjaEntry>(ctx: {
 	runner: JsonQueryRunner;
-	query: QuerySelectObject<T>;
+	query: QueryCountObject<T>;
 }): Promise<QueryHandlerResult<T>> {
 	const { runner, query } = ctx;
 	const rows = (await runner.run(query)) as T[];
@@ -65,7 +65,7 @@ export async function handleCount<T extends ForjaEntry>(ctx: {
 
 export async function handleInsert<T extends ForjaEntry>(ctx: {
 	runner: JsonQueryRunner;
-	query: QueryObject<T>;
+	query: QueryInsertObject<T>;
 }): Promise<QueryHandlerResult<T>> {
 	const { runner, query } = ctx;
 	const tableData = runner.tableData;
@@ -73,7 +73,7 @@ export async function handleInsert<T extends ForjaEntry>(ctx: {
 	const adapter = runner.adapterRef;
 
 	if (!query.data || !Array.isArray(query.data)) {
-		throwQueryMissingData("insert", query.table);
+		throwQueryMissingData({ queryType: "insert", table: query.table, adapter: "json" });
 	}
 
 	const insertedIds: number[] = [];
@@ -125,7 +125,7 @@ export async function handleInsert<T extends ForjaEntry>(ctx: {
 
 export async function handleUpdate<T extends ForjaEntry>(ctx: {
 	runner: JsonQueryRunner;
-	query: QueryObject<T>;
+	query: QueryUpdateObject<T>;
 }): Promise<QueryHandlerResult<T>> {
 	const { runner, query } = ctx;
 	const tableData = runner.tableData;
@@ -133,7 +133,7 @@ export async function handleUpdate<T extends ForjaEntry>(ctx: {
 	const adapter = runner.adapterRef;
 
 	if (!query.data) {
-		throwQueryMissingData("update", query.table);
+		throwQueryMissingData({ queryType: "update", table: query.table, adapter: "json" });
 	}
 
 	const updateQuery: QuerySelectObject<T> = {

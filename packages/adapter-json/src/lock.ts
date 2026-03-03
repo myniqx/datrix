@@ -1,6 +1,6 @@
+import { throwLockTimeout } from "forja-types/errors/adapter/adapter-helpers";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { throwLockTimeout } from "./error-helper";
 
 export class SimpleLock {
 	private lockPath: string;
@@ -47,7 +47,7 @@ export class SimpleLock {
 
 				// Check timeout
 				if (Date.now() - start > this.lockTimeout) {
-					throwLockTimeout(this.lockTimeout);
+					throwLockTimeout({ adapter: "json", lockTimeout: this.lockTimeout });
 				}
 
 				// Wait a bit before retrying

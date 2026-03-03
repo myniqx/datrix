@@ -110,11 +110,12 @@ export function checkUniqueConstraints(
 		);
 
 		if (duplicate) {
-			throwUniqueConstraintField(
-				fieldName,
+			throwUniqueConstraintField({
+				field: fieldName,
 				value,
-				schema.tableName ?? "unknown",
-			);
+				adapter: "json",
+				table: schema.tableName ?? "unknown",
+			});
 		}
 	}
 
@@ -135,7 +136,7 @@ export function checkUniqueConstraints(
 		);
 
 		if (duplicate) {
-			throwUniqueConstraintIndex(index.fields, schema.tableName ?? "unknown");
+			throwUniqueConstraintIndex({ fields: index.fields, table: schema.tableName ?? "unknown", adapter: "json" });
 		}
 	}
 }
@@ -184,12 +185,13 @@ export async function checkForeignKeyConstraints(
 		const exists = targetData.data.some((row) => row["id"] === fkValue);
 
 		if (!exists) {
-			throwForeignKeyConstraint(
+			throwForeignKeyConstraint({
 				foreignKey,
-				fkValue,
-				relationField.model,
-				schema.tableName ?? "unknown",
-			);
+				value: fkValue,
+				targetModel: relationField.model,
+				table: schema.tableName ?? "unknown",
+				adapter: "json",
+			});
 		}
 	}
 }
