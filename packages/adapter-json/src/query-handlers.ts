@@ -1,9 +1,5 @@
-import { ForjaEntry, SchemaDefinition } from "forja-types/core/schema";
-import {
-	QueryObject,
-	QuerySelectObject,
-} from "forja-types/core/query-builder";
-import { JsonTableFile } from "./types";
+import { ForjaEntry } from "forja-types/core/schema";
+import { QueryObject, QuerySelectObject } from "forja-types/core/query-builder";
 import { JsonQueryRunner } from "./runner";
 import { JsonPopulator } from "./populate";
 import {
@@ -40,11 +36,7 @@ export async function handleSelect<T extends ForjaEntry>(ctx: {
 		rows = await runner.filterAndSort(query);
 		const populator = new JsonPopulator(adapter);
 		rows = await populator.populate(rows, query);
-		rows = applySelectRecursive<T>(
-			rows,
-			query.select,
-			query.populate,
-		) as T[];
+		rows = applySelectRecursive<T>(rows, query.select, query.populate) as T[];
 	} else {
 		rows = (await runner.run(query)) as T[];
 	}
@@ -155,7 +147,12 @@ export async function handleUpdate<T extends ForjaEntry>(ctx: {
 	for (const row of rowsToUpdate) {
 		const updatedData = { ...row, ...query.data };
 		await checkForeignKeyConstraints(tableSchema, updatedData, adapter);
-		checkUniqueConstraints(tableData, tableSchema, updatedData, row["id"] as number);
+		checkUniqueConstraints(
+			tableData,
+			tableSchema,
+			updatedData,
+			row["id"] as number,
+		);
 	}
 
 	for (const row of rowsToUpdate) {

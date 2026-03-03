@@ -351,7 +351,7 @@ describe("JsonAdapter Populate - Error Handling", () => {
 						version: 1,
 						name: "users",
 						updatedAt: new Date().toISOString(),
-					}
+					},
 				}),
 			);
 

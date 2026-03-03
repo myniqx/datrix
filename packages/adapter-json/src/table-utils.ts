@@ -27,9 +27,7 @@ export function validateTableName(
 	if (tableName.includes("/") || tableName.includes("\\")) {
 		return {
 			success: false,
-			error: new MigrationError(
-				"Invalid table name: contains path separators",
-			),
+			error: new MigrationError("Invalid table name: contains path separators"),
 		};
 	}
 

@@ -1,13 +1,17 @@
 import { DatabaseAdapter } from "./adapter";
 import { DevConfig, ForjaConfig, MigrationConfig } from "./config";
 import {
-	QueryOrderBy,
 	PopulateClause,
 	SelectClause,
 	WhereClause,
 	OrderByClause,
 } from "./core/query-builder";
-import { AnyRelationInput, ForjaEntry, ForjaRecord, SchemaRegistry } from "./core/schema";
+import {
+	AnyRelationInput,
+	ForjaEntry,
+	ForjaRecord,
+	SchemaRegistry,
+} from "./core/schema";
 import { ForjaError } from "./errors/forja-error";
 import { ForjaPlugin, QueryAction } from "./plugin";
 import { Result } from "./utils";
@@ -33,7 +37,10 @@ export interface RawFindManyOptions<
  * Used when no generic is provided — allows any scalar or relation input
  * without requiring a specific model type.
  */
-export type FallbackInput = Record<string, string | number | boolean | Date | null | AnyRelationInput>;
+export type FallbackInput = Record<
+	string,
+	string | number | boolean | Date | null | AnyRelationInput
+>;
 
 /**
  * Raw CRUD operations interface (bypasses plugin hooks)
@@ -61,23 +68,35 @@ export interface IRawCrud {
 		model: string,
 		where?: WhereClause<T>,
 	): Promise<number>;
-	create<T extends ForjaEntry = ForjaRecord, TInput extends FallbackInput = FallbackInput>(
+	create<
+		T extends ForjaEntry = ForjaRecord,
+		TInput extends FallbackInput = FallbackInput,
+	>(
 		model: string,
 		data: TInput,
 		options?: RawCrudOptions<T>,
 	): Promise<T>;
-	createMany<T extends ForjaEntry = ForjaRecord, TInput extends FallbackInput = FallbackInput>(
+	createMany<
+		T extends ForjaEntry = ForjaRecord,
+		TInput extends FallbackInput = FallbackInput,
+	>(
 		model: string,
 		data: TInput[],
 		options?: RawCrudOptions<T>,
 	): Promise<T[]>;
-	update<T extends ForjaEntry = ForjaRecord, TInput extends FallbackInput = FallbackInput>(
+	update<
+		T extends ForjaEntry = ForjaRecord,
+		TInput extends FallbackInput = FallbackInput,
+	>(
 		model: string,
 		id: number,
 		data: TInput,
 		options?: RawCrudOptions<T>,
 	): Promise<T>;
-	updateMany<T extends ForjaEntry = ForjaRecord, TInput extends FallbackInput = FallbackInput>(
+	updateMany<
+		T extends ForjaEntry = ForjaRecord,
+		TInput extends FallbackInput = FallbackInput,
+	>(
 		model: string,
 		where: WhereClause<T>,
 		data: TInput,

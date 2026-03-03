@@ -303,7 +303,7 @@ describe("JsonAdapter Populate - Happy Path", () => {
 				populate: {
 					author: {
 						select: ["name", "id"],
-					}
+					},
 				},
 			};
 

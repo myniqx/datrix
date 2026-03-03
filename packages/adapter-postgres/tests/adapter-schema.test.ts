@@ -168,11 +168,13 @@ describe("PostgresAdapter - Schema Operations", () => {
 		);
 
 		// Verify defaults were applied
-		const result = await adapter.executeQuery<ForjaEntry & {
-			status: string;
-			count: number;
-			enabled: boolean;
-		}>({
+		const result = await adapter.executeQuery<
+			ForjaEntry & {
+				status: string;
+				count: number;
+				enabled: boolean;
+			}
+		>({
 			type: "select",
 			table: "test_schema_table",
 			select: ["status", "count", "enabled"],
@@ -366,7 +368,9 @@ describe("PostgresAdapter - Schema Operations", () => {
 		expect(result.success).toBe(true);
 
 		// Verify existing row got default value
-		const selectResult = await adapter.executeQuery<{ status: string } & ForjaEntry>({
+		const selectResult = await adapter.executeQuery<
+			{ status: string } & ForjaEntry
+		>({
 			type: "select",
 			table: "test_schema_table",
 			select: ["status"],

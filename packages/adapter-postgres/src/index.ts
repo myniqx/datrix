@@ -33,10 +33,4 @@ export type {
 	ProcessedResult,
 } from "./populate";
 
-export { ForjaPostgresAdapterError } from "./error";
-
-export type {
-	PostgresAdapterOperation,
-	PostgresAdapterErrorCode,
-	PostgresAdapterErrorContext,
-} from "./error";
+export { ForjaAdapterError } from "forja-types/errors/adapter";

@@ -26,7 +26,12 @@ import { Dispatcher, createDispatcher } from "./dispatcher";
 import { PluginRegistry } from "forja-types/plugin";
 import { SchemaRegistry } from "./schema";
 import { ForjaEntry, ForjaRecord } from "forja-types";
-import { IForja, RawCrudOptions, RawFindManyOptions, FallbackInput } from "forja-types/forja";
+import {
+	IForja,
+	RawCrudOptions,
+	RawFindManyOptions,
+	FallbackInput,
+} from "forja-types/forja";
 import { ForjaError } from "forja-types/errors";
 import {
 	getMigrationSchema,
@@ -467,25 +472,26 @@ export class Forja implements IForja {
 		return this._crud.count(model, where);
 	}
 
-	async create<T extends ForjaEntry = ForjaRecord, TInput extends FallbackInput = FallbackInput>(
-		model: string,
-		data: TInput,
-		options?: RawCrudOptions<T>,
-	): Promise<T> {
+	async create<
+		T extends ForjaEntry = ForjaRecord,
+		TInput extends FallbackInput = FallbackInput,
+	>(model: string, data: TInput, options?: RawCrudOptions<T>): Promise<T> {
 		this.ensureInitialized();
 		return this._crud.create<T, TInput>(model, data, options);
 	}
 
-	async createMany<T extends ForjaEntry = ForjaRecord, TInput extends FallbackInput = FallbackInput>(
-		model: string,
-		data: TInput[],
-		options?: RawCrudOptions<T>,
-	): Promise<T[]> {
+	async createMany<
+		T extends ForjaEntry = ForjaRecord,
+		TInput extends FallbackInput = FallbackInput,
+	>(model: string, data: TInput[], options?: RawCrudOptions<T>): Promise<T[]> {
 		this.ensureInitialized();
 		return this._crud.createMany<T, TInput>(model, data, options);
 	}
 
-	async update<T extends ForjaEntry = ForjaRecord, TInput extends FallbackInput = FallbackInput>(
+	async update<
+		T extends ForjaEntry = ForjaRecord,
+		TInput extends FallbackInput = FallbackInput,
+	>(
 		model: string,
 		id: number,
 		data: TInput,
@@ -495,7 +501,10 @@ export class Forja implements IForja {
 		return this._crud.update<T, TInput>(model, id, data, options);
 	}
 
-	async updateMany<T extends ForjaEntry = ForjaRecord, TInput extends FallbackInput = FallbackInput>(
+	async updateMany<
+		T extends ForjaEntry = ForjaRecord,
+		TInput extends FallbackInput = FallbackInput,
+	>(
 		model: string,
 		where: WhereClause<T>,
 		data: TInput,

@@ -227,7 +227,9 @@ describe("Relation API", () => {
 					populate: { author: true },
 				});
 
-				expect((fetched!["author"] as { name: string }).name).toBe("Updated Name");
+				expect((fetched!["author"] as { name: string }).name).toBe(
+					"Updated Name",
+				);
 			});
 		});
 
@@ -321,7 +323,9 @@ describe("Relation API", () => {
 					populate: { favoriteCategory: true },
 				});
 
-				expect((fetched!["favoriteCategory"] as { id: number }).id).toBe(cat2.id);
+				expect((fetched!["favoriteCategory"] as { id: number }).id).toBe(
+					cat2.id,
+				);
 			});
 		});
 
