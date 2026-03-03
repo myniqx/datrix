@@ -2,27 +2,35 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import {
 	AlterOperation,
-	ConnectionError,
 	ConnectionState,
 	DatabaseAdapter,
-	MigrationError,
-	QueryError,
 	QueryResult,
 	Transaction,
-	TransactionError,
 } from "forja-types/adapter";
-import { QueryObject, QuerySelectObject } from "forja-types/core/query-builder";
+import { QueryObject } from "forja-types/core/query-builder";
 import {
 	ForjaEntry,
 	IndexDefinition,
 	SchemaDefinition,
 } from "forja-types/core/schema";
-import { Result } from "forja-types/utils";
 import { validateQueryObject } from "forja-types/utils/query";
-import { JsonAdapterConfig, JsonTableFile } from "./types";
+import {
+	CacheEntry,
+	ExecuteQueryOptions,
+	JsonAdapterConfig,
+	JsonTableFile,
+	SchemaOperationOptions,
+} from "./types";
 import { JsonQueryRunner } from "./runner";
 import { SimpleLock } from "./lock";
-import { ForjaError } from "forja-types/errors";
+import {
+	ForjaAdapterError,
+	throwNotConnected,
+	throwConnectionError,
+	throwMigrationError,
+	throwTransactionError,
+	throwQueryError,
+} from "forja-types/errors/adapter";
 import { JsonTransaction } from "./transaction";
 import {
 	FORJA_META_MODEL,
@@ -36,34 +44,6 @@ import {
 	handleSelect,
 	handleUpdate,
 } from "./query-handlers";
-
-/**
- * Cache entry for table data
- */
-export interface CacheEntry {
-	data: JsonTableFile;
-	mtime: number;
-}
-
-/**
- * Options for executeQuery to support transactions
- */
-export interface ExecuteQueryOptions {
-	/** Skip lock acquisition (transaction already holds lock) */
-	skipLock?: boolean;
-	/** Skip writing to disk (transaction will write on commit) */
-	skipWrite?: boolean;
-}
-
-/**
- * Options for schema operations to support transactions
- */
-export interface SchemaOperationOptions {
-	/** Skip lock acquisition (transaction already holds lock) */
-	skipLock?: boolean;
-	/** Skip writing to disk (transaction will write on commit) */
-	skipWrite?: boolean;
-}
 
 /**
  * JSON File Adapter
@@ -109,9 +89,9 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 	/**
 	 * Connect involves ensuring the root directory exists
 	 */
-	async connect(): Promise<Result<void, ConnectionError>> {
+	async connect(): Promise<void> {
 		if (this.state === "connected") {
-			return { success: true, data: undefined };
+			return;
 		}
 
 		this.state = "connecting";
@@ -122,30 +102,28 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 
 			// Standalone mode: bootstrap _forja metadata table automatically
 			if (this.config.standalone) {
-				const metaResult = await createMetaTable(this);
-				if (!metaResult.success) {
+				try {
+					await createMetaTable(this);
+				} catch (error) {
 					this.state = "error";
-					return metaResult;
+					throw error;
 				}
 			}
-
-			return { success: true, data: undefined };
 		} catch (error) {
-			this.state = "error";
+			if (this.state !== "error") {
+				this.state = "error";
+			}
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new ConnectionError(
-					`Failed to access root directory: ${message}`,
-					error,
-				),
-			};
+			throwConnectionError({
+				adapter: "json",
+				message: `Failed to access root directory: ${message}`,
+				cause: error instanceof Error ? error : new Error(String(error)),
+			});
 		}
 	}
 
-	async disconnect(): Promise<Result<void, ConnectionError>> {
+	async disconnect(): Promise<void> {
 		this.state = "disconnected";
-		return { success: true, data: undefined };
 	}
 
 	isConnected(): boolean {
@@ -268,11 +246,8 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 	): Promise<SchemaDefinition | null> {
 		try {
 			const tablesResult = await this.getTables();
-			if (!tablesResult.success) {
-				return null;
-			}
 
-			for (const tableName of tablesResult.data) {
+			for (const tableName of tablesResult) {
 				const schema = await this.getSchemaByTableName(tableName);
 				if (schema?.name === modelName) {
 					return schema;
@@ -321,57 +296,40 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 	private async upsertSchemaMeta(
 		schema: SchemaDefinition,
 		skipWrite: boolean,
-	): Promise<Result<void, MigrationError>> {
-		try {
-			const metaKey = `${FORJA_META_KEY_PREFIX}${schema.tableName ?? schema.name}`;
-			const metaValue = JSON.stringify(schema);
-			const metaFile = await this.readTable(FORJA_META_MODEL);
+	): Promise<void> {
+		const metaKey = `${FORJA_META_KEY_PREFIX}${schema.tableName ?? schema.name}`;
+		const metaValue = JSON.stringify(schema);
+		const metaFile = await this.readTable(FORJA_META_MODEL);
 
-			const existingIndex = metaFile.data.findIndex(
-				(r) => (r as Record<string, unknown>)["key"] === metaKey,
-			);
+		const existingIndex = metaFile.data.findIndex(
+			(r) => (r as Record<string, unknown>)["key"] === metaKey,
+		);
 
-			if (existingIndex >= 0) {
-				(metaFile.data[existingIndex] as Record<string, unknown>)["value"] =
-					metaValue;
-			} else {
-				const lastInsertId = (metaFile.meta.lastInsertId ?? 0) + 1;
-				metaFile.meta.lastInsertId = lastInsertId;
-				metaFile.data.push({
-					id: lastInsertId,
-					key: metaKey,
-					value: metaValue,
-				} as Record<string, unknown>);
-			}
+		if (existingIndex >= 0) {
+			(metaFile.data[existingIndex] as Record<string, unknown>)["value"] =
+				metaValue;
+		} else {
+			const lastInsertId = (metaFile.meta.lastInsertId ?? 0) + 1;
+			metaFile.meta.lastInsertId = lastInsertId;
+			metaFile.data.push({
+				id: lastInsertId,
+				key: metaKey,
+				value: metaValue,
+			} as Record<string, unknown>);
+		}
 
-			metaFile.meta.updatedAt = new Date().toISOString();
+		metaFile.meta.updatedAt = new Date().toISOString();
 
-			if (skipWrite) {
-				this.activeTransactionCache!.set(FORJA_META_MODEL, {
-					data: metaFile,
-					mtime: Date.now(),
-				});
-				this.activeTransactionModifiedTables!.add(FORJA_META_MODEL);
-			} else {
-				const filePath = this.getTablePath(FORJA_META_MODEL);
-				await fs.writeFile(
-					filePath,
-					JSON.stringify(metaFile, null, 2),
-					"utf-8",
-				);
-				await this.updateCache(FORJA_META_MODEL, metaFile);
-			}
-
-			return { success: true, data: undefined };
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new MigrationError(
-					`Failed to upsert schema meta for '${schema.name}': ${message}`,
-					error,
-				),
-			};
+		if (skipWrite) {
+			this.activeTransactionCache!.set(FORJA_META_MODEL, {
+				data: metaFile,
+				mtime: Date.now(),
+			});
+			this.activeTransactionModifiedTables!.add(FORJA_META_MODEL);
+		} else {
+			const filePath = this.getTablePath(FORJA_META_MODEL);
+			await fs.writeFile(filePath, JSON.stringify(metaFile, null, 2), "utf-8");
+			await this.updateCache(FORJA_META_MODEL, metaFile);
 		}
 	}
 
@@ -382,45 +340,34 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		tableName: string,
 		operations: readonly AlterOperation[],
 		skipWrite: boolean,
-	): Promise<Result<void, MigrationError>> {
-		try {
-			const schema = await this.readTableSchema(tableName);
-			const fields = { ...schema.fields };
+	): Promise<void> {
+		const schema = await this.readTableSchema(tableName);
+		const fields = { ...schema.fields };
 
-			for (const op of operations) {
-				switch (op.type) {
-					case "addColumn":
-						fields[op.column] = op.definition;
-						break;
-					case "dropColumn":
-						delete fields[op.column];
-						break;
-					case "modifyColumn":
-						fields[op.column] = op.newDefinition;
-						break;
-					case "renameColumn": {
-						const fieldDef = fields[op.from];
-						if (fieldDef !== undefined) {
-							fields[op.to] = fieldDef;
-							delete fields[op.from];
-						}
-						break;
+		for (const op of operations) {
+			switch (op.type) {
+				case "addColumn":
+					fields[op.column] = op.definition;
+					break;
+				case "dropColumn":
+					delete fields[op.column];
+					break;
+				case "modifyColumn":
+					fields[op.column] = op.newDefinition;
+					break;
+				case "renameColumn": {
+					const fieldDef = fields[op.from];
+					if (fieldDef !== undefined) {
+						fields[op.to] = fieldDef;
+						delete fields[op.from];
 					}
+					break;
 				}
 			}
-
-			const updatedSchema: SchemaDefinition = { ...schema, fields };
-			return this.upsertSchemaMeta(updatedSchema, skipWrite);
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new MigrationError(
-					`Failed to update schema meta for '${tableName}': ${message}`,
-					error,
-				),
-			};
 		}
+
+		const updatedSchema: SchemaDefinition = { ...schema, fields };
+		await this.upsertSchemaMeta(updatedSchema, skipWrite);
 	}
 
 	/**
@@ -448,9 +395,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		}
 	}
 
-	async createTable(
-		schema: SchemaDefinition,
-	): Promise<Result<void, MigrationError>> {
+	async createTable(schema: SchemaDefinition): Promise<void> {
 		return this.createTableWithOptions(schema);
 	}
 
@@ -460,7 +405,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 	async createTableWithOptions(
 		schema: SchemaDefinition,
 		options?: SchemaOperationOptions,
-	): Promise<Result<void, MigrationError>> {
+	): Promise<void> {
 		const skipWrite = options?.skipWrite ?? false;
 
 		// Standalone mode: ensure id field exists since registry is not present to add it
@@ -475,104 +420,85 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		}
 
 		if (!this.isConnected()) {
-			return {
-				success: false,
-				error: new MigrationError("Not connected to database"),
-			};
+			throwNotConnected({ adapter: "json" });
 		}
 
 		const tableName = schema.tableName!;
 
-		const validation = validateTableName(tableName);
-		if (!validation.success) {
-			return validation;
+		validateTableName(tableName);
+
+		// Check if table exists in transaction cache first
+		if (this.activeTransactionCache?.has(tableName)) {
+			throwMigrationError({
+				adapter: "json",
+				message: `Table '${schema.name}' already exists`,
+				table: tableName,
+			});
 		}
 
-		try {
-			// Check if table exists in transaction cache first
-			if (this.activeTransactionCache?.has(tableName)) {
-				return {
-					success: false,
-					error: new MigrationError(`Table '${schema.name}' already exists`),
-				};
-			}
+		// Check if table was deleted in this transaction - allow recreation
+		const wasDeleted = this.activeTransactionDeletedTables?.has(tableName);
+		if (wasDeleted) {
+			// Remove from tombstone - we're recreating
+			this.activeTransactionDeletedTables!.delete(tableName);
+		}
 
-			// Check if table was deleted in this transaction - allow recreation
-			const wasDeleted = this.activeTransactionDeletedTables?.has(tableName);
-			if (wasDeleted) {
-				// Remove from tombstone - we're recreating
-				this.activeTransactionDeletedTables!.delete(tableName);
-			}
-
-			// Check disk only if not in transaction or table wasn't deleted
-			if (!wasDeleted) {
-				const filePath = this.getTablePath(tableName);
-				try {
-					await fs.access(filePath);
-					return {
-						success: false,
-						error: new MigrationError(`Table '${schema.name}' already exists`),
-					};
-				} catch {
-					// File does not exist, proceed
-				}
-			}
-
-			const initialContent: JsonTableFile = {
-				meta: {
-					version: 1,
-					updatedAt: new Date().toISOString(),
-					name: schema.name,
-				},
-				data: [],
-			};
-
-			if (skipWrite) {
-				// Transaction mode: write to transaction cache
-				this.activeTransactionCache!.set(tableName, {
-					data: initialContent,
-					mtime: Date.now(),
+		// Check disk only if not in transaction or table wasn't deleted
+		if (!wasDeleted) {
+			const filePath = this.getTablePath(tableName);
+			try {
+				await fs.access(filePath);
+				throwMigrationError({
+					adapter: "json",
+					message: `Table '${schema.name}' already exists`,
 				});
-				this.activeTransactionModifiedTables!.add(tableName);
-			} else {
-				// Normal mode: write to disk and update cache
-				const filePath = this.getTablePath(tableName);
-				await fs.writeFile(
-					filePath,
-					JSON.stringify(initialContent, null, 2),
-					"utf-8",
-				);
-				await this.updateCache(tableName, initialContent);
+			} catch (err) {
+				if (err instanceof ForjaAdapterError) throw err;
+				// File does not exist, proceed
 			}
+		}
 
-			// Track schema in _forja (skip for _forja itself)
-			if (schema.name !== FORJA_META_MODEL) {
-				const metaExists = await this.tableExists(FORJA_META_MODEL);
-				if (!metaExists) {
-					return {
-						success: false,
-						error: new MigrationError(
-							`Cannot create table '${schema.name}': '${FORJA_META_MODEL}' table does not exist yet. Create '${FORJA_META_MODEL}' first.`,
-						),
-					};
-				}
-				const metaWriteResult = await this.upsertSchemaMeta(schema, skipWrite);
-				if (!metaWriteResult.success) {
-					return metaWriteResult;
-				}
+		const initialContent: JsonTableFile = {
+			meta: {
+				version: 1,
+				updatedAt: new Date().toISOString(),
+				name: schema.name,
+			},
+			data: [],
+		};
+
+		if (skipWrite) {
+			// Transaction mode: write to transaction cache
+			this.activeTransactionCache!.set(tableName, {
+				data: initialContent,
+				mtime: Date.now(),
+			});
+			this.activeTransactionModifiedTables!.add(tableName);
+		} else {
+			// Normal mode: write to disk and update cache
+			const filePath = this.getTablePath(tableName);
+			await fs.writeFile(
+				filePath,
+				JSON.stringify(initialContent, null, 2),
+				"utf-8",
+			);
+			await this.updateCache(tableName, initialContent);
+		}
+
+		// Track schema in _forja (skip for _forja itself)
+		if (schema.name !== FORJA_META_MODEL) {
+			const metaExists = await this.tableExists(FORJA_META_MODEL);
+			if (!metaExists) {
+				throwMigrationError({
+					adapter: "json",
+					message: `Cannot create table '${schema.name}': '${FORJA_META_MODEL}' table does not exist yet. Create '${FORJA_META_MODEL}' first.`,
+				});
 			}
-
-			return { success: true, data: undefined };
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new MigrationError(`Adapter error: ${message}`, error),
-			};
+			await this.upsertSchemaMeta(schema, skipWrite);
 		}
 	}
 
-	async dropTable(tableName: string): Promise<Result<void, MigrationError>> {
+	async dropTable(tableName: string): Promise<void> {
 		return this.dropTableWithOptions(tableName);
 	}
 
@@ -582,92 +508,79 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 	async dropTableWithOptions(
 		tableName: string,
 		options?: SchemaOperationOptions,
-	): Promise<Result<void, MigrationError>> {
+	): Promise<void> {
 		const skipWrite = options?.skipWrite ?? false;
 
 		if (!this.isConnected()) {
-			return {
-				success: false,
-				error: new MigrationError("Not connected to database"),
-			};
+			throwNotConnected({ adapter: "json" });
 		}
 
-		try {
-			// Check if table was already deleted in this transaction
-			if (this.activeTransactionDeletedTables?.has(tableName)) {
-				return {
-					success: false,
-					error: new MigrationError(`Table '${tableName}' does not exist`),
-				};
-			}
+		// Check if table was already deleted in this transaction
+		if (this.activeTransactionDeletedTables?.has(tableName)) {
+			throwMigrationError({
+				adapter: "json",
+				message: `Table '${tableName}' does not exist`,
+			});
+		}
 
-			// Check if table exists (in tx cache, main cache, or disk)
-			const existsInTxCache = this.activeTransactionCache?.has(tableName);
-			const existsInMainCache = this.cache.has(tableName);
-			let existsOnDisk = false;
+		// Check if table exists (in tx cache, main cache, or disk)
+		const existsInTxCache = this.activeTransactionCache?.has(tableName);
+		const existsInMainCache = this.cache.has(tableName);
+		let existsOnDisk = false;
 
-			if (!existsInTxCache && !existsInMainCache) {
-				const filePath = this.getTablePath(tableName);
-				try {
-					await fs.access(filePath);
-					existsOnDisk = true;
-				} catch {
-					// Not on disk
-				}
+		if (!existsInTxCache && !existsInMainCache) {
+			const filePath = this.getTablePath(tableName);
+			try {
+				await fs.access(filePath);
+				existsOnDisk = true;
+			} catch {
+				// Not on disk
 			}
+		}
 
-			if (!existsInTxCache && !existsInMainCache && !existsOnDisk) {
-				return {
-					success: false,
-					error: new MigrationError(`Table '${tableName}' does not exist`),
-				};
-			}
+		if (!existsInTxCache && !existsInMainCache && !existsOnDisk) {
+			throwMigrationError({
+				adapter: "json",
+				message: `Table '${tableName}' does not exist`,
+			});
+		}
+
+		if (skipWrite) {
+			// Transaction mode: add to tombstone, remove from tx cache
+			this.activeTransactionDeletedTables!.add(tableName);
+			this.activeTransactionCache!.delete(tableName);
+		} else {
+			// Normal mode: delete from disk
+			const filePath = this.getTablePath(tableName);
+			await fs.unlink(filePath);
+			this.invalidateCache(tableName);
+		}
+
+		// Remove schema from _forja
+		if (tableName !== FORJA_META_MODEL) {
+			// TODO: _forja table diger tablelar gibi bir table. burada kod tekrari yapmak yerine executeQuery({delete from _forja where key = metaKey}) gibi bir sey yapilabilir. eger lock problem cikarmiyorsa
+			const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
+			const metaFile = await this.readTable(FORJA_META_MODEL);
+			metaFile.data = metaFile.data.filter(
+				(r) => (r as Record<string, unknown>)["key"] !== metaKey,
+			);
+			metaFile.meta.updatedAt = new Date().toISOString();
 
 			if (skipWrite) {
-				// Transaction mode: add to tombstone, remove from tx cache
-				this.activeTransactionDeletedTables!.add(tableName);
-				this.activeTransactionCache!.delete(tableName);
+				this.activeTransactionCache!.set(FORJA_META_MODEL, {
+					data: metaFile,
+					mtime: Date.now(),
+				});
+				this.activeTransactionModifiedTables!.add(FORJA_META_MODEL);
 			} else {
-				// Normal mode: delete from disk
-				const filePath = this.getTablePath(tableName);
-				await fs.unlink(filePath);
-				this.invalidateCache(tableName);
-			}
-
-			// Remove schema from _forja
-			if (tableName !== FORJA_META_MODEL) {
-				// TODO: _forja table diger tablelar gibi bir table. burada kod tekrari yapmak yerine executeQuery({delete from _forja where key = metaKey}) gibi bir sey yapilabilir. eger lock problem cikarmiyorsa
-				const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
-				const metaFile = await this.readTable(FORJA_META_MODEL);
-				metaFile.data = metaFile.data.filter(
-					(r) => (r as Record<string, unknown>)["key"] !== metaKey,
+				const filePath = this.getTablePath(FORJA_META_MODEL);
+				await fs.writeFile(
+					filePath,
+					JSON.stringify(metaFile, null, 2),
+					"utf-8",
 				);
-				metaFile.meta.updatedAt = new Date().toISOString();
-
-				if (skipWrite) {
-					this.activeTransactionCache!.set(FORJA_META_MODEL, {
-						data: metaFile,
-						mtime: Date.now(),
-					});
-					this.activeTransactionModifiedTables!.add(FORJA_META_MODEL);
-				} else {
-					const filePath = this.getTablePath(FORJA_META_MODEL);
-					await fs.writeFile(
-						filePath,
-						JSON.stringify(metaFile, null, 2),
-						"utf-8",
-					);
-					await this.updateCache(FORJA_META_MODEL, metaFile);
-				}
+				await this.updateCache(FORJA_META_MODEL, metaFile);
 			}
-
-			return { success: true, data: undefined };
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new MigrationError(`Adapter error: ${message}`, error),
-			};
 		}
 	}
 
@@ -679,7 +592,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 	 */
 	async executeQuery<TResult extends ForjaEntry>(
 		query: QueryObject<TResult>,
-	): Promise<Result<QueryResult<TResult>, QueryError<TResult>>> {
+	): Promise<QueryResult<TResult>> {
 		return this.executeQueryWithOptions(query);
 	}
 
@@ -694,31 +607,21 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 	async executeQueryWithOptions<TResult extends ForjaEntry>(
 		query: QueryObject<TResult>,
 		options?: ExecuteQueryOptions,
-	): Promise<Result<QueryResult<TResult>, QueryError<TResult>>> {
+	): Promise<QueryResult<TResult>> {
 		const skipLock = options?.skipLock ?? false;
 		const skipWrite = options?.skipWrite ?? false;
 
 		const validation = validateQueryObject(query);
 		if (!validation.success) {
-			return {
-				success: false,
-				error: new QueryError(
-					`Invalid QueryObject: ${validation.error.message}`,
-					{
-						query,
-					},
-				),
-			};
+			throwQueryError({
+				adapter: "json",
+				message: `Invalid QueryObject: ${validation.error.message}`,
+				query: query as QueryObject,
+			});
 		}
 
 		if (!this.isConnected()) {
-			return {
-				success: false,
-				error: new QueryError("Not connected to database", {
-					code: "CONNECTION_ERROR",
-					query,
-				}),
-			};
+			throwNotConnected({ adapter: "json" });
 		}
 
 		const isWriteOp = ["insert", "update", "delete"].includes(query.type);
@@ -730,13 +633,12 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 				await this.lock.acquire();
 				lockAcquired = true;
 			} catch (err) {
-				return {
-					success: false,
-					error: new QueryError(
-						`Failed to acquire lock: ${err instanceof Error ? err.message : String(err)}`,
-						{ query },
-					),
-				};
+				throwQueryError({
+					adapter: "json",
+					message: `Failed to acquire lock: ${err instanceof Error ? err.message : String(err)}`,
+					query: query as QueryObject,
+					cause: err instanceof Error ? err : new Error(String(err)),
+				});
 			}
 		}
 
@@ -747,19 +649,17 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 				tableData = await this.readTable(query.table);
 			} catch (err) {
 				if (lockAcquired) await this.lock.release();
-				return {
-					success: false,
-					error: new QueryError(`Table '${query.table}' not found`, {
-						code: "TABLE_NOT_FOUND",
-						query,
-						details: err,
-					}),
-				};
+				throwQueryError({
+					adapter: "json",
+					message: `Table '${query.table}' not found`,
+					query: query as QueryObject,
+					cause: err instanceof Error ? err : new Error(String(err)),
+				});
 			}
 
 			// Handle missing data field
-			if (!tableData.data || !Array.isArray(tableData.data)) {
-				tableData.data = [];
+			if (!tableData!.data || !Array.isArray(tableData!.data)) {
+				tableData!.data = [];
 			}
 
 			// Load schema from _forja for this table (transaction-aware)
@@ -770,7 +670,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 				// Schema not found in _forja — proceed without it
 			}
 
-			const runner = new JsonQueryRunner(tableData, this, tableSchema);
+			const runner = new JsonQueryRunner(tableData!, this, tableSchema);
 
 			let handlerResult: Awaited<ReturnType<typeof handleSelect>>;
 
@@ -780,11 +680,8 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 					if (handlerResult.earlyReturn) {
 						if (lockAcquired) await this.lock.release();
 						return {
-							success: true,
-							data: {
-								rows: [] as TResult[],
-								metadata: handlerResult.metadata,
-							},
+							rows: [] as TResult[],
+							metadata: handlerResult.metadata,
 						};
 					}
 					break;
@@ -815,14 +712,14 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 					}
 				} else {
 					// Normal mode: write to disk immediately
-					tableData.meta.updatedAt = new Date().toISOString();
+					tableData!.meta.updatedAt = new Date().toISOString();
 					const filePath = this.getTablePath(query.table);
 					await fs.writeFile(
 						filePath,
 						JSON.stringify(tableData, null, 2),
 						"utf-8",
 					);
-					await this.updateCache(query.table, tableData);
+					await this.updateCache(query.table, tableData!);
 				}
 			}
 
@@ -831,41 +728,23 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 			if (lockAcquired) await this.lock.release();
 
 			return {
-				success: true,
-				data: {
-					rows: rows as TResult[],
-					metadata,
-				},
+				rows: rows as TResult[],
+				metadata,
 			};
 		} catch (error) {
 			if (lockAcquired) await this.lock.release();
-
-			// Re-throw ForjaError as-is (already has detailed context)
-			if (error instanceof ForjaError) {
-				return {
-					success: false,
-					error: error as QueryError<TResult>,
-				};
-			}
-
-			// Wrap unexpected errors
-			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new QueryError(`Adapter error: ${message}`, { details: error }),
-			};
+			throw error;
 		}
 	}
 
 	async executeRawQuery<TResult extends ForjaEntry>(
-		sql: string,
-	): Promise<Result<QueryResult<TResult>, QueryError<TResult>>> {
-		return {
-			success: false,
-			error: new QueryError("executeRawQuery is not supported by JsonAdapter", {
-				sql,
-			}),
-		};
+		_sql: string,
+		_params: readonly unknown[],
+	): Promise<QueryResult<TResult>> {
+		throwQueryError({
+			adapter: "json",
+			message: "executeRawQuery is not supported by JsonAdapter",
+		});
 	}
 
 	/**
@@ -874,19 +753,16 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 	 * Acquires lock and creates isolated transaction cache.
 	 * All reads/writes within transaction use txCache.
 	 */
-	async beginTransaction(): Promise<Result<Transaction, TransactionError>> {
+	async beginTransaction(): Promise<Transaction> {
 		if (!this.isConnected()) {
-			return {
-				success: false,
-				error: new TransactionError("Not connected to database"),
-			};
+			throwNotConnected({ adapter: "json" });
 		}
 
 		if (this.activeTransactionCache) {
-			return {
-				success: false,
-				error: new TransactionError("A transaction is already active"),
-			};
+			throwTransactionError({
+				adapter: "json",
+				message: "A transaction is already active",
+			});
 		}
 
 		try {
@@ -911,16 +787,13 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 				},
 			);
 
-			return { success: true, data: transaction };
+			return transaction;
 		} catch (err) {
-			const message = err instanceof Error ? err.message : String(err);
-			return {
-				success: false,
-				error: new TransactionError(
-					`Failed to begin transaction: ${message}`,
-					err,
-				),
-			};
+			throwTransactionError({
+				adapter: "json",
+				message: `Failed to begin transaction: ${err instanceof Error ? err.message : String(err)}`,
+				cause: err instanceof Error ? err : new Error(String(err)),
+			});
 		}
 	}
 
@@ -930,7 +803,10 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 	 */
 	private async commitTransaction(): Promise<void> {
 		if (!this.activeTransactionCache || !this.activeTransactionModifiedTables) {
-			throw new TransactionError("No active transaction to commit");
+			throwTransactionError({
+				adapter: "json",
+				message: "No active transaction to commit",
+			});
 		}
 
 		try {
@@ -994,7 +870,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 	async alterTable(
 		tableName: string,
 		operations: readonly AlterOperation[],
-	): Promise<Result<void, MigrationError>> {
+	): Promise<void> {
 		return this.alterTableWithOptions(tableName, operations);
 	}
 
@@ -1005,100 +881,76 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		tableName: string,
 		operations: readonly AlterOperation[],
 		options?: SchemaOperationOptions,
-	): Promise<Result<void, MigrationError>> {
+	): Promise<void> {
 		const skipWrite = options?.skipWrite ?? false;
 
 		if (!this.isConnected()) {
-			return {
-				success: false,
-				error: new MigrationError("Not connected to database"),
-			};
+			throwNotConnected({ adapter: "json" });
 		}
 
-		try {
-			const json = await this.readTable(tableName);
+		const json = await this.readTable(tableName);
 
-			// Apply each operation to table data rows
-			for (const op of operations) {
-				switch (op.type) {
-					case "addColumn": {
-						const defaultValue = (op.definition as { default?: unknown })
-							.default;
-						for (const row of json.data) {
-							if (!(op.column in row)) {
-								(row as Record<string, unknown>)[op.column] =
-									defaultValue ?? null;
-							}
+		// Apply each operation to table data rows
+		for (const op of operations) {
+			switch (op.type) {
+				case "addColumn": {
+					const defaultValue = (op.definition as { default?: unknown }).default;
+					for (const row of json.data) {
+						if (!(op.column in row)) {
+							(row as Record<string, unknown>)[op.column] =
+								defaultValue ?? null;
 						}
-						break;
 					}
+					break;
+				}
 
-					case "dropColumn": {
-						for (const row of json.data) {
-							delete (row as Record<string, unknown>)[op.column];
+				case "dropColumn": {
+					for (const row of json.data) {
+						delete (row as Record<string, unknown>)[op.column];
+					}
+					break;
+				}
+
+				case "modifyColumn": {
+					break;
+				}
+
+				case "renameColumn": {
+					for (const row of json.data) {
+						const r = row as Record<string, unknown>;
+						if (op.from in r) {
+							r[op.to] = r[op.from];
+							delete r[op.from];
 						}
-						break;
 					}
-
-					case "modifyColumn": {
-						break;
-					}
-
-					case "renameColumn": {
-						for (const row of json.data) {
-							const r = row as Record<string, unknown>;
-							if (op.from in r) {
-								r[op.to] = r[op.from];
-								delete r[op.from];
-							}
-						}
-						break;
-					}
+					break;
 				}
 			}
+		}
 
-			json.meta.updatedAt = new Date().toISOString();
+		json.meta.updatedAt = new Date().toISOString();
 
-			if (skipWrite) {
-				// Transaction mode: update transaction cache
-				this.activeTransactionCache!.set(tableName, {
-					data: json,
-					mtime: Date.now(),
-				});
-				this.activeTransactionModifiedTables!.add(tableName);
-			} else {
-				// Normal mode: write to disk
-				const filePath = this.getTablePath(tableName);
-				await fs.writeFile(filePath, JSON.stringify(json, null, 2), "utf-8");
-				await this.updateCache(tableName, json);
-			}
+		if (skipWrite) {
+			// Transaction mode: update transaction cache
+			this.activeTransactionCache!.set(tableName, {
+				data: json,
+				mtime: Date.now(),
+			});
+			this.activeTransactionModifiedTables!.add(tableName);
+		} else {
+			// Normal mode: write to disk
+			const filePath = this.getTablePath(tableName);
+			await fs.writeFile(filePath, JSON.stringify(json, null, 2), "utf-8");
+			await this.updateCache(tableName, json);
+		}
 
-			// Update schema in _forja
-			if (tableName !== FORJA_META_MODEL) {
-				const metaResult = await this.applyOperationsToMetaSchema(
-					tableName,
-					operations,
-					skipWrite,
-				);
-				if (!metaResult.success) {
-					return metaResult;
-				}
-			}
-
-			return { success: true, data: undefined };
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new MigrationError(`Adapter error: ${message}`, error),
-			};
+		// Update schema in _forja
+		if (tableName !== FORJA_META_MODEL) {
+			await this.applyOperationsToMetaSchema(tableName, operations, skipWrite);
 		}
 	}
 
-	async renameTable(
-		from: string,
-		to: string,
-	): Promise<Result<void, MigrationError>> {
+	async renameTable(from: string, to: string): Promise<void> {
 		return this.renameTableWithOptions(from, to);
 	}
 
@@ -1109,128 +961,109 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		from: string,
 		to: string,
 		options?: SchemaOperationOptions,
-	): Promise<Result<void, MigrationError>> {
+	): Promise<void> {
 		const skipWrite = options?.skipWrite ?? false;
 
 		if (!this.isConnected()) {
-			return {
-				success: false,
-				error: new MigrationError("Not connected to database"),
-			};
+			throwNotConnected({ adapter: "json" });
 		}
 
-		const validation = validateTableName(to);
-		if (!validation.success) {
-			return validation;
+		validateTableName(to);
+
+		// Check source table exists
+		if (this.activeTransactionDeletedTables?.has(from)) {
+			throwMigrationError({
+				adapter: "json",
+				message: `Table '${from}' does not exist`,
+			});
 		}
 
-		try {
-			// Check source table exists
-			if (this.activeTransactionDeletedTables?.has(from)) {
-				return {
-					success: false,
-					error: new MigrationError(`Table '${from}' does not exist`),
-				};
+		// Check target table doesn't exist
+		const targetExistsInTxCache = this.activeTransactionCache?.has(to);
+		const targetExistsInMainCache = this.cache.has(to);
+		let targetExistsOnDisk = false;
+
+		if (!targetExistsInTxCache && !targetExistsInMainCache) {
+			const toPath = this.getTablePath(to);
+			try {
+				await fs.access(toPath);
+				targetExistsOnDisk = true;
+			} catch {
+				// Not on disk - good
 			}
+		}
 
-			// Check target table doesn't exist
-			const targetExistsInTxCache = this.activeTransactionCache?.has(to);
-			const targetExistsInMainCache = this.cache.has(to);
-			let targetExistsOnDisk = false;
+		// Target exists and not in tombstone = error
+		const targetInTombstone = this.activeTransactionDeletedTables?.has(to);
+		if (
+			(targetExistsInTxCache ||
+				targetExistsInMainCache ||
+				targetExistsOnDisk) &&
+			!targetInTombstone
+		) {
+			throwMigrationError({
+				adapter: "json",
+				message: `Table '${to}' already exists`,
+			});
+		}
 
-			if (!targetExistsInTxCache && !targetExistsInMainCache) {
-				const toPath = this.getTablePath(to);
-				try {
-					await fs.access(toPath);
-					targetExistsOnDisk = true;
-				} catch {
-					// Not on disk - good
+		// Read source table (will throw if doesn't exist)
+		const json = await this.readTable(from);
+		json.meta.updatedAt = new Date().toISOString();
+
+		if (skipWrite) {
+			// Transaction mode: add new table to cache, tombstone old table
+			this.activeTransactionCache!.set(to, {
+				data: json,
+				mtime: Date.now(),
+			});
+			this.activeTransactionModifiedTables!.add(to);
+			this.activeTransactionDeletedTables!.add(from);
+			this.activeTransactionCache!.delete(from);
+			// Remove target from tombstone if it was there (we're overwriting)
+			this.activeTransactionDeletedTables!.delete(to);
+		} else {
+			// Normal mode: rename file on disk
+			const fromPath = this.getTablePath(from);
+			const toPath = this.getTablePath(to);
+			await fs.writeFile(toPath, JSON.stringify(json, null, 2), "utf-8");
+			await fs.unlink(fromPath);
+			this.invalidateCache(from);
+			await this.updateCache(to, json);
+		}
+
+		// Update key in _forja
+		if (from !== FORJA_META_MODEL && to !== FORJA_META_MODEL) {
+			const oldKey = `${FORJA_META_KEY_PREFIX}${from}`;
+			const newKey = `${FORJA_META_KEY_PREFIX}${to}`;
+			const metaFile = await this.readTable(FORJA_META_MODEL);
+			const row = metaFile.data.find(
+				(r) => (r as Record<string, unknown>)["key"] === oldKey,
+			);
+			if (row) {
+				(row as Record<string, unknown>)["key"] = newKey;
+				metaFile.meta.updatedAt = new Date().toISOString();
+
+				if (skipWrite) {
+					this.activeTransactionCache!.set(FORJA_META_MODEL, {
+						data: metaFile,
+						mtime: Date.now(),
+					});
+					this.activeTransactionModifiedTables!.add(FORJA_META_MODEL);
+				} else {
+					const metaPath = this.getTablePath(FORJA_META_MODEL);
+					await fs.writeFile(
+						metaPath,
+						JSON.stringify(metaFile, null, 2),
+						"utf-8",
+					);
+					await this.updateCache(FORJA_META_MODEL, metaFile);
 				}
 			}
-
-			// Target exists and not in tombstone = error
-			const targetInTombstone = this.activeTransactionDeletedTables?.has(to);
-			if (
-				(targetExistsInTxCache ||
-					targetExistsInMainCache ||
-					targetExistsOnDisk) &&
-				!targetInTombstone
-			) {
-				return {
-					success: false,
-					error: new MigrationError(`Table '${to}' already exists`),
-				};
-			}
-
-			// Read source table (will throw if doesn't exist)
-			const json = await this.readTable(from);
-			json.meta.updatedAt = new Date().toISOString();
-
-			if (skipWrite) {
-				// Transaction mode: add new table to cache, tombstone old table
-				this.activeTransactionCache!.set(to, {
-					data: json,
-					mtime: Date.now(),
-				});
-				this.activeTransactionModifiedTables!.add(to);
-				this.activeTransactionDeletedTables!.add(from);
-				this.activeTransactionCache!.delete(from);
-				// Remove target from tombstone if it was there (we're overwriting)
-				this.activeTransactionDeletedTables!.delete(to);
-			} else {
-				// Normal mode: rename file on disk
-				const fromPath = this.getTablePath(from);
-				const toPath = this.getTablePath(to);
-				await fs.writeFile(toPath, JSON.stringify(json, null, 2), "utf-8");
-				await fs.unlink(fromPath);
-				this.invalidateCache(from);
-				await this.updateCache(to, json);
-			}
-
-			// Update key in _forja
-			if (from !== FORJA_META_MODEL && to !== FORJA_META_MODEL) {
-				const oldKey = `${FORJA_META_KEY_PREFIX}${from}`;
-				const newKey = `${FORJA_META_KEY_PREFIX}${to}`;
-				const metaFile = await this.readTable(FORJA_META_MODEL);
-				const row = metaFile.data.find(
-					(r) => (r as Record<string, unknown>)["key"] === oldKey,
-				);
-				if (row) {
-					(row as Record<string, unknown>)["key"] = newKey;
-					metaFile.meta.updatedAt = new Date().toISOString();
-
-					if (skipWrite) {
-						this.activeTransactionCache!.set(FORJA_META_MODEL, {
-							data: metaFile,
-							mtime: Date.now(),
-						});
-						this.activeTransactionModifiedTables!.add(FORJA_META_MODEL);
-					} else {
-						const metaPath = this.getTablePath(FORJA_META_MODEL);
-						await fs.writeFile(
-							metaPath,
-							JSON.stringify(metaFile, null, 2),
-							"utf-8",
-						);
-						await this.updateCache(FORJA_META_MODEL, metaFile);
-					}
-				}
-			}
-
-			return { success: true, data: undefined };
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new MigrationError(`Adapter error: ${message}`, error),
-			};
 		}
 	}
 
-	async addIndex(
-		tableName: string,
-		index: IndexDefinition,
-	): Promise<Result<void, MigrationError>> {
+	async addIndex(tableName: string, index: IndexDefinition): Promise<void> {
 		return this.addIndexWithOptions(tableName, index);
 	}
 
@@ -1242,14 +1075,9 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		_tableName: string,
 		_index: IndexDefinition,
 		_options?: SchemaOperationOptions,
-	): Promise<Result<void, MigrationError>> {
-		return { success: true, data: undefined };
-	}
+	): Promise<void> {}
 
-	async dropIndex(
-		tableName: string,
-		indexName: string,
-	): Promise<Result<void, MigrationError>> {
+	async dropIndex(tableName: string, indexName: string): Promise<void> {
 		return this.dropIndexWithOptions(tableName, indexName);
 	}
 
@@ -1261,54 +1089,28 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		_tableName: string,
 		_indexName: string,
 		_options?: SchemaOperationOptions,
-	): Promise<Result<void, MigrationError>> {
-		return { success: true, data: undefined };
+	): Promise<void> {}
+
+	async getTables(): Promise<readonly string[]> {
+		if (!this.isConnected()) {
+			throwNotConnected({ adapter: "json" });
+		}
+		const files = await fs.readdir(this.config.root);
+		const tables = files
+			.filter((f) => f.endsWith(".json"))
+			.map((f) => f.replace(".json", ""));
+		return tables;
 	}
 
-	async getTables(): Promise<Result<readonly string[], QueryError>> {
+	async getTableSchema(tableName: string): Promise<SchemaDefinition | null> {
 		if (!this.isConnected()) {
-			return {
-				success: false,
-				error: new QueryError("Not connected to database", {
-					code: "CONNECTION_ERROR",
-				}),
-			};
-		}
-		try {
-			const files = await fs.readdir(this.config.root);
-			const tables = files
-				.filter((f) => f.endsWith(".json"))
-				.map((f) => f.replace(".json", ""));
-			return { success: true, data: tables };
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new QueryError(`Adapter error: ${message}`, { details: error }),
-			};
-		}
-	}
-
-	async getTableSchema(
-		tableName: string,
-	): Promise<Result<SchemaDefinition, QueryError>> {
-		if (!this.isConnected()) {
-			return {
-				success: false,
-				error: new QueryError("Not connected to database", {
-					code: "CONNECTION_ERROR",
-				}),
-			};
+			throwNotConnected({ adapter: "json" });
 		}
 		try {
 			const schema = await this.readTableSchema(tableName);
-			return { success: true, data: schema };
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new QueryError(`Adapter error: ${message}`, { details: error }),
-			};
+			return schema;
+		} catch {
+			return null;
 		}
 	}
 

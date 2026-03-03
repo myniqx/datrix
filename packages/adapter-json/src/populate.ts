@@ -10,7 +10,7 @@ import {
 	throwRelationNotFound,
 	throwInvalidRelationType,
 	throwTargetModelNotFound,
-} from "./error-helper";
+} from "forja-types/errors/adapter";
 import { JsonQueryRunner } from "./runner";
 
 export class JsonPopulator {
@@ -27,7 +27,7 @@ export class JsonPopulator {
 		// Get current schema directly from table file (cache-aware, O(1) lookup)
 		const currentSchema = await this.adapter.getSchemaByTableName(query.table);
 		if (!currentSchema) {
-			throwSchemaNotFound(query.table);
+			throwSchemaNotFound({ adapter: "json", modelName: query.table });
 		}
 		const currentModelName = currentSchema.name;
 
@@ -37,15 +37,20 @@ export class JsonPopulator {
 			// Get relation field from current schema
 			const relationField = currentSchema.fields[relationName];
 			if (!relationField) {
-				throwRelationNotFound(relationName, currentSchema.name);
+				throwRelationNotFound({
+					adapter: "json",
+					relationName,
+					modelName: currentSchema.name,
+				});
 			}
 
 			if (relationField.type !== "relation") {
-				throwInvalidRelationType(
+				throwInvalidRelationType({
+					adapter: "json",
 					relationName,
-					relationField.type,
-					currentSchema.name,
-				);
+					fieldType: relationField.type,
+					modelName: currentSchema.name,
+				});
 			}
 
 			const relField = relationField as RelationField;
@@ -57,11 +62,12 @@ export class JsonPopulator {
 			const targetSchema =
 				await this.adapter.getSchemaByModelName(targetModelName);
 			if (!targetSchema) {
-				throwTargetModelNotFound(
-					targetModelName,
+				throwTargetModelNotFound({
+					adapter: "json",
+					targetModel: targetModelName,
 					relationName,
-					currentSchema.name,
-				);
+					modelName: currentSchema.name,
+				});
 			}
 
 			const targetTable =
