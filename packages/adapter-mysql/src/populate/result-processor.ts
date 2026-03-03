@@ -8,7 +8,7 @@
 import type { QueryPopulate } from "forja-types/core/query-builder";
 import type { SchemaRegistry } from "forja-core/schema";
 import type { ForjaEntry, RelationField } from "forja-types/core/schema";
-import { throwResultProcessingError } from "../error-helper";
+import { throwResultProcessingError } from "forja-types/errors/adapter";
 
 /**
  * Result Processor Class
@@ -39,10 +39,11 @@ export class ResultProcessor {
 		try {
 			return rows.map((row) => this.processRow(row, populate));
 		} catch (error) {
-			throwResultProcessingError(
-				"JSON aggregation parsing",
-				error instanceof Error ? error : undefined,
-			);
+			throwResultProcessingError({
+				adapter: "mysql",
+				operation: "JSON aggregation parsing",
+				cause: error instanceof Error ? error : undefined,
+			});
 		}
 	}
 
@@ -154,10 +155,11 @@ export class ResultProcessor {
 
 			return Array.from(grouped.values());
 		} catch (error) {
-			throwResultProcessingError(
-				"flat JOIN result grouping",
-				error instanceof Error ? error : undefined,
-			);
+			throwResultProcessingError({
+				adapter: "mysql",
+				operation: "flat JOIN result grouping",
+				cause: error instanceof Error ? error : undefined,
+			});
 		}
 	}
 
@@ -337,10 +339,11 @@ export class ResultProcessor {
 				return processed;
 			});
 		} catch (error) {
-			throwResultProcessingError(
-				"LATERAL result processing",
-				error instanceof Error ? error : undefined,
-			);
+			throwResultProcessingError({
+				adapter: "mysql",
+				operation: "LATERAL result processing",
+				cause: error instanceof Error ? error : undefined,
+			});
 		}
 	}
 }

@@ -17,7 +17,7 @@ import {
 	throwTargetModelNotFound,
 	throwJoinBuildError,
 	throwJunctionTableNotFound,
-} from "../error-helper";
+} from "forja-types/errors/adapter";
 import { MySQLQueryObject } from "../types";
 
 /**
@@ -55,12 +55,12 @@ export class JoinBuilder {
 
 		const modelName = this.schemaRegistry.findModelByTableName(query.table);
 		if (!modelName) {
-			throwModelNotFound(query.table);
+			throwModelNotFound({ adapter: "mysql", table: query.table });
 		}
 
 		const schema = this.schemaRegistry.get(modelName);
 		if (!schema) {
-			throwSchemaNotFound(modelName);
+			throwSchemaNotFound({ adapter: "mysql", modelName });
 		}
 
 		const joins: JoinClause[] = [];
@@ -68,11 +68,20 @@ export class JoinBuilder {
 		for (const [relationName, options] of Object.entries(query.populate)) {
 			const relationField = schema.fields[relationName];
 			if (!relationField) {
-				throwRelationNotFound(relationName, schema.name);
+				throwRelationNotFound({
+					adapter: "mysql",
+					relationName,
+					schemaName: schema.name,
+				});
 			}
 
 			if (relationField.type !== "relation") {
-				throwInvalidRelationType(relationName, relationField.type, schema.name);
+				throwInvalidRelationType({
+					adapter: "mysql",
+					relationName,
+					fieldType: relationField.type,
+					schemaName: schema.name,
+				});
 			}
 
 			const relField = relationField as RelationField;
@@ -155,17 +164,23 @@ export class JoinBuilder {
 					return this.buildManyToManyJoin(sourceTable, relationName, relation);
 
 				default:
-					throwJoinBuildError(relationName, relation.kind);
+					throwJoinBuildError({
+						adapter: "mysql",
+						relationName,
+						relationKind: relation.kind,
+					});
 			}
 		} catch (error) {
 			if (error instanceof Error && error.message.includes("ADAPTER_")) {
+				// TODO: instanceof ERROR ??
 				throw error;
 			}
-			throwJoinBuildError(
+			throwJoinBuildError({
+				adapter: "mysql",
 				relationName,
-				relation.kind,
-				error instanceof Error ? error : undefined,
-			);
+				relationKind: relation.kind,
+				cause: error instanceof Error ? error : undefined,
+			});
 		}
 	}
 
@@ -185,7 +200,12 @@ export class JoinBuilder {
 		// Get target schema
 		const targetSchema = this.schemaRegistry.get(relation.model);
 		if (!targetSchema) {
-			throwTargetModelNotFound(relation.model, relationName, sourceTable);
+			throwTargetModelNotFound({
+				adapter: "mysql",
+				targetModel: relation.model,
+				relationName,
+				schemaName: sourceTable,
+			});
 		}
 
 		const targetTable = targetSchema.tableName ?? relation.model.toLowerCase();
@@ -224,7 +244,12 @@ export class JoinBuilder {
 		// Get target schema
 		const targetSchema = this.schemaRegistry.get(relation.model);
 		if (!targetSchema) {
-			throwTargetModelNotFound(relation.model, relationName, sourceTable);
+			throwTargetModelNotFound({
+				adapter: "mysql",
+				targetModel: relation.model,
+				relationName,
+				schemaName: sourceTable,
+			});
 		}
 
 		const targetTable = targetSchema.tableName ?? relation.model.toLowerCase();
@@ -274,7 +299,12 @@ export class JoinBuilder {
 		// Get target schema
 		const targetSchema = this.schemaRegistry.get(relation.model);
 		if (!targetSchema) {
-			throwTargetModelNotFound(relation.model, relationName, sourceTable);
+			throwTargetModelNotFound({
+				adapter: "mysql",
+				targetModel: relation.model,
+				relationName,
+				schemaName: sourceTable,
+			});
 		}
 
 		const targetTable = targetSchema.tableName ?? relation.model.toLowerCase();
@@ -329,7 +359,12 @@ export class JoinBuilder {
 		// Get target schema
 		const targetSchema = this.schemaRegistry.get(relation.model);
 		if (!targetSchema) {
-			throwTargetModelNotFound(relation.model, relationName, sourceTable);
+			throwTargetModelNotFound({
+				adapter: "mysql",
+				targetModel: relation.model,
+				relationName,
+				schemaName: sourceTable,
+			});
 		}
 
 		const targetTable = targetSchema.tableName ?? relation.model.toLowerCase();
@@ -339,12 +374,12 @@ export class JoinBuilder {
 		const currentModelName =
 			this.schemaRegistry.findModelByTableName(sourceTable);
 		if (!currentModelName) {
-			throwModelNotFound(sourceTable);
+			throwModelNotFound({ adapter: "mysql", table: sourceTable });
 		}
 
 		const currentSchema = this.schemaRegistry.get(currentModelName);
 		if (!currentSchema) {
-			throwSchemaNotFound(currentModelName);
+			throwSchemaNotFound({ adapter: "mysql", modelName: currentModelName });
 		}
 
 		// Foreign key names in junction table: {ModelName}Id
@@ -355,11 +390,12 @@ export class JoinBuilder {
 		const junctionModelName =
 			this.schemaRegistry.findModelByTableName(junctionTable);
 		if (!junctionModelName) {
-			throwJunctionTableNotFound(
+			throwJunctionTableNotFound({
+				adapter: "mysql",
 				junctionTable,
 				relationName,
-				currentSchema.name,
-			);
+				schemaName: currentSchema.name,
+			});
 		}
 
 		// Escape identifiers
@@ -403,7 +439,12 @@ export class JoinBuilder {
 		// Get schemas
 		const targetSchema = this.schemaRegistry.get(relation.model);
 		if (!targetSchema) {
-			throwTargetModelNotFound(relation.model, relationName, sourceTable);
+			throwTargetModelNotFound({
+				adapter: "mysql",
+				targetModel: relation.model,
+				relationName,
+				schemaName: sourceTable,
+			});
 		}
 
 		const targetTable = targetSchema.tableName ?? relation.model.toLowerCase();
@@ -412,23 +453,24 @@ export class JoinBuilder {
 		const currentModelName =
 			this.schemaRegistry.findModelByTableName(sourceTable);
 		if (!currentModelName) {
-			throwModelNotFound(sourceTable);
+			throwModelNotFound({ adapter: "mysql", table: sourceTable });
 		}
 
 		const currentSchema = this.schemaRegistry.get(currentModelName);
 		if (!currentSchema) {
-			throwSchemaNotFound(currentModelName);
+			throwSchemaNotFound({ adapter: "mysql", modelName: currentModelName });
 		}
 
 		// Check junction table exists
 		const junctionModelName =
 			this.schemaRegistry.findModelByTableName(junctionTable);
 		if (!junctionModelName) {
-			throwJunctionTableNotFound(
+			throwJunctionTableNotFound({
+				adapter: "mysql",
 				junctionTable,
 				relationName,
-				currentSchema.name,
-			);
+				schemaName: currentSchema.name,
+			});
 		}
 
 		const sourceTableEsc = this.translator.escapeIdentifier(sourceTable);
