@@ -90,10 +90,9 @@ describe("PostgresAdapter - Schema Operations", () => {
 			},
 		};
 
-		const result = await adapter.createTable(schema);
+		const data = await adapter.createTable(schema);
 
-		expect(result.success).toBe(true);
-		if (result.success) expect(result.data).toBeUndefined();
+		expect(data).toBeUndefined();
 
 		// Verify table exists
 		const exists = await adapter.tableExists("test_schema_table");
@@ -113,9 +112,7 @@ describe("PostgresAdapter - Schema Operations", () => {
 			},
 		};
 
-		const result = await adapter.createTable(schema);
-
-		expect(result.success).toBe(true);
+		await adapter.createTable(schema);
 
 		// Verify we can insert data
 		const insertResult = await adapter.executeRawQuery(
@@ -124,7 +121,7 @@ describe("PostgresAdapter - Schema Operations", () => {
 			["test", 123, true, new Date(), { key: "value" }, ["item1", "item2"]],
 		);
 
-		expect(insertResult.success).toBe(true);
+		expect(insertResult.metadata.insertIds?.length).toBeGreaterThan(0);
 	});
 
 	it("should create table with required fields (NOT NULL)", async () => {
@@ -197,9 +194,7 @@ describe("PostgresAdapter - Schema Operations", () => {
 			},
 		};
 
-		const result = await adapter.createTable(schema);
-
-		expect(result.success).toBe(true);
+		await adapter.createTable(schema);
 
 		// Verify we can insert
 		const insertResult = await adapter.executeRawQuery(
@@ -207,7 +202,7 @@ describe("PostgresAdapter - Schema Operations", () => {
 			["test user", 42],
 		);
 
-		expect(insertResult.success).toBe(true);
+		expect(insertResult.metadata.insertIds?.length).toBeGreaterThan(0);
 	});
 
 	it("should fail to create table that already exists", async () => {

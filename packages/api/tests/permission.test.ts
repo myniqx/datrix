@@ -75,13 +75,9 @@ describe("Schema-Level Permission Tests", () => {
 		for (const schema of forja.getSchemas().getAll()) {
 			try {
 				await adapter.dropTable(schema.tableName!);
-			} catch {}
-			const result = await adapter.createTable(schema);
-			if (!result.success) {
-				throw new Error(
-					`Failed to create table ${schema.name}: ${result.error.message}`,
-				);
-			}
+			} catch { }
+			await adapter.createTable(schema);
+
 		}
 
 		// Create JWT strategy for generating test tokens
