@@ -72,7 +72,7 @@ export class Forja implements IForja {
 	private _crud!: CrudOperations;
 	private _rawCrud!: CrudOperations;
 
-	private constructor() {}
+	private constructor() { }
 
 	static getInstance(): Forja {
 		if (!Forja.instance) {
@@ -117,16 +117,7 @@ export class Forja implements IForja {
 
 			// Connect to database
 			if (!options.skipConnection && this.adapter) {
-				const connectResult = await this.adapter.connect();
-				if (!connectResult.success) {
-					return {
-						success: false,
-						error: new ForjaError(
-							`Failed to connect to database: ${connectResult.error.message}`,
-							{ code: "ADAPTER_CONNECTION_FAILED" },
-						),
-					};
-				}
+				await this.adapter.connect();
 			}
 
 			// 1. Register internal _forja metadata schema

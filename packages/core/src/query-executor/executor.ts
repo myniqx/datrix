@@ -9,7 +9,7 @@
  * 5. Plugin hooks (via dispatcher)
  */
 
-import { DatabaseAdapter, QueryRunner } from "forja-types/adapter";
+import { DatabaseAdapter, ForjaAdapterError, QueryRunner } from "forja-types/adapter";
 import {
 	SchemaRegistry,
 	SchemaDefinition,
@@ -30,10 +30,10 @@ import { Dispatcher } from "../dispatcher";
 import { validateData } from "./validation";
 import { processRelations, resolveRelationCUD } from "./relations";
 import {
-	throwQueryExecutionError,
+	throwCrudError,
 	throwSchemaNotFoundError,
+	throwUnsupportedQueryType,
 } from "./error-helper";
-import { throwUnsupportedQueryType } from "./error-helper";
 
 /**
  * Executor execution options
@@ -58,7 +58,7 @@ export class QueryExecutor {
 		private readonly schemas: SchemaRegistry,
 		private readonly getAdapter: () => DatabaseAdapter,
 		private readonly getDispatcher: () => Dispatcher,
-	) {}
+	) { }
 
 	/**
 	 * Execute a query
@@ -131,10 +131,7 @@ export class QueryExecutor {
 			options.noDispatcher ?? false,
 			async (q) => {
 				const result = await this.getAdapter().executeQuery<T>(q);
-				if (!result.success) {
-					throwQueryExecutionError("findMany", schema.name, q, result.error);
-				}
-				return result.data.rows as T[];
+				return result.rows as T[];
 			},
 		);
 	}
@@ -154,10 +151,7 @@ export class QueryExecutor {
 			options.noDispatcher ?? false,
 			async (q) => {
 				const result = await this.getAdapter().executeQuery<T>(q);
-				if (!result.success) {
-					throwQueryExecutionError("count", schema.name, q, result.error);
-				}
-				return result.data.metadata.count ?? 0;
+				return result.metadata.count ?? 0;
 			},
 		);
 	}
@@ -200,15 +194,7 @@ export class QueryExecutor {
 					...(needsReturnSelect &&
 						query.populate !== undefined && { populate: query.populate }),
 				});
-				if (!selectResult.success) {
-					throwQueryExecutionError(
-						"findMany",
-						schema.name,
-						query,
-						selectResult.error,
-					);
-				}
-				prefetchedRows = selectResult.data.rows;
+				prefetchedRows = selectResult.rows;
 
 				if (needsReturnSelect) {
 					recordsToReturn = prefetchedRows;
@@ -236,15 +222,7 @@ export class QueryExecutor {
 						} as WhereClause<T>,
 					};
 
-					const result = await runner.executeQuery(junctionQuery);
-					if (!result.success) {
-						throwQueryExecutionError(
-							"delete",
-							junctionTable,
-							junctionQuery,
-							result.error,
-						);
-					}
+					await runner.executeQuery(junctionQuery);
 				}
 			}
 
@@ -256,10 +234,7 @@ export class QueryExecutor {
 				options.noDispatcher ?? false,
 				async (q) => {
 					const result = await runner.executeQuery<T>(q);
-					if (!result.success) {
-						throwQueryExecutionError("delete", schema.name, q, result.error);
-					}
-					return result.data.rows;
+					return result.rows;
 				},
 			);
 
@@ -319,10 +294,7 @@ export class QueryExecutor {
 				options.noDispatcher ?? false,
 				async (q) => {
 					const result = await runner.executeQuery<T>(q);
-					if (!result.success) {
-						throwQueryExecutionError("create", schema.name, q, result.error);
-					}
-					return result.data.rows;
+					return result.rows;
 				},
 			);
 
@@ -361,7 +333,7 @@ export class QueryExecutor {
 		const selectQuery: QuerySelectObject<T> = {
 			type: "select",
 			table: query.table,
-			select: query.select ?? undefined,
+			select: query.select!,
 			where: { id: { $in: insertedIds.map((r) => r.id) } } as WhereClause<T>,
 			...(query.populate !== undefined && { populate: query.populate }),
 		};
@@ -419,10 +391,7 @@ export class QueryExecutor {
 				options.noDispatcher ?? false,
 				async (q) => {
 					const result = await runner.executeQuery<T>(q);
-					if (!result.success) {
-						throwQueryExecutionError("update", schema.name, q, result.error);
-					}
-					return result.data.rows;
+					return result.rows;
 				},
 			);
 
@@ -462,7 +431,7 @@ export class QueryExecutor {
 		const selectQuery: QuerySelectObject<T> = {
 			type: "select",
 			table: query.table,
-			select: query.select ?? undefined,
+			select: query.select!,
 			where: { id: { $in: recordIds.map((r) => r.id) } } as WhereClause<T>,
 			...(query.populate !== undefined && { populate: query.populate }),
 		};
@@ -484,55 +453,48 @@ export class QueryExecutor {
 		noDispatcher: boolean,
 		handler: (q: QueryObject<T>) => Promise<R>,
 	): Promise<R> {
-		if (noDispatcher) {
-			// Raw mode: Execute directly (no hooks)
-			return handler(query);
-		}
+		try {
+			if (noDispatcher) {
+				// Raw mode: Execute directly (no hooks)
+				return await handler(query);
+			}
 
-		// Normal mode: Execute with hooks
-		return this.getDispatcher().executeQuery<T, R>(
-			action,
-			schema,
-			query,
-			handler,
-		);
+			// Normal mode: Execute with hooks
+			return await this.getDispatcher().executeQuery<T, R>(
+				action,
+				schema,
+				query,
+				handler,
+			);
+		} catch (error) {
+			if (error instanceof ForjaAdapterError) throw error;
+
+			const cause = error instanceof Error ? error : undefined;
+			throwCrudError({
+				operation: action,
+				model: schema.name,
+				code: "QUERY_EXECUTION_FAILED",
+				cause,
+			});
+		}
 	}
 
 	/**
-	 * Begin transaction if adapter supports it.
-	 * Returns a runner (transaction or adapter), commit and rollback functions.
-	 * If transaction is not supported, commit/rollback are no-ops and runner is the adapter.
+	 * Begin transaction and return runner, commit, rollback helpers.
 	 */
 	private async beginTransaction(adapter: DatabaseAdapter): Promise<{
 		runner: QueryRunner;
 		commit: () => Promise<void>;
 		rollback: () => Promise<void>;
 	}> {
-		const txResult = await adapter.beginTransaction();
-		if (txResult.success) {
-			const tx = txResult.data;
-			return {
-				runner: tx,
-				commit: async () => {
-					const result = await tx.commit();
-					if (!result.success) {
-						throw result.error;
-					}
-				},
-				rollback: async () => {
-					await tx.rollback();
-				},
-			};
-		}
-
-		// Transaction not supported or failed — fallback to adapter (no transaction)
+		const tx = await adapter.beginTransaction();
 		return {
-			runner: adapter,
+			runner: tx,
 			commit: async () => {
-				/* noop */
+				await tx.commit();
 			},
 			rollback: async () => {
-				/* noop */
+				await tx.rollback();
 			},
 		};
 	}
