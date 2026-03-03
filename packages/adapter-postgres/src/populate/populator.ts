@@ -19,7 +19,7 @@ import { ResultProcessor } from "./result-processor";
 import {
 	throwMaxDepthExceeded,
 	throwPopulateQueryError,
-} from "../error-helper";
+} from "forja-types/errors/adapter";
 import { ForjaEntry } from "forja-types";
 import { PostgresQueryObject } from "forja-adapter-postgres/types";
 
@@ -80,11 +80,12 @@ export class PostgresPopulator {
 
 		// Check max depth
 		if (analysis.maxDepth > MAX_POPULATE_DEPTH) {
-			throwMaxDepthExceeded(
-				analysis.maxDepth,
-				MAX_POPULATE_DEPTH,
-				this.buildRelationPath(query.populate),
-			);
+			throwMaxDepthExceeded({
+				adapter: "postgres",
+				currentDepth: analysis.maxDepth,
+				maxDepth: MAX_POPULATE_DEPTH,
+				relationPath: this.buildRelationPath(query.populate),
+			});
 		}
 
 		// Select strategy
@@ -138,13 +139,14 @@ export class PostgresPopulator {
 
 			return processed;
 		} catch (error) {
-			throwPopulateQueryError(
+			throwPopulateQueryError({
+				adapter: "postgres",
 				query,
 				sql,
-				error instanceof Error ? error : new Error(String(error)),
-				"json-aggregation",
-				params,
-			);
+				cause: error instanceof Error ? error : new Error(String(error)),
+				strategy: "json-aggregation",
+				queryParams: params,
+			});
 		}
 	}
 
@@ -192,13 +194,14 @@ export class PostgresPopulator {
 
 			return processed;
 		} catch (error) {
-			throwPopulateQueryError(
+			throwPopulateQueryError({
+				adapter: "postgres",
 				query,
 				sql,
-				error instanceof Error ? error : new Error(String(error)),
-				"lateral-joins",
-				params,
-			);
+				cause: error instanceof Error ? error : new Error(String(error)),
+				strategy: "lateral-joins",
+				queryParams: params,
+			});
 		}
 	}
 
@@ -258,13 +261,14 @@ export class PostgresPopulator {
 			const mainResult = await this.pool.query(sql, params as unknown[]);
 			rows = mainResult.rows as T[];
 		} catch (error) {
-			throwPopulateQueryError(
+			throwPopulateQueryError({
+				adapter: "postgres",
 				query,
 				sql,
-				error instanceof Error ? error : new Error(String(error)),
-				"batched-queries",
-				params,
-			);
+				cause: error instanceof Error ? error : new Error(String(error)),
+				strategy: "batched-queries",
+				queryParams: params,
+			});
 		}
 
 		if (rows.length === 0) {
@@ -306,13 +310,14 @@ export class PostgresPopulator {
 				try {
 					batchResult = await this.pool.query(batchQuery, [fkValues]);
 				} catch (error) {
-					throwPopulateQueryError(
+					throwPopulateQueryError({
+						adapter: "postgres",
 						query,
-						batchQuery,
-						error instanceof Error ? error : new Error(String(error)),
-						"batched-queries",
-						[fkValues],
-					);
+						sql: batchQuery,
+						cause: error instanceof Error ? error : new Error(String(error)),
+						strategy: "batched-queries",
+						queryParams: [fkValues],
+					});
 				}
 
 				let relatedRows: ForjaEntry[] = batchResult.rows.map(
@@ -349,13 +354,14 @@ export class PostgresPopulator {
 				try {
 					batchResult = await this.pool.query(batchQuery, [parentIds]);
 				} catch (error) {
-					throwPopulateQueryError(
+					throwPopulateQueryError({
+						adapter: "postgres",
 						query,
-						batchQuery,
-						error instanceof Error ? error : new Error(String(error)),
-						"batched-queries",
-						[parentIds],
-					);
+						sql: batchQuery,
+						cause: error instanceof Error ? error : new Error(String(error)),
+						strategy: "batched-queries",
+						queryParams: [parentIds],
+					});
 				}
 
 				let allRelatedRows: ForjaEntry[] = batchResult.rows.map((r) => ({
@@ -400,13 +406,14 @@ export class PostgresPopulator {
 				try {
 					batchResult = await this.pool.query(batchQuery, [parentIds]);
 				} catch (error) {
-					throwPopulateQueryError(
+					throwPopulateQueryError({
+						adapter: "postgres",
 						query,
-						batchQuery,
-						error instanceof Error ? error : new Error(String(error)),
-						"batched-queries",
-						[parentIds],
-					);
+						sql: batchQuery,
+						cause: error instanceof Error ? error : new Error(String(error)),
+						strategy: "batched-queries",
+						queryParams: [parentIds],
+					});
 				}
 
 				let allRelatedRows: ForjaEntry[] = batchResult.rows.map((r) => ({

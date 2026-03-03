@@ -22,7 +22,7 @@ import {
 	throwInvalidRelationType,
 	throwTargetModelNotFound,
 	throwJsonAggregationError,
-} from "../error-helper";
+} from "forja-types/errors/adapter";
 
 /**
  * Aggregation Builder Class
@@ -52,12 +52,12 @@ export class AggregationBuilder {
 	): readonly AggregationClause[] {
 		const modelName = this.schemaRegistry.findModelByTableName(tableName);
 		if (!modelName) {
-			throwModelNotFound(tableName);
+			throwModelNotFound({ adapter: "postgres", table: tableName });
 		}
 
 		const schema = this.schemaRegistry.get(modelName);
 		if (!schema) {
-			throwSchemaNotFound(modelName);
+			throwSchemaNotFound({ adapter: "postgres", modelName });
 		}
 
 		const aggregations: AggregationClause[] = [];
@@ -65,11 +65,20 @@ export class AggregationBuilder {
 		for (const [relationName, options] of Object.entries(populate)) {
 			const relationField = schema.fields[relationName];
 			if (!relationField) {
-				throwRelationNotFound(relationName, schema.name);
+				throwRelationNotFound({
+					adapter: "postgres",
+					relationName,
+					schemaName: schema.name,
+				});
 			}
 
 			if (relationField.type !== "relation") {
-				throwInvalidRelationType(relationName, relationField.type, schema.name);
+				throwInvalidRelationType({
+					adapter: "postgres",
+					relationName,
+					fieldType: relationField.type,
+					schemaName: schema.name,
+				});
 			}
 
 			const relField = relationField as RelationField;
@@ -86,10 +95,11 @@ export class AggregationBuilder {
 				if (error instanceof Error && error.message.includes("ADAPTER_")) {
 					throw error;
 				}
-				throwJsonAggregationError(
+				throwJsonAggregationError({
+					adapter: "postgres",
 					relationName,
-					error instanceof Error ? error : undefined,
-				);
+					cause: error instanceof Error ? error : undefined,
+				});
 			}
 		}
 
@@ -142,7 +152,7 @@ export class AggregationBuilder {
 				break;
 
 			default:
-				throwJsonAggregationError(relationName);
+				throwJsonAggregationError({ adapter: "postgres", relationName });
 		}
 
 		return {
@@ -176,7 +186,12 @@ export class AggregationBuilder {
 	): string {
 		const targetSchema = this.schemaRegistry.get(relation.model);
 		if (!targetSchema) {
-			throwTargetModelNotFound(relation.model, relationName, sourceTable);
+			throwTargetModelNotFound({
+				adapter: "postgres",
+				targetModel: relation.model,
+				relationName,
+				schemaName: sourceTable,
+			});
 		}
 
 		const targetTable = targetSchema.tableName ?? relation.model.toLowerCase();
@@ -229,7 +244,12 @@ export class AggregationBuilder {
 	): string {
 		const targetSchema = this.schemaRegistry.get(relation.model);
 		if (!targetSchema) {
-			throwTargetModelNotFound(relation.model, relationName, sourceTable);
+			throwTargetModelNotFound({
+				adapter: "postgres",
+				targetModel: relation.model,
+				relationName,
+				schemaName: sourceTable,
+			});
 		}
 
 		const targetTable = targetSchema.tableName ?? relation.model.toLowerCase();
@@ -238,12 +258,12 @@ export class AggregationBuilder {
 		const currentModelName =
 			this.schemaRegistry.findModelByTableName(sourceTable);
 		if (!currentModelName) {
-			throwModelNotFound(sourceTable);
+			throwModelNotFound({ adapter: "postgres", table: sourceTable });
 		}
 
 		const currentSchema = this.schemaRegistry.get(currentModelName);
 		if (!currentSchema) {
-			throwSchemaNotFound(currentModelName);
+			throwSchemaNotFound({ adapter: "postgres", modelName: currentModelName });
 		}
 
 		const sourceFK = `${currentSchema.name}Id`;
@@ -303,7 +323,12 @@ export class AggregationBuilder {
 		// Get target schema
 		const targetSchema = this.schemaRegistry.get(relation.model);
 		if (!targetSchema) {
-			throwTargetModelNotFound(relation.model, relationName, sourceTable);
+			throwTargetModelNotFound({
+				adapter: "postgres",
+				targetModel: relation.model,
+				relationName,
+				schemaName: sourceTable,
+			});
 		}
 
 		const targetTable = targetSchema.tableName ?? relation.model.toLowerCase();
@@ -402,7 +427,12 @@ export class AggregationBuilder {
 		// Get schemas
 		const targetSchema = this.schemaRegistry.get(relation.model);
 		if (!targetSchema) {
-			throwTargetModelNotFound(relation.model, relationName, sourceTable);
+			throwTargetModelNotFound({
+				adapter: "postgres",
+				targetModel: relation.model,
+				relationName,
+				schemaName: sourceTable,
+			});
 		}
 
 		const targetTable = targetSchema.tableName ?? relation.model.toLowerCase();
@@ -411,12 +441,12 @@ export class AggregationBuilder {
 		const currentModelName =
 			this.schemaRegistry.findModelByTableName(sourceTable);
 		if (!currentModelName) {
-			throwModelNotFound(sourceTable);
+			throwModelNotFound({ adapter: "postgres", table: sourceTable });
 		}
 
 		const currentSchema = this.schemaRegistry.get(currentModelName);
 		if (!currentSchema) {
-			throwSchemaNotFound(currentModelName);
+			throwSchemaNotFound({ adapter: "postgres", modelName: currentModelName });
 		}
 
 		// Foreign keys
@@ -498,7 +528,12 @@ export class AggregationBuilder {
 		// Get target schema
 		const targetSchema = this.schemaRegistry.get(relation.model);
 		if (!targetSchema) {
-			throwTargetModelNotFound(relation.model, relationName, "unknown");
+			throwTargetModelNotFound({
+				adapter: "postgres",
+				targetModel: relation.model,
+				relationName,
+				schemaName: "unknown",
+			});
 		}
 
 		const relationAlias = this.translator.escapeIdentifier(relationName);
@@ -523,10 +558,12 @@ export class AggregationBuilder {
 	/**
 	 * Build ORDER BY clause
 	 */
-	private buildOrderBy(orderBy: readonly OrderByItem[]): string {
+	private buildOrderBy<T extends ForjaEntry>(
+		orderBy: readonly OrderByItem<T>[],
+	): string {
 		return orderBy
 			.map((item) => {
-				const field = this.translator.escapeIdentifier(item.field);
+				const field = this.translator.escapeIdentifier(item.field as string);
 				const direction = item.direction.toUpperCase();
 				let clause = `${field} ${direction}`;
 
