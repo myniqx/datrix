@@ -62,8 +62,7 @@ export interface PluginContext {
  * ALL plugins MUST implement this interface
  */
 export interface ForjaPlugin<
-	TOptions = Record<string, unknown>,
-	T extends ForjaEntry = ForjaRecord,
+	TOptions = Record<string, unknown>
 > {
 	// Metadata
 	readonly name: string;

@@ -133,4 +133,4 @@ export type SortParam = string | readonly string[];
 /**
  * Parse sort result
  */
-export type ParsedSort = readonly OrderByItem[];
+export type ParsedSort<T extends ForjaEntry = ForjaRecord> = readonly OrderByItem<T>[];
