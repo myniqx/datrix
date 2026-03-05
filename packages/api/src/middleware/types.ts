@@ -10,6 +10,7 @@ import type { PermissionAction } from "forja-types/core/permission";
 import type { Forja } from "forja-core";
 import type { IApiPlugin } from "../interface";
 import { AuthUser } from "forja-types/api";
+import { FallbackInput } from "forja-types/forja";
 
 /**
  * HTTP Methods
@@ -52,7 +53,7 @@ export interface RequestContext<TRole extends string = string> {
 	/**
 	 * Request body (for POST/PATCH/PUT requests)
 	 */
-	readonly body: Record<string, unknown> | null;
+	readonly body: FallbackInput | null;
 
 	/**
 	 * Request headers

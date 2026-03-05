@@ -188,7 +188,7 @@ function serializePopulate<T extends ForjaEntry>(
 		if (options === "*" || options === true) {
 			params[relPrefix] = options;
 		} else if (typeof options === "object") {
-			const opts = options as PopulateOptions<ForjaRecord>;
+			const opts = options as PopulateOptions<T>;
 
 			// select fields in populate
 			if (opts.select) {

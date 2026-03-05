@@ -8,7 +8,6 @@
 import { BasePlugin } from "forja-core/plugin/plugin";
 import type {
 	PluginContext,
-	PluginError,
 	QueryContext,
 	SchemaDefinition,
 } from "forja-types/plugin";
@@ -20,10 +19,11 @@ import { handlerError } from "./errors/api-error";
 import { ApiConfig } from "./types";
 import { Forja } from "forja-core";
 import type { IApiPlugin } from "./interface";
-import type { ForjaEntry } from "forja-types/core/schema";
+import type { ForjaEntry, ForjaRecord } from "forja-types/core/schema";
 import { forjaErrorResponse } from "./handler/utils";
 import { AuthUser } from "forja-types/api";
 import { QueryObject } from "forja-types";
+import { FallbackInput } from "forja-types/forja";
 
 export class ApiPlugin<TRole extends string = string>
 	extends BasePlugin<ApiConfig<TRole>>
@@ -234,7 +234,7 @@ export class ApiPlugin<TRole extends string = string>
 		if (context.metadata["api:createAuth"]) {
 			const { id: userId } = Array.isArray(result) ? result[0] : result;
 			if (typeof userId === "number") {
-				const user = {
+				const user: Partial<ForjaRecord> = {
 					...(context.metadata["api:userData"] as Record<string, unknown>),
 					userId,
 				};
@@ -259,17 +259,17 @@ export class ApiPlugin<TRole extends string = string>
 	}
 
 	private async createAuthenticationRecord(
-		user: Record<string, unknown>,
+		_user: Partial<ForjaRecord>,
 		_context: PluginContext,
 	): Promise<void> {
 		const emailField = this.userSchemaEmailField;
-
-		const authData = {
-			user: user["userId"],
-			email: user[emailField] as string,
-			password: (user["password"] as string) || "",
-			passwordSalt: (user["passwordSalt"] as string) || "",
-			role: (user["role"] as string) || this.authConfig?.defaultRole || "user",
+		const user = _user as FallbackInput;
+		const authData: FallbackInput = {
+			user: user["userId"]!,
+			email: user[emailField]!,
+			password: (user["password"]) || "",
+			passwordSalt: (user["passwordSalt"]) || "",
+			role: (user["role"]) || this.authConfig?.defaultRole || "user",
 		};
 
 		await this.forjaInstance!.raw.create(this.authSchemaName, authData);

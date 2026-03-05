@@ -15,6 +15,7 @@ import type { IApiPlugin } from "../interface";
 import { ParserError } from "forja-types/api/parser";
 import { methodToAction } from "./permission";
 import { parseQuery } from "../parser";
+import { FallbackInput } from "forja-types/forja";
 
 /**
  * Extract table name from URL path
@@ -135,7 +136,7 @@ export async function buildRequestContext<TRole extends string = string>(
 		try {
 			const contentType = request.headers.get("content-type");
 			if (contentType?.includes("application/json")) {
-				body = (await request.json()) as Record<string, unknown>;
+				body = (await request.json()) as FallbackInput;
 			}
 		} catch {
 			// Invalid JSON, body stays null

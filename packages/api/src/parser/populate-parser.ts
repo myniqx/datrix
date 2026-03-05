@@ -11,7 +11,7 @@
 
 import type { RawQueryParams } from "forja-types/api/parser";
 import { ForjaRecord } from "forja-types";
-import { PopulateOptions } from "forja-types/core/query-builder";
+import { PopulateClause, PopulateOptions } from "forja-types/core/query-builder";
 import { validateFieldName } from "forja-types/core/constants";
 import { populateError } from "./errors";
 
@@ -32,7 +32,7 @@ const DEFAULT_MAX_DEPTH = 5;
 export function parsePopulate(
 	params: RawQueryParams,
 	maxDepth: number = DEFAULT_MAX_DEPTH,
-): Record<string, PopulateOptions<ForjaRecord> | "*"> | "*" | true | string[] | undefined {
+): PopulateClause<ForjaRecord> | undefined {
 	// Validate maxDepth
 	if (maxDepth <= 0) {
 		populateError.maxDepthExceeded(maxDepth, maxDepth, ["config"], {
@@ -115,7 +115,7 @@ export function parsePopulate(
 
 	// If we found indexed array format, return as string[]
 	if (indexedArrayRelations.length > 0) {
-		return indexedArrayRelations.filter(Boolean); // Remove empty slots
+		return indexedArrayRelations.filter(Boolean) as unknown as PopulateClause<ForjaRecord>; // Remove empty slots
 	}
 
 	// Parse each relation (object format)

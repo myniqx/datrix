@@ -5,10 +5,8 @@
  * Permission/RBAC types are now in forja-types/core/permission.
  */
 
-import type { Result } from "forja-types/utils";
 import type { DefaultPermission } from "forja-types/core/permission";
 import type { PasswordConfig } from "./password";
-import type { ForjaAuthError } from "forja-types/errors";
 import { AuthUser } from "forja-types/api";
 
 /**

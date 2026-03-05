@@ -22,6 +22,8 @@ import { ForjaError } from "forja-types/errors";
 import { AuthenticatedUser } from "forja-types/api/auth";
 import { ForjaEntry } from "forja-types";
 import { AuthUser } from "forja-types/api";
+import { FallbackValue } from "forja-types/core/schema";
+import { FallbackInput } from "forja-types/forja";
 
 /**
  * Auth Handler Configuration
@@ -54,8 +56,8 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
 				throw handlerError.permissionDenied("Registration is disabled");
 			}
 
-			const body = await request.json();
-			const { email, password, ...extraData } = body as Record<string, unknown>;
+			const body = await request.json() as FallbackValue;
+			const { email, password, ...extraData } = body;
 
 			if (!email || typeof email !== "string") {
 				throw handlerError.invalidBody("Email is required");
@@ -76,10 +78,10 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
 
 			const { hash, salt } = await authManager.hashPassword(password);
 
-			const userData: Record<string, unknown> = {
+			const userData = {
 				[userEmailField]: email,
 				...extraData,
-			};
+			} as FallbackInput;
 
 			let user: ForjaEntry;
 			try {
