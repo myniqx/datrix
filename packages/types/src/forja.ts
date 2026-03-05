@@ -35,10 +35,16 @@ export interface RawFindManyOptions<
  * Used when no generic is provided — allows any scalar or relation input
  * without requiring a specific model type.
  */
-export type FallbackInput = Record<
-	string,
-	string | number | boolean | Date | null | AnyRelationInput
->;
+export type FallbackInput = {
+	[key: string]:
+		| string
+		| number
+		| boolean
+		| Date
+		| null
+		| AnyRelationInput;
+};
+
 
 /**
  * Raw CRUD operations interface (bypasses plugin hooks)

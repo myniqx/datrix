@@ -141,7 +141,7 @@ export interface DatabaseAdapter<TConfig = object>
 
 	// Introspection
 	getTables(): Promise<readonly string[]>;
-	getTableSchema(tableName: string): Promise<SchemaDefinition>;
+	getTableSchema(tableName: string): Promise<SchemaDefinition | null>;
 	tableExists(tableName: string): Promise<boolean>;
 }
 

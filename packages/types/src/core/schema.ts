@@ -50,7 +50,6 @@ export type ReservedFieldName = (typeof RESERVED_FIELDS)[number];
  * - updatedAt: Timestamp when record was last updated
  */
 export interface ForjaEntry {
-	[x: string]: any;
 	readonly id: number;
 	createdAt: Date;
 	updatedAt: Date;
@@ -77,7 +76,18 @@ export interface ForjaEntry {
  * const where: WhereClause<Post> = { title: 'Hello' };
  * ```
  */
-export type ForjaRecord = ForjaEntry & Record<string, unknown>;
+export type ForjaRecord = ForjaEntry & FallbackValue;
+
+export type FallbackValue = {
+	[key: string]:
+	| string
+	| number
+	| boolean
+	| Date
+	| null
+	| FallbackValue        // nested object (populate sonucu)
+	| FallbackValue[];     // array of nested
+};
 
 /**
  * Primitive field types

@@ -181,7 +181,7 @@ type TypedWhereClause<T extends ForjaEntry> = Writable<{
 		? WhereClause<R>
 		: T[K] extends ScalarValue
 			? T[K] | ComparisonOperators<T[K]>
-			: unknown;
+			: never;
 }> &
 	LogicalOperators<T>;
 
