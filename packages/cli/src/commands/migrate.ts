@@ -8,11 +8,7 @@
  * - Status display (--status)
  */
 
-import type {
-	MigrationSession,
-	MigrationPlan,
-	AmbiguousChange,
-} from "forja-core";
+import type { MigrationSession, MigrationPlan } from "forja-core";
 import type { MigrateCommandOptions } from "../types";
 import { CLIError } from "../types";
 import {
@@ -25,7 +21,6 @@ import {
 	red,
 	cyan,
 } from "../utils/logger";
-import { Result } from "forja-types/utils";
 import * as readline from "readline";
 
 /**
@@ -105,11 +100,11 @@ function displayPlan(plan: MigrationPlan, verbose: boolean): void {
  */
 async function resolveAmbiguousChanges(
 	session: MigrationSession,
-): Promise<Result<void, CLIError>> {
+): Promise<void> {
 	const ambiguous = session.ambiguous;
 
 	if (ambiguous.length === 0) {
-		return { success: true, data: undefined };
+		return;
 	}
 
 	logger.log("");
@@ -141,29 +136,18 @@ async function resolveAmbiguousChanges(
 		const choice = parseInt(answer, 10);
 
 		if (isNaN(choice) || choice < 1 || choice > change.possibleActions.length) {
-			return {
-				success: false,
-				error: new CLIError(
-					`Invalid choice '${answer}'. Expected a number between ${validRange}.`,
-					"EXECUTION_ERROR",
-				),
-			};
+			throw new CLIError(
+				`Invalid choice '${answer}'. Expected a number between ${validRange}.`,
+				"EXECUTION_ERROR",
+			);
 		}
 
 		const selectedAction = change.possibleActions[choice - 1]!;
-		const result = session.resolveAmbiguous(change.id, selectedAction.type);
-		if (!result.success) {
-			return {
-				success: false,
-				error: new CLIError(result.error.message, "EXECUTION_ERROR"),
-			};
-		}
+		session.resolveAmbiguous(change.id, selectedAction.type);
 
 		logger.log(green(`  → Resolved as: ${selectedAction.description}`));
 		logger.log("");
 	}
-
-	return { success: true, data: undefined };
 }
 
 /**
@@ -172,71 +156,55 @@ async function resolveAmbiguousChanges(
 async function runPendingMigrations(
 	session: MigrationSession,
 	options: MigrateCommandOptions,
-): Promise<Result<void, CLIError>> {
-	// Check for changes
+): Promise<void> {
 	if (!session.hasChanges()) {
 		logger.log("");
 		logger.info("No pending migrations - database is up to date");
 		logger.log("");
-		return { success: true, data: undefined };
+		return;
 	}
 
-	// Resolve ambiguous changes interactively
-	const resolveResult = await resolveAmbiguousChanges(session);
-	if (!resolveResult.success) {
-		return resolveResult;
-	}
+	await resolveAmbiguousChanges(session);
 
-	// Get plan
-	const planResult = session.getPlan();
-	if (!planResult.success) {
-		return {
-			success: false,
-			error: new CLIError(planResult.error.message, "EXECUTION_ERROR"),
-		};
-	}
+	const plan = session.getPlan();
 
-	const plan = planResult.data;
-
-	// Display plan
 	displayPlan(plan, options.verbose ?? false);
 
-	// Dry run check
 	if (options.dryRun) {
 		logger.info("Dry run - no changes applied");
-		return { success: true, data: undefined };
+		return;
 	}
 
-	// Ask for confirmation
 	const confirm = await askQuestion("Apply these migrations? (y/N): ");
 	if (confirm.toLowerCase() !== "y") {
 		logger.log("");
 		logger.info("Migration cancelled");
-		return { success: true, data: undefined };
+		return;
 	}
 
-	// Apply migrations
 	spinner.start("Applying migrations...");
 
-	const applyResult = await session.apply();
-	if (!applyResult.success) {
+	let applyResult: Awaited<ReturnType<MigrationSession["apply"]>>;
+	try {
+		applyResult = await session.apply();
+	} catch (error) {
 		spinner.fail("Migration failed");
-		return {
-			success: false,
-			error: new CLIError(applyResult.error.message, "EXECUTION_ERROR"),
-		};
+		throw new CLIError(
+			`Failed to apply migrations: ${formatError(error)}`,
+			"EXECUTION_ERROR",
+			error,
+		);
 	}
 
 	spinner.succeed("Migrations applied successfully");
 
-	// Display results
 	logger.log("");
 	logger.log("Results:");
 	const rows: (readonly string[])[] = [
 		["Migration", "Status", "Time (ms)"] as const,
 	];
 
-	for (const result of applyResult.data) {
+	for (const result of applyResult) {
 		const status =
 			result.status === "completed" ? green("✔ Success") : red("✖ Failed");
 		rows.push([
@@ -248,8 +216,6 @@ async function runPendingMigrations(
 
 	printTable(rows);
 	logger.log("");
-
-	return { success: true, data: undefined };
 }
 
 /**
@@ -258,23 +224,12 @@ async function runPendingMigrations(
 export async function migrateCommand(
 	options: MigrateCommandOptions,
 	session: MigrationSession,
-): Promise<Result<void, CLIError>> {
-	try {
-		logger.log("");
-		logger.info("Forja Migration Tool");
-		logger.log("");
+): Promise<void> {
+	logger.log("");
+	logger.info("Forja Migration Tool");
+	logger.log("");
 
-		return await runPendingMigrations(session, options);
-	} catch (error) {
-		return {
-			success: false,
-			error: new CLIError(
-				`Migration command failed: ${formatError(error)}`,
-				"EXECUTION_ERROR",
-				error,
-			),
-		};
-	}
+	await runPendingMigrations(session, options);
 }
 
 /**
@@ -282,50 +237,34 @@ export async function migrateCommand(
  */
 export async function displayMigrationStatus(
 	session: MigrationSession,
-): Promise<Result<void, CLIError>> {
-	try {
-		logger.log("");
-		logger.log("Migration Status:");
-		logger.log("");
+): Promise<void> {
+	logger.log("");
+	logger.log("Migration Status:");
+	logger.log("");
 
-		if (!session.hasChanges()) {
-			logger.info("Database is up to date - no pending changes");
-		} else {
-			const planResult = session.getPlan();
-
-			// If there are ambiguous changes, show them
-			if (session.ambiguous.length > 0) {
-				logger.log(yellow("Ambiguous changes (require resolution):"));
-				for (const change of session.ambiguous) {
-					logger.log(`  ? ${change.id}`);
-				}
-				logger.log("");
+	if (!session.hasChanges()) {
+		logger.info("Database is up to date - no pending changes");
+	} else {
+		if (session.ambiguous.length > 0) {
+			logger.log(yellow("Ambiguous changes (require resolution):"));
+			for (const change of session.ambiguous) {
+				logger.log(`  ? ${change.id}`);
 			}
-
-			if (planResult.success) {
-				const plan = planResult.data;
-				logger.log(`Tables to create: ${plan.tablesToCreate.length}`);
-				logger.log(`Tables to drop: ${plan.tablesToDrop.length}`);
-				logger.log(`Tables to alter: ${plan.tablesToAlter.length}`);
-				logger.log(`Total operations: ${plan.operations.length}`);
-			} else {
-				logger.log(
-					"Pending changes detected (resolve ambiguous changes to see details)",
-				);
-			}
+			logger.log("");
 		}
 
-		logger.log("");
-
-		return { success: true, data: undefined };
-	} catch (error) {
-		return {
-			success: false,
-			error: new CLIError(
-				`Failed to display migration status: ${formatError(error)}`,
-				"EXECUTION_ERROR",
-				error,
-			),
-		};
+		try {
+			const plan = session.getPlan();
+			logger.log(`Tables to create: ${plan.tablesToCreate.length}`);
+			logger.log(`Tables to drop: ${plan.tablesToDrop.length}`);
+			logger.log(`Tables to alter: ${plan.tablesToAlter.length}`);
+			logger.log(`Total operations: ${plan.operations.length}`);
+		} catch {
+			logger.log(
+				"Pending changes detected (resolve ambiguous changes to see details)",
+			);
+		}
 	}
+
+	logger.log("");
 }

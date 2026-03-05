@@ -18,7 +18,6 @@ import {
 	toPascalCase,
 	toKebabCase,
 } from "../utils/templates";
-import { Result } from "forja-types/utils";
 import type { Forja } from "forja-core";
 import { generateTypesFile } from "../type-generator/schema-types";
 
@@ -30,21 +29,15 @@ export type GenerateType = "schema" | "migration" | "types";
 /**
  * Ensure directory exists
  */
-async function ensureDirectory(
-	dirPath: string,
-): Promise<Result<void, CLIError>> {
+async function ensureDirectory(dirPath: string): Promise<void> {
 	try {
 		await mkdir(dirPath, { recursive: true });
-		return { success: true, data: undefined };
 	} catch (error) {
-		return {
-			success: false,
-			error: new CLIError(
-				`Failed to create directory ${dirPath}: ${formatError(error)}`,
-				"FILE_ERROR",
-				error,
-			),
-		};
+		throw new CLIError(
+			`Failed to create directory ${dirPath}: ${formatError(error)}`,
+			"FILE_ERROR",
+			error,
+		);
 	}
 }
 
@@ -67,42 +60,27 @@ async function writeFileSafe(
 	filePath: string,
 	content: string,
 	overwrite: boolean = false,
-): Promise<Result<void, CLIError>> {
+): Promise<void> {
+	const exists = await fileExists(filePath);
+
+	if (exists && !overwrite) {
+		throw new CLIError(
+			`File already exists: ${filePath}. Use --force to overwrite`,
+			"FILE_ERROR",
+		);
+	}
+
+	const dirPath = dirname(filePath);
+	await ensureDirectory(dirPath);
+
 	try {
-		// Check if file exists
-		const exists = await fileExists(filePath);
-
-		if (exists && !overwrite) {
-			return {
-				success: false,
-				error: new CLIError(
-					`File already exists: ${filePath}. Use --force to overwrite`,
-					"FILE_ERROR",
-				),
-			};
-		}
-
-		// Ensure directory exists
-		const dirPath = dirname(filePath);
-		const dirResult = await ensureDirectory(dirPath);
-
-		if (!dirResult.success) {
-			return dirResult;
-		}
-
-		// Write file
 		await writeFile(filePath, content, "utf-8");
-
-		return { success: true, data: undefined };
 	} catch (error) {
-		return {
-			success: false,
-			error: new CLIError(
-				`Failed to write file ${filePath}: ${formatError(error)}`,
-				"FILE_ERROR",
-				error,
-			),
-		};
+		throw new CLIError(
+			`Failed to write file ${filePath}: ${formatError(error)}`,
+			"FILE_ERROR",
+			error,
+		);
 	}
 }
 
@@ -112,57 +90,30 @@ async function writeFileSafe(
 async function generateSchema(
 	name: string,
 	options: GenerateCommandOptions,
-): Promise<Result<void, CLIError>> {
-	try {
-		// Validate name
-		if (!name || name.trim() === "") {
-			return {
-				success: false,
-				error: new CLIError("Schema name is required", "MISSING_ARGUMENT"),
-			};
-		}
-
-		// Convert to PascalCase
-		const pascalName = toPascalCase(name);
-
-		// Generate filename
-		const filename = `${toKebabCase(pascalName)}.schema.ts`;
-		const outputDir = options.output ?? join(process.cwd(), "schemas");
-		const outputPath = join(outputDir, filename);
-
-		logger.log("");
-		logger.info(`Generating schema: ${pascalName}`);
-		logger.info(`Output: ${outputPath}`);
-
-		// Generate template
-		const content = schemaTemplate(pascalName);
-
-		// Write file
-		const writeResult = await writeFileSafe(outputPath, content, false);
-
-		if (!writeResult.success) {
-			return writeResult;
-		}
-
-		logger.log("");
-		logger.success(`Schema created: ${outputPath}`);
-		logger.log("");
-		logger.info("Next steps:");
-		logger.info("1. Edit the schema file to add your fields");
-		logger.info("2. Run: forja migrate");
-		logger.log("");
-
-		return { success: true, data: undefined };
-	} catch (error) {
-		return {
-			success: false,
-			error: new CLIError(
-				`Failed to generate schema: ${formatError(error)}`,
-				"EXECUTION_ERROR",
-				error,
-			),
-		};
+): Promise<void> {
+	if (!name || name.trim() === "") {
+		throw new CLIError("Schema name is required", "MISSING_ARGUMENT");
 	}
+
+	const pascalName = toPascalCase(name);
+	const filename = `${toKebabCase(pascalName)}.schema.ts`;
+	const outputDir = options.output ?? join(process.cwd(), "schemas");
+	const outputPath = join(outputDir, filename);
+
+	logger.log("");
+	logger.info(`Generating schema: ${pascalName}`);
+	logger.info(`Output: ${outputPath}`);
+
+	const content = schemaTemplate(pascalName);
+	await writeFileSafe(outputPath, content, false);
+
+	logger.log("");
+	logger.success(`Schema created: ${outputPath}`);
+	logger.log("");
+	logger.info("Next steps:");
+	logger.info("1. Edit the schema file to add your fields");
+	logger.info("2. Run: forja migrate");
+	logger.log("");
 }
 
 /**
@@ -171,59 +122,32 @@ async function generateSchema(
 async function generateMigration(
 	name: string,
 	options: GenerateCommandOptions,
-): Promise<Result<void, CLIError>> {
-	try {
-		// Validate name
-		if (!name || name.trim() === "") {
-			return {
-				success: false,
-				error: new CLIError("Migration name is required", "MISSING_ARGUMENT"),
-			};
-		}
-
-		// Generate timestamp
-		const timestamp = generateTimestamp();
-
-		// Generate filename
-		const kebabName = toKebabCase(name);
-		const filename = `${timestamp}_${kebabName}.ts`;
-		const outputDir = options.output ?? join(process.cwd(), "migrations");
-		const outputPath = join(outputDir, filename);
-
-		logger.log("");
-		logger.info(`Generating migration: ${name}`);
-		logger.info(`Version: ${timestamp}`);
-		logger.info(`Output: ${outputPath}`);
-
-		// Generate template
-		const content = migrationTemplate(name, timestamp);
-
-		// Write file
-		const writeResult = await writeFileSafe(outputPath, content, false);
-
-		if (!writeResult.success) {
-			return writeResult;
-		}
-
-		logger.log("");
-		logger.success(`Migration created: ${outputPath}`);
-		logger.log("");
-		logger.info("Next steps:");
-		logger.info("1. Edit the migration file to add operations");
-		logger.info("2. Run: forja migrate");
-		logger.log("");
-
-		return { success: true, data: undefined };
-	} catch (error) {
-		return {
-			success: false,
-			error: new CLIError(
-				`Failed to generate migration: ${formatError(error)}`,
-				"EXECUTION_ERROR",
-				error,
-			),
-		};
+): Promise<void> {
+	if (!name || name.trim() === "") {
+		throw new CLIError("Migration name is required", "MISSING_ARGUMENT");
 	}
+
+	const timestamp = generateTimestamp();
+	const kebabName = toKebabCase(name);
+	const filename = `${timestamp}_${kebabName}.ts`;
+	const outputDir = options.output ?? join(process.cwd(), "migrations");
+	const outputPath = join(outputDir, filename);
+
+	logger.log("");
+	logger.info(`Generating migration: ${name}`);
+	logger.info(`Version: ${timestamp}`);
+	logger.info(`Output: ${outputPath}`);
+
+	const content = migrationTemplate(name, timestamp);
+	await writeFileSafe(outputPath, content, false);
+
+	logger.log("");
+	logger.success(`Migration created: ${outputPath}`);
+	logger.log("");
+	logger.info("Next steps:");
+	logger.info("1. Edit the migration file to add operations");
+	logger.info("2. Run: forja migrate");
+	logger.log("");
 }
 
 /**
@@ -232,39 +156,21 @@ async function generateMigration(
 async function generateTypes(
 	forja: Forja,
 	options: GenerateCommandOptions,
-): Promise<Result<void, CLIError>> {
-	try {
-		const schemas = forja.getAllSchemas();
-		const outputPath =
-			options.output ?? join(process.cwd(), "types", "generated.ts");
+): Promise<void> {
+	const schemas = forja.getAllSchemas();
+	const outputPath =
+		options.output ?? join(process.cwd(), "types", "generated.ts");
 
-		logger.log("");
-		logger.info(`Generating types for ${schemas.length} schemas`);
-		logger.info(`Output: ${outputPath}`);
+	logger.log("");
+	logger.info(`Generating types for ${schemas.length} schemas`);
+	logger.info(`Output: ${outputPath}`);
 
-		const content = generateTypesFile(schemas);
+	const content = generateTypesFile(schemas);
+	await writeFileSafe(outputPath, content, true);
 
-		const writeResult = await writeFileSafe(outputPath, content, true);
-
-		if (!writeResult.success) {
-			return writeResult;
-		}
-
-		logger.log("");
-		logger.success(`Types generated: ${outputPath}`);
-		logger.log("");
-
-		return { success: true, data: undefined };
-	} catch (error) {
-		return {
-			success: false,
-			error: new CLIError(
-				`Failed to generate types: ${formatError(error)}`,
-				"EXECUTION_ERROR",
-				error,
-			),
-		};
-	}
+	logger.log("");
+	logger.success(`Types generated: ${outputPath}`);
+	logger.log("");
 }
 
 /**
@@ -275,49 +181,34 @@ export async function generateCommand(
 	name: string,
 	options: GenerateCommandOptions,
 	forja?: Forja,
-): Promise<Result<void, CLIError>> {
-	try {
-		switch (type) {
-			case "schema":
-				return await generateSchema(name, options);
+): Promise<void> {
+	switch (type) {
+		case "schema":
+			await generateSchema(name, options);
+			break;
 
-			case "migration":
-				return await generateMigration(name, options);
+		case "migration":
+			await generateMigration(name, options);
+			break;
 
-			case "types": {
-				if (!forja) {
-					return {
-						success: false,
-						error: new CLIError(
-							"Forja instance is required for generate types",
-							"CONFIG_ERROR",
-						),
-					};
-				}
-				return await generateTypes(forja, options);
+		case "types": {
+			if (!forja) {
+				throw new CLIError(
+					"Forja instance is required for generate types",
+					"CONFIG_ERROR",
+				);
 			}
-
-			default: {
-				// Exhaustive check
-				const _exhaustive: never = type;
-				return {
-					success: false,
-					error: new CLIError(
-						`Unknown generate type: ${String(_exhaustive)}`,
-						"INVALID_COMMAND",
-					),
-				};
-			}
+			await generateTypes(forja, options);
+			break;
 		}
-	} catch (error) {
-		return {
-			success: false,
-			error: new CLIError(
-				`Generate command failed: ${formatError(error)}`,
-				"EXECUTION_ERROR",
-				error,
-			),
-		};
+
+		default: {
+			const _exhaustive: never = type;
+			throw new CLIError(
+				`Unknown generate type: ${String(_exhaustive)}`,
+				"INVALID_COMMAND",
+			);
+		}
 	}
 }
 

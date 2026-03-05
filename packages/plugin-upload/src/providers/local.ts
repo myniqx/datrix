@@ -2,10 +2,9 @@
  * Local Filesystem Storage Provider
  *
  * Stores files on the local filesystem.
- * NO `any` types, NO type assertions, NEVER throw exceptions.
+ * NO `any` types, NO type assertions.
  */
 
-import { Result } from "forja-types/utils";
 import type {
 	StorageProvider,
 	UploadFile,
@@ -37,29 +36,22 @@ export class LocalStorageProvider implements StorageProvider {
 	/**
 	 * Upload a file to local filesystem
 	 */
-	async upload(file: UploadFile): Promise<Result<UploadResult, UploadError>> {
+	async upload(file: UploadFile): Promise<UploadResult> {
 		try {
-			// Dynamic imports for Node.js modules
 			const fs = await import("fs/promises");
 			const path = await import("path");
 
-			// Generate unique filename
 			const sanitized = sanitizeFilename(file.originalName);
 			const uniqueFilename = generateUniqueFilename(sanitized);
-
-			// Construct full path
 			const fullPath = path.join(this.basePath, uniqueFilename);
 
-			// Ensure directory exists
 			if (this.ensureDirectory) {
 				const dirPath = path.dirname(fullPath);
 				await fs.mkdir(dirPath, { recursive: true });
 			}
 
-			// Write file
 			await fs.writeFile(fullPath, file.buffer);
 
-			// Return result
 			const result: UploadResult = {
 				key: uniqueFilename,
 				url: this.getUrlSync(uniqueFilename),
@@ -68,50 +60,37 @@ export class LocalStorageProvider implements StorageProvider {
 				uploadedAt: new Date(),
 			};
 
-			return { success: true, data: result };
+			return result;
 		} catch (error) {
-			return {
-				success: false,
-				error: new UploadError("Failed to upload file to local filesystem", {
-					originalError: error,
-					filename: file.originalName,
-				}),
-			};
+			throw new UploadError("Failed to upload file to local filesystem", {
+				originalError: error,
+				filename: file.originalName,
+			});
 		}
 	}
 
 	/**
 	 * Delete a file from local filesystem
 	 */
-	async delete(key: string): Promise<Result<void, UploadError>> {
+	async delete(key: string): Promise<void> {
+		const fs = await import("fs/promises");
+		const path = await import("path");
+
+		const fullPath = path.join(this.basePath, key);
+
 		try {
-			const fs = await import("fs/promises");
-			const path = await import("path");
+			await fs.access(fullPath);
+		} catch {
+			throw new UploadError("File not found", { key });
+		}
 
-			const fullPath = path.join(this.basePath, key);
-
-			// Check if file exists
-			try {
-				await fs.access(fullPath);
-			} catch {
-				return {
-					success: false,
-					error: new UploadError("File not found", { key }),
-				};
-			}
-
-			// Delete file
+		try {
 			await fs.unlink(fullPath);
-
-			return { success: true, data: undefined };
 		} catch (error) {
-			return {
-				success: false,
-				error: new UploadError("Failed to delete file from local filesystem", {
-					originalError: error,
-					key,
-				}),
-			};
+			throw new UploadError("Failed to delete file from local filesystem", {
+				originalError: error,
+				key,
+			});
 		}
 	}
 
@@ -126,10 +105,8 @@ export class LocalStorageProvider implements StorageProvider {
 	 * Get URL synchronously
 	 */
 	private getUrlSync(key: string): string {
-		// Ensure baseUrl doesn't end with / and key doesn't start with /
 		const cleanBaseUrl = this.baseUrl.replace(/\/$/, "");
 		const cleanKey = key.replace(/^\//, "");
-
 		return `${cleanBaseUrl}/${cleanKey}`;
 	}
 
@@ -142,7 +119,6 @@ export class LocalStorageProvider implements StorageProvider {
 			const path = await import("path");
 
 			const fullPath = path.join(this.basePath, key);
-
 			await fs.access(fullPath);
 			return true;
 		} catch {

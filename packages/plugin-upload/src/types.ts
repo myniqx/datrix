@@ -6,7 +6,6 @@
  */
 
 import { PluginError } from "forja-types/plugin";
-import { Result } from "forja-types/utils";
 
 /**
  * Upload file data
@@ -36,8 +35,8 @@ export interface UploadResult {
 export interface StorageProvider {
 	readonly name: string;
 
-	upload(file: UploadFile): Promise<Result<UploadResult, UploadError>>;
-	delete(key: string): Promise<Result<void, UploadError>>;
+	upload(file: UploadFile): Promise<UploadResult>;
+	delete(key: string): Promise<void>;
 	getUrl(key: string): Promise<string>;
 	exists(key: string): Promise<boolean>;
 }
@@ -82,10 +81,10 @@ export interface ValidationFailure {
  * File validation options
  */
 export interface FileValidationOptions {
-	readonly maxSize?: number; // Maximum file size in bytes
-	readonly allowedMimeTypes?: readonly string[]; // Allowed MIME types
-	readonly allowedExtensions?: readonly string[]; // Allowed file extensions
-	readonly minSize?: number; // Minimum file size in bytes
+	readonly maxSize?: number;
+	readonly allowedMimeTypes?: readonly string[];
+	readonly allowedExtensions?: readonly string[];
+	readonly minSize?: number;
 }
 
 /**
@@ -101,9 +100,9 @@ export interface UploadPluginOptions {
  * Local provider options
  */
 export interface LocalProviderOptions {
-	readonly basePath: string; // Base directory for uploads
-	readonly baseUrl: string; // Base URL for serving files
-	readonly ensureDirectory?: boolean; // Create directory if it doesn't exist
+	readonly basePath: string;
+	readonly baseUrl: string;
+	readonly ensureDirectory?: boolean;
 }
 
 /**
@@ -114,8 +113,8 @@ export interface S3ProviderOptions {
 	readonly region: string;
 	readonly accessKeyId: string;
 	readonly secretAccessKey: string;
-	readonly endpoint?: string; // Custom endpoint (for S3-compatible services)
-	readonly pathPrefix?: string; // Prefix for all keys
+	readonly endpoint?: string;
+	readonly pathPrefix?: string;
 }
 
 /**
@@ -184,13 +183,12 @@ export function getFileExtension(filename: string): string {
  * Sanitize filename
  */
 export function sanitizeFilename(filename: string): string {
-	// Remove directory traversal attempts and dangerous characters
 	return filename
-		.replace(/\.\./g, "") // Remove ..
-		.replace(/\//g, "") // Remove /
-		.replace(/\\/g, "") // Remove \
-		.replace(/[<>:"|?*]/g, "") // Remove Windows invalid chars
-		.replace(/\s+/g, "-") // Replace spaces with dashes
+		.replace(/\.\./g, "")
+		.replace(/\//g, "")
+		.replace(/\\/g, "")
+		.replace(/[<>:"|?*]/g, "")
+		.replace(/\s+/g, "-")
 		.toLowerCase();
 }
 
@@ -269,39 +267,30 @@ export function validateExtension(
 }
 
 /**
- * Validate upload file
+ * Validate upload file — throws FileValidationError on failure
  */
 export function validateUploadFile(
 	file: UploadFile,
 	options: FileValidationOptions,
-): Result<UploadFile, FileValidationError> {
+): void {
 	const errors: ValidationFailure[] = [];
 
-	// Validate file size
 	const sizeError = validateFileSize(file.size, options);
 	if (sizeError !== null) {
 		errors.push(sizeError);
 	}
 
-	// Validate MIME type
 	const mimeError = validateMimeType(file.mimetype, options);
 	if (mimeError !== null) {
 		errors.push(mimeError);
 	}
 
-	// Validate extension
 	const extError = validateExtension(file.filename, options);
 	if (extError !== null) {
 		errors.push(extError);
 	}
 
-	// Return result
 	if (errors.length > 0) {
-		return {
-			success: false,
-			error: new FileValidationError("File validation failed", errors),
-		};
+		throw new FileValidationError("File validation failed", errors);
 	}
-
-	return { success: true, data: file };
 }

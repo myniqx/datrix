@@ -15,8 +15,6 @@ import type {
 } from "./types";
 import { logger, formatError, bold, cyan } from "./utils/logger";
 import { loadConfig } from "./utils/config-loader";
-import { createMigrationSetup } from "./utils/migration-setup";
-import { generateCommand, isValidGenerateType } from "./commands/generate";
 import { migrateCommand, displayMigrationStatus } from "./commands/migrate";
 import { devCommand } from "./commands/dev";
 
@@ -145,13 +143,7 @@ async function main(): Promise<void> {
 	try {
 		switch (args.command) {
 			case "migrate": {
-				// Load config and initialize Forja
-				const configResult = await loadConfig(getConfigPath(args.options));
-				if (!configResult.success) {
-					logger.error(configResult.error.message);
-					process.exit(1);
-				}
-				const forja = configResult.data;
+				const forja = await loadConfig(getConfigPath(args.options));
 
 				const migrateOptions: MigrateCommandOptions = {
 					config: getConfigPath(args.options),
@@ -159,28 +151,14 @@ async function main(): Promise<void> {
 					dryRun: Boolean(args.options["dry-run"]),
 				};
 
-				// Create migration session from Forja instance
 				const session = await forja.beginMigrate();
 
-				// Status check
 				if (args.options["status"]) {
-					const statusResult = await displayMigrationStatus(session);
-					if (!statusResult.success) {
-						logger.error(statusResult.error.message);
-						process.exit(1);
-					}
+					await displayMigrationStatus(session);
 					break;
 				}
 
-				// Run migrations
-				const result = await migrateCommand(migrateOptions, session);
-				if (!result.success) {
-					logger.error(result.error.message);
-					if (args.options["verbose"]) {
-						logger.error(String(result.error.details));
-					}
-					process.exit(1);
-				}
+				await migrateCommand(migrateOptions, session);
 				break;
 			}
 
@@ -207,27 +185,8 @@ async function main(): Promise<void> {
 				};
 
 				if (args.subcommand === "types") {
-					const configResult = await loadConfig(getConfigPath(args.options));
-					if (!configResult.success) {
-						logger.error(configResult.error.message);
-						process.exit(1);
-					}
-					const forja = configResult.data;
-
-					const typesResult = await generateCommand(
-						"types",
-						"",
-						generateOptions,
-						forja,
-					);
-
-					if (!typesResult.success) {
-						logger.error(typesResult.error.message);
-						if (args.options["verbose"]) {
-							logger.error(String(typesResult.error.details));
-						}
-						process.exit(1);
-					}
+					const forja = await loadConfig(getConfigPath(args.options));
+					await generateCommand("types", "", generateOptions, forja);
 					break;
 				}
 
@@ -239,43 +198,20 @@ async function main(): Promise<void> {
 					process.exit(1);
 				}
 
-				const generateResult = await generateCommand(
-					args.subcommand,
-					name,
-					generateOptions,
-				);
-
-				if (!generateResult.success) {
-					logger.error(generateResult.error.message);
-					if (args.options["verbose"]) {
-						logger.error(String(generateResult.error.details));
-					}
-					process.exit(1);
-				}
-
+				await generateCommand(args.subcommand, name, generateOptions);
 				break;
 			}
 
 			case "dev": {
-				// Load config and initialize Forja
-				const configResult = await loadConfig(getConfigPath(args.options));
-				if (!configResult.success) {
-					logger.error(configResult.error.message);
-					process.exit(1);
-				}
-				const forja = configResult.data;
+				const forja = await loadConfig(getConfigPath(args.options));
 
 				const devOptions: DevCommandOptions = {
 					config: getConfigPath(args.options),
 					verbose: Boolean(args.options["verbose"]),
-					watch: args.options["watch"] !== false, // Default true
+					watch: args.options["watch"] !== false,
 				};
 
-				const devResult = await devCommand(devOptions, forja);
-				if (!devResult.success) {
-					logger.error(devResult.error.message);
-					process.exit(1);
-				}
+				await devCommand(devOptions, forja);
 				break;
 			}
 

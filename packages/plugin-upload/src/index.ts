@@ -2,7 +2,7 @@
  * Upload Plugin
  *
  * Provides file upload functionality with multiple storage providers.
- * NO `any` types, NO type assertions, NEVER throw exceptions.
+ * NO `any` types, NO type assertions.
  */
 
 import { ForjaPlugin, PluginContext, PluginError } from "forja-types/plugin";
@@ -19,7 +19,6 @@ import {
 	isUploadFile,
 	validateUploadFile,
 } from "./types";
-import { Result } from "forja-types/utils";
 
 /**
  * Upload plugin implementation
@@ -43,155 +42,104 @@ export class UploadPlugin implements ForjaPlugin<UploadPluginOptions> {
 	/**
 	 * Initialize the plugin
 	 */
-	async init(_context: PluginContext): Promise<Result<void, PluginError>> {
-		// Validate provider
+	async init(_context: PluginContext): Promise<void> {
 		if (!isStorageProvider(this.provider)) {
-			return {
-				success: false,
-				error: new UploadError("Invalid storage provider", {
-					provider: this.provider,
-				}),
-			};
+			throw new UploadError("Invalid storage provider", {
+				provider: this.provider,
+			});
 		}
 
 		if (this.enableLogging) {
 			console.log(`[Upload] Initialized with provider: ${this.provider.name}`);
 		}
-
-		return { success: true, data: undefined };
 	}
 
 	/**
 	 * Destroy the plugin
 	 */
-	async destroy(): Promise<Result<void, PluginError>> {
+	async destroy(): Promise<void> {
 		if (this.enableLogging) {
 			console.log("[Upload] Plugin destroyed");
 		}
-
-		return { success: true, data: undefined };
 	}
 
 	/**
 	 * Upload a file
 	 */
-	async upload(file: UploadFile): Promise<Result<UploadResult, UploadError>> {
-		// Validate file object
+	async upload(file: UploadFile): Promise<UploadResult> {
 		if (!isUploadFile(file)) {
-			return {
-				success: false,
-				error: new UploadError("Invalid file object", { file }),
-			};
+			throw new UploadError("Invalid file object", { file });
 		}
 
-		// Validate file against rules
-		const validationResult = validateUploadFile(file, this.validation);
-		if (!validationResult.success) {
-			return {
-				success: false,
-				error: validationResult.error,
-			};
-		}
+		validateUploadFile(file, this.validation);
 
-		// Upload using provider
 		if (this.enableLogging) {
 			console.log(`[Upload] Uploading file: ${file.originalName}`);
 		}
 
-		const uploadResult = await this.provider.upload(file);
-
-		if (!uploadResult.success) {
-			if (this.enableLogging) {
-				console.error(`[Upload] Upload failed: ${uploadResult.error.message}`);
-			}
-			return uploadResult;
-		}
+		const result = await this.provider.upload(file);
 
 		if (this.enableLogging) {
-			console.log(`[Upload] Upload successful: ${uploadResult.data.key}`);
+			console.log(`[Upload] Upload successful: ${result.key}`);
 		}
 
-		return uploadResult;
+		return result;
 	}
 
 	/**
 	 * Delete a file
 	 */
-	async delete(key: string): Promise<Result<void, UploadError>> {
+	async delete(key: string): Promise<void> {
 		if (typeof key !== "string" || key.trim().length === 0) {
-			return {
-				success: false,
-				error: new UploadError("Invalid file key", { key }),
-			};
+			throw new UploadError("Invalid file key", { key });
 		}
 
 		if (this.enableLogging) {
 			console.log(`[Upload] Deleting file: ${key}`);
 		}
 
-		const deleteResult = await this.provider.delete(key);
-
-		if (!deleteResult.success) {
-			if (this.enableLogging) {
-				console.error(`[Upload] Delete failed: ${deleteResult.error.message}`);
-			}
-			return deleteResult;
-		}
+		await this.provider.delete(key);
 
 		if (this.enableLogging) {
 			console.log(`[Upload] Delete successful: ${key}`);
 		}
-
-		return deleteResult;
 	}
 
 	/**
 	 * Get URL for a file
 	 */
-	async getUrl(key: string): Promise<Result<string, UploadError>> {
+	async getUrl(key: string): Promise<string> {
 		if (typeof key !== "string" || key.trim().length === 0) {
-			return {
-				success: false,
-				error: new UploadError("Invalid file key", { key }),
-			};
+			throw new UploadError("Invalid file key", { key });
 		}
 
 		try {
 			const url = await this.provider.getUrl(key);
-			return { success: true, data: url };
+			return url;
 		} catch (error) {
-			return {
-				success: false,
-				error: new UploadError("Failed to get file URL", {
-					originalError: error,
-					key,
-				}),
-			};
+			throw new UploadError("Failed to get file URL", {
+				originalError: error,
+				key,
+			});
 		}
 	}
 
 	/**
 	 * Check if a file exists
 	 */
-	async exists(key: string): Promise<Result<boolean, UploadError>> {
+	async exists(key: string): Promise<boolean> {
 		if (typeof key !== "string" || key.trim().length === 0) {
-			return {
-				success: false,
-				error: new UploadError("Invalid file key", { key }),
-			};
+			throw new UploadError("Invalid file key", { key });
 		}
 
 		try {
 			const exists = await this.provider.exists(key);
-			return { success: true, data: exists };
+			return exists;
 		} catch (error) {
-			return {
-				success: false,
-				error: new UploadError("Failed to check file existence", {
-					originalError: error,
-					key,
-				}),
-			};
+			throw new UploadError("Failed to check file existence", {
+				originalError: error,
+				key,
+			});
 		}
 	}
 
