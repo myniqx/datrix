@@ -694,8 +694,8 @@ export class JsonQueryRunner {
 	): number {
 		for (const order of orderBy) {
 			const fieldName = order.field;
-			const valA = this.coerceForComparison(a[fieldName], fieldName);
-			const valB = this.coerceForComparison(b[fieldName], fieldName);
+			const valA = this.coerceForComparison(a[fieldName], fieldName as string);
+			const valB = this.coerceForComparison(b[fieldName], fieldName as string);
 
 			if (valA === valB) continue;
 

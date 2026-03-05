@@ -244,14 +244,12 @@ export class PostgresPopulator {
 		const queryWithFks: QuerySelectObject<T> =
 			fkColumnsNeeded.length > 0
 				? {
-						...query,
-						select: query.select
-							? ([
-									...(query.select as string[]),
-									...fkColumnsNeeded,
-								] as unknown as QuerySelectObject<T>["select"])
-							: undefined,
-					}
+					...query,
+					select: ([
+						...(query.select as string[]),
+						...fkColumnsNeeded,
+					] as unknown as QuerySelectObject<T>["select"])
+				}
 				: query;
 
 		const { sql, params } = this.translator.translate(queryWithFks);
@@ -277,8 +275,9 @@ export class PostgresPopulator {
 
 		const parentIds = rows.map((row) => row.id);
 
-		for (const [relationName, options] of Object.entries(query.populate!)) {
+		for (const [relationName, _options] of Object.entries(query.populate!)) {
 			const relationField = schema.fields[relationName];
+			const options = _options as QueryPopulate<T>;
 			if (!relationField || relationField.type !== "relation") continue;
 
 			const relation = relationField as {
@@ -325,12 +324,12 @@ export class PostgresPopulator {
 				);
 
 				// Recursive nested populate
-				const nestedPopulate = (options as Record<string, unknown>)?.populate;
+				const nestedPopulate = options?.["populate"];
 				if (nestedPopulate && relatedRows.length > 0) {
-					relatedRows = await this.populateBatchedRows(
+					relatedRows = await this.populateBatchedRows<T>(
 						relatedRows,
 						targetTable,
-						nestedPopulate as QueryPopulate<ForjaEntry>,
+						nestedPopulate,
 					);
 				}
 
@@ -370,7 +369,7 @@ export class PostgresPopulator {
 				}));
 
 				// Recursive nested populate
-				const nestedPopulate = (options as Record<string, unknown>)?.populate;
+				const nestedPopulate = options?.["populate"];
 				if (nestedPopulate && allRelatedRows.length > 0) {
 					allRelatedRows = await this.populateBatchedRows(
 						allRelatedRows,
@@ -422,7 +421,7 @@ export class PostgresPopulator {
 				}));
 
 				// Recursive nested populate
-				const nestedPopulate = (options as Record<string, unknown>)?.populate;
+				const nestedPopulate = options?.["populate"];
 				if (nestedPopulate && allRelatedRows.length > 0) {
 					allRelatedRows = await this.populateBatchedRows(
 						allRelatedRows,
@@ -499,7 +498,7 @@ export class PostgresPopulator {
 					(r) => r.data as ForjaEntry,
 				);
 
-				const nestedPopulate = (options as Record<string, unknown>)?.populate;
+				const nestedPopulate = options?.["populate"];
 				if (nestedPopulate && relatedRows.length > 0) {
 					relatedRows = await this.populateBatchedRows(
 						relatedRows,
@@ -531,7 +530,7 @@ export class PostgresPopulator {
 					_fk: r._fk,
 				}));
 
-				const nestedPopulate = (options as Record<string, unknown>)?.populate;
+				const nestedPopulate = options?.["populate"];
 				if (nestedPopulate && allRelatedRows.length > 0) {
 					allRelatedRows = await this.populateBatchedRows(
 						allRelatedRows,
@@ -570,7 +569,7 @@ export class PostgresPopulator {
 					_fk: r._fk,
 				}));
 
-				const nestedPopulate = (options as Record<string, unknown>)?.populate;
+				const nestedPopulate = options?.["populate"];
 				if (nestedPopulate && allRelatedRows.length > 0) {
 					allRelatedRows = await this.populateBatchedRows(
 						allRelatedRows,

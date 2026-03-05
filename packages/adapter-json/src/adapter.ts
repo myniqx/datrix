@@ -7,7 +7,7 @@ import {
 	QueryResult,
 	Transaction,
 } from "forja-types/adapter";
-import { QueryObject, QuerySelectObject } from "forja-types/core/query-builder";
+import { QueryObject } from "forja-types/core/query-builder";
 import {
 	ForjaEntry,
 	IndexDefinition,

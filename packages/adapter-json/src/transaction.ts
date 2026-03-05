@@ -81,12 +81,9 @@ export class JsonTransaction implements Transaction {
 		_sql: string,
 		_params: readonly unknown[],
 	): Promise<QueryResult<TResult>> {
-		return {
-			success: false,
-			error: new QueryError(
-				"Raw SQL queries are not supported by JSON adapter",
-			),
-		};
+		throw new QueryError(
+			"Raw SQL queries are not supported by JSON adapter",
+		);
 	}
 
 	// ========================================
@@ -179,12 +176,9 @@ export class JsonTransaction implements Transaction {
 	 */
 	async rollback(): Promise<void> {
 		if (this.committed) {
-			return {
-				success: false,
-				error: new TransactionError(
-					"Cannot rollback: transaction already committed",
-				),
-			};
+			throw new TransactionError(
+				"Cannot rollback: transaction already committed",
+			)
 		}
 
 		if (this.rolledBack) {
@@ -200,35 +194,26 @@ export class JsonTransaction implements Transaction {
 	 * Create savepoint (not yet implemented for JSON adapter)
 	 */
 	async savepoint(_name: string): Promise<void> {
-		return {
-			success: false,
-			error: new TransactionError(
-				"Savepoints are not yet supported by JSON adapter",
-			),
-		};
+		throw new TransactionError(
+			"Savepoints are not yet supported by JSON adapter",
+		)
 	}
 
 	/**
 	 * Rollback to savepoint (not yet implemented for JSON adapter)
 	 */
 	async rollbackTo(_name: string): Promise<void> {
-		return {
-			success: false,
-			error: new TransactionError(
-				"Savepoints are not yet supported by JSON adapter",
-			),
-		};
+		throw new TransactionError(
+			"Savepoints are not yet supported by JSON adapter",
+		)
 	}
 
 	/**
 	 * Release savepoint (not yet implemented for JSON adapter)
 	 */
 	async release(_name: string): Promise<void> {
-		return {
-			success: false,
-			error: new TransactionError(
-				"Savepoints are not yet supported by JSON adapter",
-			),
-		};
+		throw new TransactionError(
+			"Savepoints are not yet supported by JSON adapter",
+		)
 	}
 }
