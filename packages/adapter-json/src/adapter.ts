@@ -611,14 +611,8 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		const skipLock = options?.skipLock ?? false;
 		const skipWrite = options?.skipWrite ?? false;
 
-		const validation = validateQueryObject(query);
-		if (!validation.success) {
-			throwQueryError({
-				adapter: "json",
-				message: `Invalid QueryObject: ${validation.error.message}`,
-				query: query as QueryObject,
-			});
-		}
+		validateQueryObject(query);
+
 
 		if (!this.isConnected()) {
 			throwNotConnected({ adapter: "json" });
@@ -1075,7 +1069,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		_tableName: string,
 		_index: IndexDefinition,
 		_options?: SchemaOperationOptions,
-	): Promise<void> {}
+	): Promise<void> { }
 
 	async dropIndex(tableName: string, indexName: string): Promise<void> {
 		return this.dropIndexWithOptions(tableName, indexName);
@@ -1089,7 +1083,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		_tableName: string,
 		_indexName: string,
 		_options?: SchemaOperationOptions,
-	): Promise<void> {}
+	): Promise<void> { }
 
 	async getTables(): Promise<readonly string[]> {
 		if (!this.isConnected()) {

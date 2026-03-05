@@ -156,14 +156,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 		query: QueryObject<TResult>,
 		client?: PoolClient,
 	): Promise<QueryResult<TResult>> {
-		const validation = validateQueryObject(query);
-		if (!validation.success) {
-			throwQueryError({
-				adapter: "postgres",
-				message: `Invalid QueryObject: ${validation.error.message}`,
-				query: query as QueryObject,
-			});
-		}
+		validateQueryObject(query);
 
 		const queryRunner = client ?? this.pool;
 

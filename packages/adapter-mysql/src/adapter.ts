@@ -181,14 +181,8 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 		query: QueryObject<TResult>,
 		connection?: PoolConnection,
 	): Promise<QueryResult<TResult>> {
-		const validation = validateQueryObject(query);
-		if (!validation.success) {
-			throwQueryError({
-				adapter: "mysql",
-				message: `Invalid QueryObject: ${validation.error.message}`,
-				query: query as QueryObject,
-			});
-		}
+		validateQueryObject(query);
+
 
 		const queryRunner = connection ?? this.pool;
 
