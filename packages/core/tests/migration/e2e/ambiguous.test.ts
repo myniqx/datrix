@@ -116,8 +116,7 @@ describe("Migration E2E - Ambiguous Detection", () => {
 			expect(session.ambiguous.length).toBe(1);
 			const ambiguousId = session.ambiguous[0]!.id;
 
-			const resolveResult = session.resolveAmbiguous(ambiguousId, "rename");
-			expect(resolveResult.success).toBe(true);
+			session.resolveAmbiguous(ambiguousId, "rename");
 			expect(session.hasUnresolvedAmbiguous()).toBe(false);
 
 			await applyMigration(session);

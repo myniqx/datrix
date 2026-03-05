@@ -321,11 +321,11 @@ async function processRelation<T extends ForjaEntry>({
 		}
 
 		if (Object.keys(updateData).length > 0) {
-			await runner.executeQuery<T>({
+			await runner.executeQuery({
 				table: schema.tableName!,
 				type: "update",
-				where: { id: parentId } as WhereClause<T>,
-				data: updateData as Partial<T>,
+				where: { id: parentId },
+				data: updateData,
 			});
 		}
 	}
@@ -338,28 +338,28 @@ async function processRelation<T extends ForjaEntry>({
 		// For hasOne, we need to ensure only one target is linked
 		if (ops.connect.length > 0) {
 			// First, disconnect any existing target
-			await runner.executeQuery<T>({
+			await runner.executeQuery({
 				table: relationSchema.tableName!,
 				type: "update",
-				data: { [reverseForeignKey]: null } as Partial<T>,
-				where: { [reverseForeignKey]: parentId } as WhereClause<T>,
+				data: { [reverseForeignKey]: null },
+				where: { [reverseForeignKey]: parentId },
 			});
 
 			// Then connect the new target (only first one for hasOne)
-			await runner.executeQuery<T>({
+			await runner.executeQuery({
 				table: relationSchema.tableName!,
 				type: "update",
-				data: { [reverseForeignKey]: parentId } as Partial<T>,
-				where: { id: ops.connect[0] } as WhereClause<T>,
+				data: { [reverseForeignKey]: parentId },
+				where: { id: ops.connect[0] },
 			});
 		}
 
 		if (ops.disconnect.length > 0) {
-			await runner.executeQuery<T>({
+			await runner.executeQuery({
 				table: relationSchema.tableName!,
 				type: "update",
-				data: { [reverseForeignKey]: null } as Partial<T>,
-				where: { id: { $in: ops.disconnect } } as WhereClause<T>,
+				data: { [reverseForeignKey]: null },
+				where: { id: { $in: ops.disconnect } },
 			});
 		}
 
@@ -390,45 +390,45 @@ async function processRelation<T extends ForjaEntry>({
 		const relationSchema = schemaRegistry.get(relation.model)!;
 
 		if (ops.connect.length > 0) {
-			await runner.executeQuery<T>({
+			await runner.executeQuery({
 				table: relationSchema.tableName!,
 				type: "update",
-				data: { [reverseForeignKey]: parentId } as Partial<T>,
-				where: { id: { $in: ops.connect } } as WhereClause<T>,
+				data: { [reverseForeignKey]: parentId },
+				where: { id: { $in: ops.connect } },
 			});
 		}
 
 		if (ops.disconnect.length > 0) {
-			await runner.executeQuery<T>({
+			await runner.executeQuery({
 				table: relationSchema.tableName!,
 				type: "update",
-				data: { [reverseForeignKey]: null } as Partial<T>,
-				where: { id: { $in: ops.disconnect } } as WhereClause<T>,
+				data: { [reverseForeignKey]: null },
+				where: { id: { $in: ops.disconnect } },
 			});
 		}
 
 		if (ops.set !== undefined) {
 			// 1. Disconnect all current
-			await runner.executeQuery<T>({
+			await runner.executeQuery({
 				table: relationSchema.tableName!,
 				type: "update",
-				data: { [reverseForeignKey]: null } as Partial<T>,
+				data: { [reverseForeignKey]: null },
 				where: {
 					[reverseForeignKey]: parentId,
-				} as WhereClause<T>,
+				},
 			});
 
 			// 2. Connect new ones
 			if (ops.set.length > 0) {
-				await runner.executeQuery<T>({
+				await runner.executeQuery({
 					table: relationSchema.tableName!,
 					type: "update",
 					data: {
 						[reverseForeignKey]: parentId,
-					} as Partial<T>,
+					},
 					where: {
 						id: { $in: ops.set },
-					} as WhereClause<T>,
+					},
 				});
 			}
 		}

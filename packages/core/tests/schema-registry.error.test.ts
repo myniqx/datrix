@@ -28,11 +28,11 @@ describe("Core - Schema Registry - Error Path", () => {
 		it("should prevent duplicate registration by default", () => {
 			const duplicateSchema: SchemaDefinition = {
 				name: "User",
-				fields: { id: { type: "string" } },
+				fields: { sid: { type: "string" } },
 			};
 
 			strictSchemaRegistry.register(duplicateSchema);
-			const duplicateRegistrationResult =
+			const duplicateRegistrationResult = () =>
 				strictSchemaRegistry.register(duplicateSchema);
 
 			const registrationError = expectFailureError(duplicateRegistrationResult);
@@ -45,7 +45,7 @@ describe("Core - Schema Registry - Error Path", () => {
 				fields: {},
 			};
 
-			const validationResult = strictSchemaRegistry.register(
+			const validationResult = () => strictSchemaRegistry.register(
 				invalidSchemaWithEmptyName,
 			);
 
@@ -64,7 +64,7 @@ describe("Core - Schema Registry - Error Path", () => {
 				name: "Test",
 				fields: { id: { type: "string" } },
 			};
-			const lockedRegistrationResult =
+			const lockedRegistrationResult = () =>
 				strictSchemaRegistry.register(testSchema);
 
 			const lockError = expectFailureError(lockedRegistrationResult);
@@ -80,11 +80,11 @@ describe("Core - Schema Registry - Error Path", () => {
 			const postSchemaWithMissingRelation: SchemaDefinition = {
 				name: "Post",
 				fields: {
-					author: { type: "relation", model: "User", relation: "belongsTo" },
+					author: { type: "relation", model: "User", kind: "belongsTo" },
 				},
 			};
 
-			const registrationResult = strictSchemaRegistry.registerMany([
+			const registrationResult = () => strictSchemaRegistry.registerMany([
 				postSchemaWithMissingRelation,
 			]);
 

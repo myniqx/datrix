@@ -85,11 +85,6 @@ export function autoResolveAmbiguous(
 			change.id,
 			action as Parameters<typeof session.resolveAmbiguous>[1],
 		);
-		if (!result.success) {
-			throw new Error(
-				`Failed to resolve ambiguous '${change.id}': ${result.error.message}`,
-			);
-		}
 	}
 }
 

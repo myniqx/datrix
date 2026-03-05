@@ -23,6 +23,7 @@ import {
 	DataTransferOperation,
 	MigrationSystemError,
 	SchemaDiff,
+	FieldAddedDiff,
 	MigrationExecutionResult,
 } from "forja-types/core/migration";
 import { IForja } from "forja-types/forja";
@@ -158,7 +159,7 @@ export class MigrationSession {
 				}
 
 				const schemaResult = await this.adapter.getTableSchema(tableName);
-				this.databaseSchemas.set(tableName, schemaResult);
+				this.databaseSchemas.set(tableName, schemaResult!);
 			}
 
 			// Compare schemas
@@ -487,7 +488,7 @@ export class MigrationSession {
 
 			// Get all added FK columns in this table (not yet handled)
 			const addedFkColumns = added.filter(
-				(d) =>
+				(d): d is FieldAddedDiff =>
 					d.type === "fieldAdded" &&
 					d.fieldName.endsWith("Id") &&
 					!handledDiffs.has(`${tableName}.${d.fieldName}`),
@@ -1332,7 +1333,7 @@ export class MigrationSession {
 						// Group by sourceFk, keep first occurrence per source record
 						const firstBySource = new Map<number, unknown>();
 						for (const row of selectResult.rows) {
-							const sourceId = row[sourceFkCol];
+							const sourceId = row[sourceFkCol] as number;
 							if (!firstBySource.has(sourceId)) {
 								firstBySource.set(sourceId, row[relatedFkCol]);
 							}

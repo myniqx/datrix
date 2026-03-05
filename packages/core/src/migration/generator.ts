@@ -281,6 +281,12 @@ ${indentStr}  type: 'raw',
 ${indentStr}  sql: \`${op.sql}\`,
 ${indentStr}  params: ${JSON.stringify(op.params ?? [])}
 ${indentStr}}`;
+
+					case "dataTransfer":
+						return `${indentStr}{
+${indentStr}  type: 'dataTransfer',
+${indentStr}  description: '${op.description}'
+${indentStr}}`;
 				}
 			})
 			.join(",\n");

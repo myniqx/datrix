@@ -79,7 +79,7 @@ describe("Core - Schema Registry - Happy Path", () => {
 			];
 
 			for (const { name, expected } of pluralizationTests) {
-				schemaRegistry.register({ name, fields: {} });
+				schemaRegistry.register({ name, fields: { sid: { type: "string" } } });
 				const schema = schemaRegistry.get(name);
 				expect(schema?.tableName).toBe(expected);
 			}
@@ -89,7 +89,7 @@ describe("Core - Schema Registry - Happy Path", () => {
 			const customTableSchema: SchemaDefinition = {
 				name: "Custom",
 				tableName: "my_table",
-				fields: {},
+				fields: { sid: { type: "string" } },
 			};
 
 			schemaRegistry.register(customTableSchema);
@@ -108,7 +108,7 @@ describe("Core - Schema Registry - Happy Path", () => {
 
 			const testSchema: SchemaDefinition = {
 				name: "Test",
-				fields: { id: { type: "string" } },
+				fields: { sid: { type: "string" } },
 			};
 			const registeredSchema = schemaRegistry.register(testSchema);
 			expect(registeredSchema).toBeDefined();
@@ -119,12 +119,12 @@ describe("Core - Schema Registry - Happy Path", () => {
 		it("should track related and referencing schemas", () => {
 			const userSchema: SchemaDefinition = {
 				name: "User",
-				fields: { id: { type: "string" } },
+				fields: { sid: { type: "string" } },
 			};
 			const postSchema: SchemaDefinition = {
 				name: "Post",
 				fields: {
-					author: { type: "relation", model: "User", relation: "belongsTo" },
+					author: { type: "relation", model: "User", kind: "belongsTo" },
 				},
 			};
 
@@ -144,7 +144,7 @@ describe("Core - Schema Registry - Happy Path", () => {
 		it("should export and import schemas correctly", () => {
 			const userSchema: SchemaDefinition = {
 				name: "User",
-				fields: { id: { type: "string" } },
+				fields: { sid: { type: "string" } },
 			};
 			schemaRegistry.register(userSchema);
 

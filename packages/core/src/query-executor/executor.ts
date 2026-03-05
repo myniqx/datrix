@@ -221,7 +221,7 @@ export class QueryExecutor {
 								table: junctionTable,
 								where: {
 									[sourceForeignKey]: { $in: idsToDelete },
-								} as WhereClause<T>,
+								},
 							});
 						}
 					}
@@ -331,7 +331,7 @@ export class QueryExecutor {
 					select: insertQuery.select!,
 					where: {
 						id: { $in: insertedIds.map((r) => r.id) },
-					} as WhereClause<T>,
+					} as unknown as WhereClause<T>,
 					...(insertQuery.populate !== undefined && {
 						populate: insertQuery.populate,
 					}),
@@ -436,7 +436,7 @@ export class QueryExecutor {
 					type: "select",
 					table: updateQuery.table,
 					select: updateQuery.select!,
-					where: { id: { $in: recordIds.map((r) => r.id) } } as WhereClause<T>,
+					where: { id: { $in: recordIds.map((r) => r.id) } } as unknown as WhereClause<T>,
 					...(updateQuery.populate !== undefined && {
 						populate: updateQuery.populate,
 					}),
