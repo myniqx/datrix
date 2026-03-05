@@ -65,10 +65,8 @@ describe("Migration E2E - Data Preservation", () => {
 
 			// Setup: create user with data
 			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
-			const session1Result = await forja1.beginMigrate();
-			if (session1Result.success) {
-				await applyMigration(session1Result.data);
-			}
+			const s1 = await forja1.beginMigrate();
+			await applyMigration(s1);
 
 			// Insert test data
 			await forja1.create("user", {
@@ -97,14 +95,7 @@ describe("Migration E2E - Data Preservation", () => {
 			});
 
 			const forja = await createForjaWithSchemas(tmpDir, [userWithFullName]);
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			const session = sessionResult.data;
+			const session = await forja.beginMigrate();
 			assertHasChanges(session);
 
 			// Resolve as rename (not drop+add)
@@ -134,10 +125,8 @@ describe("Migration E2E - Data Preservation", () => {
 			await dropAllTables(adapter);
 
 			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
-			const session1Result = await forja1.beginMigrate();
-			if (session1Result.success) {
-				await applyMigration(session1Result.data);
-			}
+			const s1 = await forja1.beginMigrate();
+			await applyMigration(s1);
 
 			// Insert test data
 			await forja1.create("user", {
@@ -157,14 +146,7 @@ describe("Migration E2E - Data Preservation", () => {
 			});
 
 			const forja = await createForjaWithSchemas(tmpDir, [userWithFullName]);
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			const session = sessionResult.data;
+			const session = await forja.beginMigrate();
 
 			// Resolve as drop_and_add (data loss)
 			autoResolveAmbiguous(session, "drop_and_add");
@@ -193,10 +175,8 @@ describe("Migration E2E - Data Preservation", () => {
 				baseUserSchema,
 				basePostSchema,
 			]);
-			const session1Result = await forja1.beginMigrate();
-			if (session1Result.success) {
-				await applyMigration(session1Result.data);
-			}
+			const s1 = await forja1.beginMigrate();
+			await applyMigration(s1);
 
 			// Insert test data
 			const user = await forja1.create("user", {
@@ -235,14 +215,7 @@ describe("Migration E2E - Data Preservation", () => {
 				baseUserSchema,
 				postWithWriter,
 			]);
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			const session = sessionResult.data;
+			const session = await forja.beginMigrate();
 
 			// Resolve as rename
 			autoResolveAmbiguous(session, "rename");
@@ -282,10 +255,8 @@ describe("Migration E2E - Data Preservation", () => {
 				postWithCategory,
 				baseCategorySchema,
 			]);
-			const session1Result = await forja1.beginMigrate();
-			if (session1Result.success) {
-				await applyMigration(session1Result.data);
-			}
+			const s1 = await forja1.beginMigrate();
+			await applyMigration(s1);
 
 			// Insert test data
 			const tech = await forja1.create("category", {
@@ -332,14 +303,7 @@ describe("Migration E2E - Data Preservation", () => {
 				postWithCategories,
 				baseCategorySchema,
 			]);
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			const session = sessionResult.data;
+			const session = await forja.beginMigrate();
 			assertHasChanges(session);
 
 			autoResolveAmbiguous(session, "migrate");
@@ -391,10 +355,8 @@ describe("Migration E2E - Data Preservation", () => {
 				postWithTags,
 				baseTagSchema,
 			]);
-			const session1Result = await forja1.beginMigrate();
-			if (session1Result.success) {
-				await applyMigration(session1Result.data);
-			}
+			const s1 = await forja1.beginMigrate();
+			await applyMigration(s1);
 
 			// Insert test data - post with multiple tags
 			const js = await forja1.create("tag", { name: "JavaScript" });
@@ -429,14 +391,7 @@ describe("Migration E2E - Data Preservation", () => {
 				postWithTag,
 				baseTagSchema,
 			]);
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			const session = sessionResult.data;
+			const session = await forja.beginMigrate();
 			assertHasChanges(session);
 
 			autoResolveAmbiguous(session, "migrate");
@@ -471,10 +426,8 @@ describe("Migration E2E - Data Preservation", () => {
 				postWithTags,
 				baseTagSchema,
 			]);
-			const session1Result = await forja1.beginMigrate();
-			if (session1Result.success) {
-				await applyMigration(session1Result.data);
-			}
+			const s1 = await forja1.beginMigrate();
+			await applyMigration(s1);
 
 			// Post with 3 tags (will lose 2)
 			const tag1 = await forja1.create("tag", { name: "Tag1" });
@@ -507,14 +460,7 @@ describe("Migration E2E - Data Preservation", () => {
 				postWithTag,
 				baseTagSchema,
 			]);
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			const session = sessionResult.data;
+			const session = await forja.beginMigrate();
 
 			// relation_downgrade_many_to_single ambiguous is detected with data loss warning
 			const ambiguous = assertAmbiguousExists(
@@ -536,10 +482,8 @@ describe("Migration E2E - Data Preservation", () => {
 			await dropAllTables(adapter);
 
 			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
-			const session1Result = await forja1.beginMigrate();
-			if (session1Result.success) {
-				await applyMigration(session1Result.data);
-			}
+			const s1 = await forja1.beginMigrate();
+			await applyMigration(s1);
 
 			// Insert test data
 			await forja1.create("user", {
@@ -560,14 +504,7 @@ describe("Migration E2E - Data Preservation", () => {
 			});
 
 			const forja = await createForjaWithSchemas(tmpDir, [userRenamed]);
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			const session = sessionResult.data;
+			const session = await forja.beginMigrate();
 
 			// Resolve all as rename
 			autoResolveAmbiguous(session, "rename");
@@ -593,10 +530,8 @@ describe("Migration E2E - Data Preservation", () => {
 			await dropAllTables(adapter);
 
 			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
-			const session1Result = await forja1.beginMigrate();
-			if (session1Result.success) {
-				await applyMigration(session1Result.data);
-			}
+			const s1 = await forja1.beginMigrate();
+			await applyMigration(s1);
 			// No data inserted
 			await forja1.shutdown();
 
@@ -609,14 +544,7 @@ describe("Migration E2E - Data Preservation", () => {
 			});
 
 			const forja = await createForjaWithSchemas(tmpDir, [userRenamed]);
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			const session = sessionResult.data;
+			const session = await forja.beginMigrate();
 			autoResolveAmbiguous(session, "rename");
 
 			// Should not error on empty table
@@ -633,10 +561,8 @@ describe("Migration E2E - Data Preservation", () => {
 
 			// User with optional age field
 			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
-			const session1Result = await forja1.beginMigrate();
-			if (session1Result.success) {
-				await applyMigration(session1Result.data);
-			}
+			const s1 = await forja1.beginMigrate();
+			await applyMigration(s1);
 
 			// Insert user with NULL age
 			await forja1.create("user", {
@@ -656,14 +582,7 @@ describe("Migration E2E - Data Preservation", () => {
 			});
 
 			const forja = await createForjaWithSchemas(tmpDir, [userRenamed]);
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			const session = sessionResult.data;
+			const session = await forja.beginMigrate();
 			autoResolveAmbiguous(session, "rename");
 
 			await applyMigration(session);
@@ -679,23 +598,20 @@ describe("Migration E2E - Data Preservation", () => {
 			await dropAllTables(adapter);
 
 			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
-			const session1Result = await forja1.beginMigrate();
-			if (session1Result.success) {
-				await applyMigration(session1Result.data);
-			}
+			const s1 = await forja1.beginMigrate();
+			await applyMigration(s1);
 
 			// Insert many records
 			const insertPromises = [];
 			for (let i = 0; i < 100; i++) {
-				insertPromises.push(
-					forja1.create("user", {
-						email: `user${i}@test.com`,
-						name: `User ${i}`,
-						age: 20 + (i % 50),
-					}),
-				);
+				insertPromises.push({
+					email: `user${i}@test.com`,
+					name: `User ${i}`,
+					age: 20 + (i % 50),
+				});
 			}
-			await Promise.all(insertPromises);
+
+			await forja1.createMany("user", insertPromises);
 
 			await forja1.shutdown();
 
@@ -708,14 +624,7 @@ describe("Migration E2E - Data Preservation", () => {
 			});
 
 			const forja = await createForjaWithSchemas(tmpDir, [userRenamed]);
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			const session = sessionResult.data;
+			const session = await forja.beginMigrate();
 			autoResolveAmbiguous(session, "rename");
 
 			const startTime = Date.now();

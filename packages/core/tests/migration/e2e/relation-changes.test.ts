@@ -44,7 +44,6 @@ import {
 	assertColumnInAdd,
 	assertColumnInDrop,
 	assertAmbiguousExists,
-	assertAmbiguousCount,
 	assertHasAmbiguous,
 	applyMigration,
 	autoResolveAmbiguous,
@@ -82,10 +81,8 @@ describe("Migration E2E - Relation Changes", () => {
 					basePostSchemaNoRelation,
 					baseCategorySchema,
 				]);
-				const session1Result = await forja1.beginMigrate();
-				if (session1Result.success) {
-					await applyMigration(session1Result.data);
-				}
+				const s1 = await forja1.beginMigrate();
+				await applyMigration(s1);
 				await forja1.shutdown();
 
 				// Add category relation to post
@@ -104,14 +101,7 @@ describe("Migration E2E - Relation Changes", () => {
 					postWithCategory,
 					baseCategorySchema,
 				]);
-				const sessionResult = await forja.beginMigrate();
-				expect(sessionResult.success).toBe(true);
-				if (!sessionResult.success) {
-					await forja.shutdown();
-					return;
-				}
-
-				const session = sessionResult.data;
+				const session = await forja.beginMigrate();
 
 				// Should detect FK column addition
 				assertHasChanges(session);
@@ -134,10 +124,8 @@ describe("Migration E2E - Relation Changes", () => {
 					baseUserSchema,
 					basePostSchemaNoRelation,
 				]);
-				const session1Result = await forja1.beginMigrate();
-				if (session1Result.success) {
-					await applyMigration(session1Result.data);
-				}
+				const s1 = await forja1.beginMigrate();
+				await applyMigration(s1);
 				await forja1.shutdown();
 
 				// Add writer relation with custom foreignKey
@@ -156,14 +144,7 @@ describe("Migration E2E - Relation Changes", () => {
 					baseUserSchema,
 					postWithWriter,
 				]);
-				const sessionResult = await forja.beginMigrate();
-				expect(sessionResult.success).toBe(true);
-				if (!sessionResult.success) {
-					await forja.shutdown();
-					return;
-				}
-
-				const session = sessionResult.data;
+				const session = await forja.beginMigrate();
 
 				assertHasChanges(session);
 				assertColumnInAdd(session, TABLE_NAMES.post, "writerId");
@@ -188,10 +169,8 @@ describe("Migration E2E - Relation Changes", () => {
 					baseUserSchema,
 					basePostSchema, // has author belongsTo
 				]);
-				const session1Result = await forja1.beginMigrate();
-				if (session1Result.success) {
-					await applyMigration(session1Result.data);
-				}
+				const s1 = await forja1.beginMigrate();
+				await applyMigration(s1);
 
 				// Insert data to make it more realistic
 				await forja1.create("user", { email: "test@test.com", name: "Test" });
@@ -211,14 +190,7 @@ describe("Migration E2E - Relation Changes", () => {
 					baseUserSchema,
 					postWithoutAuthor,
 				]);
-				const sessionResult = await forja.beginMigrate();
-				expect(sessionResult.success).toBe(true);
-				if (!sessionResult.success) {
-					await forja.shutdown();
-					return;
-				}
-
-				const session = sessionResult.data;
+				const session = await forja.beginMigrate();
 
 				// Should detect FK column removal
 				assertHasChanges(session);
@@ -236,10 +208,8 @@ describe("Migration E2E - Relation Changes", () => {
 					baseUserSchema,
 					basePostSchema,
 				]);
-				const session1Result = await forja1.beginMigrate();
-				if (session1Result.success) {
-					await applyMigration(session1Result.data);
-				}
+				const s1 = await forja1.beginMigrate();
+				await applyMigration(s1);
 				await forja1.shutdown();
 
 				// Remove author relation
@@ -251,14 +221,7 @@ describe("Migration E2E - Relation Changes", () => {
 					baseUserSchema,
 					postWithoutAuthor,
 				]);
-				const sessionResult = await forja.beginMigrate();
-				expect(sessionResult.success).toBe(true);
-				if (!sessionResult.success) {
-					await forja.shutdown();
-					return;
-				}
-
-				const session = sessionResult.data;
+				const session = await forja.beginMigrate();
 
 				// Apply (with auto-resolve if ambiguous)
 				await applyMigration(session);
@@ -279,10 +242,8 @@ describe("Migration E2E - Relation Changes", () => {
 					baseUserSchema,
 					basePostSchema,
 				]);
-				const session1Result = await forja1.beginMigrate();
-				if (session1Result.success) {
-					await applyMigration(session1Result.data);
-				}
+				const s1 = await forja1.beginMigrate();
+				await applyMigration(s1);
 				await forja1.shutdown();
 
 				// Change foreignKey from 'authorId' to 'writerId'
@@ -301,14 +262,7 @@ describe("Migration E2E - Relation Changes", () => {
 					baseUserSchema,
 					postWithWriter,
 				]);
-				const sessionResult = await forja.beginMigrate();
-				expect(sessionResult.success).toBe(true);
-				if (!sessionResult.success) {
-					await forja.shutdown();
-					return;
-				}
-
-				const session = sessionResult.data;
+				const session = await forja.beginMigrate();
 
 				// Should detect as ambiguous (rename or drop+add?)
 				assertHasChanges(session);
@@ -325,10 +279,8 @@ describe("Migration E2E - Relation Changes", () => {
 					baseUserSchema,
 					basePostSchema,
 				]);
-				const session1Result = await forja1.beginMigrate();
-				if (session1Result.success) {
-					await applyMigration(session1Result.data);
-				}
+				const s1 = await forja1.beginMigrate();
+				await applyMigration(s1);
 
 				// Insert data
 				await forja1.create("user", { email: "test@test.com", name: "Test" });
@@ -355,14 +307,7 @@ describe("Migration E2E - Relation Changes", () => {
 					baseUserSchema,
 					postWithWriter,
 				]);
-				const sessionResult = await forja.beginMigrate();
-				expect(sessionResult.success).toBe(true);
-				if (!sessionResult.success) {
-					await forja.shutdown();
-					return;
-				}
-
-				const session = sessionResult.data;
+				const session = await forja.beginMigrate();
 
 				// Resolve as rename
 				autoResolveAmbiguous(session, "rename");
@@ -393,10 +338,8 @@ describe("Migration E2E - Relation Changes", () => {
 					adminSchema,
 					basePostSchema,
 				]);
-				const session1Result = await forja1.beginMigrate();
-				if (session1Result.success) {
-					await applyMigration(session1Result.data);
-				}
+				const s1 = await forja1.beginMigrate();
+				await applyMigration(s1);
 				await forja1.shutdown();
 
 				// Change author to point to admin instead of user
@@ -415,14 +358,7 @@ describe("Migration E2E - Relation Changes", () => {
 					adminSchema,
 					postWithAdmin,
 				]);
-				const sessionResult = await forja.beginMigrate();
-				expect(sessionResult.success).toBe(true);
-				if (!sessionResult.success) {
-					await forja.shutdown();
-					return;
-				}
-
-				const session = sessionResult.data;
+				const session = await forja.beginMigrate();
 
 				// Model change should be detected
 				assertAmbiguousExists(session, "fk_model_change", TABLE_NAMES.post);
@@ -447,10 +383,8 @@ describe("Migration E2E - Relation Changes", () => {
 					baseUserSchema,
 					basePostSchemaNoRelation,
 				]);
-				const session1Result = await forja1.beginMigrate();
-				if (session1Result.success) {
-					await applyMigration(session1Result.data);
-				}
+				const s1 = await forja1.beginMigrate();
+				await applyMigration(s1);
 				await forja1.shutdown();
 
 				// Add hasMany relation to user
@@ -464,14 +398,7 @@ describe("Migration E2E - Relation Changes", () => {
 					userWithPosts,
 					basePostSchemaNoRelation,
 				]);
-				const sessionResult = await forja.beginMigrate();
-				expect(sessionResult.success).toBe(true);
-				if (!sessionResult.success) {
-					await forja.shutdown();
-					return;
-				}
-
-				const session = sessionResult.data;
+				const session = await forja.beginMigrate();
 
 				// Should detect FK column addition on TARGET table (posts)
 				assertHasChanges(session);
@@ -493,10 +420,8 @@ describe("Migration E2E - Relation Changes", () => {
 					baseUserSchema,
 					basePostSchemaNoRelation,
 				]);
-				const session1Result = await forja1.beginMigrate();
-				if (session1Result.success) {
-					await applyMigration(session1Result.data);
-				}
+				const s1 = await forja1.beginMigrate();
+				await applyMigration(s1);
 				await forja1.shutdown();
 
 				// Add hasMany with custom foreignKey
@@ -515,14 +440,7 @@ describe("Migration E2E - Relation Changes", () => {
 					userWithArticles,
 					basePostSchemaNoRelation,
 				]);
-				const sessionResult = await forja.beginMigrate();
-				expect(sessionResult.success).toBe(true);
-				if (!sessionResult.success) {
-					await forja.shutdown();
-					return;
-				}
-
-				const session = sessionResult.data;
+				const session = await forja.beginMigrate();
 
 				assertHasChanges(session);
 				assertColumnInAdd(session, TABLE_NAMES.post, "authorId");
@@ -553,10 +471,8 @@ describe("Migration E2E - Relation Changes", () => {
 					userWithPosts,
 					basePostSchemaNoRelation,
 				]);
-				const session1Result = await forja1.beginMigrate();
-				if (session1Result.success) {
-					await applyMigration(session1Result.data);
-				}
+				const s1 = await forja1.beginMigrate();
+				await applyMigration(s1);
 
 				// Verify FK exists on target
 				await assertColumnExists(forja1, "post", "userId");
@@ -567,14 +483,7 @@ describe("Migration E2E - Relation Changes", () => {
 					baseUserSchema, // no posts relation
 					basePostSchemaNoRelation,
 				]);
-				const sessionResult = await forja.beginMigrate();
-				expect(sessionResult.success).toBe(true);
-				if (!sessionResult.success) {
-					await forja.shutdown();
-					return;
-				}
-
-				const session = sessionResult.data;
+				const session = await forja.beginMigrate();
 
 				// Should detect FK removal from target table
 				assertHasChanges(session);
@@ -603,10 +512,8 @@ describe("Migration E2E - Relation Changes", () => {
 				baseUserSchema,
 				baseProfileSchema,
 			]);
-			const session1Result = await forja1.beginMigrate();
-			if (session1Result.success) {
-				await applyMigration(session1Result.data);
-			}
+			const s1 = await forja1.beginMigrate();
+			await applyMigration(s1);
 			await forja1.shutdown();
 
 			const userWithProfile = cloneSchema(baseUserSchema, {
@@ -619,14 +526,7 @@ describe("Migration E2E - Relation Changes", () => {
 				userWithProfile,
 				baseProfileSchema,
 			]);
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			const session = sessionResult.data;
+			const session = await forja.beginMigrate();
 
 			assertHasChanges(session);
 			assertColumnInAdd(session, TABLE_NAMES.profile, "userId");
@@ -645,10 +545,8 @@ describe("Migration E2E - Relation Changes", () => {
 				baseUserSchema,
 				baseProfileSchema,
 			]);
-			const session1Result = await forja1.beginMigrate();
-			if (session1Result.success) {
-				await applyMigration(session1Result.data);
-			}
+			const s1 = await forja1.beginMigrate();
+			await applyMigration(s1);
 			await forja1.shutdown();
 
 			const userWithProfile = cloneSchema(baseUserSchema, {
@@ -666,14 +564,7 @@ describe("Migration E2E - Relation Changes", () => {
 				userWithProfile,
 				baseProfileSchema,
 			]);
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			const session = sessionResult.data;
+			const session = await forja.beginMigrate();
 
 			assertHasChanges(session);
 			assertColumnInAdd(session, TABLE_NAMES.profile, "ownerId");
@@ -699,10 +590,8 @@ describe("Migration E2E - Relation Changes", () => {
 				userWithProfile,
 				baseProfileSchema,
 			]);
-			const session1Result = await forja1.beginMigrate();
-			if (session1Result.success) {
-				await applyMigration(session1Result.data);
-			}
+			const s1 = await forja1.beginMigrate();
+			await applyMigration(s1);
 			await assertColumnExists(forja1, "profile", "userId");
 			await forja1.shutdown();
 
@@ -710,14 +599,7 @@ describe("Migration E2E - Relation Changes", () => {
 				baseUserSchema,
 				baseProfileSchema,
 			]);
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			const session = sessionResult.data;
+			const session = await forja.beginMigrate();
 
 			assertHasChanges(session);
 			assertColumnInDrop(session, TABLE_NAMES.profile, "userId");
@@ -742,10 +624,8 @@ describe("Migration E2E - Relation Changes", () => {
 				userWithProfileOne,
 				baseProfileSchema,
 			]);
-			const session1Result = await forja1.beginMigrate();
-			if (session1Result.success) {
-				await applyMigration(session1Result.data);
-			}
+			const s1 = await forja1.beginMigrate();
+			await applyMigration(s1);
 			await forja1.shutdown();
 
 			const userWithProfileMany = cloneSchema(baseUserSchema, {
@@ -758,14 +638,8 @@ describe("Migration E2E - Relation Changes", () => {
 				userWithProfileMany,
 				baseProfileSchema,
 			]);
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			assertNoChanges(sessionResult.data);
+			const session = await forja.beginMigrate();
+			assertNoChanges(session);
 
 			await forja.shutdown();
 		});
@@ -783,10 +657,8 @@ describe("Migration E2E - Relation Changes", () => {
 				userWithProfileOne,
 				baseProfileSchema,
 			]);
-			const session1Result = await forja1.beginMigrate();
-			if (session1Result.success) {
-				await applyMigration(session1Result.data);
-			}
+			const s1 = await forja1.beginMigrate();
+			await applyMigration(s1);
 			await forja1.shutdown();
 
 			const userWithProfileMany = cloneSchema(baseUserSchema, {
@@ -799,14 +671,8 @@ describe("Migration E2E - Relation Changes", () => {
 				userWithProfileMany,
 				baseProfileSchema,
 			]);
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			assertNoChanges(sessionResult.data);
+			const session = await forja.beginMigrate();
+			assertNoChanges(session);
 
 			await forja.shutdown();
 		});
@@ -824,10 +690,8 @@ describe("Migration E2E - Relation Changes", () => {
 				userWithProfiles,
 				baseProfileSchema,
 			]);
-			const session1Result = await forja1.beginMigrate();
-			if (session1Result.success) {
-				await applyMigration(session1Result.data);
-			}
+			const s1 = await forja1.beginMigrate();
+			await applyMigration(s1);
 			await forja1.shutdown();
 
 			const userWithProfileOne = cloneSchema(baseUserSchema, {
@@ -840,14 +704,8 @@ describe("Migration E2E - Relation Changes", () => {
 				userWithProfileOne,
 				baseProfileSchema,
 			]);
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			assertNoChanges(sessionResult.data);
+			const session = await forja.beginMigrate();
+			assertNoChanges(session);
 
 			await forja.shutdown();
 		});
@@ -870,10 +728,8 @@ describe("Migration E2E - Relation Changes", () => {
 				userWithProfile,
 				baseProfileSchema,
 			]);
-			const session1Result = await forja1.beginMigrate();
-			if (session1Result.success) {
-				await applyMigration(session1Result.data);
-			}
+			const s1 = await forja1.beginMigrate();
+			await applyMigration(s1);
 			await forja1.shutdown();
 
 			const userWithProfiles = cloneSchema(baseUserSchema, {
@@ -891,14 +747,7 @@ describe("Migration E2E - Relation Changes", () => {
 				userWithProfiles,
 				baseProfileSchema,
 			]);
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			const session = sessionResult.data;
+			const session = await forja.beginMigrate();
 
 			assertHasChanges(session);
 			assertColumnInDrop(session, TABLE_NAMES.profile, "ownerId");
@@ -920,10 +769,8 @@ describe("Migration E2E - Relation Changes", () => {
 				userWithProfile,
 				baseProfileSchema,
 			]);
-			const session1Result = await forja1.beginMigrate();
-			if (session1Result.success) {
-				await applyMigration(session1Result.data);
-			}
+			const s1 = await forja1.beginMigrate();
+			await applyMigration(s1);
 			await assertColumnExists(forja1, "profile", "userId");
 			await forja1.shutdown();
 
@@ -939,14 +786,8 @@ describe("Migration E2E - Relation Changes", () => {
 				baseUserSchema,
 				profileWithUser,
 			]);
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			assertNoChanges(sessionResult.data);
+			const session = await forja.beginMigrate();
+			assertNoChanges(session);
 
 			await forja.shutdown();
 		});
@@ -964,10 +805,8 @@ describe("Migration E2E - Relation Changes", () => {
 				baseUserSchema,
 				profileWithUser,
 			]);
-			const session1Result = await forja1.beginMigrate();
-			if (session1Result.success) {
-				await applyMigration(session1Result.data);
-			}
+			const s1 = await forja1.beginMigrate();
+			await applyMigration(s1);
 			await assertColumnExists(forja1, "profile", "userId");
 			await forja1.shutdown();
 
@@ -983,14 +822,8 @@ describe("Migration E2E - Relation Changes", () => {
 				userWithProfiles,
 				baseProfileSchema,
 			]);
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			assertNoChanges(sessionResult.data);
+			const session = await forja.beginMigrate();
+			assertNoChanges(session);
 
 			await forja.shutdown();
 		});
@@ -1010,10 +843,8 @@ describe("Migration E2E - Relation Changes", () => {
 					basePostSchemaNoRelation,
 					baseTagSchema,
 				]);
-				const session1Result = await forja1.beginMigrate();
-				if (session1Result.success) {
-					await applyMigration(session1Result.data);
-				}
+				const s1 = await forja1.beginMigrate();
+				await applyMigration(s1);
 				await forja1.shutdown();
 
 				// Add manyToMany relation
@@ -1027,14 +858,7 @@ describe("Migration E2E - Relation Changes", () => {
 					postWithTags,
 					baseTagSchema,
 				]);
-				const sessionResult = await forja.beginMigrate();
-				expect(sessionResult.success).toBe(true);
-				if (!sessionResult.success) {
-					await forja.shutdown();
-					return;
-				}
-
-				const session = sessionResult.data;
+				const session = await forja.beginMigrate();
 
 				// Should detect junction table creation
 				assertHasChanges(session);
@@ -1076,10 +900,8 @@ describe("Migration E2E - Relation Changes", () => {
 					appleSchema,
 					bananaSchema,
 				]);
-				const session1Result = await forja1.beginMigrate();
-				if (session1Result.success) {
-					await applyMigration(session1Result.data);
-				}
+				const s1 = await forja1.beginMigrate();
+				await applyMigration(s1);
 				await forja1.shutdown();
 
 				// Add manyToMany from banana to apple
@@ -1099,14 +921,7 @@ describe("Migration E2E - Relation Changes", () => {
 					appleSchema,
 					bananaWithApples,
 				]);
-				const sessionResult = await forja.beginMigrate();
-				expect(sessionResult.success).toBe(true);
-				if (!sessionResult.success) {
-					await forja.shutdown();
-					return;
-				}
-
-				const session = sessionResult.data;
+				const session = await forja.beginMigrate();
 
 				// Junction table should be alphabetically sorted: apple_banana (not banana_apple)
 				assertTableInCreate(session, "apple_banana");
@@ -1121,10 +936,8 @@ describe("Migration E2E - Relation Changes", () => {
 					basePostSchemaNoRelation,
 					baseTagSchema,
 				]);
-				const session1Result = await forja1.beginMigrate();
-				if (session1Result.success) {
-					await applyMigration(session1Result.data);
-				}
+				const s1 = await forja1.beginMigrate();
+				await applyMigration(s1);
 				await forja1.shutdown();
 
 				// Add manyToMany with custom through name
@@ -1143,14 +956,7 @@ describe("Migration E2E - Relation Changes", () => {
 					postWithTags,
 					baseTagSchema,
 				]);
-				const sessionResult = await forja.beginMigrate();
-				expect(sessionResult.success).toBe(true);
-				if (!sessionResult.success) {
-					await forja.shutdown();
-					return;
-				}
-
-				const session = sessionResult.data;
+				const session = await forja.beginMigrate();
 
 				// Should use custom table name
 				assertTableInCreate(session, "post_tags");
@@ -1178,10 +984,8 @@ describe("Migration E2E - Relation Changes", () => {
 					postWithTags,
 					baseTagSchema,
 				]);
-				const session1Result = await forja1.beginMigrate();
-				if (session1Result.success) {
-					await applyMigration(session1Result.data);
-				}
+				const s1 = await forja1.beginMigrate();
+				await applyMigration(s1);
 
 				// Add some data
 				await forja1.create("tag", { name: "JavaScript" });
@@ -1203,14 +1007,7 @@ describe("Migration E2E - Relation Changes", () => {
 					basePostSchemaNoRelation, // no tags
 					baseTagSchema,
 				]);
-				const sessionResult = await forja.beginMigrate();
-				expect(sessionResult.success).toBe(true);
-				if (!sessionResult.success) {
-					await forja.shutdown();
-					return;
-				}
-
-				const session = sessionResult.data;
+				const session = await forja.beginMigrate();
 
 				// Should detect junction table drop
 				assertHasChanges(session);
@@ -1235,10 +1032,8 @@ describe("Migration E2E - Relation Changes", () => {
 					postWithTags,
 					baseTagSchema,
 				]);
-				const session1Result = await forja1.beginMigrate();
-				if (session1Result.success) {
-					await applyMigration(session1Result.data);
-				}
+				const s1 = await forja1.beginMigrate();
+				await applyMigration(s1);
 				await forja1.shutdown();
 
 				// Remove relation
@@ -1246,14 +1041,7 @@ describe("Migration E2E - Relation Changes", () => {
 					basePostSchemaNoRelation,
 					baseTagSchema,
 				]);
-				const sessionResult = await forja.beginMigrate();
-				expect(sessionResult.success).toBe(true);
-				if (!sessionResult.success) {
-					await forja.shutdown();
-					return;
-				}
-
-				const session = sessionResult.data;
+				const session = await forja.beginMigrate();
 
 				// Apply
 				await applyMigration(session);
@@ -1285,10 +1073,8 @@ describe("Migration E2E - Relation Changes", () => {
 					postWithTags,
 					baseTagSchema,
 				]);
-				const session1Result = await forja1.beginMigrate();
-				if (session1Result.success) {
-					await applyMigration(session1Result.data);
-				}
+				const s1 = await forja1.beginMigrate();
+				await applyMigration(s1);
 				await forja1.shutdown();
 
 				// Change through name
@@ -1307,14 +1093,7 @@ describe("Migration E2E - Relation Changes", () => {
 					postWithNewTags,
 					baseTagSchema,
 				]);
-				const sessionResult = await forja.beginMigrate();
-				expect(sessionResult.success).toBe(true);
-				if (!sessionResult.success) {
-					await forja.shutdown();
-					return;
-				}
-
-				const session = sessionResult.data;
+				const session = await forja.beginMigrate();
 
 				// Should see: post_tags drop, article_tags create → ambiguous
 				assertHasChanges(session);
@@ -1352,10 +1131,8 @@ describe("Migration E2E - Relation Changes", () => {
 					postWithCategory,
 					baseCategorySchema,
 				]);
-				const session1Result = await forja1.beginMigrate();
-				if (session1Result.success) {
-					await applyMigration(session1Result.data);
-				}
+				const s1 = await forja1.beginMigrate();
+				await applyMigration(s1);
 
 				// Insert data
 				await forja1.create("category", { name: "Tech", slug: "tech" });
@@ -1378,14 +1155,7 @@ describe("Migration E2E - Relation Changes", () => {
 					postWithCategories,
 					baseCategorySchema,
 				]);
-				const sessionResult = await forja.beginMigrate();
-				expect(sessionResult.success).toBe(true);
-				if (!sessionResult.success) {
-					await forja.shutdown();
-					return;
-				}
-
-				const session = sessionResult.data;
+				const session = await forja.beginMigrate();
 
 				// Migration should see:
 				// - posts.categoryId columnToDrop
@@ -1415,10 +1185,8 @@ describe("Migration E2E - Relation Changes", () => {
 					postWithTags,
 					baseTagSchema,
 				]);
-				const session1Result = await forja1.beginMigrate();
-				if (session1Result.success) {
-					await applyMigration(session1Result.data);
-				}
+				const s1 = await forja1.beginMigrate();
+				await applyMigration(s1);
 
 				// Insert data with multiple tags
 				await forja1.create("tag", { name: "JS" });
@@ -1446,14 +1214,7 @@ describe("Migration E2E - Relation Changes", () => {
 					postWithTag,
 					baseTagSchema,
 				]);
-				const sessionResult = await forja.beginMigrate();
-				expect(sessionResult.success).toBe(true);
-				if (!sessionResult.success) {
-					await forja.shutdown();
-					return;
-				}
-
-				const session = sessionResult.data;
+				const session = await forja.beginMigrate();
 
 				// Migration should see:
 				// - post_tag tableToDrop
@@ -1483,10 +1244,8 @@ describe("Migration E2E - Relation Changes", () => {
 					userWithPosts,
 					basePostSchemaNoRelation,
 				]);
-				const session1Result = await forja1.beginMigrate();
-				if (session1Result.success) {
-					await applyMigration(session1Result.data);
-				}
+				const s1 = await forja1.beginMigrate();
+				await applyMigration(s1);
 
 				// Verify: posts has userId
 				await assertColumnExists(forja1, "post", "userId");
@@ -1505,14 +1264,7 @@ describe("Migration E2E - Relation Changes", () => {
 					baseUserSchema, // no posts relation
 					postWithUsers,
 				]);
-				const sessionResult = await forja.beginMigrate();
-				expect(sessionResult.success).toBe(true);
-				if (!sessionResult.success) {
-					await forja.shutdown();
-					return;
-				}
-
-				const session = sessionResult.data;
+				const session = await forja.beginMigrate();
 
 				// Should see:
 				// - posts.userId columnToDrop
@@ -1547,10 +1299,8 @@ describe("Migration E2E - Relation Changes", () => {
 					userWithProfile,
 					baseProfileSchema,
 				]);
-				const session1Result = await forja1.beginMigrate();
-				if (session1Result.success) {
-					await applyMigration(session1Result.data);
-				}
+				const s1 = await forja1.beginMigrate();
+				await applyMigration(s1);
 				await assertColumnExists(forja1, "profile", "userId");
 				await forja1.shutdown();
 
@@ -1566,14 +1316,8 @@ describe("Migration E2E - Relation Changes", () => {
 					baseUserSchema,
 					profileWithUser,
 				]);
-				const sessionResult = await forja.beginMigrate();
-				expect(sessionResult.success).toBe(true);
-				if (!sessionResult.success) {
-					await forja.shutdown();
-					return;
-				}
-
-				assertNoChanges(sessionResult.data);
+				const session = await forja.beginMigrate();
+				assertNoChanges(session);
 
 				await forja.shutdown();
 			});
@@ -1591,10 +1335,8 @@ describe("Migration E2E - Relation Changes", () => {
 					userWithProfiles,
 					baseProfileSchema,
 				]);
-				const session1Result = await forja1.beginMigrate();
-				if (session1Result.success) {
-					await applyMigration(session1Result.data);
-				}
+				const s1 = await forja1.beginMigrate();
+				await applyMigration(s1);
 				await assertColumnExists(forja1, "profile", "userId");
 				await forja1.shutdown();
 
@@ -1609,14 +1351,8 @@ describe("Migration E2E - Relation Changes", () => {
 					baseUserSchema,
 					profileWithUser,
 				]);
-				const sessionResult = await forja.beginMigrate();
-				expect(sessionResult.success).toBe(true);
-				if (!sessionResult.success) {
-					await forja.shutdown();
-					return;
-				}
-
-				assertNoChanges(sessionResult.data);
+				const session = await forja.beginMigrate();
+				assertNoChanges(session);
 
 				await forja.shutdown();
 			});
@@ -1634,10 +1370,8 @@ describe("Migration E2E - Relation Changes", () => {
 					baseUserSchema,
 					profileWithUser,
 				]);
-				const session1Result = await forja1.beginMigrate();
-				if (session1Result.success) {
-					await applyMigration(session1Result.data);
-				}
+				const s1 = await forja1.beginMigrate();
+				await applyMigration(s1);
 				await assertColumnExists(forja1, "profile", "userId");
 				await forja1.shutdown();
 
@@ -1652,14 +1386,8 @@ describe("Migration E2E - Relation Changes", () => {
 					userWithProfile,
 					baseProfileSchema,
 				]);
-				const sessionResult = await forja.beginMigrate();
-				expect(sessionResult.success).toBe(true);
-				if (!sessionResult.success) {
-					await forja.shutdown();
-					return;
-				}
-
-				assertNoChanges(sessionResult.data);
+				const session = await forja.beginMigrate();
+				assertNoChanges(session);
 
 				await forja.shutdown();
 			});
@@ -1680,10 +1408,8 @@ describe("Migration E2E - Relation Changes", () => {
 					postWithTags,
 					baseTagSchema,
 				]);
-				const session1Result = await forja1.beginMigrate();
-				if (session1Result.success) {
-					await applyMigration(session1Result.data);
-				}
+				const s1 = await forja1.beginMigrate();
+				await applyMigration(s1);
 				await forja1.shutdown();
 
 				// Now tag side also declares the manyToMany relation
@@ -1698,14 +1424,8 @@ describe("Migration E2E - Relation Changes", () => {
 					postWithTags,
 					tagWithPosts,
 				]);
-				const sessionResult = await forja.beginMigrate();
-				expect(sessionResult.success).toBe(true);
-				if (!sessionResult.success) {
-					await forja.shutdown();
-					return;
-				}
-
-				assertNoChanges(sessionResult.data);
+				const session = await forja.beginMigrate();
+				assertNoChanges(session);
 
 				await forja.shutdown();
 			});
@@ -1729,10 +1449,8 @@ describe("Migration E2E - Relation Changes", () => {
 					postWithTags,
 					tagWithPosts,
 				]);
-				const session1Result = await forja1.beginMigrate();
-				if (session1Result.success) {
-					await applyMigration(session1Result.data);
-				}
+				const s1 = await forja1.beginMigrate();
+				await applyMigration(s1);
 				await forja1.shutdown();
 
 				// Remove manyToMany from post side — tag side still has it
@@ -1741,14 +1459,8 @@ describe("Migration E2E - Relation Changes", () => {
 					basePostSchemaNoRelation,
 					tagWithPosts,
 				]);
-				const sessionResult = await forja.beginMigrate();
-				expect(sessionResult.success).toBe(true);
-				if (!sessionResult.success) {
-					await forja.shutdown();
-					return;
-				}
-
-				assertNoChanges(sessionResult.data);
+				const session = await forja.beginMigrate();
+				assertNoChanges(session);
 
 				await forja.shutdown();
 			});
@@ -1772,10 +1484,8 @@ describe("Migration E2E - Relation Changes", () => {
 					postWithTags,
 					tagWithPosts,
 				]);
-				const session1Result = await forja1.beginMigrate();
-				if (session1Result.success) {
-					await applyMigration(session1Result.data);
-				}
+				const s1 = await forja1.beginMigrate();
+				await applyMigration(s1);
 				await forja1.shutdown();
 
 				// Remove manyToMany from both sides
@@ -1783,15 +1493,9 @@ describe("Migration E2E - Relation Changes", () => {
 					basePostSchemaNoRelation,
 					baseTagSchema,
 				]);
-				const sessionResult = await forja.beginMigrate();
-				expect(sessionResult.success).toBe(true);
-				if (!sessionResult.success) {
-					await forja.shutdown();
-					return;
-				}
-
-				assertHasChanges(sessionResult.data);
-				assertTableInDrop(sessionResult.data, "post_tag");
+				const session = await forja.beginMigrate();
+				assertHasChanges(session);
+				assertTableInDrop(session, "post_tag");
 
 				await forja.shutdown();
 			});
@@ -1811,10 +1515,8 @@ describe("Migration E2E - Relation Changes", () => {
 					baseUserSchema,
 					profileWithUser,
 				]);
-				const session1Result = await forja1.beginMigrate();
-				if (session1Result.success) {
-					await applyMigration(session1Result.data);
-				}
+				const s1 = await forja1.beginMigrate();
+				await applyMigration(s1);
 				await assertColumnExists(forja1, "profile", "userId");
 				await forja1.shutdown();
 
@@ -1829,14 +1531,8 @@ describe("Migration E2E - Relation Changes", () => {
 					userWithProfiles,
 					profileWithUser,
 				]);
-				const sessionResult = await forja.beginMigrate();
-				expect(sessionResult.success).toBe(true);
-				if (!sessionResult.success) {
-					await forja.shutdown();
-					return;
-				}
-
-				assertNoChanges(sessionResult.data);
+				const session = await forja.beginMigrate();
+				assertNoChanges(session);
 
 				await forja.shutdown();
 			});
@@ -1857,10 +1553,8 @@ describe("Migration E2E - Relation Changes", () => {
 					postWithTags,
 					baseTagSchema,
 				]);
-				const session1Result = await forja1.beginMigrate();
-				if (session1Result.success) {
-					await applyMigration(session1Result.data);
-				}
+				const s1 = await forja1.beginMigrate();
+				await applyMigration(s1);
 				await forja1.shutdown();
 
 				// Remove from post, add to tag — junction table post_tag must stay
@@ -1874,14 +1568,8 @@ describe("Migration E2E - Relation Changes", () => {
 					basePostSchemaNoRelation,
 					tagWithPosts,
 				]);
-				const sessionResult = await forja.beginMigrate();
-				expect(sessionResult.success).toBe(true);
-				if (!sessionResult.success) {
-					await forja.shutdown();
-					return;
-				}
-
-				assertNoChanges(sessionResult.data);
+				const session = await forja.beginMigrate();
+				assertNoChanges(session);
 
 				await forja.shutdown();
 			});
