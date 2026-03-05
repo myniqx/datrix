@@ -23,9 +23,8 @@ import {
 	DataTransferOperation,
 	MigrationSystemError,
 	SchemaDiff,
-	MigrationResult,
+	MigrationExecutionResult,
 } from "forja-types/core/migration";
-import { Result } from "forja-types/utils";
 import { IForja } from "forja-types/forja";
 import { ForgeSchemaDiffer } from "./differ";
 import { ForgeMigrationGenerator } from "./generator";
@@ -1008,29 +1007,23 @@ export class MigrationSession {
 	resolveAmbiguous(
 		id: string,
 		action: AmbiguousActionType,
-	): Result<void, MigrationSystemError> {
+	): void {
 		const ambiguous = this._ambiguous.find((a) => a.id === id);
 		if (!ambiguous) {
-			return {
-				success: false,
-				error: new MigrationSystemError(
-					`Ambiguous change '${id}' not found`,
-					"MIGRATION_ERROR",
-				),
-			};
+			throw new MigrationSystemError(
+				`Ambiguous change '${id}' not found`,
+				"MIGRATION_ERROR",
+			);
 		}
 
 		const selectedAction = ambiguous.possibleActions.find(
 			(a) => a.type === action,
 		);
 		if (!selectedAction) {
-			return {
-				success: false,
-				error: new MigrationSystemError(
-					`Invalid action '${action}' for ambiguous change '${id}'`,
-					"MIGRATION_ERROR",
-				),
-			};
+			throw new MigrationSystemError(
+				`Invalid action '${action}' for ambiguous change '${id}'`,
+				"MIGRATION_ERROR",
+			);
 		}
 
 		ambiguous.resolved = true;
@@ -1038,8 +1031,6 @@ export class MigrationSession {
 
 		// Update differences based on resolution
 		this.applyResolution(ambiguous, action);
-
-		return { success: true, data: undefined };
 	}
 
 	/**
@@ -1167,43 +1158,29 @@ export class MigrationSession {
 	/**
 	 * Get migration plan
 	 */
-	getPlan(): Result<MigrationPlan, MigrationSystemError> {
+	getPlan(): MigrationPlan {
 		if (this.hasUnresolvedAmbiguous()) {
-			return {
-				success: false,
-				error: new MigrationSystemError(
-					"Cannot generate plan with unresolved ambiguous changes",
-					"MIGRATION_ERROR",
-				),
-			};
+			throw new MigrationSystemError(
+				"Cannot generate plan with unresolved ambiguous changes",
+				"MIGRATION_ERROR",
+			);
 		}
 
-		const operationsResult = this.generator.generateOperations(
-			this.differences,
-		);
-		if (!operationsResult.success) {
-			return {
-				success: false,
-				error: operationsResult.error,
-			};
-		}
+		const operations = this.generator.generateOperations(this.differences);
 
 		return {
-			success: true,
-			data: {
-				tablesToCreate: this.tablesToCreate,
-				tablesToDrop: this.tablesToDrop,
-				tablesToAlter: this.tablesToAlter,
-				operations: operationsResult.data,
-				hasChanges: this.hasChanges(),
-			},
+			tablesToCreate: this.tablesToCreate,
+			tablesToDrop: this.tablesToDrop,
+			tablesToAlter: this.tablesToAlter,
+			operations,
+			hasChanges: this.hasChanges(),
 		};
 	}
 
 	/**
 	 * Apply migrations
 	 */
-	async apply(): Promise<readonly MigrationResult[]> {
+	async apply(): Promise<readonly MigrationExecutionResult[]> {
 		if (this.hasUnresolvedAmbiguous()) {
 			throw new MigrationSystemError(
 				"Cannot apply migrations with unresolved ambiguous changes",
@@ -1353,7 +1330,7 @@ export class MigrationSession {
 						});
 
 						// Group by sourceFk, keep first occurrence per source record
-						const firstBySource = new Map<unknown, unknown>();
+						const firstBySource = new Map<number, unknown>();
 						for (const row of selectResult.rows) {
 							const sourceId = row[sourceFkCol];
 							if (!firstBySource.has(sourceId)) {
@@ -1385,18 +1362,9 @@ export class MigrationSession {
 	/**
 	 * Get dry-run preview of what would be applied
 	 */
-	async preview(): Promise<
-		Result<readonly MigrationOperation[], MigrationSystemError>
-	> {
-		const planResult = this.getPlan();
-		if (!planResult.success) {
-			return {
-				success: false,
-				error: planResult.error,
-			};
-		}
-
-		return { success: true, data: planResult.data.operations };
+	async preview(): Promise<readonly MigrationOperation[]> {
+		const plan = this.getPlan();
+		return plan.operations;
 	}
 }
 

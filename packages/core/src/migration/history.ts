@@ -13,7 +13,6 @@ import {
 	MigrationStatus,
 	MigrationSystemError,
 } from "forja-types/core/migration";
-import { Result } from "forja-types/utils";
 import { IForja } from "forja-types/forja";
 import { ForjaEntry } from "forja-types";
 import { DEFAULT_MIGRATION_MODEL, FORJA_META_MODEL } from "./schema";

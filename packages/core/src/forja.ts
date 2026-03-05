@@ -5,7 +5,6 @@
  * Manages configuration, database adapter, plugins, and schemas.
  */
 
-import { Result } from "forja-types/utils";
 import {
 	ForjaConfig,
 	MigrationConfig,
@@ -37,7 +36,6 @@ import {
 	getMigrationSchema,
 	DEFAULT_MIGRATION_MODEL,
 	getForjaMetaSchema,
-	FORJA_META_MODEL,
 } from "./migration/schema";
 import { MigrationSession, createMigrationSession } from "./migration/session";
 
@@ -465,20 +463,9 @@ export class Forja implements IForja {
 
 	private applySchemaExtensions(
 		extensions: SchemaExtension[],
-	): Result<void, ForjaError> {
+	): void {
 		for (const extension of extensions) {
-			const schema = this._schemas.get(extension.targetSchema);
-
-			if (!schema) {
-				return {
-					success: false,
-					error: new ForjaError(
-						`Cannot extend schema '${extension.targetSchema}': schema not found`,
-						{ code: "SCHEMA_NOT_FOUND" },
-					),
-				};
-			}
-
+			const schema = this._schemas.get(extension.targetSchema)!;
 			const extendedFields = { ...schema.fields };
 			const extendedIndexes = [...(schema.indexes || [])];
 
@@ -530,8 +517,6 @@ export class Forja implements IForja {
 
 			this._schemas.register(extendedSchema);
 		}
-
-		return { success: true, data: undefined };
 	}
 }
 

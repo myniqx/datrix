@@ -19,7 +19,6 @@ import {
 	SchemaExtension,
 	QueryContext,
 } from "forja-types/plugin";
-import { Result } from "forja-types/utils";
 
 /**
  * Abstract base plugin class

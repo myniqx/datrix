@@ -214,7 +214,7 @@ export class ForjaQueryBuilder<
 				field: fieldOrClause as keyof TSchema,
 				direction,
 			};
-			this.query.orderBy = [...(normalized || []), newItem];
+			this.query.orderBy = [...(normalized || []), newItem] as OrderByClause<TSchema>;
 			return this;
 		}
 
@@ -420,10 +420,10 @@ export class ForjaQueryBuilder<
 				const processedData =
 					this.query.data !== undefined
 						? processData<TSchema>(
-								this.query.data,
-								this._schema,
-								this._registry,
-							)
+							this.query.data,
+							this._schema,
+							this._registry,
+						)
 						: undefined;
 				return {
 					type,

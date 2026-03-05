@@ -57,7 +57,7 @@ export class QueryExecutor {
 		private readonly schemas: SchemaRegistry,
 		private readonly getAdapter: () => DatabaseAdapter,
 		private readonly getDispatcher: () => Dispatcher,
-	) {}
+	) { }
 
 	/**
 	 * Execute a query
@@ -453,7 +453,7 @@ export class QueryExecutor {
 	 * Wraps a handler with dispatcher lifecycle: buildContext → onBefore → handler → onAfter.
 	 * If noDispatcher is true, skips all hooks and runs handler directly.
 	 */
-	private async withLifecycle<TQuery extends QueryObject<ForjaEntry>, TResult>(
+	private async withLifecycle<TResult, TQuery>(
 		action: QueryAction,
 		schema: SchemaDefinition,
 		noDispatcher: boolean,
@@ -465,13 +465,13 @@ export class QueryExecutor {
 			? null
 			: await dispatcher.buildQueryContext(action, schema);
 		const modifiedQuery = context
-			? ((await dispatcher.dispatchBeforeQuery(query, context)) as TQuery)
+			? ((await dispatcher.dispatchBeforeQuery(query as QueryObject, context)) as TQuery)
 			: query;
 
 		const result = await handler(modifiedQuery);
 
 		if (context) {
-			return dispatcher.dispatchAfterQuery<TResult>(result, context);
+			return dispatcher.dispatchAfterQuery(result as ForjaEntry, context) as Promise<TResult>;
 		}
 
 		return result;
