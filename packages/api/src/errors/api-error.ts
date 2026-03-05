@@ -6,7 +6,6 @@
  */
 
 import { ForjaError } from "forja-types/errors";
-import type { Result } from "forja-types/utils";
 
 /**
  * Base API Error Class
@@ -54,143 +53,111 @@ export interface ApiErrorOptions {
 	cause?: Error;
 }
 
-export type ErrorResult<T = never> = Result<T, ForjaApiError | ForjaError>;
-
 /**
  * Handler Error Helpers
  *
  * Centralized error creation for routine API handlers.
  */
 export const handlerError = {
-	schemaNotFound(tableName: string, availableModels?: string[]): ErrorResult {
-		return {
-			success: false,
-			error: new ForjaApiError(`Model not found for table: ${tableName}`, {
-				code: "SCHEMA_NOT_FOUND",
-				status: 404,
-				context: { tableName, availableModels },
-				suggestion:
-					"Check if the table name is correct and the schema is properly defined.",
-			}),
-		};
+	schemaNotFound(tableName: string, availableModels?: string[]): ForjaApiError {
+		return new ForjaApiError(`Model not found for table: ${tableName}`, {
+			code: "SCHEMA_NOT_FOUND",
+			status: 404,
+			context: { tableName, availableModels },
+			suggestion:
+				"Check if the table name is correct and the schema is properly defined.",
+		});
 	},
 
-	modelNotSpecified(): ErrorResult {
-		return {
-			success: false,
-			error: new ForjaApiError("Model not specified in the request URL", {
-				code: "MODEL_NOT_SPECIFIED",
+	modelNotSpecified(): ForjaApiError {
+		return new ForjaApiError("Model not specified in the request URL", {
+			code: "MODEL_NOT_SPECIFIED",
+			status: 400,
+			suggestion:
+				"Ensure the URL includes the model name (e.g., /api/users).",
+		});
+	},
+
+	recordNotFound(modelName: string, id: number | string): ForjaApiError {
+		return new ForjaApiError(`${modelName} record not found with ID: ${id}`, {
+			code: "NOT_FOUND",
+			status: 404,
+			context: { modelName, id },
+			suggestion:
+				"Verify the ID is correct or if the record has been deleted.",
+		});
+	},
+
+	invalidBody(reason?: string): ForjaApiError {
+		return new ForjaApiError(
+			reason ? `Invalid request body: ${reason}` : "Invalid request body",
+			{
+				code: "INVALID_BODY",
 				status: 400,
+				context: { reason },
 				suggestion:
-					"Ensure the URL includes the model name (e.g., /api/users).",
-			}),
-		};
+					"Ensure the request body is a valid JSON object and contains all required fields.",
+			},
+		);
 	},
 
-	recordNotFound(modelName: string, id: number): ErrorResult {
-		return {
-			success: false,
-			error: new ForjaApiError(`${modelName} record not found with ID: ${id}`, {
-				code: "NOT_FOUND",
-				status: 404,
-				context: { modelName, id },
+	missingId(operation: string): ForjaApiError {
+		return new ForjaApiError(`ID is required for ${operation}`, {
+			code: "MISSING_ID",
+			status: 400,
+			suggestion: `Provide a valid ID in the URL for the ${operation} operation.`,
+		});
+	},
+
+	methodNotAllowed(method: string): ForjaApiError {
+		return new ForjaApiError(
+			`HTTP Method ${method} is not allowed for this route`,
+			{
+				code: "METHOD_NOT_ALLOWED",
+				status: 405,
+				context: { method },
 				suggestion:
-					"Verify the ID is correct or if the record has been deleted.",
-			}),
-		};
-	},
-
-	invalidBody(reason?: string): ErrorResult {
-		return {
-			success: false,
-			error: new ForjaApiError(
-				reason ? `Invalid request body: ${reason}` : "Invalid request body",
-				{
-					code: "INVALID_BODY",
-					status: 400,
-					context: { reason },
-					suggestion:
-						"Ensure the request body is a valid JSON object and contains all required fields.",
-				},
-			),
-		};
-	},
-
-	missingId(operation: string): ErrorResult {
-		return {
-			success: false,
-			error: new ForjaApiError(`ID is required for ${operation}`, {
-				code: "MISSING_ID",
-				status: 400,
-				suggestion: `Provide a valid ID in the URL for the ${operation} operation.`,
-			}),
-		};
-	},
-
-	methodNotAllowed(method: string): ErrorResult {
-		return {
-			success: false,
-			error: new ForjaApiError(
-				`HTTP Method ${method} is not allowed for this route`,
-				{
-					code: "METHOD_NOT_ALLOWED",
-					status: 405,
-					context: { method },
-					suggestion:
-						"Check the API documentation for supported methods on this endpoint.",
-				},
-			),
-		};
+					"Check the API documentation for supported methods on this endpoint.",
+			},
+		);
 	},
 
 	permissionDenied(
 		reason: string,
 		context?: Record<string, unknown>,
-	): ErrorResult {
-		return {
-			success: false,
-			error: new ForjaApiError("Permission denied", {
-				code: "FORBIDDEN",
-				status: 403,
-				context: { reason, ...context },
-				suggestion: "Check your permissions or contact an administrator.",
-			}),
-		};
+	): ForjaApiError {
+		return new ForjaApiError("Permission denied", {
+			code: "FORBIDDEN",
+			status: 403,
+			context: { reason, ...context },
+			suggestion: "Check your permissions or contact an administrator.",
+		});
 	},
 
-	unauthorized(reason?: string): ErrorResult {
-		return {
-			success: false,
-			error: new ForjaApiError("Unauthorized access", {
-				code: "UNAUTHORIZED",
-				status: 401,
-				context: { reason },
-				suggestion: "Provide valid authentication credentials.",
-			}),
-		};
+	unauthorized(reason?: string): ForjaApiError {
+		return new ForjaApiError("Unauthorized access", {
+			code: "UNAUTHORIZED",
+			status: 401,
+			context: { reason },
+			suggestion: "Provide valid authentication credentials.",
+		});
 	},
 
-	internalError(message: string, cause?: Error): ErrorResult {
-		return {
-			success: false,
-			error: new ForjaApiError(message, {
-				code: "INTERNAL_ERROR",
-				status: 500,
-				...(cause && { cause }),
-			}),
-		};
+	internalError(message: string, cause?: Error): ForjaApiError {
+		return new ForjaApiError(message, {
+			code: "INTERNAL_ERROR",
+			status: 500,
+			...(cause && { cause }),
+		});
 	},
 
-	conflict(reason: string, context?: Record<string, unknown>): ErrorResult {
-		return {
-			success: false,
-			error: new ForjaApiError(reason, {
-				code: "CONFLICT",
-				status: 409,
-				...(context && { context }),
-				suggestion:
-					"Ensure the resource you are trying to create does not already exist.",
-			}),
-		};
+	conflict(reason: string, context?: Record<string, unknown>): ForjaApiError {
+		return new ForjaApiError(reason, {
+			code: "CONFLICT",
+			status: 409,
+			...(context && { context }),
+			suggestion:
+				"Ensure the resource you are trying to create does not already exist.",
+		});
 	},
 };

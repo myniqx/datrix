@@ -23,7 +23,7 @@ import { parseFields } from "./fields-parser";
 import { parseWhere } from "./where-parser";
 import { parsePopulate } from "./populate-parser";
 import { paginationError, sortError } from "./errors";
-import { ForjaEntry, ForjaRecord } from "forja-types";
+import { ForjaRecord } from "forja-types";
 
 /**
  * Default parser options
@@ -43,50 +43,21 @@ const DEFAULT_OPTIONS: Required<ParserOptions> = {
  * @param options - Parser options
  * @returns Result with ParsedQuery or ParserError
  */
-export function parseQuery<T extends ForjaEntry = ForjaRecord>(
+export function parseQuery(
 	params: RawQueryParams,
 	options?: Partial<ParserOptions>,
-): ParsedQuery<T> {
+): ParsedQuery<ForjaRecord> {
 	const opts: Required<ParserOptions> = {
 		...DEFAULT_OPTIONS,
 		...options,
 	};
 
-	// Build result as mutable object
-	const result: ParsedQuery<T> = {};
-
-	// Parse fields - throws on error
 	const fields = parseFields(params);
-	if (fields !== undefined && fields !== "*") {
-		result.select = fields;
-	}
-
-	// Parse where - throws on error
 	const where = parseWhere(params);
-	if (where !== undefined) {
-		result.where = where;
-	}
-
-	// Parse populate - throws on error
 	const populate = parsePopulate(params, opts.maxPopulateDepth);
-	if (populate !== undefined) {
-		result.populate = populate;
-	}
-
-	// Parse pagination - throws on error
 	const pagination = parsePagination(params, opts);
-	if (pagination !== undefined) {
-		result.page = pagination.page ?? 1;
-		result.pageSize = pagination.pageSize ?? opts.defaultPageSize;
-	}
-
-	// Parse sorting - throws on error
 	const sort = parseSort(params);
-	if (sort !== undefined && Array.isArray(sort) && sort.length > 0) {
-		result.orderBy = sort;
-	}
 
-	// Detect unknown/unrecognized query parameters
 	const unknownParams = detectUnknownParams(params);
 	if (unknownParams.length > 0) {
 		throw new ParserError(
@@ -104,8 +75,18 @@ export function parseQuery<T extends ForjaEntry = ForjaRecord>(
 		);
 	}
 
-	// Return result as ParsedQuery - all fields are optional and properly typed
-	return result as ParsedQuery<T>;
+	const result: ParsedQuery<ForjaRecord> = {
+		...(fields !== undefined && fields !== "*" && { select: fields }),
+		...(where !== undefined && { where }),
+		...(populate !== undefined && { populate }),
+		...(pagination !== undefined && {
+			page: pagination.page ?? 1,
+			pageSize: pagination.pageSize ?? opts.defaultPageSize,
+		}),
+		...(sort !== undefined && Array.isArray(sort) && sort.length > 0 && { orderBy: sort }),
+	};
+
+	return result;
 }
 
 /**
@@ -177,7 +158,7 @@ function parseSort(params: RawQueryParams): ParsedSort | undefined {
 		sortError.emptyValue([]);
 	}
 
-	const sorts: OrderByItem[] = [];
+	const sorts: OrderByItem<ForjaRecord>[] = [];
 
 	// Handle comma-separated sorts
 	const sortStrings =

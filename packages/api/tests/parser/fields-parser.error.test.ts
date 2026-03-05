@@ -3,7 +3,6 @@
  * API Parser - Fields Parser Tests (Error Path)
  *
  * Tests error handling, validation, and security for fields parsing.
- * Uses Result pattern - parseFields returns Result<T, E>, NOT throws.
  */
 
 import { describe, it, expect } from "vitest";

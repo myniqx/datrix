@@ -24,7 +24,6 @@ import {
 } from "./data/config-auth";
 import { JwtStrategy } from "../src/auth/jwt";
 import fs from "node:fs/promises";
-import path from "node:path";
 import {
 	expectApiSingle,
 	expectApiForbidden,
@@ -70,7 +69,7 @@ describe("Schema-Level Permission Tests", () => {
 		for (const schema of forja.getSchemas().getAll()) {
 			try {
 				await adapter.dropTable(schema.tableName!);
-			} catch {}
+			} catch { }
 			await adapter.createTable(schema);
 		}
 
@@ -146,8 +145,8 @@ describe("Schema-Level Permission Tests", () => {
 			);
 
 			expect(authData).not.toBeNull();
-			expect(authData!.email).toBe("newuser@test.com");
-			expect(authData!.user.id).toBe(userId);
+			expect(authData!["email"]).toBe("newuser@test.com");
+			expect(authData!["user"].id).toBe(userId);
 		});
 
 		it("should sync auth email when user email is updated", async () => {
@@ -163,7 +162,7 @@ describe("Schema-Level Permission Tests", () => {
 				}),
 			);
 
-			const user = await expectApiSingle<{ id: number }>(createResponse, 201);
+			const user = await expectApiSingle<ForjaEntry>(createResponse, 201);
 			const userId = user.id!;
 
 			// Update user email
@@ -184,7 +183,7 @@ describe("Schema-Level Permission Tests", () => {
 			});
 
 			expect(authRecord).not.toBeNull();
-			expect(authRecord!.email).toBe("updated-sync@test.com");
+			expect(authRecord!["email"]).toBe("updated-sync@test.com");
 		});
 
 		it("should delete auth record when user is deleted", async () => {
@@ -200,7 +199,7 @@ describe("Schema-Level Permission Tests", () => {
 				}),
 			);
 
-			const user = await expectApiSingle<{ id: number }>(createResponse, 201);
+			const user = await expectApiSingle<ForjaEntry>(createResponse, 201);
 			const userId = user.id!;
 
 			// Delete user
@@ -242,7 +241,7 @@ describe("Schema-Level Permission Tests", () => {
 					}),
 				);
 
-				const category = await expectApiSingle<{ id: number }>(response, 201);
+				const category = await expectApiSingle<ForjaEntry>(response, 201);
 				categoryId = category.id!;
 			});
 
@@ -292,7 +291,7 @@ describe("Schema-Level Permission Tests", () => {
 					createRequest(`/api/categories/${categoryId}`),
 				);
 
-				const category = await expectApiSingle<{ name: string }>(response, 200);
+				const category = await expectApiSingle<{ name: string } & ForjaEntry>(response, 200);
 				expect(category.name).toBe("Test Category");
 			});
 
@@ -423,7 +422,7 @@ describe("Schema-Level Permission Tests", () => {
 				}),
 			);
 
-			const supplier = await expectApiSingle<{ id: number }>(response, 201);
+			const supplier = await expectApiSingle<ForjaEntry>(response, 201);
 			supplierId = supplier.id!;
 		});
 
@@ -512,7 +511,7 @@ describe("Schema-Level Permission Tests", () => {
 				}),
 			);
 
-			const publicItem = await expectApiSingle<{ id: number }>(response, 201);
+			const publicItem = await expectApiSingle<ForjaEntry>(response, 201);
 			publicId = publicItem.id!;
 		});
 
@@ -568,7 +567,7 @@ describe("Schema-Level Permission Tests", () => {
 					}),
 				);
 
-				const restricted = await expectApiSingle<{ id: number }>(response, 201);
+				const restricted = await expectApiSingle<ForjaEntry>(response, 201);
 				restrictedId = restricted.id!;
 			});
 
@@ -665,7 +664,7 @@ describe("Schema-Level Permission Tests", () => {
 				}),
 			);
 
-			const secret = await expectApiSingle<{ id: number }>(response, 201);
+			const secret = await expectApiSingle<ForjaEntry>(response, 201);
 			secretId = secret.id!;
 		});
 
@@ -755,7 +754,7 @@ describe("Schema-Level Permission Tests", () => {
 				}),
 			);
 
-			const product = await expectApiSingle<{ id: number }>(response, 201);
+			const product = await expectApiSingle<ForjaEntry>(response, 201);
 			productId = product.id!;
 		});
 
@@ -777,7 +776,7 @@ describe("Schema-Level Permission Tests", () => {
 				}),
 			);
 
-			const product = await expectApiSingle<{ id: number }>(response, 201);
+			const product = await expectApiSingle<ForjaEntry>(response, 201);
 			productId = product.id!;
 		});
 

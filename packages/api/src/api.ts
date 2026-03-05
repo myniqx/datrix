@@ -229,9 +229,6 @@ export class ApiPlugin<TRole extends string = string>
 		}
 
 		const pluginContext = this.getContext();
-		if (!pluginContext.success) {
-			return result;
-		}
 
 		// User created → create authentication record
 		if (context.metadata["api:createAuth"]) {
@@ -241,7 +238,7 @@ export class ApiPlugin<TRole extends string = string>
 					...(context.metadata["api:userData"] as Record<string, unknown>),
 					userId,
 				};
-				await this.createAuthenticationRecord(user, pluginContext.data);
+				await this.createAuthenticationRecord(user, pluginContext);
 			}
 		}
 
@@ -249,13 +246,13 @@ export class ApiPlugin<TRole extends string = string>
 		if (context.metadata["api:syncEmail"] && context.metadata["api:userId"]) {
 			const newEmail = context.metadata["api:syncEmail"] as string;
 			const userId = context.metadata["api:userId"] as string;
-			await this.syncAuthenticationEmail(userId, newEmail, pluginContext.data);
+			await this.syncAuthenticationEmail(userId, newEmail, pluginContext);
 		}
 
 		// User deleted → delete authentication record
 		if (context.metadata["api:deleteAuth"] && context.metadata["api:userId"]) {
 			const userId = context.metadata["api:userId"] as string;
-			await this.deleteAuthenticationRecord(userId, pluginContext.data);
+			await this.deleteAuthenticationRecord(userId, pluginContext);
 		}
 
 		return result;
@@ -308,8 +305,9 @@ export class ApiPlugin<TRole extends string = string>
 	 */
 	async handleRequest(request: Request, forja: Forja): Promise<Response> {
 		if (!this.isInitialized()) {
-			const result = handlerError.internalError("API plugin not initialized");
-			return forjaErrorResponse(result);
+			return forjaErrorResponse(
+				handlerError.internalError("API plugin not initialized"),
+			);
 		}
 
 		this.forjaInstance = forja;
@@ -318,8 +316,9 @@ export class ApiPlugin<TRole extends string = string>
 		const prefix = this.apiConfig.prefix ?? "/api";
 
 		if (!url.pathname.startsWith(prefix)) {
-			const result = handlerError.internalError("Invalid API prefix");
-			return forjaErrorResponse(result);
+			return forjaErrorResponse(
+				handlerError.internalError("Invalid API prefix"),
+			);
 		}
 
 		const pathAfterPrefix = url.pathname.slice(prefix.length);
@@ -343,10 +342,9 @@ export class ApiPlugin<TRole extends string = string>
 		forja: Forja,
 	): Promise<Response> {
 		if (!this.authManager) {
-			const result = handlerError.internalError(
-				"Authentication not configured",
+			return forjaErrorResponse(
+				handlerError.internalError("Authentication not configured"),
 			);
-			return forjaErrorResponse(result);
 		}
 
 		const authHandlers = createAuthHandlers({
@@ -371,8 +369,9 @@ export class ApiPlugin<TRole extends string = string>
 			return authHandlers.me(request);
 		}
 
-		const res = handlerError.recordNotFound("Auth Route", url.pathname);
-		return forjaErrorResponse(res);
+		return forjaErrorResponse(
+			handlerError.recordNotFound("Auth Route", url.pathname),
+		);
 	}
 
 	/**

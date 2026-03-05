@@ -41,7 +41,7 @@ function extractTableNameFromPath(
  * /api/user/123 -> '123'
  * /api/user -> null
  */
-function extractIdFromPath(pathname: string, prefix: string): string | null {
+function extractIdFromPath(pathname: string, prefix: string): number | null {
 	const segments = pathname.split("/").filter(Boolean);
 	const prefixSegments = prefix.split("/").filter(Boolean);
 	const pathSegments = segments.slice(prefixSegments.length);
@@ -49,8 +49,8 @@ function extractIdFromPath(pathname: string, prefix: string): string | null {
 	if (pathSegments.length < 2) {
 		return null;
 	}
-
-	return pathSegments[1] ?? null;
+	const val = parseInt(pathSegments[1]!, 10);;
+	return isNaN(val) ? null : val;
 }
 
 /**

@@ -151,8 +151,8 @@ function serializeWhere<T extends ForjaEntry>(
 /**
  * Recursive helper to serialize populate clause
  */
-function serializePopulate(
-	populate: PopulateClause | "*",
+function serializePopulate<T extends ForjaEntry>(
+	populate: PopulateClause<T> | "*",
 	prefix: string,
 	params: Record<string, string | string[] | true>,
 ) {
@@ -188,7 +188,7 @@ function serializePopulate(
 		if (options === "*" || options === true) {
 			params[relPrefix] = options;
 		} else if (typeof options === "object") {
-			const opts = options as PopulateOptions<ForjaEntry>;
+			const opts = options as PopulateOptions<ForjaRecord>;
 
 			// select fields in populate
 			if (opts.select) {

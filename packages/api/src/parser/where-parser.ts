@@ -8,7 +8,7 @@
  *   ?where[name][$contains]=john
  */
 
-import type { WhereClause } from "forja-types/core/query-builder";
+import type { FallbackWhereClause } from "forja-types/core/query-builder";
 import type { RawQueryParams } from "forja-types/api/parser";
 import {
 	validateFieldName,
@@ -26,7 +26,7 @@ import { whereError } from "./errors";
  * @returns WhereClause or undefined
  * @throws {ParserError} When validation fails
  */
-export function parseWhere(params: RawQueryParams): WhereClause | undefined {
+export function parseWhere(params: RawQueryParams): FallbackWhereClause | undefined {
 	const whereClause: Record<string, unknown> = {};
 
 	// Find all where[...] parameters
@@ -133,7 +133,7 @@ export function parseWhere(params: RawQueryParams): WhereClause | undefined {
 
 	// Transform into Final WhereClause
 	const transformResult = transformToFinalWhere(whereClause);
-	const finalClause = transformResult as WhereClause;
+	const finalClause = transformResult as FallbackWhereClause;
 
 	// If no where parameters found, return undefined
 	if (Object.keys(finalClause).length === 0) {
@@ -342,7 +342,7 @@ function validateOperatorValue(
  * Validate nesting depth for logical operators
  */
 function validateNestingDepth(
-	clause: WhereClause,
+	clause: FallbackWhereClause,
 	depth: number = 0,
 	path: string[] = [],
 ): void {
@@ -363,7 +363,7 @@ function validateNestingDepth(
 			// Recursively check each condition
 			for (const condition of value) {
 				if (typeof condition === "object" && condition !== null) {
-					validateNestingDepth(condition as WhereClause, depth + 1, [
+					validateNestingDepth(condition as FallbackWhereClause, depth + 1, [
 						...path,
 						key,
 					]);
@@ -375,7 +375,7 @@ function validateNestingDepth(
 			!Array.isArray(value)
 		) {
 			// Recursively check nested objects
-			validateNestingDepth(value as WhereClause, depth, [...path, key]);
+			validateNestingDepth(value as FallbackWhereClause, depth, [...path, key]);
 		}
 	}
 }
