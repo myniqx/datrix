@@ -12,7 +12,6 @@ import type {
 	QueryContext,
 	SchemaDefinition,
 } from "forja-types/plugin";
-import type { Result } from "forja-types/utils";
 import { DefaultPermission, defineSchema } from "forja-types/core/schema";
 import { AuthManager } from "./auth/manager";
 import { createAuthHandlers } from "./handler/auth-handler";
@@ -28,8 +27,7 @@ import { QueryObject } from "forja-types";
 
 export class ApiPlugin<TRole extends string = string>
 	extends BasePlugin<ApiConfig<TRole>>
-	implements IApiPlugin<TRole>
-{
+	implements IApiPlugin<TRole> {
 	readonly name = "api";
 	readonly version = "1.0.0";
 
@@ -89,65 +87,50 @@ export class ApiPlugin<TRole extends string = string>
 		return context;
 	}
 
-	async init(context: PluginContext): Promise<Result<void, PluginError>> {
+	async init(context: PluginContext): Promise<void> {
 		this.context = context;
 
 		// Auth is disabled if authConfig is undefined
 		if (!this.authConfig) {
-			return { success: true, data: undefined };
+			return;
 		}
 
 		if (context.schemas.has("auth")) {
-			return {
-				success: false,
-				error: this.createError(
-					"Schema name 'auth' is reserved for API authentication routes",
-					"RESERVED_SCHEMA_NAME",
-				),
-			};
+			throw this.createError(
+				"Schema name 'auth' is reserved for API authentication routes",
+				"RESERVED_SCHEMA_NAME",
+			)
 		}
 
 		if (!context.schemas.has(this.userSchemaName)) {
-			return {
-				success: false,
-				error: this.createError(
-					`User schema '${this.userSchemaName}' not found. Create it before enabling auth.`,
-					"USER_SCHEMA_NOT_FOUND",
-				),
-			};
+			throw this.createError(
+				`User schema '${this.userSchemaName}' not found. Create it before enabling auth.`,
+				"USER_SCHEMA_NOT_FOUND",
+			)
 		}
 
 		const userSchema = context.schemas.get(this.userSchemaName);
 		const emailField = this.userSchemaEmailField;
 		if (!userSchema?.fields[emailField]) {
-			return {
-				success: false,
-				error: this.createError(
-					`User schema must have an '${emailField}' field`,
-					"MISSING_EMAIL_FIELD",
-				),
-			};
+			throw this.createError(
+				`User schema must have an '${emailField}' field`,
+				"MISSING_EMAIL_FIELD",
+			)
 		}
 
 		if (this.authConfig.jwt) {
 			if (this.authConfig.jwt.secret.length < 32) {
-				return {
-					success: false,
-					error: this.createError(
-						"JWT secret must be at least 32 characters long for security",
-						"WEAK_JWT_SECRET",
-					),
-				};
+				throw this.createError(
+					"JWT secret must be at least 32 characters long for security",
+					"WEAK_JWT_SECRET",
+				)
 			}
 		}
 
 		this.authManager = new AuthManager(this.authConfig);
-
-		return { success: true, data: undefined };
 	}
 
-	async destroy(): Promise<Result<void, PluginError>> {
-		return { success: true, data: undefined };
+	async destroy(): Promise<void> {
 	}
 
 	override async getSchemas(): Promise<SchemaDefinition[]> {

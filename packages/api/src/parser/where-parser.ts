@@ -10,8 +10,6 @@
 
 import type { WhereClause } from "forja-types/core/query-builder";
 import type { RawQueryParams } from "forja-types/api/parser";
-import { ParserError } from "forja-types/api/parser";
-import type { Result } from "forja-types/utils";
 import {
 	validateFieldName,
 	isValidWhereOperator,
@@ -234,7 +232,7 @@ function transformToFinalWhere(obj: unknown): unknown {
 function parseValue(
 	value: string | readonly string[] | undefined,
 	operator?: string,
-): unknown | { error: ParserError } {
+): unknown {
 	if (value === undefined) {
 		return undefined;
 	}
@@ -245,10 +243,6 @@ function parseValue(
 		for (const v of value) {
 			if (typeof v === "string") {
 				const result = parseSingleValue(v, operator);
-				// Check if result is an error
-				if (result && typeof result === "object" && "error" in result) {
-					return result; // Propagate error
-				}
 				parsed.push(result);
 			} else {
 				parsed.push(v);
@@ -274,7 +268,7 @@ function parseValue(
 function parseSingleValue(
 	value: string,
 	operator?: string,
-): unknown | Result<never, ParserError> {
+): unknown {
 	// Import MAX_WHERE_VALUE_LENGTH
 	const MAX_WHERE_VALUE_LENGTH = 1000;
 
@@ -305,12 +299,12 @@ function parseSingleValue(
 	}
 
 	/*
-  // Try to parse as number
-  const num = Number(value);
-  if (!isNaN(num) && value.trim() !== '') {
-    return num;
-  }
-  */
+	// Try to parse as number
+	const num = Number(value);
+	if (!isNaN(num) && value.trim() !== '') {
+		return num;
+	}
+	*/
 
 	// Return as string
 	return value;

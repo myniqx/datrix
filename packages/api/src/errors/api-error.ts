@@ -14,7 +14,7 @@ import type { Result } from "forja-types/utils";
  * All API-specific errors should inherit from this class
  * or be created via its static helpers.
  */
-export class ApiError extends ForjaError {
+export class ForjaApiError extends ForjaError {
 	/** HTTP status code associated with this error */
 	status: number;
 
@@ -54,7 +54,7 @@ export interface ApiErrorOptions {
 	cause?: Error;
 }
 
-export type ErrorResult<T = never> = Result<T, ApiError | ForjaError>;
+export type ErrorResult<T = never> = Result<T, ForjaApiError | ForjaError>;
 
 /**
  * Handler Error Helpers
@@ -65,7 +65,7 @@ export const handlerError = {
 	schemaNotFound(tableName: string, availableModels?: string[]): ErrorResult {
 		return {
 			success: false,
-			error: new ApiError(`Model not found for table: ${tableName}`, {
+			error: new ForjaApiError(`Model not found for table: ${tableName}`, {
 				code: "SCHEMA_NOT_FOUND",
 				status: 404,
 				context: { tableName, availableModels },
@@ -78,7 +78,7 @@ export const handlerError = {
 	modelNotSpecified(): ErrorResult {
 		return {
 			success: false,
-			error: new ApiError("Model not specified in the request URL", {
+			error: new ForjaApiError("Model not specified in the request URL", {
 				code: "MODEL_NOT_SPECIFIED",
 				status: 400,
 				suggestion:
@@ -90,7 +90,7 @@ export const handlerError = {
 	recordNotFound(modelName: string, id: number): ErrorResult {
 		return {
 			success: false,
-			error: new ApiError(`${modelName} record not found with ID: ${id}`, {
+			error: new ForjaApiError(`${modelName} record not found with ID: ${id}`, {
 				code: "NOT_FOUND",
 				status: 404,
 				context: { modelName, id },
@@ -103,7 +103,7 @@ export const handlerError = {
 	invalidBody(reason?: string): ErrorResult {
 		return {
 			success: false,
-			error: new ApiError(
+			error: new ForjaApiError(
 				reason ? `Invalid request body: ${reason}` : "Invalid request body",
 				{
 					code: "INVALID_BODY",
@@ -119,7 +119,7 @@ export const handlerError = {
 	missingId(operation: string): ErrorResult {
 		return {
 			success: false,
-			error: new ApiError(`ID is required for ${operation}`, {
+			error: new ForjaApiError(`ID is required for ${operation}`, {
 				code: "MISSING_ID",
 				status: 400,
 				suggestion: `Provide a valid ID in the URL for the ${operation} operation.`,
@@ -130,7 +130,7 @@ export const handlerError = {
 	methodNotAllowed(method: string): ErrorResult {
 		return {
 			success: false,
-			error: new ApiError(
+			error: new ForjaApiError(
 				`HTTP Method ${method} is not allowed for this route`,
 				{
 					code: "METHOD_NOT_ALLOWED",
@@ -149,7 +149,7 @@ export const handlerError = {
 	): ErrorResult {
 		return {
 			success: false,
-			error: new ApiError("Permission denied", {
+			error: new ForjaApiError("Permission denied", {
 				code: "FORBIDDEN",
 				status: 403,
 				context: { reason, ...context },
@@ -161,7 +161,7 @@ export const handlerError = {
 	unauthorized(reason?: string): ErrorResult {
 		return {
 			success: false,
-			error: new ApiError("Unauthorized access", {
+			error: new ForjaApiError("Unauthorized access", {
 				code: "UNAUTHORIZED",
 				status: 401,
 				context: { reason },
@@ -173,7 +173,7 @@ export const handlerError = {
 	internalError(message: string, cause?: Error): ErrorResult {
 		return {
 			success: false,
-			error: new ApiError(message, {
+			error: new ForjaApiError(message, {
 				code: "INTERNAL_ERROR",
 				status: 500,
 				...(cause && { cause }),
@@ -184,7 +184,7 @@ export const handlerError = {
 	conflict(reason: string, context?: Record<string, unknown>): ErrorResult {
 		return {
 			success: false,
-			error: new ApiError(reason, {
+			error: new ForjaApiError(reason, {
 				code: "CONFLICT",
 				status: 409,
 				...(context && { context }),

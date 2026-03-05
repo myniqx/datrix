@@ -160,12 +160,7 @@ async function main(): Promise<void> {
 				};
 
 				// Create migration session from Forja instance
-				const setupResult = await createMigrationSetup(forja);
-				if (!setupResult.success) {
-					logger.error(setupResult.error.message);
-					process.exit(1);
-				}
-				const session = setupResult.data;
+				const session = await forja.beginMigrate();
 
 				// Status check
 				if (args.options["status"]) {

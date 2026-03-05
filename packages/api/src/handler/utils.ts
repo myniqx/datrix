@@ -6,7 +6,7 @@
 
 import { ParserError } from "forja-types/api/parser";
 import { ForjaValidationError } from "forja-types/errors/core/validation";
-import { ApiError, ErrorResult } from "../errors/api-error";
+import { ForjaApiError, ErrorResult } from "../errors/api-error";
 
 /**
  * Create JSON response
@@ -31,7 +31,7 @@ export function forjaErrorResponse(errResult: ErrorResult<never>): Response {
 
 	let status = 400;
 
-	if (error instanceof ApiError) {
+	if (error instanceof ForjaApiError) {
 		status = error.status;
 	} else if (error instanceof ForjaValidationError) {
 		status = 400;

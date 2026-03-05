@@ -14,10 +14,7 @@
 
 import {
 	Transaction,
-	TransactionError,
-	MigrationError,
 	QueryResult,
-	QueryError,
 	AlterOperation,
 } from "forja-types/adapter";
 import { QueryObject } from "forja-types/core/query-builder";
@@ -26,7 +23,6 @@ import {
 	IndexDefinition,
 	SchemaDefinition,
 } from "forja-types/core/schema";
-import { Result } from "forja-types/utils";
 import type { JsonAdapter } from "./adapter";
 
 /**
@@ -69,7 +65,7 @@ export class JsonTransaction implements Transaction {
 	 */
 	async executeQuery<TResult extends ForjaEntry>(
 		query: QueryObject<TResult>,
-	): Promise<Result<QueryResult<TResult>, QueryError<TResult>>> {
+	): Promise<QueryResult<TResult>> {
 		this.assertActive();
 
 		return this.adapter.executeQueryWithOptions<TResult>(query, {
@@ -84,7 +80,7 @@ export class JsonTransaction implements Transaction {
 	async executeRawQuery<TResult extends ForjaEntry>(
 		_sql: string,
 		_params: readonly unknown[],
-	): Promise<Result<QueryResult<TResult>, QueryError<TResult>>> {
+	): Promise<QueryResult<TResult>> {
 		return {
 			success: false,
 			error: new QueryError(
@@ -102,7 +98,7 @@ export class JsonTransaction implements Transaction {
 	 */
 	async createTable(
 		schema: SchemaDefinition,
-	): Promise<Result<void, MigrationError>> {
+	): Promise<void> {
 		this.assertActive();
 		return this.adapter.createTableWithOptions(schema, { skipWrite: true });
 	}
@@ -110,7 +106,7 @@ export class JsonTransaction implements Transaction {
 	/**
 	 * Drop table within transaction
 	 */
-	async dropTable(tableName: string): Promise<Result<void, MigrationError>> {
+	async dropTable(tableName: string): Promise<void> {
 		this.assertActive();
 		return this.adapter.dropTableWithOptions(tableName, { skipWrite: true });
 	}
@@ -121,7 +117,7 @@ export class JsonTransaction implements Transaction {
 	async renameTable(
 		from: string,
 		to: string,
-	): Promise<Result<void, MigrationError>> {
+	): Promise<void> {
 		this.assertActive();
 		return this.adapter.renameTableWithOptions(from, to, { skipWrite: true });
 	}
@@ -132,7 +128,7 @@ export class JsonTransaction implements Transaction {
 	async alterTable(
 		tableName: string,
 		operations: readonly AlterOperation[],
-	): Promise<Result<void, MigrationError>> {
+	): Promise<void> {
 		this.assertActive();
 		return this.adapter.alterTableWithOptions(tableName, operations, {
 			skipWrite: true,
@@ -145,7 +141,7 @@ export class JsonTransaction implements Transaction {
 	async addIndex(
 		tableName: string,
 		index: IndexDefinition,
-	): Promise<Result<void, MigrationError>> {
+	): Promise<void> {
 		this.assertActive();
 		return this.adapter.addIndexWithOptions(tableName, index, {
 			skipWrite: true,
@@ -158,7 +154,7 @@ export class JsonTransaction implements Transaction {
 	async dropIndex(
 		tableName: string,
 		indexName: string,
-	): Promise<Result<void, MigrationError>> {
+	): Promise<void> {
 		this.assertActive();
 		return this.adapter.dropIndexWithOptions(tableName, indexName, {
 			skipWrite: true,
@@ -170,20 +166,10 @@ export class JsonTransaction implements Transaction {
 	 *
 	 * Delegates to adapter's commitTransaction which writes to disk.
 	 */
-	async commit(): Promise<Result<void, TransactionError>> {
+	async commit(): Promise<void> {
 		this.assertActive();
-
-		try {
-			await this.commitCallback();
-			this.committed = true;
-			return { success: true, data: undefined };
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new TransactionError(`Commit failed: ${message}`, error),
-			};
-		}
+		await this.commitCallback();
+		this.committed = true;
 	}
 
 	/**
@@ -191,7 +177,7 @@ export class JsonTransaction implements Transaction {
 	 *
 	 * Delegates to adapter's rollbackTransaction which discards changes.
 	 */
-	async rollback(): Promise<Result<void, TransactionError>> {
+	async rollback(): Promise<void> {
 		if (this.committed) {
 			return {
 				success: false,
@@ -202,26 +188,18 @@ export class JsonTransaction implements Transaction {
 		}
 
 		if (this.rolledBack) {
-			return { success: true, data: undefined };
+			return
 		}
 
-		try {
-			await this.rollbackCallback();
-			this.rolledBack = true;
-			return { success: true, data: undefined };
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new TransactionError(`Rollback failed: ${message}`, error),
-			};
-		}
+		await this.rollbackCallback();
+		this.rolledBack = true;
+
 	}
 
 	/**
 	 * Create savepoint (not yet implemented for JSON adapter)
 	 */
-	async savepoint(_name: string): Promise<Result<void, TransactionError>> {
+	async savepoint(_name: string): Promise<void> {
 		return {
 			success: false,
 			error: new TransactionError(
@@ -233,7 +211,7 @@ export class JsonTransaction implements Transaction {
 	/**
 	 * Rollback to savepoint (not yet implemented for JSON adapter)
 	 */
-	async rollbackTo(_name: string): Promise<Result<void, TransactionError>> {
+	async rollbackTo(_name: string): Promise<void> {
 		return {
 			success: false,
 			error: new TransactionError(
@@ -245,7 +223,7 @@ export class JsonTransaction implements Transaction {
 	/**
 	 * Release savepoint (not yet implemented for JSON adapter)
 	 */
-	async release(_name: string): Promise<Result<void, TransactionError>> {
+	async release(_name: string): Promise<void> {
 		return {
 			success: false,
 			error: new TransactionError(

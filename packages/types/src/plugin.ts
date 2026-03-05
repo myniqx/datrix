@@ -11,7 +11,6 @@ import type {
 	FieldDefinition,
 	IndexDefinition,
 	ForjaEntry,
-	ForjaRecord,
 } from "./core/schema";
 import type { DatabaseAdapter } from "./adapter";
 import type { ForjaConfig } from "./config";
@@ -68,8 +67,8 @@ export interface ForjaPlugin<TOptions = Record<string, unknown>> {
 	readonly options: TOptions;
 
 	// Lifecycle
-	init(context: PluginContext): Promise<Result<void, PluginError>>;
-	destroy(): Promise<Result<void, PluginError>>;
+	init(context: PluginContext): Promise<void>;
+	destroy(): Promise<void>;
 
 	// Schema hooks
 	getSchemas?(): Promise<SchemaDefinition[]>;
@@ -184,8 +183,8 @@ export interface UploadResult {
 export interface StorageProvider {
 	readonly name: string;
 
-	upload(file: UploadFile): Promise<Result<UploadResult, UploadError>>;
-	delete(key: string): Promise<Result<void, UploadError>>;
+	upload(file: UploadFile): Promise<UploadResult>;
+	delete(key: string): Promise<void>;
 	getUrl(key: string): Promise<string>;
 	exists(key: string): Promise<boolean>;
 }
@@ -206,17 +205,13 @@ export class UploadError extends PluginError {
 export class PluginRegistry {
 	private readonly plugins: Map<string, ForjaPlugin> = new Map();
 
-	register(plugin: ForjaPlugin): Result<void, PluginError> {
+	register(plugin: ForjaPlugin): void {
 		if (this.plugins.has(plugin.name)) {
-			return {
-				success: false,
-				error: new PluginError(`Plugin already registered: ${plugin.name}`, {
-					code: "DUPLICATE_PLUGIN",
-				}),
-			};
+			throw new PluginError(`Plugin already registered: ${plugin.name}`, {
+				code: "DUPLICATE_PLUGIN",
+			});
 		}
 		this.plugins.set(plugin.name, plugin);
-		return { success: true, data: undefined };
 	}
 
 	get(name: string): ForjaPlugin | undefined {
@@ -231,34 +226,18 @@ export class PluginRegistry {
 		return Array.from(this.plugins.values());
 	}
 
-	async initAll(context: PluginContext): Promise<Result<void, PluginError>> {
+	async initAll(context: PluginContext): Promise<void> {
 		for (const plugin of this.plugins.values()) {
-			const result = await plugin.init(context);
-			if (!result.success) {
-				return result;
-			}
+			await plugin.init(context);
 		}
-		return { success: true, data: undefined };
 	}
 
-	async destroyAll(): Promise<Result<void, PluginError>> {
+	async destroyAll(): Promise<void> {
 		for (const plugin of this.plugins.values()) {
-			const result = await plugin.destroy();
-			if (!result.success) {
-				return result;
-			}
+			await plugin.destroy();
 		}
-		return { success: true, data: undefined };
 	}
 }
-
-/**
- * Middleware type for plugins
- */
-export type Middleware<TRequest = unknown, TResponse = unknown> = (
-	request: TRequest,
-	next: () => Promise<TResponse>,
-) => Promise<TResponse>;
 
 /**
  * Schema extension definition

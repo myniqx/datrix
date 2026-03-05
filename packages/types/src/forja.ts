@@ -123,7 +123,7 @@ export interface IRawCrud {
  */
 export interface IForja extends IRawCrud {
 	// Lifecycle & Configuration
-	shutdown(): Promise<Result<void, ForjaError>>;
+	shutdown(): Promise<void>;
 	getConfig(): ForjaConfig;
 	getAdapter<T extends DatabaseAdapter = DatabaseAdapter>(): T;
 	getPlugins(): readonly ForjaPlugin[];

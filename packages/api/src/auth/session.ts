@@ -6,13 +6,12 @@
  */
 
 import { randomBytes } from "node:crypto";
-import type { SessionConfig, SessionData, SessionStore } from "./types";
+import type { SessionConfig, SessionData } from "./types";
 import {
 	throwSessionCreateError,
 	throwSessionNotFound,
 	throwSessionExpired,
 } from "./error-helper";
-import { Result } from "forja-types";
 import { ForjaAuthError } from "forja-types/errors";
 
 /**
@@ -21,12 +20,12 @@ import { ForjaAuthError } from "forja-types/errors";
  * Manages user sessions with configurable storage
  */
 export class SessionStrategy {
-	private readonly store: SessionStore;
+	private readonly store: MemorySessionStore;
 	private readonly maxAge: number; // in seconds
 	private readonly checkPeriod: number; // cleanup interval in seconds
 	private cleanupTimer: NodeJS.Timeout | undefined;
 
-	constructor(config: SessionConfig, store?: SessionStore) {
+	constructor(config: SessionConfig, store?: MemorySessionStore) {
 		this.maxAge = config.maxAge ?? 86400; // default 24 hours
 		this.checkPeriod = config.checkPeriod ?? 3600; // default 1 hour
 		this.store = store ?? new MemorySessionStore(config.prefix);
@@ -55,11 +54,7 @@ export class SessionStrategy {
 				...data,
 			};
 
-			const setResult = await this.store.set(sessionId, sessionData);
-
-			if (!setResult.success) {
-				throw setResult.error;
-			}
+			await this.store.set(sessionId, sessionData);
 
 			return sessionData;
 		} catch (error) {
@@ -74,13 +69,7 @@ export class SessionStrategy {
 	 * Get session by ID
 	 */
 	async get(sessionId: string): Promise<SessionData> {
-		const getResult = await this.store.get(sessionId);
-
-		if (!getResult.success) {
-			throw getResult.error;
-		}
-
-		const session = getResult.data;
+		const session = await this.store.get(sessionId);
 
 		if (session === undefined) {
 			throwSessionNotFound(sessionId);
@@ -121,11 +110,7 @@ export class SessionStrategy {
 			createdAt: session.createdAt, // Preserve creation time
 		};
 
-		const setResult = await this.store.set(sessionId, updatedSession);
-
-		if (!setResult.success) {
-			throw setResult.error;
-		}
+		await this.store.set(sessionId, updatedSession);
 
 		return updatedSession;
 	}
@@ -134,10 +119,7 @@ export class SessionStrategy {
 	 * Delete session
 	 */
 	async delete(sessionId: string): Promise<void> {
-		const result = await this.store.delete(sessionId);
-		if (!result.success) {
-			throw result.error;
-		}
+		await this.store.delete(sessionId);
 	}
 
 	/**
@@ -192,10 +174,7 @@ export class SessionStrategy {
 	 * Clear all sessions
 	 */
 	async clear(): Promise<void> {
-		const result = await this.store.clear();
-		if (!result.success) {
-			throw result.error;
-		}
+		await this.store.clear();
 	}
 
 	/**
@@ -211,7 +190,7 @@ export class SessionStrategy {
  *
  * Default session store implementation using Map
  */
-export class MemorySessionStore implements SessionStore {
+export class MemorySessionStore {
 	readonly name = "memory" as const;
 	private readonly sessions: Map<string, SessionData> = new Map();
 	private readonly prefix: string;
@@ -222,110 +201,53 @@ export class MemorySessionStore implements SessionStore {
 
 	async get(
 		sessionId: string,
-	): Promise<Result<SessionData | undefined, ForjaAuthError>> {
+	): Promise<SessionData | undefined> {
 		try {
 			const key = this.getKey(sessionId);
 			const session = this.sessions.get(key);
 
-			return { success: true, data: session };
+			return session;
 		} catch (error) {
-			return {
-				success: false,
-				error: new ForjaAuthError("Failed to get session from store", {
-					code: "SESSION_CREATE_ERROR",
-					strategy: "session",
-				}),
-			};
+			throw new ForjaAuthError("Failed to get session from store", {
+				code: "SESSION_CREATE_ERROR",
+				strategy: "session",
+				cause: error instanceof Error ? error : undefined,
+			});
 		}
 	}
 
 	async set(
 		sessionId: string,
 		data: SessionData,
-	): Promise<Result<void, ForjaAuthError>> {
-		try {
-			const key = this.getKey(sessionId);
-			this.sessions.set(key, data);
-
-			return { success: true, data: undefined };
-		} catch (error) {
-			return {
-				success: false,
-				error: new ForjaAuthError("Failed to set session in store", {
-					code: "SESSION_CREATE_ERROR",
-					strategy: "session",
-				}),
-			};
-		}
+	): Promise<void> {
+		const key = this.getKey(sessionId);
+		this.sessions.set(key, data);
 	}
 
-	async delete(sessionId: string): Promise<Result<void, ForjaAuthError>> {
-		try {
-			const key = this.getKey(sessionId);
-			this.sessions.delete(key);
-
-			return { success: true, data: undefined };
-		} catch (error) {
-			return {
-				success: false,
-				error: new ForjaAuthError("Failed to delete session from store", {
-					code: "SESSION_DELETE_ERROR",
-					strategy: "session",
-				}),
-			};
-		}
+	async delete(sessionId: string): Promise<void> {
+		const key = this.getKey(sessionId);
+		this.sessions.delete(key);
 	}
 
-	async cleanup(): Promise<Result<number, ForjaAuthError>> {
-		try {
-			const now = new Date();
-			let deletedCount = 0;
+	async cleanup(): Promise<number> {
+		const now = new Date();
+		let deletedCount = 0;
 
-			for (const [key, session] of this.sessions.entries()) {
-				if (session.expiresAt < now) {
-					this.sessions.delete(key);
-					deletedCount++;
-				}
+		for (const [key, session] of this.sessions.entries()) {
+			if (session.expiresAt < now) {
+				this.sessions.delete(key);
+				deletedCount++;
 			}
-
-			return { success: true, data: deletedCount };
-		} catch (error) {
-			return {
-				success: false,
-				error: new ForjaAuthError("Failed to cleanup sessions", {
-					code: "SESSION_CREATE_ERROR",
-					strategy: "session",
-				}),
-			};
 		}
+
+		return deletedCount;
 	}
 
-	async clear(): Promise<Result<void, ForjaAuthError>> {
-		try {
-			this.sessions.clear();
-			return { success: true, data: undefined };
-		} catch (error) {
-			return {
-				success: false,
-				error: new ForjaAuthError("Failed to clear sessions", {
-					code: "SESSION_CREATE_ERROR",
-					strategy: "session",
-				}),
-			};
-		}
+	async clear(): Promise<void> {
+		this.sessions.clear();
 	}
 
 	private getKey(sessionId: string): string {
 		return `${this.prefix}${sessionId}`;
 	}
-}
-
-/**
- * Create a session strategy instance
- */
-export function createSessionStrategy(
-	config: SessionConfig,
-	store?: SessionStore,
-): SessionStrategy {
-	return new SessionStrategy(config, store);
 }
