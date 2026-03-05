@@ -1,6 +1,6 @@
 import {
 	WhereClause,
-	OrderByItem,
+	FallbackOrderByItem,
 	ComparisonOperators,
 	QuerySelectObject,
 	QuerySelect,
@@ -8,6 +8,7 @@ import {
 } from "forja-types/core/query-builder";
 import {
 	ForjaEntry,
+	ForjaRecord,
 	RelationField,
 	SchemaDefinition,
 } from "forja-types/core/schema";
@@ -41,7 +42,7 @@ export class JsonQueryRunner {
 		return this.adapter;
 	}
 
-	async run<T extends ForjaEntry>(
+	async run<T extends ForjaEntry = ForjaRecord>(
 		query: QuerySelectObject<T> | QueryCountObject<T>,
 	): Promise<Partial<T>[]> {
 		let result = this.table.data as T[];
@@ -72,7 +73,7 @@ export class JsonQueryRunner {
 
 		// 4. Sort (mutates array in-place)
 		if (query.orderBy && query.orderBy.length > 0) {
-			result.sort((a, b) => this.sort(a, b, query.orderBy!));
+			result.sort((a, b) => this.sort(a as Record<string, unknown>, b as Record<string, unknown>, query.orderBy!));
 		}
 
 		// 5. Offset/Limit
@@ -109,7 +110,7 @@ export class JsonQueryRunner {
 
 		// 2. Sort (mutates array in-place)
 		if (query.orderBy && query.orderBy.length > 0) {
-			result.sort((a, b) => this.sort(a, b, query.orderBy!));
+			result.sort((a, b) => this.sort(a as Record<string, unknown>, b as Record<string, unknown>, query.orderBy!));
 		}
 
 		// 3. Offset/Limit
@@ -353,7 +354,7 @@ export class JsonQueryRunner {
 			return await this.match(relatedRecord, relationWhere, targetSchema);
 		}
 
-		if (kind === "hasMany" || kind === "hasOne") {
+		if (kind === "hasMany") {
 			// Target table holds the FK pointing back to this record
 			const sourceId = item["id"] as number | string | undefined;
 			if (sourceId === null || sourceId === undefined) {
@@ -688,14 +689,14 @@ export class JsonQueryRunner {
 	}
 
 	private sort(
-		a: any,
-		b: any,
-		orderBy: readonly OrderByItem<ForjaEntry>[],
+		a: Record<string, unknown>,
+		b: Record<string, unknown>,
+		orderBy: readonly FallbackOrderByItem[],
 	): number {
 		for (const order of orderBy) {
 			const fieldName = order.field;
-			const valA = this.coerceForComparison(a[fieldName], fieldName as string);
-			const valB = this.coerceForComparison(b[fieldName], fieldName as string);
+			const valA = this.coerceForComparison(a[fieldName], fieldName);
+			const valB = this.coerceForComparison(b[fieldName], fieldName);
 
 			if (valA === valB) continue;
 

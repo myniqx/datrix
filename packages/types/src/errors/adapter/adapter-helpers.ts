@@ -153,6 +153,56 @@ export function throwTransactionError(params: {
 	});
 }
 
+export function throwTransactionAlreadyCommitted(params: {
+	adapter: AdapterName;
+}): never {
+	throw new ForjaAdapterError("Transaction already committed", {
+		adapter: params.adapter,
+		code: "ADAPTER_TRANSACTION_ERROR",
+		operation: "transaction",
+		suggestion: "Start a new transaction instead of reusing a committed one",
+	});
+}
+
+export function throwTransactionAlreadyRolledBack(params: {
+	adapter: AdapterName;
+}): never {
+	throw new ForjaAdapterError("Transaction already rolled back", {
+		adapter: params.adapter,
+		code: "ADAPTER_TRANSACTION_ERROR",
+		operation: "transaction",
+		suggestion: "Start a new transaction instead of reusing a rolled back one",
+	});
+}
+
+export function throwTransactionSavepointNotSupported(params: {
+	adapter: AdapterName;
+}): never {
+	throw new ForjaAdapterError(
+		`Savepoints are not supported by the ${params.adapter} adapter`,
+		{
+			adapter: params.adapter,
+			code: "ADAPTER_TRANSACTION_ERROR",
+			operation: "transaction",
+			suggestion: "Use nested transactions or restructure your logic",
+		},
+	);
+}
+
+export function throwRawQueryNotSupported(params: {
+	adapter: AdapterName;
+}): never {
+	throw new ForjaAdapterError(
+		`Raw SQL queries are not supported by the ${params.adapter} adapter`,
+		{
+			adapter: params.adapter,
+			code: "ADAPTER_QUERY_ERROR",
+			operation: "query",
+			suggestion: "Use the query builder API instead of raw SQL",
+		},
+	);
+}
+
 // ============================================================================
 // Populate / Relation Errors
 // ============================================================================

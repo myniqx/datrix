@@ -17,6 +17,12 @@ import {
 	QueryResult,
 	AlterOperation,
 } from "forja-types/adapter";
+import {
+	throwTransactionAlreadyCommitted,
+	throwTransactionAlreadyRolledBack,
+	throwTransactionSavepointNotSupported,
+	throwRawQueryNotSupported,
+} from "forja-types/errors/adapter";
 import { QueryObject } from "forja-types/core/query-builder";
 import {
 	ForjaEntry,
@@ -50,10 +56,10 @@ export class JsonTransaction implements Transaction {
 	 */
 	private assertActive(): void {
 		if (this.committed) {
-			throw new TransactionError("Transaction already committed");
+			throwTransactionAlreadyCommitted({ adapter: "json" });
 		}
 		if (this.rolledBack) {
-			throw new TransactionError("Transaction already rolled back");
+			throwTransactionAlreadyRolledBack({ adapter: "json" });
 		}
 	}
 
@@ -81,9 +87,7 @@ export class JsonTransaction implements Transaction {
 		_sql: string,
 		_params: readonly unknown[],
 	): Promise<QueryResult<TResult>> {
-		throw new QueryError(
-			"Raw SQL queries are not supported by JSON adapter",
-		);
+		throwRawQueryNotSupported({ adapter: "json" });
 	}
 
 	// ========================================
@@ -176,44 +180,35 @@ export class JsonTransaction implements Transaction {
 	 */
 	async rollback(): Promise<void> {
 		if (this.committed) {
-			throw new TransactionError(
-				"Cannot rollback: transaction already committed",
-			)
+			throwTransactionAlreadyCommitted({ adapter: "json" });
 		}
 
 		if (this.rolledBack) {
-			return
+			return;
 		}
 
 		await this.rollbackCallback();
 		this.rolledBack = true;
-
 	}
 
 	/**
 	 * Create savepoint (not yet implemented for JSON adapter)
 	 */
 	async savepoint(_name: string): Promise<void> {
-		throw new TransactionError(
-			"Savepoints are not yet supported by JSON adapter",
-		)
+		throwTransactionSavepointNotSupported({ adapter: "json" });
 	}
 
 	/**
 	 * Rollback to savepoint (not yet implemented for JSON adapter)
 	 */
 	async rollbackTo(_name: string): Promise<void> {
-		throw new TransactionError(
-			"Savepoints are not yet supported by JSON adapter",
-		)
+		throwTransactionSavepointNotSupported({ adapter: "json" });
 	}
 
 	/**
 	 * Release savepoint (not yet implemented for JSON adapter)
 	 */
 	async release(_name: string): Promise<void> {
-		throw new TransactionError(
-			"Savepoints are not yet supported by JSON adapter",
-		)
+		throwTransactionSavepointNotSupported({ adapter: "json" });
 	}
 }

@@ -110,9 +110,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 				}
 			}
 		} catch (error) {
-			if (this.state !== "error") {
-				this.state = "error";
-			}
+			this.state = "error";
 			const message = error instanceof Error ? error.message : String(error);
 			throwConnectionError({
 				adapter: "json",

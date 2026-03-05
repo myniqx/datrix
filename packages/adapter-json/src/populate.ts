@@ -1,7 +1,6 @@
 import {
 	QuerySelect,
 	QuerySelectObject,
-	WhereClause,
 } from "forja-types/core/query-builder";
 import type { JsonAdapter } from "./adapter";
 import type { ForjaEntry, RelationField } from "forja-types/core/schema";
@@ -14,7 +13,7 @@ import {
 import { JsonQueryRunner } from "./runner";
 
 export class JsonPopulator {
-	constructor(private adapter: JsonAdapter) {}
+	constructor(private adapter: JsonAdapter) { }
 
 	async populate<T extends ForjaEntry>(
 		rows: T[],
@@ -172,16 +171,16 @@ export class JsonPopulator {
 				const relevantJunctions = await junctionRunner.run({
 					type: "select",
 					table: junctionTableName,
-					where: { [sourceFK]: { $in: sourceIds } } as WhereClause<T>,
-					select: "*" as unknown as QuerySelect<T>,
-				} satisfies QuerySelectObject<T>);
+					where: { [sourceFK]: { $in: sourceIds } },
+					select: "*" as unknown as QuerySelect,
+				});
 
 				// Build mapping: sourceId -> targetIds[]
 				// Normalize all IDs to number for consistent comparison
 				const mapping = new Map<number, number[]>();
 				for (const junction of relevantJunctions) {
-					const srcId = junction[sourceFK as keyof T];
-					const tgtId = junction[targetFK as keyof T];
+					const srcId = junction[sourceFK];
+					const tgtId = junction[targetFK];
 
 					// Normalize to number
 					const normalizedSrcId =
@@ -213,8 +212,8 @@ export class JsonPopulator {
 				const targetRecords = await targetRunner.run({
 					type: "select",
 					table: targetTable,
-					where: { id: { $in: Array.from(allTargetIds) } } as WhereClause<T>,
-					select: "*" as unknown as QuerySelect<T>,
+					where: { id: { $in: Array.from(allTargetIds) } },
+					select: "*" as unknown as QuerySelect,
 				});
 
 				// Map to result rows
