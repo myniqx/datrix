@@ -24,7 +24,6 @@ export {
 } from "./api/handler";
 
 export * from "./api/parser";
-export * from "./api/serializer";
 
 // Core schema types - exclude LifecycleHooks (defined in plugin.ts)
 export {
@@ -68,7 +67,6 @@ export {
 	type SchemaRegistry,
 	// Metadata & Validation
 	type FieldMetadata,
-	getFieldMetadata,
 	type SchemaDefinitionValidationResult,
 	type SchemaValidationError,
 	validateSchemaDefinition,

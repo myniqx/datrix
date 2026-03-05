@@ -10,7 +10,6 @@ export default defineConfig({
 		"src/core/migration.ts",
 		"src/api/handler.ts",
 		"src/api/parser.ts",
-		"src/api/serializer.ts",
 		"src/utils.ts",
 		"src/cli.ts",
 	],

@@ -7,7 +7,7 @@
 
 import { ForjaEntry, ForjaRecord } from "../core/schema";
 import {
-	QueryOrderBy,
+	OrderByClause,
 	OrderByItem,
 	PopulateClause,
 	SelectClause,
@@ -31,7 +31,7 @@ export interface ParsedQuery<T extends ForjaEntry = ForjaRecord> {
 	readonly select?: SelectClause<T>;
 	readonly where?: WhereClause<T>;
 	readonly populate?: PopulateClause<T>;
-	readonly orderBy?: QueryOrderBy;
+	readonly orderBy?: OrderByClause<T>;
 	readonly page?: number;
 	readonly pageSize?: number;
 }

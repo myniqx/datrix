@@ -5,7 +5,7 @@
  */
 
 import { AlterOperation, QueryRunner } from "../adapter";
-import { Result } from "../utils";
+
 import { FieldDefinition, IndexDefinition, SchemaDefinition } from "./schema";
 
 /**

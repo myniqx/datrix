@@ -14,7 +14,6 @@ import type {
 } from "./core/schema";
 import type { DatabaseAdapter } from "./adapter";
 import type { ForjaConfig } from "./config";
-import { Result } from "./utils";
 import { QueryObject } from "./core/query-builder";
 import { IForja } from "./forja";
 import { AuthUser } from "./api";

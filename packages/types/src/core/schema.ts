@@ -374,11 +374,18 @@ export type RelationInput<T extends ForjaEntry> =
 export type AnyRelationInput =
 	| RelationIdRefs
 	| null
-	| {
+	| AnyRelationInputObject;
+
+export type AnyRelationInputObject =
+	{
 		connect?: RelationIdRefs;
 		disconnect?: RelationIdRefs | true;
 		set?: RelationIdRefs;
 		delete?: RelationIdRefs;
+		create?: Record<string, unknown> | Record<string, unknown>[];
+		update?:
+		| { where: { id: number }; data: Record<string, unknown> }
+		| { where: { id: number }; data: Record<string, unknown> }[];
 	};
 
 /**
