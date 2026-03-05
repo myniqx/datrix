@@ -96,24 +96,6 @@ export interface SessionConfig {
 }
 
 /**
- * Session store interface
- */
-export interface SessionStore {
-	readonly name: SessionStoreType;
-
-	get(
-		sessionId: string,
-	): Promise<Result<SessionData | undefined, ForjaAuthError>>;
-	set(
-		sessionId: string,
-		data: SessionData,
-	): Promise<Result<void, ForjaAuthError>>;
-	delete(sessionId: string): Promise<Result<void, ForjaAuthError>>;
-	cleanup(): Promise<Result<number, ForjaAuthError>>; // Returns number of deleted sessions
-	clear(): Promise<Result<void, ForjaAuthError>>;
-}
-
-/**
  * Authentication configuration
  *
  * When auth is defined in ApiConfig, authentication is enabled.

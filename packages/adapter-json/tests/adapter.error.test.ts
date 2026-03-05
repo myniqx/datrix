@@ -119,7 +119,10 @@ describe("JsonAdapter - Error Path", () => {
 			try {
 				await fs.chmod(readOnlyRoot, 0o444);
 
-				const restrictedAdapter = new JsonAdapter({ root: readOnlyRoot, standalone: true });
+				const restrictedAdapter = new JsonAdapter({
+					root: readOnlyRoot,
+					standalone: true,
+				});
 				await restrictedAdapter.connect();
 
 				const result = await restrictedAdapter.createTable({

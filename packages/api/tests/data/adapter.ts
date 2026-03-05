@@ -10,8 +10,8 @@ import { PostgresAdapter } from "../../../adapter-postgres/src/index";
 import { MySQLAdapter } from "../../../adapter-mysql/src/index";
 import { createTestDatabase as createPostgresTestDatabase } from "../../../adapter-postgres/src/test-utils";
 import { createTestDatabase as createMySQLTestDatabase } from "../../../adapter-mysql/src/test-utils";
-import type { DatabaseAdapter } from "forja-types/core/adapter";
 import { createHash } from "node:crypto";
+import { DatabaseAdapter } from "forja-types/adapter";
 
 /**
  * Supported adapter types for testing
@@ -61,16 +61,16 @@ export async function getAdapter(
 				readLock: false,
 				lockTimeout: 5000,
 				staleTimeout: 10000,
-			});
+			}) as DatabaseAdapter;
 
 		case "postgres": {
 			const dbName = generateDbName(root);
 
 			// Parse connection config from env
-			const host = process.env.POSTGRES_HOST ?? "localhost";
-			const port = parseInt(process.env.POSTGRES_PORT ?? "5432", 10);
-			const user = process.env.POSTGRES_USER ?? "postgres";
-			const password = process.env.POSTGRES_PASSWORD ?? "postgres";
+			const host = process.env["POSTGRES_HOST"] ?? "localhost";
+			const port = parseInt(process.env["POSTGRES_PORT"] ?? "5432", 10);
+			const user = process.env["POSTGRES_USER"] ?? "postgres";
+			const password = process.env["POSTGRES_PASSWORD"] ?? "postgres";
 
 			// Create fresh database
 			await createPostgresTestDatabase(dbName, { host, port, user, password });
@@ -87,17 +87,17 @@ export async function getAdapter(
 				connectionTimeoutMillis: 5000,
 				idleTimeoutMillis: 10000,
 				applicationName: "forja-test",
-			});
+			}) as DatabaseAdapter;
 		}
 
 		case "mysql": {
 			const dbName = generateDbName(root);
 
 			// Parse connection config from env
-			const host = process.env.MYSQL_HOST ?? "localhost";
-			const port = parseInt(process.env.MYSQL_PORT ?? "3306", 10);
-			const user = process.env.MYSQL_USER ?? "root";
-			const password = process.env.MYSQL_PASSWORD ?? "";
+			const host = process.env["MYSQL_HOST"] ?? "localhost";
+			const port = parseInt(process.env["MYSQL_PORT"] ?? "3306", 10);
+			const user = process.env["MYSQL_USER"] ?? "root";
+			const password = process.env["MYSQL_PASSWORD"] ?? "";
 
 			// Create fresh database
 			await createMySQLTestDatabase(dbName, { host, port, user, password });
@@ -110,7 +110,7 @@ export async function getAdapter(
 				password,
 				connectionLimit: 10,
 				connectTimeout: 5000,
-			});
+			}) as DatabaseAdapter;
 		}
 
 		default:
@@ -129,7 +129,7 @@ export async function getAdapter(
  * // ADAPTER=mysql npm test      → mysql
  */
 export function getAdapterType(): AdapterType {
-	const adapterEnv = process.env.ADAPTER?.toLowerCase();
+	const adapterEnv = process.env["ADAPTER"]?.toLowerCase();
 	if (
 		adapterEnv === "postgres" ||
 		adapterEnv === "mysql" ||

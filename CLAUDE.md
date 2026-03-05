@@ -47,28 +47,69 @@ Database entry tipi için her zaman <T extends ForjaEntry> generic kullanılmal�
 
 ### 3. Error Handling Pattern
 
-Use Result<T, E> pattern instead of throwing exceptions:
+Functions throw on failure, return the value directly on success. No Result<T, E> wrapper.
 
 ```typescript
-// Define Result type
-type Result<T, E = Error> =
-	| { success: true; data: T }
-	| { success: false; error: E };
-
-// ❌ Don't throw
-function parseUser(data: unknown): User {
-	if (!isValidUser(data)) throw new Error("Invalid user");
-	return data;
-}
-
-// ✅ Return Result
+// ❌ Don't wrap in Result
 function parseUser(data: unknown): Result<User, ValidationError> {
 	if (!isValidUser(data)) {
 		return { success: false, error: new ValidationError("Invalid user") };
 	}
 	return { success: true, data };
 }
+
+// ✅ Throw or return directly
+function parseUser(data: unknown): User {
+	if (!isValidUser(data)) throw new ValidationError("Invalid user");
+	return data;
+}
 ```
+
+**Calling internal project functions:**
+
+If the called function can throw and you need to set a variable or do cleanup on failure, wrap with try/catch, do what you need, then re-throw the original error as-is:
+
+```typescript
+// ✅ Need to clean up on failure → try/catch + re-throw
+let connection: Connection | undefined;
+try {
+	connection = await pool.acquire(); // internal function
+} catch (error) {
+	releaseResources();
+	throw error; // re-throw as-is, don't wrap
+}
+
+// ✅ No cleanup needed → let it throw naturally, no try/catch
+const user = parseUser(data);
+```
+
+**Calling external functions (fs, pg, http clients, etc.):**
+
+External calls that can throw MUST be wrapped. Catch and re-throw as the appropriate Forja error class (never plain `Error`). Always set `cause` to the original error:
+
+```typescript
+// ❌ Don't let external errors propagate raw
+const data = fs.readFileSync(path, "utf-8");
+
+// ❌ Don't wrap in plain Error
+try {
+	const data = fs.readFileSync(path, "utf-8");
+} catch (error) {
+	throw new Error("Failed to read file");
+}
+
+// ✅ Wrap in the appropriate Forja error class with cause
+try {
+	const data = fs.readFileSync(path, "utf-8");
+} catch (error) {
+	throw new ForjaAdapterError("Failed to read file", {
+		code: "FILE_READ_ERROR",
+		cause: error,
+	});
+}
+```
+
+Use the most specific Forja error subclass available for the module you are in (e.g. `ForjaAdapterError` in adapters, `MigrationSystemError` in migration, `ForjaError` as fallback).
 
 ### 4. Debug-Friendly Code Style
 

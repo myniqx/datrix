@@ -12,7 +12,6 @@ import {
 	SchemaDiffer,
 } from "forja-types/core/migration";
 import { FieldDefinition, SchemaDefinition } from "forja-types/core/schema";
-import { Result } from "forja-types/utils";
 
 /**
  * Type guard for SchemaDefinition
@@ -59,8 +58,29 @@ export class ForgeSchemaDiffer implements SchemaDiffer {
 	compare(
 		oldSchemas: Record<string, SchemaDefinition>,
 		newSchemas: Record<string, SchemaDefinition>,
-	): Result<SchemaComparison, MigrationSystemError> {
+	): SchemaComparison {
 		try {
+			if (
+				typeof oldSchemas !== "object" ||
+				oldSchemas === null ||
+				Array.isArray(oldSchemas)
+			) {
+				throw new MigrationSystemError(
+					"oldSchemas must be a plain object",
+					"DIFF_ERROR",
+				);
+			}
+			if (
+				typeof newSchemas !== "object" ||
+				newSchemas === null ||
+				Array.isArray(newSchemas)
+			) {
+				throw new MigrationSystemError(
+					"newSchemas must be a plain object",
+					"DIFF_ERROR",
+				);
+			}
+
 			const differences: SchemaDiff[] = [];
 
 			const oldTableNames = new Set(Object.keys(oldSchemas));
@@ -71,13 +91,10 @@ export class ForgeSchemaDiffer implements SchemaDiffer {
 				if (!oldTableNames.has(tableName)) {
 					const schema = newSchemas[tableName];
 					if (!isSchemaDefinition(schema)) {
-						return {
-							success: false,
-							error: new MigrationSystemError(
-								`Invalid schema definition for table '${tableName}'`,
-								"DIFF_ERROR",
-							),
-						};
+						throw new MigrationSystemError(
+							`Invalid schema definition for table '${tableName}'`,
+							"DIFF_ERROR",
+						);
 					}
 
 					differences.push({
@@ -107,13 +124,10 @@ export class ForgeSchemaDiffer implements SchemaDiffer {
 						!isSchemaDefinition(oldSchema) ||
 						!isSchemaDefinition(newSchema)
 					) {
-						return {
-							success: false,
-							error: new MigrationSystemError(
-								`Invalid schema definition for table '${tableName}'`,
-								"DIFF_ERROR",
-							),
-						};
+						throw new MigrationSystemError(
+							`Invalid schema definition for table '${tableName}'`,
+							"DIFF_ERROR",
+						);
 					}
 
 					const tableDiffs = this.compareTable(oldSchema, newSchema);
@@ -128,22 +142,16 @@ export class ForgeSchemaDiffer implements SchemaDiffer {
 			);
 
 			return {
-				success: true,
-				data: {
-					differences: resolvedDifferences,
-					hasChanges: resolvedDifferences.length > 0,
-				},
+				differences: resolvedDifferences,
+				hasChanges: resolvedDifferences.length > 0,
 			};
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new MigrationSystemError(
-					`Failed to compare schemas: ${message}`,
-					"DIFF_ERROR",
-					error,
-				),
-			};
+			throw new MigrationSystemError(
+				`Failed to compare schemas: ${message}`,
+				"DIFF_ERROR",
+				error,
+			);
 		}
 	}
 

@@ -6,14 +6,6 @@
  */
 
 /**
- * Result pattern for error handling
- * Use this instead of throwing exceptions
- */
-export type Result<T, E = Error> =
-	| { readonly success: true; readonly data: T }
-	| { readonly success: false; readonly error: E };
-
-/**
  * Primitive types
  */
 export type Primitive = string | number | boolean | null | undefined;
@@ -34,16 +26,16 @@ export type JsonValue =
  */
 export type DeepPartial<T> =
 	T extends Record<string, unknown>
-		? { [P in keyof T]?: DeepPartial<T[P]> }
-		: T;
+	? { [P in keyof T]?: DeepPartial<T[P]> }
+	: T;
 
 /**
  * Make all properties in T readonly recursively
  */
 export type DeepReadonly<T> =
 	T extends Record<string, unknown>
-		? { readonly [P in keyof T]: DeepReadonly<T[P]> }
-		: T;
+	? { readonly [P in keyof T]: DeepReadonly<T[P]> }
+	: T;
 
 /**
  * Extract keys from T that have values of type V
@@ -121,9 +113,3 @@ export type Opaque<T, K> = T & { readonly __opaque: K };
  * Type guard function type
  */
 export type TypeGuard<T> = (value: unknown) => value is T;
-
-/**
- * Validator function type
- * Note: ValidationError is defined in core/validator
- */
-export type Validator<T> = (value: unknown) => Result<T, unknown>;

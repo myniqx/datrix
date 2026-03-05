@@ -39,14 +39,14 @@ export class Dispatcher {
 	constructor(
 		private readonly registry: PluginRegistry,
 		private readonly forja: Forja,
-	) {}
+	) { }
 
 	/**
 	 * Create and populate query context
 	 *
 	 * This allows plugins to enrich the context before query execution.
 	 */
-	private async buildQueryContext(
+	async buildQueryContext(
 		action: QueryAction,
 		schema: SchemaDefinition,
 	): Promise<QueryContext> {
@@ -116,36 +116,21 @@ export class Dispatcher {
 	 * Dispatch onBeforeQuery hook to all plugins (serial execution)
 	 * Plugins can modify the query object.
 	 */
-	private async dispatchBeforeQuery<TResult extends ForjaEntry = ForjaRecord>(
+	async dispatchBeforeQuery<TResult extends ForjaEntry = ForjaRecord>(
 		query: QueryObject<TResult>,
 		context: QueryContext,
 	): Promise<QueryObject<TResult>> {
-		const entranceValidation = validateQueryObject(query);
-		if (!entranceValidation.success) {
-			throw new Error(
-				`[Dispatcher] Entrance QueryObject is invalid: ${entranceValidation.error.message}`,
-			);
-		}
+		validateQueryObject(query);
 
 		let currentQuery = { ...query } as QueryObject<TResult>;
 
 		for (const plugin of this.registry.getAll()) {
 			try {
 				if (plugin.onBeforeQuery) {
-					const modifiedQuery = await plugin.onBeforeQuery(
+					currentQuery = await plugin.onBeforeQuery(
 						currentQuery,
 						context,
 					);
-
-					// TODO: her pluginden sonra tekrar full bir validasyon yerine en son tek bir validasyon yap.
-					const validation = validateQueryObject<TResult>(modifiedQuery);
-					if (validation.success) {
-						currentQuery = validation.data;
-					} else {
-						const errorMsg = `[Dispatcher] Plugin '${plugin.name}' returned an invalid query: ${validation.error.message}`;
-						console.error(errorMsg);
-						throw new Error(errorMsg);
-					}
 				}
 			} catch (error) {
 				console.error(
@@ -163,7 +148,7 @@ export class Dispatcher {
 	 * Dispatch onAfterQuery hook to all plugins (serial execution)
 	 * Plugins can modify the result.
 	 */
-	private async dispatchAfterQuery<TResult extends ForjaEntry>(
+	async dispatchAfterQuery<TResult extends ForjaEntry>(
 		result: TResult,
 		context: QueryContext,
 	): Promise<TResult> {

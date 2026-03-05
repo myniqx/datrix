@@ -18,7 +18,7 @@ describe("QueryParser - Error Path", () => {
 			const zeroPage: RawQueryParams =
 				parserTestData.invalidPaginationParams.zeroPage;
 
-			const error = expectFailureError(parseQuery(zeroPage));
+			const error = expectFailureError(() => parseQuery(zeroPage));
 
 			expect(error.code).toBe("INVALID_PAGINATION");
 			expect(error.context?.parameter).toBe("page");
@@ -29,7 +29,7 @@ describe("QueryParser - Error Path", () => {
 			const negativePage: RawQueryParams =
 				parserTestData.invalidPaginationParams.negativePage;
 
-			const error = expectFailureError(parseQuery(negativePage));
+			const error = expectFailureError(() => parseQuery(negativePage));
 
 			expect(error.code).toBe("INVALID_PAGINATION");
 			expect(error.context?.parameter).toBe("page");
@@ -39,7 +39,7 @@ describe("QueryParser - Error Path", () => {
 			const zeroPageSize: RawQueryParams =
 				parserTestData.invalidPaginationParams.zeroPageSize;
 
-			const error = expectFailureError(parseQuery(zeroPageSize));
+			const error = expectFailureError(() => parseQuery(zeroPageSize));
 
 			expect(error.code).toBe("INVALID_PAGINATION");
 			expect(error.context?.parameter).toBe("pageSize");
@@ -49,7 +49,7 @@ describe("QueryParser - Error Path", () => {
 			const negativePageSize: RawQueryParams =
 				parserTestData.invalidPaginationParams.negativePageSize;
 
-			const error = expectFailureError(parseQuery(negativePageSize));
+			const error = expectFailureError(() => parseQuery(negativePageSize));
 
 			expect(error.code).toBe("INVALID_PAGINATION");
 			expect(error.context?.parameter).toBe("pageSize");
@@ -59,7 +59,9 @@ describe("QueryParser - Error Path", () => {
 			const exceedsPageSize: RawQueryParams = { pageSize: "200" };
 			const options: ParserOptions = { maxPageSize: 100 };
 
-			const error = expectFailureError(parseQuery(exceedsPageSize, options));
+			const error = expectFailureError(() =>
+				parseQuery(exceedsPageSize, options),
+			);
 
 			expect(error.code).toBe("MAX_VALUE_VIOLATION");
 			expect(error.context?.parameter).toBe("pageSize");
@@ -70,7 +72,7 @@ describe("QueryParser - Error Path", () => {
 			const nonNumericPage: RawQueryParams =
 				parserTestData.invalidPaginationParams.nonNumericPage;
 
-			const error = expectFailureError(parseQuery(nonNumericPage));
+			const error = expectFailureError(() => parseQuery(nonNumericPage));
 
 			expect(error.code).toBe("INVALID_PAGINATION");
 			expect(error.context?.parameter).toBe("page");
@@ -82,7 +84,7 @@ describe("QueryParser - Error Path", () => {
 			const sqlInjectionSort: RawQueryParams =
 				parserTestData.invalidSortParams.sqlInjection;
 
-			const error = expectFailureError(parseQuery(sqlInjectionSort));
+			const error = expectFailureError(() => parseQuery(sqlInjectionSort));
 
 			expect(error.code).toBe("INVALID_FIELD_NAME");
 			expect(error.context?.parameter).toBe("sort");
@@ -92,7 +94,7 @@ describe("QueryParser - Error Path", () => {
 			const specialCharsSort: RawQueryParams =
 				parserTestData.invalidSortParams.specialChars;
 
-			const error = expectFailureError(parseQuery(specialCharsSort));
+			const error = expectFailureError(() => parseQuery(specialCharsSort));
 
 			expect(error.code).toBe("INVALID_FIELD_NAME");
 			expect(error.context?.parameter).toBe("sort");
@@ -102,7 +104,7 @@ describe("QueryParser - Error Path", () => {
 			const digitStartSort: RawQueryParams =
 				parserTestData.invalidSortParams.startsWithDigit;
 
-			const error = expectFailureError(parseQuery(digitStartSort));
+			const error = expectFailureError(() => parseQuery(digitStartSort));
 
 			expect(error.code).toBe("INVALID_FIELD_NAME");
 			expect(error.context?.parameter).toBe("sort");
@@ -112,7 +114,7 @@ describe("QueryParser - Error Path", () => {
 			const spacesSort: RawQueryParams =
 				parserTestData.invalidSortParams.withSpaces;
 
-			const error = expectFailureError(parseQuery(spacesSort));
+			const error = expectFailureError(() => parseQuery(spacesSort));
 
 			expect(error.code).toBe("INVALID_FIELD_NAME");
 			expect(error.context?.parameter).toBe("sort");
@@ -122,7 +124,7 @@ describe("QueryParser - Error Path", () => {
 			const pathTraversalSort: RawQueryParams =
 				parserTestData.invalidSortParams.pathTraversal;
 
-			const error = expectFailureError(parseQuery(pathTraversalSort));
+			const error = expectFailureError(() => parseQuery(pathTraversalSort));
 
 			expect(error.code).toBe("INVALID_FIELD_NAME");
 			expect(error.context?.parameter).toBe("sort");
@@ -131,7 +133,7 @@ describe("QueryParser - Error Path", () => {
 		it("should reject XSS in sort field", () => {
 			const xssSort: RawQueryParams = parserTestData.invalidSortParams.xss;
 
-			const error = expectFailureError(parseQuery(xssSort));
+			const error = expectFailureError(() => parseQuery(xssSort));
 
 			expect(error.code).toBe("INVALID_FIELD_NAME");
 			expect(error.context?.parameter).toBe("sort");
@@ -141,7 +143,7 @@ describe("QueryParser - Error Path", () => {
 			const longSort: RawQueryParams =
 				parserTestData.invalidSortParams.excessivelyLong;
 
-			const error = expectFailureError(parseQuery(longSort));
+			const error = expectFailureError(() => parseQuery(longSort));
 
 			expect(error.code).toBe("INVALID_FIELD_NAME");
 			expect(error.context?.parameter).toBe("sort");
@@ -150,7 +152,7 @@ describe("QueryParser - Error Path", () => {
 		it("should reject empty sort field", () => {
 			const emptySort: RawQueryParams = { sort: "" };
 
-			const error = expectFailureError(parseQuery(emptySort));
+			const error = expectFailureError(() => parseQuery(emptySort));
 
 			expect(error.code).toBe("EMPTY_VALUE");
 		});
@@ -158,7 +160,7 @@ describe("QueryParser - Error Path", () => {
 		it("should reject sort with only minus sign", () => {
 			const onlyMinus: RawQueryParams = { sort: "-" };
 
-			const error = expectFailureError(parseQuery(onlyMinus));
+			const error = expectFailureError(() => parseQuery(onlyMinus));
 
 			expect(error.code).toBe("INVALID_FIELD_NAME");
 			expect(error.context?.parameter).toBe("sort");
@@ -171,7 +173,7 @@ describe("QueryParser - Error Path", () => {
 				fields: parserTestData.invalidFieldNames.sqlInjection,
 			};
 
-			const error = expectFailureError(parseQuery(invalidFields));
+			const error = expectFailureError(() => parseQuery(invalidFields));
 
 			expect(error.code).toBe("INVALID_FIELD_NAME");
 		});
@@ -180,7 +182,7 @@ describe("QueryParser - Error Path", () => {
 			const invalidWhere: RawQueryParams =
 				parserTestData.invalidWhereConditions.invalidOperator;
 
-			const error = expectFailureError(parseQuery(invalidWhere));
+			const error = expectFailureError(() => parseQuery(invalidWhere));
 
 			expect(error.code).toBe("INVALID_OPERATOR");
 		});
@@ -189,7 +191,7 @@ describe("QueryParser - Error Path", () => {
 			const exceedsDepth: RawQueryParams =
 				parserTestData.maxDepthPopulate.depth6;
 
-			const error = expectFailureError(parseQuery(exceedsDepth));
+			const error = expectFailureError(() => parseQuery(exceedsDepth));
 
 			expect(error.code).toBe("MAX_DEPTH_EXCEEDED");
 		});
@@ -200,7 +202,7 @@ describe("QueryParser - Error Path", () => {
 				"where[price][$invalid]": "100",
 			};
 
-			const error = expectFailureError(parseQuery(multipleErrors));
+			const error = expectFailureError(() => parseQuery(multipleErrors));
 
 			// Should fail on fields first
 			expect(error.code).toBe("INVALID_FIELD_NAME");
@@ -212,7 +214,7 @@ describe("QueryParser - Error Path", () => {
 				sort: "invalid!field",
 			};
 
-			const error = expectFailureError(parseQuery(multipleErrors));
+			const error = expectFailureError(() => parseQuery(multipleErrors));
 
 			// Should fail on pagination first
 			expect(error.code).toBe("INVALID_PAGINATION");
@@ -223,7 +225,7 @@ describe("QueryParser - Error Path", () => {
 		it("should return consistent error structure for pagination", () => {
 			const invalidPage: RawQueryParams = { page: "0" };
 
-			const error = expectFailureError(parseQuery(invalidPage));
+			const error = expectFailureError(() => parseQuery(invalidPage));
 
 			expect(error).toHaveProperty("code");
 			expect(error).toHaveProperty("message");
@@ -236,7 +238,7 @@ describe("QueryParser - Error Path", () => {
 		it("should return consistent error structure for sort", () => {
 			const invalidSort: RawQueryParams = { sort: "invalid!field" };
 
-			const error = expectFailureError(parseQuery(invalidSort));
+			const error = expectFailureError(() => parseQuery(invalidSort));
 
 			expect(error).toHaveProperty("code");
 			expect(error).toHaveProperty("message");
@@ -248,7 +250,7 @@ describe("QueryParser - Error Path", () => {
 			const exceedsMax: RawQueryParams = { pageSize: "200" };
 			const options: ParserOptions = { maxPageSize: 50 };
 
-			const error = expectFailureError(parseQuery(exceedsMax, options));
+			const error = expectFailureError(() => parseQuery(exceedsMax, options));
 
 			expect(error.message).toContain("50");
 			expect(error.message).toContain("exceeds");
@@ -261,7 +263,7 @@ describe("QueryParser - Error Path", () => {
 				page: Number.MAX_SAFE_INTEGER.toString(),
 			};
 
-			const error = expectFailureError(parseQuery(largePage));
+			const error = expectFailureError(() => parseQuery(largePage));
 
 			expect(error.code).toBe("PAGE_OUT_OF_RANGE");
 		});
@@ -270,7 +272,9 @@ describe("QueryParser - Error Path", () => {
 			const largePageSize: RawQueryParams = { pageSize: "999999999" };
 			const options: ParserOptions = { maxPageSize: 1000 };
 
-			const error = expectFailureError(parseQuery(largePageSize, options));
+			const error = expectFailureError(() =>
+				parseQuery(largePageSize, options),
+			);
 
 			expect(error.code).toBe("MAX_VALUE_VIOLATION");
 		});
@@ -281,11 +285,11 @@ describe("QueryParser - Error Path", () => {
 			const invalidParams: RawQueryParams = { pageSize: "-10" };
 			const validParams: RawQueryParams = { pageSize: "10" };
 
-			expectFailureError(parseQuery(invalidParams));
-			expectFailureError(parseQuery(invalidParams));
-			expectFailureError(parseQuery(invalidParams));
+			expectFailureError(() => parseQuery(invalidParams));
+			expectFailureError(() => parseQuery(invalidParams));
+			expectFailureError(() => parseQuery(invalidParams));
 
-			const error = expectFailureError(parseQuery(invalidParams));
+			const error = expectFailureError(() => parseQuery(invalidParams));
 			expect(error.code).toBe("INVALID_PAGINATION");
 		});
 	});

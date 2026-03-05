@@ -250,11 +250,10 @@ export class CrudOperations implements IRawCrud {
 	 * });
 	 * ```
 	 */
-	async create<T extends ForjaEntry = ForjaRecord, TInput extends FallbackInput = FallbackInput>(
-		model: string,
-		data: TInput,
-		options?: RawCrudOptions<T>,
-	): Promise<T> {
+	async create<
+		T extends ForjaEntry = ForjaRecord,
+		TInput extends FallbackInput = FallbackInput,
+	>(model: string, data: TInput, options?: RawCrudOptions<T>): Promise<T> {
 		const result = await this.createMany<T, TInput>(model, [data], {
 			...options,
 			action: options?.action ?? "create",
@@ -278,12 +277,11 @@ export class CrudOperations implements IRawCrud {
 	 * ]);
 	 * ```
 	 */
-	async createMany<T extends ForjaEntry = ForjaRecord, TInput extends FallbackInput = FallbackInput>(
-		model: string,
-		data: TInput[],
-		options?: RawCrudOptions<T>,
-	): Promise<T[]> {
-		const builder = insertInto(model, data, this.schemas);
+	async createMany<
+		T extends ForjaEntry = ForjaRecord,
+		TInput extends FallbackInput = FallbackInput,
+	>(model: string, data: TInput[], options?: RawCrudOptions<T>): Promise<T[]> {
+		const builder = insertInto<T>(model, data as unknown as Partial<T>[], this.schemas);
 
 		if (options?.select) {
 			builder.select(options.select);
@@ -317,7 +315,10 @@ export class CrudOperations implements IRawCrud {
 	 * });
 	 * ```
 	 */
-	async update<T extends ForjaEntry = ForjaRecord, TInput extends FallbackInput = FallbackInput>(
+	async update<
+		T extends ForjaEntry = ForjaRecord,
+		TInput extends FallbackInput = FallbackInput,
+	>(
 		model: string,
 		id: number,
 		data: TInput,
@@ -365,13 +366,16 @@ export class CrudOperations implements IRawCrud {
 	 * );
 	 * ```
 	 */
-	async updateMany<T extends ForjaEntry = ForjaRecord, TInput extends FallbackInput = FallbackInput>(
+	async updateMany<
+		T extends ForjaEntry = ForjaRecord,
+		TInput extends FallbackInput = FallbackInput,
+	>(
 		model: string,
 		where: WhereClause<T>,
 		data: TInput,
 		options?: RawCrudOptions<T>,
 	): Promise<T[]> {
-		const builder = updateTable(model, data, this.schemas).where(where);
+		const builder = updateTable<T>(model, data as unknown as Partial<T>, this.schemas).where(where);
 
 		if (options?.select || !options?.noReturning) {
 			builder.select(options?.select ?? "*");

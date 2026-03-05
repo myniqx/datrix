@@ -15,6 +15,7 @@ import { createRequest } from "./data/helper";
 import { expectApiSingle, expectApiError } from "forja-types/test/helpers";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { ForjaEntry } from "forja-types";
 
 /** User response from auth endpoints */
 interface AuthUserResponse {
@@ -71,13 +72,8 @@ describe("Auth Handler Tests", () => {
 		for (const schema of forja.getSchemas().getAll()) {
 			try {
 				await adapter.dropTable(schema.tableName!);
-			} catch {}
-			const result = await adapter.createTable(schema);
-			if (!result.success) {
-				throw new Error(
-					`Failed to create table ${schema.name}: ${result.error.message}`,
-				);
-			}
+			} catch { }
+			await adapter.createTable(schema);
 		}
 	});
 
@@ -106,8 +102,8 @@ describe("Auth Handler Tests", () => {
 				}),
 			);
 
-			const data = await expectApiSingle<AuthUserResponse>(response, 201);
-			expect(data.user.email).toBe("newuser@test.com");
+			const data = await expectApiSingle<AuthUserResponse & ForjaEntry>(response, 201);
+			expect(data.user!.email).toBe("newuser@test.com");
 			//      expect(data.user.role).toBe("user"); // default role
 			expect(data.token).toBeDefined();
 			// Password should not be in response
@@ -258,8 +254,8 @@ describe("Auth Handler Tests", () => {
 				}),
 			);
 
-			const data = await expectApiSingle<AuthUserResponse>(response, 200);
-			expect(data.user.email).toBe(loginEmail);
+			const data = await expectApiSingle<AuthUserResponse & ForjaEntry>(response, 200);
+			expect(data.user!.email).toBe(loginEmail);
 			expect(data.token).toBeDefined();
 			// Password should not be in response
 			expect(
@@ -389,7 +385,7 @@ describe("Auth Handler Tests", () => {
 				}),
 			);
 
-			const data = await expectApiSingle<{ success: boolean }>(
+			const data = await expectApiSingle<{ success: boolean } & ForjaEntry>(
 				logoutResponse,
 				200,
 			);
@@ -443,7 +439,7 @@ describe("Auth Handler Tests", () => {
 				}),
 			);
 
-			const data = await expectApiSingle<AuthUserResponse>(loginResponse, 200);
+			const data = await expectApiSingle<AuthUserResponse & ForjaEntry>(loginResponse, 200);
 			userToken = data.token ?? "";
 		});
 
@@ -455,7 +451,7 @@ describe("Auth Handler Tests", () => {
 				}),
 			);
 
-			const data = await expectApiSingle<{ email: string; role: string }>(
+			const data = await expectApiSingle<{ email: string; role: string } & ForjaEntry>(
 				response,
 				200,
 			);
@@ -486,7 +482,7 @@ describe("Auth Handler Tests", () => {
 				}),
 			);
 
-			const data = await expectApiSingle<{ email: string }>(response, 200);
+			const data = await expectApiSingle<{ email: string } & ForjaEntry>(response, 200);
 			expect(data.email).toBe("metest@test.com");
 		});
 

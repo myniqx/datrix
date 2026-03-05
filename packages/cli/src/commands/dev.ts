@@ -10,7 +10,6 @@ import { join } from "path";
 import type { DevCommandOptions } from "../types";
 import { CLIError } from "../types";
 import { logger, green, cyan, yellow, formatError } from "../utils/logger";
-import { Result } from "forja-types/utils";
 import type { Forja } from "forja-core";
 
 /**
@@ -83,9 +82,9 @@ class FileWatcher {
 	/**
 	 * Start watching
 	 */
-	start(): Result<void, CLIError> {
+	start(): void {
 		if (this.isRunning) {
-			return { success: true, data: undefined };
+			return;
 		}
 
 		try {
@@ -97,7 +96,6 @@ class FileWatcher {
 						return;
 					}
 
-					// Check if file matches pattern
 					if (!this.pattern.test(filename)) {
 						return;
 					}
@@ -113,16 +111,12 @@ class FileWatcher {
 			);
 
 			this.isRunning = true;
-			return { success: true, data: undefined };
 		} catch (error) {
-			return {
-				success: false,
-				error: new CLIError(
-					`Failed to start file watcher: ${formatError(error)}`,
-					"EXECUTION_ERROR",
-					error,
-				),
-			};
+			throw new CLIError(
+				`Failed to start file watcher: ${formatError(error)}`,
+				"EXECUTION_ERROR",
+				error,
+			);
 		}
 	}
 
@@ -141,57 +135,20 @@ class FileWatcher {
 /**
  * Run initial migration
  */
-async function runInitialMigration(
-	forja: Forja,
-): Promise<Result<void, CLIError>> {
-	try {
-		logger.info("Running initial migration check...");
-		logger.log("");
+async function runInitialMigration(forja: Forja): Promise<void> {
+	logger.info("Running initial migration check...");
+	logger.log("");
 
-		const sessionResult = await forja.beginMigrate();
-		if (!sessionResult.success) {
-			return {
-				success: false,
-				error: new CLIError(
-					`Failed to begin migration: ${formatError(sessionResult.error)}`,
-					"EXECUTION_ERROR",
-					sessionResult.error,
-				),
-			};
-		}
+	const session = await forja.beginMigrate();
 
-		const session = sessionResult.data;
-
-		if (!session.hasChanges()) {
-			logger.info("Database is up to date");
-			return { success: true, data: undefined };
-		}
-
-		const applyResult = await session.apply();
-		if (!applyResult.success) {
-			return {
-				success: false,
-				error: new CLIError(
-					`Failed to run migrations: ${formatError(applyResult.error)}`,
-					"EXECUTION_ERROR",
-					applyResult.error,
-				),
-			};
-		}
-
-		logger.success(`Migrations completed (${applyResult.data.length} applied)`);
-
-		return { success: true, data: undefined };
-	} catch (error) {
-		return {
-			success: false,
-			error: new CLIError(
-				`Initial migration failed: ${formatError(error)}`,
-				"EXECUTION_ERROR",
-				error,
-			),
-		};
+	if (!session.hasChanges()) {
+		logger.info("Database is up to date");
+		return;
 	}
+
+	const applyResult = await session.apply();
+
+	logger.success(`Migrations completed (${applyResult.length} applied)`);
 }
 
 /**
@@ -208,17 +165,7 @@ async function handleSchemaChange(
 		logger.info(cyan("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
 		logger.log("");
 
-		const sessionResult = await forja.beginMigrate();
-		if (!sessionResult.success) {
-			logger.error(
-				`Failed to begin migration: ${formatError(sessionResult.error)}`,
-			);
-			logger.log("");
-			logger.info(green("✨ Watching for changes..."));
-			return;
-		}
-
-		const session = sessionResult.data;
+		const session = await forja.beginMigrate();
 
 		if (!session.hasChanges()) {
 			logger.info("No new migrations to run");
@@ -227,13 +174,7 @@ async function handleSchemaChange(
 			return;
 		}
 
-		const applyResult = await session.apply();
-		if (!applyResult.success) {
-			logger.error(`Migration failed: ${formatError(applyResult.error)}`);
-			logger.log("");
-			logger.info(green("✨ Watching for changes..."));
-			return;
-		}
+		await session.apply();
 
 		logger.success("Migrations completed successfully");
 		logger.log("");
@@ -252,80 +193,53 @@ export async function devCommand(
 	options: DevCommandOptions,
 	forja: Forja,
 	schemasDir: string = join(process.cwd(), "schemas"),
-): Promise<Result<void, CLIError>> {
-	try {
+): Promise<void> {
+	logger.log("");
+	logger.info(green("🚀 Forja Development Mode"));
+	logger.log("");
+	logger.info(`Watching: ${schemasDir}`);
+	logger.log("");
+
+	await runInitialMigration(forja);
+
+	logger.log("");
+	logger.info(green("✨ Watching for changes..."));
+	logger.info(yellow("Press Ctrl+C to exit"));
+	logger.log("");
+
+	let lastChangedFile: string = "";
+	const debouncer = new ChangeDebouncer(async (): Promise<void> => {
+		await handleSchemaChange(lastChangedFile, forja);
+	}, 500);
+
+	const watcher = new FileWatcher(
+		schemasDir,
+		/\.schema\.ts$/,
+		(event: FileChangeEvent): void => {
+			if (options.verbose) {
+				logger.debug(`File ${event.eventType}: ${event.filename}`);
+			}
+
+			lastChangedFile = event.filename;
+			debouncer.trigger();
+		},
+	);
+
+	watcher.start();
+
+	const cleanup = (): void => {
 		logger.log("");
-		logger.info(green("🚀 Forja Development Mode"));
-		logger.log("");
-		logger.info(`Watching: ${schemasDir}`);
-		logger.log("");
+		logger.info("Stopping dev mode...");
+		debouncer.cancel();
+		watcher.stop();
+		logger.success("Dev mode stopped");
+		process.exit(0);
+	};
 
-		// Run initial migration
-		const initialResult = await runInitialMigration(forja);
+	process.on("SIGINT", cleanup);
+	process.on("SIGTERM", cleanup);
 
-		if (!initialResult.success) {
-			return initialResult;
-		}
-
-		logger.log("");
-		logger.info(green("✨ Watching for changes..."));
-		logger.info(yellow("Press Ctrl+C to exit"));
-		logger.log("");
-
-		// Create debouncer
-		let lastChangedFile: string = "";
-		const debouncer = new ChangeDebouncer(async (): Promise<void> => {
-			await handleSchemaChange(lastChangedFile, forja);
-		}, 500);
-
-		// Create watcher
-		const watcher = new FileWatcher(
-			schemasDir,
-			/\.schema\.ts$/,
-			(event: FileChangeEvent): void => {
-				if (options.verbose) {
-					logger.debug(`File ${event.eventType}: ${event.filename}`);
-				}
-
-				lastChangedFile = event.filename;
-				debouncer.trigger();
-			},
-		);
-
-		// Start watching
-		const startResult = watcher.start();
-
-		if (!startResult.success) {
-			return startResult;
-		}
-
-		// Handle process termination
-		const cleanup = (): void => {
-			logger.log("");
-			logger.info("Stopping dev mode...");
-			debouncer.cancel();
-			watcher.stop();
-			logger.success("Dev mode stopped");
-			process.exit(0);
-		};
-
-		process.on("SIGINT", cleanup);
-		process.on("SIGTERM", cleanup);
-
-		// Keep process running
-		await new Promise<void>((): void => {
-			// Never resolves - waits for SIGINT/SIGTERM
-		});
-
-		return { success: true, data: undefined };
-	} catch (error) {
-		return {
-			success: false,
-			error: new CLIError(
-				`Dev command failed: ${formatError(error)}`,
-				"EXECUTION_ERROR",
-				error,
-			),
-		};
-	}
+	await new Promise<void>((): void => {
+		// Never resolves - waits for SIGINT/SIGTERM
+	});
 }

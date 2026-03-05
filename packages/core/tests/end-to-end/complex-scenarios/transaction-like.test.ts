@@ -197,7 +197,9 @@ describe("Transaction-Like Behavior", () => {
 			).rejects.toThrow();
 
 			// Verify nothing changed
-			const fetched = await forja.findById<ForjaEntry & { age: number, name: string }>("user", user.id);
+			const fetched = await forja.findById<
+				ForjaEntry & { age: number; name: string }
+			>("user", user.id);
 			expect(fetched!.name).toBe("Update Val TX");
 			expect(fetched!.age).toBe(30);
 		});
@@ -222,9 +224,13 @@ describe("Transaction-Like Behavior", () => {
 			});
 
 			// Verify initial state
-			let fetched = await forja.findById<ForjaEntry & { roles: ForjaEntry[] }>("user", user.id, {
-				populate: { roles: { select: "*" } },
-			});
+			let fetched = await forja.findById<ForjaEntry & { roles: ForjaEntry[] }>(
+				"user",
+				user.id,
+				{
+					populate: { roles: { select: "*" } },
+				},
+			);
 			expect((fetched!.roles as unknown[]).length).toBe(2);
 
 			// Disconnect one role
@@ -378,14 +384,13 @@ describe("Transaction-Like Behavior", () => {
 
 			// Verify entire chain
 			const fetchedComment = await forja.findById<
-				ForjaEntry &
-				{
-					author: ForjaEntry & { name: string },
+				ForjaEntry & {
+					author: ForjaEntry & { name: string };
 					post: ForjaEntry & {
 						title: string;
 						author: ForjaEntry & { name: string };
 						category: ForjaEntry & { name: string };
-					},
+					};
 				}
 			>("comment", comment.id, {
 				populate: {
@@ -405,7 +410,7 @@ describe("Transaction-Like Behavior", () => {
 				"Flow User",
 			);
 
-			const postData = fetchedComment!.post
+			const postData = fetchedComment!.post;
 			expect(postData.title).toBe("Flow Post");
 			expect(postData.author.name).toBe("Flow User");
 			expect(postData.category.name).toBe("Flow Category");

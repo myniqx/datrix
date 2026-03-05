@@ -4,57 +4,49 @@ import { JsonTableFile } from "./types";
 import type { JsonAdapter } from "./adapter";
 import {
 	throwForeignKeyConstraint,
+	throwMigrationError,
 	throwUniqueConstraintField,
 	throwUniqueConstraintIndex,
-} from "./error-helper";
-import { ConnectionError, MigrationError } from "forja-types/adapter";
-import { Result } from "forja-types/utils";
+} from "forja-types/errors/adapter";
 import { FORJA_META_MODEL } from "forja-types/core/constants";
 
 /**
  * Validate table name for security (no null bytes, path separators, or parent refs)
  */
-export function validateTableName(
-	tableName: string,
-): Result<void, MigrationError> {
+export function validateTableName(tableName: string): void {
 	if (tableName.includes("\x00")) {
-		return {
-			success: false,
-			error: new MigrationError("Invalid table name: contains null byte"),
-		};
+		throwMigrationError({
+			adapter: "json",
+			message: "Invalid table name: contains null byte",
+			table: tableName,
+		});
 	}
 
 	if (tableName.includes("/") || tableName.includes("\\")) {
-		return {
-			success: false,
-			error: new MigrationError(
-				"Invalid table name: contains path separators",
-			),
-		};
+		throwMigrationError({
+			adapter: "json",
+			message: "Invalid table name: contains path separators",
+			table: tableName,
+		});
 	}
 
 	if (tableName.includes("..")) {
-		return {
-			success: false,
-			error: new MigrationError(
-				"Invalid table name: contains parent directory reference",
-			),
-		};
+		throwMigrationError({
+			adapter: "json",
+			message: "Invalid table name: contains parent directory reference",
+			table: tableName,
+		});
 	}
-
-	return { success: true, data: undefined };
 }
 
 /**
  * Bootstrap _forja metadata table for standalone mode.
  * Called during connect() when standalone: true is set in config.
  */
-export async function createMetaTable(
-	adapter: JsonAdapter,
-): Promise<Result<void, ConnectionError>> {
+export async function createMetaTable(adapter: JsonAdapter): Promise<void> {
 	const metaExists = await adapter.tableExists(FORJA_META_MODEL);
 	if (metaExists) {
-		return { success: true, data: undefined };
+		return;
 	}
 
 	const metaSchema: SchemaDefinition = {
@@ -69,18 +61,7 @@ export async function createMetaTable(
 		},
 	};
 
-	const createResult = await adapter.createTable(metaSchema);
-	if (!createResult.success) {
-		return {
-			success: false,
-			error: new ConnectionError(
-				`Failed to create '${FORJA_META_MODEL}' table in standalone mode: ${createResult.error.message}`,
-				createResult.error,
-			),
-		};
-	}
-
-	return { success: true, data: undefined };
+	await adapter.createTable(metaSchema);
 }
 
 /**
@@ -129,11 +110,12 @@ export function checkUniqueConstraints(
 		);
 
 		if (duplicate) {
-			throwUniqueConstraintField(
-				fieldName,
+			throwUniqueConstraintField({
+				field: fieldName,
 				value,
-				schema.tableName ?? "unknown",
-			);
+				adapter: "json",
+				table: schema.tableName ?? "unknown",
+			});
 		}
 	}
 
@@ -154,7 +136,11 @@ export function checkUniqueConstraints(
 		);
 
 		if (duplicate) {
-			throwUniqueConstraintIndex(index.fields, schema.tableName ?? "unknown");
+			throwUniqueConstraintIndex({
+				fields: index.fields,
+				table: schema.tableName ?? "unknown",
+				adapter: "json",
+			});
 		}
 	}
 }
@@ -203,12 +189,13 @@ export async function checkForeignKeyConstraints(
 		const exists = targetData.data.some((row) => row["id"] === fkValue);
 
 		if (!exists) {
-			throwForeignKeyConstraint(
+			throwForeignKeyConstraint({
 				foreignKey,
-				fkValue,
-				relationField.model,
-				schema.tableName ?? "unknown",
-			);
+				value: fkValue,
+				targetModel: relationField.model,
+				table: schema.tableName ?? "unknown",
+				adapter: "json",
+			});
 		}
 	}
 }

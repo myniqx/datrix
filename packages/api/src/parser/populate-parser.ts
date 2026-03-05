@@ -10,6 +10,7 @@
  */
 
 import type { RawQueryParams } from "forja-types/api/parser";
+import { ForjaRecord } from "forja-types";
 import { PopulateOptions } from "forja-types/core/query-builder";
 import { validateFieldName } from "forja-types/core/constants";
 import { populateError } from "./errors";
@@ -31,7 +32,7 @@ const DEFAULT_MAX_DEPTH = 5;
 export function parsePopulate(
 	params: RawQueryParams,
 	maxDepth: number = DEFAULT_MAX_DEPTH,
-): Record<string, PopulateOptions | "*"> | "*" | true | string[] | undefined {
+): Record<string, PopulateOptions<ForjaRecord> | "*"> | "*" | true | string[] | undefined {
 	// Validate maxDepth
 	if (maxDepth <= 0) {
 		populateError.maxDepthExceeded(maxDepth, maxDepth, ["config"], {
@@ -40,7 +41,7 @@ export function parsePopulate(
 	}
 
 	// Build populate clause
-	const populateClause: Record<string, PopulateOptions | "*"> | true = {};
+	const populateClause: Record<string, PopulateOptions<ForjaRecord> | "*"> | true = {};
 
 	// Check for simple populate parameter (string)
 	const mainPopulate = params["populate"];
@@ -260,7 +261,7 @@ function parseRelationPath(
 
 		const populateObj =
 			typeof relationData["populate"] === "object" &&
-			!Array.isArray(relationData["populate"])
+				!Array.isArray(relationData["populate"])
 				? (relationData["populate"] as Record<string, Record<string, unknown>>)
 				: {};
 
@@ -317,7 +318,7 @@ function parseRelation(
 	currentDepth: number,
 	maxDepth: number,
 	path: string[] = [],
-): PopulateOptions | "*" {
+): PopulateOptions<ForjaRecord> | "*" {
 	// Validate relation name
 	const validation = validateFieldName(relation);
 	if (!validation.valid) {
@@ -360,7 +361,7 @@ function parseRelation(
 
 	// Add nested populates
 	if (params.populate !== undefined) {
-		const nestedPopulate: Record<string, PopulateOptions | "*"> = {};
+		const nestedPopulate: Record<string, PopulateOptions<ForjaRecord> | "*"> = {};
 
 		for (const [nestedRelation, nestedParams] of Object.entries(
 			params.populate,
@@ -384,5 +385,5 @@ function parseRelation(
 		return "*";
 	}
 
-	return options as PopulateOptions;
+	return options as PopulateOptions<ForjaRecord>;
 }

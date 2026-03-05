@@ -14,9 +14,9 @@ import {
 import { JsonTableFile } from "./types";
 import type { JsonAdapter } from "./adapter";
 import {
-	throwInvalidWhereField,
 	throwInvalidRelationWhereSyntax,
-} from "./error-helper";
+	throwInvalidWhereField,
+} from "forja-types/errors/adapter/adapter-helpers";
 
 export class JsonQueryRunner {
 	private schema: SchemaDefinition | undefined;
@@ -243,7 +243,12 @@ export class JsonQueryRunner {
 			// Regular field matching (existing logic)
 			// Validate that field exists in schema (catch typos and invalid fields)
 			if (schema && !schema.fields[key]) {
-				throwInvalidWhereField(key, schema.name, Object.keys(schema.fields));
+				throwInvalidWhereField({
+					adapter: "json",
+					field: key,
+					schemaName: schema.name,
+					availableFields: Object.keys(schema.fields),
+				});
 			}
 
 			const itemValue = item[key];
@@ -310,11 +315,12 @@ export class JsonQueryRunner {
 				!keys.some((k) => logicalOps.has(k));
 
 			if (hasOnlyComparisonOperators) {
-				throwInvalidRelationWhereSyntax(
+				throwInvalidRelationWhereSyntax({
+					adapter: "json",
 					relationName,
-					this.schema?.name ?? "unknown",
+					schemaName: this.schema?.name ?? "unknown",
 					foreignKey,
-				);
+				});
 			}
 		}
 

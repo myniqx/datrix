@@ -3,7 +3,7 @@
  *
  * Tests the SchemaRegistry implementation:
  * - Registration and retrieval
- * - Metadata generation (pluralization)
+ * - Pluralization (table name generation)
  * - Locking mechanism
  * - Relation tracking
  * - JSON Import/Export
@@ -11,7 +11,6 @@
 
 import { SchemaRegistry } from "../src";
 import { SchemaDefinition } from "../../types/src/core/schema";
-import { expectSuccessData } from "../../types/src/test/helpers";
 import { describe, it, expect, beforeEach } from "vitest";
 
 describe("Core - Schema Registry - Happy Path", () => {
@@ -34,14 +33,12 @@ describe("Core - Schema Registry - Happy Path", () => {
 				},
 			};
 
-			const registrationResult = schemaRegistry.register(userSchema);
+			const registeredSchema = schemaRegistry.register(userSchema);
 
-			const registeredSchema = expectSuccessData(registrationResult);
 			expect(registeredSchema).toBeDefined();
 			expect(schemaRegistry.has("User")).toBe(true);
-			expect(registeredSchema).toBeDefined();
-			expect(registeredSchema?.name).toBe("User");
-			expect(registeredSchema?.tableName).toBe("users"); // Auto-pluralized
+			expect(registeredSchema.name).toBe("User");
+			expect(registeredSchema.tableName).toBe("users");
 		});
 
 		it("should allow overwrite if configured", () => {
@@ -60,20 +57,17 @@ describe("Core - Schema Registry - Happy Path", () => {
 			};
 
 			overwriteAllowedRegistry.register(firstUserSchema);
-			const overwriteResult =
+			const overwrittenSchema =
 				overwriteAllowedRegistry.register(secondUserSchema);
 
-			const overwrittenSchema = expectSuccessData(overwriteResult);
-			expect(overwrittenSchema).toBeDefined();
-			const { tableName, ...rest } = overwrittenSchema!;
-
+			const { tableName, ...rest } = overwrittenSchema;
 			expect(rest.fields.b).toBeDefined();
 			expect(rest.fields.a).toBeUndefined();
 		});
 	});
 
-	describe("Metadata & Pluralization", () => {
-		it("should generate correct metadata with pluralized table names", () => {
+	describe("Pluralization", () => {
+		it("should generate correct pluralized table names", () => {
 			const pluralizationTests = [
 				{ name: "User", expected: "users" },
 				{ name: "Category", expected: "categories" },
@@ -85,9 +79,9 @@ describe("Core - Schema Registry - Happy Path", () => {
 			];
 
 			for (const { name, expected } of pluralizationTests) {
-				schemaRegistry.register({ name, fields: { id: { type: "string" } } });
-				const schemaMetadata = schemaRegistry.getMetadata(name);
-				expect(schemaMetadata?.tableName).toBe(expected);
+				schemaRegistry.register({ name, fields: {} });
+				const schema = schemaRegistry.get(name);
+				expect(schema?.tableName).toBe(expected);
 			}
 		});
 
@@ -95,13 +89,13 @@ describe("Core - Schema Registry - Happy Path", () => {
 			const customTableSchema: SchemaDefinition = {
 				name: "Custom",
 				tableName: "my_table",
-				fields: { id: { type: "string" } },
+				fields: {},
 			};
 
 			schemaRegistry.register(customTableSchema);
 
-			const customMetadata = schemaRegistry.getMetadata("Custom");
-			expect(customMetadata?.tableName).toBe("my_table");
+			const schema = schemaRegistry.get("Custom");
+			expect(schema?.tableName).toBe("my_table");
 		});
 	});
 
@@ -116,9 +110,7 @@ describe("Core - Schema Registry - Happy Path", () => {
 				name: "Test",
 				fields: { id: { type: "string" } },
 			};
-			const registrationResult = schemaRegistry.register(testSchema);
-
-			const registeredSchema = expectSuccessData(registrationResult);
+			const registeredSchema = schemaRegistry.register(testSchema);
 			expect(registeredSchema).toBeDefined();
 		});
 	});
@@ -161,10 +153,7 @@ describe("Core - Schema Registry - Happy Path", () => {
 			expect(rest).toEqual(userSchema);
 
 			const newSchemaRegistry = new SchemaRegistry();
-			const importResult = newSchemaRegistry.fromJSON(exportedJson);
-
-			const importedSchemas = expectSuccessData(importResult);
-			expect(importedSchemas).toBeUndefined();
+			newSchemaRegistry.fromJSON(exportedJson);
 			expect(newSchemaRegistry.has("User")).toBe(true);
 		});
 	});

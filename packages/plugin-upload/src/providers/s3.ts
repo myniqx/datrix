@@ -3,10 +3,9 @@
  *
  * Stores files in AWS S3 using native https module (no AWS SDK dependency).
  * Implements AWS Signature V4 signing.
- * NO `any` types, NO type assertions, NEVER throw exceptions.
+ * NO `any` types, NO type assertions.
  */
 
-import { Result } from "forja-types/utils";
 import type {
 	StorageProvider,
 	UploadFile,
@@ -44,25 +43,14 @@ export class S3StorageProvider implements StorageProvider {
 	/**
 	 * Upload a file to S3
 	 */
-	async upload(file: UploadFile): Promise<Result<UploadResult, UploadError>> {
+	async upload(file: UploadFile): Promise<UploadResult> {
 		try {
-			// Generate unique key
 			const sanitized = sanitizeFilename(file.originalName);
 			const filename = generateUniqueFilename(sanitized);
 			const key = this.pathPrefix ? `${this.pathPrefix}/${filename}` : filename;
 
-			// Upload to S3
-			const uploadResult = await this.putObject(
-				key,
-				file.buffer,
-				file.mimetype,
-			);
+			await this.putObject(key, file.buffer, file.mimetype);
 
-			if (!uploadResult.success) {
-				return uploadResult;
-			}
-
-			// Return result
 			const result: UploadResult = {
 				key,
 				url: await this.getUrl(key),
@@ -71,33 +59,32 @@ export class S3StorageProvider implements StorageProvider {
 				uploadedAt: new Date(),
 			};
 
-			return { success: true, data: result };
+			return result;
 		} catch (error) {
-			return {
-				success: false,
-				error: new UploadError("Failed to upload file to S3", {
-					originalError: error,
-					filename: file.originalName,
-				}),
-			};
+			if (error instanceof UploadError) {
+				throw error;
+			}
+			throw new UploadError("Failed to upload file to S3", {
+				originalError: error,
+				filename: file.originalName,
+			});
 		}
 	}
 
 	/**
 	 * Delete a file from S3
 	 */
-	async delete(key: string): Promise<Result<void, UploadError>> {
+	async delete(key: string): Promise<void> {
 		try {
-			const result = await this.deleteObject(key);
-			return result;
+			await this.deleteObject(key);
 		} catch (error) {
-			return {
-				success: false,
-				error: new UploadError("Failed to delete file from S3", {
-					originalError: error,
-					key,
-				}),
-			};
+			if (error instanceof UploadError) {
+				throw error;
+			}
+			throw new UploadError("Failed to delete file from S3", {
+				originalError: error,
+				key,
+			});
 		}
 	}
 
@@ -113,8 +100,8 @@ export class S3StorageProvider implements StorageProvider {
 	 */
 	async exists(key: string): Promise<boolean> {
 		try {
-			const result = await this.headObject(key);
-			return result.success;
+			await this.headObject(key);
+			return true;
 		} catch {
 			return false;
 		}
@@ -127,267 +114,215 @@ export class S3StorageProvider implements StorageProvider {
 		key: string,
 		buffer: Uint8Array,
 		contentType: string,
-	): Promise<Result<void, UploadError>> {
-		try {
-			const https = await import("https");
-			const crypto = await import("crypto");
+	): Promise<void> {
+		const https = await import("https");
+		const crypto = await import("crypto");
 
-			const host = `${this.bucket}.${this.endpoint}`;
-			const path = `/${key}`;
-			const method = "PUT";
+		const host = `${this.bucket}.${this.endpoint}`;
+		const path = `/${key}`;
+		const method = "PUT";
 
-			// Prepare headers
-			const date = new Date().toUTCString();
-			const contentLength = buffer.length;
+		const date = new Date().toUTCString();
+		const contentLength = buffer.length;
 
-			// Calculate content hash
-			const contentHash = crypto
-				.createHash("sha256")
-				.update(buffer)
-				.digest("hex");
+		const contentHash = crypto
+			.createHash("sha256")
+			.update(buffer)
+			.digest("hex");
 
-			// Create signature
-			const signature = await this.signRequest(
-				method,
-				path,
-				host,
-				date,
-				contentType,
-				contentHash,
+		const signature = await this.signRequest(
+			method,
+			path,
+			host,
+			date,
+			contentType,
+			contentHash,
+		);
+
+		await new Promise<void>((resolve, reject) => {
+			const req = https.request(
+				{
+					hostname: host,
+					port: 443,
+					path,
+					method,
+					headers: {
+						Host: host,
+						Date: date,
+						"Content-Type": contentType,
+						"Content-Length": contentLength,
+						"x-amz-content-sha256": contentHash,
+						Authorization: signature,
+					},
+				},
+				(res) => {
+					if (
+						res.statusCode !== undefined &&
+						res.statusCode >= 200 &&
+						res.statusCode < 300
+					) {
+						resolve();
+					} else {
+						let body = "";
+						res.on("data", (chunk) => {
+							body += chunk.toString();
+						});
+						res.on("end", () => {
+							reject(
+								new UploadError("S3 upload failed", {
+									statusCode: res.statusCode,
+									body,
+								}),
+							);
+						});
+					}
+				},
 			);
 
-			// Make request
-			const result = await new Promise<Result<void, UploadError>>((resolve) => {
-				const req = https.request(
-					{
-						hostname: host,
-						port: 443,
-						path,
-						method,
-						headers: {
-							Host: host,
-							Date: date,
-							"Content-Type": contentType,
-							"Content-Length": contentLength,
-							"x-amz-content-sha256": contentHash,
-							Authorization: signature,
-						},
-					},
-					(res) => {
-						if (
-							res.statusCode !== undefined &&
-							res.statusCode >= 200 &&
-							res.statusCode < 300
-						) {
-							resolve({ success: true, data: undefined });
-						} else {
-							let body = "";
-							res.on("data", (chunk) => {
-								body += chunk.toString();
-							});
-							res.on("end", () => {
-								resolve({
-									success: false,
-									error: new UploadError("S3 upload failed", {
-										statusCode: res.statusCode,
-										body,
-									}),
-								});
-							});
-						}
-					},
+			req.on("error", (error) => {
+				reject(
+					new UploadError("S3 request failed", { originalError: error }),
 				);
-
-				req.on("error", (error) => {
-					resolve({
-						success: false,
-						error: new UploadError("S3 request failed", {
-							originalError: error,
-						}),
-					});
-				});
-
-				req.write(buffer);
-				req.end();
 			});
 
-			return result;
-		} catch (error) {
-			return {
-				success: false,
-				error: new UploadError("Failed to PUT object to S3", {
-					originalError: error,
-					key,
-				}),
-			};
-		}
+			req.write(buffer);
+			req.end();
+		});
 	}
 
 	/**
 	 * DELETE object from S3
 	 */
-	private async deleteObject(key: string): Promise<Result<void, UploadError>> {
-		try {
-			const https = await import("https");
-			const crypto = await import("crypto");
+	private async deleteObject(key: string): Promise<void> {
+		const https = await import("https");
+		const crypto = await import("crypto");
 
-			const host = `${this.bucket}.${this.endpoint}`;
-			const path = `/${key}`;
-			const method = "DELETE";
+		const host = `${this.bucket}.${this.endpoint}`;
+		const path = `/${key}`;
+		const method = "DELETE";
 
-			const date = new Date().toUTCString();
-			const contentHash = crypto.createHash("sha256").update("").digest("hex");
+		const date = new Date().toUTCString();
+		const contentHash = crypto.createHash("sha256").update("").digest("hex");
 
-			const signature = await this.signRequest(
-				method,
-				path,
-				host,
-				date,
-				"",
-				contentHash,
+		const signature = await this.signRequest(
+			method,
+			path,
+			host,
+			date,
+			"",
+			contentHash,
+		);
+
+		await new Promise<void>((resolve, reject) => {
+			const req = https.request(
+				{
+					hostname: host,
+					port: 443,
+					path,
+					method,
+					headers: {
+						Host: host,
+						Date: date,
+						"x-amz-content-sha256": contentHash,
+						Authorization: signature,
+					},
+				},
+				(res) => {
+					if (
+						res.statusCode !== undefined &&
+						res.statusCode >= 200 &&
+						res.statusCode < 300
+					) {
+						resolve();
+					} else {
+						let body = "";
+						res.on("data", (chunk) => {
+							body += chunk.toString();
+						});
+						res.on("end", () => {
+							reject(
+								new UploadError("S3 delete failed", {
+									statusCode: res.statusCode,
+									body,
+								}),
+							);
+						});
+					}
+				},
 			);
 
-			const result = await new Promise<Result<void, UploadError>>((resolve) => {
-				const req = https.request(
-					{
-						hostname: host,
-						port: 443,
-						path,
-						method,
-						headers: {
-							Host: host,
-							Date: date,
-							"x-amz-content-sha256": contentHash,
-							Authorization: signature,
-						},
-					},
-					(res) => {
-						if (
-							res.statusCode !== undefined &&
-							res.statusCode >= 200 &&
-							res.statusCode < 300
-						) {
-							resolve({ success: true, data: undefined });
-						} else {
-							let body = "";
-							res.on("data", (chunk) => {
-								body += chunk.toString();
-							});
-							res.on("end", () => {
-								resolve({
-									success: false,
-									error: new UploadError("S3 delete failed", {
-										statusCode: res.statusCode,
-										body,
-									}),
-								});
-							});
-						}
-					},
+			req.on("error", (error) => {
+				reject(
+					new UploadError("S3 request failed", { originalError: error }),
 				);
-
-				req.on("error", (error) => {
-					resolve({
-						success: false,
-						error: new UploadError("S3 request failed", {
-							originalError: error,
-						}),
-					});
-				});
-
-				req.end();
 			});
 
-			return result;
-		} catch (error) {
-			return {
-				success: false,
-				error: new UploadError("Failed to DELETE object from S3", {
-					originalError: error,
-					key,
-				}),
-			};
-		}
+			req.end();
+		});
 	}
 
 	/**
 	 * HEAD object to check existence
 	 */
-	private async headObject(key: string): Promise<Result<void, UploadError>> {
-		try {
-			const https = await import("https");
-			const crypto = await import("crypto");
+	private async headObject(key: string): Promise<void> {
+		const https = await import("https");
+		const crypto = await import("crypto");
 
-			const host = `${this.bucket}.${this.endpoint}`;
-			const path = `/${key}`;
-			const method = "HEAD";
+		const host = `${this.bucket}.${this.endpoint}`;
+		const path = `/${key}`;
+		const method = "HEAD";
 
-			const date = new Date().toUTCString();
-			const contentHash = crypto.createHash("sha256").update("").digest("hex");
+		const date = new Date().toUTCString();
+		const contentHash = crypto.createHash("sha256").update("").digest("hex");
 
-			const signature = await this.signRequest(
-				method,
-				path,
-				host,
-				date,
-				"",
-				contentHash,
+		const signature = await this.signRequest(
+			method,
+			path,
+			host,
+			date,
+			"",
+			contentHash,
+		);
+
+		await new Promise<void>((resolve, reject) => {
+			const req = https.request(
+				{
+					hostname: host,
+					port: 443,
+					path,
+					method,
+					headers: {
+						Host: host,
+						Date: date,
+						"x-amz-content-sha256": contentHash,
+						Authorization: signature,
+					},
+				},
+				(res) => {
+					if (
+						res.statusCode !== undefined &&
+						res.statusCode >= 200 &&
+						res.statusCode < 300
+					) {
+						resolve();
+					} else {
+						reject(
+							new UploadError("Object not found", {
+								statusCode: res.statusCode,
+							}),
+						);
+					}
+				},
 			);
 
-			const result = await new Promise<Result<void, UploadError>>((resolve) => {
-				const req = https.request(
-					{
-						hostname: host,
-						port: 443,
-						path,
-						method,
-						headers: {
-							Host: host,
-							Date: date,
-							"x-amz-content-sha256": contentHash,
-							Authorization: signature,
-						},
-					},
-					(res) => {
-						if (
-							res.statusCode !== undefined &&
-							res.statusCode >= 200 &&
-							res.statusCode < 300
-						) {
-							resolve({ success: true, data: undefined });
-						} else {
-							resolve({
-								success: false,
-								error: new UploadError("Object not found", {
-									statusCode: res.statusCode,
-								}),
-							});
-						}
-					},
+			req.on("error", (error) => {
+				reject(
+					new UploadError("S3 request failed", { originalError: error }),
 				);
-
-				req.on("error", (error) => {
-					resolve({
-						success: false,
-						error: new UploadError("S3 request failed", {
-							originalError: error,
-						}),
-					});
-				});
-
-				req.end();
 			});
 
-			return result;
-		} catch (error) {
-			return {
-				success: false,
-				error: new UploadError("Failed to HEAD object from S3", {
-					originalError: error,
-					key,
-				}),
-			};
-		}
+			req.end();
+		});
 	}
 
 	/**
@@ -403,20 +338,18 @@ export class S3StorageProvider implements StorageProvider {
 	): Promise<string> {
 		const crypto = await import("crypto");
 
-		// Create canonical request
 		const canonicalHeaders = `host:${host}\nx-amz-content-sha256:${contentHash}\nx-amz-date:${date}\n`;
 		const signedHeaders = "host;x-amz-content-sha256;x-amz-date";
 
 		const canonicalRequest = [
 			method,
 			path,
-			"", // query string
+			"",
 			canonicalHeaders,
 			signedHeaders,
 			contentHash,
 		].join("\n");
 
-		// Create string to sign
 		const algorithm = "AWS4-HMAC-SHA256";
 		const amzDate = this.getAmzDate();
 		const credentialScope = `${this.getDateStamp()}/${this.region}/s3/aws4_request`;
@@ -433,10 +366,8 @@ export class S3StorageProvider implements StorageProvider {
 			canonicalRequestHash,
 		].join("\n");
 
-		// Calculate signature
-		const signature = this.calculateSignature(stringToSign);
+		const signature = this.calculateSignature(crypto, stringToSign);
 
-		// Create authorization header
 		const authorization = `${algorithm} Credential=${this.accessKeyId}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
 		return authorization;
@@ -445,9 +376,10 @@ export class S3StorageProvider implements StorageProvider {
 	/**
 	 * Calculate AWS Signature V4
 	 */
-	private calculateSignature(stringToSign: string): string {
-		const crypto = require("crypto");
-
+	private calculateSignature(
+		crypto: typeof import("crypto"),
+		stringToSign: string,
+	): string {
 		const kDate = crypto
 			.createHmac("sha256", `AWS4${this.secretAccessKey}`)
 			.update(this.getDateStamp())

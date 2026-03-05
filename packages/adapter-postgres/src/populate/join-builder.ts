@@ -17,7 +17,7 @@ import {
 	throwTargetModelNotFound,
 	throwJoinBuildError,
 	throwJunctionTableNotFound,
-} from "../error-helper";
+} from "forja-types/errors/adapter";
 import { PostgresQueryObject } from "forja-adapter-postgres/types";
 
 /**
@@ -55,12 +55,12 @@ export class JoinBuilder {
 
 		const modelName = this.schemaRegistry.findModelByTableName(query.table);
 		if (!modelName) {
-			throwModelNotFound(query.table);
+			throwModelNotFound({ adapter: "postgres", table: query.table });
 		}
 
 		const schema = this.schemaRegistry.get(modelName);
 		if (!schema) {
-			throwSchemaNotFound(modelName);
+			throwSchemaNotFound({ adapter: "postgres", modelName });
 		}
 
 		const joins: JoinClause[] = [];
@@ -68,11 +68,20 @@ export class JoinBuilder {
 		for (const [relationName, options] of Object.entries(query.populate)) {
 			const relationField = schema.fields[relationName];
 			if (!relationField) {
-				throwRelationNotFound(relationName, schema.name);
+				throwRelationNotFound({
+					adapter: "postgres",
+					relationName,
+					schemaName: schema.name,
+				});
 			}
 
 			if (relationField.type !== "relation") {
-				throwInvalidRelationType(relationName, relationField.type, schema.name);
+				throwInvalidRelationType({
+					adapter: "postgres",
+					relationName,
+					fieldType: relationField.type,
+					schemaName: schema.name,
+				});
 			}
 
 			const relField = relationField as RelationField;
@@ -155,17 +164,22 @@ export class JoinBuilder {
 					return this.buildManyToManyJoin(sourceTable, relationName, relation);
 
 				default:
-					throwJoinBuildError(relationName, relation.kind);
+					throwJoinBuildError({
+						adapter: "postgres",
+						relationName,
+						relationKind: relation.kind,
+					});
 			}
 		} catch (error) {
 			if (error instanceof Error && error.message.includes("ADAPTER_")) {
 				throw error;
 			}
-			throwJoinBuildError(
+			throwJoinBuildError({
+				adapter: "postgres",
 				relationName,
-				relation.kind,
-				error instanceof Error ? error : undefined,
-			);
+				relationKind: relation.kind,
+				cause: error instanceof Error ? error : undefined,
+			});
 		}
 	}
 
@@ -185,7 +199,12 @@ export class JoinBuilder {
 		// Get target schema
 		const targetSchema = this.schemaRegistry.get(relation.model);
 		if (!targetSchema) {
-			throwTargetModelNotFound(relation.model, relationName, sourceTable);
+			throwTargetModelNotFound({
+				adapter: "postgres",
+				targetModel: relation.model,
+				relationName,
+				schemaName: sourceTable,
+			});
 		}
 
 		const targetTable = targetSchema.tableName ?? relation.model.toLowerCase();
@@ -224,7 +243,12 @@ export class JoinBuilder {
 		// Get target schema
 		const targetSchema = this.schemaRegistry.get(relation.model);
 		if (!targetSchema) {
-			throwTargetModelNotFound(relation.model, relationName, sourceTable);
+			throwTargetModelNotFound({
+				adapter: "postgres",
+				targetModel: relation.model,
+				relationName,
+				schemaName: sourceTable,
+			});
 		}
 
 		const targetTable = targetSchema.tableName ?? relation.model.toLowerCase();
@@ -279,7 +303,12 @@ export class JoinBuilder {
 		// Get target schema
 		const targetSchema = this.schemaRegistry.get(relation.model);
 		if (!targetSchema) {
-			throwTargetModelNotFound(relation.model, relationName, sourceTable);
+			throwTargetModelNotFound({
+				adapter: "postgres",
+				targetModel: relation.model,
+				relationName,
+				schemaName: sourceTable,
+			});
 		}
 
 		const targetTable = targetSchema.tableName ?? relation.model.toLowerCase();
@@ -342,7 +371,12 @@ export class JoinBuilder {
 		// Get target schema
 		const targetSchema = this.schemaRegistry.get(relation.model);
 		if (!targetSchema) {
-			throwTargetModelNotFound(relation.model, relationName, sourceTable);
+			throwTargetModelNotFound({
+				adapter: "postgres",
+				targetModel: relation.model,
+				relationName,
+				schemaName: sourceTable,
+			});
 		}
 
 		const targetTable = targetSchema.tableName ?? relation.model.toLowerCase();
@@ -352,12 +386,12 @@ export class JoinBuilder {
 		const currentModelName =
 			this.schemaRegistry.findModelByTableName(sourceTable);
 		if (!currentModelName) {
-			throwModelNotFound(sourceTable);
+			throwModelNotFound({ adapter: "postgres", table: sourceTable });
 		}
 
 		const currentSchema = this.schemaRegistry.get(currentModelName);
 		if (!currentSchema) {
-			throwSchemaNotFound(currentModelName);
+			throwSchemaNotFound({ adapter: "postgres", modelName: currentModelName });
 		}
 
 		// Foreign key names in junction table: {ModelName}Id
@@ -368,11 +402,12 @@ export class JoinBuilder {
 		const junctionModelName =
 			this.schemaRegistry.findModelByTableName(junctionTable);
 		if (!junctionModelName) {
-			throwJunctionTableNotFound(
+			throwJunctionTableNotFound({
+				adapter: "postgres",
 				junctionTable,
 				relationName,
-				currentSchema.name,
-			);
+				schemaName: currentSchema.name,
+			});
 		}
 
 		// Escape identifiers (for condition building only)
@@ -416,7 +451,12 @@ export class JoinBuilder {
 		// Get schemas
 		const targetSchema = this.schemaRegistry.get(relation.model);
 		if (!targetSchema) {
-			throwTargetModelNotFound(relation.model, relationName, sourceTable);
+			throwTargetModelNotFound({
+				adapter: "postgres",
+				targetModel: relation.model,
+				relationName,
+				schemaName: sourceTable,
+			});
 		}
 
 		const targetTable = targetSchema.tableName ?? relation.model.toLowerCase();
@@ -425,23 +465,24 @@ export class JoinBuilder {
 		const currentModelName =
 			this.schemaRegistry.findModelByTableName(sourceTable);
 		if (!currentModelName) {
-			throwModelNotFound(sourceTable);
+			throwModelNotFound({ adapter: "postgres", table: sourceTable });
 		}
 
 		const currentSchema = this.schemaRegistry.get(currentModelName);
 		if (!currentSchema) {
-			throwSchemaNotFound(currentModelName);
+			throwSchemaNotFound({ adapter: "postgres", modelName: currentModelName });
 		}
 
 		// Check junction table exists
 		const junctionModelName =
 			this.schemaRegistry.findModelByTableName(junctionTable);
 		if (!junctionModelName) {
-			throwJunctionTableNotFound(
+			throwJunctionTableNotFound({
+				adapter: "postgres",
 				junctionTable,
 				relationName,
-				currentSchema.name,
-			);
+				schemaName: currentSchema.name,
+			});
 		}
 
 		// For LATERAL, we'll use a subquery that handles the junction internally

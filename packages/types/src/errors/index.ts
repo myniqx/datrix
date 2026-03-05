@@ -1,3 +1,4 @@
+export * from "./adapter";
 export * from "./api/auth";
 export * from "./api/parser";
 export * from "./core/config";

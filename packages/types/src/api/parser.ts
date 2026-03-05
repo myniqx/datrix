@@ -7,14 +7,12 @@
 
 import { ForjaEntry, ForjaRecord } from "../core/schema";
 import {
-	QueryOrderBy,
+	OrderByClause,
 	OrderByItem,
 	PopulateClause,
 	SelectClause,
 	WhereClause,
 } from "../core/query-builder";
-import { ParserError } from "../errors/api/parser";
-import { Result } from "../utils";
 
 /**
  * Raw query parameters from HTTP request
@@ -33,7 +31,7 @@ export interface ParsedQuery<T extends ForjaEntry = ForjaRecord> {
 	readonly select?: SelectClause<T>;
 	readonly where?: WhereClause<T>;
 	readonly populate?: PopulateClause<T>;
-	readonly orderBy?: QueryOrderBy;
+	readonly orderBy?: OrderByClause<T>;
 	readonly page?: number;
 	readonly pageSize?: number;
 }
@@ -66,11 +64,6 @@ export type {
 } from "../errors/api/parser";
 
 export { ParserError, buildErrorLocation } from "../errors/api/parser";
-
-/**
- * Query parser result
- */
-export type QueryParserResult = Result<ParsedQuery, ParserError>;
 
 /**
  * Supported WHERE operators
@@ -133,4 +126,5 @@ export type SortParam = string | readonly string[];
 /**
  * Parse sort result
  */
-export type ParsedSort = readonly OrderByItem[];
+export type ParsedSort<T extends ForjaEntry = ForjaRecord> =
+	readonly OrderByItem<T>[];

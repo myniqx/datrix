@@ -6,7 +6,6 @@
 
 export * from "./handler";
 export * from "./parser";
-export * from "./serializer";
 
 /**
  * Authenticated user

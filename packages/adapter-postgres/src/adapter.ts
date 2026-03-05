@@ -1,5 +1,5 @@
 /**
- * PostgreSQL Database Adapter (~500 LOC)
+ * PostgreSQL Database Adapter
  *
  * Main adapter implementation for PostgreSQL.
  * Handles connection pooling, query execution, transactions, and schema operations.
@@ -14,17 +14,21 @@ import { getPostgresTypeWithModifiers } from "./types";
 import { QueryObject } from "forja-types/core/query-builder";
 import {
 	AlterOperation,
-	ConnectionError,
 	ConnectionState,
 	DatabaseAdapter,
-	MigrationError,
-	QueryError,
 	QueryMetadata,
 	QueryResult,
 	Transaction,
-	TransactionError,
 } from "forja-types/adapter";
-import { Result } from "forja-types/utils";
+import {
+	ForjaAdapterError,
+	throwNotConnected,
+	throwConnectionError,
+	throwMigrationError,
+	throwIntrospectionError,
+	throwTransactionError,
+	throwQueryError,
+} from "forja-types/errors/adapter";
 import { validateQueryObject } from "forja-types/utils/query";
 import {
 	FieldDefinition,
@@ -66,9 +70,9 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	/**
 	 * Connect to PostgreSQL
 	 */
-	async connect(): Promise<Result<void, ConnectionError>> {
+	async connect(): Promise<void> {
 		if (this.state === "connected") {
-			return { success: true, data: undefined };
+			return;
 		}
 		this.state = "connecting";
 
@@ -87,31 +91,27 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 				application_name: this.config.applicationName ?? "forja",
 			});
 
-			// Test connection
 			const client = await this.pool.connect();
 			client.release();
 
 			this.state = "connected";
-			return { success: true, data: undefined };
 		} catch (error) {
 			this.state = "error";
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new ConnectionError(
-					`Failed to connect to PostgreSQL: ${message}`,
-					error,
-				),
-			};
+			throwConnectionError({
+				adapter: "postgres",
+				message: `Failed to connect to PostgreSQL: ${message}`,
+				cause: error instanceof Error ? error : undefined,
+			});
 		}
 	}
 
 	/**
 	 * Disconnect from PostgreSQL
 	 */
-	async disconnect(): Promise<Result<void, ConnectionError>> {
+	async disconnect(): Promise<void> {
 		if (this.state === "disconnected") {
-			return { success: true, data: undefined };
+			return;
 		}
 
 		try {
@@ -121,16 +121,14 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 			}
 
 			this.state = "disconnected";
-			return { success: true, data: undefined };
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new ConnectionError(
-					`Failed to disconnect from PostgreSQL: ${message}`,
-					error,
-				),
-			};
+			throwConnectionError({
+				adapter: "postgres",
+				message: `Failed to disconnect from PostgreSQL: ${message}`,
+				operation: "disconnect",
+				cause: error instanceof Error ? error : undefined,
+			});
 		}
 	}
 
@@ -157,31 +155,13 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	async executeQuery<TResult extends ForjaEntry>(
 		query: QueryObject<TResult>,
 		client?: PoolClient,
-	): Promise<Result<QueryResult<TResult>, QueryError<TResult>>> {
-		// Runtime validation of QueryObject structure
-		const validation = validateQueryObject(query);
-		if (!validation.success) {
-			return {
-				success: false,
-				error: new QueryError(
-					`Invalid QueryObject: ${validation.error.message}`,
-					{
-						query,
-					},
-				),
-			};
-		}
+	): Promise<QueryResult<TResult>> {
+		validateQueryObject(query);
 
 		const queryRunner = client ?? this.pool;
 
 		if (!queryRunner) {
-			return {
-				success: false,
-				error: new QueryError("Not connected to database", {
-					code: "CONNECTION_ERROR",
-					query,
-				}),
-			};
+			throwNotConnected({ adapter: "postgres" });
 		}
 
 		let lastSql: string | undefined;
@@ -190,7 +170,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 			if (query.type === "select" && query.populate) {
 				const schemaRegistry = Forja.getInstance().getSchemas();
 				const populator = new PostgresPopulator(
-					queryRunner,
+					queryRunner!,
 					this.getTranslator(),
 					schemaRegistry,
 				);
@@ -200,12 +180,12 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 					rowCount: rows.length,
 					affectedRows: 0,
 				};
-				return { success: true, data: { rows, metadata } };
+				return { rows, metadata };
 			}
 
 			const { sql, params } = this.getTranslator().translate(query);
 			lastSql = sql;
-			const result = await queryRunner.query<QueryResultRow>(
+			const result = await queryRunner!.query<QueryResultRow>(
 				sql,
 				params as unknown[],
 			);
@@ -216,7 +196,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 					rowCount: rows.length,
 					affectedRows: 0,
 				};
-				return { success: true, data: { rows, metadata } };
+				return { rows, metadata };
 			}
 
 			if (query.type === "count") {
@@ -233,7 +213,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 					affectedRows: 0,
 					count,
 				};
-				return { success: true, data: { rows: [] as TResult[], metadata } };
+				return { rows: [] as TResult[], metadata };
 			}
 
 			// insert, update, delete — rows contain {id} from RETURNING id
@@ -248,23 +228,20 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 				...(query.type === "insert" && { insertIds: ids }),
 			};
 
-			return { success: true, data: { rows: idRows, metadata } };
+			return { rows: idRows, metadata };
 		} catch (error) {
-			return {
-				success: false,
-				error: this.mapPostgresError(error, query, lastSql),
-			};
+			throw this.mapPostgresError(error, query, lastSql);
 		}
 	}
 
 	/**
-	 * Map Postgres errors to standardized QueryError
+	 * Map Postgres errors to standardized ForjaAdapterError
 	 */
 	private mapPostgresError<TResult extends ForjaEntry>(
 		error: unknown,
 		query?: QueryObject<TResult>,
 		sql?: string,
-	): QueryError<TResult> {
+	): ForjaAdapterError {
 		const message = error instanceof Error ? error.message : String(error);
 		const details = error as {
 			code?: string;
@@ -272,34 +249,20 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 			detail?: string;
 			hint?: string;
 		};
-		let code = "QUERY_ERROR";
 
-		// Postgres error codes (https://www.postgresql.org/docs/current/errcodes-appendix.html)
-		if (details && typeof details.code === "string") {
-			switch (details.code) {
-				case "23505": // unique_violation
-					code = "UNIQUE_VIOLATION";
-					break;
-				case "23503": // foreign_key_violation
-					code = "FOREIGN_KEY_VIOLATION";
-					break;
-				case "23502": // not_null_violation
-					code = "NOT_NULL_VIOLATION";
-					break;
-				case "42P01": // undefined_table
-					code = "TABLE_NOT_FOUND";
-					break;
-				case "42703": // undefined_column
-					code = "COLUMN_NOT_FOUND";
-					break;
-			}
-		}
-
-		return new QueryError(`Query execution failed: ${message}`, {
-			code,
-			query,
-			sql,
-			details: error,
+		return new ForjaAdapterError(`Query execution failed: ${message}`, {
+			adapter: "postgres",
+			code: "ADAPTER_QUERY_ERROR",
+			operation: "query",
+			context: {
+				...(query && { query: { type: query.type, table: query.table } }),
+				...(sql && { sql }),
+				...(details.code && { pgCode: details.code }),
+				...(details.severity && { pgSeverity: details.severity }),
+				...(details.detail && { pgDetail: details.detail }),
+				...(details.hint && { pgHint: details.hint }),
+			},
+			cause: error instanceof Error ? error : undefined,
 		});
 	}
 
@@ -309,19 +272,13 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	async executeRawQuery<TResult extends ForjaEntry>(
 		sql: string,
 		params: readonly unknown[],
-	): Promise<Result<QueryResult<TResult>, QueryError<TResult>>> {
+	): Promise<QueryResult<TResult>> {
 		if (!this.pool) {
-			return {
-				success: false,
-				error: new QueryError("Not connected to database", {
-					code: "CONNECTION_ERROR",
-					sql,
-				}),
-			};
+			throwNotConnected({ adapter: "postgres" });
 		}
 
 		try {
-			const result = await this.pool.query(sql, params as unknown[]);
+			const result = await this.pool!.query(sql, params as unknown[]);
 
 			const metadata: QueryMetadata = {
 				rowCount: result.rowCount ?? 0,
@@ -329,33 +286,24 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 			};
 
 			return {
-				success: true,
-				data: {
-					rows: result.rows as readonly TResult[],
-					metadata,
-				},
+				rows: result.rows as readonly TResult[],
+				metadata,
 			};
 		} catch (error) {
-			return {
-				success: false,
-				error: this.mapPostgresError(error, undefined, sql),
-			};
+			throw this.mapPostgresError(error, undefined, sql);
 		}
 	}
 
 	/**
 	 * Begin transaction
 	 */
-	async beginTransaction(): Promise<Result<Transaction, TransactionError>> {
+	async beginTransaction(): Promise<Transaction> {
 		if (!this.pool) {
-			return {
-				success: false,
-				error: new TransactionError("Not connected to database"),
-			};
+			throwNotConnected({ adapter: "postgres" });
 		}
 
 		try {
-			const client = await this.pool.connect();
+			const client = await this.pool!.connect();
 			await client.query("BEGIN");
 
 			const transaction = new PostgresTransaction(
@@ -364,16 +312,14 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 				`tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
 			);
 
-			return { success: true, data: transaction };
+			return transaction;
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new TransactionError(
-					`Failed to begin transaction: ${message}`,
-					error,
-				),
-			};
+			throwTransactionError({
+				adapter: "postgres",
+				message: `Failed to begin transaction: ${message}`,
+				cause: error instanceof Error ? error : undefined,
+			});
 		}
 	}
 
@@ -383,26 +329,21 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	async createTable(
 		schema: SchemaDefinition,
 		client?: PoolClient,
-	): Promise<Result<void, MigrationError>> {
+	): Promise<void> {
 		const queryRunner = client ?? this.pool;
 		if (!queryRunner) {
-			return {
-				success: false,
-				error: new MigrationError("Not connected to database"),
-			};
+			throwNotConnected({ adapter: "postgres" });
 		}
 
 		try {
 			const columns: string[] = [];
 			const foreignKeyConstraints: string[] = [];
 
-			// Add fields
 			for (const [fieldName, field] of Object.entries(schema.fields)) {
 				if (field.type === "relation") continue;
 				const columnDef = this.buildColumnDefinition(fieldName, field);
 				columns.push(columnDef);
 
-				// Collect FOREIGN KEY constraints from number fields with references
 				if (field.type === "number" && field.references) {
 					const col = this.getTranslator().escapeIdentifier(fieldName);
 					const refTable = this.getTranslator().escapeIdentifier(
@@ -423,7 +364,6 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 				}
 			}
 
-			// Build CREATE TABLE statement
 			const tableName = this.getTranslator().escapeIdentifier(
 				schema.tableName!,
 			);
@@ -431,97 +371,68 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 			const sql = `CREATE TABLE ${tableName} (\n  ${allDefinitions.join(",\n  ")}\n)`;
 
 			console.log("Creating Schema", { sql });
-			await queryRunner.query(sql);
+			await queryRunner!.query(sql);
 
-			// Create indexes (including unique constraints)
 			if (schema.indexes && schema.indexes.length > 0) {
 				for (const index of schema.indexes) {
-					const indexResult = await this.addIndex(
-						schema.tableName!,
-						index,
-						schema,
-						client,
-					);
-					if (!indexResult.success) {
-						return indexResult;
-					}
+					await this.addIndex(schema.tableName!, index, schema, client);
 				}
 			}
 
-			// Track schema in _forja (skip for _forja itself — it tracks others)
 			if (schema.name !== FORJA_META_MODEL) {
 				const metaExists = await this.tableExists(FORJA_META_MODEL);
 				if (!metaExists) {
-					return {
-						success: false,
-						error: new MigrationError(
-							`Cannot create table '${schema.name}': '${FORJA_META_MODEL}' table does not exist yet. Create '${FORJA_META_MODEL}' first.`,
-						),
-					};
+					throwMigrationError({
+						adapter: "postgres",
+						message: `Cannot create table '${schema.name}': '${FORJA_META_MODEL}' table does not exist yet. Create '${FORJA_META_MODEL}' first.`,
+					});
 				}
 
-				const metaWriteResult = await this.upsertSchemaMeta(
-					schema,
-					queryRunner,
-				);
-				if (!metaWriteResult.success) {
-					return metaWriteResult;
-				}
+				await this.upsertSchemaMeta(schema, queryRunner!);
 			}
-
-			return { success: true, data: undefined };
 		} catch (error) {
+			if (error instanceof ForjaAdapterError) throw error;
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new MigrationError(
-					`Failed to create table '${schema.name}': ${message}`,
-					error,
-				),
-			};
+			throwMigrationError({
+				adapter: "postgres",
+				message: `Failed to create table '${schema.name}': ${message}`,
+				table: schema.tableName,
+				cause: error instanceof Error ? error : undefined,
+			});
 		}
 	}
 
 	/**
 	 * Drop table
 	 */
-	async dropTable(
-		tableName: string,
-		client?: PoolClient,
-	): Promise<Result<void, MigrationError>> {
+	async dropTable(tableName: string, client?: PoolClient): Promise<void> {
 		const queryRunner = client ?? this.pool;
 		if (!queryRunner) {
-			return {
-				success: false,
-				error: new MigrationError("Not connected to database"),
-			};
+			throwNotConnected({ adapter: "postgres" });
 		}
 
 		try {
 			const escapedTable = this.getTranslator().escapeIdentifier(tableName);
-			await queryRunner.query(`DROP TABLE IF EXISTS ${escapedTable}`);
+			await queryRunner!.query(`DROP TABLE IF EXISTS ${escapedTable}`);
 
-			// Remove schema from _forja
 			if (tableName !== FORJA_META_MODEL) {
 				const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
 				const escapedMetaTable =
 					this.getTranslator().escapeIdentifier(FORJA_META_MODEL);
-				await queryRunner.query(
+				await queryRunner!.query(
 					`DELETE FROM ${escapedMetaTable} WHERE "key" = $1`,
 					[metaKey],
 				);
 			}
-
-			return { success: true, data: undefined };
 		} catch (error) {
+			if (error instanceof ForjaAdapterError) throw error;
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new MigrationError(
-					`Failed to drop table '${tableName}': ${message}`,
-					error,
-				),
-			};
+			throwMigrationError({
+				adapter: "postgres",
+				message: `Failed to drop table '${tableName}': ${message}`,
+				table: tableName,
+				cause: error instanceof Error ? error : undefined,
+			});
 		}
 	}
 
@@ -532,44 +443,37 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 		from: string,
 		to: string,
 		client?: PoolClient,
-	): Promise<Result<void, MigrationError>> {
+	): Promise<void> {
 		const queryRunner = client ?? this.pool;
 		if (!queryRunner) {
-			return {
-				success: false,
-				error: new MigrationError("Not connected to database"),
-			};
+			throwNotConnected({ adapter: "postgres" });
 		}
 
 		try {
 			const translator = this.getTranslator();
 			const escapedFrom = translator.escapeIdentifier(from);
 			const escapedTo = translator.escapeIdentifier(to);
-			await queryRunner.query(
+			await queryRunner!.query(
 				`ALTER TABLE ${escapedFrom} RENAME TO ${escapedTo}`,
 			);
 
-			// Update key in _forja
 			if (from !== FORJA_META_MODEL && to !== FORJA_META_MODEL) {
 				const oldKey = `${FORJA_META_KEY_PREFIX}${from}`;
 				const newKey = `${FORJA_META_KEY_PREFIX}${to}`;
 				const escapedMetaTable = translator.escapeIdentifier(FORJA_META_MODEL);
-				await queryRunner.query(
+				await queryRunner!.query(
 					`UPDATE ${escapedMetaTable} SET "key" = $1 WHERE "key" = $2`,
 					[newKey, oldKey],
 				);
 			}
-
-			return { success: true, data: undefined };
 		} catch (error) {
+			if (error instanceof ForjaAdapterError) throw error;
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new MigrationError(
-					`Failed to rename table '${from}' to '${to}': ${message}`,
-					error,
-				),
-			};
+			throwMigrationError({
+				adapter: "postgres",
+				message: `Failed to rename table '${from}' to '${to}': ${message}`,
+				cause: error instanceof Error ? error : undefined,
+			});
 		}
 	}
 
@@ -580,13 +484,10 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 		tableName: string,
 		operations: readonly AlterOperation[],
 		client?: PoolClient,
-	): Promise<Result<void, MigrationError>> {
+	): Promise<void> {
 		const queryRunner = client ?? this.pool;
 		if (!queryRunner) {
-			return {
-				success: false,
-				error: new MigrationError("Not connected to database"),
-			};
+			throwNotConnected({ adapter: "postgres" });
 		}
 
 		try {
@@ -612,7 +513,6 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 					}
 
 					case "modifyColumn": {
-						// PostgreSQL uses ALTER COLUMN for modifications
 						const columnName = this.getTranslator().escapeIdentifier(op.column);
 						const pgType = getPostgresTypeWithModifiers(op.newDefinition.type);
 						sql = `ALTER TABLE ${escapedTable} ALTER COLUMN ${columnName} TYPE ${pgType}`;
@@ -628,32 +528,26 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 				}
 
 				if (sql) {
-					await queryRunner.query(sql);
+					await queryRunner!.query(sql);
 				}
 			}
 
-			// Update schema in _forja
 			if (tableName !== FORJA_META_MODEL) {
-				const updatedSchemaResult = await this.applyOperationsToMetaSchema(
+				await this.applyOperationsToMetaSchema(
 					tableName,
 					operations,
-					queryRunner,
+					queryRunner!,
 				);
-				if (!updatedSchemaResult.success) {
-					return updatedSchemaResult;
-				}
 			}
-
-			return { success: true, data: undefined };
 		} catch (error) {
+			if (error instanceof ForjaAdapterError) throw error;
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new MigrationError(
-					`Failed to alter table '${tableName}': ${message}`,
-					error,
-				),
-			};
+			throwMigrationError({
+				adapter: "postgres",
+				message: `Failed to alter table '${tableName}': ${message}`,
+				table: tableName,
+				cause: error instanceof Error ? error : undefined,
+			});
 		}
 	}
 
@@ -665,13 +559,10 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 		index: IndexDefinition,
 		schema?: SchemaDefinition,
 		client?: PoolClient,
-	): Promise<Result<void, MigrationError>> {
+	): Promise<void> {
 		const queryRunner = client ?? this.pool;
 		if (!queryRunner) {
-			return {
-				success: false,
-				error: new MigrationError("Not connected to database"),
-			};
+			throwNotConnected({ adapter: "postgres" });
 		}
 
 		try {
@@ -681,7 +572,6 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 				index.name ?? `idx_${tableName}_${index.fields.join("_")}`;
 			const escapedIndexName = this.getTranslator().escapeIdentifier(indexName);
 
-			// Map field names: if field is a relation, use foreignKey instead
 			const mappedFields = index.fields.map((fieldName) => {
 				if (schema) {
 					const field = schema.fields[fieldName];
@@ -699,17 +589,16 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 			const unique = index.unique ? "UNIQUE " : "";
 			const using = index.type ? ` USING ${index.type.toUpperCase()}` : "";
 			const sql = `CREATE ${unique}INDEX ${escapedIndexName} ON ${escapedTable}${using} (${fields})`;
-			await queryRunner.query(sql);
-			return { success: true, data: undefined };
+			await queryRunner!.query(sql);
 		} catch (error) {
+			if (error instanceof ForjaAdapterError) throw error;
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new MigrationError(
-					`Failed to add index on table '${tableNameParam}': ${message}`,
-					error,
-				),
-			};
+			throwMigrationError({
+				adapter: "postgres",
+				message: `Failed to add index on table '${tableNameParam}': ${message}`,
+				table: tableNameParam,
+				cause: error instanceof Error ? error : undefined,
+			});
 		}
 	}
 
@@ -720,111 +609,80 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 		_tableName: string,
 		indexName: string,
 		client?: PoolClient,
-	): Promise<Result<void, MigrationError>> {
+	): Promise<void> {
 		const queryRunner = client ?? this.pool;
 		if (!queryRunner) {
-			return {
-				success: false,
-				error: new MigrationError("Not connected to database"),
-			};
+			throwNotConnected({ adapter: "postgres" });
 		}
 
 		try {
 			const escapedIndexName = this.getTranslator().escapeIdentifier(indexName);
-			await queryRunner.query(`DROP INDEX IF EXISTS ${escapedIndexName}`);
-
-			return { success: true, data: undefined };
+			await queryRunner!.query(`DROP INDEX IF EXISTS ${escapedIndexName}`);
 		} catch (error) {
+			if (error instanceof ForjaAdapterError) throw error;
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new MigrationError(
-					`Failed to drop index '${indexName}': ${message}`,
-					error,
-				),
-			};
+			throwMigrationError({
+				adapter: "postgres",
+				message: `Failed to drop index '${indexName}': ${message}`,
+				cause: error instanceof Error ? error : undefined,
+			});
 		}
 	}
 
 	/**
 	 * Get all table names
 	 */
-	async getTables<TResult extends ForjaEntry>(): Promise<
-		Result<readonly string[], QueryError<TResult>>
-	> {
+	async getTables(): Promise<readonly string[]> {
 		if (!this.pool) {
-			return {
-				success: false,
-				error: new QueryError("Not connected to database", {
-					code: "CONNECTION_ERROR",
-				}),
-			};
+			throwNotConnected({ adapter: "postgres" });
 		}
 
 		try {
-			const result = await this.pool.query<{ tablename: string }>(
+			const result = await this.pool!.query<{ tablename: string }>(
 				`SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename`,
 			);
 
-			const tables = result.rows.map(
-				(row: { tablename: string }) => row.tablename,
-			);
-			return { success: true, data: tables };
+			return result.rows.map((row: { tablename: string }) => row.tablename);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new QueryError(`Failed to get tables: ${message}`, {
-					details: error,
-				}),
-			};
+			throwIntrospectionError({
+				adapter: "postgres",
+				message: `Failed to get tables: ${message}`,
+				cause: error instanceof Error ? error : undefined,
+			});
 		}
 	}
 
 	/**
 	 * Get table schema (introspection)
 	 */
-	async getTableSchema<TResult extends ForjaEntry>(
-		tableName: string,
-	): Promise<Result<SchemaDefinition, QueryError<TResult>>> {
+	async getTableSchema(tableName: string): Promise<SchemaDefinition | null> {
 		if (!this.pool) {
-			return {
-				success: false,
-				error: new QueryError("Not connected to database", {
-					code: "CONNECTION_ERROR",
-				}),
-			};
+			throwNotConnected({ adapter: "postgres" });
 		}
 
 		try {
 			const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
 			const escapedMetaTable =
 				this.getTranslator().escapeIdentifier(FORJA_META_MODEL);
-			const metaResult = await this.pool.query<{ value: string }>(
+			const metaResult = await this.pool!.query<{ value: string }>(
 				`SELECT "value" FROM ${escapedMetaTable} WHERE "key" = $1`,
 				[metaKey],
 			);
 
 			if (metaResult.rows.length === 0) {
-				return {
-					success: false,
-					error: new QueryError(`Table '${tableName}' not found in _forja`, {
-						code: "TABLE_NOT_FOUND",
-					}),
-				};
+				return null;
 			}
 
-			const schema = JSON.parse(metaResult.rows[0]!.value) as SchemaDefinition;
-			return { success: true, data: schema };
+			return JSON.parse(metaResult.rows[0]!.value) as SchemaDefinition;
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new QueryError(
-					`Failed to get table schema for '${tableName}': ${message}`,
-					{ details: error },
-				),
-			};
+			throwIntrospectionError({
+				adapter: "postgres",
+				message: `Failed to get table schema for '${tableName}': ${message}`,
+				table: tableName,
+				cause: error instanceof Error ? error : undefined,
+			});
 		}
 	}
 
@@ -873,7 +731,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 			return "string";
 		}
 
-		return "string"; // Default to string
+		return "string";
 	}
 
 	/**
@@ -882,15 +740,12 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	private parsePostgresDefault(defaultValue: string): unknown {
 		if (defaultValue === null) return undefined;
 
-		// Remove type cast (e.g., 'active'::character varying -> 'active')
 		let cleaned = defaultValue.split("::")[0];
 
-		// Remove single quotes for strings
 		if (cleaned && cleaned.startsWith("'") && cleaned.endsWith("'")) {
 			cleaned = cleaned.substring(1, cleaned.length - 1);
 		}
 
-		// Common function defaults
 		if (
 			cleaned &&
 			(cleaned.toUpperCase().includes("NOW()") ||
@@ -899,7 +754,6 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 			return "NOW()";
 		}
 
-		// Numeric and boolean defaults
 		if (cleaned === "true") return true;
 		if (cleaned === "false") return false;
 
@@ -939,29 +793,17 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	private async upsertSchemaMeta(
 		schema: SchemaDefinition,
 		queryRunner: Pool | PoolClient,
-	): Promise<Result<void, MigrationError>> {
-		try {
-			const metaKey = `${FORJA_META_KEY_PREFIX}${schema.tableName ?? schema.name}`;
-			const metaValue = JSON.stringify(schema);
-			const escapedMetaTable =
-				this.getTranslator().escapeIdentifier(FORJA_META_MODEL);
-			await queryRunner.query(
-				`INSERT INTO ${escapedMetaTable} ("key", "value", "createdAt", "updatedAt")
-				 VALUES ($1, $2, NOW(), NOW())
-				 ON CONFLICT ("key") DO UPDATE SET "value" = EXCLUDED."value", "updatedAt" = NOW()`,
-				[metaKey, metaValue],
-			);
-			return { success: true, data: undefined };
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new MigrationError(
-					`Failed to upsert schema meta for '${schema.name}': ${message}`,
-					error,
-				),
-			};
-		}
+	): Promise<void> {
+		const metaKey = `${FORJA_META_KEY_PREFIX}${schema.tableName ?? schema.name}`;
+		const metaValue = JSON.stringify(schema);
+		const escapedMetaTable =
+			this.getTranslator().escapeIdentifier(FORJA_META_MODEL);
+		await queryRunner.query(
+			`INSERT INTO ${escapedMetaTable} ("key", "value", "createdAt", "updatedAt")
+			 VALUES ($1, $2, NOW(), NOW())
+			 ON CONFLICT ("key") DO UPDATE SET "value" = EXCLUDED."value", "updatedAt" = NOW()`,
+			[metaKey, metaValue],
+		);
 	}
 
 	/**
@@ -971,68 +813,54 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 		tableName: string,
 		operations: readonly AlterOperation[],
 		queryRunner: Pool | PoolClient,
-	): Promise<Result<void, MigrationError>> {
-		try {
-			const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
-			const escapedMetaTable =
-				this.getTranslator().escapeIdentifier(FORJA_META_MODEL);
-			const metaResult = await queryRunner.query<{ value: string }>(
-				`SELECT "value" FROM ${escapedMetaTable} WHERE "key" = $1`,
-				[metaKey],
-			);
+	): Promise<void> {
+		const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
+		const escapedMetaTable =
+			this.getTranslator().escapeIdentifier(FORJA_META_MODEL);
+		const metaResult = await queryRunner.query<{ value: string }>(
+			`SELECT "value" FROM ${escapedMetaTable} WHERE "key" = $1`,
+			[metaKey],
+		);
 
-			if (metaResult.rows.length === 0) {
-				return {
-					success: false,
-					error: new MigrationError(
-						`Schema meta for table '${tableName}' not found in _forja`,
-					),
-				};
-			}
+		if (metaResult.rows.length === 0) {
+			throwMigrationError({
+				adapter: "postgres",
+				message: `Schema meta for table '${tableName}' not found in _forja`,
+				table: tableName,
+			});
+		}
 
-			const schema = JSON.parse(metaResult.rows[0]!.value) as SchemaDefinition;
-			const fields = { ...schema.fields };
+		const schema = JSON.parse(metaResult.rows[0]!.value) as SchemaDefinition;
+		const fields = { ...schema.fields };
 
-			for (const op of operations) {
-				switch (op.type) {
-					case "addColumn":
-						fields[op.column] = op.definition;
-						break;
-					case "dropColumn":
-						delete fields[op.column];
-						break;
-					case "modifyColumn":
-						fields[op.column] = op.newDefinition;
-						break;
-					case "renameColumn": {
-						const fieldDef = fields[op.from];
-						if (fieldDef !== undefined) {
-							fields[op.to] = fieldDef;
-							delete fields[op.from];
-						}
-						break;
+		for (const op of operations) {
+			switch (op.type) {
+				case "addColumn":
+					fields[op.column] = op.definition;
+					break;
+				case "dropColumn":
+					delete fields[op.column];
+					break;
+				case "modifyColumn":
+					fields[op.column] = op.newDefinition;
+					break;
+				case "renameColumn": {
+					const fieldDef = fields[op.from];
+					if (fieldDef !== undefined) {
+						fields[op.to] = fieldDef;
+						delete fields[op.from];
 					}
+					break;
 				}
 			}
-
-			const updatedSchema: SchemaDefinition = { ...schema, fields };
-			const updatedValue = JSON.stringify(updatedSchema);
-			await queryRunner.query(
-				`UPDATE ${escapedMetaTable} SET "value" = $1, "updatedAt" = NOW() WHERE "key" = $2`,
-				[updatedValue, metaKey],
-			);
-
-			return { success: true, data: undefined };
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new MigrationError(
-					`Failed to update schema meta for '${tableName}': ${message}`,
-					error,
-				),
-			};
 		}
+
+		const updatedSchema: SchemaDefinition = { ...schema, fields };
+		const updatedValue = JSON.stringify(updatedSchema);
+		await queryRunner.query(
+			`UPDATE ${escapedMetaTable} SET "value" = $1, "updatedAt" = NOW() WHERE "key" = $2`,
+			[updatedValue, metaKey],
+		);
 	}
 
 	/**
@@ -1044,7 +872,6 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	): string {
 		const columnName = this.getTranslator().escapeIdentifier(fieldName);
 
-		// Check if field should be auto-increment
 		const shouldAutoIncrement = field.type === "number" && field.autoIncrement;
 
 		if (shouldAutoIncrement) {
@@ -1084,35 +911,33 @@ class PostgresTransaction implements Transaction {
 
 	/**
 	 * Execute query within transaction
-	 *
-	 * Delegates to adapter.executeQuery with this transaction's client,
-	 * reusing all query logic (validation, populate, count parse, id mapping).
 	 */
 	async executeQuery<TResult extends ForjaEntry>(
 		query: QueryObject<TResult>,
-	): Promise<Result<QueryResult<TResult>, QueryError<TResult>>> {
+	): Promise<QueryResult<TResult>> {
 		if (this.committed || this.rolledBack) {
-			return {
-				success: false,
-				error: new QueryError("Transaction already completed", { query }),
-			};
+			throwQueryError({
+				adapter: "postgres",
+				message: "Transaction already completed",
+				query: query as QueryObject,
+			});
 		}
 
 		if (this.aborted) {
-			return {
-				success: false,
-				error: new QueryError(
+			throwQueryError({
+				adapter: "postgres",
+				message:
 					"current transaction is aborted, commands ignored until end of transaction block",
-					{ query },
-				),
-			};
+				query: query as QueryObject,
+			});
 		}
 
-		const result = await this.adapter.executeQuery<TResult>(query, this.client);
-		if (!result.success) {
+		try {
+			return await this.adapter.executeQuery<TResult>(query, this.client);
+		} catch (error) {
 			this.aborted = true;
+			throw error;
 		}
-		return result;
 	}
 
 	/**
@@ -1121,22 +946,22 @@ class PostgresTransaction implements Transaction {
 	async executeRawQuery<TResult extends ForjaEntry>(
 		sql: string,
 		params: readonly unknown[],
-	): Promise<Result<QueryResult<TResult>, QueryError<TResult>>> {
+	): Promise<QueryResult<TResult>> {
 		if (this.committed || this.rolledBack) {
-			return {
-				success: false,
-				error: new QueryError("Transaction already completed", { sql }),
-			};
+			throwQueryError({
+				adapter: "postgres",
+				message: "Transaction already completed",
+				sql,
+			});
 		}
 
 		if (this.aborted) {
-			return {
-				success: false,
-				error: new QueryError(
+			throwQueryError({
+				adapter: "postgres",
+				message:
 					"current transaction is aborted, commands ignored until end of transaction block",
-					{ sql },
-				),
-			};
+				sql,
+			});
 		}
 
 		try {
@@ -1148,193 +973,161 @@ class PostgresTransaction implements Transaction {
 			};
 
 			return {
-				success: true,
-				data: {
-					rows: result.rows as readonly TResult[],
-					metadata,
-				},
+				rows: result.rows as readonly TResult[],
+				metadata,
 			};
 		} catch (error) {
 			this.aborted = true;
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new QueryError(`Raw query failed: ${message}`, {
-					sql,
-					details: error,
-				}),
-			};
+			throwQueryError({
+				adapter: "postgres",
+				message: `Raw query failed: ${message}`,
+				sql,
+				cause: error instanceof Error ? error : undefined,
+			});
 		}
 	}
 
 	/**
 	 * Commit transaction
 	 */
-	async commit(): Promise<Result<void, TransactionError>> {
+	async commit(): Promise<void> {
 		if (this.committed) {
-			return {
-				success: false,
-				error: new TransactionError("Transaction already committed"),
-			};
+			throwTransactionError({
+				adapter: "postgres",
+				message: "Transaction already committed",
+			});
 		}
 
 		if (this.rolledBack) {
-			return {
-				success: false,
-				error: new TransactionError("Transaction already rolled back"),
-			};
+			throwTransactionError({
+				adapter: "postgres",
+				message: "Transaction already rolled back",
+			});
 		}
 
 		try {
 			await this.client.query("COMMIT");
 			this.committed = true;
 			this.client.release();
-
-			return { success: true, data: undefined };
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new TransactionError(
-					`Failed to commit transaction: ${message}`,
-					error,
-				),
-			};
+			throwTransactionError({
+				adapter: "postgres",
+				message: `Failed to commit transaction: ${message}`,
+				cause: error instanceof Error ? error : undefined,
+			});
 		}
 	}
 
 	/**
 	 * Rollback transaction
 	 */
-	async rollback(): Promise<Result<void, TransactionError>> {
+	async rollback(): Promise<void> {
 		if (this.committed) {
-			return {
-				success: false,
-				error: new TransactionError("Transaction already committed"),
-			};
+			throwTransactionError({
+				adapter: "postgres",
+				message: "Transaction already committed",
+			});
 		}
 
 		if (this.rolledBack) {
-			return {
-				success: false,
-				error: new TransactionError("Transaction already rolled back"),
-			};
+			throwTransactionError({
+				adapter: "postgres",
+				message: "Transaction already rolled back",
+			});
 		}
 
 		try {
 			await this.client.query("ROLLBACK");
 			this.rolledBack = true;
 			this.client.release();
-
-			return { success: true, data: undefined };
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new TransactionError(
-					`Failed to rollback transaction: ${message}`,
-					error,
-				),
-			};
+			throwTransactionError({
+				adapter: "postgres",
+				message: `Failed to rollback transaction: ${message}`,
+				cause: error instanceof Error ? error : undefined,
+			});
 		}
 	}
 
 	/**
 	 * Create savepoint
 	 */
-	async savepoint(name: string): Promise<Result<void, TransactionError>> {
+	async savepoint(name: string): Promise<void> {
 		try {
 			const escapedName = this.adapter.getTranslator().escapeIdentifier(name);
 			await this.client.query(`SAVEPOINT ${escapedName}`);
-			return { success: true, data: undefined };
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new TransactionError(
-					`Failed to create savepoint '${name}': ${message}`,
-					error,
-				),
-			};
+			throwTransactionError({
+				adapter: "postgres",
+				message: `Failed to create savepoint '${name}': ${message}`,
+				cause: error instanceof Error ? error : undefined,
+			});
 		}
 	}
 
 	/**
 	 * Rollback to savepoint
 	 */
-	async rollbackTo(name: string): Promise<Result<void, TransactionError>> {
+	async rollbackTo(name: string): Promise<void> {
 		try {
 			const escapedName = this.adapter.getTranslator().escapeIdentifier(name);
 			await this.client.query(`ROLLBACK TO SAVEPOINT ${escapedName}`);
 			this.aborted = false;
-			return { success: true, data: undefined };
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new TransactionError(
-					`Failed to rollback to savepoint '${name}': ${message}`,
-					error,
-				),
-			};
+			throwTransactionError({
+				adapter: "postgres",
+				message: `Failed to rollback to savepoint '${name}': ${message}`,
+				cause: error instanceof Error ? error : undefined,
+			});
 		}
 	}
 
 	/**
 	 * Release savepoint
 	 */
-	async release(name: string): Promise<Result<void, TransactionError>> {
+	async release(name: string): Promise<void> {
 		try {
 			const escapedName = this.adapter.getTranslator().escapeIdentifier(name);
 			await this.client.query(`RELEASE SAVEPOINT ${escapedName}`);
-			return { success: true, data: undefined };
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new TransactionError(
-					`Failed to release savepoint '${name}': ${message}`,
-					error,
-				),
-			};
+			throwTransactionError({
+				adapter: "postgres",
+				message: `Failed to release savepoint '${name}': ${message}`,
+				cause: error instanceof Error ? error : undefined,
+			});
 		}
 	}
 
-	async createTable(
-		schema: SchemaDefinition,
-	): Promise<Result<void, MigrationError>> {
+	async createTable(schema: SchemaDefinition): Promise<void> {
 		return this.adapter.createTable(schema, this.client);
 	}
 
-	async dropTable(tableName: string): Promise<Result<void, MigrationError>> {
+	async dropTable(tableName: string): Promise<void> {
 		return this.adapter.dropTable(tableName, this.client);
 	}
 
-	async renameTable(
-		from: string,
-		to: string,
-	): Promise<Result<void, MigrationError>> {
+	async renameTable(from: string, to: string): Promise<void> {
 		return this.adapter.renameTable(from, to, this.client);
 	}
 
 	async alterTable(
 		tableName: string,
 		operations: readonly AlterOperation[],
-	): Promise<Result<void, MigrationError>> {
+	): Promise<void> {
 		return this.adapter.alterTable(tableName, operations, this.client);
 	}
 
-	async addIndex(
-		tableName: string,
-		index: IndexDefinition,
-	): Promise<Result<void, MigrationError>> {
+	async addIndex(tableName: string, index: IndexDefinition): Promise<void> {
 		return this.adapter.addIndex(tableName, index, undefined, this.client);
 	}
 
-	async dropIndex(
-		tableName: string,
-		indexName: string,
-	): Promise<Result<void, MigrationError>> {
+	async dropIndex(tableName: string, indexName: string): Promise<void> {
 		return this.adapter.dropIndex(tableName, indexName, this.client);
 	}
 }

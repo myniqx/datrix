@@ -28,25 +28,18 @@ describe("MigrationGenerator - Happy Path", () => {
 				},
 			];
 
-			const operations = expectSuccessData(
+			const operations = expectSuccessData(() =>
 				generator.generateOperations(tableAddedDiff),
 			);
 
-			expect(operations.up).toHaveLength(1);
-			expect(operations.down).toHaveLength(1);
+			expect(operations).toHaveLength(1);
 
-			const upOperation = operations.up[0]!;
+			const upOperation = operations[0]!;
 			expect(upOperation.type).toBe("createTable");
 			if (upOperation.type === "createTable") {
 				expect(upOperation.schema.name).toBe("users");
 				expect(upOperation.schema.fields).toHaveProperty("id");
 				expect(upOperation.schema.fields).toHaveProperty("email");
-			}
-
-			const downOperation = operations.down[0]!;
-			expect(downOperation.type).toBe("dropTable");
-			if (downOperation.type === "dropTable") {
-				expect(downOperation.tableName).toBe("users");
 			}
 		});
 
@@ -58,21 +51,14 @@ describe("MigrationGenerator - Happy Path", () => {
 				},
 			];
 
-			const operations = expectSuccessData(
+			const operations = expectSuccessData(() =>
 				generator.generateOperations(tableRemovedDiff),
 			);
 
-			const upOperation = operations.up[0]!;
+			const upOperation = operations[0]!;
 			expect(upOperation.type).toBe("dropTable");
 			if (upOperation.type === "dropTable") {
 				expect(upOperation.tableName).toBe("old_table");
-			}
-
-			const downOperation = operations.down[0]!;
-			expect(downOperation.type).toBe("raw");
-			if (downOperation.type === "raw") {
-				expect(downOperation.sql).toContain("TODO");
-				expect(downOperation.sql).toContain("old_table");
 			}
 		});
 
@@ -85,22 +71,15 @@ describe("MigrationGenerator - Happy Path", () => {
 				},
 			];
 
-			const operations = expectSuccessData(
+			const operations = expectSuccessData(() =>
 				generator.generateOperations(tableRenamedDiff),
 			);
 
-			const upOperation = operations.up[0]!;
+			const upOperation = operations[0]!;
 			expect(upOperation.type).toBe("renameTable");
 			if (upOperation.type === "renameTable") {
 				expect(upOperation.from).toBe("users");
 				expect(upOperation.to).toBe("accounts");
-			}
-
-			const downOperation = operations.down[0]!;
-			expect(downOperation.type).toBe("renameTable");
-			if (downOperation.type === "renameTable") {
-				expect(downOperation.from).toBe("accounts");
-				expect(downOperation.to).toBe("users");
 			}
 		});
 	});
@@ -116,11 +95,11 @@ describe("MigrationGenerator - Happy Path", () => {
 				},
 			];
 
-			const operations = expectSuccessData(
+			const operations = expectSuccessData(() =>
 				generator.generateOperations(fieldAddedDiff),
 			);
 
-			const upOperation = operations.up[0]!;
+			const upOperation = operations[0]!;
 			expect(upOperation.type).toBe("alterTable");
 			if (upOperation.type === "alterTable") {
 				expect(upOperation.tableName).toBe("users");
@@ -134,19 +113,6 @@ describe("MigrationGenerator - Happy Path", () => {
 					expect(alterOperation.definition.required).toBe(false);
 				}
 			}
-
-			const downOperation = operations.down[0]!;
-			expect(downOperation.type).toBe("alterTable");
-			if (downOperation.type === "alterTable") {
-				expect(downOperation.tableName).toBe("users");
-				expect(downOperation.operations).toHaveLength(1);
-
-				const alterOperation = downOperation.operations[0]!;
-				expect(alterOperation.type).toBe("dropColumn");
-				if (alterOperation.type === "dropColumn") {
-					expect(alterOperation.column).toBe("phone");
-				}
-			}
 		});
 
 		it("should generate dropColumn for fieldRemoved with TODO down migration", () => {
@@ -158,11 +124,11 @@ describe("MigrationGenerator - Happy Path", () => {
 				},
 			];
 
-			const operations = expectSuccessData(
+			const operations = expectSuccessData(() =>
 				generator.generateOperations(fieldRemovedDiff),
 			);
 
-			const upOperation = operations.up[0]!;
+			const upOperation = operations[0]!;
 			expect(upOperation.type).toBe("alterTable");
 			if (upOperation.type === "alterTable") {
 				const alterOperation = upOperation.operations[0]!;
@@ -170,14 +136,6 @@ describe("MigrationGenerator - Happy Path", () => {
 				if (alterOperation.type === "dropColumn") {
 					expect(alterOperation.column).toBe("old_field");
 				}
-			}
-
-			const downOperation = operations.down[0]!;
-			expect(downOperation.type).toBe("raw");
-			if (downOperation.type === "raw") {
-				expect(downOperation.sql).toContain("TODO");
-				expect(downOperation.sql).toContain("old_field");
-				expect(downOperation.sql).toContain("users");
 			}
 		});
 
@@ -192,11 +150,11 @@ describe("MigrationGenerator - Happy Path", () => {
 				},
 			];
 
-			const operations = expectSuccessData(
+			const operations = expectSuccessData(() =>
 				generator.generateOperations(fieldModifiedDiff),
 			);
 
-			const upOperation = operations.up[0]!;
+			const upOperation = operations[0]!;
 			expect(upOperation.type).toBe("alterTable");
 			if (upOperation.type === "alterTable") {
 				const alterOperation = upOperation.operations[0]!;
@@ -207,20 +165,6 @@ describe("MigrationGenerator - Happy Path", () => {
 						type: "string",
 						required: true,
 						unique: true,
-					});
-				}
-			}
-
-			const downOperation = operations.down[0]!;
-			expect(downOperation.type).toBe("alterTable");
-			if (downOperation.type === "alterTable") {
-				const alterOperation = downOperation.operations[0]!;
-				expect(alterOperation.type).toBe("modifyColumn");
-				if (alterOperation.type === "modifyColumn") {
-					expect(alterOperation.column).toBe("email");
-					expect(alterOperation.newDefinition).toEqual({
-						type: "string",
-						required: false,
 					});
 				}
 			}
@@ -236,11 +180,11 @@ describe("MigrationGenerator - Happy Path", () => {
 				},
 			];
 
-			const operations = expectSuccessData(
+			const operations = expectSuccessData(() =>
 				generator.generateOperations(fieldRenamedDiff),
 			);
 
-			const upOperation = operations.up[0]!;
+			const upOperation = operations[0]!;
 			expect(upOperation.type).toBe("alterTable");
 			if (upOperation.type === "alterTable") {
 				const alterOperation = upOperation.operations[0]!;
@@ -248,17 +192,6 @@ describe("MigrationGenerator - Happy Path", () => {
 				if (alterOperation.type === "renameColumn") {
 					expect(alterOperation.from).toBe("username");
 					expect(alterOperation.to).toBe("login");
-				}
-			}
-
-			const downOperation = operations.down[0]!;
-			expect(downOperation.type).toBe("alterTable");
-			if (downOperation.type === "alterTable") {
-				const alterOperation = downOperation.operations[0]!;
-				expect(alterOperation.type).toBe("renameColumn");
-				if (alterOperation.type === "renameColumn") {
-					expect(alterOperation.from).toBe("login");
-					expect(alterOperation.to).toBe("username");
 				}
 			}
 		});
@@ -279,11 +212,11 @@ describe("MigrationGenerator - Happy Path", () => {
 				},
 			];
 
-			const operations = expectSuccessData(
+			const operations = expectSuccessData(() =>
 				generator.generateOperations(indexAddedDiff),
 			);
 
-			const upOperation = operations.up[0]!;
+			const upOperation = operations[0]!;
 			expect(upOperation.type).toBe("createIndex");
 			if (upOperation.type === "createIndex") {
 				expect(upOperation.tableName).toBe("users");
@@ -291,13 +224,6 @@ describe("MigrationGenerator - Happy Path", () => {
 				expect(upOperation.index.fields).toEqual(["email"]);
 				expect(upOperation.index.unique).toBe(true);
 				expect(upOperation.index.type).toBe("btree");
-			}
-
-			const downOperation = operations.down[0]!;
-			expect(downOperation.type).toBe("dropIndex");
-			if (downOperation.type === "dropIndex") {
-				expect(downOperation.tableName).toBe("users");
-				expect(downOperation.indexName).toBe("email_idx");
 			}
 		});
 
@@ -310,22 +236,15 @@ describe("MigrationGenerator - Happy Path", () => {
 				},
 			];
 
-			const operations = expectSuccessData(
+			const operations = expectSuccessData(() =>
 				generator.generateOperations(indexRemovedDiff),
 			);
 
-			const upOperation = operations.up[0]!;
+			const upOperation = operations[0]!;
 			expect(upOperation.type).toBe("dropIndex");
 			if (upOperation.type === "dropIndex") {
 				expect(upOperation.tableName).toBe("users");
 				expect(upOperation.indexName).toBe("old_idx");
-			}
-
-			const downOperation = operations.down[0]!;
-			expect(downOperation.type).toBe("raw");
-			if (downOperation.type === "raw") {
-				expect(downOperation.sql).toContain("TODO");
-				expect(downOperation.sql).toContain("old_idx");
 			}
 		});
 	});
@@ -353,20 +272,15 @@ describe("MigrationGenerator - Happy Path", () => {
 				},
 			];
 
-			const operations = expectSuccessData(
+			const operations = expectSuccessData(() =>
 				generator.generateOperations(multipleDiffs),
 			);
 
-			expect(operations.up).toHaveLength(3);
-			expect(operations.down).toHaveLength(3);
+			expect(operations).toHaveLength(3);
 
-			expect(operations.up[0]!.type).toBe("createTable");
-			expect(operations.up[1]!.type).toBe("alterTable");
-			expect(operations.up[2]!.type).toBe("createIndex");
-
-			expect(operations.down[0]!.type).toBe("dropTable");
-			expect(operations.down[1]!.type).toBe("alterTable");
-			expect(operations.down[2]!.type).toBe("dropIndex");
+			expect(operations[0]!.type).toBe("createTable");
+			expect(operations[1]!.type).toBe("alterTable");
+			expect(operations[2]!.type).toBe("createIndex");
 		});
 
 		it("should handle constraint changes correctly", () => {
@@ -380,11 +294,11 @@ describe("MigrationGenerator - Happy Path", () => {
 				},
 			];
 
-			const operations = expectSuccessData(
+			const operations = expectSuccessData(() =>
 				generator.generateOperations(constraintChangeDiff),
 			);
 
-			const upOperation = operations.up[0]!;
+			const upOperation = operations[0]!;
 			if (upOperation.type === "alterTable") {
 				const alterOperation = upOperation.operations[0]!;
 				if (alterOperation.type === "modifyColumn") {
@@ -393,19 +307,6 @@ describe("MigrationGenerator - Happy Path", () => {
 						expect(newDefinition.min).toBe(10);
 						expect(newDefinition.max).toBe(10000);
 						expect(newDefinition.integer).toBe(true);
-					}
-				}
-			}
-
-			const downOperation = operations.down[0]!;
-			if (downOperation.type === "alterTable") {
-				const alterOperation = downOperation.operations[0]!;
-				if (alterOperation.type === "modifyColumn") {
-					const oldDefinition = alterOperation.newDefinition;
-					if (oldDefinition.type === "number") {
-						expect(oldDefinition.min).toBe(0);
-						expect(oldDefinition.max).toBeUndefined();
-						expect(oldDefinition.integer).toBeUndefined();
 					}
 				}
 			}
@@ -431,7 +332,7 @@ describe("MigrationGenerator - Happy Path", () => {
 				author: "test",
 			};
 
-			const migration = expectSuccessData(
+			const migration = expectSuccessData(() =>
 				generator.generate(diffs, migrationMetadata),
 			);
 
@@ -442,10 +343,8 @@ describe("MigrationGenerator - Happy Path", () => {
 			expect(migration.metadata.timestamp).toBeTypeOf("number");
 			expect(migration.metadata.timestamp).toBeGreaterThan(0);
 
-			expect(migration.up).toHaveLength(1);
-			expect(migration.down).toHaveLength(1);
-			expect(migration.up[0]!.type).toBe("createTable");
-			expect(migration.down[0]!.type).toBe("dropTable");
+			expect(migration.operations).toHaveLength(1);
+			expect(migration.operations[0]!.type).toBe("createTable");
 		});
 
 		it("should generate unique timestamps for consecutive migrations", () => {
@@ -456,10 +355,10 @@ describe("MigrationGenerator - Happy Path", () => {
 				},
 			];
 
-			const migration1 = expectSuccessData(
+			const migration1 = expectSuccessData(() =>
 				generator.generate(diffs, { name: "mig1", version: "001" }),
 			);
-			const migration2 = expectSuccessData(
+			const migration2 = expectSuccessData(() =>
 				generator.generate(diffs, { name: "mig2", version: "002" }),
 			);
 
@@ -474,12 +373,11 @@ describe("MigrationGenerator - Happy Path", () => {
 		it("should handle empty diffs array", () => {
 			const emptyDiffs: SchemaDiff[] = [];
 
-			const operations = expectSuccessData(
+			const operations = expectSuccessData(() =>
 				generator.generateOperations(emptyDiffs),
 			);
 
-			expect(operations.up).toHaveLength(0);
-			expect(operations.down).toHaveLength(0);
+			expect(operations).toHaveLength(0);
 		});
 
 		it("should handle composite index with multiple fields", () => {
@@ -495,11 +393,11 @@ describe("MigrationGenerator - Happy Path", () => {
 				},
 			];
 
-			const operations = expectSuccessData(
+			const operations = expectSuccessData(() =>
 				generator.generateOperations(compositeIndexDiff),
 			);
 
-			const upOperation = operations.up[0]!;
+			const upOperation = operations[0]!;
 			if (upOperation.type === "createIndex") {
 				expect(upOperation.index.fields).toEqual([
 					"userId",
@@ -530,11 +428,11 @@ describe("MigrationGenerator - Happy Path", () => {
 				},
 			];
 
-			const operations = expectSuccessData(
+			const operations = expectSuccessData(() =>
 				generator.generateOperations(fieldWithAllProperties),
 			);
 
-			const upOperation = operations.up[0]!;
+			const upOperation = operations[0]!;
 			if (upOperation.type === "alterTable") {
 				const alterOperation = upOperation.operations[0]!;
 				if (alterOperation.type === "addColumn") {
@@ -565,11 +463,11 @@ describe("MigrationGenerator - Happy Path", () => {
 				},
 			];
 
-			const operations = expectSuccessData(
+			const operations = expectSuccessData(() =>
 				generator.generateOperations(relationFieldChange),
 			);
 
-			const upOperation = operations.up[0]!;
+			const upOperation = operations[0]!;
 			if (upOperation.type === "alterTable") {
 				const alterOperation = upOperation.operations[0]!;
 				if (alterOperation.type === "modifyColumn") {

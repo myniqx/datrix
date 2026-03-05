@@ -13,7 +13,6 @@ import {
 	ParserError,
 	buildErrorLocation,
 	type RawQueryParams,
-	type QueryParserResult,
 	type ParserOptions,
 	type ParsedPagination,
 	type ParsedSort,
@@ -24,6 +23,7 @@ import { parseFields } from "./fields-parser";
 import { parseWhere } from "./where-parser";
 import { parsePopulate } from "./populate-parser";
 import { paginationError, sortError } from "./errors";
+import { ForjaRecord } from "forja-types";
 
 /**
  * Default parser options
@@ -46,82 +46,47 @@ const DEFAULT_OPTIONS: Required<ParserOptions> = {
 export function parseQuery(
 	params: RawQueryParams,
 	options?: Partial<ParserOptions>,
-): QueryParserResult {
-	try {
-		const opts: Required<ParserOptions> = {
-			...DEFAULT_OPTIONS,
-			...options,
-		};
+): ParsedQuery<ForjaRecord> {
+	const opts: Required<ParserOptions> = {
+		...DEFAULT_OPTIONS,
+		...options,
+	};
 
-		// Build result as mutable object
-		const result: {
-			select?: ParsedQuery["select"];
-			where?: ParsedQuery["where"];
-			populate?: ParsedQuery["populate"];
-			orderBy?: ParsedQuery["orderBy"];
-			page?: number;
-			pageSize?: number;
-		} = {};
+	const fields = parseFields(params);
+	const where = parseWhere(params);
+	const populate = parsePopulate(params, opts.maxPopulateDepth);
+	const pagination = parsePagination(params, opts);
+	const sort = parseSort(params);
 
-		// Parse fields - throws on error
-		const fields = parseFields(params);
-		if (fields !== undefined && fields !== "*") {
-			result.select = fields;
-		}
-
-		// Parse where - throws on error
-		const where = parseWhere(params);
-		if (where !== undefined) {
-			result.where = where;
-		}
-
-		// Parse populate - throws on error
-		const populate = parsePopulate(params, opts.maxPopulateDepth);
-		if (populate !== undefined) {
-			result.populate = populate;
-		}
-
-		// Parse pagination - throws on error
-		const pagination = parsePagination(params, opts);
-		if (pagination !== undefined) {
-			result.page = pagination.page ?? 1;
-			result.pageSize = pagination.pageSize ?? opts.defaultPageSize;
-		}
-
-		// Parse sorting - throws on error
-		const sort = parseSort(params);
-		if (sort !== undefined && Array.isArray(sort) && sort.length > 0) {
-			result.orderBy = sort;
-		}
-
-		// Detect unknown/unrecognized query parameters
-		const unknownParams = detectUnknownParams(params);
-		if (unknownParams.length > 0) {
-			throw new ParserError(
-				`Unknown query parameters: ${unknownParams.join(", ")}`,
-				{
-					code: "UNKNOWN_PARAMETER",
-					parser: "query",
-					location: buildErrorLocation(unknownParams),
-					received: unknownParams,
-					expected:
-						"Known parameters: fields, where, populate, page, pageSize, sort",
-					suggestion:
-						"Check for typos. Common mistake: use 'where' instead of 'filters'.",
-				},
-			);
-		}
-
-		// Return result as ParsedQuery - all fields are optional and properly typed
-		return { success: true, data: result as ParsedQuery };
-	} catch (error) {
-		// Catch ParserError thrown by helper functions
-		if (error && typeof error === "object" && "code" in error) {
-			return { success: false, error: error as ParserError };
-		}
-		// Re-throw unexpected errors
-		throw error;
+	const unknownParams = detectUnknownParams(params);
+	if (unknownParams.length > 0) {
+		throw new ParserError(
+			`Unknown query parameters: ${unknownParams.join(", ")}`,
+			{
+				code: "UNKNOWN_PARAMETER",
+				parser: "query",
+				location: buildErrorLocation(unknownParams),
+				received: unknownParams,
+				expected:
+					"Known parameters: fields, where, populate, page, pageSize, sort",
+				suggestion:
+					"Check for typos. Common mistake: use 'where' instead of 'filters'.",
+			},
+		);
 	}
+
+	const result: ParsedQuery<ForjaRecord> = {
+		...(fields !== undefined && fields !== "*" && { select: fields }),
+		...(where !== undefined && { where }),
+		...(populate !== undefined && { populate }),
+		...(pagination !== undefined && {
+			page: pagination.page ?? 1,
+			pageSize: pagination.pageSize ?? opts.defaultPageSize,
+		}),
+		...(sort !== undefined && Array.isArray(sort) && sort.length > 0 && { orderBy: sort }),
+	};
+
+	return result;
 }
 
 /**
@@ -193,7 +158,7 @@ function parseSort(params: RawQueryParams): ParsedSort | undefined {
 		sortError.emptyValue([]);
 	}
 
-	const sorts: OrderByItem[] = [];
+	const sorts: OrderByItem<ForjaRecord>[] = [];
 
 	// Handle comma-separated sorts
 	const sortStrings =

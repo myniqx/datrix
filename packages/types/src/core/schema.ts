@@ -374,11 +374,18 @@ export type RelationInput<T extends ForjaEntry> =
 export type AnyRelationInput =
 	| RelationIdRefs
 	| null
-	| {
+	| AnyRelationInputObject;
+
+export type AnyRelationInputObject =
+	{
 		connect?: RelationIdRefs;
 		disconnect?: RelationIdRefs | true;
 		set?: RelationIdRefs;
 		delete?: RelationIdRefs;
+		create?: Record<string, unknown> | Record<string, unknown>[];
+		update?:
+		| { where: { id: number }; data: Record<string, unknown> }
+		| { where: { id: number }; data: Record<string, unknown> }[];
 	};
 
 /**
@@ -606,7 +613,6 @@ export type Relation<T extends ForjaEntry> = T & {
 	readonly [__relationBrand]: true;
 };
 
-
 /**
  * Check if a type is a Relation brand
  * Utility type for conditional type logic
@@ -749,7 +755,7 @@ export function defineSchema<const T extends SchemaDefinition>(
  */
 export interface SchemaRegistry {
 	/** Register a schema */
-	register(schema: SchemaDefinition): { success: boolean; error?: Error };
+	register(schema: SchemaDefinition): SchemaDefinition;
 	/** Get schema by name */
 	get(name: string): SchemaDefinition | undefined;
 	/** Get schema by model name with resolved table name */
@@ -793,23 +799,6 @@ export interface FieldMetadata {
 	readonly isArray: boolean;
 }
 
-/**
- * Extract field metadata from definition
- */
-export function getFieldMetadata(
-	name: string,
-	field: FieldDefinition,
-): FieldMetadata {
-	return {
-		name,
-		type: field.type,
-		required: field.required ?? false,
-		unique: "unique" in field ? (field.unique ?? false) : false,
-		hasDefault: field.default !== undefined,
-		isRelation: field.type === "relation",
-		isArray: field.type === "array",
-	};
-}
 
 /**
  * Schema definition validation result

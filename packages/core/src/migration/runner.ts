@@ -4,7 +4,6 @@
  * Executes migrations and manages migration plans.
  */
 
-import { Result } from "forja-types/utils";
 import type {
 	MigrationRunner,
 	Migration,
@@ -38,24 +37,16 @@ export class ForgeMigrationRunner implements MigrationRunner {
 	/**
 	 * Get pending migrations
 	 */
-	async getPending(): Promise<
-		Result<readonly Migration[], MigrationSystemError>
-	> {
+	async getPending(): Promise<readonly Migration[]> {
 		try {
 			// Initialize history table
-			const initResult = await this.history.initialize();
-			if (!initResult.success) {
-				return { success: false, error: initResult.error };
-			}
+			await this.history.initialize();
 
 			// Get applied migrations
 			const appliedResult = await this.history.getAll();
-			if (!appliedResult.success) {
-				return { success: false, error: appliedResult.error };
-			}
 
 			const appliedVersions = new Set(
-				appliedResult.data
+				appliedResult
 					.filter((record) => record.status === "completed")
 					.map((record) => record.version),
 			);
@@ -65,44 +56,23 @@ export class ForgeMigrationRunner implements MigrationRunner {
 				(migration) => !appliedVersions.has(migration.metadata.version),
 			);
 
-			return { success: true, data: pending };
+			return pending;
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new MigrationSystemError(
-					`Failed to get pending migrations: ${message}`,
-					"MIGRATION_ERROR",
-					error,
-				),
-			};
+			throw new MigrationSystemError(
+				`Failed to get pending migrations: ${message}`,
+				"MIGRATION_ERROR",
+				error,
+			);
 		}
 	}
 
 	/**
 	 * Get applied migrations
 	 */
-	async getApplied(): Promise<
-		Result<readonly MigrationHistoryRecord[], MigrationSystemError>
-	> {
-		try {
-			const initResult = await this.history.initialize();
-			if (!initResult.success) {
-				return { success: false, error: initResult.error };
-			}
-
-			return await this.history.getAll();
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new MigrationSystemError(
-					`Failed to get applied migrations: ${message}`,
-					"MIGRATION_ERROR",
-					error,
-				),
-			};
-		}
+	async getApplied(): Promise<readonly MigrationHistoryRecord[]> {
+		await this.history.initialize();
+		return await this.history.getAll();
 	}
 
 	/**
@@ -111,16 +81,9 @@ export class ForgeMigrationRunner implements MigrationRunner {
 	async runPending(options?: {
 		readonly target?: string;
 		readonly dryRun?: boolean;
-	}): Promise<
-		Result<readonly MigrationExecutionResult[], MigrationSystemError>
-	> {
+	}): Promise<readonly MigrationExecutionResult[]> {
 		try {
-			const pendingResult = await this.getPending();
-			if (!pendingResult.success) {
-				return { success: false, error: pendingResult.error };
-			}
-
-			let migrationsToRun = pendingResult.data;
+			let migrationsToRun = await this.getPending();
 
 			// Filter by target version if specified
 			if (options?.target) {
@@ -129,13 +92,10 @@ export class ForgeMigrationRunner implements MigrationRunner {
 				);
 
 				if (targetIndex === -1) {
-					return {
-						success: false,
-						error: new MigrationSystemError(
-							`Target version ${options.target} not found`,
-							"MIGRATION_ERROR",
-						),
-					};
+					throw new MigrationSystemError(
+						`Target version ${options.target} not found`,
+						"MIGRATION_ERROR",
+					);
 				}
 
 				migrationsToRun = migrationsToRun.slice(0, targetIndex + 1);
@@ -151,7 +111,7 @@ export class ForgeMigrationRunner implements MigrationRunner {
 							executionTime: 0,
 						}),
 					);
-				return { success: true, data: simulatedResults };
+				return simulatedResults;
 			}
 
 			const results: MigrationExecutionResult[] = [];
@@ -159,62 +119,40 @@ export class ForgeMigrationRunner implements MigrationRunner {
 			for (const migration of migrationsToRun) {
 				const result = await this.runOne(migration);
 
-				if (!result.success) {
-					return { success: false, error: result.error };
-				}
-
-				results.push(result.data);
+				results.push(result);
 
 				// Stop on failure
-				if (result.data.status === "failed") {
+				if (result.status === "failed") {
 					break;
 				}
 			}
 
-			return { success: true, data: results };
+			return results;
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new MigrationSystemError(
-					`Failed to run pending migrations: ${message}`,
-					"MIGRATION_ERROR",
-					error,
-				),
-			};
+			throw new MigrationSystemError(
+				`Failed to run pending migrations: ${message}`,
+				"MIGRATION_ERROR",
+				error,
+			);
 		}
 	}
 
 	/**
 	 * Run specific migration
 	 */
-	async runOne(
-		migration: Migration,
-	): Promise<Result<MigrationExecutionResult, MigrationSystemError>> {
+	async runOne(migration: Migration): Promise<MigrationExecutionResult> {
 		const startTime = Date.now();
 
 		try {
 			// Begin transaction
-			const txResult = await this.adapter.beginTransaction();
-			if (!txResult.success) {
-				return {
-					success: false,
-					error: new MigrationSystemError(
-						`Failed to begin transaction: ${txResult.error.message}`,
-						"MIGRATION_ERROR",
-						txResult.error,
-					),
-				};
-			}
-
-			const tx = txResult.data;
-
+			const tx = await this.adapter.beginTransaction();
 			try {
 				// Execute all operations within transaction
 				for (const operation of migration.operations) {
-					const opResult = await this.executeOperation(tx, operation);
-
-					if (!opResult.success) {
+					try {
+						await this.executeOperation(tx, operation);
+					} catch (error) {
 						// Rollback transaction on failure
 						await tx.rollback();
 
@@ -225,62 +163,50 @@ export class ForgeMigrationRunner implements MigrationRunner {
 							migration,
 							executionTime,
 							"failed",
-							opResult.error,
+							error as Error,
 						);
 
 						return {
-							success: true,
-							data: {
-								migration,
-								status: "failed",
-								executionTime,
-								error: opResult.error,
-							},
+							migration,
+							status: "failed",
+							executionTime,
+							error: error as Error,
 						};
 					}
 				}
 
-				// Commit transaction
-				const commitResult = await tx.commit();
-				if (!commitResult.success) {
+				try {
+					// Commit transaction
+					await tx.commit();
+				} catch (error) {
 					const executionTime = Date.now() - startTime;
 
 					return {
-						success: true,
-						data: {
-							migration,
-							status: "failed",
-							executionTime,
-							error: commitResult.error,
-						},
+						migration,
+						status: "failed",
+						executionTime,
+						error: error as Error,
 					};
 				}
 
 				const executionTime = Date.now() - startTime;
-
-				// Record success
-				const recordResult = await this.history.record(
-					migration,
-					executionTime,
-					"completed",
-				);
-
 				// Collect warning if recording fails, but don't fail the migration
 				const warnings: string[] = [];
-				if (!recordResult.success) {
+
+				// Record success
+				try {
+					await this.history.record(migration, executionTime, "completed");
+				} catch (error) {
 					warnings.push(
-						`Failed to record migration history: ${recordResult.error.message}`,
+						`Failed to record migration history: ${(error as Error).message}`,
 					);
 				}
 
 				return {
-					success: true,
-					data: {
-						migration,
-						status: "completed",
-						executionTime,
-						...(warnings.length > 0 && { warnings }),
-					},
+					migration,
+					status: "completed",
+					executionTime,
+					...(warnings.length > 0 && { warnings }),
 				};
 			} catch (error) {
 				// Rollback on error
@@ -290,49 +216,38 @@ export class ForgeMigrationRunner implements MigrationRunner {
 				const err = error instanceof Error ? error : new Error(String(error));
 
 				const warnings: string[] = [];
-				const recordResult = await this.history.record(
-					migration,
-					executionTime,
-					"failed",
-					err,
-				);
-				if (!recordResult.success) {
+				// Record success
+				try {
+					await this.history.record(migration, executionTime, "failed", err);
+				} catch (error) {
 					warnings.push(
-						`Failed to record migration failure: ${recordResult.error.message}`,
+						`Failed to record migration history: ${(error as Error).message}`,
 					);
 				}
 
 				return {
-					success: true,
-					data: {
-						migration,
-						status: "failed",
-						executionTime,
-						error: err,
-						...(warnings.length > 0 && { warnings }),
-					},
+					migration,
+					status: "failed",
+					executionTime,
+					error: err,
+					...(warnings.length > 0 && { warnings }),
 				};
 			}
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 
-			return {
-				success: false,
-				error: new MigrationSystemError(
-					`Failed to run migration: ${message}`,
-					"MIGRATION_ERROR",
-					error,
-				),
-			};
+			throw new MigrationSystemError(
+				`Failed to run migration: ${message}`,
+				"MIGRATION_ERROR",
+				error,
+			);
 		}
 	}
 
 	/**
 	 * Get migration plan
 	 */
-	getPlan(options?: {
-		readonly target?: string;
-	}): Result<MigrationPlan, MigrationSystemError> {
+	getPlan(options?: { readonly target?: string }): MigrationPlan {
 		try {
 			let migrations = [...this.migrations];
 
@@ -342,35 +257,26 @@ export class ForgeMigrationRunner implements MigrationRunner {
 				);
 
 				if (targetIndex === -1) {
-					return {
-						success: false,
-						error: new MigrationSystemError(
-							`Target version ${options.target} not found`,
-							"MIGRATION_ERROR",
-						),
-					};
+					throw new MigrationSystemError(
+						`Target version ${options.target} not found`,
+						"MIGRATION_ERROR",
+					);
 				}
 
 				migrations = migrations.slice(0, targetIndex + 1);
 			}
 
 			return {
-				success: true,
-				data: {
-					migrations,
-					...(options?.target !== undefined && { target: options.target }),
-				},
+				migrations,
+				...(options?.target !== undefined && { target: options.target }),
 			};
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new MigrationSystemError(
-					`Failed to create migration plan: ${message}`,
-					"MIGRATION_ERROR",
-					error,
-				),
-			};
+			throw new MigrationSystemError(
+				`Failed to create migration plan: ${message}`,
+				"MIGRATION_ERROR",
+				error,
+			);
 		}
 	}
 
@@ -380,7 +286,7 @@ export class ForgeMigrationRunner implements MigrationRunner {
 	private async executeOperation(
 		tx: Transaction,
 		operation: MigrationOperation,
-	): Promise<Result<void, Error>> {
+	): Promise<void> {
 		switch (operation.type) {
 			case "createTable":
 				return await tx.createTable(operation.schema);
@@ -401,25 +307,11 @@ export class ForgeMigrationRunner implements MigrationRunner {
 				return await tx.renameTable(operation.from, operation.to);
 
 			case "raw":
-				return await tx
-					.executeRawQuery(operation.sql, operation.params ?? [])
-					.then((result) => {
-						if (result.success) {
-							return { success: true as const, data: undefined };
-						}
-						return { success: false as const, error: result.error };
-					});
+				await tx.executeRawQuery(operation.sql, operation.params ?? []);
+				return;
 
 			case "dataTransfer":
-				try {
-					await operation.execute(tx);
-					return { success: true, data: undefined };
-				} catch (error) {
-					return {
-						success: false,
-						error: error instanceof Error ? error : new Error(String(error)),
-					};
-				}
+				return await operation.execute(tx);
 		}
 	}
 }

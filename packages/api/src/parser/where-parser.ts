@@ -8,10 +8,8 @@
  *   ?where[name][$contains]=john
  */
 
-import type { WhereClause } from "forja-types/core/query-builder";
+import type { FallbackWhereClause } from "forja-types/core/query-builder";
 import type { RawQueryParams } from "forja-types/api/parser";
-import { ParserError } from "forja-types/api/parser";
-import type { Result } from "forja-types/utils";
 import {
 	validateFieldName,
 	isValidWhereOperator,
@@ -28,7 +26,7 @@ import { whereError } from "./errors";
  * @returns WhereClause or undefined
  * @throws {ParserError} When validation fails
  */
-export function parseWhere(params: RawQueryParams): WhereClause | undefined {
+export function parseWhere(params: RawQueryParams): FallbackWhereClause | undefined {
 	const whereClause: Record<string, unknown> = {};
 
 	// Find all where[...] parameters
@@ -135,7 +133,7 @@ export function parseWhere(params: RawQueryParams): WhereClause | undefined {
 
 	// Transform into Final WhereClause
 	const transformResult = transformToFinalWhere(whereClause);
-	const finalClause = transformResult as WhereClause;
+	const finalClause = transformResult as FallbackWhereClause;
 
 	// If no where parameters found, return undefined
 	if (Object.keys(finalClause).length === 0) {
@@ -234,7 +232,7 @@ function transformToFinalWhere(obj: unknown): unknown {
 function parseValue(
 	value: string | readonly string[] | undefined,
 	operator?: string,
-): unknown | { error: ParserError } {
+): unknown {
 	if (value === undefined) {
 		return undefined;
 	}
@@ -245,10 +243,6 @@ function parseValue(
 		for (const v of value) {
 			if (typeof v === "string") {
 				const result = parseSingleValue(v, operator);
-				// Check if result is an error
-				if (result && typeof result === "object" && "error" in result) {
-					return result; // Propagate error
-				}
 				parsed.push(result);
 			} else {
 				parsed.push(v);
@@ -274,7 +268,7 @@ function parseValue(
 function parseSingleValue(
 	value: string,
 	operator?: string,
-): unknown | Result<never, ParserError> {
+): unknown {
 	// Import MAX_WHERE_VALUE_LENGTH
 	const MAX_WHERE_VALUE_LENGTH = 1000;
 
@@ -305,12 +299,12 @@ function parseSingleValue(
 	}
 
 	/*
-  // Try to parse as number
-  const num = Number(value);
-  if (!isNaN(num) && value.trim() !== '') {
-    return num;
-  }
-  */
+	// Try to parse as number
+	const num = Number(value);
+	if (!isNaN(num) && value.trim() !== '') {
+		return num;
+	}
+	*/
 
 	// Return as string
 	return value;
@@ -348,7 +342,7 @@ function validateOperatorValue(
  * Validate nesting depth for logical operators
  */
 function validateNestingDepth(
-	clause: WhereClause,
+	clause: FallbackWhereClause,
 	depth: number = 0,
 	path: string[] = [],
 ): void {
@@ -369,7 +363,7 @@ function validateNestingDepth(
 			// Recursively check each condition
 			for (const condition of value) {
 				if (typeof condition === "object" && condition !== null) {
-					validateNestingDepth(condition as WhereClause, depth + 1, [
+					validateNestingDepth(condition as FallbackWhereClause, depth + 1, [
 						...path,
 						key,
 					]);
@@ -381,7 +375,7 @@ function validateNestingDepth(
 			!Array.isArray(value)
 		) {
 			// Recursively check nested objects
-			validateNestingDepth(value as WhereClause, depth, [...path, key]);
+			validateNestingDepth(value as FallbackWhereClause, depth, [...path, key]);
 		}
 	}
 }

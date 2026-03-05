@@ -5,7 +5,6 @@
  * Manages configuration, database adapter, plugins, and schemas.
  */
 
-import { Result } from "forja-types/utils";
 import {
 	ForjaConfig,
 	MigrationConfig,
@@ -26,13 +25,17 @@ import { Dispatcher, createDispatcher } from "./dispatcher";
 import { PluginRegistry } from "forja-types/plugin";
 import { SchemaRegistry } from "./schema";
 import { ForjaEntry, ForjaRecord } from "forja-types";
-import { IForja, RawCrudOptions, RawFindManyOptions, FallbackInput } from "forja-types/forja";
+import {
+	IForja,
+	RawCrudOptions,
+	RawFindManyOptions,
+	FallbackInput,
+} from "forja-types/forja";
 import { ForjaError } from "forja-types/errors";
 import {
 	getMigrationSchema,
 	DEFAULT_MIGRATION_MODEL,
 	getForjaMetaSchema,
-	FORJA_META_MODEL,
 } from "./migration/schema";
 import { MigrationSession, createMigrationSession } from "./migration/session";
 
@@ -67,7 +70,7 @@ export class Forja implements IForja {
 	private _crud!: CrudOperations;
 	private _rawCrud!: CrudOperations;
 
-	private constructor() {}
+	private constructor() { }
 
 	static getInstance(): Forja {
 		if (!Forja.instance) {
@@ -82,9 +85,9 @@ export class Forja implements IForja {
 	async initializeWithConfig(
 		config: ForjaConfig,
 		options: ForjaInitOptions = {},
-	): Promise<Result<void, ForjaError>> {
+	): Promise<void> {
 		if (this.initialized) {
-			return { success: true, data: undefined };
+			return;
 		}
 
 		try {
@@ -94,16 +97,7 @@ export class Forja implements IForja {
 			// Register plugins
 			if (!options.skipPlugins && config.plugins) {
 				for (const plugin of config.plugins) {
-					const registerResult = this.pluginRegistry.register(plugin);
-					if (!registerResult.success) {
-						return {
-							success: false,
-							error: new ForjaError(
-								`Failed to register plugin '${plugin.name}': ${registerResult.error.message}`,
-								{ code: "PLUGIN_REGISTRATION_FAILED" },
-							),
-						};
-					}
+					this.pluginRegistry.register(plugin);
 				}
 			}
 
@@ -112,44 +106,17 @@ export class Forja implements IForja {
 
 			// Connect to database
 			if (!options.skipConnection && this.adapter) {
-				const connectResult = await this.adapter.connect();
-				if (!connectResult.success) {
-					return {
-						success: false,
-						error: new ForjaError(
-							`Failed to connect to database: ${connectResult.error.message}`,
-							{ code: "ADAPTER_CONNECTION_FAILED" },
-						),
-					};
-				}
+				await this.adapter.connect();
 			}
 
 			// 1. Register internal _forja metadata schema
 			const forjaMetaSchema = getForjaMetaSchema();
-			const forjaMetaRegisterResult = this._schemas.register(forjaMetaSchema);
-			if (!forjaMetaRegisterResult.success) {
-				return {
-					success: false,
-					error: new ForjaError(
-						`Failed to register internal schema '${FORJA_META_MODEL}': ${forjaMetaRegisterResult.error.message}`,
-						{ code: "SCHEMA_REGISTRATION_FAILED" },
-					),
-				};
-			}
+			this._schemas.register(forjaMetaSchema);
 
 			// 2. Register user schemas
 			if (!options.skipSchemas && config.schemas.length > 0) {
 				for (const schema of config.schemas) {
-					const registerResult = this._schemas.register(schema);
-					if (!registerResult.success) {
-						return {
-							success: false,
-							error: new ForjaError(
-								`Failed to register schema '${schema.name}': ${registerResult.error.message}`,
-								{ code: "SCHEMA_REGISTRATION_FAILED" },
-							),
-						};
-					}
+					this._schemas.register(schema);
 				}
 			}
 
@@ -159,16 +126,7 @@ export class Forja implements IForja {
 					if (plugin.getSchemas) {
 						const pluginSchemas = await plugin.getSchemas();
 						for (const schema of pluginSchemas) {
-							const registerResult = this._schemas.register(schema);
-							if (!registerResult.success) {
-								return {
-									success: false,
-									error: new ForjaError(
-										`Failed to register schema '${schema.name}' from plugin '${plugin.name}': ${registerResult.error.message}`,
-										{ code: "PLUGIN_SCHEMA_REGISTRATION_FAILED" },
-									),
-								};
-							}
+							this._schemas.register(schema);
 						}
 					}
 				}
@@ -183,16 +141,7 @@ export class Forja implements IForja {
 				for (const plugin of this.pluginRegistry.getAll()) {
 					if (plugin.extendSchemas) {
 						const extensions = await plugin.extendSchemas(extensionContext);
-						const applyResult = this.applySchemaExtensions(extensions);
-						if (!applyResult.success) {
-							return {
-								success: false,
-								error: new ForjaError(
-									`Failed to apply schema extensions from plugin '${plugin.name}': ${applyResult.error.message}`,
-									{ code: "SCHEMA_EXTENSION_FAILED" },
-								),
-							};
-						}
+						this.applySchemaExtensions(extensions);
 					}
 				}
 			}
@@ -201,28 +150,11 @@ export class Forja implements IForja {
 			const migrationModelName =
 				config.migration?.modelName ?? DEFAULT_MIGRATION_MODEL;
 			const migrationSchema = getMigrationSchema(migrationModelName);
-			const migrationRegisterResult = this._schemas.register(migrationSchema);
-			if (!migrationRegisterResult.success) {
-				return {
-					success: false,
-					error: new ForjaError(
-						`Failed to register migration schema: ${migrationRegisterResult.error.message}`,
-						{ code: "MIGRATION_SCHEMA_REGISTRATION_FAILED" },
-					),
-				};
-			}
+			this._schemas.register(migrationSchema);
 
 			// 5. Finalize registry (process relations, create junction tables)
-			const finalizeResult = this._schemas.finalizeRegistry();
-			if (!finalizeResult.success) {
-				return {
-					success: false,
-					error: new ForjaError(
-						`Failed to finalize schema registry: ${finalizeResult.error.message}`,
-						{ code: "SCHEMA_FINALIZATION_FAILED" },
-					),
-				};
-			}
+			this._schemas.finalizeRegistry();
+
 
 			// Initialize mixins
 			this._crud = new CrudOperations(
@@ -244,16 +176,7 @@ export class Forja implements IForja {
 					config: this.config,
 				};
 
-				const initResult = await this.pluginRegistry.initAll(pluginContext);
-				if (!initResult.success) {
-					return {
-						success: false,
-						error: new ForjaError(
-							`Failed to initialize plugins: ${initResult.error.message}`,
-							{ code: "PLUGIN_INIT_FAILED" },
-						),
-					};
-				}
+				await this.pluginRegistry.initAll(pluginContext);
 			}
 
 			// Dispatch schema load event
@@ -262,34 +185,21 @@ export class Forja implements IForja {
 			}
 
 			this.initialized = true;
-			return { success: true, data: undefined };
 		} catch (error) {
-			return {
-				success: false,
-				error: new ForjaError(
-					`Initialization failed: ${error instanceof Error ? error.message : String(error)}`,
-					{ code: "INIT_FAILED" },
-				),
-			};
+			throw new ForjaError(
+				`Initialization failed: ${error instanceof Error ? error.message : String(error)}`,
+				{ code: "INIT_FAILED", cause: error instanceof Error ? error : undefined },
+			);
 		}
 	}
 
-	async shutdown(): Promise<Result<void, ForjaError>> {
+	async shutdown(): Promise<void> {
 		if (!this.initialized) {
-			return { success: true, data: undefined };
+			return;
 		}
 
 		try {
-			const destroyResult = await this.pluginRegistry.destroyAll();
-			if (!destroyResult.success) {
-				return {
-					success: false,
-					error: new ForjaError(
-						`Failed to destroy plugins: ${destroyResult.error.message}`,
-						{ code: "PLUGIN_DESTROY_FAILED" },
-					),
-				};
-			}
+			await this.pluginRegistry.destroyAll();
 
 			if (this.adapter) {
 				await this.adapter.disconnect();
@@ -301,15 +211,11 @@ export class Forja implements IForja {
 			Forja.instance = null;
 			Forja.initPromise = null;
 
-			return { success: true, data: undefined };
 		} catch (error) {
-			return {
-				success: false,
-				error: new ForjaError(
-					`Shutdown failed: ${error instanceof Error ? error.message : String(error)}`,
-					{ code: "SHUTDOWN_FAILED" },
-				),
-			};
+			throw new ForjaError(
+				`Shutdown failed: ${error instanceof Error ? error.message : String(error)}`,
+				{ code: "SHUTDOWN_FAILED", cause: error instanceof Error ? error : undefined },
+			)
 		}
 	}
 
@@ -391,21 +297,10 @@ export class Forja implements IForja {
 	 * await session.apply();
 	 * ```
 	 */
-	async beginMigrate(): Promise<Result<MigrationSession, ForjaError>> {
+	async beginMigrate(): Promise<MigrationSession> {
 		this.ensureInitialized();
 
-		const result = await createMigrationSession(this);
-		if (!result.success) {
-			return {
-				success: false,
-				error: new ForjaError(
-					`Failed to start migration session: ${result.error.message}`,
-					{ code: "MIGRATION_SESSION_FAILED" },
-				),
-			};
-		}
-
-		return { success: true, data: result.data };
+		return await createMigrationSession(this);
 	}
 
 	get crud(): CrudOperations {
@@ -467,25 +362,26 @@ export class Forja implements IForja {
 		return this._crud.count(model, where);
 	}
 
-	async create<T extends ForjaEntry = ForjaRecord, TInput extends FallbackInput = FallbackInput>(
-		model: string,
-		data: TInput,
-		options?: RawCrudOptions<T>,
-	): Promise<T> {
+	async create<
+		T extends ForjaEntry = ForjaRecord,
+		TInput extends FallbackInput = FallbackInput,
+	>(model: string, data: TInput, options?: RawCrudOptions<T>): Promise<T> {
 		this.ensureInitialized();
 		return this._crud.create<T, TInput>(model, data, options);
 	}
 
-	async createMany<T extends ForjaEntry = ForjaRecord, TInput extends FallbackInput = FallbackInput>(
-		model: string,
-		data: TInput[],
-		options?: RawCrudOptions<T>,
-	): Promise<T[]> {
+	async createMany<
+		T extends ForjaEntry = ForjaRecord,
+		TInput extends FallbackInput = FallbackInput,
+	>(model: string, data: TInput[], options?: RawCrudOptions<T>): Promise<T[]> {
 		this.ensureInitialized();
 		return this._crud.createMany<T, TInput>(model, data, options);
 	}
 
-	async update<T extends ForjaEntry = ForjaRecord, TInput extends FallbackInput = FallbackInput>(
+	async update<
+		T extends ForjaEntry = ForjaRecord,
+		TInput extends FallbackInput = FallbackInput,
+	>(
 		model: string,
 		id: number,
 		data: TInput,
@@ -495,7 +391,10 @@ export class Forja implements IForja {
 		return this._crud.update<T, TInput>(model, id, data, options);
 	}
 
-	async updateMany<T extends ForjaEntry = ForjaRecord, TInput extends FallbackInput = FallbackInput>(
+	async updateMany<
+		T extends ForjaEntry = ForjaRecord,
+		TInput extends FallbackInput = FallbackInput,
+	>(
 		model: string,
 		where: WhereClause<T>,
 		data: TInput,
@@ -564,20 +463,9 @@ export class Forja implements IForja {
 
 	private applySchemaExtensions(
 		extensions: SchemaExtension[],
-	): Result<void, ForjaError> {
+	): void {
 		for (const extension of extensions) {
-			const schema = this._schemas.get(extension.targetSchema);
-
-			if (!schema) {
-				return {
-					success: false,
-					error: new ForjaError(
-						`Cannot extend schema '${extension.targetSchema}': schema not found`,
-						{ code: "SCHEMA_NOT_FOUND" },
-					),
-				};
-			}
-
+			const schema = this._schemas.get(extension.targetSchema)!;
 			const extendedFields = { ...schema.fields };
 			const extendedIndexes = [...(schema.indexes || [])];
 
@@ -629,8 +517,6 @@ export class Forja implements IForja {
 
 			this._schemas.register(extendedSchema);
 		}
-
-		return { success: true, data: undefined };
 	}
 }
 
@@ -676,14 +562,13 @@ export function defineConfig(factory: ConfigFactory): () => Promise<Forja> {
 		// Start initialization
 		Forja["initPromise"] = (async () => {
 			const config = factory();
-			const result = await instance.initializeWithConfig(config);
 
-			if (!result.success) {
+			try {
+				await instance.initializeWithConfig(config);
+			} finally {
 				Forja["initPromise"] = null;
-				throw result.error;
 			}
 
-			Forja["initPromise"] = null;
 			return instance;
 		})();
 

@@ -4,11 +4,9 @@
  * Validates ForjaConfig structure and values
  */
 
-import { Result } from "forja-types/utils";
 import { ForjaConfig, MigrationConfig, DevConfig } from "forja-types/config";
 import { isDatabaseAdapter } from "forja-types/adapter";
 import { isForjaPlugin } from "forja-types/plugin";
-import { ForjaConfigError } from "forja-types/errors";
 import {
 	throwConfigInvalidType,
 	throwConfigEmpty,
@@ -27,7 +25,7 @@ const isObject = (obj: unknown): boolean =>
  */
 export function validateConfig(
 	config: unknown,
-): Result<ForjaConfig, ForjaConfigError> {
+): ForjaConfig {
 	const errors: string[] = [];
 
 	// 1. Check if object
@@ -48,33 +46,37 @@ export function validateConfig(
 	if (!("schemas" in config)) {
 		errors.push('Config must have "schemas" property');
 	} else {
-		const schemasValidation = validateSchemas(config["schemas"]);
-		if (!schemasValidation.success) {
-			errors.push(schemasValidation.error.message);
+		try {
+			validateSchemas(config["schemas"]);
+		} catch (error) {
+			errors.push(`Config.schemas: ${(error as Error).message}`);
 		}
 	}
 
 	// 4. Validate plugins (optional)
 	if ("plugins" in config && config["plugins"] !== undefined) {
-		const pluginsValidation = validatePlugins(config["plugins"]);
-		if (!pluginsValidation.success) {
-			errors.push(pluginsValidation.error.message);
+		try {
+			validatePlugins(config["plugins"]);
+		} catch (error) {
+			errors.push(`Config.plugins: ${(error as Error).message}`);
 		}
 	}
 
 	// 6. Validate migration config (optional)
 	if ("migration" in config && config["migration"] !== undefined) {
-		const migrationValidation = validateMigrationConfig(config["migration"]);
-		if (!migrationValidation.success) {
-			errors.push(migrationValidation.error.message);
+		try {
+			validateMigrationConfig(config["migration"]);
+		} catch (error) {
+			errors.push(`Config.migration: ${(error as Error).message}`);
 		}
 	}
 
 	// 7. Validate dev config (optional)
 	if ("dev" in config && config["dev"] !== undefined) {
-		const devValidation = validateDevConfig(config["dev"]);
-		if (!devValidation.success) {
-			errors.push(devValidation.error.message);
+		try {
+			validateDevConfig(config["dev"]);
+		} catch (error) {
+			errors.push(`Config.dev: ${(error as Error).message}`);
 		}
 	}
 
@@ -83,13 +85,13 @@ export function validateConfig(
 		throwConfigMultiple(errors);
 	}
 
-	return { success: true, data: config as unknown as ForjaConfig };
+	return config as ForjaConfig;
 }
 
 /**
  * Validate schemas array
  */
-function validateSchemas(schemas: unknown): Result<void, ForjaConfigError> {
+function validateSchemas(schemas: unknown): void {
 	if (!Array.isArray(schemas)) {
 		throwConfigFieldType("schemas", "array", schemas);
 	}
@@ -123,14 +125,12 @@ function validateSchemas(schemas: unknown): Result<void, ForjaConfigError> {
 			);
 		}
 	}
-
-	return { success: true, data: undefined };
 }
 
 /**
  * Validate plugins array
  */
-function validatePlugins(plugins: unknown): Result<void, ForjaConfigError> {
+function validatePlugins(plugins: unknown): void {
 	if (!Array.isArray(plugins)) {
 		throwConfigFieldType("plugins", "array", plugins);
 	}
@@ -148,7 +148,6 @@ function validatePlugins(plugins: unknown): Result<void, ForjaConfigError> {
 		}
 	}
 
-	return { success: true, data: undefined };
 }
 
 /**
@@ -156,7 +155,7 @@ function validatePlugins(plugins: unknown): Result<void, ForjaConfigError> {
  */
 function validateMigrationConfig(
 	migration: unknown,
-): Result<MigrationConfig, ForjaConfigError> {
+): MigrationConfig {
 	if (typeof migration !== "object" || migration === null) {
 		throwConfigFieldType("migration", "object", migration);
 	}
@@ -177,13 +176,13 @@ function validateMigrationConfig(
 		}
 	}
 
-	return { success: true, data: migration as unknown as MigrationConfig };
+	return migration as unknown as MigrationConfig;
 }
 
 /**
  * Validate dev config
  */
-function validateDevConfig(dev: unknown): Result<DevConfig, ForjaConfigError> {
+function validateDevConfig(dev: unknown): DevConfig {
 	if (typeof dev !== "object" || dev === null) {
 		throwConfigFieldType("dev", "object", dev);
 	}
@@ -203,5 +202,5 @@ function validateDevConfig(dev: unknown): Result<DevConfig, ForjaConfigError> {
 		throwConfigBooleanField("dev.prettyErrors", dev["prettyErrors"]);
 	}
 
-	return { success: true, data: dev as unknown as DevConfig };
+	return dev as unknown as DevConfig;
 }

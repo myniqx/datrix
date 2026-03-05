@@ -19,7 +19,6 @@ import {
 	SchemaExtension,
 	QueryContext,
 } from "forja-types/plugin";
-import { Result } from "forja-types/utils";
 
 /**
  * Abstract base plugin class
@@ -45,14 +44,14 @@ export abstract class BasePlugin<
 	 *
 	 * Must be implemented by subclasses
 	 */
-	abstract init(context: PluginContext): Promise<Result<void, PluginError>>;
+	abstract init(context: PluginContext): Promise<void>;
 
 	/**
 	 * Destroy the plugin and cleanup resources
 	 *
 	 * Must be implemented by subclasses
 	 */
-	abstract destroy(): Promise<Result<void, PluginError>>;
+	abstract destroy(): Promise<void>;
 
 	/**
 	 * Get plugin schemas
@@ -124,19 +123,16 @@ export abstract class BasePlugin<
 	protected validateOptions(
 		validator: (options: unknown) => options is TOptions,
 		errorMessage: string,
-	): Result<TOptions, PluginError> {
+	): TOptions {
 		if (validator(this.options)) {
-			return { success: true, data: this.options };
+			return this.options;
 		}
 
-		return {
-			success: false,
-			error: new PluginError(errorMessage, {
-				code: "INVALID_OPTIONS",
-				pluginName: this.name,
-				details: this.options,
-			}),
-		};
+		throw new PluginError(errorMessage, {
+			code: "INVALID_OPTIONS",
+			pluginName: this.name,
+			details: this.options,
+		})
 	}
 
 	/**
@@ -155,17 +151,14 @@ export abstract class BasePlugin<
 	 *
 	 * Helper method to safely access context
 	 */
-	protected getContext(): Result<PluginContext, PluginError> {
+	protected getContext(): PluginContext {
 		if (this.context === undefined) {
-			return {
-				success: false,
-				error: new PluginError(`Plugin ${this.name} not initialized`, {
-					code: "PLUGIN_NOT_INITIALIZED",
-					pluginName: this.name,
-				}),
-			};
+			throw new PluginError(`Plugin ${this.name} not initialized`, {
+				code: "PLUGIN_NOT_INITIALIZED",
+				pluginName: this.name,
+			})
 		}
-		return { success: true, data: this.context };
+		return this.context;
 	}
 
 	/**

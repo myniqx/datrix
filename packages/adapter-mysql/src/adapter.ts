@@ -21,17 +21,21 @@ import { QueryObject, QuerySelectObject } from "forja-types/core/query-builder";
 import { ForjaEntry } from "forja-types";
 import {
 	AlterOperation,
-	ConnectionError,
 	ConnectionState,
 	DatabaseAdapter,
-	MigrationError,
-	QueryError,
 	QueryMetadata,
 	QueryResult,
 	Transaction,
-	TransactionError,
 } from "forja-types/adapter";
-import { Result } from "forja-types/utils";
+import {
+	ForjaAdapterError,
+	throwNotConnected,
+	throwConnectionError,
+	throwMigrationError,
+	throwIntrospectionError,
+	throwTransactionError,
+	throwQueryError,
+} from "forja-types/errors/adapter";
 import { validateQueryObject } from "forja-types/utils/query";
 import {
 	FieldDefinition,
@@ -71,9 +75,9 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 	/**
 	 * Connect to MySQL
 	 */
-	async connect(): Promise<Result<void, ConnectionError>> {
+	async connect(): Promise<void> {
 		if (this.state === "connected") {
-			return { success: true, data: undefined };
+			return;
 		}
 
 		this.state = "connecting";
@@ -115,26 +119,23 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			);
 
 			this.state = "connected";
-			return { success: true, data: undefined };
 		} catch (error) {
 			this.state = "error";
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new ConnectionError(
-					`Failed to connect to MySQL: ${message}`,
-					error,
-				),
-			};
+			throwConnectionError({
+				adapter: "mysql",
+				message: `Failed to connect to MySQL: ${message}`,
+				cause: error instanceof Error ? error : undefined,
+			});
 		}
 	}
 
 	/**
 	 * Disconnect from MySQL
 	 */
-	async disconnect(): Promise<Result<void, ConnectionError>> {
+	async disconnect(): Promise<void> {
 		if (this.state === "disconnected") {
-			return { success: true, data: undefined };
+			return;
 		}
 
 		try {
@@ -145,16 +146,14 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			}
 
 			this.state = "disconnected";
-			return { success: true, data: undefined };
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new ConnectionError(
-					`Failed to disconnect from MySQL: ${message}`,
-					error,
-				),
-			};
+			throwConnectionError({
+				adapter: "mysql",
+				message: `Failed to disconnect from MySQL: ${message}`,
+				operation: "disconnect",
+				cause: error instanceof Error ? error : undefined,
+			});
 		}
 	}
 
@@ -181,28 +180,14 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 	async executeQuery<TResult extends ForjaEntry>(
 		query: QueryObject<TResult>,
 		connection?: PoolConnection,
-	): Promise<Result<QueryResult<TResult>, QueryError<TResult>>> {
-		const validation = validateQueryObject(query);
-		if (!validation.success) {
-			return {
-				success: false,
-				error: new QueryError<TResult>(
-					`Invalid QueryObject: ${validation.error.message}`,
-					{ query },
-				),
-			};
-		}
+	): Promise<QueryResult<TResult>> {
+		validateQueryObject(query);
+
 
 		const queryRunner = connection ?? this.pool;
 
 		if (!queryRunner) {
-			return {
-				success: false,
-				error: new QueryError<TResult>("Not connected to database", {
-					code: "CONNECTION_ERROR",
-					query,
-				}),
-			};
+			throwNotConnected({ adapter: "mysql" });
 		}
 
 		// Handle SELECT with populate
@@ -222,7 +207,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			const { sql, params } = this.translator.translate(mysqlQuery);
 			lastSql = sql;
 
-			const [result] = await queryRunner.execute(sql, params as unknown[]);
+			const [result] = await queryRunner!.execute(sql, params as unknown[]);
 
 			let insertId: string | number | undefined;
 			let affectedRows = 0;
@@ -249,18 +234,9 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 				...(insertId !== undefined && { insertId }),
 			};
 
-			return {
-				success: true,
-				data: {
-					rows,
-					metadata,
-				},
-			};
+			return { rows, metadata };
 		} catch (error) {
-			return {
-				success: false,
-				error: this.mapMySQLError(error, query, lastSql),
-			};
+			throw this.mapMySQLError(error, query, lastSql);
 		}
 	}
 
@@ -269,78 +245,56 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 	 */
 	private async executeWithPopulate<TResult extends ForjaEntry>(
 		query: QuerySelectObject<TResult>,
-	): Promise<Result<QueryResult<TResult>, QueryError<TResult>>> {
+	): Promise<QueryResult<TResult>> {
 		if (!this.populator) {
-			return {
-				success: false,
-				error: new QueryError<TResult>("Populator not initialized", { query }),
-			};
+			throwQueryError({
+				adapter: "mysql",
+				message: "Populator not initialized",
+				query: query as QueryObject,
+			});
 		}
 
 		try {
-			const rows = await this.populator.populate<TResult>(query);
+			const rows = await this.populator!.populate<TResult>(query);
 
 			const metadata: QueryMetadata = {
 				rowCount: rows.length,
 				affectedRows: rows.length,
 			};
 
-			return {
-				success: true,
-				data: {
-					rows: rows as readonly TResult[],
-					metadata,
-				},
-			};
+			return { rows: rows as readonly TResult[], metadata };
 		} catch (error) {
-			return {
-				success: false,
-				error: this.mapMySQLError(error, query),
-			};
+			throw this.mapMySQLError(error, query);
 		}
 	}
 
 	/**
-	 * Map MySQL errors to standardized QueryError
+	 * Map MySQL errors to standardized ForjaAdapterError
 	 */
 	private mapMySQLError<TResult extends ForjaEntry = ForjaEntry>(
 		error: unknown,
 		query?: QueryObject<TResult>,
 		sql?: string,
-	): QueryError<TResult> {
+	): ForjaAdapterError {
 		const message = error instanceof Error ? error.message : String(error);
-		const details = error as {
+		const mysqlError = error as {
 			code?: string;
 			errno?: number;
 			sqlState?: string;
 		};
-		let code = "QUERY_ERROR";
 
-		if (details && typeof details.errno === "number") {
-			switch (details.errno) {
-				case 1062:
-					code = "UNIQUE_VIOLATION";
-					break;
-				case 1452:
-					code = "FOREIGN_KEY_VIOLATION";
-					break;
-				case 1048:
-					code = "NOT_NULL_VIOLATION";
-					break;
-				case 1146:
-					code = "TABLE_NOT_FOUND";
-					break;
-				case 1054:
-					code = "COLUMN_NOT_FOUND";
-					break;
-			}
-		}
-
-		return new QueryError<TResult>(`Query execution failed: ${message}`, {
-			code,
-			query,
-			sql,
-			details: error,
+		return new ForjaAdapterError(`Query execution failed: ${message}`, {
+			adapter: "mysql",
+			code: "ADAPTER_QUERY_ERROR",
+			operation: "query",
+			context: {
+				...(query && { query: { type: query.type, table: query.table } }),
+				...(sql && { sql }),
+				...(mysqlError.errno && { mysqlErrno: mysqlError.errno }),
+				...(mysqlError.code && { mysqlCode: mysqlError.code }),
+				...(mysqlError.sqlState && { sqlState: mysqlError.sqlState }),
+			},
+			cause: error instanceof Error ? error : undefined,
 		});
 	}
 
@@ -351,21 +305,15 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 		sql: string,
 		params: readonly unknown[],
 		connection?: PoolConnection,
-	): Promise<Result<QueryResult<TResult>, QueryError<TResult>>> {
+	): Promise<QueryResult<TResult>> {
 		const queryRunner = connection ?? this.pool;
 
 		if (!queryRunner) {
-			return {
-				success: false,
-				error: new QueryError<TResult>("Not connected to database", {
-					code: "CONNECTION_ERROR",
-					sql,
-				}),
-			};
+			throwNotConnected({ adapter: "mysql" });
 		}
 
 		try {
-			const [result] = await queryRunner.execute(sql, params as unknown[]);
+			const [result] = await queryRunner!.execute(sql, params as unknown[]);
 
 			const isResultSet = Array.isArray(result);
 			const rows = isResultSet ? (result as unknown as readonly TResult[]) : [];
@@ -378,34 +326,22 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 				affectedRows,
 			};
 
-			return {
-				success: true,
-				data: {
-					rows,
-					metadata,
-				},
-			};
+			return { rows, metadata };
 		} catch (error) {
-			return {
-				success: false,
-				error: this.mapMySQLError(error, undefined, sql),
-			};
+			throw this.mapMySQLError(error, undefined, sql);
 		}
 	}
 
 	/**
 	 * Begin transaction
 	 */
-	async beginTransaction(): Promise<Result<Transaction, TransactionError>> {
+	async beginTransaction(): Promise<Transaction> {
 		if (!this.pool) {
-			return {
-				success: false,
-				error: new TransactionError("Not connected to database"),
-			};
+			throwNotConnected({ adapter: "mysql" });
 		}
 
 		try {
-			const connection = await this.pool.getConnection();
+			const connection = await this.pool!.getConnection();
 			await connection.beginTransaction();
 
 			const transaction = new MySQLTransaction(
@@ -414,16 +350,14 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 				`tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
 			);
 
-			return { success: true, data: transaction };
+			return transaction;
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new TransactionError(
-					`Failed to begin transaction: ${message}`,
-					error,
-				),
-			};
+			throwTransactionError({
+				adapter: "mysql",
+				message: `Failed to begin transaction: ${message}`,
+				cause: error instanceof Error ? error : undefined,
+			});
 		}
 	}
 
@@ -433,13 +367,10 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 	async createTable(
 		schema: SchemaDefinition,
 		connection?: PoolConnection,
-	): Promise<Result<void, MigrationError>> {
+	): Promise<void> {
 		const queryRunner = connection ?? this.pool;
 		if (!queryRunner) {
-			return {
-				success: false,
-				error: new MigrationError("Not connected to database"),
-			};
+			throwNotConnected({ adapter: "mysql" });
 		}
 
 		try {
@@ -453,39 +384,29 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			const tableName = this.translator.escapeIdentifier(schema.tableName!);
 			const sql = `CREATE TABLE ${tableName} (\n  ${columns.join(",\n  ")}\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`;
 
-			await queryRunner.execute(sql);
+			await queryRunner!.execute(sql);
 
 			// Track schema in _forja (skip for _forja itself — it tracks others)
 			if (schema.name !== FORJA_META_MODEL) {
 				const metaExists = await this.tableExists(FORJA_META_MODEL);
 				if (!metaExists) {
-					return {
-						success: false,
-						error: new MigrationError(
-							`Cannot create table '${schema.name}': '${FORJA_META_MODEL}' table does not exist yet. Create '${FORJA_META_MODEL}' first.`,
-						),
-					};
+					throwMigrationError({
+						adapter: "mysql",
+						message: `Cannot create table '${schema.name}': '${FORJA_META_MODEL}' table does not exist yet. Create '${FORJA_META_MODEL}' first.`,
+					});
 				}
 
-				const metaWriteResult = await this.upsertSchemaMeta(
-					schema,
-					queryRunner,
-				);
-				if (!metaWriteResult.success) {
-					return metaWriteResult;
-				}
+				await this.upsertSchemaMeta(schema, queryRunner!);
 			}
-
-			return { success: true, data: undefined };
 		} catch (error) {
+			if (error instanceof ForjaAdapterError) throw error;
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new MigrationError(
-					`Failed to create table '${schema.name}': ${message}`,
-					error,
-				),
-			};
+			throwMigrationError({
+				adapter: "mysql",
+				message: `Failed to create table '${schema.name}': ${message}`,
+				table: schema.tableName,
+				cause: error instanceof Error ? error : undefined,
+			});
 		}
 	}
 
@@ -495,40 +416,35 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 	async dropTable(
 		tableName: string,
 		connection?: PoolConnection,
-	): Promise<Result<void, MigrationError>> {
+	): Promise<void> {
 		const queryRunner = connection ?? this.pool;
 		if (!queryRunner) {
-			return {
-				success: false,
-				error: new MigrationError("Not connected to database"),
-			};
+			throwNotConnected({ adapter: "mysql" });
 		}
 
 		try {
 			const escapedTable = this.translator.escapeIdentifier(tableName);
-			await queryRunner.execute(`DROP TABLE IF EXISTS ${escapedTable}`);
+			await queryRunner!.execute(`DROP TABLE IF EXISTS ${escapedTable}`);
 
 			// Remove schema from _forja
 			if (tableName !== FORJA_META_MODEL) {
 				const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
 				const escapedMetaTable =
 					this.translator.escapeIdentifier(FORJA_META_MODEL);
-				await queryRunner.execute(
+				await queryRunner!.execute(
 					`DELETE FROM ${escapedMetaTable} WHERE \`key\` = ?`,
 					[metaKey],
 				);
 			}
-
-			return { success: true, data: undefined };
 		} catch (error) {
+			if (error instanceof ForjaAdapterError) throw error;
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new MigrationError(
-					`Failed to drop table '${tableName}': ${message}`,
-					error,
-				),
-			};
+			throwMigrationError({
+				adapter: "mysql",
+				message: `Failed to drop table '${tableName}': ${message}`,
+				table: tableName,
+				cause: error instanceof Error ? error : undefined,
+			});
 		}
 	}
 
@@ -539,19 +455,16 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 		from: string,
 		to: string,
 		connection?: PoolConnection,
-	): Promise<Result<void, MigrationError>> {
+	): Promise<void> {
 		const queryRunner = connection ?? this.pool;
 		if (!queryRunner) {
-			return {
-				success: false,
-				error: new MigrationError("Not connected to database"),
-			};
+			throwNotConnected({ adapter: "mysql" });
 		}
 
 		try {
 			const escapedFrom = this.translator.escapeIdentifier(from);
 			const escapedTo = this.translator.escapeIdentifier(to);
-			await queryRunner.execute(`RENAME TABLE ${escapedFrom} TO ${escapedTo}`);
+			await queryRunner!.execute(`RENAME TABLE ${escapedFrom} TO ${escapedTo}`);
 
 			// Update key in _forja
 			if (from !== FORJA_META_MODEL && to !== FORJA_META_MODEL) {
@@ -559,22 +472,19 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 				const newKey = `${FORJA_META_KEY_PREFIX}${to}`;
 				const escapedMetaTable =
 					this.translator.escapeIdentifier(FORJA_META_MODEL);
-				await queryRunner.execute(
+				await queryRunner!.execute(
 					`UPDATE ${escapedMetaTable} SET \`key\` = ? WHERE \`key\` = ?`,
 					[newKey, oldKey],
 				);
 			}
-
-			return { success: true, data: undefined };
 		} catch (error) {
+			if (error instanceof ForjaAdapterError) throw error;
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new MigrationError(
-					`Failed to rename table '${from}' to '${to}': ${message}`,
-					error,
-				),
-			};
+			throwMigrationError({
+				adapter: "mysql",
+				message: `Failed to rename table '${from}' to '${to}': ${message}`,
+				cause: error instanceof Error ? error : undefined,
+			});
 		}
 	}
 
@@ -585,13 +495,10 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 		tableName: string,
 		operations: readonly AlterOperation[],
 		connection?: PoolConnection,
-	): Promise<Result<void, MigrationError>> {
+	): Promise<void> {
 		const queryRunner = connection ?? this.pool;
 		if (!queryRunner) {
-			return {
-				success: false,
-				error: new MigrationError("Not connected to database"),
-			};
+			throwNotConnected({ adapter: "mysql" });
 		}
 
 		try {
@@ -632,32 +539,27 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 				}
 
 				if (sql) {
-					await queryRunner.execute(sql);
+					await queryRunner!.execute(sql);
 				}
 			}
 
 			// Update schema in _forja
 			if (tableName !== FORJA_META_MODEL) {
-				const updatedSchemaResult = await this.applyOperationsToMetaSchema(
+				await this.applyOperationsToMetaSchema(
 					tableName,
 					operations,
-					queryRunner,
+					queryRunner!,
 				);
-				if (!updatedSchemaResult.success) {
-					return updatedSchemaResult;
-				}
 			}
-
-			return { success: true, data: undefined };
 		} catch (error) {
+			if (error instanceof ForjaAdapterError) throw error;
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new MigrationError(
-					`Failed to alter table '${tableName}': ${message}`,
-					error,
-				),
-			};
+			throwMigrationError({
+				adapter: "mysql",
+				message: `Failed to alter table '${tableName}': ${message}`,
+				table: tableName,
+				cause: error instanceof Error ? error : undefined,
+			});
 		}
 	}
 
@@ -668,13 +570,10 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 		tableNameParam: string,
 		index: IndexDefinition,
 		connection?: PoolConnection,
-	): Promise<Result<void, MigrationError>> {
+	): Promise<void> {
 		const queryRunner = connection ?? this.pool;
 		if (!queryRunner) {
-			return {
-				success: false,
-				error: new MigrationError("Not connected to database"),
-			};
+			throwNotConnected({ adapter: "mysql" });
 		}
 
 		try {
@@ -689,17 +588,16 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			const unique = index.unique ? "UNIQUE " : "";
 			const using = index.type ? ` USING ${index.type.toUpperCase()}` : "";
 			const sql = `CREATE ${unique}INDEX ${escapedIndexName} ON ${escapedTable} (${fields})${using}`;
-			await queryRunner.execute(sql);
-			return { success: true, data: undefined };
+			await queryRunner!.execute(sql);
 		} catch (error) {
+			if (error instanceof ForjaAdapterError) throw error;
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new MigrationError(
-					`Failed to add index on table '${tableNameParam}': ${message}`,
-					error,
-				),
-			};
+			throwMigrationError({
+				adapter: "mysql",
+				message: `Failed to add index on table '${tableNameParam}': ${message}`,
+				table: tableNameParam,
+				cause: error instanceof Error ? error : undefined,
+			});
 		}
 	}
 
@@ -710,115 +608,85 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 		tableName: string,
 		indexName: string,
 		connection?: PoolConnection,
-	): Promise<Result<void, MigrationError>> {
+	): Promise<void> {
 		const queryRunner = connection ?? this.pool;
 		if (!queryRunner) {
-			return {
-				success: false,
-				error: new MigrationError("Not connected to database"),
-			};
+			throwNotConnected({ adapter: "mysql" });
 		}
 
 		try {
 			const escapedTable = this.translator.escapeIdentifier(tableName);
 			const escapedIndexName = this.translator.escapeIdentifier(indexName);
-			await queryRunner.execute(
+			await queryRunner!.execute(
 				`DROP INDEX ${escapedIndexName} ON ${escapedTable}`,
 			);
-
-			return { success: true, data: undefined };
 		} catch (error) {
+			if (error instanceof ForjaAdapterError) throw error;
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new MigrationError(
-					`Failed to drop index '${indexName}': ${message}`,
-					error,
-				),
-			};
+			throwMigrationError({
+				adapter: "mysql",
+				message: `Failed to drop index '${indexName}': ${message}`,
+				table: tableName,
+				cause: error instanceof Error ? error : undefined,
+			});
 		}
 	}
 
 	/**
 	 * Get all table names
 	 */
-	async getTables<TResult extends ForjaEntry>(): Promise<
-		Result<readonly string[], QueryError<TResult>>
-	> {
+	async getTables(): Promise<readonly string[]> {
 		if (!this.pool) {
-			return {
-				success: false,
-				error: new QueryError("Not connected to database", {
-					code: "CONNECTION_ERROR",
-				}),
-			};
+			throwNotConnected({ adapter: "mysql" });
 		}
 
 		try {
-			const [rows] = await this.pool.execute<RowDataPacket[]>(
+			const [rows] = await this.pool!.execute<RowDataPacket[]>(
 				`SELECT TABLE_NAME as tableName FROM information_schema.tables WHERE table_schema = ? ORDER BY TABLE_NAME`,
 				[this.config.database],
 			);
 
-			const tables = rows.map((row) => row["tableName"] as string);
-			return { success: true, data: tables };
+			return rows.map((row) => row["tableName"] as string);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new QueryError(`Failed to get tables: ${message}`, {
-					details: error,
-				}),
-			};
+			throwIntrospectionError({
+				adapter: "mysql",
+				message: `Failed to get tables: ${message}`,
+				cause: error instanceof Error ? error : undefined,
+			});
 		}
 	}
 
 	/**
 	 * Get table schema (introspection)
 	 */
-	async getTableSchema<TResult extends ForjaEntry>(
-		tableName: string,
-	): Promise<Result<SchemaDefinition, QueryError<TResult>>> {
+	async getTableSchema(tableName: string): Promise<SchemaDefinition | null> {
 		if (!this.pool) {
-			return {
-				success: false,
-				error: new QueryError("Not connected to database", {
-					code: "CONNECTION_ERROR",
-				}),
-			};
+			throwNotConnected({ adapter: "mysql" });
 		}
 
 		try {
 			const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
 			const escapedMetaTable =
 				this.translator.escapeIdentifier(FORJA_META_MODEL);
-			const [rows] = await this.pool.execute<RowDataPacket[]>(
+			const [rows] = await this.pool!.execute<RowDataPacket[]>(
 				`SELECT \`value\` FROM ${escapedMetaTable} WHERE \`key\` = ?`,
 				[metaKey],
 			);
 
 			if (rows.length === 0) {
-				return {
-					success: false,
-					error: new QueryError(`Table '${tableName}' not found in _forja`, {
-						code: "TABLE_NOT_FOUND",
-					}),
-				};
+				return null;
 			}
 
-			const schema = JSON.parse(
-				rows[0]!["value"] as string,
-			) as SchemaDefinition;
-			return { success: true, data: schema };
+			return JSON.parse(rows[0]!["value"] as string) as SchemaDefinition;
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new QueryError(
-					`Failed to get table schema for '${tableName}': ${message}`,
-					{ details: error },
-				),
-			};
+			throwIntrospectionError({
+				adapter: "mysql",
+				message: `Failed to get table schema for '${tableName}': ${message}`,
+				table: tableName,
+				cause: error instanceof Error ? error : undefined,
+			});
 		}
 	}
 
@@ -913,29 +781,16 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 	private async upsertSchemaMeta(
 		schema: SchemaDefinition,
 		queryRunner: Pool | PoolConnection,
-	): Promise<Result<void, MigrationError>> {
-		try {
-			const metaKey = `${FORJA_META_KEY_PREFIX}${schema.tableName ?? schema.name}`;
-			const metaValue = JSON.stringify(schema);
-			const escapedMetaTable =
-				this.translator.escapeIdentifier(FORJA_META_MODEL);
-			await queryRunner.execute(
-				`INSERT INTO ${escapedMetaTable} (\`key\`, \`value\`, \`createdAt\`, \`updatedAt\`)
-				 VALUES (?, ?, NOW(), NOW())
-				 ON DUPLICATE KEY UPDATE \`value\` = VALUES(\`value\`), \`updatedAt\` = NOW()`,
-				[metaKey, metaValue],
-			);
-			return { success: true, data: undefined };
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new MigrationError(
-					`Failed to upsert schema meta for '${schema.name}': ${message}`,
-					error,
-				),
-			};
-		}
+	): Promise<void> {
+		const metaKey = `${FORJA_META_KEY_PREFIX}${schema.tableName ?? schema.name}`;
+		const metaValue = JSON.stringify(schema);
+		const escapedMetaTable = this.translator.escapeIdentifier(FORJA_META_MODEL);
+		await queryRunner.execute(
+			`INSERT INTO ${escapedMetaTable} (\`key\`, \`value\`, \`createdAt\`, \`updatedAt\`)
+			 VALUES (?, ?, NOW(), NOW())
+			 ON DUPLICATE KEY UPDATE \`value\` = VALUES(\`value\`), \`updatedAt\` = NOW()`,
+			[metaKey, metaValue],
+		);
 	}
 
 	/**
@@ -945,70 +800,55 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 		tableName: string,
 		operations: readonly AlterOperation[],
 		queryRunner: Pool | PoolConnection,
-	): Promise<Result<void, MigrationError>> {
-		try {
-			const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
-			const escapedMetaTable =
-				this.translator.escapeIdentifier(FORJA_META_MODEL);
-			const [rows] = await queryRunner.execute<RowDataPacket[]>(
-				`SELECT \`value\` FROM ${escapedMetaTable} WHERE \`key\` = ?`,
-				[metaKey],
-			);
+	): Promise<void> {
+		const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
+		const escapedMetaTable = this.translator.escapeIdentifier(FORJA_META_MODEL);
+		const [rows] = await queryRunner.execute<RowDataPacket[]>(
+			`SELECT \`value\` FROM ${escapedMetaTable} WHERE \`key\` = ?`,
+			[metaKey],
+		);
 
-			if (rows.length === 0) {
-				return {
-					success: false,
-					error: new MigrationError(
-						`Schema meta for table '${tableName}' not found in _forja`,
-					),
-				};
-			}
+		if ((rows as RowDataPacket[]).length === 0) {
+			throwMigrationError({
+				adapter: "mysql",
+				message: `Schema meta for table '${tableName}' not found in _forja`,
+				table: tableName,
+			});
+		}
 
-			const schema = JSON.parse(
-				rows[0]!["value"] as string,
-			) as SchemaDefinition;
-			const fields = { ...schema.fields };
+		const schema = JSON.parse(
+			(rows as RowDataPacket[])[0]!["value"] as string,
+		) as SchemaDefinition;
+		const fields = { ...schema.fields };
 
-			for (const op of operations) {
-				switch (op.type) {
-					case "addColumn":
-						fields[op.column] = op.definition;
-						break;
-					case "dropColumn":
-						delete fields[op.column];
-						break;
-					case "modifyColumn":
-						fields[op.column] = op.newDefinition;
-						break;
-					case "renameColumn": {
-						const fieldDef = fields[op.from];
-						if (fieldDef !== undefined) {
-							fields[op.to] = fieldDef;
-							delete fields[op.from];
-						}
-						break;
+		for (const op of operations) {
+			switch (op.type) {
+				case "addColumn":
+					fields[op.column] = op.definition;
+					break;
+				case "dropColumn":
+					delete fields[op.column];
+					break;
+				case "modifyColumn":
+					fields[op.column] = op.newDefinition;
+					break;
+				case "renameColumn": {
+					const fieldDef = fields[op.from];
+					if (fieldDef !== undefined) {
+						fields[op.to] = fieldDef;
+						delete fields[op.from];
 					}
+					break;
 				}
 			}
-
-			const updatedSchema: SchemaDefinition = { ...schema, fields };
-			const updatedValue = JSON.stringify(updatedSchema);
-			await queryRunner.execute(
-				`UPDATE ${escapedMetaTable} SET \`value\` = ?, \`updatedAt\` = NOW() WHERE \`key\` = ?`,
-				[updatedValue, metaKey],
-			);
-
-			return { success: true, data: undefined };
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new MigrationError(
-					`Failed to update schema meta for '${tableName}': ${message}`,
-					error,
-				),
-			};
 		}
+
+		const updatedSchema: SchemaDefinition = { ...schema, fields };
+		const updatedValue = JSON.stringify(updatedSchema);
+		await queryRunner.execute(
+			`UPDATE ${escapedMetaTable} SET \`value\` = ?, \`updatedAt\` = NOW() WHERE \`key\` = ?`,
+			[updatedValue, metaKey],
+		);
 	}
 
 	/**
@@ -1058,32 +898,30 @@ class MySQLTransaction implements Transaction {
 	 */
 	async executeQuery<TResult extends ForjaEntry>(
 		query: QueryObject<TResult>,
-	): Promise<Result<QueryResult<TResult>, QueryError<TResult>>> {
+	): Promise<QueryResult<TResult>> {
 		if (this.committed || this.rolledBack) {
-			return {
-				success: false,
-				error: new QueryError("Transaction already completed", { query }),
-			};
+			throwQueryError({
+				adapter: "mysql",
+				message: "Transaction already completed",
+				query: query as QueryObject,
+			});
 		}
 
 		if (this.aborted) {
-			return {
-				success: false,
-				error: new QueryError(
+			throwQueryError({
+				adapter: "mysql",
+				message:
 					"Transaction is aborted, commands ignored until end of transaction block",
-					{ query },
-				),
-			};
+				query: query as QueryObject,
+			});
 		}
 
-		const result = await this.adapter.executeQuery<TResult>(
-			query,
-			this.connection,
-		);
-		if (!result.success) {
+		try {
+			return await this.adapter.executeQuery<TResult>(query, this.connection);
+		} catch (error) {
 			this.aborted = true;
+			throw error;
 		}
-		return result;
 	}
 
 	/**
@@ -1092,203 +930,176 @@ class MySQLTransaction implements Transaction {
 	async executeRawQuery<TResult extends ForjaEntry>(
 		sql: string,
 		params: readonly unknown[],
-	): Promise<Result<QueryResult<TResult>, QueryError<TResult>>> {
+	): Promise<QueryResult<TResult>> {
 		if (this.committed || this.rolledBack) {
-			return {
-				success: false,
-				error: new QueryError("Transaction already completed", { sql }),
-			};
+			throwQueryError({
+				adapter: "mysql",
+				message: "Transaction already completed",
+				sql,
+			});
 		}
 
 		if (this.aborted) {
-			return {
-				success: false,
-				error: new QueryError(
+			throwQueryError({
+				adapter: "mysql",
+				message:
 					"Transaction is aborted, commands ignored until end of transaction block",
-					{ sql },
-				),
-			};
+				sql,
+			});
 		}
 
-		const result = await this.adapter.executeRawQuery<TResult>(
-			sql,
-			params,
-			this.connection,
-		);
-		if (!result.success) {
+		try {
+			return await this.adapter.executeRawQuery<TResult>(
+				sql,
+				params,
+				this.connection,
+			);
+		} catch (error) {
 			this.aborted = true;
+			throw error;
 		}
-		return result;
 	}
 
 	/**
 	 * Commit transaction
 	 */
-	async commit(): Promise<Result<void, TransactionError>> {
+	async commit(): Promise<void> {
 		if (this.committed) {
-			return {
-				success: false,
-				error: new TransactionError("Transaction already committed"),
-			};
+			throwTransactionError({
+				adapter: "mysql",
+				message: "Transaction already committed",
+			});
 		}
 
 		if (this.rolledBack) {
-			return {
-				success: false,
-				error: new TransactionError("Transaction already rolled back"),
-			};
+			throwTransactionError({
+				adapter: "mysql",
+				message: "Transaction already rolled back",
+			});
 		}
 
 		try {
 			await this.connection.commit();
 			this.committed = true;
 			this.connection.release();
-
-			return { success: true, data: undefined };
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new TransactionError(
-					`Failed to commit transaction: ${message}`,
-					error,
-				),
-			};
+			throwTransactionError({
+				adapter: "mysql",
+				message: `Failed to commit transaction: ${message}`,
+				cause: error instanceof Error ? error : undefined,
+			});
 		}
 	}
 
 	/**
 	 * Rollback transaction
 	 */
-	async rollback(): Promise<Result<void, TransactionError>> {
+	async rollback(): Promise<void> {
 		if (this.committed) {
-			return {
-				success: false,
-				error: new TransactionError("Transaction already committed"),
-			};
+			throwTransactionError({
+				adapter: "mysql",
+				message: "Transaction already committed",
+			});
 		}
 
 		if (this.rolledBack) {
-			return {
-				success: false,
-				error: new TransactionError("Transaction already rolled back"),
-			};
+			throwTransactionError({
+				adapter: "mysql",
+				message: "Transaction already rolled back",
+			});
 		}
 
 		try {
 			await this.connection.rollback();
 			this.rolledBack = true;
 			this.connection.release();
-
-			return { success: true, data: undefined };
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new TransactionError(
-					`Failed to rollback transaction: ${message}`,
-					error,
-				),
-			};
+			throwTransactionError({
+				adapter: "mysql",
+				message: `Failed to rollback transaction: ${message}`,
+				cause: error instanceof Error ? error : undefined,
+			});
 		}
 	}
 
 	/**
 	 * Create savepoint
 	 */
-	async savepoint(name: string): Promise<Result<void, TransactionError>> {
+	async savepoint(name: string): Promise<void> {
 		try {
 			const escapedName = this.adapter.translator.escapeIdentifier(name);
 			await this.connection.execute(`SAVEPOINT ${escapedName}`);
-			return { success: true, data: undefined };
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new TransactionError(
-					`Failed to create savepoint '${name}': ${message}`,
-					error,
-				),
-			};
+			throwTransactionError({
+				adapter: "mysql",
+				message: `Failed to create savepoint '${name}': ${message}`,
+				cause: error instanceof Error ? error : undefined,
+			});
 		}
 	}
 
 	/**
 	 * Rollback to savepoint
 	 */
-	async rollbackTo(name: string): Promise<Result<void, TransactionError>> {
+	async rollbackTo(name: string): Promise<void> {
 		try {
 			const escapedName = this.adapter.translator.escapeIdentifier(name);
 			await this.connection.execute(`ROLLBACK TO SAVEPOINT ${escapedName}`);
 			this.aborted = false;
-			return { success: true, data: undefined };
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new TransactionError(
-					`Failed to rollback to savepoint '${name}': ${message}`,
-					error,
-				),
-			};
+			throwTransactionError({
+				adapter: "mysql",
+				message: `Failed to rollback to savepoint '${name}': ${message}`,
+				cause: error instanceof Error ? error : undefined,
+			});
 		}
 	}
 
 	/**
 	 * Release savepoint
 	 */
-	async release(name: string): Promise<Result<void, TransactionError>> {
+	async release(name: string): Promise<void> {
 		try {
 			const escapedName = this.adapter.translator.escapeIdentifier(name);
 			await this.connection.execute(`RELEASE SAVEPOINT ${escapedName}`);
-			return { success: true, data: undefined };
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new TransactionError(
-					`Failed to release savepoint '${name}': ${message}`,
-					error,
-				),
-			};
+			throwTransactionError({
+				adapter: "mysql",
+				message: `Failed to release savepoint '${name}': ${message}`,
+				cause: error instanceof Error ? error : undefined,
+			});
 		}
 	}
 
-	async createTable(
-		schema: SchemaDefinition,
-	): Promise<Result<void, MigrationError>> {
+	async createTable(schema: SchemaDefinition): Promise<void> {
 		return this.adapter.createTable(schema, this.connection);
 	}
 
-	async dropTable(tableName: string): Promise<Result<void, MigrationError>> {
+	async dropTable(tableName: string): Promise<void> {
 		return this.adapter.dropTable(tableName, this.connection);
 	}
 
-	async renameTable(
-		from: string,
-		to: string,
-	): Promise<Result<void, MigrationError>> {
+	async renameTable(from: string, to: string): Promise<void> {
 		return this.adapter.renameTable(from, to, this.connection);
 	}
 
 	async alterTable(
 		tableName: string,
 		operations: readonly AlterOperation[],
-	): Promise<Result<void, MigrationError>> {
+	): Promise<void> {
 		return this.adapter.alterTable(tableName, operations, this.connection);
 	}
 
-	async addIndex(
-		tableName: string,
-		index: IndexDefinition,
-	): Promise<Result<void, MigrationError>> {
+	async addIndex(tableName: string, index: IndexDefinition): Promise<void> {
 		return this.adapter.addIndex(tableName, index, this.connection);
 	}
 
-	async dropIndex(
-		tableName: string,
-		indexName: string,
-	): Promise<Result<void, MigrationError>> {
+	async dropIndex(tableName: string, indexName: string): Promise<void> {
 		return this.adapter.dropIndex(tableName, indexName, this.connection);
 	}
 }

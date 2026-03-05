@@ -4,8 +4,7 @@
  * Tests for creating tables from scratch and basic add/drop operations.
  */
 
-import { describe, it, beforeAll, afterAll, expect } from "vitest";
-import { Forja } from "forja-core";
+import { describe, it, beforeAll, afterAll } from "vitest";
 import { createForjaWithSchemas, getTmpDir } from "./setup/config";
 import { getAdapter, getAdapterType } from "./setup/adapter";
 import {
@@ -53,14 +52,7 @@ describe("Migration E2E - Fresh Start", () => {
 			const forja = await createForjaWithSchemas(tmpDir, [...allBaseSchemas]);
 
 			// Begin migration
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			const session = sessionResult.data;
+			const session = await forja.beginMigrate();
 
 			// Should detect 3 tables to create
 			assertHasChanges(session);
@@ -84,14 +76,7 @@ describe("Migration E2E - Fresh Start", () => {
 			const forja = await createForjaWithSchemas(tmpDir, [...allBaseSchemas]);
 
 			// Begin migration
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			const session = sessionResult.data;
+			const session = await forja.beginMigrate();
 
 			// Should detect no changes
 			assertNoChanges(session);
@@ -106,7 +91,7 @@ describe("Migration E2E - Fresh Start", () => {
 			await dropAllTables(adapter);
 			const forja1 = await createForjaWithSchemas(tmpDir, [...allBaseSchemas]);
 			const s1 = await forja1.beginMigrate();
-			if (s1.success) await applyMigration(s1.data);
+			await applyMigration(s1);
 			await forja1.shutdown();
 
 			// Now add 'tag' schema
@@ -115,14 +100,7 @@ describe("Migration E2E - Fresh Start", () => {
 				baseTagSchema,
 			]);
 
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			const session = sessionResult.data;
+			const session = await forja.beginMigrate();
 
 			// Should detect 1 new table
 			assertHasChanges(session);
@@ -147,7 +125,7 @@ describe("Migration E2E - Fresh Start", () => {
 			await dropAllTables(adapter);
 			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
 			const s1 = await forja1.beginMigrate();
-			if (s1.success) await applyMigration(s1.data);
+			await applyMigration(s1);
 			await forja1.shutdown();
 
 			// Now add post, category, tag
@@ -158,14 +136,7 @@ describe("Migration E2E - Fresh Start", () => {
 				baseTagSchema,
 			]);
 
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			const session = sessionResult.data;
+			const session = await forja.beginMigrate();
 
 			// Should detect 3 new tables
 			assertHasChanges(session);
@@ -191,7 +162,7 @@ describe("Migration E2E - Fresh Start", () => {
 			await dropAllTables(adapter);
 			const forja1 = await createForjaWithSchemas(tmpDir, [...allBaseSchemas]);
 			const s1 = await forja1.beginMigrate();
-			if (s1.success) await applyMigration(s1.data);
+			await applyMigration(s1);
 			await forja1.shutdown();
 
 			// Remove category
@@ -200,14 +171,7 @@ describe("Migration E2E - Fresh Start", () => {
 				basePostSchema,
 			]);
 
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			const session = sessionResult.data;
+			const session = await forja.beginMigrate();
 
 			// Should detect 1 table to drop
 			assertHasChanges(session);
@@ -234,20 +198,13 @@ describe("Migration E2E - Fresh Start", () => {
 				baseTagSchema,
 			]);
 			const s1 = await forja1.beginMigrate();
-			if (s1.success) await applyMigration(s1.data);
+			await applyMigration(s1);
 			await forja1.shutdown();
 
 			// Keep only user
 			const forja = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
 
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			const session = sessionResult.data;
+			const session = await forja.beginMigrate();
 
 			// Should detect 3 tables to drop
 			assertHasChanges(session);
@@ -276,7 +233,7 @@ describe("Migration E2E - Fresh Start", () => {
 				basePostSchema,
 			]);
 			const s1 = await forja1.beginMigrate();
-			if (s1.success) await applyMigration(s1.data);
+			await applyMigration(s1);
 			await forja1.shutdown();
 
 			// Remove post, add category and tag
@@ -286,14 +243,7 @@ describe("Migration E2E - Fresh Start", () => {
 				baseTagSchema,
 			]);
 
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			const session = sessionResult.data;
+			const session = await forja.beginMigrate();
 
 			// Should detect changes
 			assertHasChanges(session);

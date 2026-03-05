@@ -90,7 +90,7 @@ export async function handleRequest(
 		return await api.handleRequest(request, forja);
 	} catch (error) {
 		if (error instanceof ForjaError) {
-			return forjaErrorResponse({ error, success: false });
+			return forjaErrorResponse(error);
 		}
 
 		// 4. Catch unexpected errors (should rarely happen)

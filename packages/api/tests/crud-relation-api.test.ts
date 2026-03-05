@@ -27,7 +27,7 @@ import { ParsedQuery } from "forja-types";
 
 describe("CRUD Relation API Tests", () => {
 	let forja: Forja;
-	const tmpDir = getTmpDir();
+	const tmpDir = getTmpDir("crud_relation");
 
 	// Helper: POST request
 	const postRequest = async (
@@ -86,12 +86,7 @@ describe("CRUD Relation API Tests", () => {
 			try {
 				await adapter.dropTable(schema.tableName!);
 			} catch {}
-			const result = await adapter.createTable(schema);
-			if (!result.success) {
-				throw new Error(
-					`Failed to create table ${schema.name}: ${result.error.message}`,
-				);
-			}
+			await adapter.createTable(schema);
 		}
 	});
 

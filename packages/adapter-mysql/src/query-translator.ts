@@ -17,7 +17,7 @@ import type {
 	QueryCountObject,
 } from "forja-types/core/query-builder";
 import type { QueryTranslator } from "forja-types/adapter";
-import { QueryError } from "forja-types/adapter";
+import { ForjaAdapterError, throwQueryError } from "forja-types/errors/adapter";
 import type { SchemaRegistry } from "forja-core/schema";
 import type {
 	SchemaDefinition,
@@ -197,16 +197,19 @@ export class MySQLQueryTranslator implements QueryTranslator {
 
 		const validIdentifierPattern = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 
+		// TODO: bu identifies query builderde neye karsilik geliyor, bu kontrolleri orada yapmak daha mantikli..
 		if (!validIdentifierPattern.test(identifier)) {
-			throw new QueryError(
-				`Invalid identifier '${identifier}': must start with letter or underscore, contain only alphanumeric characters and underscores`,
-			);
+			throwQueryError({
+				adapter: "mysql",
+				message: `Invalid identifier '${identifier}': must start with letter or underscore, contain only alphanumeric characters and underscores`,
+			});
 		}
 
 		if (identifier.length > 64) {
-			throw new QueryError(
-				`Invalid identifier '${identifier}': exceeds MySQL maximum length of 64 characters`,
-			);
+			throwQueryError({
+				adapter: "mysql",
+				message: `Invalid identifier '${identifier}': exceeds MySQL maximum length of 64 characters`,
+			});
 		}
 
 		return `\`${identifier.replace(/`/g, "``")}\``;
@@ -267,9 +270,10 @@ export class MySQLQueryTranslator implements QueryTranslator {
 					sql = this.translateDelete(query);
 					break;
 				default:
-					throw new QueryError(
-						`Unsupported query type: ${String((query as { type: string }).type)}`,
-					);
+					throwQueryError({
+						adapter: "mysql",
+						message: `Unsupported query type: ${String((query as { type: string }).type)}`,
+					});
 			}
 
 			return {
@@ -278,13 +282,14 @@ export class MySQLQueryTranslator implements QueryTranslator {
 				needAggregation: false,
 			};
 		} catch (error) {
-			if (error instanceof QueryError) {
+			if (error instanceof ForjaAdapterError) {
 				throw error;
 			}
-			throw new QueryError(
-				`Query translation failed: ${error instanceof Error ? error.message : String(error)}`,
-				{ query: query as QueryObject },
-			);
+			throwQueryError({
+				adapter: "mysql",
+				message: `Query translation failed: ${error instanceof Error ? error.message : String(error)}`,
+				cause: error instanceof Error ? error : undefined,
+			});
 		}
 	}
 
@@ -489,7 +494,10 @@ export class MySQLQueryTranslator implements QueryTranslator {
 		const dataArray = Array.isArray(query.data) ? query.data : [query.data];
 
 		if (dataArray.length === 0 || !dataArray[0]) {
-			throw new QueryError("INSERT query requires data");
+			throwQueryError({
+				adapter: "mysql",
+				message: "INSERT query requires data",
+			});
 		}
 
 		// Schema lookup ONCE
@@ -528,7 +536,10 @@ export class MySQLQueryTranslator implements QueryTranslator {
 		query: QueryUpdateObject<T>,
 	): string {
 		if (!query.data || Object.keys(query.data).length === 0) {
-			throw new QueryError("UPDATE query requires data");
+			throwQueryError({
+				adapter: "mysql",
+				message: "UPDATE query requires data",
+			});
 		}
 
 		// Schema lookup ONCE
@@ -607,10 +618,12 @@ export class MySQLQueryTranslator implements QueryTranslator {
 	 * Translate ORDER BY clause
 	 * Note: MySQL doesn't support NULLS FIRST/LAST natively, use workaround
 	 */
-	private translateOrderBy(orderBy: readonly OrderByItem[]): string {
+	private translateOrderBy<T extends ForjaEntry>(
+		orderBy: readonly OrderByItem<T>[],
+	): string {
 		return orderBy
 			.map((item) => {
-				const field = this.escapeIdentifier(item.field);
+				const field = this.escapeIdentifier(item.field as string);
 				const direction = item.direction.toUpperCase();
 
 				if (item.nulls) {
@@ -695,9 +708,10 @@ export class MySQLQueryTranslator implements QueryTranslator {
 	): string {
 		// Check depth limit to prevent stack overflow
 		if (depth > MAX_WHERE_DEPTH) {
-			throw new QueryError(
-				`WHERE clause exceeds maximum nesting depth of ${MAX_WHERE_DEPTH}`,
-			);
+			throwQueryError({
+				adapter: "mysql",
+				message: `WHERE clause exceeds maximum nesting depth of ${MAX_WHERE_DEPTH}`,
+			});
 		}
 
 		const conditions: string[] = [];
@@ -833,9 +847,11 @@ export class MySQLQueryTranslator implements QueryTranslator {
 								relationField.model!,
 							);
 							if (!targetSchema) {
-								throw new QueryError(
-									`Target model '${relationField.model}' not found for relation '${key}'`,
-								);
+								// TODO: bunlar zaten query builderde yakalaniyor.. tekrara gerek var mi
+								throwQueryError({
+									adapter: "mysql",
+									message: `Target model '${relationField.model}' not found for relation '${key}'`,
+								});
 							}
 
 							const targetTable =
@@ -860,9 +876,10 @@ export class MySQLQueryTranslator implements QueryTranslator {
 								// Target has FK: source.id = target.foreignKey
 								joinSQL = `LEFT JOIN ${targetTableEsc} AS ${relationAlias} ON ${sourceTableEsc}.\`id\` = ${relationAlias}.${foreignKeyEsc}`;
 							} else {
-								throw new QueryError(
-									`Relation kind '${relKind}' not yet supported for nested WHERE filtering`,
-								);
+								throwQueryError({
+									adapter: "mysql",
+									message: `Relation kind '${relKind}' not yet supported for nested WHERE filtering`,
+								});
 							}
 
 							// Add JOIN to collection
@@ -961,7 +978,11 @@ export class MySQLQueryTranslator implements QueryTranslator {
 
 			case "$in":
 				if (!Array.isArray(value)) {
-					throw new QueryError(`$in operator requires array value`);
+					// TODO: bu verinin de query builderde normalize edilmesi lazim.
+					throwQueryError({
+						adapter: "mysql",
+						message: "$in operator requires array value",
+					});
 				}
 				if (value.length === 0) {
 					return "FALSE";
@@ -970,7 +991,11 @@ export class MySQLQueryTranslator implements QueryTranslator {
 
 			case "$nin":
 				if (!Array.isArray(value)) {
-					throw new QueryError(`$nin operator requires array value`);
+					// TODO: bu verinin de query builderde normalize edilmesi lazim.
+					throwQueryError({
+						adapter: "mysql",
+						message: "$nin operator requires array value",
+					});
 				}
 				if (value.length === 0) {
 					return "TRUE";
@@ -1013,7 +1038,10 @@ export class MySQLQueryTranslator implements QueryTranslator {
 				return value ? `${fieldName} IS NOT NULL` : `${fieldName} IS NULL`;
 
 			default:
-				throw new QueryError(`Unsupported operator: ${operator}`);
+				throwQueryError({
+					adapter: "mysql",
+					message: `Unsupported operator: ${operator}`,
+				});
 		}
 	}
 }

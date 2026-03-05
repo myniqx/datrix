@@ -15,7 +15,6 @@ import {
 	validateSchemaDefinition,
 	RESERVED_FIELDS,
 } from "forja-types/core/schema";
-import type { Result } from "forja-types/utils";
 
 /**
  * Schema registry error
@@ -45,23 +44,9 @@ export class SchemaRegistryError extends Error {
  * Schema registry configuration
  */
 export interface SchemaRegistryConfig {
-	readonly strict: boolean | undefined; // Validate schemas on registration
-	readonly allowOverwrite: boolean | undefined; // Allow overwriting existing schemas
-	readonly validateRelations: boolean | undefined; // Validate relation references
-}
-
-/**
- * Schema metadata
- */
-export interface SchemaMetadata {
-	readonly name: string;
-	readonly tableName: string;
-	readonly fieldCount: number;
-	readonly relationCount: number;
-	readonly indexCount: number;
-	readonly hasTimestamps: boolean;
-	readonly hasSoftDelete: boolean;
-	readonly registeredAt: Date;
+	readonly strict: boolean | undefined;
+	readonly allowOverwrite: boolean | undefined;
+	readonly validateRelations: boolean | undefined;
 }
 
 /**
@@ -71,7 +56,7 @@ interface RegistryCache {
 	relatedSchemas: Map<string, readonly string[]>;
 	referencingSchemas: Map<string, readonly string[]>;
 	fieldTypeIndex: Map<string, readonly SchemaDefinition[]>;
-	selectFields: Map<string, readonly string[]>; // Cached select field lists
+	selectFields: Map<string, readonly string[]>;
 }
 
 /**
@@ -79,7 +64,6 @@ interface RegistryCache {
  */
 export class SchemaRegistry {
 	private readonly schemas: Map<string, SchemaDefinition> = new Map();
-	private readonly metadata: Map<string, SchemaMetadata> = new Map();
 	private readonly config: Required<SchemaRegistryConfig>;
 	private locked = false;
 	private cache: RegistryCache = {
@@ -112,78 +96,56 @@ export class SchemaRegistry {
 	 * Adds reserved fields (id, createdAt, updatedAt)
 	 * Does NOT process relations - call finalizeRegistry() after all schemas are registered
 	 */
-	register(
-		schema: SchemaDefinition,
-	): Result<SchemaDefinition, SchemaRegistryError> {
+	register(schema: SchemaDefinition): SchemaDefinition {
 		if (this.locked) {
-			return {
-				success: false,
-				error: new SchemaRegistryError("Registry is locked", {
-					code: "REGISTRY_LOCKED",
-				}),
-			};
+			throw new SchemaRegistryError("Registry is locked", {
+				code: "REGISTRY_LOCKED",
+			});
 		}
 
-		// Validate schema name
 		if (!schema.name || schema.name.trim() === "") {
-			return {
-				success: false,
-				error: new SchemaRegistryError("Schema name is required", {
-					code: "INVALID_SCHEMA_NAME",
-				}),
-			};
+			throw new SchemaRegistryError("Schema name is required", {
+				code: "INVALID_SCHEMA_NAME",
+			});
 		}
 
-		// Check if already registered
 		if (this.schemas.has(schema.name) && !this.config.allowOverwrite) {
-			return {
-				success: false,
-				error: new SchemaRegistryError(
-					`Schema already registered: ${schema.name}`,
-					{
-						code: "DUPLICATE_SCHEMA",
-						schemaName: schema.name,
-					},
-				),
-			};
+			throw new SchemaRegistryError(
+				`Schema already registered: ${schema.name}`,
+				{
+					code: "DUPLICATE_SCHEMA",
+					schemaName: schema.name,
+				},
+			);
 		}
 
-		// Check for reserved field names
 		for (const reservedField of RESERVED_FIELDS) {
 			if (reservedField in schema.fields) {
-				return {
-					success: false,
-					error: new SchemaRegistryError(
-						`Field '${reservedField}' is reserved and cannot be defined manually in schema '${schema.name}'`,
-						{
-							code: "RESERVED_FIELD_NAME",
-							schemaName: schema.name,
-							details: { field: reservedField },
-						},
-					),
-				};
+				throw new SchemaRegistryError(
+					`Field '${reservedField}' is reserved and cannot be defined manually in schema '${schema.name}'`,
+					{
+						code: "RESERVED_FIELD_NAME",
+						schemaName: schema.name,
+						details: { field: reservedField },
+					},
+				);
 			}
 		}
 
-		// Validate schema if strict mode
 		if (this.config.strict) {
 			const validation = validateSchemaDefinition(schema);
 			if (!validation.valid) {
-				return {
-					success: false,
-					error: new SchemaRegistryError(
-						`Schema validation failed: ${schema.name}`,
-						{
-							code: "VALIDATION_FAILED",
-							schemaName: schema.name,
-							details: validation.errors,
-						},
-					),
-				};
+				throw new SchemaRegistryError(
+					`Schema validation failed: ${schema.name}`,
+					{
+						code: "VALIDATION_FAILED",
+						schemaName: schema.name,
+						details: validation.errors,
+					},
+				);
 			}
 		}
 
-		// Add reserved fields (id, createdAt, updatedAt)
 		const enhancedFields = {
 			id: {
 				type: "number" as const,
@@ -209,32 +171,19 @@ export class SchemaRegistry {
 		};
 
 		this.schemas.set(schema.name, storedSchema);
-
-		// Create metadata
-		const metadata = this.createMetadata(storedSchema);
-		this.metadata.set(schema.name, metadata);
-
 		this.invalidateCache();
 
-		return { success: true, data: storedSchema };
+		return storedSchema;
 	}
 
 	/**
 	 * Register multiple schemas
-	 * Just loops through and registers each schema
 	 * Call finalizeRegistry() after all schemas are registered to process relations
 	 */
-	registerMany(
-		schemas: readonly SchemaDefinition[],
-	): Result<void, SchemaRegistryError> {
+	registerMany(schemas: readonly SchemaDefinition[]): void {
 		for (const schema of schemas) {
-			const result = this.register(schema);
-			if (!result.success) {
-				return result;
-			}
+			this.register(schema);
 		}
-
-		return { success: true, data: undefined };
 	}
 
 	/**
@@ -245,28 +194,12 @@ export class SchemaRegistry {
 	 * 2. Plugin schemas registered
 	 * 3. Plugin schema extensions applied
 	 */
-	finalizeRegistry(): Result<void, SchemaRegistryError> {
-		// Process relations (add foreign keys, create junction tables)
-		const relationsResult = this.processRelations();
-		if (!relationsResult.success) {
-			return relationsResult;
-		}
+	finalizeRegistry(): void {
+		this.processRelations();
 
-		// Update metadata for all schemas (including auto-generated junction tables)
-		for (const [schemaName, schema] of this.schemas.entries()) {
-			const metadata = this.createMetadata(schema);
-			this.metadata.set(schemaName, metadata);
-		}
-
-		// Validate relations if enabled
 		if (this.config.validateRelations) {
-			const validation = this.validateRelations();
-			if (!validation.success) {
-				return validation;
-			}
+			this.validateRelations();
 		}
-
-		return { success: true, data: undefined };
 	}
 
 	/**
@@ -278,18 +211,6 @@ export class SchemaRegistry {
 
 	/**
 	 * Get schema by model name with resolved table name
-	 * Combines get() + tableName resolution in one call
-	 *
-	 * @param modelName - Model name to lookup
-	 * @returns Object with schema and tableName, or undefined if not found
-	 *
-	 * @example
-	 * ```ts
-	 * const resolved = registry.getWithTableName('Category');
-	 * if (resolved) {
-	 *   console.log(resolved.tableName); // 'categories'
-	 * }
-	 * ```
 	 */
 	getWithTableName(
 		modelName: string,
@@ -303,19 +224,7 @@ export class SchemaRegistry {
 	}
 
 	/**
-	 * Get schema by table name with resolved table name
-	 * Combines findModelByTableName() + get() + tableName resolution
-	 *
-	 * @param tableName - Table name to lookup
-	 * @returns Object with schema and tableName, or undefined if not found
-	 *
-	 * @example
-	 * ```ts
-	 * const resolved = registry.getByTableName('categories');
-	 * if (resolved) {
-	 *   console.log(resolved.schema.name); // 'Category'
-	 * }
-	 * ```
+	 * Get schema by table name
 	 */
 	getByTableName(
 		tableName: string,
@@ -354,35 +263,14 @@ export class SchemaRegistry {
 	}
 
 	/**
-	 * Get schema metadata
-	 */
-	getMetadata(name: string): SchemaMetadata | undefined {
-		return this.metadata.get(name);
-	}
-
-	/**
-	 * Get all metadata
-	 */
-	getAllMetadata(): readonly SchemaMetadata[] {
-		return Array.from(this.metadata.values());
-	}
-
-	/**
 	 * Find model name by table name
-	 *
-	 * @param tableName - Table name to search for
-	 * @returns Model name if found, null otherwise
-	 *
-	 * @example
-	 * ```ts
-	 * const modelName = registry.findModelByTableName('categories');
-	 * // Returns: 'category'
-	 * ```
 	 */
 	findModelByTableName(tableName: string | null): string | null {
 		if (!tableName) return null;
-		for (const [modelName, metadata] of this.metadata.entries()) {
-			if (metadata.tableName === tableName) {
+		for (const [modelName, schema] of this.schemas.entries()) {
+			const schemaTableName =
+				schema.tableName ?? this.pluralize(modelName.toLowerCase());
+			if (schemaTableName === tableName) {
 				return modelName;
 			}
 		}
@@ -402,17 +290,13 @@ export class SchemaRegistry {
 	 * Get related schemas for a given schema (cached)
 	 */
 	getRelatedSchemas(schemaName: string): readonly string[] {
-		// Check cache first
 		const cached = this.cache.relatedSchemas.get(schemaName);
-		if (cached) {
-			return cached;
-		}
+		if (cached) return cached;
 
 		const schema = this.get(schemaName);
 		if (!schema) return [];
 
 		const related: string[] = [];
-
 		for (const field of Object.values(schema.fields)) {
 			if (field.type === "relation") {
 				const relationField = field as RelationField;
@@ -422,9 +306,7 @@ export class SchemaRegistry {
 			}
 		}
 
-		// Cache the result
 		this.cache.relatedSchemas.set(schemaName, related);
-
 		return related;
 	}
 
@@ -432,14 +314,10 @@ export class SchemaRegistry {
 	 * Get schemas that reference a given schema (cached)
 	 */
 	getReferencingSchemas(schemaName: string): readonly string[] {
-		// Check cache first
 		const cached = this.cache.referencingSchemas.get(schemaName);
-		if (cached) {
-			return cached;
-		}
+		if (cached) return cached;
 
 		const referencing: string[] = [];
-
 		for (const [name, schema] of this.schemas.entries()) {
 			for (const field of Object.values(schema.fields)) {
 				if (field.type === "relation") {
@@ -452,9 +330,7 @@ export class SchemaRegistry {
 			}
 		}
 
-		// Cache the result
 		this.cache.referencingSchemas.set(schemaName, referencing);
-
 		return referencing;
 	}
 
@@ -462,19 +338,14 @@ export class SchemaRegistry {
 	 * Find schemas by field type (cached)
 	 */
 	findByFieldType(fieldType: string): readonly SchemaDefinition[] {
-		// Check cache first
 		const cached = this.cache.fieldTypeIndex.get(fieldType);
-		if (cached) {
-			return cached;
-		}
+		if (cached) return cached;
 
 		const result = this.getAll().filter((schema) =>
 			Object.values(schema.fields).some((field) => field.type === fieldType),
 		);
 
-		// Cache the result
 		this.cache.fieldTypeIndex.set(fieldType, result);
-
 		return result;
 	}
 
@@ -484,19 +355,6 @@ export class SchemaRegistry {
 	 * Returns all selectable fields for a model, excluding:
 	 * - Hidden fields (e.g., foreign keys)
 	 * - Relation fields (use populate for these)
-	 *
-	 * This is used when SELECT = "*" to expand to actual field list.
-	 * Results are cached for performance.
-	 *
-	 * @param modelName - Model name
-	 * @returns Clean field list (cached)
-	 *
-	 * @example
-	 * ```ts
-	 * getCachedSelectFields('Product')
-	 * // Returns: ["id", "name", "price", "createdAt", "updatedAt"]
-	 * // (categoryId hidden, category relation excluded)
-	 * ```
 	 */
 	getCachedSelectFields<T extends ForjaEntry>(modelName: string): (keyof T)[] {
 		const schema = this.get(modelName);
@@ -506,46 +364,30 @@ export class SchemaRegistry {
 			});
 		}
 
-		// Check cache first
 		const cached = this.cache.selectFields.get(modelName);
-		if (cached) {
-			return cached as (keyof T)[];
-		}
+		if (cached) return cached as (keyof T)[];
 
-		// Build clean field list: exclude hidden and relation fields
 		const cleanFields: string[] = [];
 		for (const [fieldName, fieldDef] of Object.entries(schema.fields)) {
-			// Skip hidden fields (e.g., foreign keys)
-			if ((fieldDef as { hidden?: boolean }).hidden) {
-				continue;
-			}
-
-			// Skip relation fields (they're not actual columns)
-			if (fieldDef.type === "relation") {
-				continue;
-			}
-
+			if ((fieldDef as { hidden?: boolean }).hidden) continue;
+			if (fieldDef.type === "relation") continue;
 			cleanFields.push(fieldName);
 		}
 
-		// Cache the result
 		this.cache.selectFields.set(modelName, cleanFields);
-
 		return cleanFields as (keyof T)[];
 	}
 
 	/**
 	 * Validate all relations
 	 */
-	validateRelations(): Result<void, SchemaRegistryError> {
+	validateRelations(): void {
 		const errors: SchemaValidationError[] = [];
 
 		for (const [, schema] of this.schemas.entries()) {
 			for (const [fieldName, field] of Object.entries(schema.fields)) {
 				if (field.type === "relation") {
 					const relationField = field as RelationField;
-
-					// Check if target model exists
 					if (!this.has(relationField.model)) {
 						errors.push({
 							field: fieldName,
@@ -558,16 +400,11 @@ export class SchemaRegistry {
 		}
 
 		if (errors.length > 0) {
-			return {
-				success: false,
-				error: new SchemaRegistryError("Relation validation failed", {
-					code: "INVALID_RELATIONS",
-					details: errors,
-				}),
-			};
+			throw new SchemaRegistryError("Relation validation failed", {
+				code: "INVALID_RELATIONS",
+				details: errors,
+			});
 		}
-
-		return { success: true, data: undefined };
 	}
 
 	/**
@@ -580,7 +417,6 @@ export class SchemaRegistry {
 			});
 		}
 		this.schemas.clear();
-		this.metadata.clear();
 		this.invalidateCache();
 	}
 
@@ -596,7 +432,6 @@ export class SchemaRegistry {
 
 		const removed = this.schemas.delete(name);
 		if (removed) {
-			this.metadata.delete(name);
 			this.invalidateCache();
 		}
 		return removed;
@@ -624,30 +459,11 @@ export class SchemaRegistry {
 	}
 
 	/**
-	 * Create metadata for schema
-	 */
-	private createMetadata(schema: SchemaDefinition): SchemaMetadata {
-		const fields = Object.values(schema.fields);
-		const relationCount = fields.filter((f) => f.type === "relation").length;
-
-		return {
-			name: schema.name,
-			tableName: schema.tableName ?? this.pluralize(schema.name.toLowerCase()),
-			fieldCount: fields.length,
-			relationCount,
-			indexCount: schema.indexes?.length ?? 0,
-			hasTimestamps: schema.timestamps ?? false,
-			hasSoftDelete: schema.softDelete ?? false,
-			registeredAt: new Date(),
-		};
-	}
-
-	/**
 	 * Process relations (Pass 2)
 	 * Add foreign keys for belongsTo/hasOne/hasMany
 	 * Create junction tables for manyToMany
 	 */
-	private processRelations(): Result<void, SchemaRegistryError> {
+	private processRelations(): void {
 		for (const [schemaName, schema] of this.schemas.entries()) {
 			const enhancedFields = { ...schema.fields };
 
@@ -658,20 +474,16 @@ export class SchemaRegistry {
 				const targetSchema = this.schemas.get(relation.model);
 
 				if (!targetSchema) {
-					return {
-						success: false,
-						error: new SchemaRegistryError(
-							`Relation target not found: ${relation.model} in schema ${schemaName}.${fieldName}`,
-							{
-								code: "INVALID_RELATION_TARGET",
-								schemaName,
-								details: { field: fieldName, target: relation.model },
-							},
-						),
-					};
+					throw new SchemaRegistryError(
+						`Relation target not found: ${relation.model} in schema ${schemaName}.${fieldName}`,
+						{
+							code: "INVALID_RELATION_TARGET",
+							schemaName,
+							details: { field: fieldName, target: relation.model },
+						},
+					);
 				}
 
-				// belongsTo → Add foreign key to THIS schema (owner has FK)
 				if (relation.kind === "belongsTo") {
 					const foreignKey = relation.foreignKey ?? `${fieldName}Id`;
 
@@ -686,20 +498,18 @@ export class SchemaRegistry {
 							references: {
 								table: targetTableName,
 								column: "id",
-								onDelete: relation.onDelete,
-								onUpdate: relation.onUpdate,
+								onDelete: relation.onDelete!,
+								onUpdate: relation.onUpdate!,
 							},
 						};
 					}
 
-					// Update relation definition with default foreignKey
 					enhancedFields[fieldName] = {
 						...relation,
 						foreignKey,
 					};
 				}
 
-				// hasOne / hasMany → Add foreign key to TARGET schema (target has FK)
 				if (relation.kind === "hasOne" || relation.kind === "hasMany") {
 					const foreignKey = relation.foreignKey ?? `${schemaName}Id`;
 					const targetFields = { ...targetSchema.fields };
@@ -714,42 +524,34 @@ export class SchemaRegistry {
 							references: {
 								table: sourceTableName,
 								column: "id",
-								onDelete: relation.onDelete,
-								onUpdate: relation.onUpdate,
+								onDelete: relation.onDelete!,
+								onUpdate: relation.onUpdate!,
 							},
 						};
 					}
 
-					// Update target schema
 					this.schemas.set(relation.model, {
 						...targetSchema,
 						fields: targetFields,
 					});
 
-					// Update relation definition with default foreignKey
 					enhancedFields[fieldName] = {
 						...relation,
 						foreignKey,
 					};
 				}
 
-				// manyToMany → Create junction table
 				if (relation.kind === "manyToMany") {
 					const junctionTableName =
 						relation.through ??
 						this.getJunctionTableName(schemaName, relation.model);
 
-					const junctionResult = this.createJunctionTable(
+					this.createJunctionTable(
 						schemaName,
-						fieldName,
 						relation,
 						junctionTableName,
 					);
-					if (!junctionResult.success) {
-						return junctionResult;
-					}
 
-					// Update relation definition with junction table name
 					enhancedFields[fieldName] = {
 						...relation,
 						through: junctionTableName,
@@ -757,37 +559,23 @@ export class SchemaRegistry {
 				}
 			}
 
-			// Update this schema
 			this.schemas.set(schemaName, {
 				...schema,
 				fields: enhancedFields,
 			});
 		}
-
-		return { success: true, data: undefined };
 	}
 
 	/**
 	 * Create junction table for manyToMany relation
-	 *
-	 * Uses relation fields instead of plain number fields.
-	 * This enables FK constraint support in all adapters:
-	 * - SQL adapters create REFERENCES constraints
-	 * - JSON adapter validates FK existence
 	 */
 	private createJunctionTable(
 		schemaName: string,
-		_fieldName: string,
 		relation: RelationField,
 		junctionTableName: string,
-	): Result<void, SchemaRegistryError> {
-		// Check if junction table already exists
-		if (this.schemas.has(junctionTableName)) {
-			return { success: true, data: undefined };
-		}
+	): void {
+		if (this.schemas.has(junctionTableName)) return;
 
-		// Create junction table schema with relation fields AND their FK fields
-		// FK fields are added directly here since processRelations() won't re-process junction tables
 		const sourceFk = `${schemaName}Id`;
 		const targetFk = `${relation.model}Id`;
 
@@ -796,7 +584,6 @@ export class SchemaRegistry {
 			tableName: junctionTableName,
 			fields: {
 				id: { type: "number", required: false, autoIncrement: true },
-				// Relation fields
 				[schemaName]: {
 					type: "relation",
 					kind: "belongsTo",
@@ -811,7 +598,6 @@ export class SchemaRegistry {
 					foreignKey: targetFk,
 					required: true,
 				} as RelationField,
-				// FK fields (added directly, not via processRelations)
 				[sourceFk]: {
 					type: "number",
 					required: true,
@@ -843,7 +629,6 @@ export class SchemaRegistry {
 		};
 
 		this.schemas.set(junctionTableName, junctionSchema);
-		return { success: true, data: undefined };
 	}
 
 	/**
@@ -859,7 +644,6 @@ export class SchemaRegistry {
 	 * Enhanced pluralization with common English rules
 	 */
 	private pluralize(word: string): string {
-		// Irregular plurals (common cases)
 		const irregulars: Record<string, string> = {
 			person: "people",
 			child: "children",
@@ -881,14 +665,12 @@ export class SchemaRegistry {
 		const lower = word.toLowerCase();
 		const irregular = irregulars[lower];
 		if (irregular) {
-			// Preserve original casing pattern
 			const firstChar = word.charAt(0);
 			return firstChar === firstChar.toUpperCase()
 				? irregular.charAt(0).toUpperCase() + irregular.slice(1)
 				: irregular;
 		}
 
-		// Already plural or uncountable
 		if (
 			word.endsWith("ss") ||
 			lower === "data" ||
@@ -898,7 +680,6 @@ export class SchemaRegistry {
 			return word;
 		}
 
-		// Words ending in consonant + y -> ies
 		if (word.endsWith("y") && word.length > 1) {
 			const beforeY = word[word.length - 2];
 			if (beforeY && !"aeiou".includes(beforeY.toLowerCase())) {
@@ -906,7 +687,6 @@ export class SchemaRegistry {
 			}
 		}
 
-		// Words ending in f or fe -> ves
 		if (word.endsWith("f")) {
 			return word.slice(0, -1) + "ves";
 		}
@@ -914,7 +694,6 @@ export class SchemaRegistry {
 			return word.slice(0, -2) + "ves";
 		}
 
-		// Words ending in o (preceded by consonant) -> oes
 		if (word.endsWith("o") && word.length > 1) {
 			const beforeO = word[word.length - 2];
 			if (beforeO && !"aeiou".includes(beforeO.toLowerCase())) {
@@ -922,7 +701,6 @@ export class SchemaRegistry {
 			}
 		}
 
-		// Words ending in ch, sh, s, ss, x, z -> es
 		if (
 			word.endsWith("ch") ||
 			word.endsWith("sh") ||
@@ -934,7 +712,6 @@ export class SchemaRegistry {
 			return word + "es";
 		}
 
-		// Default: just add s
 		return word + "s";
 	}
 
@@ -948,11 +725,9 @@ export class SchemaRegistry {
 	/**
 	 * Import schemas from JSON
 	 */
-	fromJSON(
-		data: Record<string, SchemaDefinition>,
-	): Result<void, SchemaRegistryError> {
+	fromJSON(data: Record<string, SchemaDefinition>): void {
 		const schemas = Object.values(data);
-		return this.registerMany(schemas);
+		this.registerMany(schemas);
 	}
 }
 

@@ -5,19 +5,15 @@
  */
 
 import { describe, it, beforeAll, afterAll, expect } from "vitest";
-import { Forja } from "forja-core";
 import { createForjaWithSchemas, getTmpDir } from "./setup/config";
 import { getAdapter, getAdapterType } from "./setup/adapter";
 import { baseUserSchema, cloneSchema, TABLE_NAMES } from "./setup/schemas-base";
 import {
 	dropAllTables,
-	assertTableExists,
 	assertColumnExists,
 	assertColumnNotExists,
-	assertTableColumns,
 	assertTablesToAlter,
 	assertHasChanges,
-	assertNoChanges,
 	applyMigration,
 } from "./setup/helpers";
 import type { DatabaseAdapter } from "forja-types/adapter";
@@ -43,10 +39,8 @@ describe("Migration E2E - Column Changes", () => {
 			// Start with base user schema
 			await dropAllTables(adapter);
 			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
-			const session1Result = await forja1.beginMigrate();
-			if (session1Result.success) {
-				await applyMigration(session1Result.data);
-			}
+			const s1 = await forja1.beginMigrate();
+			await applyMigration(s1);
 			await forja1.shutdown();
 
 			// Add 'phone' field
@@ -57,14 +51,7 @@ describe("Migration E2E - Column Changes", () => {
 			});
 
 			const forja = await createForjaWithSchemas(tmpDir, [userWithPhone]);
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			const session = sessionResult.data;
+			const session = await forja.beginMigrate();
 
 			// Should detect column addition
 			assertHasChanges(session);
@@ -85,10 +72,8 @@ describe("Migration E2E - Column Changes", () => {
 			// Start fresh with base user
 			await dropAllTables(adapter);
 			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
-			const session1Result = await forja1.beginMigrate();
-			if (session1Result.success) {
-				await applyMigration(session1Result.data);
-			}
+			const s1 = await forja1.beginMigrate();
+			await applyMigration(s1);
 			await forja1.shutdown();
 
 			// Add phone, address, country
@@ -101,14 +86,7 @@ describe("Migration E2E - Column Changes", () => {
 			});
 
 			const forja = await createForjaWithSchemas(tmpDir, [userWithExtras]);
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			const session = sessionResult.data;
+			const session = await forja.beginMigrate();
 
 			// Should detect alterations
 			assertHasChanges(session);
@@ -128,10 +106,8 @@ describe("Migration E2E - Column Changes", () => {
 		it("should add column with constraints", async () => {
 			await dropAllTables(adapter);
 			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
-			const session1Result = await forja1.beginMigrate();
-			if (session1Result.success) {
-				await applyMigration(session1Result.data);
-			}
+			const s1 = await forja1.beginMigrate();
+			await applyMigration(s1);
 			await forja1.shutdown();
 
 			// Add required, unique field
@@ -142,14 +118,7 @@ describe("Migration E2E - Column Changes", () => {
 			});
 
 			const forja = await createForjaWithSchemas(tmpDir, [userWithUsername]);
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			const session = sessionResult.data;
+			const session = await forja.beginMigrate();
 			assertHasChanges(session);
 
 			// Apply
@@ -167,10 +136,8 @@ describe("Migration E2E - Column Changes", () => {
 			// Start with user that has age
 			await dropAllTables(adapter);
 			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
-			const session1Result = await forja1.beginMigrate();
-			if (session1Result.success) {
-				await applyMigration(session1Result.data);
-			}
+			const s1 = await forja1.beginMigrate();
+			await applyMigration(s1);
 
 			// Verify age exists
 			await assertColumnExists(forja1, "user", "age");
@@ -182,14 +149,7 @@ describe("Migration E2E - Column Changes", () => {
 			});
 
 			const forja = await createForjaWithSchemas(tmpDir, [userWithoutAge]);
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			const session = sessionResult.data;
+			const session = await forja.beginMigrate();
 
 			// Should detect column removal
 			assertHasChanges(session);
@@ -216,10 +176,8 @@ describe("Migration E2E - Column Changes", () => {
 				},
 			});
 			const forja1 = await createForjaWithSchemas(tmpDir, [userWithExtras]);
-			const session1Result = await forja1.beginMigrate();
-			if (session1Result.success) {
-				await applyMigration(session1Result.data);
-			}
+			const s1 = await forja1.beginMigrate();
+			await applyMigration(s1);
 
 			// Verify extras exist
 			await assertColumnExists(forja1, "user", "phone");
@@ -232,14 +190,7 @@ describe("Migration E2E - Column Changes", () => {
 			});
 
 			const forja = await createForjaWithSchemas(tmpDir, [userMinimal]);
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			const session = sessionResult.data;
+			const session = await forja.beginMigrate();
 			assertHasChanges(session);
 
 			// Apply
@@ -262,10 +213,8 @@ describe("Migration E2E - Column Changes", () => {
 			// Start with base user
 			await dropAllTables(adapter);
 			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
-			const session1Result = await forja1.beginMigrate();
-			if (session1Result.success) {
-				await applyMigration(session1Result.data);
-			}
+			const s1 = await forja1.beginMigrate();
+			await applyMigration(s1);
 			await forja1.shutdown();
 
 			// Remove age, add phone and bio
@@ -278,14 +227,7 @@ describe("Migration E2E - Column Changes", () => {
 			});
 
 			const forja = await createForjaWithSchemas(tmpDir, [userModified]);
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			const session = sessionResult.data;
+			const session = await forja.beginMigrate();
 			assertHasChanges(session);
 
 			// Apply
@@ -307,10 +249,8 @@ describe("Migration E2E - Column Changes", () => {
 			// Start with age as number
 			await dropAllTables(adapter);
 			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
-			const session1Result = await forja1.beginMigrate();
-			if (session1Result.success) {
-				await applyMigration(session1Result.data);
-			}
+			const s1 = await forja1.beginMigrate();
+			await applyMigration(s1);
 			await forja1.shutdown();
 
 			// Change age from number to string
@@ -321,14 +261,7 @@ describe("Migration E2E - Column Changes", () => {
 			});
 
 			const forja = await createForjaWithSchemas(tmpDir, [userAgeString]);
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			const session = sessionResult.data;
+			const session = await forja.beginMigrate();
 
 			// Should detect modification
 			assertHasChanges(session);
@@ -353,10 +286,8 @@ describe("Migration E2E - Column Changes", () => {
 			// Start with name as required
 			await dropAllTables(adapter);
 			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
-			const session1Result = await forja1.beginMigrate();
-			if (session1Result.success) {
-				await applyMigration(session1Result.data);
-			}
+			const s1 = await forja1.beginMigrate();
+			await applyMigration(s1);
 			await forja1.shutdown();
 
 			// Make name optional
@@ -367,14 +298,7 @@ describe("Migration E2E - Column Changes", () => {
 			});
 
 			const forja = await createForjaWithSchemas(tmpDir, [userNameOptional]);
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			const session = sessionResult.data;
+			const session = await forja.beginMigrate();
 
 			// Should detect modification
 			assertHasChanges(session);

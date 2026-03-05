@@ -20,9 +20,7 @@ import type { ForjaEntry } from "forja-types/core/schema";
 /**
  * Check if input is already normalized (array of OrderByItem)
  */
-function isQueryOrderBy<T extends ForjaEntry>(
-	input: OrderByClause<T>,
-): input is QueryOrderBy<T> {
+function isQueryOrderBy(input: unknown): boolean {
 	if (!Array.isArray(input)) return false;
 	if (input.length === 0) return true;
 
@@ -39,9 +37,7 @@ function isQueryOrderBy<T extends ForjaEntry>(
  * Check if input is object shortcut format
  * { age: "asc", name: "desc" }
  */
-function isObjectShortcut<T extends ForjaEntry>(
-	input: OrderByClause<T>,
-): input is Partial<Record<keyof T, OrderDirection>> {
+function isObjectShortcut(input: unknown): boolean {
 	if (Array.isArray(input)) return false;
 	if (typeof input !== "object" || input === null) return false;
 
@@ -53,9 +49,7 @@ function isObjectShortcut<T extends ForjaEntry>(
  * Check if input is string array format
  * ["age", "-name"]
  */
-function isStringArray<T extends ForjaEntry>(
-	input: OrderByClause<T>,
-): input is readonly (keyof T | `-${string & keyof T}`)[] {
+function isStringArray(input: unknown): boolean {
 	if (!Array.isArray(input)) return false;
 	if (input.length === 0) return false;
 
@@ -92,7 +86,7 @@ export function normalizeOrderBy<T extends ForjaEntry>(
 
 	// Already normalized
 	if (isQueryOrderBy(input)) {
-		return input;
+		return input as QueryOrderBy<T>;
 	}
 
 	// Object shortcut: { age: "asc" }
@@ -104,12 +98,12 @@ export function normalizeOrderBy<T extends ForjaEntry>(
 				direction: direction as OrderDirection,
 			});
 		}
-		return result;
+		return result as QueryOrderBy<T>;
 	}
 
 	// String array: ["age", "-name"]
 	if (isStringArray(input)) {
-		return input.map((item) => {
+		return (input as string[]).map((item) => {
 			const str = item as string;
 			if (str.startsWith("-")) {
 				return {
@@ -121,7 +115,7 @@ export function normalizeOrderBy<T extends ForjaEntry>(
 				field: str as keyof T,
 				direction: "asc" as OrderDirection,
 			};
-		});
+		}) as QueryOrderBy<T>;
 	}
 
 	// Unknown format, return as-is (will fail validation later if invalid)

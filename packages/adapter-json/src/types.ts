@@ -43,3 +43,31 @@ export interface JsonTableFile<T = Record<string, unknown>> {
 	};
 	data: T[];
 }
+
+/**
+ * Cache entry for table data
+ */
+export interface CacheEntry {
+	data: JsonTableFile;
+	mtime: number;
+}
+
+/**
+ * Options for executeQuery to support transactions
+ */
+export interface ExecuteQueryOptions {
+	/** Skip lock acquisition (transaction already holds lock) */
+	skipLock?: boolean;
+	/** Skip writing to disk (transaction will write on commit) */
+	skipWrite?: boolean;
+}
+
+/**
+ * Options for schema operations to support transactions
+ */
+export interface SchemaOperationOptions {
+	/** Skip lock acquisition (transaction already holds lock) */
+	skipLock?: boolean;
+	/** Skip writing to disk (transaction will write on commit) */
+	skipWrite?: boolean;
+}

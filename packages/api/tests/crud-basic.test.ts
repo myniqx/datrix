@@ -21,7 +21,7 @@ import fs from "node:fs/promises";
 describe("API CRUD Integration Tests", () => {
 	let forja: Forja;
 	let getForja: () => Promise<Forja>;
-	const tmpDir = getTmpDir();
+	const tmpDir = getTmpDir("crud_basic");
 
 	beforeAll(async () => {
 		// Clean up temporary directory
@@ -45,12 +45,7 @@ describe("API CRUD Integration Tests", () => {
 			try {
 				await adapter.dropTable(schema.tableName!);
 			} catch {}
-			const result = await adapter.createTable(schema);
-			if (!result.success) {
-				throw new Error(
-					`Failed to create table ${schema.name}: ${result.error.message}`,
-				);
-			}
+			await adapter.createTable(schema);
 		}
 
 		// Create fixture data for tests

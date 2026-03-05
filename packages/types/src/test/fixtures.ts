@@ -164,6 +164,7 @@ export const sampleSchemas = {
 			},
 			active: { type: "boolean" as const, default: true },
 			createdAt: { type: "date" as const },
+			appliedAt: { type: "date" as const },
 		},
 		indexes: [{ fields: ["email"], unique: true }],
 	} as const,

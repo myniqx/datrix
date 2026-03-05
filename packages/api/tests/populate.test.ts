@@ -22,7 +22,7 @@ import { expectApiSingle } from "forja-types/test/helpers";
 describe("Populate Integration Tests", () => {
 	let forja: Forja;
 	let getForja: () => Promise<Forja>;
-	const tmpDir = getTmpDir();
+	const tmpDir = getTmpDir("populate");
 	let testProductId: number;
 
 	beforeAll(async () => {
@@ -47,12 +47,7 @@ describe("Populate Integration Tests", () => {
 			try {
 				await adapter.dropTable(schema.tableName!);
 			} catch {}
-			const result = await adapter.createTable(schema);
-			if (!result.success) {
-				throw new Error(
-					`Failed to create table ${schema.name}: ${result.error.message}`,
-				);
-			}
+			await adapter.createTable(schema);
 		}
 
 		// Create fixture data for tests

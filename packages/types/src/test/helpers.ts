@@ -4,7 +4,7 @@
  * Utility functions to simplify test writing
  */
 
-import { Result } from "../utils";
+
 import { expect } from "vitest";
 import { ForjaError } from "../errors/forja-error";
 import { ResponseMultiData } from "../api";
@@ -19,17 +19,16 @@ import { ForjaEntry, ForjaRecord } from "forja-types/core/schema";
  * const data = expectSuccessData(parseWhere({ name: 'John' }));
  * expect(data.operator).toBe('$eq'); // ✅ No lint error
  */
-export function expectSuccessData<T, E = unknown>(result: Result<T, E>): T {
-	if (result.success === false) {
-		console.log("Error", JSON.stringify(result.error, null, 2));
+export function expectSuccessData<T>(fnc: () => T): T {
+	if (typeof fnc !== "function") return fnc as unknown as T; // If it's not a function, return it directly (for non-throwing cases)
+	let err = true;
+	try {
+		return fnc();
+	} catch (error) {
+		console.log("Error", JSON.stringify(error, null, 2));
+		expect(err).toBe(true);
+		throw error; // Re-throw to fail the test
 	}
-	expect(result.success).toBe(true);
-	if (!result.success) {
-		throw new Error(
-			`Expected success but got error: ${JSON.stringify(result.error)}`,
-		);
-	}
-	return result.data;
 }
 
 /**
@@ -42,16 +41,18 @@ export function expectSuccessData<T, E = unknown>(result: Result<T, E>): T {
  * expect(error.code).toBe('INVALID_OPERATOR'); // ✅ No lint error
  */
 export function expectFailureError<
-	T,
 	E = Record<string, string | unknown | object>,
->(result: Result<T, E>): E {
-	expect(result.success).toBe(false);
-	if (result.success) {
-		throw new Error(
-			`Expected failure but got success with data: ${JSON.stringify(result.data)}`,
-		);
+>(fnc: () => {}): E {
+	let err = true;
+	try {
+		fnc();
+		err = false;
+	} catch (error) {
+		expect(err).toBe(true);
+		return error as E;
 	}
-	return result.error;
+	expect(err).toBe(true);
+	return null as unknown as E; // This line should never be reached
 }
 
 /**

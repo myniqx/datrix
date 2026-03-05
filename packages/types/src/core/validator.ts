@@ -5,7 +5,6 @@
  * Zero external dependencies - all validation logic is custom-built.
  */
 
-import type { Result } from "../utils";
 import { FieldDefinition } from "./schema";
 
 /**
@@ -42,15 +41,14 @@ export interface ValidationError {
 /**
  * Validation result for a single field
  */
-export type FieldValidationResult<T = unknown> = Result<T, ValidationError[]>;
+export type FieldValidationResult<T = unknown> = {
+	success: true;
+	data: T;
+} | {
+	success: false;
+	error: ValidationError[];
+};
 
-/**
- * Validation result for an entire schema
- */
-export type SchemaValidationResult<T = Record<string, unknown>> = Result<
-	T,
-	ValidationError[]
->;
 
 /**
  * Field validator function type
@@ -60,16 +58,6 @@ export type FieldValidator = <T = unknown>(
 	field: FieldDefinition,
 	fieldName: string,
 ) => FieldValidationResult<T>;
-
-/**
- * Schema validator function type
- */
-export type SchemaValidator = <T = Record<string, unknown>>(
-	data: unknown,
-	schema: {
-		readonly fields: Record<string, FieldDefinition>;
-	},
-) => SchemaValidationResult<T>;
 
 /**
  * Custom validator function (user-defined)

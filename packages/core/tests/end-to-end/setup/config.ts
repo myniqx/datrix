@@ -65,11 +65,6 @@ export async function setupTables(forja: Forja): Promise<void> {
 			// Table might not exist, ignore
 		}
 
-		const result = await adapter.createTable(schema);
-		if (!result.success) {
-			throw new Error(
-				`Failed to create table ${schema.name}: ${result.error.message}`,
-			);
-		}
+		await adapter.createTable(schema);
 	}
 }

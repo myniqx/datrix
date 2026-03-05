@@ -4,7 +4,6 @@
  * Centralized error creation for query executor operations.
  */
 
-import { ForjaEntry, QueryObject } from "forja-types";
 import {
 	CrudErrorCode,
 	CrudErrorContext,
@@ -135,27 +134,6 @@ export function throwUnsupportedQueryType(queryType: unknown): never {
 		suggestion: "Use one of: select, insert, update, delete, count",
 		expected: "select | insert | update | delete | count",
 		received: queryType,
-	});
-}
-
-/**
- * Helper for query execution errors
- * Most common use case in CRUD operations
- */
-export function throwQueryExecutionError<T extends ForjaEntry>(
-	operation: CrudOperation,
-	model: string,
-	query: QueryObject<T>,
-	cause: Error,
-): never {
-	throwCrudError({
-		operation,
-		model,
-		code: "QUERY_EXECUTION_FAILED",
-		cause,
-		context: {
-			query: query as unknown as Record<string, unknown>,
-		},
 	});
 }
 

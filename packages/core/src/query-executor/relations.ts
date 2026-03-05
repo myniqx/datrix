@@ -161,11 +161,8 @@ export async function resolveRelationCUD<T extends ForjaEntry>(
 					table: relSchema.tableName!,
 					data: validatedBulkData,
 				});
-				if (!bulkResult.success) {
-					throw bulkResult.error;
-				}
 
-				for (const created of bulkResult.data.rows) {
+				for (const created of bulkResult.rows) {
 					if (ops.set !== undefined) {
 						ops.set.push(created.id);
 					} else {
@@ -191,10 +188,7 @@ export async function resolveRelationCUD<T extends ForjaEntry>(
 					table: relSchema.tableName!,
 					data: [validatedData],
 				});
-				if (!createResult.success) {
-					throw createResult.error;
-				}
-				const createdId = createResult.data.rows[0]!.id;
+				const createdId = createResult.rows[0]!.id;
 
 				// Recursively resolve nested relations
 				if (createItem.relations) {
@@ -243,13 +237,10 @@ export async function resolveRelationCUD<T extends ForjaEntry>(
 					data: validatedData,
 					where: where as WhereClause<ForjaEntry>,
 				});
-				if (!updateResult.success) {
-					throw updateResult.error;
-				}
 
 				// Recursively resolve nested relations
 				if (nestedRelations) {
-					for (const updated of updateResult.data.rows) {
+					for (const updated of updateResult.rows) {
 						const nestedResolved = await resolveRelationCUD(
 							nestedRelations,
 							relSchema,
@@ -271,14 +262,11 @@ export async function resolveRelationCUD<T extends ForjaEntry>(
 
 		// --- Execute DELETE (once) ---
 		if (ops.deleteIds.length > 0) {
-			const deleteResult = await runner.executeQuery<ForjaEntry>({
+			await runner.executeQuery<ForjaEntry>({
 				type: "delete",
 				table: relSchema.tableName!,
 				where: { id: { $in: ops.deleteIds } },
 			});
-			if (!deleteResult.success) {
-				throw deleteResult.error;
-			}
 		}
 
 		resolved[fieldName] = ops;
@@ -333,15 +321,12 @@ async function processRelation<T extends ForjaEntry>({
 		}
 
 		if (Object.keys(updateData).length > 0) {
-			const result = await runner.executeQuery<T>({
+			await runner.executeQuery<T>({
 				table: schema.tableName!,
 				type: "update",
 				where: { id: parentId } as WhereClause<T>,
 				data: updateData as Partial<T>,
 			});
-			if (!result.success) {
-				throw result.error;
-			}
 		}
 	}
 
@@ -353,63 +338,48 @@ async function processRelation<T extends ForjaEntry>({
 		// For hasOne, we need to ensure only one target is linked
 		if (ops.connect.length > 0) {
 			// First, disconnect any existing target
-			const disconnectResult = await runner.executeQuery<T>({
+			await runner.executeQuery<T>({
 				table: relationSchema.tableName!,
 				type: "update",
 				data: { [reverseForeignKey]: null } as Partial<T>,
 				where: { [reverseForeignKey]: parentId } as WhereClause<T>,
 			});
-			if (!disconnectResult.success) {
-				throw disconnectResult.error;
-			}
 
 			// Then connect the new target (only first one for hasOne)
-			const result = await runner.executeQuery<T>({
+			await runner.executeQuery<T>({
 				table: relationSchema.tableName!,
 				type: "update",
 				data: { [reverseForeignKey]: parentId } as Partial<T>,
 				where: { id: ops.connect[0] } as WhereClause<T>,
 			});
-			if (!result.success) {
-				throw result.error;
-			}
 		}
 
 		if (ops.disconnect.length > 0) {
-			const result = await runner.executeQuery<T>({
+			await runner.executeQuery<T>({
 				table: relationSchema.tableName!,
 				type: "update",
 				data: { [reverseForeignKey]: null } as Partial<T>,
 				where: { id: { $in: ops.disconnect } } as WhereClause<T>,
 			});
-			if (!result.success) {
-				throw result.error;
-			}
 		}
 
 		if (ops.set !== undefined) {
 			// 1. Disconnect current
-			const disconnectResult = await runner.executeQuery<T>({
+			await runner.executeQuery<T>({
 				table: relationSchema.tableName!,
 				type: "update",
 				data: { [reverseForeignKey]: null } as Partial<T>,
 				where: { [reverseForeignKey]: parentId } as WhereClause<T>,
 			});
-			if (!disconnectResult.success) {
-				throw disconnectResult.error;
-			}
 
 			// 2. Connect new one (if any)
 			if (ops.set.length > 0) {
-				const connectResult = await runner.executeQuery<T>({
+				await runner.executeQuery<T>({
 					table: relationSchema.tableName!,
 					type: "update",
 					data: { [reverseForeignKey]: parentId } as Partial<T>,
 					where: { id: ops.set[0] } as WhereClause<T>,
 				});
-				if (!connectResult.success) {
-					throw connectResult.error;
-				}
 			}
 		}
 	}
@@ -420,32 +390,26 @@ async function processRelation<T extends ForjaEntry>({
 		const relationSchema = schemaRegistry.get(relation.model)!;
 
 		if (ops.connect.length > 0) {
-			const result = await runner.executeQuery<T>({
+			await runner.executeQuery<T>({
 				table: relationSchema.tableName!,
 				type: "update",
 				data: { [reverseForeignKey]: parentId } as Partial<T>,
 				where: { id: { $in: ops.connect } } as WhereClause<T>,
 			});
-			if (!result.success) {
-				throw result.error;
-			}
 		}
 
 		if (ops.disconnect.length > 0) {
-			const result = await runner.executeQuery<T>({
+			await runner.executeQuery<T>({
 				table: relationSchema.tableName!,
 				type: "update",
 				data: { [reverseForeignKey]: null } as Partial<T>,
 				where: { id: { $in: ops.disconnect } } as WhereClause<T>,
 			});
-			if (!result.success) {
-				throw result.error;
-			}
 		}
 
 		if (ops.set !== undefined) {
 			// 1. Disconnect all current
-			const disconnectResult = await runner.executeQuery<T>({
+			await runner.executeQuery<T>({
 				table: relationSchema.tableName!,
 				type: "update",
 				data: { [reverseForeignKey]: null } as Partial<T>,
@@ -453,13 +417,10 @@ async function processRelation<T extends ForjaEntry>({
 					[reverseForeignKey]: parentId,
 				} as WhereClause<T>,
 			});
-			if (!disconnectResult.success) {
-				throw disconnectResult.error;
-			}
 
 			// 2. Connect new ones
 			if (ops.set.length > 0) {
-				const connectResult = await runner.executeQuery<T>({
+				await runner.executeQuery<T>({
 					table: relationSchema.tableName!,
 					type: "update",
 					data: {
@@ -469,9 +430,6 @@ async function processRelation<T extends ForjaEntry>({
 						id: { $in: ops.set },
 					} as WhereClause<T>,
 				});
-				if (!connectResult.success) {
-					throw connectResult.error;
-				}
 			}
 		}
 	}
@@ -488,19 +446,16 @@ async function processRelation<T extends ForjaEntry>({
 				[sourceFK]: parentId,
 				[targetFK]: targetId,
 			}));
-			const result = await runner.executeQuery<ForjaEntry>({
+			await runner.executeQuery<ForjaEntry>({
 				table: junctionTable,
 				type: "insert",
 				data: rows,
 			});
-			if (!result.success) {
-				throw result.error;
-			}
 		}
 
 		// Disconnect → DELETE FROM junction table
 		if (ops.disconnect.length > 0) {
-			const result = await runner.executeQuery<ForjaEntry>({
+			await runner.executeQuery<ForjaEntry>({
 				table: junctionTable,
 				type: "delete",
 				where: {
@@ -508,24 +463,18 @@ async function processRelation<T extends ForjaEntry>({
 					[targetFK]: { $in: ops.disconnect },
 				},
 			});
-			if (!result.success) {
-				throw result.error;
-			}
 		}
 
 		// Set → DELETE all + INSERT new
 		if (ops.set !== undefined) {
 			// 1. Delete all existing relations for this record
-			const deleteResult = await runner.executeQuery<ForjaEntry>({
+			await runner.executeQuery<ForjaEntry>({
 				table: junctionTable,
 				type: "delete",
 				where: {
 					[sourceFK]: parentId,
 				},
 			});
-			if (!deleteResult.success) {
-				throw deleteResult.error;
-			}
 
 			// 2. Insert new relations (bulk)
 			if (ops.set.length > 0) {
@@ -533,14 +482,11 @@ async function processRelation<T extends ForjaEntry>({
 					[sourceFK]: parentId,
 					[targetFK]: targetId,
 				}));
-				const insertResult = await runner.executeQuery<ForjaEntry>({
+				await runner.executeQuery<ForjaEntry>({
 					table: junctionTable,
 					type: "insert",
 					data: rows,
 				});
-				if (!insertResult.success) {
-					throw insertResult.error;
-				}
 			}
 		}
 	}

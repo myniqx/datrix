@@ -19,7 +19,7 @@ import { ResultProcessor } from "./result-processor";
 import {
 	throwMaxDepthExceeded,
 	throwPopulateQueryError,
-} from "../error-helper";
+} from "forja-types/errors/adapter";
 import { ForjaEntry } from "forja-types";
 import { MySQLQueryObject } from "../types";
 
@@ -80,11 +80,12 @@ export class MySQLPopulator {
 
 		// Check max depth
 		if (analysis.maxDepth > MAX_POPULATE_DEPTH) {
-			throwMaxDepthExceeded(
-				analysis.maxDepth,
-				MAX_POPULATE_DEPTH,
-				this.buildRelationPath(query.populate),
-			);
+			throwMaxDepthExceeded({
+				adapter: "mysql",
+				currentDepth: analysis.maxDepth,
+				maxDepth: MAX_POPULATE_DEPTH,
+				relationPath: this.buildRelationPath(query.populate),
+			});
 		}
 
 		// Select strategy
@@ -126,13 +127,14 @@ export class MySQLPopulator {
 
 			return processed;
 		} catch (error) {
-			throwPopulateQueryError(
+			throwPopulateQueryError({
+				adapter: "mysql",
 				query,
 				sql,
-				error instanceof Error ? error : new Error(String(error)),
-				"json-aggregation",
-				params,
-			);
+				cause: error instanceof Error ? error : new Error(String(error)),
+				strategy: "json-aggregation",
+				queryParams: params,
+			});
 		}
 	}
 
@@ -161,13 +163,14 @@ export class MySQLPopulator {
 
 			return processed;
 		} catch (error) {
-			throwPopulateQueryError(
+			throwPopulateQueryError({
+				adapter: "mysql",
 				query,
 				sql,
-				error instanceof Error ? error : new Error(String(error)),
-				"lateral-joins",
-				params,
-			);
+				cause: error instanceof Error ? error : new Error(String(error)),
+				strategy: "lateral-joins",
+				queryParams: params,
+			});
 		}
 	}
 
@@ -187,13 +190,14 @@ export class MySQLPopulator {
 			const [mainRows] = await this.pool.query(sql, params);
 			rows = mainRows as T[];
 		} catch (error) {
-			throwPopulateQueryError(
+			throwPopulateQueryError({
+				adapter: "mysql",
 				query,
 				sql,
-				error instanceof Error ? error : new Error(String(error)),
-				"batched-queries",
-				params,
-			);
+				cause: error instanceof Error ? error : new Error(String(error)),
+				strategy: "batched-queries",
+				queryParams: params,
+			});
 		}
 
 		if (rows.length === 0) {
@@ -296,13 +300,14 @@ export class MySQLPopulator {
 				const [batchRows] = await this.pool.query(batchQuery, [parentIds]);
 				batchResult = batchRows as Array<{ _fk: unknown; data: unknown }>;
 			} catch (error) {
-				throwPopulateQueryError(
+				throwPopulateQueryError({
+					adapter: "mysql",
 					query,
-					batchQuery,
-					error instanceof Error ? error : new Error(String(error)),
-					"batched-queries",
-					[parentIds],
-				);
+					sql: batchQuery,
+					cause: error instanceof Error ? error : new Error(String(error)),
+					strategy: "batched-queries",
+					queryParams: [parentIds],
+				});
 			}
 
 			const dataMap = new Map(batchResult.map((r) => [r._fk, r.data]));

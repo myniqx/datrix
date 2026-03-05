@@ -12,7 +12,6 @@ import type {
 	QueryContext,
 	SchemaDefinition,
 } from "forja-types/plugin";
-import type { Result } from "forja-types/utils";
 import { DefaultPermission, defineSchema } from "forja-types/core/schema";
 import { AuthManager } from "./auth/manager";
 import { createAuthHandlers } from "./handler/auth-handler";
@@ -28,8 +27,7 @@ import { QueryObject } from "forja-types";
 
 export class ApiPlugin<TRole extends string = string>
 	extends BasePlugin<ApiConfig<TRole>>
-	implements IApiPlugin<TRole>
-{
+	implements IApiPlugin<TRole> {
 	readonly name = "api";
 	readonly version = "1.0.0";
 
@@ -89,65 +87,50 @@ export class ApiPlugin<TRole extends string = string>
 		return context;
 	}
 
-	async init(context: PluginContext): Promise<Result<void, PluginError>> {
+	async init(context: PluginContext): Promise<void> {
 		this.context = context;
 
 		// Auth is disabled if authConfig is undefined
 		if (!this.authConfig) {
-			return { success: true, data: undefined };
+			return;
 		}
 
 		if (context.schemas.has("auth")) {
-			return {
-				success: false,
-				error: this.createError(
-					"Schema name 'auth' is reserved for API authentication routes",
-					"RESERVED_SCHEMA_NAME",
-				),
-			};
+			throw this.createError(
+				"Schema name 'auth' is reserved for API authentication routes",
+				"RESERVED_SCHEMA_NAME",
+			)
 		}
 
 		if (!context.schemas.has(this.userSchemaName)) {
-			return {
-				success: false,
-				error: this.createError(
-					`User schema '${this.userSchemaName}' not found. Create it before enabling auth.`,
-					"USER_SCHEMA_NOT_FOUND",
-				),
-			};
+			throw this.createError(
+				`User schema '${this.userSchemaName}' not found. Create it before enabling auth.`,
+				"USER_SCHEMA_NOT_FOUND",
+			)
 		}
 
 		const userSchema = context.schemas.get(this.userSchemaName);
 		const emailField = this.userSchemaEmailField;
 		if (!userSchema?.fields[emailField]) {
-			return {
-				success: false,
-				error: this.createError(
-					`User schema must have an '${emailField}' field`,
-					"MISSING_EMAIL_FIELD",
-				),
-			};
+			throw this.createError(
+				`User schema must have an '${emailField}' field`,
+				"MISSING_EMAIL_FIELD",
+			)
 		}
 
 		if (this.authConfig.jwt) {
 			if (this.authConfig.jwt.secret.length < 32) {
-				return {
-					success: false,
-					error: this.createError(
-						"JWT secret must be at least 32 characters long for security",
-						"WEAK_JWT_SECRET",
-					),
-				};
+				throw this.createError(
+					"JWT secret must be at least 32 characters long for security",
+					"WEAK_JWT_SECRET",
+				)
 			}
 		}
 
 		this.authManager = new AuthManager(this.authConfig);
-
-		return { success: true, data: undefined };
 	}
 
-	async destroy(): Promise<Result<void, PluginError>> {
-		return { success: true, data: undefined };
+	async destroy(): Promise<void> {
 	}
 
 	override async getSchemas(): Promise<SchemaDefinition[]> {
@@ -246,9 +229,6 @@ export class ApiPlugin<TRole extends string = string>
 		}
 
 		const pluginContext = this.getContext();
-		if (!pluginContext.success) {
-			return result;
-		}
 
 		// User created → create authentication record
 		if (context.metadata["api:createAuth"]) {
@@ -258,7 +238,7 @@ export class ApiPlugin<TRole extends string = string>
 					...(context.metadata["api:userData"] as Record<string, unknown>),
 					userId,
 				};
-				await this.createAuthenticationRecord(user, pluginContext.data);
+				await this.createAuthenticationRecord(user, pluginContext);
 			}
 		}
 
@@ -266,13 +246,13 @@ export class ApiPlugin<TRole extends string = string>
 		if (context.metadata["api:syncEmail"] && context.metadata["api:userId"]) {
 			const newEmail = context.metadata["api:syncEmail"] as string;
 			const userId = context.metadata["api:userId"] as string;
-			await this.syncAuthenticationEmail(userId, newEmail, pluginContext.data);
+			await this.syncAuthenticationEmail(userId, newEmail, pluginContext);
 		}
 
 		// User deleted → delete authentication record
 		if (context.metadata["api:deleteAuth"] && context.metadata["api:userId"]) {
 			const userId = context.metadata["api:userId"] as string;
-			await this.deleteAuthenticationRecord(userId, pluginContext.data);
+			await this.deleteAuthenticationRecord(userId, pluginContext);
 		}
 
 		return result;
@@ -325,8 +305,9 @@ export class ApiPlugin<TRole extends string = string>
 	 */
 	async handleRequest(request: Request, forja: Forja): Promise<Response> {
 		if (!this.isInitialized()) {
-			const result = handlerError.internalError("API plugin not initialized");
-			return forjaErrorResponse(result);
+			return forjaErrorResponse(
+				handlerError.internalError("API plugin not initialized"),
+			);
 		}
 
 		this.forjaInstance = forja;
@@ -335,8 +316,9 @@ export class ApiPlugin<TRole extends string = string>
 		const prefix = this.apiConfig.prefix ?? "/api";
 
 		if (!url.pathname.startsWith(prefix)) {
-			const result = handlerError.internalError("Invalid API prefix");
-			return forjaErrorResponse(result);
+			return forjaErrorResponse(
+				handlerError.internalError("Invalid API prefix"),
+			);
 		}
 
 		const pathAfterPrefix = url.pathname.slice(prefix.length);
@@ -360,10 +342,9 @@ export class ApiPlugin<TRole extends string = string>
 		forja: Forja,
 	): Promise<Response> {
 		if (!this.authManager) {
-			const result = handlerError.internalError(
-				"Authentication not configured",
+			return forjaErrorResponse(
+				handlerError.internalError("Authentication not configured"),
 			);
-			return forjaErrorResponse(result);
 		}
 
 		const authHandlers = createAuthHandlers({
@@ -388,8 +369,9 @@ export class ApiPlugin<TRole extends string = string>
 			return authHandlers.me(request);
 		}
 
-		const res = handlerError.recordNotFound("Auth Route", url.pathname);
-		return forjaErrorResponse(res);
+		return forjaErrorResponse(
+			handlerError.recordNotFound("Auth Route", url.pathname),
+		);
 	}
 
 	/**

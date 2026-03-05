@@ -72,9 +72,19 @@ export function normalizePopulate<T extends ForjaEntry>(
 	populate: PopulateClause<T> | undefined,
 	modelName: string,
 	registry: SchemaRegistry,
+	depth = 0,
 ): PopulateClause<T> | undefined {
 	if (!populate) {
 		return undefined;
+	}
+
+	if (depth > MAX_POPULATE_DEPTH) {
+		throwInvalidValue(
+			"populate",
+			modelName,
+			depth,
+			`maximum nesting depth of ${MAX_POPULATE_DEPTH}`,
+		);
 	}
 
 	const schema = registry.get(modelName);
@@ -146,7 +156,7 @@ export function normalizePopulate<T extends ForjaEntry>(
 				), // value.select ? registry.getCachedSelectFields(targetModel) : undefined,
 				// Recursively process nested populate
 				populate: value.populate
-					? normalizePopulate(value.populate, targetModel, registry)
+					? normalizePopulate(value.populate, targetModel, registry, depth + 1)
 					: undefined,
 			};
 		} else {

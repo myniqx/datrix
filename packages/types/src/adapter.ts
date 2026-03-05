@@ -3,6 +3,8 @@
  *
  * This file defines the standard interface that ALL database adapters must implement.
  * Adapters provide database-specific implementations for PostgreSQL, MySQL, MongoDB, etc.
+ *
+ * Error handling: All methods throw ForjaAdapterError on failure instead of returning Result.
  */
 
 import { QueryObject, WhereClause } from "./core/query-builder";
@@ -12,8 +14,9 @@ import {
 	IndexDefinition,
 	SchemaDefinition,
 } from "./core/schema";
-import { Result } from "./utils";
-import { ForjaError } from "./errors";
+import { ForjaAdapterError } from "./errors/adapter";
+
+export { ForjaAdapterError };
 
 /**
  * Query result metadata
@@ -35,17 +38,16 @@ export interface QueryResult<T = unknown> {
 
 /**
  * Common query execution interface shared by DatabaseAdapter and Transaction.
- * Allows executor to accept either one without caring about the source.
  */
 export interface QueryRunner {
 	executeQuery<TResult extends ForjaEntry>(
 		query: QueryObject<TResult>,
-	): Promise<Result<QueryResult<TResult>, QueryError<TResult>>>;
+	): Promise<QueryResult<TResult>>;
 
 	executeRawQuery<TResult extends ForjaEntry>(
 		sql: string,
 		params: readonly unknown[],
-	): Promise<Result<QueryResult<TResult>, QueryError<TResult>>>;
+	): Promise<QueryResult<TResult>>;
 }
 
 /**
@@ -53,24 +55,15 @@ export interface QueryRunner {
  * Migrations should use Transaction for atomic DDL operations.
  */
 export interface SchemaOperations {
-	// Table operations
-	createTable(schema: SchemaDefinition): Promise<Result<void, MigrationError>>;
-	dropTable(tableName: string): Promise<Result<void, MigrationError>>;
-	renameTable(from: string, to: string): Promise<Result<void, MigrationError>>;
+	createTable(schema: SchemaDefinition): Promise<void>;
+	dropTable(tableName: string): Promise<void>;
+	renameTable(from: string, to: string): Promise<void>;
 	alterTable(
 		tableName: string,
 		operations: readonly AlterOperation[],
-	): Promise<Result<void, MigrationError>>;
-
-	// Index operations
-	addIndex(
-		tableName: string,
-		index: IndexDefinition,
-	): Promise<Result<void, MigrationError>>;
-	dropIndex(
-		tableName: string,
-		indexName: string,
-	): Promise<Result<void, MigrationError>>;
+	): Promise<void>;
+	addIndex(tableName: string, index: IndexDefinition): Promise<void>;
+	dropIndex(tableName: string, indexName: string): Promise<void>;
 }
 
 /**
@@ -83,13 +76,13 @@ export interface SchemaOperations {
 export interface Transaction extends QueryRunner, SchemaOperations {
 	readonly id: string;
 
-	commit(): Promise<Result<void, TransactionError>>;
-	rollback(): Promise<Result<void, TransactionError>>;
+	commit(): Promise<void>;
+	rollback(): Promise<void>;
 
 	// Savepoints
-	savepoint(name: string): Promise<Result<void, TransactionError>>;
-	rollbackTo(name: string): Promise<Result<void, TransactionError>>;
-	release(name: string): Promise<Result<void, TransactionError>>;
+	savepoint(name: string): Promise<void>;
+	rollbackTo(name: string): Promise<void>;
+	release(name: string): Promise<void>;
 }
 
 /**
@@ -97,21 +90,21 @@ export interface Transaction extends QueryRunner, SchemaOperations {
  */
 export type AlterOperation =
 	| {
-			readonly type: "addColumn";
-			readonly column: string;
-			readonly definition: FieldDefinition;
-	  }
+		readonly type: "addColumn";
+		readonly column: string;
+		readonly definition: FieldDefinition;
+	}
 	| { readonly type: "dropColumn"; readonly column: string }
 	| {
-			readonly type: "modifyColumn";
-			readonly column: string;
-			readonly newDefinition: FieldDefinition;
-	  }
+		readonly type: "modifyColumn";
+		readonly column: string;
+		readonly newDefinition: FieldDefinition;
+	}
 	| {
-			readonly type: "renameColumn";
-			readonly from: string;
-			readonly to: string;
-	  };
+		readonly type: "renameColumn";
+		readonly from: string;
+		readonly to: string;
+	};
 
 /**
  * Connection state
@@ -131,122 +124,31 @@ export type ConnectionState =
  * Note: For migrations, prefer using Transaction (from beginTransaction())
  * to ensure atomic DDL operations where supported by the database.
  */
-export interface DatabaseAdapter<TConfig = Record<string, unknown>>
+export interface DatabaseAdapter<TConfig = object>
 	extends QueryRunner, SchemaOperations {
 	// Metadata
 	readonly name: string;
 	readonly config: TConfig;
 
 	// Connection management
-	connect(): Promise<Result<void, ConnectionError>>;
-	disconnect(): Promise<Result<void, ConnectionError>>;
+	connect(): Promise<void>;
+	disconnect(): Promise<void>;
 	isConnected(): boolean;
 	getConnectionState(): ConnectionState;
 
 	// Transaction support
-	beginTransaction(): Promise<Result<Transaction, TransactionError>>;
+	beginTransaction(): Promise<Transaction>;
 
 	// Introspection
-	getTables(): Promise<Result<readonly string[], QueryError>>;
-	getTableSchema(
-		tableName: string,
-	): Promise<Result<SchemaDefinition, QueryError>>;
+	getTables(): Promise<readonly string[]>;
+	getTableSchema(tableName: string): Promise<SchemaDefinition>;
 	tableExists(tableName: string): Promise<boolean>;
-}
-
-/**
- * Base error class for adapters
- */
-export class AdapterError<
-	TContext extends Record<string, unknown> = Record<string, unknown>,
-> extends ForjaError<TContext> {
-	constructor(
-		message: string,
-		options?: {
-			code?: string;
-			details?: unknown;
-			context?: TContext;
-			cause?: Error;
-			suggestion?: string;
-			expected?: string;
-			received?: unknown;
-		},
-	) {
-		super(message, {
-			code: options?.code ?? "ADAPTER_ERROR",
-			operation: "adapter",
-			context: options?.context,
-			cause: options?.cause,
-			suggestion: options?.suggestion,
-			expected: options?.expected,
-			received: options?.received,
-		});
-		this.name = "AdapterError";
-	}
-}
-
-/**
- * Connection error
- */
-export class ConnectionError extends AdapterError {
-	constructor(message: string, details?: unknown) {
-		super(message, { code: "CONNECTION_ERROR", details });
-		this.name = "ConnectionError";
-	}
-}
-
-/**
- * Query error
- */
-export class QueryError<
-	T extends ForjaEntry = ForjaEntry,
-> extends AdapterError {
-	readonly query: QueryObject<T> | undefined;
-	readonly sql: string | undefined;
-
-	constructor(
-		message: string,
-		options?: {
-			code?: string;
-			query?: QueryObject<T> | undefined;
-			sql?: string | undefined;
-			details?: unknown;
-		},
-	) {
-		super(message, {
-			code: options?.code ?? "QUERY_ERROR",
-			details: options?.details,
-		});
-		this.name = "QueryError";
-		this.query = options?.query;
-		this.sql = options?.sql;
-	}
-}
-
-/**
- * Transaction error
- */
-export class TransactionError extends AdapterError {
-	constructor(message: string, details?: unknown) {
-		super(message, { code: "TRANSACTION_ERROR", details });
-		this.name = "TransactionError";
-	}
-}
-
-/**
- * Migration error
- */
-export class MigrationError extends AdapterError {
-	constructor(message: string, details?: unknown) {
-		super(message, { code: "MIGRATION_ERROR", details });
-		this.name = "MigrationError";
-	}
 }
 
 /**
  * Type guard for DatabaseAdapter
  */
-export function isDatabaseAdapter(value: unknown): value is DatabaseAdapter {
+export function isDatabaseAdapter(value: unknown): value is DatabaseAdapter<unknown> {
 	return (
 		typeof value === "object" &&
 		value !== null &&
@@ -264,7 +166,7 @@ export function isDatabaseAdapter(value: unknown): value is DatabaseAdapter {
 /**
  * Adapter factory type
  */
-export type AdapterFactory<TConfig = Record<string, unknown>> = (
+export type AdapterFactory<TConfig = object> = (
 	config: TConfig,
 ) => DatabaseAdapter<TConfig>;
 

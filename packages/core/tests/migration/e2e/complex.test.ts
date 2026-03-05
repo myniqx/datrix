@@ -5,7 +5,6 @@
  */
 
 import { describe, it, beforeAll, afterAll, expect } from "vitest";
-import { Forja } from "forja-core";
 import { createForjaWithSchemas, getTmpDir } from "./setup/config";
 import { getAdapter, getAdapterType } from "./setup/adapter";
 import {
@@ -55,7 +54,7 @@ describe("Migration E2E - Complex Scenarios", () => {
 				baseCategorySchema,
 			]);
 			const s1 = await forja1.beginMigrate();
-			if (s1.success) await applyMigration(s1.data);
+			await applyMigration(s1);
 			await forja1.shutdown();
 
 			// Complex changes:
@@ -83,14 +82,7 @@ describe("Migration E2E - Complex Scenarios", () => {
 				baseTagSchema,
 			]);
 
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			const session = sessionResult.data;
+			const session = await forja.beginMigrate();
 
 			// Should detect all changes
 			assertHasChanges(session);
@@ -126,7 +118,7 @@ describe("Migration E2E - Complex Scenarios", () => {
 			await dropAllTables(adapter);
 			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
 			const s1 = await forja1.beginMigrate();
-			if (s1.success) await applyMigration(s1.data);
+			await applyMigration(s1);
 			await forja1.shutdown();
 
 			// Add post with relation to user
@@ -135,14 +127,7 @@ describe("Migration E2E - Complex Scenarios", () => {
 				basePostSchema,
 			]);
 
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			const session = sessionResult.data;
+			const session = await forja.beginMigrate();
 
 			assertHasChanges(session);
 			expect(session.tablesToCreate.length).toBe(1);
@@ -163,7 +148,7 @@ describe("Migration E2E - Complex Scenarios", () => {
 			await dropAllTables(adapter);
 			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
 			const s1 = await forja1.beginMigrate();
-			if (s1.success) await applyMigration(s1.data);
+			await applyMigration(s1);
 			await forja1.shutdown();
 
 			// Add index on name
@@ -172,14 +157,7 @@ describe("Migration E2E - Complex Scenarios", () => {
 			});
 
 			const forja = await createForjaWithSchemas(tmpDir, [userWithNameIndex]);
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			const session = sessionResult.data;
+			const session = await forja.beginMigrate();
 
 			assertHasChanges(session);
 
@@ -203,7 +181,7 @@ describe("Migration E2E - Complex Scenarios", () => {
 			await dropAllTables(adapter);
 			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
 			const s1 = await forja1.beginMigrate();
-			if (s1.success) await applyMigration(s1.data);
+			await applyMigration(s1);
 			await forja1.shutdown();
 
 			// Remove email index
@@ -212,14 +190,7 @@ describe("Migration E2E - Complex Scenarios", () => {
 			});
 
 			const forja = await createForjaWithSchemas(tmpDir, [userNoEmailIndex]);
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			const session = sessionResult.data;
+			const session = await forja.beginMigrate();
 
 			assertHasChanges(session);
 
@@ -251,7 +222,7 @@ describe("Migration E2E - Complex Scenarios", () => {
 			});
 			const forja1 = await createForjaWithSchemas(tmpDir, [userWithIndexes]);
 			const s1 = await forja1.beginMigrate();
-			if (s1.success) await applyMigration(s1.data);
+			await applyMigration(s1);
 			await forja1.shutdown();
 
 			// Change indexes: remove name index, add phone index, keep age
@@ -267,14 +238,7 @@ describe("Migration E2E - Complex Scenarios", () => {
 			});
 
 			const forja = await createForjaWithSchemas(tmpDir, [userNewIndexes]);
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			const session = sessionResult.data;
+			const session = await forja.beginMigrate();
 
 			assertHasChanges(session);
 
@@ -289,14 +253,7 @@ describe("Migration E2E - Complex Scenarios", () => {
 			await dropAllTables(adapter);
 
 			const forja = await createForjaWithSchemas(tmpDir, []);
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			const session = sessionResult.data;
+			const session = await forja.beginMigrate();
 
 			// No schemas = no changes
 			assertNoChanges(session);
@@ -316,14 +273,7 @@ describe("Migration E2E - Complex Scenarios", () => {
 			};
 
 			const forja = await createForjaWithSchemas(tmpDir, [minimalSchema]);
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			const session = sessionResult.data;
+			const session = await forja.beginMigrate();
 
 			assertHasChanges(session);
 			expect(session.tablesToCreate.length).toBe(1);
@@ -355,14 +305,7 @@ describe("Migration E2E - Complex Scenarios", () => {
 			};
 
 			const forja = await createForjaWithSchemas(tmpDir, [fullSchema]);
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			const session = sessionResult.data;
+			const session = await forja.beginMigrate();
 
 			assertHasChanges(session);
 
@@ -385,7 +328,7 @@ describe("Migration E2E - Complex Scenarios", () => {
 			// Migration 1: Create user
 			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
 			const s1 = await forja1.beginMigrate();
-			if (s1.success) await applyMigration(s1.data);
+			await applyMigration(s1);
 			await forja1.shutdown();
 
 			// Migration 2: Add phone
@@ -394,7 +337,7 @@ describe("Migration E2E - Complex Scenarios", () => {
 			});
 			const forja2 = await createForjaWithSchemas(tmpDir, [userV2]);
 			const s2 = await forja2.beginMigrate();
-			if (s2.success) await applyMigration(s2.data);
+			await applyMigration(s2);
 			await forja2.shutdown();
 
 			// Migration 3: Add address
@@ -406,7 +349,7 @@ describe("Migration E2E - Complex Scenarios", () => {
 			});
 			const forja3 = await createForjaWithSchemas(tmpDir, [userV3]);
 			const s3 = await forja3.beginMigrate();
-			if (s3.success) await applyMigration(s3.data);
+			await applyMigration(s3);
 			await forja3.shutdown();
 
 			// Migration 4: Remove age
@@ -419,7 +362,7 @@ describe("Migration E2E - Complex Scenarios", () => {
 			});
 			const forja4 = await createForjaWithSchemas(tmpDir, [userV4]);
 			const s4 = await forja4.beginMigrate();
-			if (s4.success) await applyMigration(s4.data);
+			await applyMigration(s4);
 
 			// Verify final state (before shutdown)
 			await assertColumnExists(forja4, "user", "email");
@@ -439,19 +382,12 @@ describe("Migration E2E - Complex Scenarios", () => {
 			// First run
 			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
 			const s1 = await forja1.beginMigrate();
-			if (s1.success) await applyMigration(s1.data);
+			await applyMigration(s1);
 			await forja1.shutdown();
 
 			// Second run with same schema
 			const forja = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			const session = sessionResult.data;
+			const session = await forja.beginMigrate();
 
 			// Should have no changes
 			assertNoChanges(session);
@@ -465,7 +401,7 @@ describe("Migration E2E - Complex Scenarios", () => {
 			// Create via migration
 			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
 			const s1 = await forja1.beginMigrate();
-			if (s1.success) await applyMigration(s1.data);
+			await applyMigration(s1);
 			await forja1.shutdown();
 
 			// Simulate external modification: add column directly to DB
@@ -477,14 +413,7 @@ describe("Migration E2E - Complex Scenarios", () => {
 				addFields: { external: { type: "string" } },
 			});
 			const forja = await createForjaWithSchemas(tmpDir, [userModified]);
-			const sessionResult = await forja.beginMigrate();
-			expect(sessionResult.success).toBe(true);
-			if (!sessionResult.success) {
-				await forja.shutdown();
-				return;
-			}
-
-			const session = sessionResult.data;
+			const session = await forja.beginMigrate();
 
 			// Should detect the missing column
 			assertHasChanges(session);

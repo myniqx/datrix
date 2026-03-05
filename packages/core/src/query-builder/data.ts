@@ -14,9 +14,9 @@
 import {
 	SchemaDefinition,
 	RelationField,
-	RelationInput,
 	ForjaEntry,
 	SchemaRegistry,
+	AnyRelationInputObject,
 } from "forja-types/core/schema";
 import type {
 	NormalizedNestedData,
@@ -249,7 +249,6 @@ export function processData<T extends ForjaEntry>(
 
 	for (const [key, value] of Object.entries(rawRelations)) {
 		const field = schema.fields[key] as RelationField;
-		const isSingular = field.kind === "belongsTo" || field.kind === "hasOne";
 
 		// Normalize relation shortcuts to NormalizedRelationOperations
 		let normalized: NormalizedRelationOperations<T>;
@@ -289,7 +288,7 @@ export function processData<T extends ForjaEntry>(
 		}
 		// Case 3: RelationInput object - normalize each operation to number arrays
 		else if (typeof value === "object") {
-			const relInput = value as RelationInput<T>;
+			const relInput = value as AnyRelationInputObject;
 			normalized = {};
 
 			// Normalize connect to number array
@@ -343,7 +342,7 @@ export function processData<T extends ForjaEntry>(
 					normalized = {
 						...normalized,
 						create: relInput.create.map((item) =>
-							processData(item, targetSchema, registry, depth + 1, nextVisited),
+							processData<T>(item as Partial<T>, targetSchema, registry, depth + 1, nextVisited),
 						),
 					};
 				} else {
@@ -352,7 +351,7 @@ export function processData<T extends ForjaEntry>(
 						...normalized,
 						create: [
 							processData(
-								relInput.create,
+								relInput.create as Partial<T>,
 								targetSchema,
 								registry,
 								depth + 1,
@@ -383,8 +382,8 @@ export function processData<T extends ForjaEntry>(
 						...normalized,
 						update: relInput.update.map((item) => {
 							const whereClause = item.where;
-							const updateData = item.data;
-							const processed = processData(
+							const updateData = item.data as Partial<T>;
+							const processed = processData<T>(
 								updateData,
 								targetSchema,
 								registry,
@@ -400,8 +399,8 @@ export function processData<T extends ForjaEntry>(
 				} else {
 					// Single update
 					const whereClause = relInput.update.where;
-					const updateData = relInput.update.data;
-					const processed = processData(
+					const updateData = relInput.update.data as Partial<T>;
+					const processed = processData<T>(
 						updateData,
 						targetSchema,
 						registry,

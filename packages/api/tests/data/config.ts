@@ -47,6 +47,12 @@ export async function createTestConfig(tmpDir: string) {
 /**
  * Get temporary directory path for tests
  */
-export function getTmpDir(): string {
-	return path.join(process.cwd(), "packages", "api", "tests", ".tmp");
+export function getTmpDir(test: string): string {
+	return path.join(
+		process.cwd(),
+		"packages",
+		"api",
+		"tests",
+		"." + test + "_tmp",
+	);
 }
