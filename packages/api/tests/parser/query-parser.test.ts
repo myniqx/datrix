@@ -17,7 +17,7 @@ describe("QueryParser - Happy Path", () => {
 		it("should parse empty parameters with default pagination", () => {
 			const emptyParams: RawQueryParams = {};
 
-			const parsedQuery = expectSuccessData(parseQuery(emptyParams));
+			const parsedQuery = expectSuccessData(() => parseQuery(emptyParams));
 
 			expect(parsedQuery.page).toBe(1);
 			expect(parsedQuery.pageSize).toBe(25);
@@ -33,7 +33,9 @@ describe("QueryParser - Happy Path", () => {
 			const pagePageSizeParams: RawQueryParams =
 				parserTestData.paginationParams.pagePageSize;
 
-			const parsedQuery = expectSuccessData(parseQuery(pagePageSizeParams));
+			const parsedQuery = expectSuccessData(() =>
+				parseQuery(pagePageSizeParams),
+			);
 
 			expect(parsedQuery.page).toBe(2);
 			expect(parsedQuery.pageSize).toBe(15);
@@ -43,7 +45,7 @@ describe("QueryParser - Happy Path", () => {
 			const pageOnlyParams: RawQueryParams =
 				parserTestData.paginationParams.pageOnly;
 
-			const parsedQuery = expectSuccessData(parseQuery(pageOnlyParams));
+			const parsedQuery = expectSuccessData(() => parseQuery(pageOnlyParams));
 
 			expect(parsedQuery.page).toBe(3);
 			expect(parsedQuery.pageSize).toBe(25); // default pageSize
@@ -53,7 +55,9 @@ describe("QueryParser - Happy Path", () => {
 			const pageSizeOnlyParams: RawQueryParams =
 				parserTestData.paginationParams.pageSizeOnly;
 
-			const parsedQuery = expectSuccessData(parseQuery(pageSizeOnlyParams));
+			const parsedQuery = expectSuccessData(() =>
+				parseQuery(pageSizeOnlyParams),
+			);
 
 			expect(parsedQuery.page).toBe(1); // default page
 			expect(parsedQuery.pageSize).toBe(50);
@@ -63,7 +67,7 @@ describe("QueryParser - Happy Path", () => {
 			const largePageParams: RawQueryParams =
 				parserTestData.paginationParams.largePage;
 
-			const parsedQuery = expectSuccessData(parseQuery(largePageParams));
+			const parsedQuery = expectSuccessData(() => parseQuery(largePageParams));
 
 			expect(parsedQuery.page).toBe(100);
 			expect(parsedQuery.pageSize).toBe(25);
@@ -73,7 +77,7 @@ describe("QueryParser - Happy Path", () => {
 			const emptyParams: RawQueryParams = {};
 			const customOptions: ParserOptions = { defaultPageSize: 50 };
 
-			const parsedQuery = expectSuccessData(
+			const parsedQuery = expectSuccessData(() =>
 				parseQuery(emptyParams, customOptions),
 			);
 
@@ -85,7 +89,9 @@ describe("QueryParser - Happy Path", () => {
 			const params: RawQueryParams = { pageSize: "30" };
 			const customOptions: ParserOptions = { maxPageSize: 50 };
 
-			const parsedQuery = expectSuccessData(parseQuery(params, customOptions));
+			const parsedQuery = expectSuccessData(() =>
+				parseQuery(params, customOptions),
+			);
 
 			expect(parsedQuery.pageSize).toBe(30);
 		});
@@ -96,7 +102,7 @@ describe("QueryParser - Happy Path", () => {
 			const singleAscParams: RawQueryParams =
 				parserTestData.sortParams.singleAsc;
 
-			const parsedQuery = expectSuccessData(parseQuery(singleAscParams));
+			const parsedQuery = expectSuccessData(() => parseQuery(singleAscParams));
 
 			expect(parsedQuery.orderBy).toEqual([
 				{ field: "name", direction: "asc" },
@@ -107,7 +113,7 @@ describe("QueryParser - Happy Path", () => {
 			const singleDescParams: RawQueryParams =
 				parserTestData.sortParams.singleDesc;
 
-			const parsedQuery = expectSuccessData(parseQuery(singleDescParams));
+			const parsedQuery = expectSuccessData(() => parseQuery(singleDescParams));
 
 			expect(parsedQuery.orderBy).toEqual([
 				{ field: "createdAt", direction: "desc" },
@@ -117,7 +123,7 @@ describe("QueryParser - Happy Path", () => {
 		it("should parse multiple fields sort", () => {
 			const multipleParams: RawQueryParams = parserTestData.sortParams.multiple;
 
-			const parsedQuery = expectSuccessData(parseQuery(multipleParams));
+			const parsedQuery = expectSuccessData(() => parseQuery(multipleParams));
 
 			expect(parsedQuery.orderBy).toEqual([
 				{ field: "name", direction: "asc" },
@@ -129,7 +135,7 @@ describe("QueryParser - Happy Path", () => {
 		it("should handle sort as an array of strings", () => {
 			const arrayParams: RawQueryParams = parserTestData.sortParams.array;
 
-			const parsedQuery = expectSuccessData(parseQuery(arrayParams));
+			const parsedQuery = expectSuccessData(() => parseQuery(arrayParams));
 
 			expect(parsedQuery.orderBy).toEqual([
 				{ field: "name", direction: "asc" },
@@ -140,7 +146,7 @@ describe("QueryParser - Happy Path", () => {
 		it("should parse sort with dots (nested fields)", () => {
 			const dotsParams: RawQueryParams = parserTestData.sortParams.withDots;
 
-			const parsedQuery = expectSuccessData(parseQuery(dotsParams));
+			const parsedQuery = expectSuccessData(() => parseQuery(dotsParams));
 
 			expect(parsedQuery.orderBy).toEqual([
 				{ field: "user.profile.name", direction: "asc" },
@@ -151,7 +157,7 @@ describe("QueryParser - Happy Path", () => {
 			const underscoreParams: RawQueryParams =
 				parserTestData.sortParams.withUnderscore;
 
-			const parsedQuery = expectSuccessData(parseQuery(underscoreParams));
+			const parsedQuery = expectSuccessData(() => parseQuery(underscoreParams));
 
 			expect(parsedQuery.orderBy).toEqual([
 				{ field: "_id", direction: "asc" },
@@ -167,7 +173,7 @@ describe("QueryParser - Happy Path", () => {
 				"where[status]": "active",
 			};
 
-			const parsedQuery = expectSuccessData(parseQuery(params));
+			const parsedQuery = expectSuccessData(() => parseQuery(params));
 
 			expect(parsedQuery.select).toEqual(["id", "name"]);
 			expect(parsedQuery.where).toEqual({ status: "active" });
@@ -179,7 +185,7 @@ describe("QueryParser - Happy Path", () => {
 				populate: ["author", "comments"],
 			};
 
-			const parsedQuery = expectSuccessData(parseQuery(params));
+			const parsedQuery = expectSuccessData(() => parseQuery(params));
 
 			expect(parsedQuery.where).toEqual({ published: true });
 			expect(parsedQuery.populate).toEqual({
@@ -192,7 +198,7 @@ describe("QueryParser - Happy Path", () => {
 			const params: RawQueryParams =
 				parserTestData.integratedQueryParams.simple;
 
-			const parsedQuery = expectSuccessData(parseQuery(params));
+			const parsedQuery = expectSuccessData(() => parseQuery(params));
 
 			expect(parsedQuery.select).toEqual(["id", "name"]);
 			expect(parsedQuery.where).toEqual({ status: "active" });
@@ -207,7 +213,7 @@ describe("QueryParser - Happy Path", () => {
 			const params: RawQueryParams =
 				parserTestData.integratedQueryParams.complex;
 
-			const parsedQuery = expectSuccessData(parseQuery(params));
+			const parsedQuery = expectSuccessData(() => parseQuery(params));
 
 			expect(parsedQuery.select).toEqual(["id", "title"]);
 			expect(parsedQuery.where).toEqual({
@@ -236,7 +242,7 @@ describe("QueryParser - Happy Path", () => {
 				pageSize: "20",
 			};
 
-			const parsedQuery = expectSuccessData(parseQuery(params));
+			const parsedQuery = expectSuccessData(() => parseQuery(params));
 
 			expect(parsedQuery.select).toEqual(["id", "title", "author.name"]);
 			expect(parsedQuery.where).toEqual({
@@ -257,7 +263,7 @@ describe("QueryParser - Happy Path", () => {
 				"populate[author][populate][profile][populate]": "avatar",
 			};
 
-			const parsedQuery = expectSuccessData(parseQuery(params));
+			const parsedQuery = expectSuccessData(() => parseQuery(params));
 
 			expect(parsedQuery.populate).toEqual({
 				author: {
@@ -283,8 +289,8 @@ describe("QueryParser - Happy Path", () => {
 				pageSize: "10",
 			};
 
-			const firstParse = expectSuccessData(parseQuery(identicalParams));
-			const secondParse = expectSuccessData(parseQuery(identicalParams));
+			const firstParse = expectSuccessData(() => parseQuery(identicalParams));
+			const secondParse = expectSuccessData(() => parseQuery(identicalParams));
 
 			expect(firstParse).toEqual(secondParse);
 		});
@@ -294,11 +300,11 @@ describe("QueryParser - Happy Path", () => {
 				fields: "id,name",
 				pageSize: "10",
 			};
-			const firstParse = expectSuccessData(parseQuery(mutableParams));
+			const firstParse = expectSuccessData(() => parseQuery(mutableParams));
 
 			mutableParams.fields = "email";
 			mutableParams.pageSize = "20";
-			const secondParse = expectSuccessData(
+			const secondParse = expectSuccessData(() =>
 				parseQuery({ fields: "id,name", pageSize: "10" }),
 			);
 
@@ -317,7 +323,7 @@ describe("QueryParser - Happy Path", () => {
 			};
 			const paramsCopy = JSON.parse(JSON.stringify(originalParams));
 
-			expectSuccessData(parseQuery(originalParams));
+			expectSuccessData(() => parseQuery(originalParams));
 
 			expect(originalParams).toEqual(paramsCopy);
 		});
@@ -327,7 +333,7 @@ describe("QueryParser - Happy Path", () => {
 			const options: ParserOptions = { maxPageSize: 50, defaultPageSize: 25 };
 			const optionsCopy = { ...options };
 
-			expectSuccessData(parseQuery(params, options));
+			expectSuccessData(() => parseQuery(params, options));
 
 			expect(options).toEqual(optionsCopy);
 		});
@@ -340,7 +346,9 @@ describe("QueryParser - Happy Path", () => {
 			};
 			const customOptions: ParserOptions = { maxPopulateDepth: 3 };
 
-			const parsedQuery = expectSuccessData(parseQuery(params, customOptions));
+			const parsedQuery = expectSuccessData(() =>
+				parseQuery(params, customOptions),
+			);
 
 			expect(parsedQuery.populate).toBeDefined();
 		});
@@ -349,7 +357,9 @@ describe("QueryParser - Happy Path", () => {
 			const params: RawQueryParams = {};
 			const partialOptions: Partial<ParserOptions> = { defaultPageSize: 10 };
 
-			const parsedQuery = expectSuccessData(parseQuery(params, partialOptions));
+			const parsedQuery = expectSuccessData(() =>
+				parseQuery(params, partialOptions),
+			);
 
 			expect(parsedQuery.page).toBe(1);
 			expect(parsedQuery.pageSize).toBe(10);

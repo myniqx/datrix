@@ -33,17 +33,12 @@ import {
 } from "forja-types/test/helpers";
 import { createRequest } from "./data/helper";
 import { ForjaEntry } from "forja-types";
+import { getTmpDir } from "./data";
 
 describe("Schema-Level Permission Tests", () => {
 	let forja: Forja;
 	let jwtStrategy: JwtStrategy;
-	const tmpDir = path.join(
-		process.cwd(),
-		"packages",
-		"api",
-		"tests",
-		".tmp-auth",
-	);
+	const tmpDir = getTmpDir("permission");
 
 	// Token cache for each role
 	const tokens: Record<TestRoles, string> = {
@@ -75,9 +70,8 @@ describe("Schema-Level Permission Tests", () => {
 		for (const schema of forja.getSchemas().getAll()) {
 			try {
 				await adapter.dropTable(schema.tableName!);
-			} catch { }
+			} catch {}
 			await adapter.createTable(schema);
-
 		}
 
 		// Create JWT strategy for generating test tokens

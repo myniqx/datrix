@@ -126,14 +126,7 @@ export async function buildRequestContext<TRole extends string = string>(
 	});
 
 	if (Object.keys(queryParams).length > 0) {
-		const parseResult = parseQuery(queryParams);
-
-		if (!parseResult.success) {
-			// Throw wrapped error so unified handler can catch and format it
-			throw new ContextBuildError(parseResult.error);
-		}
-
-		query = parseResult.data;
+		query = parseQuery(queryParams);
 	}
 
 	// 6. PARSE BODY (for POST/PATCH/PUT requests)

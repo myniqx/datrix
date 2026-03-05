@@ -331,7 +331,7 @@ export interface SchemaDiffer {
 	compare(
 		oldSchema: Record<string, SchemaDefinition>,
 		newSchema: Record<string, SchemaDefinition>,
-	): Result<SchemaComparison, MigrationSystemError>;
+	): SchemaComparison;
 
 	/**
 	 * Detect field type changes
@@ -352,14 +352,14 @@ export interface MigrationGenerator {
 	generate(
 		differences: readonly SchemaDiff[],
 		metadata: Omit<MigrationMetadata, "timestamp">,
-	): Result<Migration, MigrationSystemError>;
+	): Migration;
 
 	/**
 	 * Generate migration operations from differences
 	 */
 	generateOperations(
 		differences: readonly SchemaDiff[],
-	): Result<readonly MigrationOperation[], MigrationSystemError>;
+	): readonly MigrationOperation[];
 
 	/**
 	 * Generate TypeScript migration file content
@@ -374,14 +374,12 @@ export interface MigrationRunner {
 	/**
 	 * Get pending migrations
 	 */
-	getPending(): Promise<Result<readonly Migration[], MigrationSystemError>>;
+	getPending(): Promise<readonly Migration[]>;
 
 	/**
 	 * Get applied migrations
 	 */
-	getApplied(): Promise<
-		Result<readonly MigrationHistoryRecord[], MigrationSystemError>
-	>;
+	getApplied(): Promise<readonly MigrationHistoryRecord[]>;
 
 	/**
 	 * Run pending migrations
@@ -389,23 +387,17 @@ export interface MigrationRunner {
 	runPending(options?: {
 		readonly target?: string;
 		readonly dryRun?: boolean;
-	}): Promise<
-		Result<readonly MigrationExecutionResult[], MigrationSystemError>
-	>;
+	}): Promise<readonly MigrationExecutionResult[]>;
 
 	/**
 	 * Run specific migration
 	 */
-	runOne(
-		migration: Migration,
-	): Promise<Result<MigrationExecutionResult, MigrationSystemError>>;
+	runOne(migration: Migration): Promise<MigrationExecutionResult>;
 
 	/**
 	 * Get migration plan
 	 */
-	getPlan(options?: {
-		readonly target?: string;
-	}): Result<MigrationPlan, MigrationSystemError>;
+	getPlan(options?: { readonly target?: string }): MigrationPlan;
 }
 
 /**
@@ -415,7 +407,7 @@ export interface MigrationHistory {
 	/**
 	 * Initialize migrations table
 	 */
-	initialize(): Promise<Result<void, MigrationSystemError>>;
+	initialize(): Promise<void>;
 
 	/**
 	 * Record migration execution
@@ -425,26 +417,22 @@ export interface MigrationHistory {
 		executionTime: number,
 		status: MigrationStatus,
 		error?: Error,
-	): Promise<Result<void, MigrationSystemError>>;
+	): Promise<void>;
 
 	/**
 	 * Get all migration records
 	 */
-	getAll(): Promise<
-		Result<readonly MigrationHistoryRecord[], MigrationSystemError>
-	>;
+	getAll(): Promise<readonly MigrationHistoryRecord[]>;
 
 	/**
 	 * Get last applied migration
 	 */
-	getLast(): Promise<
-		Result<MigrationHistoryRecord | undefined, MigrationSystemError>
-	>;
+	getLast(): Promise<MigrationHistoryRecord | undefined>;
 
 	/**
 	 * Check if migration was applied
 	 */
-	isApplied(version: string): Promise<Result<boolean, MigrationSystemError>>;
+	isApplied(version: string): Promise<boolean>;
 
 	/**
 	 * Calculate migration checksum

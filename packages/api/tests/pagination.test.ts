@@ -22,7 +22,7 @@ import fs from "node:fs/promises";
 describe("Pagination Integration Tests", () => {
 	let forja: Forja;
 	let getForja: () => Promise<Forja>;
-	const tmpDir = getTmpDir();
+	const tmpDir = getTmpDir("pagination");
 
 	beforeAll(async () => {
 		// Clean up temporary directory
@@ -46,9 +46,8 @@ describe("Pagination Integration Tests", () => {
 		for (const schema of forja.getSchemas().getAll()) {
 			try {
 				await adapter.dropTable(schema.tableName!);
-			} catch { }
+			} catch {}
 			await adapter.createTable(schema);
-
 		}
 	});
 

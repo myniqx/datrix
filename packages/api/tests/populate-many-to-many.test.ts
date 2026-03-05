@@ -22,7 +22,7 @@ import fs from "node:fs/promises";
 describe("ManyToMany Populate Integration Tests", () => {
 	let forja: Forja;
 	let getForja: () => Promise<Forja>;
-	const tmpDir = getTmpDir();
+	const tmpDir = getTmpDir("many_to_many");
 
 	beforeAll(async () => {
 		// Clean up temporary directory
@@ -45,9 +45,8 @@ describe("ManyToMany Populate Integration Tests", () => {
 		for (const schema of forja.getSchemas().getAll()) {
 			try {
 				await adapter.dropTable(schema.tableName!);
-			} catch { }
+			} catch {}
 			await adapter.createTable(schema);
-
 		}
 	});
 
@@ -483,10 +482,7 @@ describe("ManyToMany Populate Integration Tests", () => {
 			const resultBefore = await forja
 				.getAdapter()
 				.executeQuery(countQueryBefore);
-			expect(resultBefore.success).toBe(true);
-			if (resultBefore.success) {
-				expect(resultBefore.data.metadata?.count).toBe(2);
-			}
+			expect(resultBefore.metadata?.count).toBe(2);
 
 			// Delete post
 			const deleteReq = createRequest(`/api/posts/${createdPost.id}`, {
@@ -499,10 +495,7 @@ describe("ManyToMany Populate Integration Tests", () => {
 			const resultAfter = await forja
 				.getAdapter()
 				.executeQuery(countQueryAfter);
-			expect(resultAfter.success).toBe(true);
-			if (resultAfter.success) {
-				expect(resultAfter.data.metadata.count).toBe(0);
-			}
+			expect(resultAfter.metadata.count).toBe(0);
 
 			// Tags should still exist
 			const tagsAfter = await forja.findMany("tag", {});
@@ -531,10 +524,7 @@ describe("ManyToMany Populate Integration Tests", () => {
 			const resultBefore = await forja
 				.getAdapter()
 				.executeQuery(countQueryBefore);
-			expect(resultBefore.success).toBe(true);
-			if (resultBefore.success) {
-				expect(resultBefore.data.metadata.count).toBe(4); // 2 posts × 2 tags
-			}
+			expect(resultBefore.metadata.count).toBe(4); // 2 posts × 2 tags
 
 			// Delete all posts by author
 			await forja.deleteMany("post", { author: authors.john.id });
@@ -544,10 +534,7 @@ describe("ManyToMany Populate Integration Tests", () => {
 			const resultAfter = await forja
 				.getAdapter()
 				.executeQuery(countQueryAfter);
-			expect(resultAfter.success).toBe(true);
-			if (resultAfter.success) {
-				expect(resultAfter.data.metadata.count).toBe(0);
-			}
+			expect(resultAfter.metadata.count).toBe(0);
 		});
 	});
 

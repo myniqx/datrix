@@ -12,7 +12,6 @@ import {
 	MigrationSystemError,
 	SchemaDiff,
 } from "forja-types/core/migration";
-import { Result } from "forja-types/utils";
 
 /**
  * Migration generator implementation
@@ -39,33 +38,26 @@ export class ForgeMigrationGenerator implements MigrationGenerator {
 	generate(
 		differences: readonly SchemaDiff[],
 		metadata: Omit<MigrationMetadata, "timestamp">,
-	): Result<Migration, MigrationSystemError> {
+	): Migration {
 		try {
 			const operationsResult = this.generateOperations(differences);
-
-			if (!operationsResult.success) {
-				return operationsResult;
-			}
 
 			const migration: Migration = {
 				metadata: {
 					...metadata,
 					timestamp: Date.now(),
 				},
-				operations: operationsResult.data,
+				operations: operationsResult,
 			};
 
-			return { success: true, data: migration };
+			return migration;
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new MigrationSystemError(
-					`Failed to generate migration: ${message}`,
-					"GENERATION_ERROR",
-					error,
-				),
-			};
+			throw new MigrationSystemError(
+				`Failed to generate migration: ${message}`,
+				"GENERATION_ERROR",
+				error,
+			);
 		}
 	}
 
@@ -74,7 +66,7 @@ export class ForgeMigrationGenerator implements MigrationGenerator {
 	 */
 	generateOperations(
 		differences: readonly SchemaDiff[],
-	): Result<readonly MigrationOperation[], MigrationSystemError> {
+	): readonly MigrationOperation[] {
 		try {
 			const operations: MigrationOperation[] = [];
 
@@ -83,17 +75,14 @@ export class ForgeMigrationGenerator implements MigrationGenerator {
 				operations.push(op);
 			}
 
-			return { success: true, data: operations };
+			return operations;
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new MigrationSystemError(
-					`Failed to generate operations: ${message}`,
-					"GENERATION_ERROR",
-					error,
-				),
-			};
+			throw new MigrationSystemError(
+				`Failed to generate operations: ${message}`,
+				"GENERATION_ERROR",
+				error,
+			);
 		}
 	}
 

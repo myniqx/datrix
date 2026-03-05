@@ -121,10 +121,7 @@ export async function applyMigration(
 	}
 
 	// Apply
-	const result = await session.apply();
-	if (!result.success) {
-		throw new Error(`Migration failed: ${result.error.message}`);
-	}
+	await session.apply();
 }
 
 // ============================================
@@ -170,17 +167,12 @@ export async function assertColumnExists(
 	const tableName = getTableName(forja, modelName);
 	const adapter = forja.getAdapter();
 	const schemaResult = await adapter.getTableSchema(tableName);
-	expect(schemaResult.success, `Failed to get schema for '${tableName}'`).toBe(
-		true,
-	);
 
-	if (schemaResult.success) {
-		const fields = Object.keys(schemaResult.data.fields);
-		expect(
-			fields.includes(columnName),
-			`Column '${columnName}' should exist in '${tableName}'. Found: ${fields.join(", ")}`,
-		).toBe(true);
-	}
+	const fields = Object.keys(schemaResult.fields);
+	expect(
+		fields.includes(columnName),
+		`Column '${columnName}' should exist in '${tableName}'. Found: ${fields.join(", ")}`,
+	).toBe(true);
 }
 
 /**
@@ -194,17 +186,12 @@ export async function assertColumnNotExists(
 	const tableName = getTableName(forja, modelName);
 	const adapter = forja.getAdapter();
 	const schemaResult = await adapter.getTableSchema(tableName);
-	expect(schemaResult.success, `Failed to get schema for '${tableName}'`).toBe(
-		true,
-	);
 
-	if (schemaResult.success) {
-		const fields = Object.keys(schemaResult.data.fields);
-		expect(
-			fields.includes(columnName),
-			`Column '${columnName}' should NOT exist in '${tableName}'`,
-		).toBe(false);
-	}
+	const fields = Object.keys(schemaResult.fields);
+	expect(
+		fields.includes(columnName),
+		`Column '${columnName}' should NOT exist in '${tableName}'`,
+	).toBe(false);
 }
 
 /**
@@ -218,21 +205,16 @@ export async function assertTableColumns(
 	const tableName = getTableName(forja, modelName);
 	const adapter = forja.getAdapter();
 	const schemaResult = await adapter.getTableSchema(tableName);
-	expect(schemaResult.success, `Failed to get schema for '${tableName}'`).toBe(
-		true,
+
+	const allFields = Object.keys(schemaResult.fields);
+	// Filter out auto-generated fields
+	const userFields = allFields.filter(
+		(f) => !["id", "createdAt", "updatedAt"].includes(f),
 	);
 
-	if (schemaResult.success) {
-		const allFields = Object.keys(schemaResult.data.fields);
-		// Filter out auto-generated fields
-		const userFields = allFields.filter(
-			(f) => !["id", "createdAt", "updatedAt"].includes(f),
-		);
-
-		expect(userFields.sort(), `Table '${tableName}' columns mismatch`).toEqual(
-			[...expectedColumns].sort(),
-		);
-	}
+	expect(userFields.sort(), `Table '${tableName}' columns mismatch`).toEqual(
+		[...expectedColumns].sort(),
+	);
 }
 
 /**
@@ -245,13 +227,8 @@ export async function getTableColumns(
 	const tableName = getTableName(forja, modelName);
 	const adapter = forja.getAdapter();
 	const schemaResult = await adapter.getTableSchema(tableName);
-	if (!schemaResult.success) {
-		throw new Error(
-			`Failed to get schema for '${tableName}': ${schemaResult.error.message}`,
-		);
-	}
 
-	const allFields = Object.keys(schemaResult.data.fields);
+	const allFields = Object.keys(schemaResult.fields);
 	return allFields.filter((f) => !["id", "createdAt", "updatedAt"].includes(f));
 }
 
@@ -264,15 +241,12 @@ export async function getTableColumns(
  */
 export async function dropAllTables(adapter: DatabaseAdapter): Promise<void> {
 	const tablesResult = await adapter.getTables();
-	if (!tablesResult.success) {
-		throw new Error(`Failed to get tables: ${tablesResult.error.message}`);
-	}
 
-	for (const tableName of tablesResult.data) {
-		const dropResult = await adapter.dropTable(tableName);
-		if (!dropResult.success) {
-			// Ignore errors for non-existent tables
-			console.warn(`Warning: Could not drop table '${tableName}'`);
+	for (const tableName of tablesResult) {
+		try {
+			await adapter.dropTable(tableName);
+		} catch {
+			// Ignore errors (e.g. if table is locked)s
 		}
 	}
 }
@@ -297,14 +271,9 @@ export async function setupTablesFromSchemas(
 		}
 
 		// Create
-		const result = await adapter.createTable(
+		await adapter.createTable(
 			schema as Parameters<typeof adapter.createTable>[0],
 		);
-		if (!result.success) {
-			throw new Error(
-				`Failed to create table '${schema.name}': ${result.error.message}`,
-			);
-		}
 	}
 }
 

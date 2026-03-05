@@ -371,7 +371,9 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 				}
 			}
 
-			const tableName = this.getTranslator().escapeIdentifier(schema.tableName!);
+			const tableName = this.getTranslator().escapeIdentifier(
+				schema.tableName!,
+			);
 			const allDefinitions = [...columns, ...foreignKeyConstraints];
 			const sql = `CREATE TABLE ${tableName} (\n  ${allDefinitions.join(",\n  ")}\n)`;
 
@@ -575,8 +577,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 			const escapedTable = this.getTranslator().escapeIdentifier(tableName);
 			const indexName =
 				index.name ?? `idx_${tableName}_${index.fields.join("_")}`;
-			const escapedIndexName =
-				this.getTranslator().escapeIdentifier(indexName);
+			const escapedIndexName = this.getTranslator().escapeIdentifier(indexName);
 
 			const mappedFields = index.fields.map((fieldName) => {
 				if (schema) {
@@ -622,8 +623,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 		}
 
 		try {
-			const escapedIndexName =
-				this.getTranslator().escapeIdentifier(indexName);
+			const escapedIndexName = this.getTranslator().escapeIdentifier(indexName);
 			await queryRunner!.query(`DROP INDEX IF EXISTS ${escapedIndexName}`);
 		} catch (error) {
 			if (error instanceof ForjaAdapterError) throw error;

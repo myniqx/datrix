@@ -28,6 +28,7 @@ const VALID_QUERY_KEYS = new Set([
 	"having",
 	"meta",
 	"__meta__",
+	"relations",
 ]);
 
 /**

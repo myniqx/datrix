@@ -28,18 +28,16 @@ async function readStoredSchema(
 	const queryResult = await adapter.executeQuery({
 		type: "select",
 		table: FORJA_META_MODEL,
+		select: ["id", "key", "value"],
 		where: { key: { $eq: metaKey } },
 	});
 
-	expect(queryResult.success, "Failed to query _forja").toBe(true);
-	if (!queryResult.success) throw new Error("Failed to query _forja");
-
 	expect(
-		queryResult.data.rows.length,
+		queryResult.rows.length,
 		`Expected one row for key '${metaKey}' in _forja`,
 	).toBe(1);
 
-	return JSON.parse(queryResult.data.rows[0]!["value"] as string) as Record<
+	return JSON.parse(queryResult.rows[0]!["value"] as string) as Record<
 		string,
 		unknown
 	>;
@@ -53,14 +51,12 @@ async function assertNotInForja(
 	const queryResult = await adapter.executeQuery({
 		type: "select",
 		table: FORJA_META_MODEL,
+		select: ["id", "key", "value"],
 		where: { key: { $eq: metaKey } },
 	});
 
-	expect(queryResult.success, "Failed to query _forja").toBe(true);
-	if (!queryResult.success) return;
-
 	expect(
-		queryResult.data.rows.length,
+		queryResult.rows.length,
 		`Expected no row for key '${metaKey}' in _forja`,
 	).toBe(0);
 }
@@ -88,8 +84,7 @@ describe("_forja metadata table", () => {
 
 		// Re-create _forja after dropping all tables
 		const metaSchema = forja.getSchemas().get(FORJA_META_MODEL)!;
-		const metaResult = await adapter.createTable(metaSchema);
-		expect(metaResult.success).toBe(true);
+		await adapter.createTable(metaSchema);
 	});
 
 	afterAll(async () => {
@@ -101,8 +96,7 @@ describe("_forja metadata table", () => {
 	// ============================================================
 
 	it("createTable should write schema to _forja", async () => {
-		const createResult = await adapter.createTable(productSchema);
-		expect(createResult.success).toBe(true);
+		await adapter.createTable(productSchema);
 
 		const stored = await readStoredSchema(adapter, "products");
 		expect(stored["name"]).toBe("product");
@@ -122,12 +116,15 @@ describe("_forja metadata table", () => {
 
 		// Drop _forja to simulate missing meta table
 		await adapter.dropTable(FORJA_META_MODEL);
-
-		const result = await adapter.createTable(freshSchema);
-		expect(result.success).toBe(false);
-		if (!result.success) {
-			expect(result.error.message).toContain(FORJA_META_MODEL);
+		let error = false;
+		try {
+			await adapter.createTable(freshSchema);
+			error = true;
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			expect(message).toContain(FORJA_META_MODEL);
 		}
+		expect(error).toBe(false);
 
 		// Restore _forja for subsequent tests
 		const forja = await createForjaWithSchemas(tmpDir, []);
@@ -135,7 +132,10 @@ describe("_forja metadata table", () => {
 		await adapter.createTable(metaSchema);
 
 		// Re-insert products schema since it was lost
-		await adapter.createTable(productSchema);
+
+		try {
+			await adapter.createTable(productSchema);
+		} catch {}
 	});
 
 	// ============================================================
@@ -143,14 +143,12 @@ describe("_forja metadata table", () => {
 	// ============================================================
 
 	it("dropTable should remove schema from _forja", async () => {
-		const dropResult = await adapter.dropTable("products");
-		expect(dropResult.success).toBe(true);
+		await adapter.dropTable("products");
 
 		await assertNotInForja(adapter, "products");
 
 		// Recreate for subsequent tests
-		const createResult = await adapter.createTable(productSchema);
-		expect(createResult.success).toBe(true);
+		await adapter.createTable(productSchema);
 	});
 
 	// ============================================================
@@ -158,14 +156,13 @@ describe("_forja metadata table", () => {
 	// ============================================================
 
 	it("alterTable addColumn should add field to _forja schema", async () => {
-		const result = await adapter.alterTable("products", [
+		await adapter.alterTable("products", [
 			{
 				type: "addColumn",
 				column: "stock",
 				definition: { type: "number", required: false },
 			},
 		]);
-		expect(result.success).toBe(true);
 
 		const stored = await readStoredSchema(adapter, "products");
 		const fields = stored["fields"] as Record<string, unknown>;
@@ -179,10 +176,9 @@ describe("_forja metadata table", () => {
 	// ============================================================
 
 	it("alterTable dropColumn should remove field from _forja schema", async () => {
-		const result = await adapter.alterTable("products", [
+		await adapter.alterTable("products", [
 			{ type: "dropColumn", column: "stock" },
 		]);
-		expect(result.success).toBe(true);
 
 		const stored = await readStoredSchema(adapter, "products");
 		const fields = stored["fields"] as Record<string, unknown>;
@@ -196,14 +192,13 @@ describe("_forja metadata table", () => {
 	// ============================================================
 
 	it("alterTable modifyColumn should update field definition in _forja schema", async () => {
-		const result = await adapter.alterTable("products", [
+		await adapter.alterTable("products", [
 			{
 				type: "modifyColumn",
 				column: "price",
 				newDefinition: { type: "string", required: false },
 			},
 		]);
-		expect(result.success).toBe(true);
 
 		const stored = await readStoredSchema(adapter, "products");
 		const fields = stored["fields"] as Record<string, { type: string }>;
@@ -215,10 +210,9 @@ describe("_forja metadata table", () => {
 	// ============================================================
 
 	it("alterTable renameColumn should rename field in _forja schema", async () => {
-		const result = await adapter.alterTable("products", [
+		await adapter.alterTable("products", [
 			{ type: "renameColumn", from: "title", to: "name" },
 		]);
-		expect(result.success).toBe(true);
 
 		const stored = await readStoredSchema(adapter, "products");
 		const fields = stored["fields"] as Record<string, unknown>;
@@ -231,8 +225,7 @@ describe("_forja metadata table", () => {
 	// ============================================================
 
 	it("renameTable should update key in _forja", async () => {
-		const result = await adapter.renameTable("products", "items");
-		expect(result.success).toBe(true);
+		await adapter.renameTable("products", "items");
 
 		await assertNotInForja(adapter, "products");
 		const stored = await readStoredSchema(adapter, "items");

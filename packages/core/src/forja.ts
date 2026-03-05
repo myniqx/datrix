@@ -72,7 +72,7 @@ export class Forja implements IForja {
 	private _crud!: CrudOperations;
 	private _rawCrud!: CrudOperations;
 
-	private constructor() { }
+	private constructor() {}
 
 	static getInstance(): Forja {
 		if (!Forja.instance) {
@@ -387,21 +387,10 @@ export class Forja implements IForja {
 	 * await session.apply();
 	 * ```
 	 */
-	async beginMigrate(): Promise<Result<MigrationSession, ForjaError>> {
+	async beginMigrate(): Promise<MigrationSession> {
 		this.ensureInitialized();
 
-		const result = await createMigrationSession(this);
-		if (!result.success) {
-			return {
-				success: false,
-				error: new ForjaError(
-					`Failed to start migration session: ${result.error.message}`,
-					{ code: "MIGRATION_SESSION_FAILED" },
-				),
-			};
-		}
-
-		return { success: true, data: result.data };
+		return await createMigrationSession(this);
 	}
 
 	get crud(): CrudOperations {

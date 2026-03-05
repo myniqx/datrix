@@ -137,7 +137,6 @@ export function throwUnsupportedQueryType(queryType: unknown): never {
 	});
 }
 
-
 /**
  * Helper for schema not found errors
  */

@@ -136,7 +136,11 @@ export function checkUniqueConstraints(
 		);
 
 		if (duplicate) {
-			throwUniqueConstraintIndex({ fields: index.fields, table: schema.tableName ?? "unknown", adapter: "json" });
+			throwUniqueConstraintIndex({
+				fields: index.fields,
+				table: schema.tableName ?? "unknown",
+				adapter: "json",
+			});
 		}
 	}
 }

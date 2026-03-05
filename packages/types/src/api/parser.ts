@@ -13,8 +13,6 @@ import {
 	SelectClause,
 	WhereClause,
 } from "../core/query-builder";
-import { ParserError } from "../errors/api/parser";
-import { Result } from "../utils";
 
 /**
  * Raw query parameters from HTTP request
@@ -66,11 +64,6 @@ export type {
 } from "../errors/api/parser";
 
 export { ParserError, buildErrorLocation } from "../errors/api/parser";
-
-/**
- * Query parser result
- */
-export type QueryParserResult = Result<ParsedQuery, ParserError>;
 
 /**
  * Supported WHERE operators
@@ -133,4 +126,5 @@ export type SortParam = string | readonly string[];
 /**
  * Parse sort result
  */
-export type ParsedSort<T extends ForjaEntry = ForjaRecord> = readonly OrderByItem<T>[];
+export type ParsedSort<T extends ForjaEntry = ForjaRecord> =
+	readonly OrderByItem<T>[];

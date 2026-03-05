@@ -50,21 +50,18 @@ export class ForgeMigrationHistory implements MigrationHistory {
 	 * The table is created via adapter.createTable using the migration schema.
 	 * Schema is already registered in Forja initialization.
 	 */
-	async initialize(): Promise<Result<void, MigrationSystemError>> {
+	async initialize(): Promise<void> {
 		if (this.initialized) {
-			return { success: true, data: undefined };
+			return;
 		}
 
 		try {
 			const schema = this.forja.getSchemas().get(this.modelName);
 			if (!schema) {
-				return {
-					success: false,
-					error: new MigrationSystemError(
-						`Migration schema '${this.modelName}' not found in registry`,
-						"MIGRATION_ERROR",
-					),
-				};
+				throw new MigrationSystemError(
+					`Migration schema '${this.modelName}' not found in registry`,
+					"MIGRATION_ERROR",
+				);
 			}
 
 			const adapter = this.forja.getAdapter();
@@ -74,24 +71,19 @@ export class ForgeMigrationHistory implements MigrationHistory {
 			if (!metaExists) {
 				const metaSchema = this.forja.getSchemas().get(FORJA_META_MODEL);
 				if (!metaSchema) {
-					return {
-						success: false,
-						error: new MigrationSystemError(
-							`Schema '${FORJA_META_MODEL}' not found in registry`,
-							"MIGRATION_ERROR",
-						),
-					};
+					throw new MigrationSystemError(
+						`Schema '${FORJA_META_MODEL}' not found in registry`,
+						"MIGRATION_ERROR",
+					);
 				}
-				const metaResult = await adapter.createTable(metaSchema);
-				if (!metaResult.success) {
-					return {
-						success: false,
-						error: new MigrationSystemError(
-							`Failed to create _forja metadata table: ${metaResult.error.message}`,
-							"MIGRATION_ERROR",
-							metaResult.error,
-						),
-					};
+				try {
+					await adapter.createTable(metaSchema);
+				} catch (error) {
+					throw new MigrationSystemError(
+						`Failed to create _forja metadata table: ${(error as Error).message}`,
+						"MIGRATION_ERROR",
+						error,
+					);
 				}
 			}
 
@@ -99,31 +91,25 @@ export class ForgeMigrationHistory implements MigrationHistory {
 			const exists = await adapter.tableExists(tableName);
 
 			if (!exists) {
-				const createResult = await adapter.createTable(schema);
-				if (!createResult.success) {
-					return {
-						success: false,
-						error: new MigrationSystemError(
-							`Failed to create migrations table: ${createResult.error.message}`,
-							"MIGRATION_ERROR",
-							createResult.error,
-						),
-					};
+				try {
+					await adapter.createTable(schema);
+				} catch (error) {
+					throw new MigrationSystemError(
+						`Failed to create migrations table: ${(error as Error).message}`,
+						"MIGRATION_ERROR",
+						error,
+					);
 				}
 			}
 
 			this.initialized = true;
-			return { success: true, data: undefined };
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new MigrationSystemError(
-					`Failed to initialize migration history: ${message}`,
-					"MIGRATION_ERROR",
-					error,
-				),
-			};
+			throw new MigrationSystemError(
+				`Failed to initialize migration history: ${message}`,
+				"MIGRATION_ERROR",
+				error,
+			);
 		}
 	}
 
@@ -135,7 +121,7 @@ export class ForgeMigrationHistory implements MigrationHistory {
 		executionTime: number,
 		status: MigrationStatus,
 		error?: Error,
-	): Promise<Result<void, MigrationSystemError>> {
+	): Promise<void> {
 		try {
 			const checksum = this.calculateChecksum(migration);
 
@@ -145,30 +131,23 @@ export class ForgeMigrationHistory implements MigrationHistory {
 				executionTime,
 				status,
 				checksum,
-				error: error?.message,
+				error: error?.message || "",
 				appliedAt: new Date(),
 			});
-
-			return { success: true, data: undefined };
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new MigrationSystemError(
-					`Failed to record migration: ${message}`,
-					"MIGRATION_ERROR",
-					error,
-				),
-			};
+			throw new MigrationSystemError(
+				`Failed to record migration: ${message}`,
+				"MIGRATION_ERROR",
+				error,
+			);
 		}
 	}
 
 	/**
 	 * Get all migration records
 	 */
-	async getAll(): Promise<
-		Result<readonly MigrationHistoryRecord[], MigrationSystemError>
-	> {
+	async getAll(): Promise<readonly MigrationHistoryRecord[]> {
 		try {
 			const entries = await this.forja.raw.findMany<MigrationEntry>(
 				this.modelName,
@@ -188,26 +167,21 @@ export class ForgeMigrationHistory implements MigrationHistory {
 				...(entry.error && { error: entry.error }),
 			}));
 
-			return { success: true, data: records };
+			return records;
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new MigrationSystemError(
-					`Failed to get migration history: ${message}`,
-					"MIGRATION_ERROR",
-					error,
-				),
-			};
+			throw new MigrationSystemError(
+				`Failed to get migration history: ${message}`,
+				"MIGRATION_ERROR",
+				error,
+			);
 		}
 	}
 
 	/**
 	 * Get last applied migration
 	 */
-	async getLast(): Promise<
-		Result<MigrationHistoryRecord | undefined, MigrationSystemError>
-	> {
+	async getLast(): Promise<MigrationHistoryRecord | undefined> {
 		try {
 			const entries = await this.forja.raw.findMany<MigrationEntry>(
 				this.modelName,
@@ -220,7 +194,7 @@ export class ForgeMigrationHistory implements MigrationHistory {
 
 			const entry = entries[0];
 			if (!entry) {
-				return { success: true, data: undefined };
+				return undefined;
 			}
 
 			const record: MigrationHistoryRecord = {
@@ -234,43 +208,35 @@ export class ForgeMigrationHistory implements MigrationHistory {
 				...(entry.error && { error: entry.error }),
 			};
 
-			return { success: true, data: record };
+			return record;
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new MigrationSystemError(
-					`Failed to get last migration: ${message}`,
-					"MIGRATION_ERROR",
-					error,
-				),
-			};
+			throw new MigrationSystemError(
+				`Failed to get last migration: ${message}`,
+				"MIGRATION_ERROR",
+				error,
+			);
 		}
 	}
 
 	/**
 	 * Check if migration was applied
 	 */
-	async isApplied(
-		version: string,
-	): Promise<Result<boolean, MigrationSystemError>> {
+	async isApplied(version: string): Promise<boolean> {
 		try {
 			const count = await this.forja.raw.count<MigrationEntry>(this.modelName, {
 				version,
 				status: "completed",
 			});
 
-			return { success: true, data: count > 0 };
+			return count > 0;
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new MigrationSystemError(
-					`Failed to check migration status: ${message}`,
-					"MIGRATION_ERROR",
-					error,
-				),
-			};
+			throw new MigrationSystemError(
+				`Failed to check migration status: ${message}`,
+				"MIGRATION_ERROR",
+				error,
+			);
 		}
 	}
 

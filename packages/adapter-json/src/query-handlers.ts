@@ -1,5 +1,11 @@
 import { ForjaEntry } from "forja-types/core/schema";
-import { QueryCountObject, QueryInsertObject, QueryObject, QuerySelectObject, QueryUpdateObject } from "forja-types/core/query-builder";
+import {
+	QueryCountObject,
+	QueryInsertObject,
+	QueryObject,
+	QuerySelectObject,
+	QueryUpdateObject,
+} from "forja-types/core/query-builder";
 import { JsonQueryRunner } from "./runner";
 import { JsonPopulator } from "./populate";
 import {
@@ -73,7 +79,11 @@ export async function handleInsert<T extends ForjaEntry>(ctx: {
 	const adapter = runner.adapterRef;
 
 	if (!query.data || !Array.isArray(query.data)) {
-		throwQueryMissingData({ queryType: "insert", table: query.table, adapter: "json" });
+		throwQueryMissingData({
+			queryType: "insert",
+			table: query.table,
+			adapter: "json",
+		});
 	}
 
 	const insertedIds: number[] = [];
@@ -133,7 +143,11 @@ export async function handleUpdate<T extends ForjaEntry>(ctx: {
 	const adapter = runner.adapterRef;
 
 	if (!query.data) {
-		throwQueryMissingData({ queryType: "update", table: query.table, adapter: "json" });
+		throwQueryMissingData({
+			queryType: "update",
+			table: query.table,
+			adapter: "json",
+		});
 	}
 
 	const updateQuery: QuerySelectObject<T> = {

@@ -20,7 +20,7 @@ import fs from "node:fs/promises";
 describe("Query Operators Integration Tests", () => {
 	let forja: Forja;
 	let getForja: () => Promise<Forja>;
-	const tmpDir = getTmpDir();
+	const tmpDir = getTmpDir("operators");
 
 	beforeAll(async () => {
 		// Clean up temporary directory
@@ -43,9 +43,8 @@ describe("Query Operators Integration Tests", () => {
 		for (const schema of forja.getSchemas().getAll()) {
 			try {
 				await adapter.dropTable(schema.tableName!);
-			} catch { }
+			} catch {}
 			await adapter.createTable(schema);
-
 		}
 
 		// Seed test data

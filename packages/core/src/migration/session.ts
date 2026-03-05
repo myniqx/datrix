@@ -12,7 +12,11 @@
  */
 
 import { DatabaseAdapter, QueryRunner } from "forja-types/adapter";
-import { SchemaDefinition, FieldDefinition } from "forja-types/core/schema";
+import {
+	SchemaDefinition,
+	FieldDefinition,
+	ForjaRecord,
+} from "forja-types/core/schema";
 import {
 	Migration,
 	MigrationOperation,
@@ -126,17 +130,14 @@ export class MigrationSession {
 	/**
 	 * Initialize session - load current state from database
 	 */
-	async initialize(): Promise<Result<void, MigrationSystemError>> {
+	async initialize(): Promise<void> {
 		if (this.initialized) {
-			return { success: true, data: undefined };
+			return;
 		}
 
 		try {
 			// Initialize history table
-			const historyInit = await this.history.initialize();
-			if (!historyInit.success) {
-				return historyInit;
-			}
+			await this.history.initialize();
 
 			// Load current schemas from Forja
 			const registry = this.forja.getSchemas();
@@ -150,27 +151,15 @@ export class MigrationSession {
 
 			// Load existing schemas from database
 			const tablesResult = await this.adapter.getTables();
-			if (!tablesResult.success) {
-				return {
-					success: false,
-					error: new MigrationSystemError(
-						`Failed to get tables: ${tablesResult.error.message}`,
-						"MIGRATION_ERROR",
-						tablesResult.error,
-					),
-				};
-			}
 
-			for (const tableName of tablesResult.data) {
+			for (const tableName of tablesResult) {
 				// Skip internal tables
 				if (tableName.startsWith("_forja")) {
 					continue;
 				}
 
 				const schemaResult = await this.adapter.getTableSchema(tableName);
-				if (schemaResult.success) {
-					this.databaseSchemas.set(tableName, schemaResult.data);
-				}
+				this.databaseSchemas.set(tableName, schemaResult);
 			}
 
 			// Compare schemas
@@ -185,30 +174,20 @@ export class MigrationSession {
 			}
 
 			const comparison = this.differ.compare(oldSchemas, newSchemas);
-			if (!comparison.success) {
-				return {
-					success: false,
-					error: comparison.error,
-				};
-			}
 
-			this.differences = [...comparison.data.differences];
+			this.differences = [...comparison.differences];
 
 			// Detect ambiguous changes
 			this.detectAmbiguousChanges();
 
 			this.initialized = true;
-			return { success: true, data: undefined };
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			return {
-				success: false,
-				error: new MigrationSystemError(
-					`Failed to initialize migration session: ${message}`,
-					"MIGRATION_ERROR",
-					error,
-				),
-			};
+			throw new MigrationSystemError(
+				`Failed to initialize migration session: ${message}`,
+				"MIGRATION_ERROR",
+				error,
+			);
 		}
 	}
 
@@ -1224,38 +1203,24 @@ export class MigrationSession {
 	/**
 	 * Apply migrations
 	 */
-	async apply(): Promise<
-		Result<readonly MigrationResult[], MigrationSystemError>
-	> {
+	async apply(): Promise<readonly MigrationResult[]> {
 		if (this.hasUnresolvedAmbiguous()) {
-			return {
-				success: false,
-				error: new MigrationSystemError(
-					"Cannot apply migrations with unresolved ambiguous changes",
-					"MIGRATION_ERROR",
-				),
-			};
+			throw new MigrationSystemError(
+				"Cannot apply migrations with unresolved ambiguous changes",
+				"MIGRATION_ERROR",
+			);
 		}
 
 		if (!this.hasChanges()) {
-			return { success: true, data: [] };
+			return [];
 		}
 
 		// Generate migration
-		const migrationResult = this.generator.generate(this.differences, {
+		const baseMigration = this.generator.generate(this.differences, {
 			name: `migration_${Date.now()}`,
 			version: Date.now().toString(),
 			description: "Auto-generated migration",
 		});
-
-		if (!migrationResult.success) {
-			return {
-				success: false,
-				error: migrationResult.error,
-			};
-		}
-
-		const baseMigration = migrationResult.data;
 
 		// Inject data transfer operations for resolved migrate_to_junction / migrate_first
 		const enrichedOperations = this.injectDataTransferOperations(
@@ -1271,15 +1236,7 @@ export class MigrationSession {
 			migration,
 		]);
 
-		const runResult = await runner.runPending();
-		if (!runResult.success) {
-			return {
-				success: false,
-				error: runResult.error,
-			};
-		}
-
-		return { success: true, data: runResult.data };
+		return await runner.runPending();
 	}
 
 	/**
@@ -1326,17 +1283,12 @@ export class MigrationSession {
 					type: "dataTransfer",
 					description: `Migrate '${sourceTable}.${sourceFkCol}' values to junction table '${junctionTable}'`,
 					execute: async (runner: QueryRunner) => {
-						const selectResult = await runner.executeQuery<{
-							id: string | number;
-							[key: string]: unknown;
-						}>({
+						const selectResult = await runner.executeQuery<ForjaRecord>({
 							type: "select",
 							table: sourceTable,
 							select: ["id", sourceFkCol],
 						});
-						if (!selectResult.success) throw selectResult.error;
-
-						const rows = selectResult.data.rows;
+						const rows = selectResult.rows;
 
 						// Junction FK col for source: derived from FK col on target (e.g. "categoryId" → target model "category")
 						// Source FK col in junction: singular of sourceTable + "Id" (e.g. "posts" → "postId")
@@ -1352,12 +1304,11 @@ export class MigrationSession {
 
 						if (junctionRows.length === 0) return;
 
-						const insertResult = await runner.executeQuery({
+						await runner.executeQuery({
 							type: "insert",
 							table: junctionTable,
 							data: junctionRows,
 						});
-						if (!insertResult.success) throw insertResult.error;
 					},
 				};
 
@@ -1395,18 +1346,15 @@ export class MigrationSession {
 					type: "dataTransfer",
 					description: `Migrate first relation from '${junctionTable}' to '${targetTable}.${targetFkCol}'`,
 					execute: async (runner: QueryRunner) => {
-						const selectResult = await runner.executeQuery<{
-							[key: string]: unknown;
-						}>({
+						const selectResult = await runner.executeQuery<ForjaRecord>({
 							type: "select",
 							table: junctionTable,
 							select: [sourceFkCol, relatedFkCol],
 						});
-						if (!selectResult.success) throw selectResult.error;
 
 						// Group by sourceFk, keep first occurrence per source record
 						const firstBySource = new Map<unknown, unknown>();
-						for (const row of selectResult.data.rows) {
+						for (const row of selectResult.rows) {
 							const sourceId = row[sourceFkCol];
 							if (!firstBySource.has(sourceId)) {
 								firstBySource.set(sourceId, row[relatedFkCol]);
@@ -1415,13 +1363,12 @@ export class MigrationSession {
 
 						// Update each source record with its first related FK
 						for (const [sourceId, relatedId] of firstBySource) {
-							const updateResult = await runner.executeQuery({
+							await runner.executeQuery({
 								type: "update",
 								table: targetTable,
 								where: { id: { $eq: sourceId } },
 								data: { [relatedFkCol]: relatedId },
 							});
-							if (!updateResult.success) throw updateResult.error;
 						}
 					},
 				};
@@ -1458,16 +1405,8 @@ export class MigrationSession {
  */
 export async function createMigrationSession(
 	forja: IForja,
-): Promise<Result<MigrationSession, MigrationSystemError>> {
+): Promise<MigrationSession> {
 	const session = new MigrationSession(forja);
-	const initResult = await session.initialize();
-
-	if (!initResult.success) {
-		return {
-			success: false,
-			error: initResult.error,
-		};
-	}
-
-	return { success: true, data: session };
+	await session.initialize();
+	return session;
 }

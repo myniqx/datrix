@@ -46,7 +46,7 @@ export class Dispatcher {
 	 *
 	 * This allows plugins to enrich the context before query execution.
 	 */
-	private async buildQueryContext(
+	async buildQueryContext(
 		action: QueryAction,
 		schema: SchemaDefinition,
 	): Promise<QueryContext> {
@@ -116,7 +116,7 @@ export class Dispatcher {
 	 * Dispatch onBeforeQuery hook to all plugins (serial execution)
 	 * Plugins can modify the query object.
 	 */
-	private async dispatchBeforeQuery<TResult extends ForjaEntry = ForjaRecord>(
+	async dispatchBeforeQuery<TResult extends ForjaEntry = ForjaRecord>(
 		query: QueryObject<TResult>,
 		context: QueryContext,
 	): Promise<QueryObject<TResult>> {
@@ -163,7 +163,7 @@ export class Dispatcher {
 	 * Dispatch onAfterQuery hook to all plugins (serial execution)
 	 * Plugins can modify the result.
 	 */
-	private async dispatchAfterQuery<TResult extends ForjaEntry>(
+	async dispatchAfterQuery<TResult extends ForjaEntry>(
 		result: TResult,
 		context: QueryContext,
 	): Promise<TResult> {

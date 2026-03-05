@@ -9,7 +9,7 @@
  * 5. Plugin hooks (via dispatcher)
  */
 
-import { DatabaseAdapter, ForjaAdapterError, QueryRunner } from "forja-types/adapter";
+import { DatabaseAdapter, QueryRunner } from "forja-types/adapter";
 import {
 	SchemaRegistry,
 	SchemaDefinition,
@@ -30,7 +30,6 @@ import { Dispatcher } from "../dispatcher";
 import { validateData } from "./validation";
 import { processRelations, resolveRelationCUD } from "./relations";
 import {
-	throwCrudError,
 	throwSchemaNotFoundError,
 	throwUnsupportedQueryType,
 } from "./error-helper";
@@ -58,7 +57,7 @@ export class QueryExecutor {
 		private readonly schemas: SchemaRegistry,
 		private readonly getAdapter: () => DatabaseAdapter,
 		private readonly getDispatcher: () => Dispatcher,
-	) { }
+	) {}
 
 	/**
 	 * Execute a query
@@ -124,13 +123,13 @@ export class QueryExecutor {
 		schema: SchemaDefinition,
 		options: ExecutorOptions,
 	): Promise<T[]> {
-		return this.executeWithDispatcher<T, T[]>(
+		return this.withLifecycle(
 			options.action ?? "findMany",
 			schema,
-			query,
 			options.noDispatcher ?? false,
-			async (q) => {
-				const result = await this.getAdapter().executeQuery<T>(q);
+			query,
+			async (mq) => {
+				const result = await this.getAdapter().executeQuery<T>(mq);
 				return result.rows as T[];
 			},
 		);
@@ -144,13 +143,13 @@ export class QueryExecutor {
 		schema: SchemaDefinition,
 		options: ExecutorOptions,
 	): Promise<number> {
-		return this.executeWithDispatcher<T, number>(
+		return this.withLifecycle(
 			options.action ?? "count",
 			schema,
-			query,
 			options.noDispatcher ?? false,
-			async (q) => {
-				const result = await this.getAdapter().executeQuery<T>(q);
+			query,
+			async (mq) => {
+				const result = await this.getAdapter().executeQuery<T>(mq);
 				return result.metadata.count ?? 0;
 			},
 		);
@@ -159,324 +158,323 @@ export class QueryExecutor {
 	/**
 	 * Execute DELETE query (cascade junction tables, fetch first, then delete)
 	 *
-	 * Transaction flow: BEGIN → SELECT (fetch) + junction cascade + DELETE → COMMIT
+	 * Transaction flow: onBefore → BEGIN → SELECT (fetch) + junction cascade + DELETE → COMMIT → onAfter
 	 */
 	async executeDelete<T extends ForjaEntry>(
 		query: QueryDeleteObject<T>,
 		schema: SchemaDefinition,
 		options: ExecutorOptions,
 	): Promise<readonly T[]> {
-		// 1. Begin transaction (if supported)
-		const adapter = this.getAdapter();
-		const { runner, commit, rollback } = await this.beginTransaction(adapter);
+		return this.withLifecycle(
+			options.action ?? "delete",
+			schema,
+			options.noDispatcher ?? false,
+			query,
+			async (mq) => {
+				// 1. Begin transaction
+				const adapter = this.getAdapter();
+				const { runner, commit, rollback } =
+					await this.beginTransaction(adapter);
 
-		let recordsToReturn: readonly T[] | undefined;
-		let deleteResult: readonly T[];
+				let deleteResult: readonly T[];
+				let returningResult: readonly T[];
 
-		try {
-			// 2. Pre-fetch: needed for returning results OR m2m cascade
-			const m2mRelations = Object.entries(schema.fields).filter(
-				([_, field]) =>
-					field.type === "relation" && field.kind === "manyToMany",
-			);
-			const needsReturnSelect =
-				!options.noReturning && (query.select || query.populate);
-			const needsPreFetch = needsReturnSelect || m2mRelations.length > 0;
+				try {
+					// 2. Pre-fetch: needed for returning results OR m2m cascade
+					const m2mRelations = Object.entries(schema.fields).filter(
+						([_, field]) =>
+							field.type === "relation" && field.kind === "manyToMany",
+					);
+					const needsReturnSelect =
+						!options.noReturning && (mq.select || mq.populate);
+					const needsPreFetch = needsReturnSelect || m2mRelations.length > 0;
 
-			let prefetchedRows: readonly T[] | undefined;
+					let prefetchedRows: readonly T[] | undefined;
 
-			if (needsPreFetch) {
-				const selectResult = await runner.executeQuery<T>({
-					type: "select",
-					table: query.table,
-					where: query.where,
-					select: query.select ?? ["id"],
-					...(needsReturnSelect &&
-						query.populate !== undefined && { populate: query.populate }),
-				});
-				prefetchedRows = selectResult.rows;
+					if (needsPreFetch) {
+						const selectResult = await runner.executeQuery<T>({
+							type: "select",
+							table: mq.table,
+							where: mq.where,
+							select: mq.select ?? ["id"],
+							...(needsReturnSelect &&
+								mq.populate !== undefined && { populate: mq.populate }),
+						});
+						prefetchedRows = selectResult.rows;
+					}
 
-				if (needsReturnSelect) {
-					recordsToReturn = prefetchedRows;
+					// 3. CASCADE DELETE: Clean up junction tables for manyToMany relations
+					if (
+						m2mRelations.length > 0 &&
+						prefetchedRows &&
+						prefetchedRows.length > 0
+					) {
+						const idsToDelete = prefetchedRows.map((r) => r.id);
+
+						for (const [_, field] of m2mRelations) {
+							const relation = field as RelationField;
+							const junctionTable = relation.through!;
+							const sourceForeignKey = `${schema.name}Id`;
+
+							await runner.executeQuery({
+								type: "delete",
+								table: junctionTable,
+								where: {
+									[sourceForeignKey]: { $in: idsToDelete },
+								} as WhereClause<T>,
+							});
+						}
+					}
+
+					// 4. Execute DELETE
+					const deleteQueryResult = await runner.executeQuery<T>(mq);
+					deleteResult = deleteQueryResult.rows;
+
+					// 5. Commit transaction
+					await commit();
+
+					returningResult = needsReturnSelect ? prefetchedRows! : deleteResult;
+				} catch (error) {
+					await rollback();
+					throw error;
 				}
-			}
 
-			// 3. CASCADE DELETE: Clean up junction tables for manyToMany relations
-			if (
-				m2mRelations.length > 0 &&
-				prefetchedRows &&
-				prefetchedRows.length > 0
-			) {
-				const idsToDelete = prefetchedRows.map((r) => r.id);
-
-				for (const [_, field] of m2mRelations) {
-					const relation = field as RelationField;
-					const junctionTable = relation.through!;
-					const sourceForeignKey = `${schema.name}Id`;
-
-					const junctionQuery: QueryDeleteObject<T> = {
-						type: "delete",
-						table: junctionTable,
-						where: {
-							[sourceForeignKey]: { $in: idsToDelete },
-						} as WhereClause<T>,
-					};
-
-					await runner.executeQuery(junctionQuery);
-				}
-			}
-
-			// 4. Execute DELETE
-			deleteResult = await this.executeWithDispatcher<T, readonly T[]>(
-				options.action ?? "delete",
-				schema,
-				query,
-				options.noDispatcher ?? false,
-				async (q) => {
-					const result = await runner.executeQuery<T>(q);
-					return result.rows;
-				},
-			);
-
-			// 5. Commit transaction
-			await commit();
-		} catch (error) {
-			await rollback();
-			throw error;
-		}
-
-		if (recordsToReturn !== undefined) {
-			return recordsToReturn;
-		}
-		return deleteResult;
+				return returningResult;
+			},
+		);
 	}
 
 	/**
 	 * Execute INSERT with validation and relations
 	 *
-	 * Transaction flow: BEGIN → INSERT + relations → COMMIT → SELECT (pool)
-	 * If adapter doesn't support transactions, runs without transaction.
+	 * Transaction flow: onBefore → validate → BEGIN → INSERT + relations → COMMIT → SELECT → onAfter
 	 */
 	async executeInsert<T extends ForjaEntry>(
 		query: QueryInsertObject<T>,
 		schema: SchemaDefinition,
 		options: ExecutorOptions,
 	): Promise<readonly T[]> {
-		const isRawMode = options.noDispatcher ?? false;
+		const noDispatcher = options.noDispatcher ?? false;
 
-		// 1. Validate each data item against schema + add timestamps
-		const validatedItems = query.data.map((item) =>
-			validateData<T, false>(item, query.relations, schema, {
-				partial: false,
-				isCreate: true,
-				isRawMode,
-			}),
-		);
+		return this.withLifecycle(
+			options.action ?? "create",
+			schema,
+			noDispatcher,
+			query,
+			async (mq) => {
+				const insertQuery = mq as QueryInsertObject<T>;
 
-		// 2. Begin transaction (if supported)
-		const adapter = this.getAdapter();
-		const { runner, commit, rollback } = await this.beginTransaction(adapter);
-
-		let insertedIds: readonly T[];
-
-		try {
-			// 3. Execute INSERT query (bulk)
-			const queryWithValidatedData: QueryInsertObject<T> = {
-				type: "insert",
-				table: query.table,
-				data: validatedItems,
-			};
-
-			insertedIds = await this.executeWithDispatcher<T, readonly T[]>(
-				options.action ?? "create",
-				schema,
-				queryWithValidatedData,
-				options.noDispatcher ?? false,
-				async (q) => {
-					const result = await runner.executeQuery<T>(q);
-					return result.rows;
-				},
-			);
-
-			// 4. Process relations (if any) - resolve CUD once, then link per record
-			if (query.relations) {
-				const resolvedOps = await resolveRelationCUD(
-					query.relations,
-					schema,
-					runner,
-					this.schemas,
+				// 1. Validate each data item against schema + add timestamps
+				const validatedItems = insertQuery.data.map((item) =>
+					validateData<T, false>(item, insertQuery.relations, schema, {
+						partial: false,
+						isCreate: true,
+						isRawMode: noDispatcher,
+					}),
 				);
-				for (const recordId of insertedIds) {
-					await processRelations(
-						resolvedOps,
-						recordId.id,
-						schema.name,
-						schema,
-						runner,
-						this.schemas,
+
+				// 2. Begin transaction
+				const adapter = this.getAdapter();
+				const { runner, commit, rollback } =
+					await this.beginTransaction(adapter);
+
+				let insertedIds: readonly T[];
+
+				try {
+					// 3. Execute INSERT query (bulk)
+					const queryWithValidatedData: QueryInsertObject<T> = {
+						type: "insert",
+						table: insertQuery.table,
+						data: validatedItems,
+					};
+
+					const insertResult = await runner.executeQuery<T>(
+						queryWithValidatedData,
 					);
+					insertedIds = insertResult.rows;
+
+					// 4. Process relations (if any) - resolve CUD once, then link per record
+					if (insertQuery.relations) {
+						const resolvedOps = await resolveRelationCUD(
+							insertQuery.relations,
+							schema,
+							runner,
+							this.schemas,
+						);
+						for (const recordId of insertedIds) {
+							await processRelations(
+								resolvedOps,
+								recordId.id,
+								schema.name,
+								schema,
+								runner,
+								this.schemas,
+							);
+						}
+					}
+
+					// 5. Commit transaction
+					await commit();
+				} catch (error) {
+					await rollback();
+					throw error;
 				}
-			}
 
-			// 5. Commit transaction
-			await commit();
-		} catch (error) {
-			await rollback();
-			throw error;
-		}
+				// 6. Fetch full records (if returning enabled)
+				if (options.noReturning) {
+					return insertedIds;
+				}
 
-		// 6. Fetch and return the created record (if returning enabled)
-		if (options.noReturning) {
-			return insertedIds;
-		}
+				const selectQuery: QuerySelectObject<T> = {
+					type: "select",
+					table: insertQuery.table,
+					select: insertQuery.select!,
+					where: {
+						id: { $in: insertedIds.map((r) => r.id) },
+					} as WhereClause<T>,
+					...(insertQuery.populate !== undefined && {
+						populate: insertQuery.populate,
+					}),
+				};
 
-		const selectQuery: QuerySelectObject<T> = {
-			type: "select",
-			table: query.table,
-			select: query.select!,
-			where: { id: { $in: insertedIds.map((r) => r.id) } } as WhereClause<T>,
-			...(query.populate !== undefined && { populate: query.populate }),
-		};
-
-		const results = await this.executeSelect<T>(selectQuery, schema, {
-			noDispatcher: true,
-		});
-
-		return results;
+				return this.executeSelect<T>(selectQuery, schema, {
+					noDispatcher: true,
+				});
+			},
+		);
 	}
 
 	/**
 	 * Execute UPDATE with validation and relations
 	 *
-	 * Transaction flow: BEGIN → UPDATE + relations → COMMIT → SELECT (pool)
+	 * Transaction flow: onBefore → validate → BEGIN → UPDATE + relations → COMMIT → SELECT → onAfter
 	 */
 	async executeUpdate<T extends ForjaEntry>(
 		query: QueryUpdateObject<T>,
 		schema: SchemaDefinition,
 		options: ExecutorOptions,
 	): Promise<readonly T[]> {
-		const isRawMode = options.noDispatcher ?? false;
+		const noDispatcher = options.noDispatcher ?? false;
 
-		// 1. Validate data against schema (min/max/regex/type) + add timestamps
-		const validatedData = validateData<T, true>(
-			query.data,
-			query.relations,
+		return this.withLifecycle(
+			options.action ?? "update",
 			schema,
-			{
-				partial: true,
-				isCreate: false,
-				isRawMode,
+			noDispatcher,
+			query,
+			async (mq) => {
+				const updateQuery = mq as QueryUpdateObject<T>;
+
+				// 1. Validate data against schema (min/max/regex/type) + add timestamps
+				const validatedData = validateData<T, true>(
+					updateQuery.data,
+					updateQuery.relations,
+					schema,
+					{
+						partial: true,
+						isCreate: false,
+						isRawMode: noDispatcher,
+					},
+				);
+
+				// 2. Begin transaction
+				const adapter = this.getAdapter();
+				const { runner, commit, rollback } =
+					await this.beginTransaction(adapter);
+
+				let recordIds: readonly T[];
+
+				try {
+					// 3. Execute UPDATE query (scalars only)
+					const queryWithValidatedData: QueryUpdateObject<T> = {
+						type: "update",
+						table: updateQuery.table,
+						data: validatedData,
+						...(updateQuery.where !== undefined && {
+							where: updateQuery.where,
+						}),
+					};
+
+					const updateResult = await runner.executeQuery<T>(
+						queryWithValidatedData,
+					);
+					recordIds = updateResult.rows;
+
+					// 4. Process relations (if any) - resolve CUD ONCE, then link per parent
+					if (updateQuery.relations) {
+						const resolvedOps = await resolveRelationCUD(
+							updateQuery.relations,
+							schema,
+							runner,
+							this.schemas,
+						);
+						for (const recordId of recordIds) {
+							await processRelations(
+								resolvedOps,
+								recordId.id,
+								schema.name,
+								schema,
+								runner,
+								this.schemas,
+							);
+						}
+					}
+
+					// 5. Commit transaction
+					await commit();
+				} catch (error) {
+					await rollback();
+					throw error;
+				}
+
+				// 6. Fetch full records (if returning enabled)
+				if (options.noReturning) {
+					return recordIds;
+				}
+
+				// Use updated record IDs for select (not original where, which may no longer match)
+				const selectQuery: QuerySelectObject<T> = {
+					type: "select",
+					table: updateQuery.table,
+					select: updateQuery.select!,
+					where: { id: { $in: recordIds.map((r) => r.id) } } as WhereClause<T>,
+					...(updateQuery.populate !== undefined && {
+						populate: updateQuery.populate,
+					}),
+				};
+
+				return this.executeSelect<T>(selectQuery, schema, {
+					noDispatcher: true,
+				});
 			},
 		);
-
-		// 2. Begin transaction (if supported)
-		const adapter = this.getAdapter();
-		const { runner, commit, rollback } = await this.beginTransaction(adapter);
-
-		let recordIds: readonly T[];
-
-		try {
-			// 3. Execute UPDATE query (scalars only)
-			const queryWithValidatedData: QueryUpdateObject<T> = {
-				type: "update",
-				table: query.table,
-				data: validatedData,
-				...(query.where !== undefined && { where: query.where }),
-			};
-
-			recordIds = await this.executeWithDispatcher<T, readonly T[]>(
-				options.action ?? "update",
-				schema,
-				queryWithValidatedData,
-				options.noDispatcher ?? false,
-				async (q) => {
-					const result = await runner.executeQuery<T>(q);
-					return result.rows;
-				},
-			);
-
-			// 4. Process relations (if any) - resolve CUD ONCE, then link per parent
-			if (query.relations) {
-				const resolvedOps = await resolveRelationCUD(
-					query.relations,
-					schema,
-					runner,
-					this.schemas,
-				);
-				for (const recordId of recordIds) {
-					await processRelations(
-						resolvedOps,
-						recordId.id,
-						schema.name,
-						schema,
-						runner,
-						this.schemas,
-					);
-				}
-			}
-
-			// 5. Commit transaction
-			await commit();
-		} catch (error) {
-			await rollback();
-			throw error;
-		}
-
-		// 6. Fetch and return the updated record (if returning enabled)
-		if (options.noReturning) {
-			return recordIds;
-		}
-
-		// Use updated record IDs for select (not original where, which may no longer match)
-		const selectQuery: QuerySelectObject<T> = {
-			type: "select",
-			table: query.table,
-			select: query.select!,
-			where: { id: { $in: recordIds.map((r) => r.id) } } as WhereClause<T>,
-			...(query.populate !== undefined && { populate: query.populate }),
-		};
-
-		const results = await this.executeSelect<T>(selectQuery, schema, {
-			noDispatcher: true,
-		});
-
-		return results;
 	}
 
 	/**
-	 * Execute query with optional dispatcher hooks
+	 * Wraps a handler with dispatcher lifecycle: buildContext → onBefore → handler → onAfter.
+	 * If noDispatcher is true, skips all hooks and runs handler directly.
 	 */
-	private async executeWithDispatcher<T extends ForjaEntry, R>(
+	private async withLifecycle<TQuery extends QueryObject<ForjaEntry>, TResult>(
 		action: QueryAction,
 		schema: SchemaDefinition,
-		query: QueryObject<T>,
 		noDispatcher: boolean,
-		handler: (q: QueryObject<T>) => Promise<R>,
-	): Promise<R> {
-		try {
-			if (noDispatcher) {
-				// Raw mode: Execute directly (no hooks)
-				return await handler(query);
-			}
+		query: TQuery,
+		handler: (modifiedQuery: TQuery) => Promise<TResult>,
+	): Promise<TResult> {
+		const dispatcher = this.getDispatcher();
+		const context = noDispatcher
+			? null
+			: await dispatcher.buildQueryContext(action, schema);
+		const modifiedQuery = context
+			? ((await dispatcher.dispatchBeforeQuery(query, context)) as TQuery)
+			: query;
 
-			// Normal mode: Execute with hooks
-			return await this.getDispatcher().executeQuery<T, R>(
-				action,
-				schema,
-				query,
-				handler,
-			);
-		} catch (error) {
-			if (error instanceof ForjaAdapterError) throw error;
+		const result = await handler(modifiedQuery);
 
-			const cause = error instanceof Error ? error : undefined;
-			throwCrudError({
-				operation: action,
-				model: schema.name,
-				code: "QUERY_EXECUTION_FAILED",
-				cause,
-			});
+		if (context) {
+			return dispatcher.dispatchAfterQuery<TResult>(result, context);
 		}
+
+		return result;
 	}
 
 	/**

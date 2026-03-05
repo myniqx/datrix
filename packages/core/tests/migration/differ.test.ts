@@ -18,7 +18,7 @@ describe("SchemaDiffer - Happy Path", () => {
 		it("should return no changes for identical schemas", () => {
 			const schemasObj = { users: schemas.usersBasic };
 
-			const comparison = expectSuccessData(
+			const comparison = expectSuccessData(() =>
 				differ.compare(schemasObj, schemasObj),
 			);
 
@@ -27,7 +27,7 @@ describe("SchemaDiffer - Happy Path", () => {
 		});
 
 		it("should handle empty schema collections", () => {
-			const comparison = expectSuccessData(differ.compare({}, {}));
+			const comparison = expectSuccessData(() => differ.compare({}, {}));
 
 			expect(comparison.hasChanges).toBe(false);
 			expect(comparison.differences).toHaveLength(0);
@@ -41,7 +41,7 @@ describe("SchemaDiffer - Happy Path", () => {
 				users: schemas.usersBasic,
 			};
 
-			const comparison = expectSuccessData(
+			const comparison = expectSuccessData(() =>
 				differ.compare(oldSchemas, newSchemas),
 			);
 
@@ -61,7 +61,7 @@ describe("SchemaDiffer - Happy Path", () => {
 			};
 			const newSchemas: Record<string, SchemaDefinition> = {};
 
-			const comparison = expectSuccessData(
+			const comparison = expectSuccessData(() =>
 				differ.compare(oldSchemas, newSchemas),
 			);
 
@@ -83,7 +83,7 @@ describe("SchemaDiffer - Happy Path", () => {
 				posts: schemas.postsBasic,
 			};
 
-			const comparison = expectSuccessData(
+			const comparison = expectSuccessData(() =>
 				differ.compare(oldSchemas, newSchemas),
 			);
 
@@ -101,7 +101,7 @@ describe("SchemaDiffer - Happy Path", () => {
 				empty: schemas.emptySchema,
 			};
 
-			const comparison = expectSuccessData(
+			const comparison = expectSuccessData(() =>
 				differ.compare(oldSchemas, newSchemas),
 			);
 
@@ -122,7 +122,7 @@ describe("SchemaDiffer - Happy Path", () => {
 			};
 			const newSchemas: Record<string, SchemaDefinition> = {};
 
-			const comparison = expectSuccessData(
+			const comparison = expectSuccessData(() =>
 				differ.compare(oldSchemas, newSchemas),
 			);
 
@@ -146,7 +146,7 @@ describe("SchemaDiffer - Happy Path", () => {
 				users: schemas.usersWithEmail,
 			};
 
-			const comparison = expectSuccessData(
+			const comparison = expectSuccessData(() =>
 				differ.compare(oldSchemas, newSchemas),
 			);
 
@@ -171,7 +171,7 @@ describe("SchemaDiffer - Happy Path", () => {
 				users: schemas.usersBasic,
 			};
 
-			const comparison = expectSuccessData(
+			const comparison = expectSuccessData(() =>
 				differ.compare(oldSchemas, newSchemas),
 			);
 
@@ -194,7 +194,7 @@ describe("SchemaDiffer - Happy Path", () => {
 				users: schemas.usersAgeRequired,
 			};
 
-			const comparison = expectSuccessData(
+			const comparison = expectSuccessData(() =>
 				differ.compare(oldSchemas, newSchemas),
 			);
 
@@ -233,7 +233,7 @@ describe("SchemaDiffer - Happy Path", () => {
 				},
 			};
 
-			const comparison = expectSuccessData(
+			const comparison = expectSuccessData(() =>
 				differ.compare(oldSchemas, newSchemas),
 			);
 
@@ -265,7 +265,7 @@ describe("SchemaDiffer - Happy Path", () => {
 				},
 			};
 
-			const comparison = expectSuccessData(
+			const comparison = expectSuccessData(() =>
 				differ.compare(oldSchemas, newSchemas),
 			);
 
@@ -288,7 +288,7 @@ describe("SchemaDiffer - Happy Path", () => {
 				users: schemas.usersWithDifferentConstraints,
 			};
 
-			const comparison = expectSuccessData(
+			const comparison = expectSuccessData(() =>
 				differ.compare(oldSchemas, newSchemas),
 			);
 
@@ -330,7 +330,7 @@ describe("SchemaDiffer - Happy Path", () => {
 				},
 			};
 
-			const comparison = expectSuccessData(
+			const comparison = expectSuccessData(() =>
 				differ.compare(oldSchemas, newSchemas),
 			);
 
@@ -376,7 +376,7 @@ describe("SchemaDiffer - Happy Path", () => {
 				},
 			};
 
-			const comparison = expectSuccessData(
+			const comparison = expectSuccessData(() =>
 				differ.compare(oldSchemas, newSchemas),
 			);
 
@@ -420,7 +420,7 @@ describe("SchemaDiffer - Happy Path", () => {
 				},
 			};
 
-			const comparison = expectSuccessData(
+			const comparison = expectSuccessData(() =>
 				differ.compare(oldSchemas, newSchemas),
 			);
 
@@ -474,7 +474,7 @@ describe("SchemaDiffer - Happy Path", () => {
 				},
 			};
 
-			const comparison = expectSuccessData(
+			const comparison = expectSuccessData(() =>
 				differ.compare(oldSchemas, newSchemas),
 			);
 
@@ -527,7 +527,7 @@ describe("SchemaDiffer - Happy Path", () => {
 				},
 			};
 
-			const comparison = expectSuccessData(
+			const comparison = expectSuccessData(() =>
 				differ.compare(oldSchemas, newSchemas),
 			);
 
@@ -568,7 +568,7 @@ describe("SchemaDiffer - Happy Path", () => {
 				},
 			};
 
-			const comparison = expectSuccessData(
+			const comparison = expectSuccessData(() =>
 				differ.compare(oldSchemas, newSchemas),
 			);
 
@@ -601,7 +601,7 @@ describe("SchemaDiffer - Happy Path", () => {
 				},
 			};
 
-			const comparison = expectSuccessData(
+			const comparison = expectSuccessData(() =>
 				differ.compare(oldSchemas, newSchemas),
 			);
 
@@ -638,7 +638,7 @@ describe("SchemaDiffer - Happy Path", () => {
 				users: schemas.usersWithIndex,
 			};
 
-			const comparison = expectSuccessData(
+			const comparison = expectSuccessData(() =>
 				differ.compare(oldSchemas, newSchemas),
 			);
 
@@ -673,7 +673,7 @@ describe("SchemaDiffer - Happy Path", () => {
 				},
 			};
 
-			const comparison = expectSuccessData(
+			const comparison = expectSuccessData(() =>
 				differ.compare(oldSchemas, newSchemas),
 			);
 
@@ -713,7 +713,7 @@ describe("SchemaDiffer - Happy Path", () => {
 				},
 			};
 
-			const comparison = expectSuccessData(
+			const comparison = expectSuccessData(() =>
 				differ.compare(oldSchemas, newSchemas),
 			);
 
@@ -761,7 +761,7 @@ describe("SchemaDiffer - Happy Path", () => {
 				},
 			};
 
-			const comparison = expectSuccessData(
+			const comparison = expectSuccessData(() =>
 				differ.compare(oldSchemas, newSchemas),
 			);
 
@@ -798,7 +798,7 @@ describe("SchemaDiffer - Happy Path", () => {
 				comments: schemas.commentsBasic,
 			};
 
-			const comparison = expectSuccessData(
+			const comparison = expectSuccessData(() =>
 				differ.compare(oldSchemas, newSchemas),
 			);
 
@@ -922,7 +922,7 @@ describe("SchemaDiffer - Happy Path", () => {
 			};
 
 			const startTime = Date.now();
-			const comparison = expectSuccessData(
+			const comparison = expectSuccessData(() =>
 				differ.compare(oldSchemas, newSchemas),
 			);
 			const duration = Date.now() - startTime;
@@ -942,10 +942,10 @@ describe("SchemaDiffer - Happy Path", () => {
 			const oldSchemas = { users: schemas.usersBasic };
 			const newSchemas = { users: schemas.usersWithEmail };
 
-			const firstComparison = expectSuccessData(
+			const firstComparison = expectSuccessData(() =>
 				differ.compare(oldSchemas, newSchemas),
 			);
-			const secondComparison = expectSuccessData(
+			const secondComparison = expectSuccessData(() =>
 				differ.compare(oldSchemas, newSchemas),
 			);
 
@@ -960,7 +960,7 @@ describe("SchemaDiffer - Happy Path", () => {
 			const oldSchemasBackup = JSON.parse(JSON.stringify(oldSchemas));
 			const newSchemasBackup = JSON.parse(JSON.stringify(newSchemas));
 
-			expectSuccessData(differ.compare(oldSchemas, newSchemas));
+			expectSuccessData(() => differ.compare(oldSchemas, newSchemas));
 
 			expect(oldSchemas).toEqual(oldSchemasBackup);
 			expect(newSchemas).toEqual(newSchemasBackup);
