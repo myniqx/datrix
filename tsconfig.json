@@ -54,6 +54,5 @@
 		/* Completeness */
 		"skipLibCheck": true
 	},
-	"include": ["packages/*/src/**/*", "tests/**/*"],
 	"exclude": ["node_modules", "dist", "build", "examples"]
 }
