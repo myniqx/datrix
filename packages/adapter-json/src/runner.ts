@@ -367,17 +367,6 @@ export class JsonQueryRunner {
 				return false;
 			}
 
-			// The FK stored in relationField may use the default naming (schemaName + "Id"),
-			// but the actual column in the target table may have a different name (e.g. "authorId"
-			// instead of "userId"). Find the real FK by looking at the target schema's belongsTo
-			// field that references the current model.
-			const currentModelName = this.schema?.name ?? "";
-			const resolvedForeignKey = this.resolveForeignKeyInTarget(
-				targetSchema,
-				currentModelName,
-				foreignKey,
-			);
-
 			const targetTable =
 				targetSchema.tableName ?? targetModelName.toLowerCase();
 			const targetTableData = await this.adapter.getCachedTable(targetTable);
@@ -385,13 +374,15 @@ export class JsonQueryRunner {
 				return false;
 			}
 
-			// Find any related record matching the nested WHERE
+			// Use the foreignKey directly from the relation definition.
+			// Schema authors must specify explicit foreignKey when the inverse
+			// belongsTo uses a different name (e.g. foreignKey: "authorId").
 			const relatedRecords = (
 				targetTableData.data as Record<string, unknown>[]
 			).filter(
 				(r) =>
-					r[resolvedForeignKey] === sourceId ||
-					r[resolvedForeignKey] === Number(sourceId),
+					r[foreignKey] === sourceId ||
+					r[foreignKey] === Number(sourceId),
 			);
 
 			for (const related of relatedRecords) {
@@ -504,28 +495,6 @@ export class JsonQueryRunner {
 		} catch {
 			return null;
 		}
-	}
-
-	/**
-	 * Resolve the actual FK column name in a target schema for a hasMany/hasOne relation.
-	 *
-	 * Registry generates a default FK using "sourceModelName + Id", but the target schema
-	 * may have a belongsTo field with a custom FK name (e.g. "authorId" instead of "userId").
-	 * This method finds the correct FK by scanning the target schema's belongsTo fields.
-	 */
-	private resolveForeignKeyInTarget(
-		targetSchema: SchemaDefinition,
-		sourceModelName: string,
-		fallbackForeignKey: string,
-	): string {
-		for (const fieldDef of Object.values(targetSchema.fields)) {
-			if (fieldDef.type !== "relation") continue;
-			const rel = fieldDef as import("forja-types/core/schema").RelationField;
-			if (rel.kind !== "belongsTo" && rel.kind !== "hasOne") continue;
-			if (rel.model !== sourceModelName) continue;
-			if (rel.foreignKey) return rel.foreignKey;
-		}
-		return fallbackForeignKey;
 	}
 
 	private compareValues(

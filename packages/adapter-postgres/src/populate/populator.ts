@@ -5,11 +5,12 @@
  * Decides strategy based on query complexity and executes accordingly.
  */
 
-import type { Pool, PoolClient } from "pg";
 import type {
 	QueryPopulate,
+	QueryPopulateOptions,
 	QuerySelectObject,
 } from "forja-types/core/query-builder";
+import type { PgClient } from "../pg-client";
 import type { SchemaRegistry } from "forja-core/schema";
 import type { PostgresQueryTranslator } from "../query-translator";
 import type { PopulateStrategy, PopulateOptionsAnalysis } from "./types";
@@ -48,7 +49,7 @@ export class PostgresPopulator {
 	private resultProcessor: ResultProcessor;
 
 	constructor(
-		private pool: Pool | PoolClient,
+		private client: PgClient,
 		private translator: PostgresQueryTranslator,
 		private schemaRegistry: SchemaRegistry,
 	) {
@@ -129,7 +130,7 @@ export class PostgresPopulator {
 		// Execute query
 		const { sql, params } = this.translator.translate(modifiedQuery);
 		try {
-			const result = await this.pool.query(sql, params as unknown[]);
+			const result = await this.client.query(sql, params as unknown[]);
 
 			// Process results (parse JSON fields)
 			const processed = this.resultProcessor.processJsonAggregation<T>(
@@ -184,7 +185,7 @@ export class PostgresPopulator {
 		// Execute query
 		const { sql, params } = this.translator.translate(modifiedQuery);
 		try {
-			const result = await this.pool.query(sql, params as unknown[]);
+			const result = await this.client.query(sql, params as unknown[]);
 
 			// Process results (parse JSON fields)
 			const processed = this.resultProcessor.processJsonAggregation<T>(
@@ -225,17 +226,15 @@ export class PostgresPopulator {
 		const schema = this.schemaRegistry.get(modelName);
 		if (!schema) return [];
 
-		// Collect FK columns needed for belongsTo/hasOne relations so they
+		// Collect FK columns needed for belongsTo relations so they
 		// are present in the main query result even though they are hidden fields.
+		// Note: hasOne FK lives in the TARGET table, not the source table.
 		const fkColumnsNeeded: string[] = [];
 		for (const [relationName, _opts] of Object.entries(query.populate ?? {})) {
 			const relationField = schema.fields[relationName];
 			if (!relationField || relationField.type !== "relation") continue;
 			const rel = relationField as { kind: string; foreignKey?: string };
-			if (
-				(rel.kind === "belongsTo" || rel.kind === "hasOne") &&
-				rel.foreignKey
-			) {
+			if (rel.kind === "belongsTo" && rel.foreignKey) {
 				fkColumnsNeeded.push(rel.foreignKey);
 			}
 		}
@@ -256,7 +255,7 @@ export class PostgresPopulator {
 
 		let rows: T[];
 		try {
-			const mainResult = await this.pool.query(sql, params as unknown[]);
+			const mainResult = await this.client.query(sql, params as unknown[]);
 			rows = mainResult.rows as T[];
 		} catch (error) {
 			throwPopulateQueryError({
@@ -277,7 +276,7 @@ export class PostgresPopulator {
 
 		for (const [relationName, _options] of Object.entries(query.populate!)) {
 			const relationField = schema.fields[relationName];
-			const options = _options as QueryPopulate<T>;
+			const options = _options as QueryPopulateOptions<ForjaEntry>;
 			if (!relationField || relationField.type !== "relation") continue;
 
 			const relation = relationField as {
@@ -295,19 +294,20 @@ export class PostgresPopulator {
 			let batchQuery: string;
 			let fkColumn: string;
 
-			if (relation.kind === "belongsTo" || relation.kind === "hasOne") {
+			if (relation.kind === "belongsTo") {
 				fkColumn = relation.foreignKey!;
 				const fkValues = rows
 					.map((row) => row[fkColumn as keyof T])
 					.filter((v) => v != null);
+				const rowToJson = this.buildSelectiveRowToJson(options.select as readonly string[], relation.model, options);
 				batchQuery = `
-          SELECT t."id" as _fk, row_to_json(t.*) as data
+          SELECT t."id" as _fk, ${rowToJson} as data
           FROM ${this.translator.escapeIdentifier(targetTable)} t
           WHERE t."id" = ANY($1)
         `;
 				let batchResult;
 				try {
-					batchResult = await this.pool.query(batchQuery, [fkValues]);
+					batchResult = await this.client.query(batchQuery, [fkValues]);
 				} catch (error) {
 					throwPopulateQueryError({
 						adapter: "postgres",
@@ -342,16 +342,62 @@ export class PostgresPopulator {
 					// Remove the hidden FK column injected for this lookup
 					delete row[fkColumn as keyof T];
 				}
+			} else if (relation.kind === "hasOne") {
+				// hasOne: FK is in the TARGET table (like hasMany but single result)
+				fkColumn = relation.foreignKey!;
+				const hasOneRowToJson = this.buildSelectiveRowToJson(options.select as readonly string[], relation.model, options);
+				batchQuery = `
+          SELECT t.${this.translator.escapeIdentifier(fkColumn)} as _fk, ${hasOneRowToJson} as data
+          FROM ${this.translator.escapeIdentifier(targetTable)} t
+          WHERE t.${this.translator.escapeIdentifier(fkColumn)} = ANY($1)
+        `;
+				let batchResult;
+				try {
+					batchResult = await this.client.query(batchQuery, [parentIds]);
+				} catch (error) {
+					throwPopulateQueryError({
+						adapter: "postgres",
+						query,
+						sql: batchQuery,
+						cause: error instanceof Error ? error : new Error(String(error)),
+						strategy: "batched-queries",
+						queryParams: [parentIds],
+					});
+				}
+
+				let relatedRows: ForjaEntry[] = batchResult.rows.map(
+					(r) => ({ ...(r.data as ForjaEntry), _fk: r._fk }),
+				);
+
+				// Recursive nested populate
+				const nestedPopulate = options?.["populate"];
+				if (nestedPopulate && relatedRows.length > 0) {
+					relatedRows = await this.populateBatchedRows<T>(
+						relatedRows,
+						targetTable,
+						nestedPopulate,
+					);
+				}
+
+				const dataMap = new Map(
+					relatedRows.map((r) => [(r as ForjaEntry & { _fk: number })._fk, r]),
+				);
+
+				for (const row of rows) {
+					row[relationName as keyof T] = (dataMap.get(row.id) ||
+						null) as T[keyof T];
+				}
 			} else if (relation.kind === "hasMany") {
 				fkColumn = relation.foreignKey!;
+				const hasManyRowToJson = this.buildSelectiveRowToJson(options.select as readonly string[], relation.model, options);
 				batchQuery = `
-          SELECT t."${fkColumn}" as _fk, row_to_json(t.*) as data
+          SELECT t."${fkColumn}" as _fk, ${hasManyRowToJson} as data
           FROM ${this.translator.escapeIdentifier(targetTable)} t
           WHERE t."${fkColumn}" = ANY($1)
         `;
 				let batchResult;
 				try {
-					batchResult = await this.pool.query(batchQuery, [parentIds]);
+					batchResult = await this.client.query(batchQuery, [parentIds]);
 				} catch (error) {
 					throwPopulateQueryError({
 						adapter: "postgres",
@@ -394,8 +440,9 @@ export class PostgresPopulator {
 				const sourceFK = `${schema.name}Id`;
 				const targetFK = `${relation.model}Id`;
 
+				const m2mRowToJson = this.buildSelectiveRowToJson(options.select as readonly string[], relation.model, options);
 				batchQuery = `
-          SELECT j."${sourceFK}" as _fk, row_to_json(t.*) as data
+          SELECT j."${sourceFK}" as _fk, ${m2mRowToJson} as data
           FROM ${this.translator.escapeIdentifier(targetTable)} t
           INNER JOIN ${this.translator.escapeIdentifier(junctionTable)} j
             ON t."id" = j."${targetFK}"
@@ -403,7 +450,7 @@ export class PostgresPopulator {
         `;
 				let batchResult;
 				try {
-					batchResult = await this.pool.query(batchQuery, [parentIds]);
+					batchResult = await this.client.query(batchQuery, [parentIds]);
 				} catch (error) {
 					throwPopulateQueryError({
 						adapter: "postgres",
@@ -463,8 +510,9 @@ export class PostgresPopulator {
 		const schema = this.schemaRegistry.get(modelName);
 		if (!schema) return rows;
 
-		for (const [relationName, options] of Object.entries(populate)) {
+		for (const [relationName, _opts] of Object.entries(populate)) {
 			const relationField = schema.fields[relationName];
+			const opts = _opts as QueryPopulateOptions<ForjaEntry>;
 			if (!relationField || relationField.type !== "relation") continue;
 
 			const relation = relationField as {
@@ -479,7 +527,9 @@ export class PostgresPopulator {
 			const targetTable =
 				targetSchema.tableName ?? relation.model.toLowerCase();
 
-			if (relation.kind === "belongsTo" || relation.kind === "hasOne") {
+			const nestedRowToJson = this.buildSelectiveRowToJson(opts.select as readonly string[], relation.model, opts);
+
+			if (relation.kind === "belongsTo") {
 				const fkColumn = relation.foreignKey!;
 				const fkValues = rows
 					.map((row) => row[fkColumn as keyof T])
@@ -488,17 +538,17 @@ export class PostgresPopulator {
 				if (fkValues.length === 0) continue;
 
 				const batchQuery = `
-          SELECT t."id" as _fk, row_to_json(t.*) as data
+          SELECT t."id" as _fk, ${nestedRowToJson} as data
           FROM ${this.translator.escapeIdentifier(targetTable)} t
           WHERE t."id" = ANY($1)
         `;
-				const batchResult = await this.pool.query(batchQuery, [fkValues]);
+				const batchResult = await this.client.query(batchQuery, [fkValues]);
 
 				let relatedRows: ForjaEntry[] = batchResult.rows.map(
 					(r) => r.data as ForjaEntry,
 				);
 
-				const nestedPopulate = options?.["populate"];
+				const nestedPopulate = opts.populate;
 				if (nestedPopulate && relatedRows.length > 0) {
 					relatedRows = await this.populateBatchedRows(
 						relatedRows,
@@ -514,23 +564,54 @@ export class PostgresPopulator {
 						null) as T[keyof T];
 					delete row[fkColumn as keyof T];
 				}
+			} else if (relation.kind === "hasOne") {
+				const fkColumn = relation.foreignKey!;
+				const nestedParentIds = rows.map((r) => r.id);
+
+				const batchQuery = `
+          SELECT t.${this.translator.escapeIdentifier(fkColumn)} as _fk, ${nestedRowToJson} as data
+          FROM ${this.translator.escapeIdentifier(targetTable)} t
+          WHERE t.${this.translator.escapeIdentifier(fkColumn)} = ANY($1)
+        `;
+				const batchResult = await this.client.query(batchQuery, [nestedParentIds]);
+
+				let relatedRows: ForjaEntry[] = batchResult.rows.map(
+					(r) => ({ ...(r.data as ForjaEntry), _fk: r._fk }),
+				);
+
+				const nestedPopulate = opts.populate;
+				if (nestedPopulate && relatedRows.length > 0) {
+					relatedRows = await this.populateBatchedRows(
+						relatedRows,
+						targetTable,
+						nestedPopulate as QueryPopulate<ForjaEntry>,
+					);
+				}
+
+				const dataMap = new Map(
+					relatedRows.map((r) => [(r as ForjaEntry & { _fk: number })._fk, r]),
+				);
+				for (const row of rows) {
+					row[relationName as keyof T] = (dataMap.get(row.id) ||
+						null) as T[keyof T];
+				}
 			} else if (relation.kind === "hasMany") {
 				const fkColumn = relation.foreignKey!;
 				const parentIds = rows.map((r) => r.id);
 
 				const batchQuery = `
-          SELECT t."${fkColumn}" as _fk, row_to_json(t.*) as data
+          SELECT t."${fkColumn}" as _fk, ${nestedRowToJson} as data
           FROM ${this.translator.escapeIdentifier(targetTable)} t
           WHERE t."${fkColumn}" = ANY($1)
         `;
-				const batchResult = await this.pool.query(batchQuery, [parentIds]);
+				const batchResult = await this.client.query(batchQuery, [parentIds]);
 
 				let allRelatedRows: ForjaEntry[] = batchResult.rows.map((r) => ({
 					...(r.data as ForjaEntry),
 					_fk: r._fk,
 				}));
 
-				const nestedPopulate = options?.["populate"];
+				const nestedPopulate = opts.populate;
 				if (nestedPopulate && allRelatedRows.length > 0) {
 					allRelatedRows = await this.populateBatchedRows(
 						allRelatedRows,
@@ -556,20 +637,20 @@ export class PostgresPopulator {
 				const parentIds = rows.map((r) => r.id);
 
 				const batchQuery = `
-          SELECT j."${sourceFK}" as _fk, row_to_json(t.*) as data
+          SELECT j."${sourceFK}" as _fk, ${nestedRowToJson} as data
           FROM ${this.translator.escapeIdentifier(targetTable)} t
           INNER JOIN ${this.translator.escapeIdentifier(junctionTable)} j
             ON t."id" = j."${targetFK}"
           WHERE j."${sourceFK}" = ANY($1)
         `;
-				const batchResult = await this.pool.query(batchQuery, [parentIds]);
+				const batchResult = await this.client.query(batchQuery, [parentIds]);
 
 				let allRelatedRows: ForjaEntry[] = batchResult.rows.map((r) => ({
 					...(r.data as ForjaEntry),
 					_fk: r._fk,
 				}));
 
-				const nestedPopulate = options?.["populate"];
+				const nestedPopulate = opts.populate;
 				if (nestedPopulate && allRelatedRows.length > 0) {
 					allRelatedRows = await this.populateBatchedRows(
 						allRelatedRows,
@@ -745,6 +826,59 @@ export class PostgresPopulator {
 
 		// Default: JSON aggregation (subquery-based)
 		return "json-aggregation";
+	}
+
+	/**
+	 * Collect FK columns needed by nested populate (belongsTo/hasOne).
+	 * These must be included in the row_to_json so recursive populate can use them.
+	 */
+	private collectNestedFkColumns(
+		targetModel: string,
+		opts: QueryPopulateOptions<ForjaEntry>,
+	): readonly string[] {
+		if (!opts.populate) return [];
+
+		const targetSchema = this.schemaRegistry.get(targetModel);
+		if (!targetSchema) return [];
+
+		const fkColumns: string[] = [];
+		for (const [relName] of Object.entries(opts.populate)) {
+			const relField = targetSchema.fields[relName];
+			if (!relField || relField.type !== "relation") continue;
+			const rel = relField as { kind: string; foreignKey?: string };
+			if (rel.kind === "belongsTo" && rel.foreignKey) {
+				fkColumns.push(rel.foreignKey);
+			}
+		}
+		return fkColumns;
+	}
+
+	/**
+	 * Build row_to_json with specific fields instead of t.*
+	 * Automatically injects FK columns needed by nested populate.
+	 * Returns: row_to_json((SELECT r FROM (SELECT t."id", t."name") r))
+	 */
+	private buildSelectiveRowToJson(
+		select: readonly string[],
+		targetModel?: string,
+		opts?: QueryPopulateOptions<ForjaEntry>,
+	): string {
+		const allFields = [...select];
+
+		// Inject FK columns needed for nested populate
+		if (targetModel && opts) {
+			const fkColumns = this.collectNestedFkColumns(targetModel, opts);
+			for (const fk of fkColumns) {
+				if (!allFields.includes(fk)) {
+					allFields.push(fk);
+				}
+			}
+		}
+
+		const fields = allFields
+			.map((field) => `t.${this.translator.escapeIdentifier(field as string)}`)
+			.join(", ");
+		return `row_to_json((SELECT r FROM (SELECT ${fields}) r))`;
 	}
 
 	/**

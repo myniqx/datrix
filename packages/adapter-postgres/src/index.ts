@@ -33,4 +33,5 @@ export type {
 	ProcessedResult,
 } from "./populate";
 
+export { PgClient } from "./pg-client";
 export { ForjaAdapterError } from "forja-types/errors/adapter";

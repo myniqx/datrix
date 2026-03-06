@@ -69,8 +69,8 @@ export async function getAdapter(
 			// Parse connection config from env
 			const host = process.env["POSTGRES_HOST"] ?? "localhost";
 			const port = parseInt(process.env["POSTGRES_PORT"] ?? "5432", 10);
-			const user = process.env["POSTGRES_USER"] ?? "postgres";
-			const password = process.env["POSTGRES_PASSWORD"] ?? "postgres";
+			const user = process.env["POSTGRES_USER"] ?? "forja_test";
+			const password = process.env["POSTGRES_PASSWORD"] ?? "forja_test";
 
 			// Create fresh database
 			await createPostgresTestDatabase(dbName, { host, port, user, password });
@@ -137,5 +137,5 @@ export function getAdapterType(): AdapterType {
 	) {
 		return adapterEnv;
 	}
-	return "json"; // Default
+	return "postgres"; // Default
 }

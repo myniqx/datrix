@@ -75,22 +75,23 @@ describe("PostgreSQL Types", () => {
 
 	describe("Type Modifiers", () => {
 		it("should apply VARCHAR with maxLength for string", () => {
-			const result = getPostgresTypeWithModifiers("string", { maxLength: 255 });
+			const result = getPostgresTypeWithModifiers({ type: "string", maxLength: 255 });
 			expect(result).toBe("VARCHAR(255)");
 		});
 
 		it("should keep TEXT for string without maxLength", () => {
-			const result = getPostgresTypeWithModifiers("string");
+			const result = getPostgresTypeWithModifiers({ type: "string" });
 			expect(result).toBe("TEXT");
 		});
 
 		it("should apply NUMERIC with precision for number", () => {
-			const result = getPostgresTypeWithModifiers("number", { precision: 10 });
+			const result = getPostgresTypeWithModifiers({ type: "number", precision: 10 });
 			expect(result).toBe("NUMERIC(10)");
 		});
 
 		it("should apply NUMERIC with precision and scale for number", () => {
-			const result = getPostgresTypeWithModifiers("number", {
+			const result = getPostgresTypeWithModifiers({
+				type: "number",
 				precision: 10,
 				scale: 2,
 			});
@@ -98,17 +99,26 @@ describe("PostgreSQL Types", () => {
 		});
 
 		it("should keep DOUBLE PRECISION for number without modifiers", () => {
-			const result = getPostgresTypeWithModifiers("number");
+			const result = getPostgresTypeWithModifiers({ type: "number" });
 			expect(result).toBe("DOUBLE PRECISION");
 		});
 
+		it("should return INTEGER for number with references", () => {
+			const result = getPostgresTypeWithModifiers({
+				type: "number",
+				references: { table: "users", column: "id" },
+			});
+			expect(result).toBe("INTEGER");
+		});
+
 		it("should add array brackets for array modifier", () => {
-			const result = getPostgresTypeWithModifiers("string", { array: true });
+			const result = getPostgresTypeWithModifiers({ type: "string", array: true });
 			expect(result).toBe("TEXT[]");
 		});
 
 		it("should handle VARCHAR with maxLength and array together", () => {
-			const result = getPostgresTypeWithModifiers("string", {
+			const result = getPostgresTypeWithModifiers({
+				type: "string",
 				maxLength: 50,
 				array: true,
 			});

@@ -405,6 +405,8 @@ export class PostgresQueryTranslator implements QueryTranslator {
 
 			if (uniqueWhereJoins.length > 0) {
 				parts.push(uniqueWhereJoins.join(" "));
+				// WHERE JOINs (especially manyToMany) can produce duplicate rows
+				parts[0] = parts[0]!.replace("SELECT", "SELECT DISTINCT");
 			}
 		}
 
@@ -857,6 +859,8 @@ export class PostgresQueryTranslator implements QueryTranslator {
 							continue;
 						} else {
 							// Complex nested relation filtering - requires JOIN
+							const relKind = relationField.kind;
+
 							// Lookup target schema ONCE for nested level
 							const targetSchema = this.schemaRegistry.get(
 								relationField.model!,
@@ -871,29 +875,54 @@ export class PostgresQueryTranslator implements QueryTranslator {
 
 							const targetTable =
 								targetSchema.tableName ?? relationField.model!.toLowerCase();
-							const foreignKey = relationField.foreignKey!;
 
 							const sourceTableEsc = this.escapeIdentifier(
 								currentTableAlias || tableName!,
 							);
 							const targetTableEsc = this.escapeIdentifier(targetTable);
 							const relationAlias = this.escapeIdentifier(key);
-							const foreignKeyEsc = this.escapeIdentifier(foreignKey);
 
 							// Generate JOIN based on relation kind
 							let joinSQL: string;
-							const relKind = (relationField as any).kind;
 
 							if (relKind === "belongsTo") {
+								const foreignKeyEsc = this.escapeIdentifier(relationField.foreignKey!);
 								// Source has FK: source.foreignKey = target.id
 								joinSQL = `LEFT JOIN ${targetTableEsc} AS ${relationAlias} ON ${sourceTableEsc}.${foreignKeyEsc} = ${relationAlias}."id"`;
 							} else if (relKind === "hasOne" || relKind === "hasMany") {
+								const foreignKeyEsc = this.escapeIdentifier(relationField.foreignKey!);
 								// Target has FK: source.id = target.foreignKey
 								joinSQL = `LEFT JOIN ${targetTableEsc} AS ${relationAlias} ON ${sourceTableEsc}."id" = ${relationAlias}.${foreignKeyEsc}`;
+							} else if (relKind === "manyToMany") {
+								// ManyToMany: requires junction table
+								const junctionTable = relationField.through!;
+								const currentModelName = this.schemaRegistry.findModelByTableName(
+									tableName!,
+								);
+								const currentSchemaForFK = currentModelName
+									? this.schemaRegistry.get(currentModelName)
+									: currentSchema;
+								const sourceFK = `${currentSchemaForFK?.name ?? currentModelName}Id`;
+								const targetFK = `${relationField.model}Id`;
+
+								const junctionAlias = `${key}_junction`;
+								const junctionTableEsc = this.escapeIdentifier(junctionTable);
+								const junctionAliasEsc = this.escapeIdentifier(junctionAlias);
+								const sourceFKEsc = this.escapeIdentifier(sourceFK);
+								const targetFKEsc = this.escapeIdentifier(targetFK);
+
+								// Two JOINs: source -> junction -> target
+								const junctionJoin = `LEFT JOIN ${junctionTableEsc} AS ${junctionAliasEsc} ON ${sourceTableEsc}."id" = ${junctionAliasEsc}.${sourceFKEsc}`;
+								const targetJoin = `LEFT JOIN ${targetTableEsc} AS ${relationAlias} ON ${junctionAliasEsc}.${targetFKEsc} = ${relationAlias}."id"`;
+
+								if (joins && !joins.includes(junctionJoin)) {
+									joins.push(junctionJoin);
+								}
+								joinSQL = targetJoin;
 							} else {
 								throwQueryError({
 									adapter: "postgres",
-									message: `Relation kind '${relKind}' not yet supported for nested WHERE filtering`,
+									message: `Relation kind '${relKind}' not supported for nested WHERE filtering`,
 								});
 							}
 
@@ -903,7 +932,6 @@ export class PostgresQueryTranslator implements QueryTranslator {
 							}
 
 							// Recursively translate nested conditions with TARGET SCHEMA context
-							// THIS IS THE KEY: We pass targetSchema for the nested level!
 							const nestedCondition = this.translateWhereConditions(
 								nestedValue as WhereClause<T>,
 								depth + 1,

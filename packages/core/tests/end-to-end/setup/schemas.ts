@@ -190,6 +190,7 @@ export const userSchema = defineSchema({
 			type: "relation",
 			kind: "hasMany",
 			model: "post",
+			foreignKey: "authorId",
 		},
 	},
 	indexes: [

@@ -43,6 +43,7 @@ import {
 	FORJA_META_KEY_PREFIX,
 } from "forja-types/core/constants";
 import { PostgresPopulator } from "./populate";
+import { PgClient } from "./pg-client";
 
 /**
  * PostgreSQL adapter implementation
@@ -164,13 +165,14 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 			throwNotConnected({ adapter: "postgres" });
 		}
 
+		const pgClient = new PgClient(queryRunner!, query);
 		let lastSql: string | undefined;
 
 		try {
 			if (query.type === "select" && query.populate) {
 				const schemaRegistry = Forja.getInstance().getSchemas();
 				const populator = new PostgresPopulator(
-					queryRunner!,
+					pgClient,
 					this.getTranslator(),
 					schemaRegistry,
 				);
@@ -185,7 +187,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 
 			const { sql, params } = this.getTranslator().translate(query);
 			lastSql = sql;
-			const result = await queryRunner!.query<QueryResultRow>(
+			const result = await pgClient.query<QueryResultRow>(
 				sql,
 				params as unknown[],
 			);
@@ -370,7 +372,6 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 			const allDefinitions = [...columns, ...foreignKeyConstraints];
 			const sql = `CREATE TABLE ${tableName} (\n  ${allDefinitions.join(",\n  ")}\n)`;
 
-			console.log("Creating Schema", { sql });
 			await queryRunner!.query(sql);
 
 			if (schema.indexes && schema.indexes.length > 0) {
@@ -514,7 +515,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 
 					case "modifyColumn": {
 						const columnName = this.getTranslator().escapeIdentifier(op.column);
-						const pgType = getPostgresTypeWithModifiers(op.newDefinition.type);
+						const pgType = getPostgresTypeWithModifiers(op.newDefinition);
 						sql = `ALTER TABLE ${escapedTable} ALTER COLUMN ${columnName} TYPE ${pgType}`;
 						break;
 					}
@@ -878,14 +879,16 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 			return `${columnName} SERIAL PRIMARY KEY`;
 		}
 
-		const pgType = getPostgresTypeWithModifiers(field.type);
+		const pgType = getPostgresTypeWithModifiers(field);
 		const nullable = field.required ? " NOT NULL" : "";
 		const defaultValue =
 			field.default !== undefined
 				? ` DEFAULT ${this.getTranslator().escapeValue(field.default)}`
 				: "";
 
-		return `${columnName} ${pgType}${nullable}${defaultValue}`;
+		const unique = "unique" in field && field.unique ? " UNIQUE" : "";
+
+		return `${columnName} ${pgType}${nullable}${defaultValue}${unique}`;
 	}
 }
 

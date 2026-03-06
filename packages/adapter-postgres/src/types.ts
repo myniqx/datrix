@@ -5,7 +5,7 @@
  */
 
 import { QuerySelectObject } from "forja-types";
-import { FieldType, ForjaEntry } from "forja-types/core/schema";
+import { FieldDefinition, FieldType, ForjaEntry } from "forja-types/core/schema";
 import { PopulateStrategy } from "./populate";
 import { QueryPopulate } from "forja-types/core/query-builder";
 
@@ -148,34 +148,34 @@ export function getPostgresType(fieldType: FieldType): PostgresDataType {
 
 /**
  * Get PostgreSQL type with modifiers
+ *
+ * Accepts a full FieldDefinition to make accurate type decisions
+ * (e.g. foreign key number fields become INTEGER instead of DOUBLE PRECISION).
  */
-export function getPostgresTypeWithModifiers(
-	fieldType: FieldType,
-	options?: {
-		maxLength?: number;
-		precision?: number;
-		scale?: number;
-		array?: boolean;
-	},
-): string {
-	let pgType = getPostgresType(fieldType);
-
-	// Apply modifiers
-	if (fieldType === "string" && options?.maxLength) {
-		pgType = "VARCHAR";
-		return `${pgType}(${options.maxLength})`;
+export function getPostgresTypeWithModifiers(field: FieldDefinition): string {
+	// Foreign key columns must match the referenced column type (INTEGER)
+	if (field.type === "number" && field.references) {
+		return "INTEGER";
 	}
 
-	if (fieldType === "number" && options?.precision) {
+	let pgType = getPostgresType(field.type);
+
+	// Apply modifiers
+	if (field.type === "string" && "maxLength" in field && field.maxLength) {
+		pgType = "VARCHAR";
+		return `${pgType}(${field.maxLength})`;
+	}
+
+	if (field.type === "number" && "precision" in field && field.precision) {
 		pgType = "NUMERIC";
-		if (options.scale !== undefined) {
-			return `${pgType}(${options.precision}, ${options.scale})`;
+		if ("scale" in field && field.scale !== undefined) {
+			return `${pgType}(${field.precision}, ${field.scale})`;
 		}
-		return `${pgType}(${options.precision})`;
+		return `${pgType}(${field.precision})`;
 	}
 
 	// Handle arrays
-	if (options?.array) {
+	if ("array" in field && field.array) {
 		return `${pgType}[]`;
 	}
 

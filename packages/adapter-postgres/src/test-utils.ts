@@ -60,7 +60,9 @@ export async function createTestDatabase(
 
 		// Drop and create
 		await client.query(`DROP DATABASE IF EXISTS "${dbName}"`);
-		await client.query(`CREATE DATABASE "${dbName}"`);
+		await client.query(
+			`CREATE DATABASE "${dbName}" LC_COLLATE = 'C' LC_CTYPE = 'C' TEMPLATE = template0`,
+		);
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
 		throw new Error(`Failed to create test database: ${message}`);
