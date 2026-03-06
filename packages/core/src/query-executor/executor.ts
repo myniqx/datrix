@@ -14,7 +14,6 @@ import {
 	SchemaRegistry,
 	SchemaDefinition,
 	ForjaEntry,
-	RelationField,
 } from "forja-types/core/schema";
 import {
 	QueryObject,
@@ -180,57 +179,28 @@ export class QueryExecutor {
 				let returningResult: readonly T[];
 
 				try {
-					// 2. Pre-fetch: needed for returning results OR m2m cascade
-					const m2mRelations = Object.entries(schema.fields).filter(
-						([_, field]) =>
-							field.type === "relation" && field.kind === "manyToMany",
-					);
+					// 2. Pre-fetch rows if caller needs select/populate results
 					const needsReturnSelect =
 						!options.noReturning && (mq.select || mq.populate);
-					const needsPreFetch = needsReturnSelect || m2mRelations.length > 0;
 
 					let prefetchedRows: readonly T[] | undefined;
 
-					if (needsPreFetch) {
+					if (needsReturnSelect) {
 						const selectResult = await runner.executeQuery<T>({
 							type: "select",
 							table: mq.table,
 							where: mq.where,
 							select: mq.select ?? ["id"],
-							...(needsReturnSelect &&
-								mq.populate !== undefined && { populate: mq.populate }),
+							...(mq.populate !== undefined && { populate: mq.populate }),
 						});
 						prefetchedRows = selectResult.rows;
 					}
-
-					// 3. CASCADE DELETE: Clean up junction tables for manyToMany relations
-					if (
-						m2mRelations.length > 0 &&
-						prefetchedRows &&
-						prefetchedRows.length > 0
-					) {
-						const idsToDelete = prefetchedRows.map((r) => r.id);
-
-						for (const [_, field] of m2mRelations) {
-							const relation = field as RelationField;
-							const junctionTable = relation.through!;
-							const sourceForeignKey = `${schema.name}Id`;
-
-							await runner.executeQuery({
-								type: "delete",
-								table: junctionTable,
-								where: {
-									[sourceForeignKey]: { $in: idsToDelete },
-								},
-							});
-						}
-					}
-
-					// 4. Execute DELETE
+					// TODO: do we need transaction here?
+					// 3. Execute DELETE (junction cleanup handled by DB via ON DELETE CASCADE)
 					const deleteQueryResult = await runner.executeQuery<T>(mq);
 					deleteResult = deleteQueryResult.rows;
 
-					// 5. Commit transaction
+					// 4. Commit transaction
 					await commit();
 
 					returningResult = needsReturnSelect ? prefetchedRows! : deleteResult;

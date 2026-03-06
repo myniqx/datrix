@@ -687,7 +687,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 					handlerResult = await handleUpdate({ runner, query });
 					break;
 				case "delete":
-					handlerResult = await handleDelete({ runner, query });
+					handlerResult = await handleDelete({ runner, query, adapter: this });
 					break;
 			}
 

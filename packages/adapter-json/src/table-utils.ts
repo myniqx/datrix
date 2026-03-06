@@ -1,8 +1,13 @@
-import { ForjaEntry, SchemaDefinition } from "forja-types/core/schema";
+import {
+	ForjaEntry,
+	ForeignKeyReference,
+	SchemaDefinition,
+} from "forja-types/core/schema";
 import { QuerySelectObject } from "forja-types/core/query-builder";
 import { JsonTableFile } from "./types";
 import type { JsonAdapter } from "./adapter";
 import {
+	ForjaAdapterError,
 	throwForeignKeyConstraint,
 	throwMigrationError,
 	throwUniqueConstraintField,
@@ -197,6 +202,122 @@ export async function checkForeignKeyConstraints(
 				adapter: "json",
 			});
 		}
+	}
+}
+
+type FkDependency = {
+	tableName: string;
+	fieldName: string;
+	onDelete: NonNullable<ForeignKeyReference["onDelete"]>;
+};
+
+/**
+ * Find all FK fields across all tables that reference the given table.
+ */
+async function findFkDependencies(
+	targetTable: string,
+	adapter: JsonAdapter,
+): Promise<FkDependency[]> {
+	const allTables = await adapter.getTables();
+	const deps: FkDependency[] = [];
+
+	for (const tableName of allTables) {
+		const schema = await adapter.getSchemaByTableName(tableName);
+		if (!schema?.fields) continue;
+
+		for (const [fieldName, fieldDef] of Object.entries(schema.fields)) {
+			if (fieldDef.type !== "number") continue;
+
+			const numField = fieldDef as { references?: ForeignKeyReference };
+			const ref = numField.references;
+			if (!ref || ref.table !== targetTable) continue;
+
+			const onDelete = ref.onDelete ?? "setNull";
+			deps.push({ tableName, fieldName, onDelete });
+		}
+	}
+
+	return deps;
+}
+
+/**
+ * Apply ON DELETE actions for the JSON adapter before deleting rows.
+ * Mimics SQL FK ON DELETE behavior: restrict, setNull, cascade.
+ *
+ * Must be called BEFORE the actual delete.
+ * Uses adapter.executeQuery for transaction safety.
+ */
+export async function applyOnDeleteActions(
+	targetTable: string,
+	idsToDelete: ReadonlyArray<number>,
+	adapter: JsonAdapter,
+): Promise<void> {
+	if (idsToDelete.length === 0) return;
+
+	const deps = await findFkDependencies(targetTable, adapter);
+	if (deps.length === 0) return;
+
+	// Pass 1: Check restrict constraints
+	for (const dep of deps) {
+		if (dep.onDelete !== "restrict") continue;
+
+		const tableData = await adapter.getCachedTable(dep.tableName);
+		if (!tableData) continue;
+
+		const hasReference = tableData.data.some((row) =>
+			idsToDelete.includes(row[dep.fieldName] as number),
+		);
+
+		if (hasReference) {
+			throw new ForjaAdapterError(
+				`Cannot delete from '${targetTable}': referenced by '${dep.tableName}.${dep.fieldName}' with ON DELETE RESTRICT`,
+				{
+					adapter: "json",
+					code: "ADAPTER_FOREIGN_KEY_CONSTRAINT",
+					operation: "query",
+					context: {
+						table: targetTable,
+						referencedBy: `${dep.tableName}.${dep.fieldName}`,
+					},
+					suggestion: `Remove or update referencing rows in '${dep.tableName}' before deleting from '${targetTable}'`,
+				},
+			);
+		}
+	}
+
+	// Pass 2: Apply setNull
+	for (const dep of deps) {
+		if (dep.onDelete !== "setNull") continue;
+
+		await adapter.executeQuery({
+			type: "update",
+			table: dep.tableName,
+			where: { [dep.fieldName]: { $in: idsToDelete } },
+			data: { [dep.fieldName]: null },
+		});
+	}
+
+	// Pass 3: Apply cascade (recursive - child deletes trigger their own onDelete)
+	for (const dep of deps) {
+		if (dep.onDelete !== "cascade") continue;
+
+		const tableData = await adapter.getCachedTable(dep.tableName);
+		if (!tableData) continue;
+
+		const childIds = tableData.data
+			.filter((row) => idsToDelete.includes(row[dep.fieldName] as number))
+			.map((row) => row["id"] as number);
+
+		if (childIds.length === 0) continue;
+
+		// Recursive: apply onDelete for children before deleting them
+		await applyOnDeleteActions(dep.tableName, childIds, adapter);
+
+		await adapter.executeQuery({
+			type: "delete",
+			table: dep.tableName,
+			where: { id: { $in: childIds } },
+		});
 	}
 }
 

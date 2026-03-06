@@ -580,17 +580,38 @@ export class PostgresQueryTranslator implements QueryTranslator {
 				query.table,
 			);
 
-			// Add WHERE JOINs if any
+			// PostgreSQL UPDATE uses FROM instead of JOIN
+			// Convert "LEFT JOIN <table> AS <alias> ON <condition>" to FROM + WHERE
 			if (whereResult.joins.length > 0) {
-				parts.push(whereResult.joins.join(" "));
+				const fromTables: string[] = [];
+				const joinConditions: string[] = [];
+
+				for (const joinClause of whereResult.joins) {
+					const match = joinClause.match(
+						/LEFT JOIN\s+(.+?)\s+AS\s+(.+?)\s+ON\s+(.+)/,
+					);
+					if (match && match[1] && match[2] && match[3]) {
+						fromTables.push(`${match[1]} AS ${match[2]}`);
+						joinConditions.push(match[3]);
+					}
+				}
+
+				if (fromTables.length > 0) {
+					parts.push(`FROM ${fromTables.join(", ")}`);
+				}
+
+				const allConditions = [whereResult.sql, ...joinConditions];
+				parts.push(`WHERE ${allConditions.join(" AND ")}`);
+			} else {
+				parts.push(`WHERE ${whereResult.sql}`);
 			}
 
-			parts.push(`WHERE ${whereResult.sql}`);
 			this.paramIndex += whereResult.params.length;
 			this.params.push(...whereResult.params);
 		}
 
-		parts.push(`RETURNING id`);
+		const tableEsc = this.escapeIdentifier(query.table);
+		parts.push(`RETURNING ${tableEsc}."id"`);
 
 		return parts.join(" ");
 	}

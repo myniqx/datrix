@@ -440,17 +440,33 @@ async function processRelation<T extends ForjaEntry>({
 		const sourceFK = `${parentModel}Id`;
 		const targetFK = `${relation.model}Id`;
 
-		// Connect → INSERT INTO junction table (bulk)
+		// Connect → INSERT INTO junction table (skip existing)
 		if (ops.connect.length > 0) {
-			const rows = ops.connect.map((targetId) => ({
-				[sourceFK]: parentId,
-				[targetFK]: targetId,
-			}));
-			await runner.executeQuery<ForjaEntry>({
+			const existing = await runner.executeQuery({
 				table: junctionTable,
-				type: "insert",
-				data: rows,
+				type: "select",
+				select: [targetFK],
+				where: {
+					[sourceFK]: parentId,
+					[targetFK]: { $in: ops.connect },
+				},
 			});
+			const existingIds = new Set(
+				existing.rows.map((r) => r[targetFK] as number),
+			);
+			const newIds = ops.connect.filter((id) => !existingIds.has(id));
+
+			if (newIds.length > 0) {
+				const rows = newIds.map((targetId) => ({
+					[sourceFK]: parentId,
+					[targetFK]: targetId,
+				}));
+				await runner.executeQuery({
+					table: junctionTable,
+					type: "insert",
+					data: rows,
+				});
+			}
 		}
 
 		// Disconnect → DELETE FROM junction table

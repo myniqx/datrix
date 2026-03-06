@@ -12,6 +12,18 @@ import { QueryObject } from "forja-types";
 
 const IS_DEBUG = process.env["NODE_ENV"] !== "production";
 
+const PG_CODE_MAP: Record<string, string> = {
+	"23505": "ADAPTER_UNIQUE_CONSTRAINT",
+	"23503": "ADAPTER_FOREIGN_KEY_CONSTRAINT",
+};
+
+function pgCodeToAdapterCode(pgCode: string | undefined): string {
+	if (pgCode && pgCode in PG_CODE_MAP) {
+		return PG_CODE_MAP[pgCode]!;
+	}
+	return "ADAPTER_QUERY_ERROR";
+}
+
 /**
  * Lightweight wrapper around pg Pool/PoolClient.
  *
@@ -43,9 +55,11 @@ export class PgClient {
 				hint?: string;
 			};
 
+			const adapterCode = pgCodeToAdapterCode(details.code);
+
 			throw new ForjaAdapterError(`Query failed: ${message}`, {
 				adapter: "postgres",
-				code: "ADAPTER_QUERY_ERROR",
+				code: adapterCode,
 				operation: "query",
 				context: {
 					sql,

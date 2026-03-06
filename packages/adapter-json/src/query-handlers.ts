@@ -10,6 +10,7 @@ import { JsonQueryRunner } from "./runner";
 import { JsonPopulator } from "./populate";
 import {
 	applyDefaultValues,
+	applyOnDeleteActions,
 	applySelectRecursive,
 	checkForeignKeyConstraints,
 	checkUniqueConstraints,
@@ -186,8 +187,9 @@ export async function handleUpdate<T extends ForjaEntry>(ctx: {
 export async function handleDelete<T extends ForjaEntry>(ctx: {
 	runner: JsonQueryRunner;
 	query: QueryObject<T>;
+	adapter: JsonAdapter;
 }): Promise<QueryHandlerResult<T>> {
-	const { runner, query } = ctx;
+	const { runner, query, adapter } = ctx;
 	const tableData = runner.tableData;
 
 	const deleteQuery: QuerySelectObject<T> = {
@@ -197,11 +199,15 @@ export async function handleDelete<T extends ForjaEntry>(ctx: {
 		orderBy: undefined,
 	};
 	const rowsToDelete = await runner.filterAndSort(deleteQuery);
-	const idsToDelete = new Set(rowsToDelete.map((r) => r.id));
+	const idsToDelete = rowsToDelete.map((r) => r.id as number);
 
+	// Apply ON DELETE actions (restrict/setNull/cascade) before deleting
+	await applyOnDeleteActions(query.table, idsToDelete, adapter);
+
+	const idsSet = new Set(idsToDelete);
 	const originalLength = tableData.data.length;
 	tableData.data = tableData.data.filter(
-		(d) => !idsToDelete.has(d["id"] as number),
+		(d) => !idsSet.has(d["id"] as number),
 	);
 
 	const deletedIds = rowsToDelete.map((r) => r["id"] as number);

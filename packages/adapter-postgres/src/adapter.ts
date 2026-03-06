@@ -244,6 +244,10 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 		query?: QueryObject<TResult>,
 		sql?: string,
 	): ForjaAdapterError {
+		if (error instanceof ForjaAdapterError) {
+			return error;
+		}
+
 		const message = error instanceof Error ? error.message : String(error);
 		const details = error as {
 			code?: string;

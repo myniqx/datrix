@@ -498,8 +498,8 @@ export class SchemaRegistry {
 							references: {
 								table: targetTableName,
 								column: "id",
-								onDelete: relation.onDelete!,
-								onUpdate: relation.onUpdate!,
+								onDelete: relation.onDelete ?? "setNull",
+								onUpdate: relation.onUpdate,
 							},
 						};
 					}
@@ -524,8 +524,8 @@ export class SchemaRegistry {
 							references: {
 								table: sourceTableName,
 								column: "id",
-								onDelete: relation.onDelete!,
-								onUpdate: relation.onUpdate!,
+								onDelete: relation.onDelete ?? "setNull",
+								onUpdate: relation.onUpdate,
 							},
 						};
 					}
