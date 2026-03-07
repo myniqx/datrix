@@ -211,12 +211,6 @@ export class ApiPlugin<TRole extends string = string>
 			}
 		}
 
-		// User delete → store flag in metadata
-		if (query.type === "delete" && query.table === userTable) {
-			context.metadata["api:deleteAuth"] = true;
-			context.metadata["api:userId"] = query.where?.["id"];
-		}
-
 		return query;
 	}
 
@@ -249,12 +243,6 @@ export class ApiPlugin<TRole extends string = string>
 			await this.syncAuthenticationEmail(userId, newEmail, pluginContext);
 		}
 
-		// User deleted → delete authentication record
-		if (context.metadata["api:deleteAuth"] && context.metadata["api:userId"]) {
-			const userId = context.metadata["api:userId"] as string;
-			await this.deleteAuthenticationRecord(userId, pluginContext);
-		}
-
 		return result;
 	}
 
@@ -285,16 +273,6 @@ export class ApiPlugin<TRole extends string = string>
 			{ user: { id: { $eq: userId } } },
 			{ email: newEmail },
 		);
-	}
-
-	private async deleteAuthenticationRecord(
-		userId: string,
-		_context: PluginContext,
-	): Promise<void> {
-		// TODO: add a test for this
-		await this.forja.raw.deleteMany(this.authSchemaName, {
-			user: { id: { $eq: userId } },
-		});
 	}
 
 	/**

@@ -15,6 +15,7 @@ import { createPool } from "mysql2/promise";
 
 import { MySQLQueryTranslator } from "./query-translator";
 import { MySQLPopulator } from "./populate";
+import { MySQLClient } from "./mysql-client";
 import type { MySQLConfig, MySQLQueryObject } from "./types";
 import { getMySQLTypeWithModifiers, parseConnectionString } from "./types";
 import { QueryObject, QuerySelectObject } from "forja-types/core/query-builder";
@@ -58,8 +59,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 
 	private pool: Pool | undefined;
 	private state: ConnectionState = "disconnected";
-	readonly translator: MySQLQueryTranslator;
-	private populator: MySQLPopulator | undefined;
+	private _translator: MySQLQueryTranslator | undefined;
 
 	constructor(config: MySQLConfig) {
 		if (config.connectionString) {
@@ -68,8 +68,14 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 		} else {
 			this.config = config;
 		}
-		const schemaRegistry = Forja.getInstance().getSchemas();
-		this.translator = new MySQLQueryTranslator(schemaRegistry);
+	}
+
+	getTranslator(): MySQLQueryTranslator {
+		if (!this._translator) {
+			const schemaRegistry = Forja.getInstance().getSchemas();
+			this._translator = new MySQLQueryTranslator(schemaRegistry);
+		}
+		return this._translator;
 	}
 
 	/**
@@ -109,14 +115,6 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 
 			const connection = await this.pool.getConnection();
 			connection.release();
-
-			// Initialize populator
-			const schemaRegistry = Forja.getInstance().getSchemas();
-			this.populator = new MySQLPopulator(
-				this.pool,
-				this.translator,
-				schemaRegistry,
-			);
 
 			this.state = "connected";
 		} catch (error) {
@@ -194,49 +192,87 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 		if (
 			query.type === "select" &&
 			query.populate &&
-			Object.keys(query.populate).length > 0 &&
-			this.populator
+			Object.keys(query.populate).length > 0
 		) {
-			return this.executeWithPopulate<TResult>(query);
+			return this.executeWithPopulate<TResult>(query, queryRunner!);
 		}
 
-		let lastSql: string | undefined;
+		const client = new MySQLClient(queryRunner!, query as QueryObject);
 
 		try {
+			// For UPDATE: pre-fetch affected IDs (MySQL has no RETURNING clause)
+			// Executor needs rows=[{id}] to build SELECT for returning full records
+			let prefetchedIds: readonly TResult[] | undefined;
+			if (query.type === "update" && query.where) {
+				const escapedTable = this.getTranslator().escapeIdentifier(query.table);
+				const whereResult = this.getTranslator().translateWhere(query.where, 0, query.table);
+				const joinClause = whereResult.joins.length > 0 ? ` ${whereResult.joins.join(" ")}` : "";
+				const idSelectSQL = `SELECT ${escapedTable}.\`id\` FROM ${escapedTable}${joinClause} WHERE ${whereResult.sql}`;
+				const [idRows] = await client.execute(idSelectSQL, whereResult.params as unknown[]);
+				prefetchedIds = idRows as unknown as readonly TResult[];
+			}
+
 			const mysqlQuery = query as MySQLQueryObject<ForjaEntry>;
-			const { sql, params } = this.translator.translate(mysqlQuery);
-			lastSql = sql;
+			const { sql, params } = this.getTranslator().translate(mysqlQuery);
 
-			const [result] = await queryRunner!.execute(sql, params as unknown[]);
+			const [result] = await client.execute(sql, params as unknown[]);
 
-			let insertId: string | number | undefined;
 			let affectedRows = 0;
 			let rows: readonly TResult[] = [];
 
-			if (
-				query.type === "insert" ||
-				query.type === "update" ||
-				query.type === "delete"
-			) {
+			if (query.type === "insert") {
 				const resultHeader = result as ResultSetHeader;
 				affectedRows = resultHeader.affectedRows ?? 0;
-				if (query.type === "insert") {
-					insertId = resultHeader.insertId;
+
+				// Build id rows from insertId + affectedRows (MySQL auto_increment is sequential)
+				const firstId = resultHeader.insertId;
+				const idRows: TResult[] = [];
+				for (let i = 0; i < affectedRows; i++) {
+					idRows.push({ id: firstId + i } as TResult);
 				}
+				rows = idRows;
+			} else if (query.type === "update") {
+				const resultHeader = result as ResultSetHeader;
+				affectedRows = resultHeader.affectedRows ?? 0;
+				rows = prefetchedIds ?? [];
+			} else if (query.type === "delete") {
+				const resultHeader = result as ResultSetHeader;
+				affectedRows = resultHeader.affectedRows ?? 0;
+				// MySQL has no RETURNING clause. Executor pre-fetches rows via SELECT
+				// before DELETE when needed (needsReturnSelect). No extra query needed here.
+				rows = [];
+			} else if (query.type === "count") {
+				const countRows = result as RowDataPacket[];
+				const countValue = countRows[0]?.["count"];
+				const count = typeof countValue === "string"
+					? parseInt(countValue, 10)
+					: (countValue as number) ?? 0;
+
+				const metadata: QueryMetadata = {
+					rowCount: 0,
+					affectedRows: 0,
+					count,
+				};
+				return { rows: [] as unknown as readonly TResult[], metadata };
 			} else {
-				rows = result as unknown as readonly TResult[];
+				rows = this.convertMySQLTypes(
+					result as unknown as readonly TResult[],
+					query.table,
+				);
 				affectedRows = (result as RowDataPacket[]).length;
 			}
 
 			const metadata: QueryMetadata = {
 				rowCount: affectedRows,
 				affectedRows,
-				...(insertId !== undefined && { insertId }),
 			};
 
 			return { rows, metadata };
 		} catch (error) {
-			throw this.mapMySQLError(error, query, lastSql);
+			if (error instanceof ForjaAdapterError) {
+				throw error;
+			}
+			throw this.mapMySQLError(error, query);
 		}
 	}
 
@@ -245,17 +281,18 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 	 */
 	private async executeWithPopulate<TResult extends ForjaEntry>(
 		query: QuerySelectObject<TResult>,
+		queryRunner: Pool | PoolConnection,
 	): Promise<QueryResult<TResult>> {
-		if (!this.populator) {
-			throwQueryError({
-				adapter: "mysql",
-				message: "Populator not initialized",
-				query: query as QueryObject,
-			});
-		}
-
 		try {
-			const rows = await this.populator!.populate<TResult>(query);
+			const schemaRegistry = Forja.getInstance().getSchemas();
+			const populator = new MySQLPopulator(
+				queryRunner,
+				this.getTranslator(),
+				schemaRegistry,
+			);
+
+			const rawRows = await populator.populate<TResult>(query);
+			const rows = this.convertMySQLTypes(rawRows, query.table);
 
 			const metadata: QueryMetadata = {
 				rowCount: rows.length,
@@ -264,6 +301,9 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 
 			return { rows: rows as readonly TResult[], metadata };
 		} catch (error) {
+			if (error instanceof ForjaAdapterError) {
+				throw error;
+			}
 			throw this.mapMySQLError(error, query);
 		}
 	}
@@ -276,6 +316,10 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 		query?: QueryObject<TResult>,
 		sql?: string,
 	): ForjaAdapterError {
+		if (error instanceof ForjaAdapterError) {
+			return error;
+		}
+
 		const message = error instanceof Error ? error.message : String(error);
 		const mysqlError = error as {
 			code?: string;
@@ -283,9 +327,15 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			sqlState?: string;
 		};
 
+		// Map specific MySQL error codes to Forja error codes
+		let forjaCode = "ADAPTER_QUERY_ERROR";
+		if (mysqlError.errno === 1062 || mysqlError.code === "ER_DUP_ENTRY") {
+			forjaCode = "ADAPTER_UNIQUE_CONSTRAINT";
+		}
+
 		return new ForjaAdapterError(`Query execution failed: ${message}`, {
 			adapter: "mysql",
-			code: "ADAPTER_QUERY_ERROR",
+			code: forjaCode,
 			operation: "query",
 			context: {
 				...(query && { query: { type: query.type, table: query.table } }),
@@ -312,8 +362,11 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			throwNotConnected({ adapter: "mysql" });
 		}
 
+		const rawQuery: QueryObject = { type: "select", table: "_raw" } as QueryObject;
+		const client = new MySQLClient(queryRunner!, rawQuery);
+
 		try {
-			const [result] = await queryRunner!.execute(sql, params as unknown[]);
+			const [result] = await client.execute(sql, params as unknown[]);
 
 			const isResultSet = Array.isArray(result);
 			const rows = isResultSet ? (result as unknown as readonly TResult[]) : [];
@@ -328,6 +381,9 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 
 			return { rows, metadata };
 		} catch (error) {
+			if (error instanceof ForjaAdapterError) {
+				throw error;
+			}
 			throw this.mapMySQLError(error, undefined, sql);
 		}
 	}
@@ -373,18 +429,49 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			throwNotConnected({ adapter: "mysql" });
 		}
 
+		const client = this.createClient(queryRunner!, `createTable:${schema.name}`);
+
 		try {
 			const columns: string[] = [];
+			const foreignKeyConstraints: string[] = [];
 
 			for (const [fieldName, field] of Object.entries(schema.fields)) {
+				if (field.type === "relation") continue;
 				const columnDef = this.buildColumnDefinition(fieldName, field);
 				columns.push(columnDef);
+
+				if (field.type === "number" && field.references) {
+					const col = this.getTranslator().escapeIdentifier(fieldName);
+					const refTable = this.getTranslator().escapeIdentifier(
+						field.references.table,
+					);
+					const refCol = this.getTranslator().escapeIdentifier(
+						field.references.column ?? "id",
+					);
+					const onDelete = field.references.onDelete
+						? ` ON DELETE ${field.references.onDelete === "setNull" ? "SET NULL" : field.references.onDelete.toUpperCase()}`
+						: "";
+					const onUpdate = field.references.onUpdate
+						? ` ON UPDATE ${field.references.onUpdate.toUpperCase()}`
+						: "";
+					foreignKeyConstraints.push(
+						`FOREIGN KEY (${col}) REFERENCES ${refTable} (${refCol})${onDelete}${onUpdate}`,
+					);
+				}
 			}
 
-			const tableName = this.translator.escapeIdentifier(schema.tableName!);
-			const sql = `CREATE TABLE ${tableName} (\n  ${columns.join(",\n  ")}\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`;
+			const allDefs = [...columns, ...foreignKeyConstraints];
+			const tableName = this.getTranslator().escapeIdentifier(schema.tableName!);
+			const sql = `CREATE TABLE ${tableName} (\n  ${allDefs.join(",\n  ")}\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`;
 
-			await queryRunner!.execute(sql);
+			await client.execute(sql);
+
+			// Create indexes defined in schema
+			if (schema.indexes) {
+				for (const index of schema.indexes) {
+					await this.addIndex(schema.tableName!, index, schema, connection);
+				}
+			}
 
 			// Track schema in _forja (skip for _forja itself — it tracks others)
 			if (schema.name !== FORJA_META_MODEL) {
@@ -422,16 +509,18 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			throwNotConnected({ adapter: "mysql" });
 		}
 
+		const client = this.createClient(queryRunner!, `dropTable:${tableName}`);
+
 		try {
-			const escapedTable = this.translator.escapeIdentifier(tableName);
-			await queryRunner!.execute(`DROP TABLE IF EXISTS ${escapedTable}`);
+			const escapedTable = this.getTranslator().escapeIdentifier(tableName);
+			await client.execute(`DROP TABLE IF EXISTS ${escapedTable}`);
 
 			// Remove schema from _forja
 			if (tableName !== FORJA_META_MODEL) {
 				const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
 				const escapedMetaTable =
-					this.translator.escapeIdentifier(FORJA_META_MODEL);
-				await queryRunner!.execute(
+					this.getTranslator().escapeIdentifier(FORJA_META_MODEL);
+				await client.execute(
 					`DELETE FROM ${escapedMetaTable} WHERE \`key\` = ?`,
 					[metaKey],
 				);
@@ -461,18 +550,20 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			throwNotConnected({ adapter: "mysql" });
 		}
 
+		const client = this.createClient(queryRunner!, `renameTable:${from}->${to}`);
+
 		try {
-			const escapedFrom = this.translator.escapeIdentifier(from);
-			const escapedTo = this.translator.escapeIdentifier(to);
-			await queryRunner!.execute(`RENAME TABLE ${escapedFrom} TO ${escapedTo}`);
+			const escapedFrom = this.getTranslator().escapeIdentifier(from);
+			const escapedTo = this.getTranslator().escapeIdentifier(to);
+			await client.execute(`RENAME TABLE ${escapedFrom} TO ${escapedTo}`);
 
 			// Update key in _forja
 			if (from !== FORJA_META_MODEL && to !== FORJA_META_MODEL) {
 				const oldKey = `${FORJA_META_KEY_PREFIX}${from}`;
 				const newKey = `${FORJA_META_KEY_PREFIX}${to}`;
 				const escapedMetaTable =
-					this.translator.escapeIdentifier(FORJA_META_MODEL);
-				await queryRunner!.execute(
+					this.getTranslator().escapeIdentifier(FORJA_META_MODEL);
+				await client.execute(
 					`UPDATE ${escapedMetaTable} SET \`key\` = ? WHERE \`key\` = ?`,
 					[newKey, oldKey],
 				);
@@ -501,8 +592,10 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			throwNotConnected({ adapter: "mysql" });
 		}
 
+		const client = this.createClient(queryRunner!, `alterTable:${tableName}`);
+
 		try {
-			const escapedTable = this.translator.escapeIdentifier(tableName);
+			const escapedTable = this.getTranslator().escapeIdentifier(tableName);
 
 			for (const op of operations) {
 				let sql = "";
@@ -518,28 +611,28 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 					}
 
 					case "dropColumn": {
-						const columnName = this.translator.escapeIdentifier(op.column);
+						const columnName = this.getTranslator().escapeIdentifier(op.column);
 						sql = `ALTER TABLE ${escapedTable} DROP COLUMN ${columnName}`;
 						break;
 					}
 
 					case "modifyColumn": {
-						const columnName = this.translator.escapeIdentifier(op.column);
-						const mysqlType = getMySQLTypeWithModifiers(op.newDefinition.type);
+						const columnName = this.getTranslator().escapeIdentifier(op.column);
+						const mysqlType = getMySQLTypeWithModifiers(op.newDefinition);
 						sql = `ALTER TABLE ${escapedTable} MODIFY COLUMN ${columnName} ${mysqlType}`;
 						break;
 					}
 
 					case "renameColumn": {
-						const fromColumn = this.translator.escapeIdentifier(op.from);
-						const toColumn = this.translator.escapeIdentifier(op.to);
+						const fromColumn = this.getTranslator().escapeIdentifier(op.from);
+						const toColumn = this.getTranslator().escapeIdentifier(op.to);
 						sql = `ALTER TABLE ${escapedTable} RENAME COLUMN ${fromColumn} TO ${toColumn}`;
 						break;
 					}
 				}
 
 				if (sql) {
-					await queryRunner!.execute(sql);
+					await client.execute(sql);
 				}
 			}
 
@@ -569,6 +662,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 	async addIndex(
 		tableNameParam: string,
 		index: IndexDefinition,
+		schema?: SchemaDefinition,
 		connection?: PoolConnection,
 	): Promise<void> {
 		const queryRunner = connection ?? this.pool;
@@ -576,19 +670,33 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			throwNotConnected({ adapter: "mysql" });
 		}
 
+		const client = this.createClient(queryRunner!, `addIndex:${tableNameParam}`);
+
 		try {
 			const tableName = tableNameParam;
-			const escapedTable = this.translator.escapeIdentifier(tableName);
+			const escapedTable = this.getTranslator().escapeIdentifier(tableName);
 			const indexName =
 				index.name ?? `idx_${tableName}_${index.fields.join("_")}`;
-			const escapedIndexName = this.translator.escapeIdentifier(indexName);
-			const fields = index.fields
-				.map((f) => this.translator.escapeIdentifier(f))
+			const escapedIndexName = this.getTranslator().escapeIdentifier(indexName);
+
+			const mappedFields = index.fields.map((fieldName) => {
+				if (schema) {
+					const field = schema.fields[fieldName];
+					if (field && field.type === "relation") {
+						const relationField = field as { foreignKey?: string };
+						return relationField.foreignKey || fieldName;
+					}
+				}
+				return fieldName;
+			});
+
+			const fields = mappedFields
+				.map((f) => this.getTranslator().escapeIdentifier(f))
 				.join(", ");
 			const unique = index.unique ? "UNIQUE " : "";
 			const using = index.type ? ` USING ${index.type.toUpperCase()}` : "";
 			const sql = `CREATE ${unique}INDEX ${escapedIndexName} ON ${escapedTable} (${fields})${using}`;
-			await queryRunner!.execute(sql);
+			await client.execute(sql);
 		} catch (error) {
 			if (error instanceof ForjaAdapterError) throw error;
 			const message = error instanceof Error ? error.message : String(error);
@@ -614,10 +722,12 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			throwNotConnected({ adapter: "mysql" });
 		}
 
+		const client = this.createClient(queryRunner!, `dropIndex:${tableName}`);
+
 		try {
-			const escapedTable = this.translator.escapeIdentifier(tableName);
-			const escapedIndexName = this.translator.escapeIdentifier(indexName);
-			await queryRunner!.execute(
+			const escapedTable = this.getTranslator().escapeIdentifier(tableName);
+			const escapedIndexName = this.getTranslator().escapeIdentifier(indexName);
+			await client.execute(
 				`DROP INDEX ${escapedIndexName} ON ${escapedTable}`,
 			);
 		} catch (error) {
@@ -640,11 +750,13 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			throwNotConnected({ adapter: "mysql" });
 		}
 
+		const client = this.createClient(this.pool!, "getTables");
+
 		try {
-			const [rows] = await this.pool!.execute<RowDataPacket[]>(
+			const [rows] = await client.execute(
 				`SELECT TABLE_NAME as tableName FROM information_schema.tables WHERE table_schema = ? ORDER BY TABLE_NAME`,
 				[this.config.database],
-			);
+			) as [RowDataPacket[], unknown];
 
 			return rows.map((row) => row["tableName"] as string);
 		} catch (error) {
@@ -668,11 +780,12 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 		try {
 			const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
 			const escapedMetaTable =
-				this.translator.escapeIdentifier(FORJA_META_MODEL);
-			const [rows] = await this.pool!.execute<RowDataPacket[]>(
+				this.getTranslator().escapeIdentifier(FORJA_META_MODEL);
+			const client = this.createClient(this.pool!, `getTableSchema:${tableName}`);
+			const [rows] = await client.execute(
 				`SELECT \`value\` FROM ${escapedMetaTable} WHERE \`key\` = ?`,
 				[metaKey],
-			);
+			) as [RowDataPacket[], unknown];
 
 			if (rows.length === 0) {
 				return null;
@@ -764,10 +877,11 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 		}
 
 		try {
-			const [rows] = await this.pool.execute<RowDataPacket[]>(
+			const client = this.createClient(this.pool, `tableExists:${tableName}`);
+			const [rows] = await client.execute(
 				`SELECT COUNT(*) as count FROM information_schema.tables WHERE table_schema = ? AND table_name = ?`,
 				[this.config.database, tableName],
-			);
+			) as [RowDataPacket[], unknown];
 
 			return (rows[0]?.["count"] as number) > 0;
 		} catch {
@@ -782,10 +896,11 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 		schema: SchemaDefinition,
 		queryRunner: Pool | PoolConnection,
 	): Promise<void> {
+		const client = this.createClient(queryRunner, `upsertMeta:${schema.name}`);
 		const metaKey = `${FORJA_META_KEY_PREFIX}${schema.tableName ?? schema.name}`;
 		const metaValue = JSON.stringify(schema);
-		const escapedMetaTable = this.translator.escapeIdentifier(FORJA_META_MODEL);
-		await queryRunner.execute(
+		const escapedMetaTable = this.getTranslator().escapeIdentifier(FORJA_META_MODEL);
+		await client.execute(
 			`INSERT INTO ${escapedMetaTable} (\`key\`, \`value\`, \`createdAt\`, \`updatedAt\`)
 			 VALUES (?, ?, NOW(), NOW())
 			 ON DUPLICATE KEY UPDATE \`value\` = VALUES(\`value\`), \`updatedAt\` = NOW()`,
@@ -801,9 +916,10 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 		operations: readonly AlterOperation[],
 		queryRunner: Pool | PoolConnection,
 	): Promise<void> {
+		const client = this.createClient(queryRunner, `alterMeta:${tableName}`);
 		const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
-		const escapedMetaTable = this.translator.escapeIdentifier(FORJA_META_MODEL);
-		const [rows] = await queryRunner.execute<RowDataPacket[]>(
+		const escapedMetaTable = this.getTranslator().escapeIdentifier(FORJA_META_MODEL);
+		const [rows] = await client.execute(
 			`SELECT \`value\` FROM ${escapedMetaTable} WHERE \`key\` = ?`,
 			[metaKey],
 		);
@@ -845,10 +961,92 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 
 		const updatedSchema: SchemaDefinition = { ...schema, fields };
 		const updatedValue = JSON.stringify(updatedSchema);
-		await queryRunner.execute(
+		await client.execute(
 			`UPDATE ${escapedMetaTable} SET \`value\` = ?, \`updatedAt\` = NOW() WHERE \`key\` = ?`,
 			[updatedValue, metaKey],
 		);
+	}
+
+	/**
+	 * Create a MySQLClient for schema/migration operations.
+	 * Provides debug logging and error mapping for DDL statements.
+	 */
+	private createClient(
+		queryRunner: Pool | PoolConnection,
+		operation: string,
+	): MySQLClient {
+		const ddlQuery: QueryObject = {
+			type: "select",
+			table: `_ddl:${operation}`,
+		} as QueryObject;
+		return new MySQLClient(queryRunner, ddlQuery);
+	}
+
+	/**
+	 * Convert MySQL result types to JS types based on schema.
+	 * MySQL returns TINYINT(1) as 1/0 instead of true/false.
+	 */
+	private convertMySQLTypes<TResult extends ForjaEntry>(
+		rows: readonly TResult[],
+		tableName: string,
+	): readonly TResult[] {
+		const schemaRegistry = Forja.getInstance().getSchemas();
+		const modelName = schemaRegistry.findModelByTableName(tableName);
+		if (!modelName) return rows;
+
+		const schema = schemaRegistry.get(modelName);
+		if (!schema) return rows;
+
+		// Collect fields that need conversion
+		const booleanFields: string[] = [];
+		const jsonFields: string[] = [];
+		const relationFields: Array<{ name: string; model: string }> = [];
+		for (const [fieldName, field] of Object.entries(schema.fields)) {
+			if (field.type === "boolean") {
+				booleanFields.push(fieldName);
+			} else if (field.type === "json" || field.type === "array") {
+				jsonFields.push(fieldName);
+			} else if (field.type === "relation") {
+				const rel = field as { model?: string };
+				if (rel.model) {
+					relationFields.push({ name: fieldName, model: rel.model });
+				}
+			}
+		}
+
+		for (const row of rows) {
+			for (const field of booleanFields) {
+				const value = (row as Record<string, unknown>)[field];
+				if (value === 1 || value === 0) {
+					(row as Record<string, unknown>)[field] = value === 1;
+				}
+			}
+			for (const field of jsonFields) {
+				const value = (row as Record<string, unknown>)[field];
+				if (typeof value === "string") {
+					try {
+						(row as Record<string, unknown>)[field] = JSON.parse(value);
+					} catch {
+						// keep original string if not valid JSON
+					}
+				}
+			}
+			// Recursively convert populated relations
+			for (const rel of relationFields) {
+				const value = (row as Record<string, unknown>)[rel.name];
+				if (value === null || value === undefined) continue;
+				const targetSchema = schemaRegistry.get(rel.model);
+				if (!targetSchema) continue;
+				const targetTable = targetSchema.tableName ?? rel.model.toLowerCase();
+				if (Array.isArray(value)) {
+					this.convertMySQLTypes(value as ForjaEntry[], targetTable);
+				} else if (typeof value === "object") {
+					this.convertMySQLTypes([value as ForjaEntry], targetTable);
+				}
+			}
+		}
+
+		return rows;
 	}
 
 	/**
@@ -858,15 +1056,23 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 		fieldName: string,
 		field: FieldDefinition,
 	): string {
-		const columnName = this.translator.escapeIdentifier(fieldName);
-		const mysqlType = getMySQLTypeWithModifiers(field.type);
+		const columnName = this.getTranslator().escapeIdentifier(fieldName);
+
+		const shouldAutoIncrement = field.type === "number" && field.autoIncrement;
+
+		if (shouldAutoIncrement) {
+			return `${columnName} INT AUTO_INCREMENT PRIMARY KEY`;
+		}
+
+		const mysqlType = getMySQLTypeWithModifiers(field);
 		const nullable = field.required ? " NOT NULL" : "";
 		const defaultValue =
 			field.default !== undefined
-				? ` DEFAULT ${this.translator.escapeValue(field.default)}`
+				? ` DEFAULT ${this.getTranslator().escapeValue(field.default)}`
 				: "";
+		const unique = "unique" in field && field.unique ? " UNIQUE" : "";
 
-		return `${columnName} ${mysqlType}${nullable}${defaultValue}`;
+		return `${columnName} ${mysqlType}${nullable}${defaultValue}${unique}`;
 	}
 }
 
@@ -1096,7 +1302,7 @@ class MySQLTransaction implements Transaction {
 	}
 
 	async addIndex(tableName: string, index: IndexDefinition): Promise<void> {
-		return this.adapter.addIndex(tableName, index, this.connection);
+		return this.adapter.addIndex(tableName, index, undefined, this.connection);
 	}
 
 	async dropIndex(tableName: string, indexName: string): Promise<void> {

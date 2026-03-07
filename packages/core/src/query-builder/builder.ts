@@ -25,6 +25,7 @@ import {
 	throwSchemaNotFound,
 	throwInvalidQueryType,
 	throwMissingTable,
+	throwMissingData,
 	throwDeleteWithoutWhere,
 } from "./error-helper";
 import type {
@@ -399,7 +400,11 @@ export class ForjaQueryBuilder<
 			}
 
 			case "insert": {
-				const processedItems = (this.query.dataItems ?? []).map((item) =>
+				const dataItems = this.query.dataItems ?? [];
+				if (dataItems.length === 0) {
+					throwMissingData("insert");
+				}
+				const processedItems = dataItems.map((item) =>
 					processData<TSchema>(item, this._schema, this._registry),
 				);
 				const dataArray = processedItems.map(
@@ -417,20 +422,20 @@ export class ForjaQueryBuilder<
 			}
 
 			case "update": {
-				const processedData =
-					this.query.data !== undefined
-						? processData<TSchema>(
-							this.query.data,
-							this._schema,
-							this._registry,
-						)
-						: undefined;
+				if (this.query.data === undefined) {
+					throwMissingData("update");
+				}
+				const processedData = processData<TSchema>(
+					this.query.data,
+					this._schema,
+					this._registry,
+				);
 				return {
 					type,
 					table,
 					...whereSpread,
-					...(processedData !== undefined && { data: processedData.data }),
-					...(processedData?.relations !== undefined && {
+					data: processedData.data,
+					...(processedData.relations !== undefined && {
 						relations: processedData.relations,
 					}),
 					...selectSpread,

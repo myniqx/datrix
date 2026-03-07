@@ -93,11 +93,11 @@ describe("Bulk Create", () => {
 			expect(results[1].isActive).toBe(false); // overridden
 		});
 
-		it("should handle empty array", async () => {
-			const results = await forja.createMany("organization", []);
-
-			expect(results).toHaveLength(0);
-			expect(Array.isArray(results)).toBe(true);
+		it("should throw error for empty array", async () => {
+			await expectForjaErrorAsync(
+				async () => forja.createMany("organization", []),
+				"MISSING_DATA",
+			);
 		});
 
 		it("should handle single item array", async () => {

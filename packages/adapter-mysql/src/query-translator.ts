@@ -236,7 +236,7 @@ export class MySQLQueryTranslator implements QueryTranslator {
 		}
 
 		if (value instanceof Date) {
-			return `'${value.toISOString().slice(0, 19).replace("T", " ")}'`;
+			return `'${value.toISOString().slice(0, 23).replace("T", " ")}'`;
 		}
 
 		if (Array.isArray(value)) {
@@ -319,6 +319,9 @@ export class MySQLQueryTranslator implements QueryTranslator {
 					this.paramIndex,
 					query.table,
 				);
+				if (whereResult.joins.length > 0) {
+					parts.push(whereResult.joins.join(" "));
+				}
 				parts.push(`WHERE ${whereResult.sql}`);
 				this.paramIndex += whereResult.params.length;
 				this.params.push(...whereResult.params);
@@ -397,6 +400,8 @@ export class MySQLQueryTranslator implements QueryTranslator {
 
 			if (uniqueWhereJoins.length > 0) {
 				parts.push(uniqueWhereJoins.join(" "));
+				// WHERE JOINs (especially manyToMany) can produce duplicate rows
+				parts[0] = parts[0]!.replace("SELECT", "SELECT DISTINCT");
 			}
 		}
 
@@ -451,9 +456,12 @@ export class MySQLQueryTranslator implements QueryTranslator {
 			parts.push(`ORDER BY ${this.translateOrderBy(query.orderBy)}`);
 		}
 
-		// LIMIT
+		// LIMIT (MySQL requires LIMIT when OFFSET is used)
 		if (query.limit !== undefined) {
 			parts.push(`LIMIT ${this.addParam(query.limit)}`);
+		} else if (query.offset !== undefined) {
+			// MySQL/MariaDB: OFFSET without LIMIT is a syntax error
+			parts.push(`LIMIT ${this.addParam(2147483647)}`);
 		}
 
 		// OFFSET
@@ -507,17 +515,26 @@ export class MySQLQueryTranslator implements QueryTranslator {
 			currentSchema = this.schemaRegistry.get(modelName);
 		}
 
-		// Use keys from first item as columns
-		const firstItem = dataArray[0] as Record<string, unknown>;
-		const columns = Object.keys(firstItem).map((k) => this.escapeIdentifier(k));
+		// Collect all unique keys across all items for column list
+		const columnSet = new Set<string>();
+		for (const item of dataArray) {
+			for (const key of Object.keys(item as Record<string, unknown>)) {
+				columnSet.add(key);
+			}
+		}
+		const columnKeys = [...columnSet];
+		const columns = columnKeys.map((k) => this.escapeIdentifier(k));
 
-		// Build VALUES rows
+		// Build VALUES rows (missing keys get DEFAULT)
 		const valueRows: string[] = [];
 		for (const item of dataArray) {
 			const row = item as Record<string, unknown>;
-			const values = Object.keys(firstItem).map((key) =>
-				this.addParam(row[key], currentSchema, key),
-			);
+			const values = columnKeys.map((key) => {
+				if (key in row) {
+					return this.addParam(row[key], currentSchema, key);
+				}
+				return "DEFAULT";
+			});
 			valueRows.push(`(${values.join(", ")})`);
 		}
 
@@ -551,30 +568,50 @@ export class MySQLQueryTranslator implements QueryTranslator {
 
 		const parts: string[] = [];
 		const sets: string[] = [];
+		const tableName = this.escapeIdentifier(query.table);
 
-		parts.push(`UPDATE ${this.escapeIdentifier(query.table)}`);
+		parts.push(`UPDATE ${tableName}`);
 
+		// Process WHERE first to get JOINs, but defer adding params
+		let whereSql: string | undefined;
+		let whereParams: readonly unknown[] = [];
+		let whereJoins: string[] = [];
+		if (query.where) {
+			const whereResult = this.translateWhere(
+				query.where,
+				0, // placeholder index, will be adjusted
+				query.table,
+			);
+			whereSql = whereResult.sql;
+			whereParams = whereResult.params;
+			whereJoins = whereResult.joins;
+		}
+
+		// MySQL UPDATE JOIN syntax: UPDATE t JOIN ... SET ... WHERE ...
+		if (whereJoins.length > 0) {
+			parts.push(whereJoins.join(" "));
+		}
+
+		const hasJoins = whereJoins.length > 0;
 		for (const [key, value] of Object.entries(query.data)) {
+			const col = hasJoins
+				? `${tableName}.${this.escapeIdentifier(key)}`
+				: this.escapeIdentifier(key);
 			sets.push(
-				`${this.escapeIdentifier(key)} = ${this.addParam(value, currentSchema, key)}`,
+				`${col} = ${this.addParam(value, currentSchema, key)}`,
 			);
 		}
 
 		parts.push(`SET ${sets.join(", ")}`);
 
-		// WHERE clause
-		if (query.where) {
+		// Now add WHERE params (after SET params, matching SQL order)
+		if (whereSql) {
+			// Re-translate WHERE with correct param offset
 			const whereResult = this.translateWhere(
-				query.where,
+				query.where!,
 				this.paramIndex,
 				query.table,
 			);
-
-			// Add WHERE JOINs if any
-			if (whereResult.joins.length > 0) {
-				parts.push(whereResult.joins.join(" "));
-			}
-
 			parts.push(`WHERE ${whereResult.sql}`);
 			this.paramIndex += whereResult.params.length;
 			this.params.push(...whereResult.params);
@@ -590,8 +627,7 @@ export class MySQLQueryTranslator implements QueryTranslator {
 		query: QueryDeleteObject<T>,
 	): string {
 		const parts: string[] = [];
-
-		parts.push(`DELETE FROM ${this.escapeIdentifier(query.table)}`);
+		const tableName = this.escapeIdentifier(query.table);
 
 		// WHERE clause
 		if (query.where) {
@@ -601,14 +637,19 @@ export class MySQLQueryTranslator implements QueryTranslator {
 				query.table,
 			);
 
-			// Add WHERE JOINs if any
 			if (whereResult.joins.length > 0) {
+				// MySQL multi-table DELETE syntax: DELETE t FROM t JOIN ... WHERE ...
+				parts.push(`DELETE ${tableName} FROM ${tableName}`);
 				parts.push(whereResult.joins.join(" "));
+			} else {
+				parts.push(`DELETE FROM ${tableName}`);
 			}
 
 			parts.push(`WHERE ${whereResult.sql}`);
 			this.paramIndex += whereResult.params.length;
 			this.params.push(...whereResult.params);
+		} else {
+			parts.push(`DELETE FROM ${tableName}`);
 		}
 
 		return parts.join(" ");
@@ -856,29 +897,52 @@ export class MySQLQueryTranslator implements QueryTranslator {
 
 							const targetTable =
 								targetSchema.tableName ?? relationField.model!.toLowerCase();
-							const foreignKey = relationField.foreignKey!;
 
 							const sourceTableEsc = this.escapeIdentifier(
 								currentTableAlias || tableName!,
 							);
 							const targetTableEsc = this.escapeIdentifier(targetTable);
 							const relationAlias = this.escapeIdentifier(key);
-							const foreignKeyEsc = this.escapeIdentifier(foreignKey);
 
 							// Generate JOIN based on relation kind
 							let joinSQL: string;
 							const relKind = relationField.kind;
 
 							if (relKind === "belongsTo") {
+								const foreignKeyEsc = this.escapeIdentifier(relationField.foreignKey!);
 								// Source has FK: source.foreignKey = target.id
 								joinSQL = `LEFT JOIN ${targetTableEsc} AS ${relationAlias} ON ${sourceTableEsc}.${foreignKeyEsc} = ${relationAlias}.\`id\``;
 							} else if (relKind === "hasOne" || relKind === "hasMany") {
+								const foreignKeyEsc = this.escapeIdentifier(relationField.foreignKey!);
 								// Target has FK: source.id = target.foreignKey
 								joinSQL = `LEFT JOIN ${targetTableEsc} AS ${relationAlias} ON ${sourceTableEsc}.\`id\` = ${relationAlias}.${foreignKeyEsc}`;
+							} else if (relKind === "manyToMany") {
+								// ManyToMany: requires junction table (two JOINs)
+								const junctionTable = (relationField as { through?: string }).through!;
+								const currentModelName = this.schemaRegistry.findModelByTableName(tableName!);
+								const currentSchemaForFK = currentModelName
+									? this.schemaRegistry.get(currentModelName)
+									: currentSchema;
+								const sourceFK = `${currentSchemaForFK?.name ?? currentModelName}Id`;
+								const targetFK = `${relationField.model}Id`;
+
+								const junctionAlias = `${key}_junction`;
+								const junctionTableEsc = this.escapeIdentifier(junctionTable);
+								const junctionAliasEsc = this.escapeIdentifier(junctionAlias);
+								const sourceFKEsc = this.escapeIdentifier(sourceFK);
+								const targetFKEsc = this.escapeIdentifier(targetFK);
+
+								const junctionJoin = `LEFT JOIN ${junctionTableEsc} AS ${junctionAliasEsc} ON ${sourceTableEsc}.\`id\` = ${junctionAliasEsc}.${sourceFKEsc}`;
+								const targetJoin = `LEFT JOIN ${targetTableEsc} AS ${relationAlias} ON ${junctionAliasEsc}.${targetFKEsc} = ${relationAlias}.\`id\``;
+
+								if (joins && !joins.includes(junctionJoin)) {
+									joins.push(junctionJoin);
+								}
+								joinSQL = targetJoin;
 							} else {
 								throwQueryError({
 									adapter: "mysql",
-									message: `Relation kind '${relKind}' not yet supported for nested WHERE filtering`,
+									message: `Relation kind '${relKind}' not supported for nested WHERE filtering`,
 								});
 							}
 

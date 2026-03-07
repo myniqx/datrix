@@ -3,7 +3,7 @@
  *
  * Type definitions specific to MySQL adapter.
  */
-import { FieldType, ForjaEntry } from "forja-types/core/schema";
+import { FieldDefinition, FieldType, ForjaEntry } from "forja-types/core/schema";
 import {
 	QueryPopulate,
 	QuerySelectObject,
@@ -190,45 +190,39 @@ export function getMySQLType(fieldType: FieldType): MySQLDataType {
 }
 
 /**
- * Get MySQL type with modifiers
+ * Get MySQL type with modifiers from FieldDefinition
  */
-export function getMySQLTypeWithModifiers(
-	fieldType: FieldType,
-	options?: {
-		maxLength?: number;
-		precision?: number;
-		scale?: number;
-		unsigned?: boolean;
-	},
-): string {
-	let mysqlType = getMySQLType(fieldType);
+export function getMySQLTypeWithModifiers(field: FieldDefinition): string {
+	// Foreign key columns must match the referenced column type (INT)
+	if (field.type === "number" && "references" in field && field.references) {
+		return "INT";
+	}
 
-	if (fieldType === "string" && options?.maxLength) {
+	let mysqlType = getMySQLType(field.type);
+
+	if (field.type === "string" && "maxLength" in field && field.maxLength) {
 		mysqlType = "VARCHAR";
-		return `${mysqlType}(${options.maxLength})`;
+		return `${mysqlType}(${field.maxLength})`;
 	}
 
-	if (fieldType === "number" && options?.precision) {
+	if (field.type === "number" && "precision" in field && field.precision) {
 		mysqlType = "DECIMAL";
-		if (options.scale !== undefined) {
-			return `${mysqlType}(${options.precision}, ${options.scale})`;
+		if ("scale" in field && field.scale !== undefined) {
+			return `${mysqlType}(${field.precision}, ${field.scale})`;
 		}
-		return `${mysqlType}(${options.precision})`;
+		return `${mysqlType}(${field.precision})`;
 	}
 
-	if (fieldType === "boolean") {
+	if (field.type === "boolean") {
 		return "TINYINT(1)";
 	}
 
-	if (fieldType === "enum") {
-		return "VARCHAR(255)";
+	if (field.type === "date") {
+		return "DATETIME(3)";
 	}
 
-	if (
-		options?.unsigned &&
-		["TINYINT", "SMALLINT", "MEDIUMINT", "INT", "BIGINT"].includes(mysqlType)
-	) {
-		return `${mysqlType} UNSIGNED`;
+	if (field.type === "enum") {
+		return "VARCHAR(255)";
 	}
 
 	return mysqlType;

@@ -8,6 +8,7 @@
 import type { Pool, PoolConnection } from "mysql2/promise";
 import type {
 	QueryPopulate,
+	QueryPopulateOptions,
 	QuerySelectObject,
 } from "forja-types/core/query-builder";
 import type { SchemaRegistry } from "forja-core/schema";
@@ -178,12 +179,40 @@ export class MySQLPopulator {
 	 * Strategy 3: Batched Queries (Deep Nesting / High Cardinality)
 	 *
 	 * Executes batched queries for each relation (avoids N+1).
-	 * Best for deep nesting (depth > 2) or high cardinality (estimatedCost > 8).
+	 * Supports recursive nested populate at any depth.
 	 */
 	private async executeBatchedQueries<T extends ForjaEntry>(
 		query: QuerySelectObject<T>,
 	): Promise<readonly T[]> {
-		const { sql, params } = this.translator.translate(query);
+		const modelName = this.schemaRegistry.findModelByTableName(query.table);
+		if (!modelName) return [];
+
+		const schema = this.schemaRegistry.get(modelName);
+		if (!schema) return [];
+
+		// Inject belongsTo FK columns into SELECT
+		const fkColumnsNeeded: string[] = [];
+		for (const [relationName] of Object.entries(query.populate ?? {})) {
+			const relationField = schema.fields[relationName];
+			if (!relationField || relationField.type !== "relation") continue;
+			const rel = relationField as { kind: string; foreignKey?: string };
+			if (rel.kind === "belongsTo" && rel.foreignKey) {
+				fkColumnsNeeded.push(rel.foreignKey);
+			}
+		}
+
+		const queryWithFks: QuerySelectObject<T> =
+			fkColumnsNeeded.length > 0
+				? {
+					...query,
+					select: ([
+						...(query.select as string[]),
+						...fkColumnsNeeded,
+					] as unknown as QuerySelectObject<T>["select"]),
+				}
+				: query;
+
+		const { sql, params } = this.translator.translate(queryWithFks);
 
 		let rows: T[];
 		try {
@@ -206,14 +235,9 @@ export class MySQLPopulator {
 
 		const parentIds = rows.map((row) => row.id);
 
-		const modelName = this.schemaRegistry.findModelByTableName(query.table);
-		if (!modelName) return rows;
-
-		const schema = this.schemaRegistry.get(modelName);
-		if (!schema) return rows;
-
 		for (const [relationName, _options] of Object.entries(query.populate!)) {
 			const relationField = schema.fields[relationName];
+			const options = _options as QueryPopulateOptions<ForjaEntry>;
 			if (!relationField || relationField.type !== "relation") continue;
 
 			const relation = relationField as {
@@ -227,99 +251,399 @@ export class MySQLPopulator {
 
 			const targetTable =
 				targetSchema.tableName ?? relation.model.toLowerCase();
-
-			let batchQuery: string;
-			let fkColumn: string = "";
-
 			const targetTableEsc = this.translator.escapeIdentifier(targetTable);
 
-			if (relation.kind === "belongsTo" || relation.kind === "hasOne") {
-				fkColumn = relation.foreignKey!;
-				const fkColumnEsc = this.translator.escapeIdentifier(fkColumn);
-				// Build JSON_OBJECT for all non-relation fields
-				const fields = Object.entries(targetSchema.fields)
-					.filter(([_, field]) => field.type !== "relation")
-					.map(([name]) => name);
-				const jsonPairs = fields
-					.map((f) => `'${f}', t.${this.translator.escapeIdentifier(f)}`)
-					.join(", ");
+			if (relation.kind === "belongsTo") {
+				const fkColumn = relation.foreignKey!;
+				const fkValues = rows
+					.map((row) => row[fkColumn as keyof T])
+					.filter((v) => v != null);
 
-				batchQuery = `
-          SELECT t.${fkColumnEsc} as _fk, JSON_OBJECT(${jsonPairs}) as data
+				if (fkValues.length === 0) {
+					for (const row of rows) {
+						row[relationName as keyof T] = null as T[keyof T];
+					}
+					continue;
+				}
+
+				const jsonObj = this.buildJsonObject(relation.model, options);
+				const batchQuery = `
+          SELECT t.\`id\` as _fk, ${jsonObj} as data
           FROM ${targetTableEsc} t
           WHERE t.\`id\` IN (?)
         `;
-			} else if (relation.kind === "hasMany") {
-				fkColumn = relation.foreignKey!;
-				const fkColumnEsc = this.translator.escapeIdentifier(fkColumn);
-				// Build JSON_OBJECT for all non-relation fields
-				const fields = Object.entries(targetSchema.fields)
-					.filter(([_, field]) => field.type !== "relation")
-					.map(([name]) => name);
-				const jsonPairs = fields
-					.map((f) => `'${f}', t.${this.translator.escapeIdentifier(f)}`)
-					.join(", ");
 
-				batchQuery = `
-          SELECT t.${fkColumnEsc} as _fk, JSON_ARRAYAGG(JSON_OBJECT(${jsonPairs})) as data
+				let batchResult;
+				try {
+					const [batchRows] = await this.pool.query(batchQuery, [fkValues]);
+					batchResult = batchRows as Array<{ _fk: unknown; data: unknown }>;
+				} catch (error) {
+					throwPopulateQueryError({
+						adapter: "mysql",
+						query,
+						sql: batchQuery,
+						cause: error instanceof Error ? error : new Error(String(error)),
+						strategy: "batched-queries",
+						queryParams: [fkValues],
+					});
+				}
+
+				let relatedRows: ForjaEntry[] = batchResult.map(
+					(r) => (typeof r.data === "string" ? JSON.parse(r.data) : r.data) as ForjaEntry,
+				);
+
+				// Recursive nested populate
+				const nestedPopulate = options?.["populate"];
+				if (nestedPopulate && relatedRows.length > 0) {
+					relatedRows = await this.populateBatchedRows<T>(
+						relatedRows,
+						targetTable,
+						nestedPopulate,
+					);
+				}
+
+				const dataMap = new Map(relatedRows.map((r) => [r.id, r]));
+
+				for (const row of rows) {
+					const fkValue = row[fkColumn as keyof T];
+					row[relationName as keyof T] = (dataMap.get(fkValue as number) ||
+						null) as T[keyof T];
+					// Remove the injected FK column
+					delete row[fkColumn as keyof T];
+				}
+			} else if (relation.kind === "hasOne") {
+				const fkColumn = relation.foreignKey!;
+				const fkColumnEsc = this.translator.escapeIdentifier(fkColumn);
+				const jsonObj = this.buildJsonObject(relation.model, options);
+
+				const batchQuery = `
+          SELECT t.${fkColumnEsc} as _fk, ${jsonObj} as data
           FROM ${targetTableEsc} t
           WHERE t.${fkColumnEsc} IN (?)
-          GROUP BY t.${fkColumnEsc}
         `;
+
+				let batchResult;
+				try {
+					const [batchRows] = await this.pool.query(batchQuery, [parentIds]);
+					batchResult = batchRows as Array<{ _fk: unknown; data: unknown }>;
+				} catch (error) {
+					throwPopulateQueryError({
+						adapter: "mysql",
+						query,
+						sql: batchQuery,
+						cause: error instanceof Error ? error : new Error(String(error)),
+						strategy: "batched-queries",
+						queryParams: [parentIds],
+					});
+				}
+
+				let relatedRows: ForjaEntry[] = batchResult.map(
+					(r) => ({
+						...((typeof r.data === "string" ? JSON.parse(r.data) : r.data) as ForjaEntry),
+						_fk: r._fk,
+					}),
+				);
+
+				const nestedPopulate = options?.["populate"];
+				if (nestedPopulate && relatedRows.length > 0) {
+					relatedRows = await this.populateBatchedRows<T>(
+						relatedRows,
+						targetTable,
+						nestedPopulate,
+					);
+				}
+
+				const dataMap = new Map(
+					relatedRows.map((r) => [(r as ForjaEntry & { _fk: number })._fk, r]),
+				);
+
+				for (const row of rows) {
+					row[relationName as keyof T] = (dataMap.get(row.id) ||
+						null) as T[keyof T];
+				}
+			} else if (relation.kind === "hasMany") {
+				const fkColumn = relation.foreignKey!;
+				const fkColumnEsc = this.translator.escapeIdentifier(fkColumn);
+				const jsonObj = this.buildJsonObject(relation.model, options);
+
+				const batchQuery = `
+          SELECT t.${fkColumnEsc} as _fk, ${jsonObj} as data
+          FROM ${targetTableEsc} t
+          WHERE t.${fkColumnEsc} IN (?)
+        `;
+
+				let batchResult;
+				try {
+					const [batchRows] = await this.pool.query(batchQuery, [parentIds]);
+					batchResult = batchRows as Array<{ _fk: unknown; data: unknown }>;
+				} catch (error) {
+					throwPopulateQueryError({
+						adapter: "mysql",
+						query,
+						sql: batchQuery,
+						cause: error instanceof Error ? error : new Error(String(error)),
+						strategy: "batched-queries",
+						queryParams: [parentIds],
+					});
+				}
+
+				let allRelatedRows: ForjaEntry[] = batchResult.map((r) => ({
+					...((typeof r.data === "string" ? JSON.parse(r.data) : r.data) as ForjaEntry),
+					_fk: r._fk,
+				}));
+
+				const nestedPopulate = options?.["populate"];
+				if (nestedPopulate && allRelatedRows.length > 0) {
+					allRelatedRows = await this.populateBatchedRows(
+						allRelatedRows,
+						targetTable,
+						nestedPopulate as QueryPopulate<ForjaEntry>,
+					);
+				}
+
+				const groupMap = new Map<number, ForjaEntry[]>();
+				for (const r of allRelatedRows) {
+					const fk = (r as ForjaEntry & { _fk: number })._fk;
+					if (!groupMap.has(fk)) groupMap.set(fk, []);
+					groupMap.get(fk)!.push(r);
+				}
+
+				for (const row of rows) {
+					row[relationName as keyof T] = (groupMap.get(row.id) ||
+						[]) as T[keyof T];
+				}
 			} else if (relation.kind === "manyToMany") {
 				const junctionTable = relation.through!;
 				const sourceFK = `${schema.name}Id`;
 				const targetFK = `${relation.model}Id`;
 
-				const junctionTableEsc =
-					this.translator.escapeIdentifier(junctionTable);
+				const junctionTableEsc = this.translator.escapeIdentifier(junctionTable);
 				const sourceFKEsc = this.translator.escapeIdentifier(sourceFK);
 				const targetFKEsc = this.translator.escapeIdentifier(targetFK);
+				const jsonObj = this.buildJsonObject(relation.model, options);
 
-				// Build JSON_OBJECT for all non-relation fields
-				const fields = Object.entries(targetSchema.fields)
-					.filter(([_, field]) => field.type !== "relation")
-					.map(([name]) => name);
-				const jsonPairs = fields
-					.map((f) => `'${f}', t.${this.translator.escapeIdentifier(f)}`)
-					.join(", ");
-
-				batchQuery = `
-          SELECT j.${sourceFKEsc} as _fk, JSON_ARRAYAGG(JSON_OBJECT(${jsonPairs})) as data
+				const batchQuery = `
+          SELECT j.${sourceFKEsc} as _fk, ${jsonObj} as data
           FROM ${targetTableEsc} t
           INNER JOIN ${junctionTableEsc} j ON t.\`id\` = j.${targetFKEsc}
           WHERE j.${sourceFKEsc} IN (?)
-          GROUP BY j.${sourceFKEsc}
         `;
-			} else {
-				continue;
-			}
 
-			let batchResult;
-			try {
-				const [batchRows] = await this.pool.query(batchQuery, [parentIds]);
-				batchResult = batchRows as Array<{ _fk: unknown; data: unknown }>;
-			} catch (error) {
-				throwPopulateQueryError({
-					adapter: "mysql",
-					query,
-					sql: batchQuery,
-					cause: error instanceof Error ? error : new Error(String(error)),
-					strategy: "batched-queries",
-					queryParams: [parentIds],
-				});
-			}
+				let batchResult;
+				try {
+					const [batchRows] = await this.pool.query(batchQuery, [parentIds]);
+					batchResult = batchRows as Array<{ _fk: unknown; data: unknown }>;
+				} catch (error) {
+					throwPopulateQueryError({
+						adapter: "mysql",
+						query,
+						sql: batchQuery,
+						cause: error instanceof Error ? error : new Error(String(error)),
+						strategy: "batched-queries",
+						queryParams: [parentIds],
+					});
+				}
 
-			const dataMap = new Map(batchResult.map((r) => [r._fk, r.data]));
+				let allRelatedRows: ForjaEntry[] = batchResult.map((r) => ({
+					...((typeof r.data === "string" ? JSON.parse(r.data) : r.data) as ForjaEntry),
+					_fk: r._fk,
+				}));
 
-			for (const row of rows) {
-				if (relation.kind === "belongsTo" || relation.kind === "hasOne") {
-					const fkValue = row[fkColumn as keyof T];
-					row[relationName as keyof T] = (dataMap.get(fkValue) ||
-						null) as T[keyof T];
-				} else {
-					row[relationName as keyof T] = (dataMap.get(row.id) ||
+				const nestedPopulate = options?.["populate"];
+				if (nestedPopulate && allRelatedRows.length > 0) {
+					allRelatedRows = await this.populateBatchedRows(
+						allRelatedRows,
+						targetTable,
+						nestedPopulate as QueryPopulate<ForjaEntry>,
+					);
+				}
+
+				const groupMap = new Map<number, ForjaEntry[]>();
+				for (const r of allRelatedRows) {
+					const fk = (r as ForjaEntry & { _fk: number })._fk;
+					if (!groupMap.has(fk)) groupMap.set(fk, []);
+					groupMap.get(fk)!.push(r);
+				}
+
+				for (const row of rows) {
+					row[relationName as keyof T] = (groupMap.get(row.id) ||
 						[]) as T[keyof T];
+				}
+			}
+		}
+
+		return rows;
+	}
+
+	/**
+	 * Recursively populate nested relations on already-fetched rows
+	 */
+	private async populateBatchedRows<T extends ForjaEntry>(
+		rows: ForjaEntry[],
+		tableName: string,
+		populate: QueryPopulate<ForjaEntry>,
+	): Promise<ForjaEntry[]> {
+		const modelName = this.schemaRegistry.findModelByTableName(tableName);
+		if (!modelName) return rows;
+
+		const schema = this.schemaRegistry.get(modelName);
+		if (!schema) return rows;
+
+		for (const [relationName, _opts] of Object.entries(populate)) {
+			const relationField = schema.fields[relationName];
+			const opts = _opts as QueryPopulateOptions<ForjaEntry>;
+			if (!relationField || relationField.type !== "relation") continue;
+
+			const relation = relationField as {
+				kind: string;
+				model: string;
+				foreignKey?: string;
+				through?: string;
+			};
+			const targetSchema = this.schemaRegistry.get(relation.model);
+			if (!targetSchema) continue;
+
+			const targetTable =
+				targetSchema.tableName ?? relation.model.toLowerCase();
+			const targetTableEsc = this.translator.escapeIdentifier(targetTable);
+			const jsonObj = this.buildJsonObject(relation.model, opts);
+
+			if (relation.kind === "belongsTo") {
+				const fkColumn = relation.foreignKey!;
+				const fkValues = rows
+					.map((row) => row[fkColumn as keyof ForjaEntry])
+					.filter((v) => v != null);
+
+				if (fkValues.length === 0) continue;
+
+				const batchQuery = `
+          SELECT t.\`id\` as _fk, ${jsonObj} as data
+          FROM ${targetTableEsc} t
+          WHERE t.\`id\` IN (?)
+        `;
+				const [batchRows] = await this.pool.query(batchQuery, [fkValues]);
+				let relatedRows: ForjaEntry[] = (batchRows as Array<{ data: unknown }>).map(
+					(r) => (typeof r.data === "string" ? JSON.parse(r.data) : r.data) as ForjaEntry,
+				);
+
+				const nestedPopulate = opts.populate;
+				if (nestedPopulate && relatedRows.length > 0) {
+					relatedRows = await this.populateBatchedRows(
+						relatedRows,
+						targetTable,
+						nestedPopulate as QueryPopulate<ForjaEntry>,
+					);
+				}
+
+				const dataMap = new Map(relatedRows.map((r) => [r.id, r]));
+				for (const row of rows) {
+					const fkValue = row[fkColumn as keyof ForjaEntry];
+					(row as Record<string, unknown>)[relationName] = dataMap.get(fkValue as number) || null;
+					delete (row as Record<string, unknown>)[fkColumn];
+				}
+			} else if (relation.kind === "hasOne") {
+				const fkColumn = relation.foreignKey!;
+				const fkColumnEsc = this.translator.escapeIdentifier(fkColumn);
+				const nestedParentIds = rows.map((r) => r.id);
+
+				const batchQuery = `
+          SELECT t.${fkColumnEsc} as _fk, ${jsonObj} as data
+          FROM ${targetTableEsc} t
+          WHERE t.${fkColumnEsc} IN (?)
+        `;
+				const [batchRows] = await this.pool.query(batchQuery, [nestedParentIds]);
+				let relatedRows: ForjaEntry[] = (batchRows as Array<{ _fk: unknown; data: unknown }>).map(
+					(r) => ({ ...((typeof r.data === "string" ? JSON.parse(r.data) : r.data) as ForjaEntry), _fk: r._fk }),
+				);
+
+				const nestedPopulate = opts.populate;
+				if (nestedPopulate && relatedRows.length > 0) {
+					relatedRows = await this.populateBatchedRows(
+						relatedRows,
+						targetTable,
+						nestedPopulate as QueryPopulate<ForjaEntry>,
+					);
+				}
+
+				const dataMap = new Map(
+					relatedRows.map((r) => [(r as ForjaEntry & { _fk: number })._fk, r]),
+				);
+				for (const row of rows) {
+					(row as Record<string, unknown>)[relationName] = dataMap.get(row.id) || null;
+				}
+			} else if (relation.kind === "hasMany") {
+				const fkColumn = relation.foreignKey!;
+				const fkColumnEsc = this.translator.escapeIdentifier(fkColumn);
+				const nestedParentIds = rows.map((r) => r.id);
+
+				const batchQuery = `
+          SELECT t.${fkColumnEsc} as _fk, ${jsonObj} as data
+          FROM ${targetTableEsc} t
+          WHERE t.${fkColumnEsc} IN (?)
+        `;
+				const [batchRows] = await this.pool.query(batchQuery, [nestedParentIds]);
+				let allRelatedRows: ForjaEntry[] = (batchRows as Array<{ _fk: unknown; data: unknown }>).map((r) => ({
+					...((typeof r.data === "string" ? JSON.parse(r.data) : r.data) as ForjaEntry),
+					_fk: r._fk,
+				}));
+
+				const nestedPopulate = opts.populate;
+				if (nestedPopulate && allRelatedRows.length > 0) {
+					allRelatedRows = await this.populateBatchedRows(
+						allRelatedRows,
+						targetTable,
+						nestedPopulate as QueryPopulate<ForjaEntry>,
+					);
+				}
+
+				const groupMap = new Map<number, ForjaEntry[]>();
+				for (const r of allRelatedRows) {
+					const fk = (r as ForjaEntry & { _fk: number })._fk;
+					if (!groupMap.has(fk)) groupMap.set(fk, []);
+					groupMap.get(fk)!.push(r);
+				}
+				for (const row of rows) {
+					(row as Record<string, unknown>)[relationName] = groupMap.get(row.id) || [];
+				}
+			} else if (relation.kind === "manyToMany") {
+				const junctionTable = relation.through!;
+				const sourceFK = `${schema.name}Id`;
+				const targetFK = `${relation.model}Id`;
+				const nestedParentIds = rows.map((r) => r.id);
+
+				const junctionTableEsc = this.translator.escapeIdentifier(junctionTable);
+				const sourceFKEsc = this.translator.escapeIdentifier(sourceFK);
+				const targetFKEsc = this.translator.escapeIdentifier(targetFK);
+
+				const batchQuery = `
+          SELECT j.${sourceFKEsc} as _fk, ${jsonObj} as data
+          FROM ${targetTableEsc} t
+          INNER JOIN ${junctionTableEsc} j ON t.\`id\` = j.${targetFKEsc}
+          WHERE j.${sourceFKEsc} IN (?)
+        `;
+				const [batchRows] = await this.pool.query(batchQuery, [nestedParentIds]);
+				let allRelatedRows: ForjaEntry[] = (batchRows as Array<{ _fk: unknown; data: unknown }>).map((r) => ({
+					...((typeof r.data === "string" ? JSON.parse(r.data) : r.data) as ForjaEntry),
+					_fk: r._fk,
+				}));
+
+				const nestedPopulate = opts.populate;
+				if (nestedPopulate && allRelatedRows.length > 0) {
+					allRelatedRows = await this.populateBatchedRows(
+						allRelatedRows,
+						targetTable,
+						nestedPopulate as QueryPopulate<ForjaEntry>,
+					);
+				}
+
+				const groupMap = new Map<number, ForjaEntry[]>();
+				for (const r of allRelatedRows) {
+					const fk = (r as ForjaEntry & { _fk: number })._fk;
+					if (!groupMap.has(fk)) groupMap.set(fk, []);
+					groupMap.get(fk)!.push(r);
+				}
+				for (const row of rows) {
+					(row as Record<string, unknown>)[relationName] = groupMap.get(row.id) || [];
 				}
 			}
 		}
@@ -463,12 +787,72 @@ export class MySQLPopulator {
 		}
 
 		// Deep nesting or high cardinality: use batched queries
-		if (analysis.maxDepth > 2 || analysis.estimatedCost > 8) {
+		if (analysis.maxDepth > 1 || analysis.estimatedCost > 8) {
 			return "batched-queries";
 		}
 
 		// Default: JSON aggregation (subquery-based)
 		return "json-aggregation";
+	}
+
+	/**
+	 * Collect FK columns needed by nested populate (belongsTo).
+	 * These must be included in JSON_OBJECT so recursive populate can use them.
+	 */
+	private collectNestedFkColumns(
+		targetModel: string,
+		opts: QueryPopulateOptions<ForjaEntry>,
+	): readonly string[] {
+		if (!opts.populate) return [];
+
+		const targetSchema = this.schemaRegistry.get(targetModel);
+		if (!targetSchema) return [];
+
+		const fkColumns: string[] = [];
+		for (const [relName] of Object.entries(opts.populate)) {
+			const relField = targetSchema.fields[relName];
+			if (!relField || relField.type !== "relation") continue;
+			const rel = relField as { kind: string; foreignKey?: string };
+			if (rel.kind === "belongsTo" && rel.foreignKey) {
+				fkColumns.push(rel.foreignKey);
+			}
+		}
+		return fkColumns;
+	}
+
+	/**
+	 * Build JSON_OBJECT expression for a target model.
+	 * Includes all non-relation fields + FK columns needed for nested populate.
+	 */
+	private buildJsonObject(
+		targetModel: string,
+		opts?: QueryPopulateOptions<ForjaEntry>,
+	): string {
+		const targetSchema = this.schemaRegistry.get(targetModel);
+		if (!targetSchema) return "JSON_OBJECT()";
+
+		// Use select from options if provided, otherwise all non-relation fields
+		const fields: string[] = opts?.select
+			? [...(opts.select as string[])]
+			: Object.entries(targetSchema.fields)
+				.filter(([_, field]) => field.type !== "relation")
+				.map(([name]) => name);
+
+		// Inject FK columns needed for nested populate
+		if (opts) {
+			const fkColumns = this.collectNestedFkColumns(targetModel, opts);
+			for (const fk of fkColumns) {
+				if (!fields.includes(fk)) {
+					fields.push(fk);
+				}
+			}
+		}
+
+		const jsonPairs = fields
+			.map((f) => `'${f}', t.${this.translator.escapeIdentifier(f)}`)
+			.join(", ");
+
+		return `JSON_OBJECT(${jsonPairs})`;
 	}
 
 	/**

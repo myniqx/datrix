@@ -516,17 +516,26 @@ export class PostgresQueryTranslator implements QueryTranslator {
 			currentSchema = this.schemaRegistry.get(modelName);
 		}
 
-		// Use keys from first item as columns
-		const firstItem = dataArray[0] as Record<string, unknown>;
-		const columns = Object.keys(firstItem).map((k) => this.escapeIdentifier(k));
+		// Collect all unique keys across all items for column list
+		const columnSet = new Set<string>();
+		for (const item of dataArray) {
+			for (const key of Object.keys(item as Record<string, unknown>)) {
+				columnSet.add(key);
+			}
+		}
+		const columnKeys = [...columnSet];
+		const columns = columnKeys.map((k) => this.escapeIdentifier(k));
 
-		// Build VALUES rows
+		// Build VALUES rows (missing keys get DEFAULT)
 		const valueRows: string[] = [];
 		for (const item of dataArray) {
 			const row = item as Record<string, unknown>;
-			const values = Object.keys(firstItem).map((key) =>
-				this.addParam(row[key], currentSchema, key),
-			);
+			const values = columnKeys.map((key) => {
+				if (key in row) {
+					return this.addParam(row[key], currentSchema, key);
+				}
+				return "DEFAULT";
+			});
 			valueRows.push(`(${values.join(", ")})`);
 		}
 
@@ -634,17 +643,37 @@ export class PostgresQueryTranslator implements QueryTranslator {
 				query.table,
 			);
 
-			// Add WHERE JOINs if any
+			// PostgreSQL DELETE uses USING instead of JOIN
 			if (whereResult.joins.length > 0) {
-				parts.push(whereResult.joins.join(" "));
+				const usingTables: string[] = [];
+				const joinConditions: string[] = [];
+
+				for (const joinClause of whereResult.joins) {
+					const match = joinClause.match(
+						/LEFT JOIN\s+(.+?)\s+AS\s+(.+?)\s+ON\s+(.+)/,
+					);
+					if (match && match[1] && match[2] && match[3]) {
+						usingTables.push(`${match[1]} AS ${match[2]}`);
+						joinConditions.push(match[3]);
+					}
+				}
+
+				if (usingTables.length > 0) {
+					parts.push(`USING ${usingTables.join(", ")}`);
+				}
+
+				const allConditions = [whereResult.sql, ...joinConditions];
+				parts.push(`WHERE ${allConditions.join(" AND ")}`);
+			} else {
+				parts.push(`WHERE ${whereResult.sql}`);
 			}
 
-			parts.push(`WHERE ${whereResult.sql}`);
 			this.paramIndex += whereResult.params.length;
 			this.params.push(...whereResult.params);
 		}
 
-		parts.push(`RETURNING id`);
+		const tableEsc = this.escapeIdentifier(query.table);
+		parts.push(`RETURNING ${tableEsc}."id"`);
 
 		return parts.join(" ");
 	}

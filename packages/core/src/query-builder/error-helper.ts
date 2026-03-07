@@ -220,6 +220,23 @@ export function throwDeleteWithoutWhere(): never {
 }
 
 /**
+ * Throw missing data error for INSERT/UPDATE queries
+ */
+export function throwMissingData(queryType: "insert" | "update"): never {
+	throw new ForjaQueryBuilderError(
+		`${queryType.toUpperCase()} query requires data`,
+		{
+			code: "MISSING_DATA",
+			component: "builder",
+			suggestion:
+				queryType === "insert"
+					? "Provide at least one data item to insert"
+					: "Provide data object with fields to update",
+		},
+	);
+}
+
+/**
  * Throw invalid query type error
  *
  * @param receivedType - Received query type

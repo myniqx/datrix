@@ -165,7 +165,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 			throwNotConnected({ adapter: "postgres" });
 		}
 
-		const pgClient = new PgClient(queryRunner!, query);
+		const pgClient = new PgClient(queryRunner!, query as any);
 		let lastSql: string | undefined;
 
 		try {

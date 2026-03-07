@@ -96,8 +96,8 @@ export async function getAdapter(
 			// Parse connection config from env
 			const host = process.env["MYSQL_HOST"] ?? "localhost";
 			const port = parseInt(process.env["MYSQL_PORT"] ?? "3306", 10);
-			const user = process.env["MYSQL_USER"] ?? "root";
-			const password = process.env["MYSQL_PASSWORD"] ?? "";
+			const user = process.env["MYSQL_USER"] ?? "forja";
+			const password = process.env["MYSQL_PASSWORD"] ?? "forja";
 
 			// Create fresh database
 			await createMySQLTestDatabase(dbName, { host, port, user, password });
@@ -137,5 +137,5 @@ export function getAdapterType(): AdapterType {
 	) {
 		return adapterEnv;
 	}
-	return "postgres"; // Default
+	return "mysql"; // Default
 }
