@@ -146,12 +146,9 @@ describe("Migration E2E - Ambiguous Detection", () => {
 			const ambiguousId = session.ambiguous[0]!.id;
 
 			// Invalid action for column_rename_or_replace
-			const resolveResult = resolveAmbiguousById(
-				session,
-				ambiguousId,
-				"confirm_drop",
-			);
-			expect(resolveResult.success).toBe(false);
+			expect(() =>
+				resolveAmbiguousById(session, ambiguousId, "confirm_drop"),
+			).toThrow(/Invalid action/);
 
 			// Still unresolved
 			expect(session.hasUnresolvedAmbiguous()).toBe(true);
@@ -176,12 +173,9 @@ describe("Migration E2E - Ambiguous Detection", () => {
 			const forja = await createForjaWithSchemas(tmpDir, [userRenamed]);
 			const session = await forja.beginMigrate();
 
-			const resolveResult = resolveAmbiguousById(
-				session,
-				"nonexistent-id",
-				"rename",
-			);
-			expect(resolveResult.success).toBe(false);
+			expect(() =>
+				resolveAmbiguousById(session, "nonexistent-id", "rename"),
+			).toThrow(/not found/);
 
 			await forja.shutdown();
 		});
