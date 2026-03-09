@@ -76,11 +76,11 @@ describe("Migration E2E - Complex Scenarios", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [
-				userWithPhone,
-				postModified,
-				baseTagSchema,
-			], true);
+			const forja = await createForjaWithSchemas(
+				tmpDir,
+				[userWithPhone, postModified, baseTagSchema],
+				true,
+			);
 
 			const session = await forja.beginMigrate();
 
@@ -122,10 +122,11 @@ describe("Migration E2E - Complex Scenarios", () => {
 			await forja1.shutdown();
 
 			// Add post with relation to user
-			const forja = await createForjaWithSchemas(tmpDir, [
-				baseUserSchema,
-				basePostSchema,
-			], true);
+			const forja = await createForjaWithSchemas(
+				tmpDir,
+				[baseUserSchema, basePostSchema],
+				true,
+			);
 
 			const session = await forja.beginMigrate();
 
@@ -156,7 +157,11 @@ describe("Migration E2E - Complex Scenarios", () => {
 				addIndexes: [{ fields: ["name"], unique: false }],
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userWithNameIndex], true);
+			const forja = await createForjaWithSchemas(
+				tmpDir,
+				[userWithNameIndex],
+				true,
+			);
 			const session = await forja.beginMigrate();
 
 			assertHasChanges(session);
@@ -189,7 +194,11 @@ describe("Migration E2E - Complex Scenarios", () => {
 				removeIndexes: ["email"],
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userNoEmailIndex], true);
+			const forja = await createForjaWithSchemas(
+				tmpDir,
+				[userNoEmailIndex],
+				true,
+			);
 			const session = await forja.beginMigrate();
 
 			assertHasChanges(session);
@@ -237,7 +246,11 @@ describe("Migration E2E - Complex Scenarios", () => {
 				removeIndexes: ["name"],
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userNewIndexes], true);
+			const forja = await createForjaWithSchemas(
+				tmpDir,
+				[userNewIndexes],
+				true,
+			);
 			const session = await forja.beginMigrate();
 
 			assertHasChanges(session);
@@ -386,7 +399,11 @@ describe("Migration E2E - Complex Scenarios", () => {
 			await forja1.shutdown();
 
 			// Second run with same schema
-			const forja = await createForjaWithSchemas(tmpDir, [baseUserSchema], true);
+			const forja = await createForjaWithSchemas(
+				tmpDir,
+				[baseUserSchema],
+				true,
+			);
 			const session = await forja.beginMigrate();
 
 			// Should have no changes

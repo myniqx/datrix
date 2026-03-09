@@ -132,7 +132,7 @@ export abstract class BasePlugin<
 			code: "INVALID_OPTIONS",
 			pluginName: this.name,
 			details: this.options,
-		})
+		});
 	}
 
 	/**
@@ -156,7 +156,7 @@ export abstract class BasePlugin<
 			throw new PluginError(`Plugin ${this.name} not initialized`, {
 				code: "PLUGIN_NOT_INITIALIZED",
 				pluginName: this.name,
-			})
+			});
 		}
 		return this.context;
 	}

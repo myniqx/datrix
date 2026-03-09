@@ -96,11 +96,11 @@ describe("Migration E2E - Relation Changes", () => {
 					},
 				});
 
-				const forja = await createForjaWithSchemas(tmpDir, [
-					baseUserSchema,
-					postWithCategory,
-					baseCategorySchema,
-				], true);
+				const forja = await createForjaWithSchemas(
+					tmpDir,
+					[baseUserSchema, postWithCategory, baseCategorySchema],
+					true,
+				);
 				const session = await forja.beginMigrate();
 
 				// Should detect FK column addition
@@ -140,10 +140,11 @@ describe("Migration E2E - Relation Changes", () => {
 					},
 				});
 
-				const forja = await createForjaWithSchemas(tmpDir, [
-					baseUserSchema,
-					postWithWriter,
-				], true);
+				const forja = await createForjaWithSchemas(
+					tmpDir,
+					[baseUserSchema, postWithWriter],
+					true,
+				);
 				const session = await forja.beginMigrate();
 
 				assertHasChanges(session);
@@ -186,10 +187,11 @@ describe("Migration E2E - Relation Changes", () => {
 					removeFields: ["author"],
 				});
 
-				const forja = await createForjaWithSchemas(tmpDir, [
-					baseUserSchema,
-					postWithoutAuthor,
-				], true);
+				const forja = await createForjaWithSchemas(
+					tmpDir,
+					[baseUserSchema, postWithoutAuthor],
+					true,
+				);
 				const session = await forja.beginMigrate();
 
 				// Should detect FK column removal
@@ -217,10 +219,11 @@ describe("Migration E2E - Relation Changes", () => {
 					removeFields: ["author"],
 				});
 
-				const forja = await createForjaWithSchemas(tmpDir, [
-					baseUserSchema,
-					postWithoutAuthor,
-				], true);
+				const forja = await createForjaWithSchemas(
+					tmpDir,
+					[baseUserSchema, postWithoutAuthor],
+					true,
+				);
 				const session = await forja.beginMigrate();
 
 				// Apply (with auto-resolve if ambiguous)
@@ -258,10 +261,11 @@ describe("Migration E2E - Relation Changes", () => {
 					},
 				});
 
-				const forja = await createForjaWithSchemas(tmpDir, [
-					baseUserSchema,
-					postWithWriter,
-				], true);
+				const forja = await createForjaWithSchemas(
+					tmpDir,
+					[baseUserSchema, postWithWriter],
+					true,
+				);
 				const session = await forja.beginMigrate();
 
 				// Should detect as ambiguous (rename or drop+add?)
@@ -303,10 +307,11 @@ describe("Migration E2E - Relation Changes", () => {
 					},
 				});
 
-				const forja = await createForjaWithSchemas(tmpDir, [
-					baseUserSchema,
-					postWithWriter,
-				], true);
+				const forja = await createForjaWithSchemas(
+					tmpDir,
+					[baseUserSchema, postWithWriter],
+					true,
+				);
 				const session = await forja.beginMigrate();
 
 				// Resolve as rename
@@ -353,11 +358,11 @@ describe("Migration E2E - Relation Changes", () => {
 					},
 				});
 
-				const forja = await createForjaWithSchemas(tmpDir, [
-					baseUserSchema,
-					adminSchema,
-					postWithAdmin,
-				], true);
+				const forja = await createForjaWithSchemas(
+					tmpDir,
+					[baseUserSchema, adminSchema, postWithAdmin],
+					true,
+				);
 				const session = await forja.beginMigrate();
 
 				// Model change should be detected
@@ -394,10 +399,11 @@ describe("Migration E2E - Relation Changes", () => {
 					},
 				});
 
-				const forja = await createForjaWithSchemas(tmpDir, [
-					userWithPosts,
-					basePostSchemaNoRelation,
-				], true);
+				const forja = await createForjaWithSchemas(
+					tmpDir,
+					[userWithPosts, basePostSchemaNoRelation],
+					true,
+				);
 				const session = await forja.beginMigrate();
 
 				// Should detect FK column addition on TARGET table (posts)
@@ -436,10 +442,11 @@ describe("Migration E2E - Relation Changes", () => {
 					},
 				});
 
-				const forja = await createForjaWithSchemas(tmpDir, [
-					userWithArticles,
-					basePostSchemaNoRelation,
-				], true);
+				const forja = await createForjaWithSchemas(
+					tmpDir,
+					[userWithArticles, basePostSchemaNoRelation],
+					true,
+				);
 				const session = await forja.beginMigrate();
 
 				assertHasChanges(session);
@@ -479,10 +486,14 @@ describe("Migration E2E - Relation Changes", () => {
 				await forja1.shutdown();
 
 				// Remove hasMany relation
-				const forja = await createForjaWithSchemas(tmpDir, [
-					baseUserSchema, // no posts relation
-					basePostSchemaNoRelation,
-				], true);
+				const forja = await createForjaWithSchemas(
+					tmpDir,
+					[
+						baseUserSchema, // no posts relation
+						basePostSchemaNoRelation,
+					],
+					true,
+				);
 				const session = await forja.beginMigrate();
 
 				// Should detect FK removal from target table
@@ -522,10 +533,11 @@ describe("Migration E2E - Relation Changes", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [
-				userWithProfile,
-				baseProfileSchema,
-			], true);
+			const forja = await createForjaWithSchemas(
+				tmpDir,
+				[userWithProfile, baseProfileSchema],
+				true,
+			);
 			const session = await forja.beginMigrate();
 
 			assertHasChanges(session);
@@ -560,10 +572,11 @@ describe("Migration E2E - Relation Changes", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [
-				userWithProfile,
-				baseProfileSchema,
-			], true);
+			const forja = await createForjaWithSchemas(
+				tmpDir,
+				[userWithProfile, baseProfileSchema],
+				true,
+			);
 			const session = await forja.beginMigrate();
 
 			assertHasChanges(session);
@@ -595,10 +608,11 @@ describe("Migration E2E - Relation Changes", () => {
 			await assertColumnExists(forja1, "profile", "userId");
 			await forja1.shutdown();
 
-			const forja = await createForjaWithSchemas(tmpDir, [
-				baseUserSchema,
-				baseProfileSchema,
-			], true);
+			const forja = await createForjaWithSchemas(
+				tmpDir,
+				[baseUserSchema, baseProfileSchema],
+				true,
+			);
 			const session = await forja.beginMigrate();
 
 			assertHasChanges(session);
@@ -634,10 +648,11 @@ describe("Migration E2E - Relation Changes", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [
-				userWithProfileMany,
-				baseProfileSchema,
-			], true);
+			const forja = await createForjaWithSchemas(
+				tmpDir,
+				[userWithProfileMany, baseProfileSchema],
+				true,
+			);
 			const session = await forja.beginMigrate();
 			assertNoChanges(session);
 
@@ -667,10 +682,11 @@ describe("Migration E2E - Relation Changes", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [
-				userWithProfileMany,
-				baseProfileSchema,
-			], true);
+			const forja = await createForjaWithSchemas(
+				tmpDir,
+				[userWithProfileMany, baseProfileSchema],
+				true,
+			);
 			const session = await forja.beginMigrate();
 			assertNoChanges(session);
 
@@ -700,10 +716,11 @@ describe("Migration E2E - Relation Changes", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [
-				userWithProfileOne,
-				baseProfileSchema,
-			], true);
+			const forja = await createForjaWithSchemas(
+				tmpDir,
+				[userWithProfileOne, baseProfileSchema],
+				true,
+			);
 			const session = await forja.beginMigrate();
 			assertNoChanges(session);
 
@@ -743,10 +760,11 @@ describe("Migration E2E - Relation Changes", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [
-				userWithProfiles,
-				baseProfileSchema,
-			], true);
+			const forja = await createForjaWithSchemas(
+				tmpDir,
+				[userWithProfiles, baseProfileSchema],
+				true,
+			);
 			const session = await forja.beginMigrate();
 
 			assertHasChanges(session);
@@ -782,10 +800,11 @@ describe("Migration E2E - Relation Changes", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [
-				baseUserSchema,
-				profileWithUser,
-			], true);
+			const forja = await createForjaWithSchemas(
+				tmpDir,
+				[baseUserSchema, profileWithUser],
+				true,
+			);
 			const session = await forja.beginMigrate();
 			assertNoChanges(session);
 
@@ -818,10 +837,11 @@ describe("Migration E2E - Relation Changes", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [
-				userWithProfiles,
-				baseProfileSchema,
-			], true);
+			const forja = await createForjaWithSchemas(
+				tmpDir,
+				[userWithProfiles, baseProfileSchema],
+				true,
+			);
 			const session = await forja.beginMigrate();
 			assertNoChanges(session);
 
@@ -854,10 +874,11 @@ describe("Migration E2E - Relation Changes", () => {
 					},
 				});
 
-				const forja = await createForjaWithSchemas(tmpDir, [
-					postWithTags,
-					baseTagSchema,
-				], true);
+				const forja = await createForjaWithSchemas(
+					tmpDir,
+					[postWithTags, baseTagSchema],
+					true,
+				);
 				const session = await forja.beginMigrate();
 
 				// Should detect junction table creation
@@ -917,10 +938,11 @@ describe("Migration E2E - Relation Changes", () => {
 					},
 				};
 
-				const forja = await createForjaWithSchemas(tmpDir, [
-					appleSchema,
-					bananaWithApples,
-				], true);
+				const forja = await createForjaWithSchemas(
+					tmpDir,
+					[appleSchema, bananaWithApples],
+					true,
+				);
 				const session = await forja.beginMigrate();
 
 				// Junction table should be alphabetically sorted: apple_banana (not banana_apple)
@@ -952,10 +974,11 @@ describe("Migration E2E - Relation Changes", () => {
 					},
 				});
 
-				const forja = await createForjaWithSchemas(tmpDir, [
-					postWithTags,
-					baseTagSchema,
-				], true);
+				const forja = await createForjaWithSchemas(
+					tmpDir,
+					[postWithTags, baseTagSchema],
+					true,
+				);
 				const session = await forja.beginMigrate();
 
 				// Should use custom table name
@@ -1003,10 +1026,14 @@ describe("Migration E2E - Relation Changes", () => {
 				await forja1.shutdown();
 
 				// Remove tags relation
-				const forja = await createForjaWithSchemas(tmpDir, [
-					basePostSchemaNoRelation, // no tags
-					baseTagSchema,
-				], true);
+				const forja = await createForjaWithSchemas(
+					tmpDir,
+					[
+						basePostSchemaNoRelation, // no tags
+						baseTagSchema,
+					],
+					true,
+				);
 				const session = await forja.beginMigrate();
 
 				// Should detect junction table drop
@@ -1037,10 +1064,11 @@ describe("Migration E2E - Relation Changes", () => {
 				await forja1.shutdown();
 
 				// Remove relation
-				const forja = await createForjaWithSchemas(tmpDir, [
-					basePostSchemaNoRelation,
-					baseTagSchema,
-				], true);
+				const forja = await createForjaWithSchemas(
+					tmpDir,
+					[basePostSchemaNoRelation, baseTagSchema],
+					true,
+				);
 				const session = await forja.beginMigrate();
 
 				// Apply
@@ -1089,10 +1117,11 @@ describe("Migration E2E - Relation Changes", () => {
 					},
 				});
 
-				const forja = await createForjaWithSchemas(tmpDir, [
-					postWithNewTags,
-					baseTagSchema,
-				], true);
+				const forja = await createForjaWithSchemas(
+					tmpDir,
+					[postWithNewTags, baseTagSchema],
+					true,
+				);
 				const session = await forja.beginMigrate();
 
 				// Should see: post_tags drop, article_tags create → ambiguous
@@ -1151,10 +1180,11 @@ describe("Migration E2E - Relation Changes", () => {
 					},
 				});
 
-				const forja = await createForjaWithSchemas(tmpDir, [
-					postWithCategories,
-					baseCategorySchema,
-				], true);
+				const forja = await createForjaWithSchemas(
+					tmpDir,
+					[postWithCategories, baseCategorySchema],
+					true,
+				);
 				const session = await forja.beginMigrate();
 
 				// Migration should see:
@@ -1210,10 +1240,11 @@ describe("Migration E2E - Relation Changes", () => {
 					},
 				});
 
-				const forja = await createForjaWithSchemas(tmpDir, [
-					postWithTag,
-					baseTagSchema,
-				], true);
+				const forja = await createForjaWithSchemas(
+					tmpDir,
+					[postWithTag, baseTagSchema],
+					true,
+				);
 				const session = await forja.beginMigrate();
 
 				// Migration should see:
@@ -1260,10 +1291,14 @@ describe("Migration E2E - Relation Changes", () => {
 					},
 				});
 
-				const forja = await createForjaWithSchemas(tmpDir, [
-					baseUserSchema, // no posts relation
-					postWithUsers,
-				], true);
+				const forja = await createForjaWithSchemas(
+					tmpDir,
+					[
+						baseUserSchema, // no posts relation
+						postWithUsers,
+					],
+					true,
+				);
 				const session = await forja.beginMigrate();
 
 				// Should see:
@@ -1312,10 +1347,11 @@ describe("Migration E2E - Relation Changes", () => {
 					},
 				});
 
-				const forja = await createForjaWithSchemas(tmpDir, [
-					baseUserSchema,
-					profileWithUser,
-				], true);
+				const forja = await createForjaWithSchemas(
+					tmpDir,
+					[baseUserSchema, profileWithUser],
+					true,
+				);
 				const session = await forja.beginMigrate();
 				assertNoChanges(session);
 
@@ -1347,10 +1383,11 @@ describe("Migration E2E - Relation Changes", () => {
 					},
 				});
 
-				const forja = await createForjaWithSchemas(tmpDir, [
-					baseUserSchema,
-					profileWithUser,
-				], true);
+				const forja = await createForjaWithSchemas(
+					tmpDir,
+					[baseUserSchema, profileWithUser],
+					true,
+				);
 				const session = await forja.beginMigrate();
 				assertNoChanges(session);
 
@@ -1382,10 +1419,11 @@ describe("Migration E2E - Relation Changes", () => {
 					},
 				});
 
-				const forja = await createForjaWithSchemas(tmpDir, [
-					userWithProfile,
-					baseProfileSchema,
-				], true);
+				const forja = await createForjaWithSchemas(
+					tmpDir,
+					[userWithProfile, baseProfileSchema],
+					true,
+				);
 				const session = await forja.beginMigrate();
 				assertNoChanges(session);
 
@@ -1420,10 +1458,11 @@ describe("Migration E2E - Relation Changes", () => {
 					},
 				});
 
-				const forja = await createForjaWithSchemas(tmpDir, [
-					postWithTags,
-					tagWithPosts,
-				], true);
+				const forja = await createForjaWithSchemas(
+					tmpDir,
+					[postWithTags, tagWithPosts],
+					true,
+				);
 				const session = await forja.beginMigrate();
 				assertNoChanges(session);
 
@@ -1455,10 +1494,11 @@ describe("Migration E2E - Relation Changes", () => {
 
 				// Remove manyToMany from post side — tag side still has it
 				// Junction table should NOT be dropped
-				const forja = await createForjaWithSchemas(tmpDir, [
-					basePostSchemaNoRelation,
-					tagWithPosts,
-				], true);
+				const forja = await createForjaWithSchemas(
+					tmpDir,
+					[basePostSchemaNoRelation, tagWithPosts],
+					true,
+				);
 				const session = await forja.beginMigrate();
 				assertNoChanges(session);
 
@@ -1489,10 +1529,11 @@ describe("Migration E2E - Relation Changes", () => {
 				await forja1.shutdown();
 
 				// Remove manyToMany from both sides
-				const forja = await createForjaWithSchemas(tmpDir, [
-					basePostSchemaNoRelation,
-					baseTagSchema,
-				], true);
+				const forja = await createForjaWithSchemas(
+					tmpDir,
+					[basePostSchemaNoRelation, baseTagSchema],
+					true,
+				);
 				const session = await forja.beginMigrate();
 				assertHasChanges(session);
 				assertTableInDrop(session, "post_tag");
@@ -1527,10 +1568,11 @@ describe("Migration E2E - Relation Changes", () => {
 					},
 				});
 
-				const forja = await createForjaWithSchemas(tmpDir, [
-					userWithProfiles,
-					profileWithUser,
-				], true);
+				const forja = await createForjaWithSchemas(
+					tmpDir,
+					[userWithProfiles, profileWithUser],
+					true,
+				);
 				const session = await forja.beginMigrate();
 				assertNoChanges(session);
 
@@ -1564,10 +1606,11 @@ describe("Migration E2E - Relation Changes", () => {
 					},
 				});
 
-				const forja = await createForjaWithSchemas(tmpDir, [
-					basePostSchemaNoRelation,
-					tagWithPosts,
-				], true);
+				const forja = await createForjaWithSchemas(
+					tmpDir,
+					[basePostSchemaNoRelation, tagWithPosts],
+					true,
+				);
 				const session = await forja.beginMigrate();
 				assertNoChanges(session);
 

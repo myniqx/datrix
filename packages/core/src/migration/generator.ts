@@ -165,8 +165,10 @@ export class ForgeMigrationGenerator implements MigrationGenerator {
 					diff.newDefinition.type === "relation" &&
 					diff.oldDefinition.foreignKey !== diff.newDefinition.foreignKey
 				) {
-					const oldFK = diff.oldDefinition.foreignKey ?? `${diff.oldDefinition.model}Id`;
-					const newFK = diff.newDefinition.foreignKey ?? `${diff.newDefinition.model}Id`;
+					const oldFK =
+						diff.oldDefinition.foreignKey ?? `${diff.oldDefinition.model}Id`;
+					const newFK =
+						diff.newDefinition.foreignKey ?? `${diff.newDefinition.model}Id`;
 					if (oldFK !== newFK) {
 						operations.push({
 							type: "renameColumn" as const,

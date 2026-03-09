@@ -39,7 +39,7 @@ export class Dispatcher {
 	constructor(
 		private readonly registry: PluginRegistry,
 		private readonly forja: Forja,
-	) { }
+	) {}
 
 	/**
 	 * Create and populate query context
@@ -127,10 +127,7 @@ export class Dispatcher {
 		for (const plugin of this.registry.getAll()) {
 			try {
 				if (plugin.onBeforeQuery) {
-					currentQuery = await plugin.onBeforeQuery(
-						currentQuery,
-						context,
-					);
+					currentQuery = await plugin.onBeforeQuery(currentQuery, context);
 				}
 			} catch (error) {
 				console.error(

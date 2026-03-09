@@ -342,7 +342,13 @@ export function processData<T extends ForjaEntry>(
 					normalized = {
 						...normalized,
 						create: relInput.create.map((item) =>
-							processData<T>(item as Partial<T>, targetSchema, registry, depth + 1, nextVisited),
+							processData<T>(
+								item as Partial<T>,
+								targetSchema,
+								registry,
+								depth + 1,
+								nextVisited,
+							),
 						),
 					};
 				} else {

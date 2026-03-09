@@ -20,7 +20,7 @@ import { getAdapter, getAdapterType } from "./adapter";
 export async function createTestConfig(
 	tmpDir: string,
 	schemas: readonly SchemaDefinition[],
-	skipCreate = false
+	skipCreate = false,
 ): Promise<() => Promise<Forja>> {
 	const adapterType = getAdapterType();
 	// skipCreate: true because DB is created once in beforeAll via getAdapter

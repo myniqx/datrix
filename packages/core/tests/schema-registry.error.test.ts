@@ -45,9 +45,8 @@ describe("Core - Schema Registry - Error Path", () => {
 				fields: {},
 			};
 
-			const validationResult = () => strictSchemaRegistry.register(
-				invalidSchemaWithEmptyName,
-			);
+			const validationResult = () =>
+				strictSchemaRegistry.register(invalidSchemaWithEmptyName);
 
 			const validationError = expectFailureError(validationResult);
 			expect(validationError.code).toBe("INVALID_SCHEMA_NAME");
@@ -84,9 +83,8 @@ describe("Core - Schema Registry - Error Path", () => {
 				},
 			};
 
-			const registrationResult = () => strictSchemaRegistry.registerMany([
-				postSchemaWithMissingRelation,
-			]);
+			const registrationResult = () =>
+				strictSchemaRegistry.registerMany([postSchemaWithMissingRelation]);
 
 			const relationError = expectFailureError(registrationResult);
 			expect(relationError.code).toBe("INVALID_RELATIONS");

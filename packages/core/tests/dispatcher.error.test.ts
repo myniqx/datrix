@@ -23,24 +23,30 @@ describe("Core - Dispatcher - Error Path", () => {
 		).rejects.toThrow("QueryObject is missing required field");
 	});
 
-	it.fails("should throw if plugin returns an invalid query (now strict)", async () => {
-		const pluginRegistry = new PluginRegistry();
-		const invalidQueryReturningPlugin: ForjaPlugin = {
-			name: "bad-plugin",
-			version: "1",
-			options: {},
-			init: async () => { },
-			destroy: async () => { },
-			onBeforeQuery: async (q) =>
-				({ ...q, ghostKey: "I should not be here" }) as any,
-		};
-		pluginRegistry.register(invalidQueryReturningPlugin);
+	it.fails(
+		"should throw if plugin returns an invalid query (now strict)",
+		async () => {
+			const pluginRegistry = new PluginRegistry();
+			const invalidQueryReturningPlugin: ForjaPlugin = {
+				name: "bad-plugin",
+				version: "1",
+				options: {},
+				init: async () => {},
+				destroy: async () => {},
+				onBeforeQuery: async (q) =>
+					({ ...q, ghostKey: "I should not be here" }) as any,
+			};
+			pluginRegistry.register(invalidQueryReturningPlugin);
 
-		const dispatcher = new Dispatcher(pluginRegistry);
-		const validEntranceQuery: QueryObject = { type: "select", table: "users" };
+			const dispatcher = new Dispatcher(pluginRegistry);
+			const validEntranceQuery: QueryObject = {
+				type: "select",
+				table: "users",
+			};
 
-		await expect(
-			dispatcher.dispatchBeforeQuery(validEntranceQuery),
-		).rejects.toThrow("Plugin 'bad-plugin' returned an invalid query");
-	});
+			await expect(
+				dispatcher.dispatchBeforeQuery(validEntranceQuery),
+			).rejects.toThrow("Plugin 'bad-plugin' returned an invalid query");
+		},
+	);
 });

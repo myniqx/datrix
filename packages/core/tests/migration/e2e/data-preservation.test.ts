@@ -94,7 +94,11 @@ describe("Migration E2E - Data Preservation", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userWithFullName], true);
+			const forja = await createForjaWithSchemas(
+				tmpDir,
+				[userWithFullName],
+				true,
+			);
 			const session = await forja.beginMigrate();
 			assertHasChanges(session);
 
@@ -145,7 +149,11 @@ describe("Migration E2E - Data Preservation", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userWithFullName], true);
+			const forja = await createForjaWithSchemas(
+				tmpDir,
+				[userWithFullName],
+				true,
+			);
 			const session = await forja.beginMigrate();
 
 			// Resolve as drop_and_add (data loss)
@@ -211,10 +219,11 @@ describe("Migration E2E - Data Preservation", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [
-				baseUserSchema,
-				postWithWriter,
-			], true);
+			const forja = await createForjaWithSchemas(
+				tmpDir,
+				[baseUserSchema, postWithWriter],
+				true,
+			);
 			const session = await forja.beginMigrate();
 
 			// Resolve as rename
@@ -299,10 +308,11 @@ describe("Migration E2E - Data Preservation", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [
-				postWithCategories,
-				baseCategorySchema,
-			], true);
+			const forja = await createForjaWithSchemas(
+				tmpDir,
+				[postWithCategories, baseCategorySchema],
+				true,
+			);
 			const session = await forja.beginMigrate();
 			assertHasChanges(session);
 
@@ -387,10 +397,11 @@ describe("Migration E2E - Data Preservation", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [
-				postWithTag,
-				baseTagSchema,
-			], true);
+			const forja = await createForjaWithSchemas(
+				tmpDir,
+				[postWithTag, baseTagSchema],
+				true,
+			);
 			const session = await forja.beginMigrate();
 			assertHasChanges(session);
 
@@ -456,10 +467,11 @@ describe("Migration E2E - Data Preservation", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [
-				postWithTag,
-				baseTagSchema,
-			], true);
+			const forja = await createForjaWithSchemas(
+				tmpDir,
+				[postWithTag, baseTagSchema],
+				true,
+			);
 			const session = await forja.beginMigrate();
 
 			// relation_downgrade_many_to_single ambiguous is detected with data loss warning

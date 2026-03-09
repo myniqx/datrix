@@ -281,7 +281,11 @@ export class CrudOperations implements IRawCrud {
 		T extends ForjaEntry = ForjaRecord,
 		TInput extends FallbackInput = FallbackInput,
 	>(model: string, data: TInput[], options?: RawCrudOptions<T>): Promise<T[]> {
-		const builder = insertInto<T>(model, data as unknown as Partial<T>[], this.schemas);
+		const builder = insertInto<T>(
+			model,
+			data as unknown as Partial<T>[],
+			this.schemas,
+		);
 
 		if (options?.select) {
 			builder.select(options.select);
@@ -375,7 +379,11 @@ export class CrudOperations implements IRawCrud {
 		data: TInput,
 		options?: RawCrudOptions<T>,
 	): Promise<T[]> {
-		const builder = updateTable<T>(model, data as unknown as Partial<T>, this.schemas).where(where);
+		const builder = updateTable<T>(
+			model,
+			data as unknown as Partial<T>,
+			this.schemas,
+		).where(where);
 
 		if (options?.select || !options?.noReturning) {
 			builder.select(options?.select ?? "*");

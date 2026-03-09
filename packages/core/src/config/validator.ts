@@ -23,9 +23,7 @@ const isObject = (obj: unknown): boolean =>
 /**
  * Validate ForjaConfig structure
  */
-export function validateConfig(
-	config: unknown,
-): ForjaConfig {
+export function validateConfig(config: unknown): ForjaConfig {
 	const errors: string[] = [];
 
 	// 1. Check if object
@@ -147,15 +145,12 @@ function validatePlugins(plugins: unknown): void {
 			);
 		}
 	}
-
 }
 
 /**
  * Validate migration config
  */
-function validateMigrationConfig(
-	migration: unknown,
-): MigrationConfig {
+function validateMigrationConfig(migration: unknown): MigrationConfig {
 	if (typeof migration !== "object" || migration === null) {
 		throwConfigFieldType("migration", "object", migration);
 	}

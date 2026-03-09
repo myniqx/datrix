@@ -237,16 +237,20 @@ export async function getTableColumns(
 export async function dropAllTables(adapter: DatabaseAdapter): Promise<void> {
 	// Disable FK checks to allow dropping in any order
 	const disableFK = [
-		"SET FOREIGN_KEY_CHECKS = 0",           // MySQL
+		"SET FOREIGN_KEY_CHECKS = 0", // MySQL
 		"SET session_replication_role = 'replica'", // Postgres
 	];
 	const enableFK = [
-		"SET FOREIGN_KEY_CHECKS = 1",           // MySQL
+		"SET FOREIGN_KEY_CHECKS = 1", // MySQL
 		"SET session_replication_role = 'origin'", // Postgres
 	];
 
 	for (const sql of disableFK) {
-		try { await adapter.executeRawQuery(sql, []); } catch { /* not supported */ }
+		try {
+			await adapter.executeRawQuery(sql, []);
+		} catch {
+			/* not supported */
+		}
 	}
 
 	const tablesResult = await adapter.getTables();
@@ -260,7 +264,11 @@ export async function dropAllTables(adapter: DatabaseAdapter): Promise<void> {
 	}
 
 	for (const sql of enableFK) {
-		try { await adapter.executeRawQuery(sql, []); } catch { /* not supported */ }
+		try {
+			await adapter.executeRawQuery(sql, []);
+		} catch {
+			/* not supported */
+		}
 	}
 }
 

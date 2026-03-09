@@ -85,7 +85,11 @@ describe("Migration E2E - Column Changes", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userWithExtras], true);
+			const forja = await createForjaWithSchemas(
+				tmpDir,
+				[userWithExtras],
+				true,
+			);
 			const session = await forja.beginMigrate();
 
 			// Should detect alterations
@@ -117,7 +121,11 @@ describe("Migration E2E - Column Changes", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userWithUsername], true);
+			const forja = await createForjaWithSchemas(
+				tmpDir,
+				[userWithUsername],
+				true,
+			);
 			const session = await forja.beginMigrate();
 			assertHasChanges(session);
 
@@ -148,7 +156,11 @@ describe("Migration E2E - Column Changes", () => {
 				removeFields: ["age"],
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userWithoutAge], true);
+			const forja = await createForjaWithSchemas(
+				tmpDir,
+				[userWithoutAge],
+				true,
+			);
 			const session = await forja.beginMigrate();
 
 			// Should detect column removal
@@ -297,7 +309,11 @@ describe("Migration E2E - Column Changes", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userNameOptional], true);
+			const forja = await createForjaWithSchemas(
+				tmpDir,
+				[userNameOptional],
+				true,
+			);
 			const session = await forja.beginMigrate();
 
 			// Should detect modification

@@ -56,7 +56,7 @@ export class QueryExecutor {
 		private readonly schemas: SchemaRegistry,
 		private readonly getAdapter: () => DatabaseAdapter,
 		private readonly getDispatcher: () => Dispatcher,
-	) { }
+	) {}
 
 	/**
 	 * Execute a query
@@ -406,7 +406,9 @@ export class QueryExecutor {
 					type: "select",
 					table: updateQuery.table,
 					select: updateQuery.select!,
-					where: { id: { $in: recordIds.map((r) => r.id) } } as unknown as WhereClause<T>,
+					where: {
+						id: { $in: recordIds.map((r) => r.id) },
+					} as unknown as WhereClause<T>,
 					...(updateQuery.populate !== undefined && {
 						populate: updateQuery.populate,
 					}),
@@ -435,13 +437,19 @@ export class QueryExecutor {
 			? null
 			: await dispatcher.buildQueryContext(action, schema);
 		const modifiedQuery = context
-			? ((await dispatcher.dispatchBeforeQuery(query as QueryObject, context)) as TQuery)
+			? ((await dispatcher.dispatchBeforeQuery(
+					query as QueryObject,
+					context,
+				)) as TQuery)
 			: query;
 
 		const result = await handler(modifiedQuery);
 
 		if (context) {
-			return dispatcher.dispatchAfterQuery(result as ForjaEntry, context) as Promise<TResult>;
+			return dispatcher.dispatchAfterQuery(
+				result as ForjaEntry,
+				context,
+			) as Promise<TResult>;
 		}
 
 		return result;

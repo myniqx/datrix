@@ -215,7 +215,10 @@ export class ForjaQueryBuilder<
 				field: fieldOrClause as keyof TSchema,
 				direction,
 			};
-			this.query.orderBy = [...(normalized || []), newItem] as OrderByClause<TSchema>;
+			this.query.orderBy = [
+				...(normalized || []),
+				newItem,
+			] as OrderByClause<TSchema>;
 			return this;
 		}
 

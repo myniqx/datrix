@@ -633,11 +633,7 @@ export class SchemaRegistry {
 						relation.through ??
 						this.getJunctionTableName(schemaName, relation.model);
 
-					this.createJunctionTable(
-						schemaName,
-						relation,
-						junctionTableName,
-					);
+					this.createJunctionTable(schemaName, relation, junctionTableName);
 
 					enhancedFields[fieldName] = {
 						...relation,

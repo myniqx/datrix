@@ -70,7 +70,7 @@ export class Forja implements IForja {
 	private _crud!: CrudOperations;
 	private _rawCrud!: CrudOperations;
 
-	private constructor() { }
+	private constructor() {}
 
 	static getInstance(): Forja {
 		if (!Forja.instance) {
@@ -155,7 +155,6 @@ export class Forja implements IForja {
 			// 5. Finalize registry (process relations, create junction tables)
 			this._schemas.finalizeRegistry();
 
-
 			// Initialize mixins
 			this._crud = new CrudOperations(
 				this._schemas,
@@ -188,7 +187,10 @@ export class Forja implements IForja {
 		} catch (error) {
 			throw new ForjaError(
 				`Initialization failed: ${error instanceof Error ? error.message : String(error)}`,
-				{ code: "INIT_FAILED", cause: error instanceof Error ? error : undefined },
+				{
+					code: "INIT_FAILED",
+					cause: error instanceof Error ? error : undefined,
+				},
 			);
 		}
 	}
@@ -210,12 +212,14 @@ export class Forja implements IForja {
 			this.initialized = false;
 			Forja.instance = null;
 			Forja.initPromise = null;
-
 		} catch (error) {
 			throw new ForjaError(
 				`Shutdown failed: ${error instanceof Error ? error.message : String(error)}`,
-				{ code: "SHUTDOWN_FAILED", cause: error instanceof Error ? error : undefined },
-			)
+				{
+					code: "SHUTDOWN_FAILED",
+					cause: error instanceof Error ? error : undefined,
+				},
+			);
 		}
 	}
 
@@ -461,9 +465,7 @@ export class Forja implements IForja {
 		}
 	}
 
-	private applySchemaExtensions(
-		extensions: SchemaExtension[],
-	): void {
+	private applySchemaExtensions(extensions: SchemaExtension[]): void {
 		for (const extension of extensions) {
 			const schema = this._schemas.get(extension.targetSchema)!;
 			const extendedFields = { ...schema.fields };

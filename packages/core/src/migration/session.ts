@@ -176,12 +176,25 @@ export class MigrationSession {
 			const comparison = this.differ.compare(oldSchemas, newSchemas);
 
 			this.differences = [...comparison.differences];
-			console.log("[migration:differ] raw differences:", JSON.stringify(this.differences, null, 2));
+			console.log(
+				"[migration:differ] raw differences:",
+				JSON.stringify(this.differences, null, 2),
+			);
 
 			// Detect ambiguous changes
 			this.detectAmbiguousChanges();
-			console.log("[migration:session] after detectAmbiguous - differences:", JSON.stringify(this.differences, null, 2));
-			console.log("[migration:session] after detectAmbiguous - ambiguous:", JSON.stringify(this._ambiguous.map(a => ({ id: a.id, type: a.type })), null, 2));
+			console.log(
+				"[migration:session] after detectAmbiguous - differences:",
+				JSON.stringify(this.differences, null, 2),
+			);
+			console.log(
+				"[migration:session] after detectAmbiguous - ambiguous:",
+				JSON.stringify(
+					this._ambiguous.map((a) => ({ id: a.id, type: a.type })),
+					null,
+					2,
+				),
+			);
 
 			this.initialized = true;
 		} catch (error) {
@@ -379,10 +392,13 @@ export class MigrationSession {
 						}
 
 						// Remove manyToMany field diffs from differences (no DB column to drop)
-						this.differences = this.differences.filter((d) =>
-							!(d.type === "fieldRemoved" &&
-								d.tableName === tableName &&
-								!d.fieldName.endsWith("Id")),
+						this.differences = this.differences.filter(
+							(d) =>
+								!(
+									d.type === "fieldRemoved" &&
+									d.tableName === tableName &&
+									!d.fieldName.endsWith("Id")
+								),
 						);
 
 						this._ambiguous.push({
@@ -1040,10 +1056,7 @@ export class MigrationSession {
 	/**
 	 * Resolve an ambiguous change
 	 */
-	resolveAmbiguous(
-		id: string,
-		action: AmbiguousActionType,
-	): void {
+	resolveAmbiguous(id: string, action: AmbiguousActionType): void {
 		const ambiguous = this._ambiguous.find((a) => a.id === id);
 		if (!ambiguous) {
 			throw new MigrationSystemError(
@@ -1153,8 +1166,10 @@ export class MigrationSession {
 				d.oldDefinition.type === "relation" &&
 				d.newDefinition.type === "relation"
 			) {
-				const oldFK = d.oldDefinition.foreignKey ?? `${d.oldDefinition.model}Id`;
-				const newFK = d.newDefinition.foreignKey ?? `${d.newDefinition.model}Id`;
+				const oldFK =
+					d.oldDefinition.foreignKey ?? `${d.oldDefinition.model}Id`;
+				const newFK =
+					d.newDefinition.foreignKey ?? `${d.newDefinition.model}Id`;
 				if (oldFK === ambiguous.removedName && newFK === ambiguous.addedName) {
 					return false;
 				}
@@ -1244,13 +1259,37 @@ export class MigrationSession {
 			version: Date.now().toString(),
 			description: "Auto-generated migration",
 		});
-		console.log("[migration:generator] operations:", JSON.stringify(baseMigration.operations.map(op => ({ type: op.type, ...("tableName" in op ? { tableName: op.tableName } : {}), ...("operations" in op ? { operations: op.operations } : {}), ...("description" in op ? { description: op.description } : {}) })), null, 2));
+		console.log(
+			"[migration:generator] operations:",
+			JSON.stringify(
+				baseMigration.operations.map((op) => ({
+					type: op.type,
+					...("tableName" in op ? { tableName: op.tableName } : {}),
+					...("operations" in op ? { operations: op.operations } : {}),
+					...("description" in op ? { description: op.description } : {}),
+				})),
+				null,
+				2,
+			),
+		);
 
 		// Inject data transfer operations for resolved migrate_to_junction / migrate_first
 		const enrichedOperations = this.injectDataTransferOperations(
 			baseMigration.operations,
 		);
-		console.log("[migration:inject] final operations:", JSON.stringify(enrichedOperations.map(op => ({ type: op.type, ...("tableName" in op ? { tableName: op.tableName } : {}), ...("operations" in op ? { operations: op.operations } : {}), ...("description" in op ? { description: op.description } : {}) })), null, 2));
+		console.log(
+			"[migration:inject] final operations:",
+			JSON.stringify(
+				enrichedOperations.map((op) => ({
+					type: op.type,
+					...("tableName" in op ? { tableName: op.tableName } : {}),
+					...("operations" in op ? { operations: op.operations } : {}),
+					...("description" in op ? { description: op.description } : {}),
+				})),
+				null,
+				2,
+			),
+		);
 
 		const migration: Migration = {
 			...baseMigration,
@@ -1267,9 +1306,10 @@ export class MigrationSession {
 		// Throw on failure so callers don't silently ignore migration errors
 		const failed = results.find((r) => r.status === "failed");
 		if (failed) {
-			const errorMessage = failed.error instanceof Error
-				? failed.error.message
-				: String(failed.error ?? "Unknown migration error");
+			const errorMessage =
+				failed.error instanceof Error
+					? failed.error.message
+					: String(failed.error ?? "Unknown migration error");
 			throw new MigrationSystemError(
 				`Migration failed: ${errorMessage}`,
 				"MIGRATION_ERROR",
