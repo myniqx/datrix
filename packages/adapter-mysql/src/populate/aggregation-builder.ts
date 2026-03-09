@@ -14,6 +14,7 @@ import type {
 import type { SchemaRegistry } from "forja-core/schema";
 import type { ForjaEntry, RelationField } from "forja-types/core/schema";
 import type { MySQLQueryTranslator } from "../query-translator";
+import { escapeIdentifier } from "../helpers";
 import type { AggregationClause, PopulateFieldSelection } from "./types";
 import {
 	throwModelNotFound,
@@ -116,7 +117,7 @@ export class AggregationBuilder {
 		relation: RelationField,
 		options: QueryPopulateOptions<T>,
 	): AggregationClause {
-		const relationAlias = this.translator.escapeIdentifier(relationName);
+		const relationAlias = escapeIdentifier(relationName);
 		const fieldSelection = this.buildFieldSelection(
 			relationName,
 			relation,
@@ -177,7 +178,7 @@ export class AggregationBuilder {
 		const fields = fieldSelection.fields as readonly string[];
 		const jsonPairs = fields
 			.map((field) => {
-				const fieldEsc = this.translator.escapeIdentifier(field);
+				const fieldEsc = escapeIdentifier(field);
 				return `'${field}', ${relationAlias}.${fieldEsc}`;
 			})
 			.join(", ");
@@ -216,10 +217,10 @@ export class AggregationBuilder {
 		const targetTable = targetSchema.tableName ?? relation.model.toLowerCase();
 		const foreignKey = relation.foreignKey!;
 
-		const sourceTableEsc = this.translator.escapeIdentifier(sourceTable);
-		const targetTableEsc = this.translator.escapeIdentifier(targetTable);
-		const foreignKeyEsc = this.translator.escapeIdentifier(foreignKey);
-		const relationAlias = this.translator.escapeIdentifier(relationName);
+		const sourceTableEsc = escapeIdentifier(sourceTable);
+		const targetTableEsc = escapeIdentifier(targetTable);
+		const foreignKeyEsc = escapeIdentifier(foreignKey);
+		const relationAlias = escapeIdentifier(relationName);
 
 		// Build JSON_OBJECT for inner select
 		const jsonObject = this.buildJsonObjectForSubquery(
@@ -268,12 +269,12 @@ export class AggregationBuilder {
 		const sourceFK = `${currentSchema.name}Id`;
 		const targetFK = `${relation.model}Id`;
 
-		const sourceTableEsc = this.translator.escapeIdentifier(sourceTable);
-		const targetTableEsc = this.translator.escapeIdentifier(targetTable);
-		const junctionTableEsc = this.translator.escapeIdentifier(junctionTable);
-		const sourceFKEsc = this.translator.escapeIdentifier(sourceFK);
-		const targetFKEsc = this.translator.escapeIdentifier(targetFK);
-		const relationAlias = this.translator.escapeIdentifier(relationName);
+		const sourceTableEsc = escapeIdentifier(sourceTable);
+		const targetTableEsc = escapeIdentifier(targetTable);
+		const junctionTableEsc = escapeIdentifier(junctionTable);
+		const sourceFKEsc = escapeIdentifier(sourceFK);
+		const targetFKEsc = escapeIdentifier(targetFK);
+		const relationAlias = escapeIdentifier(relationName);
 
 		// Build JSON_OBJECT for inner select
 		const jsonObject = this.buildJsonObjectForSubquery(
@@ -297,7 +298,7 @@ export class AggregationBuilder {
 		const fields = fieldSelection.fields as readonly string[];
 		const jsonPairs = fields
 			.map((field) => {
-				const fieldEsc = this.translator.escapeIdentifier(field);
+				const fieldEsc = escapeIdentifier(field);
 				return `'${field}', ${tableEsc}.${fieldEsc}`;
 			})
 			.join(", ");
@@ -328,10 +329,10 @@ export class AggregationBuilder {
 		const targetTable = targetSchema.tableName ?? relation.model.toLowerCase();
 		const foreignKey = relation.foreignKey!;
 
-		const sourceTableEsc = this.translator.escapeIdentifier(sourceTable);
-		const targetTableEsc = this.translator.escapeIdentifier(targetTable);
-		const foreignKeyEsc = this.translator.escapeIdentifier(foreignKey);
-		const relationAlias = this.translator.escapeIdentifier(
+		const sourceTableEsc = escapeIdentifier(sourceTable);
+		const targetTableEsc = escapeIdentifier(targetTable);
+		const foreignKeyEsc = escapeIdentifier(foreignKey);
+		const relationAlias = escapeIdentifier(
 			`${relationName}_data`,
 		);
 
@@ -442,12 +443,12 @@ export class AggregationBuilder {
 		const targetFK = `${relation.model}Id`;
 
 		// Escape identifiers
-		const sourceTableEsc = this.translator.escapeIdentifier(sourceTable);
-		const junctionTableEsc = this.translator.escapeIdentifier(junctionTable);
-		const targetTableEsc = this.translator.escapeIdentifier(targetTable);
-		const sourceFKEsc = this.translator.escapeIdentifier(sourceFK);
-		const targetFKEsc = this.translator.escapeIdentifier(targetFK);
-		const relationAlias = this.translator.escapeIdentifier(
+		const sourceTableEsc = escapeIdentifier(sourceTable);
+		const junctionTableEsc = escapeIdentifier(junctionTable);
+		const targetTableEsc = escapeIdentifier(targetTable);
+		const sourceFKEsc = escapeIdentifier(sourceFK);
+		const targetFKEsc = escapeIdentifier(targetFK);
+		const relationAlias = escapeIdentifier(
 			`${relationName}_data`,
 		);
 
@@ -513,7 +514,7 @@ export class AggregationBuilder {
 			});
 		}
 
-		const relationAlias = this.translator.escapeIdentifier(relationName);
+		const relationAlias = escapeIdentifier(relationName);
 
 		// select is always provided by normalizer (getCachedSelectFields)
 		const fields = options.select as readonly string[];
@@ -521,7 +522,7 @@ export class AggregationBuilder {
 		// Build field list SQL
 		const fieldSQL = fields
 			.map((field) => {
-				const fieldEsc = this.translator.escapeIdentifier(field);
+				const fieldEsc = escapeIdentifier(field);
 				return `${relationAlias}.${fieldEsc}`;
 			})
 			.join(", ");
@@ -541,7 +542,7 @@ export class AggregationBuilder {
 	): string {
 		return orderBy
 			.map((item) => {
-				const field = this.translator.escapeIdentifier(item.field as string);
+				const field = escapeIdentifier(item.field as string);
 				const direction = item.direction.toUpperCase();
 
 				if (item.nulls) {

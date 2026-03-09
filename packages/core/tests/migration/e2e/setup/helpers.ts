@@ -235,14 +235,32 @@ export async function getTableColumns(
  * Drop all tables (clean slate)
  */
 export async function dropAllTables(adapter: DatabaseAdapter): Promise<void> {
+	// Disable FK checks to allow dropping in any order
+	const disableFK = [
+		"SET FOREIGN_KEY_CHECKS = 0",           // MySQL
+		"SET session_replication_role = 'replica'", // Postgres
+	];
+	const enableFK = [
+		"SET FOREIGN_KEY_CHECKS = 1",           // MySQL
+		"SET session_replication_role = 'origin'", // Postgres
+	];
+
+	for (const sql of disableFK) {
+		try { await adapter.executeRawQuery(sql, []); } catch { /* not supported */ }
+	}
+
 	const tablesResult = await adapter.getTables();
 
 	for (const tableName of tablesResult) {
 		try {
 			await adapter.dropTable(tableName);
 		} catch {
-			// Ignore errors (e.g. if table is locked)s
+			// Ignore errors (e.g. if table is locked)
 		}
+	}
+
+	for (const sql of enableFK) {
+		try { await adapter.executeRawQuery(sql, []); } catch { /* not supported */ }
 	}
 }
 

@@ -677,10 +677,14 @@ export class ForgeSchemaDiffer implements SchemaDiffer {
 			if (newFieldNames.has(fieldName)) continue;
 			if (skippedOldFields.has(fieldName)) continue;
 
+			const definition = oldSchema.fields[fieldName];
+			if (!isFieldDefinition(definition)) continue;
+
 			differences.push({
 				type: "fieldRemoved",
 				tableName,
 				fieldName,
+				definition,
 			});
 		}
 

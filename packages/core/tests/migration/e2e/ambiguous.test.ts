@@ -59,7 +59,7 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userRenamed]);
+			const forja = await createForjaWithSchemas(tmpDir, [userRenamed], true);
 			const session = await forja.beginMigrate();
 
 			// Should detect ambiguous
@@ -84,7 +84,7 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userRenamed]);
+			const forja = await createForjaWithSchemas(tmpDir, [userRenamed], true);
 			const session = await forja.beginMigrate();
 
 			autoResolveAmbiguous(session, "rename");
@@ -110,7 +110,7 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userRenamed]);
+			const forja = await createForjaWithSchemas(tmpDir, [userRenamed], true);
 			const session = await forja.beginMigrate();
 
 			expect(session.ambiguous.length).toBe(1);
@@ -141,7 +141,7 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userRenamed]);
+			const forja = await createForjaWithSchemas(tmpDir, [userRenamed], true);
 			const session = await forja.beginMigrate();
 			const ambiguousId = session.ambiguous[0]!.id;
 
@@ -170,7 +170,7 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userRenamed]);
+			const forja = await createForjaWithSchemas(tmpDir, [userRenamed], true);
 			const session = await forja.beginMigrate();
 
 			expect(() =>
@@ -194,7 +194,7 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userRenamed]);
+			const forja = await createForjaWithSchemas(tmpDir, [userRenamed], true);
 			const session = await forja.beginMigrate();
 
 			expect(session.hasUnresolvedAmbiguous()).toBe(true);
@@ -227,7 +227,7 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userRenamed]);
+			const forja = await createForjaWithSchemas(tmpDir, [userRenamed], true);
 			const session = await forja.beginMigrate();
 
 			autoResolveAmbiguous(session, "drop_and_add");
@@ -265,7 +265,7 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userFullName]);
+			const forja = await createForjaWithSchemas(tmpDir, [userFullName], true);
 			const session = await forja.beginMigrate();
 
 			assertHasChanges(session);
@@ -300,7 +300,7 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userSplitName]);
+			const forja = await createForjaWithSchemas(tmpDir, [userSplitName], true);
 			const session = await forja.beginMigrate();
 
 			assertHasChanges(session);
@@ -341,7 +341,7 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userRenamedBoth]);
+			const forja = await createForjaWithSchemas(tmpDir, [userRenamedBoth], true);
 			const session = await forja.beginMigrate();
 
 			assertHasChanges(session);
@@ -383,7 +383,7 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userXYZ]);
+			const forja = await createForjaWithSchemas(tmpDir, [userXYZ], true);
 			const session = await forja.beginMigrate();
 
 			// Should detect ambiguous (9 possible pairs: 3x3)
@@ -423,7 +423,7 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userAgeString]);
+			const forja = await createForjaWithSchemas(tmpDir, [userAgeString], true);
 			const session = await forja.beginMigrate();
 
 			// Should NOT be ambiguous - it's a modification of existing field
@@ -453,7 +453,7 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userWithBirthDate]);
+			const forja = await createForjaWithSchemas(tmpDir, [userWithBirthDate], true);
 			const session = await forja.beginMigrate();
 
 			// Design decision: Should this be ambiguous?
@@ -497,7 +497,7 @@ describe("Migration E2E - Ambiguous Detection", () => {
 
 			const forja = await createForjaWithSchemas(tmpDir, [
 				userWithUserFullName,
-			]);
+			], true);
 			const session = await forja.beginMigrate();
 
 			// Strong rename candidate - should be ambiguous
@@ -527,7 +527,7 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userWithSnakeCase]);
+			const forja = await createForjaWithSchemas(tmpDir, [userWithSnakeCase], true);
 			const session = await forja.beginMigrate();
 
 			// Convention change - should be ambiguous
@@ -558,7 +558,7 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userFixed]);
+			const forja = await createForjaWithSchemas(tmpDir, [userFixed], true);
 			const session = await forja.beginMigrate();
 
 			// Likely rename - should be ambiguous
@@ -588,7 +588,7 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userWithBar]);
+			const forja = await createForjaWithSchemas(tmpDir, [userWithBar], true);
 			const session = await forja.beginMigrate();
 
 			// Even completely different names - should still ask
@@ -616,7 +616,7 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userWithPhone]);
+			const forja = await createForjaWithSchemas(tmpDir, [userWithPhone], true);
 			const session = await forja.beginMigrate();
 
 			// No ambiguous - nothing removed
@@ -640,7 +640,7 @@ describe("Migration E2E - Ambiguous Detection", () => {
 			await forja1.shutdown();
 
 			// Only remove, no add
-			const forja = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
+			const forja = await createForjaWithSchemas(tmpDir, [baseUserSchema], true);
 			const session = await forja.beginMigrate();
 
 			// No ambiguous - nothing added
@@ -667,7 +667,7 @@ describe("Migration E2E - Ambiguous Detection", () => {
 			// Update tableName for account
 			(accountSchema as { tableName: string }).tableName = "accounts";
 
-			const forja = await createForjaWithSchemas(tmpDir, [accountSchema]);
+			const forja = await createForjaWithSchemas(tmpDir, [accountSchema], true);
 			const session = await forja.beginMigrate();
 
 			// Should detect table rename candidate
@@ -701,7 +701,7 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			};
 
-			const forja = await createForjaWithSchemas(tmpDir, [productSchema]);
+			const forja = await createForjaWithSchemas(tmpDir, [productSchema], true);
 			const session = await forja.beginMigrate();
 
 			// Should NOT have table rename ambiguous (too different)

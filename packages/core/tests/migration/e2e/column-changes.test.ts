@@ -50,7 +50,7 @@ describe("Migration E2E - Column Changes", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userWithPhone]);
+			const forja = await createForjaWithSchemas(tmpDir, [userWithPhone], true);
 			const session = await forja.beginMigrate();
 
 			// Should detect column addition
@@ -85,7 +85,7 @@ describe("Migration E2E - Column Changes", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userWithExtras]);
+			const forja = await createForjaWithSchemas(tmpDir, [userWithExtras], true);
 			const session = await forja.beginMigrate();
 
 			// Should detect alterations
@@ -117,7 +117,7 @@ describe("Migration E2E - Column Changes", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userWithUsername]);
+			const forja = await createForjaWithSchemas(tmpDir, [userWithUsername], true);
 			const session = await forja.beginMigrate();
 			assertHasChanges(session);
 
@@ -148,7 +148,7 @@ describe("Migration E2E - Column Changes", () => {
 				removeFields: ["age"],
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userWithoutAge]);
+			const forja = await createForjaWithSchemas(tmpDir, [userWithoutAge], true);
 			const session = await forja.beginMigrate();
 
 			// Should detect column removal
@@ -189,7 +189,7 @@ describe("Migration E2E - Column Changes", () => {
 				removeFields: ["age"],
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userMinimal]);
+			const forja = await createForjaWithSchemas(tmpDir, [userMinimal], true);
 			const session = await forja.beginMigrate();
 			assertHasChanges(session);
 
@@ -226,7 +226,7 @@ describe("Migration E2E - Column Changes", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userModified]);
+			const forja = await createForjaWithSchemas(tmpDir, [userModified], true);
 			const session = await forja.beginMigrate();
 			assertHasChanges(session);
 
@@ -260,7 +260,7 @@ describe("Migration E2E - Column Changes", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userAgeString]);
+			const forja = await createForjaWithSchemas(tmpDir, [userAgeString], true);
 			const session = await forja.beginMigrate();
 
 			// Should detect modification
@@ -297,7 +297,7 @@ describe("Migration E2E - Column Changes", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userNameOptional]);
+			const forja = await createForjaWithSchemas(tmpDir, [userNameOptional], true);
 			const session = await forja.beginMigrate();
 
 			// Should detect modification

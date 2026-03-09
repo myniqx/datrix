@@ -20,9 +20,13 @@ import { getAdapter, getAdapterType } from "./adapter";
 export async function createTestConfig(
 	tmpDir: string,
 	schemas: readonly SchemaDefinition[],
+	skipCreate = false
 ): Promise<() => Promise<Forja>> {
 	const adapterType = getAdapterType();
-	const adapter = await getAdapter(adapterType, tmpDir);
+	// skipCreate: true because DB is created once in beforeAll via getAdapter
+	const adapter = await getAdapter(adapterType, tmpDir, {
+		skipCreate,
+	});
 
 	return defineConfig(() => {
 		const config: ForjaConfig = {
@@ -43,13 +47,15 @@ export async function createTestConfig(
  *
  * @param tmpDir - Temporary directory for test data
  * @param schemas - Schemas to register
+ * @param options - Options (skipCreate: skip database drop/recreate)
  * @returns Initialized Forja instance
  */
 export async function createForjaWithSchemas(
 	tmpDir: string,
 	schemas: readonly SchemaDefinition[],
+	skipCreate = false,
 ): Promise<Forja> {
-	const factory = await createTestConfig(tmpDir, schemas);
+	const factory = await createTestConfig(tmpDir, schemas, skipCreate);
 	return await factory();
 }
 

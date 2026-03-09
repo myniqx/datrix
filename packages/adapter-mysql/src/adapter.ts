@@ -49,6 +49,7 @@ import {
 	FORJA_META_MODEL,
 	FORJA_META_KEY_PREFIX,
 } from "forja-types/core/constants";
+import { escapeIdentifier, escapeValue } from "./helpers";
 
 /**
  * MySQL adapter implementation
@@ -204,7 +205,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			// Executor needs rows=[{id}] to build SELECT for returning full records
 			let prefetchedIds: readonly TResult[] | undefined;
 			if (query.type === "update" && query.where) {
-				const escapedTable = this.getTranslator().escapeIdentifier(query.table);
+				const escapedTable = escapeIdentifier(query.table);
 				const whereResult = this.getTranslator().translateWhere(query.where, 0, query.table);
 				const joinClause = whereResult.joins.length > 0 ? ` ${whereResult.joins.join(" ")}` : "";
 				const idSelectSQL = `SELECT ${escapedTable}.\`id\` FROM ${escapedTable}${joinClause} WHERE ${whereResult.sql}`;
@@ -441,11 +442,11 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 				columns.push(columnDef);
 
 				if (field.type === "number" && field.references) {
-					const col = this.getTranslator().escapeIdentifier(fieldName);
-					const refTable = this.getTranslator().escapeIdentifier(
+					const col = escapeIdentifier(fieldName);
+					const refTable = escapeIdentifier(
 						field.references.table,
 					);
-					const refCol = this.getTranslator().escapeIdentifier(
+					const refCol = escapeIdentifier(
 						field.references.column ?? "id",
 					);
 					const onDelete = field.references.onDelete
@@ -461,7 +462,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			}
 
 			const allDefs = [...columns, ...foreignKeyConstraints];
-			const tableName = this.getTranslator().escapeIdentifier(schema.tableName!);
+			const tableName = escapeIdentifier(schema.tableName!);
 			const sql = `CREATE TABLE ${tableName} (\n  ${allDefs.join(",\n  ")}\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`;
 
 			await client.execute(sql);
@@ -512,14 +513,14 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 		const client = this.createClient(queryRunner!, `dropTable:${tableName}`);
 
 		try {
-			const escapedTable = this.getTranslator().escapeIdentifier(tableName);
+			const escapedTable = escapeIdentifier(tableName);
 			await client.execute(`DROP TABLE IF EXISTS ${escapedTable}`);
 
 			// Remove schema from _forja
 			if (tableName !== FORJA_META_MODEL) {
 				const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
 				const escapedMetaTable =
-					this.getTranslator().escapeIdentifier(FORJA_META_MODEL);
+					escapeIdentifier(FORJA_META_MODEL);
 				await client.execute(
 					`DELETE FROM ${escapedMetaTable} WHERE \`key\` = ?`,
 					[metaKey],
@@ -553,8 +554,8 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 		const client = this.createClient(queryRunner!, `renameTable:${from}->${to}`);
 
 		try {
-			const escapedFrom = this.getTranslator().escapeIdentifier(from);
-			const escapedTo = this.getTranslator().escapeIdentifier(to);
+			const escapedFrom = escapeIdentifier(from);
+			const escapedTo = escapeIdentifier(to);
 			await client.execute(`RENAME TABLE ${escapedFrom} TO ${escapedTo}`);
 
 			// Update key in _forja
@@ -562,7 +563,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 				const oldKey = `${FORJA_META_KEY_PREFIX}${from}`;
 				const newKey = `${FORJA_META_KEY_PREFIX}${to}`;
 				const escapedMetaTable =
-					this.getTranslator().escapeIdentifier(FORJA_META_MODEL);
+					escapeIdentifier(FORJA_META_MODEL);
 				await client.execute(
 					`UPDATE ${escapedMetaTable} SET \`key\` = ? WHERE \`key\` = ?`,
 					[newKey, oldKey],
@@ -595,7 +596,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 		const client = this.createClient(queryRunner!, `alterTable:${tableName}`);
 
 		try {
-			const escapedTable = this.getTranslator().escapeIdentifier(tableName);
+			const escapedTable = escapeIdentifier(tableName);
 
 			for (const op of operations) {
 				let sql = "";
@@ -611,21 +612,31 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 					}
 
 					case "dropColumn": {
-						const columnName = this.getTranslator().escapeIdentifier(op.column);
+						// Drop FK constraints on this column before dropping it
+						const [fkRows] = await client.execute(
+							`SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ? AND REFERENCED_TABLE_NAME IS NOT NULL`,
+							[this.config.database, tableName, op.column],
+						);
+						for (const fkRow of fkRows as RowDataPacket[]) {
+							const fkName = escapeIdentifier(fkRow["CONSTRAINT_NAME"] as string);
+							await client.execute(`ALTER TABLE ${escapedTable} DROP FOREIGN KEY ${fkName}`);
+						}
+
+						const columnName = escapeIdentifier(op.column);
 						sql = `ALTER TABLE ${escapedTable} DROP COLUMN ${columnName}`;
 						break;
 					}
 
 					case "modifyColumn": {
-						const columnName = this.getTranslator().escapeIdentifier(op.column);
+						const columnName = escapeIdentifier(op.column);
 						const mysqlType = getMySQLTypeWithModifiers(op.newDefinition);
 						sql = `ALTER TABLE ${escapedTable} MODIFY COLUMN ${columnName} ${mysqlType}`;
 						break;
 					}
 
 					case "renameColumn": {
-						const fromColumn = this.getTranslator().escapeIdentifier(op.from);
-						const toColumn = this.getTranslator().escapeIdentifier(op.to);
+						const fromColumn = escapeIdentifier(op.from);
+						const toColumn = escapeIdentifier(op.to);
 						sql = `ALTER TABLE ${escapedTable} RENAME COLUMN ${fromColumn} TO ${toColumn}`;
 						break;
 					}
@@ -674,10 +685,10 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 
 		try {
 			const tableName = tableNameParam;
-			const escapedTable = this.getTranslator().escapeIdentifier(tableName);
+			const escapedTable = escapeIdentifier(tableName);
 			const indexName =
 				index.name ?? `idx_${tableName}_${index.fields.join("_")}`;
-			const escapedIndexName = this.getTranslator().escapeIdentifier(indexName);
+			const escapedIndexName = escapeIdentifier(indexName);
 
 			const mappedFields = index.fields.map((fieldName) => {
 				if (schema) {
@@ -691,7 +702,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			});
 
 			const fields = mappedFields
-				.map((f) => this.getTranslator().escapeIdentifier(f))
+				.map((f) => escapeIdentifier(f))
 				.join(", ");
 			const unique = index.unique ? "UNIQUE " : "";
 			const using = index.type ? ` USING ${index.type.toUpperCase()}` : "";
@@ -725,8 +736,8 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 		const client = this.createClient(queryRunner!, `dropIndex:${tableName}`);
 
 		try {
-			const escapedTable = this.getTranslator().escapeIdentifier(tableName);
-			const escapedIndexName = this.getTranslator().escapeIdentifier(indexName);
+			const escapedTable = escapeIdentifier(tableName);
+			const escapedIndexName = escapeIdentifier(indexName);
 			await client.execute(
 				`DROP INDEX ${escapedIndexName} ON ${escapedTable}`,
 			);
@@ -780,7 +791,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 		try {
 			const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
 			const escapedMetaTable =
-				this.getTranslator().escapeIdentifier(FORJA_META_MODEL);
+				escapeIdentifier(FORJA_META_MODEL);
 			const client = this.createClient(this.pool!, `getTableSchema:${tableName}`);
 			const [rows] = await client.execute(
 				`SELECT \`value\` FROM ${escapedMetaTable} WHERE \`key\` = ?`,
@@ -899,7 +910,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 		const client = this.createClient(queryRunner, `upsertMeta:${schema.name}`);
 		const metaKey = `${FORJA_META_KEY_PREFIX}${schema.tableName ?? schema.name}`;
 		const metaValue = JSON.stringify(schema);
-		const escapedMetaTable = this.getTranslator().escapeIdentifier(FORJA_META_MODEL);
+		const escapedMetaTable = escapeIdentifier(FORJA_META_MODEL);
 		await client.execute(
 			`INSERT INTO ${escapedMetaTable} (\`key\`, \`value\`, \`createdAt\`, \`updatedAt\`)
 			 VALUES (?, ?, NOW(), NOW())
@@ -918,7 +929,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 	): Promise<void> {
 		const client = this.createClient(queryRunner, `alterMeta:${tableName}`);
 		const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
-		const escapedMetaTable = this.getTranslator().escapeIdentifier(FORJA_META_MODEL);
+		const escapedMetaTable = escapeIdentifier(FORJA_META_MODEL);
 		const [rows] = await client.execute(
 			`SELECT \`value\` FROM ${escapedMetaTable} WHERE \`key\` = ?`,
 			[metaKey],
@@ -1056,7 +1067,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 		fieldName: string,
 		field: FieldDefinition,
 	): string {
-		const columnName = this.getTranslator().escapeIdentifier(fieldName);
+		const columnName = escapeIdentifier(fieldName);
 
 		const shouldAutoIncrement = field.type === "number" && field.autoIncrement;
 
@@ -1068,7 +1079,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 		const nullable = field.required ? " NOT NULL" : "";
 		const defaultValue =
 			field.default !== undefined
-				? ` DEFAULT ${this.getTranslator().escapeValue(field.default)}`
+				? ` DEFAULT ${escapeValue(field.default)}`
 				: "";
 		const unique = "unique" in field && field.unique ? " UNIQUE" : "";
 
@@ -1235,7 +1246,7 @@ class MySQLTransaction implements Transaction {
 	 */
 	async savepoint(name: string): Promise<void> {
 		try {
-			const escapedName = this.adapter.translator.escapeIdentifier(name);
+			const escapedName = escapeIdentifier(name);
 			await this.connection.execute(`SAVEPOINT ${escapedName}`);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
@@ -1252,7 +1263,7 @@ class MySQLTransaction implements Transaction {
 	 */
 	async rollbackTo(name: string): Promise<void> {
 		try {
-			const escapedName = this.adapter.translator.escapeIdentifier(name);
+			const escapedName = escapeIdentifier(name);
 			await this.connection.execute(`ROLLBACK TO SAVEPOINT ${escapedName}`);
 			this.aborted = false;
 		} catch (error) {
@@ -1270,7 +1281,7 @@ class MySQLTransaction implements Transaction {
 	 */
 	async release(name: string): Promise<void> {
 		try {
-			const escapedName = this.adapter.translator.escapeIdentifier(name);
+			const escapedName = escapeIdentifier(name);
 			await this.connection.execute(`RELEASE SAVEPOINT ${escapedName}`);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);

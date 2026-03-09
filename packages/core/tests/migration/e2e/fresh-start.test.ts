@@ -73,7 +73,7 @@ describe("Migration E2E - Fresh Start", () => {
 		it("should detect no changes when schemas match DB", async () => {
 			// DB already has tables from previous test
 			// Create Forja with same schemas
-			const forja = await createForjaWithSchemas(tmpDir, [...allBaseSchemas]);
+			const forja = await createForjaWithSchemas(tmpDir, [...allBaseSchemas], true);
 
 			// Begin migration
 			const session = await forja.beginMigrate();
@@ -98,7 +98,7 @@ describe("Migration E2E - Fresh Start", () => {
 			const forja = await createForjaWithSchemas(tmpDir, [
 				...allBaseSchemas,
 				baseTagSchema,
-			]);
+			], true);
 
 			const session = await forja.beginMigrate();
 
@@ -134,7 +134,7 @@ describe("Migration E2E - Fresh Start", () => {
 				basePostSchema,
 				baseCategorySchema,
 				baseTagSchema,
-			]);
+			], true);
 
 			const session = await forja.beginMigrate();
 
@@ -169,7 +169,7 @@ describe("Migration E2E - Fresh Start", () => {
 			const forja = await createForjaWithSchemas(tmpDir, [
 				baseUserSchema,
 				basePostSchema,
-			]);
+			], true);
 
 			const session = await forja.beginMigrate();
 
@@ -202,7 +202,7 @@ describe("Migration E2E - Fresh Start", () => {
 			await forja1.shutdown();
 
 			// Keep only user
-			const forja = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
+			const forja = await createForjaWithSchemas(tmpDir, [baseUserSchema], true);
 
 			const session = await forja.beginMigrate();
 
@@ -241,7 +241,7 @@ describe("Migration E2E - Fresh Start", () => {
 				baseUserSchema,
 				baseCategorySchema,
 				baseTagSchema,
-			]);
+			], true);
 
 			const session = await forja.beginMigrate();
 

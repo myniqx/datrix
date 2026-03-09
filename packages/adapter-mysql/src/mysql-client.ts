@@ -11,7 +11,7 @@ import type { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from "mysql
 import { ForjaAdapterError } from "forja-types/errors/adapter";
 import { QueryObject } from "forja-types";
 
-const IS_DEBUG = process.env["NODE_ENV"] !== "production";
+const IS_DEBUG = process.env["NODE_ENV"] !== "production" && false;
 
 const MYSQL_CODE_MAP: Record<string, string> = {
 	ER_DUP_ENTRY: "ADAPTER_UNIQUE_CONSTRAINT",
@@ -38,7 +38,7 @@ export class MySQLClient {
 	constructor(
 		private readonly runner: Pool | PoolConnection,
 		private readonly queryObject: QueryObject,
-	) {}
+	) { }
 
 	/**
 	 * Execute a SQL query with optional parameters.
@@ -47,7 +47,7 @@ export class MySQLClient {
 		sql: string,
 		params?: readonly unknown[],
 	): Promise<MySQLExecuteResult> {
-		if (IS_DEBUG) {
+		if (IS_DEBUG && this.queryObject.table !== '_forja_migrations') {
 			console.log("[MySQL]", sql, params ?? [], {
 				queryObject: JSON.stringify(this.queryObject),
 			});

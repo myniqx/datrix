@@ -13,6 +13,7 @@ import type {
 } from "forja-types/core/query-builder";
 import type { SchemaRegistry } from "forja-core/schema";
 import type { MySQLQueryTranslator } from "../query-translator";
+import { escapeIdentifier } from "../helpers";
 import type { PopulateStrategy, PopulateOptionsAnalysis } from "./types";
 import { JoinBuilder } from "./join-builder";
 import { AggregationBuilder } from "./aggregation-builder";
@@ -251,7 +252,7 @@ export class MySQLPopulator {
 
 			const targetTable =
 				targetSchema.tableName ?? relation.model.toLowerCase();
-			const targetTableEsc = this.translator.escapeIdentifier(targetTable);
+			const targetTableEsc = escapeIdentifier(targetTable);
 
 			if (relation.kind === "belongsTo") {
 				const fkColumn = relation.foreignKey!;
@@ -313,7 +314,7 @@ export class MySQLPopulator {
 				}
 			} else if (relation.kind === "hasOne") {
 				const fkColumn = relation.foreignKey!;
-				const fkColumnEsc = this.translator.escapeIdentifier(fkColumn);
+				const fkColumnEsc = escapeIdentifier(fkColumn);
 				const jsonObj = this.buildJsonObject(relation.model, options);
 
 				const batchQuery = `
@@ -363,7 +364,7 @@ export class MySQLPopulator {
 				}
 			} else if (relation.kind === "hasMany") {
 				const fkColumn = relation.foreignKey!;
-				const fkColumnEsc = this.translator.escapeIdentifier(fkColumn);
+				const fkColumnEsc = escapeIdentifier(fkColumn);
 				const jsonObj = this.buildJsonObject(relation.model, options);
 
 				const batchQuery = `
@@ -417,9 +418,9 @@ export class MySQLPopulator {
 				const sourceFK = `${schema.name}Id`;
 				const targetFK = `${relation.model}Id`;
 
-				const junctionTableEsc = this.translator.escapeIdentifier(junctionTable);
-				const sourceFKEsc = this.translator.escapeIdentifier(sourceFK);
-				const targetFKEsc = this.translator.escapeIdentifier(targetFK);
+				const junctionTableEsc = escapeIdentifier(junctionTable);
+				const sourceFKEsc = escapeIdentifier(sourceFK);
+				const targetFKEsc = escapeIdentifier(targetFK);
 				const jsonObj = this.buildJsonObject(relation.model, options);
 
 				const batchQuery = `
@@ -505,7 +506,7 @@ export class MySQLPopulator {
 
 			const targetTable =
 				targetSchema.tableName ?? relation.model.toLowerCase();
-			const targetTableEsc = this.translator.escapeIdentifier(targetTable);
+			const targetTableEsc = escapeIdentifier(targetTable);
 			const jsonObj = this.buildJsonObject(relation.model, opts);
 
 			if (relation.kind === "belongsTo") {
@@ -543,7 +544,7 @@ export class MySQLPopulator {
 				}
 			} else if (relation.kind === "hasOne") {
 				const fkColumn = relation.foreignKey!;
-				const fkColumnEsc = this.translator.escapeIdentifier(fkColumn);
+				const fkColumnEsc = escapeIdentifier(fkColumn);
 				const nestedParentIds = rows.map((r) => r.id);
 
 				const batchQuery = `
@@ -573,7 +574,7 @@ export class MySQLPopulator {
 				}
 			} else if (relation.kind === "hasMany") {
 				const fkColumn = relation.foreignKey!;
-				const fkColumnEsc = this.translator.escapeIdentifier(fkColumn);
+				const fkColumnEsc = escapeIdentifier(fkColumn);
 				const nestedParentIds = rows.map((r) => r.id);
 
 				const batchQuery = `
@@ -611,9 +612,9 @@ export class MySQLPopulator {
 				const targetFK = `${relation.model}Id`;
 				const nestedParentIds = rows.map((r) => r.id);
 
-				const junctionTableEsc = this.translator.escapeIdentifier(junctionTable);
-				const sourceFKEsc = this.translator.escapeIdentifier(sourceFK);
-				const targetFKEsc = this.translator.escapeIdentifier(targetFK);
+				const junctionTableEsc = escapeIdentifier(junctionTable);
+				const sourceFKEsc = escapeIdentifier(sourceFK);
+				const targetFKEsc = escapeIdentifier(targetFK);
 
 				const batchQuery = `
           SELECT j.${sourceFKEsc} as _fk, ${jsonObj} as data
@@ -849,7 +850,7 @@ export class MySQLPopulator {
 		}
 
 		const jsonPairs = fields
-			.map((f) => `'${f}', t.${this.translator.escapeIdentifier(f)}`)
+			.map((f) => `'${f}', t.${escapeIdentifier(f)}`)
 			.join(", ");
 
 		return `JSON_OBJECT(${jsonPairs})`;

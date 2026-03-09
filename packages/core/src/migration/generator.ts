@@ -110,7 +110,17 @@ export class ForgeMigrationGenerator implements MigrationGenerator {
 					to: diff.to,
 				};
 
-			case "fieldAdded":
+			case "fieldAdded": {
+				// Relation fields have no direct DB column — differ produces
+				// separate diffs for the actual FK column (e.g. tagId).
+				if (diff.definition.type === "relation") {
+					return {
+						type: "alterTable",
+						tableName: diff.tableName,
+						operations: [],
+					};
+				}
+
 				return {
 					type: "alterTable",
 					tableName: diff.tableName,
@@ -122,8 +132,18 @@ export class ForgeMigrationGenerator implements MigrationGenerator {
 						},
 					],
 				};
+			}
 
-			case "fieldRemoved":
+			case "fieldRemoved": {
+				// Relation fields have no direct DB column
+				if (diff.definition.type === "relation") {
+					return {
+						type: "alterTable",
+						tableName: diff.tableName,
+						operations: [],
+					};
+				}
+
 				return {
 					type: "alterTable",
 					tableName: diff.tableName,
@@ -134,19 +154,43 @@ export class ForgeMigrationGenerator implements MigrationGenerator {
 						},
 					],
 				};
+			}
 
-			case "fieldModified":
+			case "fieldModified": {
+				const operations = [];
+
+				// Relation FK rename: foreignKey changed → rename the actual DB column
+				if (
+					diff.oldDefinition.type === "relation" &&
+					diff.newDefinition.type === "relation" &&
+					diff.oldDefinition.foreignKey !== diff.newDefinition.foreignKey
+				) {
+					const oldFK = diff.oldDefinition.foreignKey ?? `${diff.oldDefinition.model}Id`;
+					const newFK = diff.newDefinition.foreignKey ?? `${diff.newDefinition.model}Id`;
+					if (oldFK !== newFK) {
+						operations.push({
+							type: "renameColumn" as const,
+							from: oldFK,
+							to: newFK,
+						});
+					}
+				}
+
+				// If no special operation was generated, fall back to modifyColumn
+				if (operations.length === 0) {
+					operations.push({
+						type: "modifyColumn" as const,
+						column: diff.fieldName,
+						newDefinition: diff.newDefinition,
+					});
+				}
+
 				return {
 					type: "alterTable",
 					tableName: diff.tableName,
-					operations: [
-						{
-							type: "modifyColumn",
-							column: diff.fieldName,
-							newDefinition: diff.newDefinition,
-						},
-					],
+					operations,
 				};
+			}
 
 			case "fieldRenamed":
 				return {

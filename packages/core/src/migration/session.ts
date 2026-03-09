@@ -176,9 +176,12 @@ export class MigrationSession {
 			const comparison = this.differ.compare(oldSchemas, newSchemas);
 
 			this.differences = [...comparison.differences];
+			console.log("[migration:differ] raw differences:", JSON.stringify(this.differences, null, 2));
 
 			// Detect ambiguous changes
 			this.detectAmbiguousChanges();
+			console.log("[migration:session] after detectAmbiguous - differences:", JSON.stringify(this.differences, null, 2));
+			console.log("[migration:session] after detectAmbiguous - ambiguous:", JSON.stringify(this._ambiguous.map(a => ({ id: a.id, type: a.type })), null, 2));
 
 			this.initialized = true;
 		} catch (error) {
@@ -333,39 +336,71 @@ export class MigrationSession {
 
 			// Check if this looks like a junction table
 			if (!this.looksLikeJunctionTable(junctionName)) continue;
+			if (handledDiffs.has(`table:${junctionName}`)) continue;
 
 			// Look for a new FK column on one of the related tables
 			for (const [tableName, added] of addedFields) {
 				for (const addedDiff of added) {
 					if (addedDiff.type !== "fieldAdded") continue;
 
-					// Check if this looks like a FK column
-					if (!addedDiff.fieldName.endsWith("Id")) continue;
+					// Resolve relation name and FK column name
+					let relationName: string;
+					let fkColumnName: string;
 
-					const relationName = addedDiff.fieldName.slice(0, -2);
+					if (
+						addedDiff.definition.type === "relation" &&
+						addedDiff.definition.kind === "belongsTo"
+					) {
+						// Relation field: derive FK column from definition
+						relationName = addedDiff.definition.model;
+						fkColumnName =
+							addedDiff.definition.foreignKey ??
+							`${addedDiff.definition.model}Id`;
+					} else if (addedDiff.fieldName.endsWith("Id")) {
+						// Plain FK column (e.g. "tagId")
+						relationName = addedDiff.fieldName.slice(0, -2);
+						fkColumnName = addedDiff.fieldName;
+					} else {
+						continue;
+					}
 
 					// Check if junction table relates these
 					if (this.isJunctionTableFor(junctionName, tableName, relationName)) {
 						const diffKey = `table:${junctionName}`;
+						if (handledDiffs.has(diffKey)) continue;
 						handledDiffs.add(diffKey);
 						handledDiffs.add(`${tableName}.${addedDiff.fieldName}`);
+
+						// Mark removed manyToMany relation fields as handled (no DB column)
+						const removedForTable = removedFields.get(tableName) ?? [];
+						for (const removedDiff of removedForTable) {
+							if (removedDiff.type !== "fieldRemoved") continue;
+							handledDiffs.add(`${tableName}.${removedDiff.fieldName}`);
+						}
+
+						// Remove manyToMany field diffs from differences (no DB column to drop)
+						this.differences = this.differences.filter((d) =>
+							!(d.type === "fieldRemoved" &&
+								d.tableName === tableName &&
+								!d.fieldName.endsWith("Id")),
+						);
 
 						this._ambiguous.push({
 							id: `relation_downgrade:${tableName}.${relationName}`,
 							tableName,
 							type: "relation_downgrade_many_to_single",
 							removedName: junctionName,
-							addedName: addedDiff.fieldName,
+							addedName: fkColumnName,
 							warning:
 								"Records with multiple relations will lose data! Only first relation will be kept.",
 							possibleActions: [
 								{
 									type: "migrate_first",
-									description: `Migrate first relation from '${junctionName}' to '${addedDiff.fieldName}' (partial data loss)`,
+									description: `Migrate first relation from '${junctionName}' to '${fkColumnName}' (partial data loss)`,
 								},
 								{
 									type: "fresh_start",
-									description: `Drop junction table and create empty '${addedDiff.fieldName}' column (full data loss)`,
+									description: `Drop junction table and create empty '${fkColumnName}' column (full data loss)`,
 								},
 							],
 							resolved: false,
@@ -1077,11 +1112,8 @@ export class MigrationSession {
 				break;
 
 			case "relation_downgrade_many_to_single":
-				if (action === "migrate_first") {
-					// TODO: Add data migration operation
-					// For now, keep original diffs but mark for data migration
-				}
-				// fresh_start: keep original diffs (no data migration)
+				// Diffs (addColumn FK + dropTable junction) are kept for operation generation.
+				// Data transfer is injected by injectDataTransferOperations.
 				break;
 
 			case "fk_model_change":
@@ -1098,7 +1130,7 @@ export class MigrationSession {
 	 * Apply column rename - replace drop+add with rename
 	 */
 	private applyColumnRename(ambiguous: AmbiguousChange): void {
-		// Remove the fieldRemoved and fieldAdded diffs
+		// Remove the fieldRemoved, fieldAdded, and related fieldModified diffs
 		this.differences = this.differences.filter((d) => {
 			if (
 				d.type === "fieldRemoved" &&
@@ -1113,6 +1145,19 @@ export class MigrationSession {
 				d.fieldName === ambiguous.addedName
 			) {
 				return false;
+			}
+			// Remove relation fieldModified that references the same FK rename
+			if (
+				d.type === "fieldModified" &&
+				d.tableName === ambiguous.tableName &&
+				d.oldDefinition.type === "relation" &&
+				d.newDefinition.type === "relation"
+			) {
+				const oldFK = d.oldDefinition.foreignKey ?? `${d.oldDefinition.model}Id`;
+				const newFK = d.newDefinition.foreignKey ?? `${d.newDefinition.model}Id`;
+				if (oldFK === ambiguous.removedName && newFK === ambiguous.addedName) {
+					return false;
+				}
 			}
 			return true;
 		});
@@ -1199,11 +1244,14 @@ export class MigrationSession {
 			version: Date.now().toString(),
 			description: "Auto-generated migration",
 		});
+		console.log("[migration:generator] operations:", JSON.stringify(baseMigration.operations.map(op => ({ type: op.type, ...("tableName" in op ? { tableName: op.tableName } : {}), ...("operations" in op ? { operations: op.operations } : {}), ...("description" in op ? { description: op.description } : {}) })), null, 2));
 
 		// Inject data transfer operations for resolved migrate_to_junction / migrate_first
 		const enrichedOperations = this.injectDataTransferOperations(
 			baseMigration.operations,
 		);
+		console.log("[migration:inject] final operations:", JSON.stringify(enrichedOperations.map(op => ({ type: op.type, ...("tableName" in op ? { tableName: op.tableName } : {}), ...("operations" in op ? { operations: op.operations } : {}), ...("description" in op ? { description: op.description } : {}) })), null, 2));
+
 		const migration: Migration = {
 			...baseMigration,
 			operations: enrichedOperations,
@@ -1214,7 +1262,22 @@ export class MigrationSession {
 			migration,
 		]);
 
-		return await runner.runPending();
+		const results = await runner.runPending();
+
+		// Throw on failure so callers don't silently ignore migration errors
+		const failed = results.find((r) => r.status === "failed");
+		if (failed) {
+			const errorMessage = failed.error instanceof Error
+				? failed.error.message
+				: String(failed.error ?? "Unknown migration error");
+			throw new MigrationSystemError(
+				`Migration failed: ${errorMessage}`,
+				"MIGRATION_ERROR",
+				failed.error,
+			);
+		}
+
+		return results;
 	}
 
 	/**
@@ -1351,9 +1414,21 @@ export class MigrationSession {
 					},
 				};
 
-				// Insert after addColumn, but before dropTable
-				const insertAt = Math.min(addColIdx + 1, dropTableIdx);
-				result.splice(insertAt, 0, transferOp);
+				// Insert after addColumn (data transfer needs the column to exist)
+				// Also move dropTable AFTER dataTransfer so junction table still exists during transfer
+				result.splice(addColIdx + 1, 0, transferOp);
+
+				// Re-find dropTable index (may have shifted after splice)
+				const newDropIdx = result.findIndex(
+					(op) => op.type === "dropTable" && op.tableName === junctionTable,
+				);
+				const transferIdx = result.indexOf(transferOp);
+				if (newDropIdx !== -1 && newDropIdx < transferIdx) {
+					// Remove dropTable from its current position and place it after dataTransfer
+					const [dropOp] = result.splice(newDropIdx, 1);
+					const insertAfterTransfer = result.indexOf(transferOp) + 1;
+					result.splice(insertAfterTransfer, 0, dropOp);
+				}
 			}
 		}
 

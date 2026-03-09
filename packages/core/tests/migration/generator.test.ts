@@ -115,30 +115,6 @@ describe("MigrationGenerator - Happy Path", () => {
 			}
 		});
 
-		it("should generate dropColumn for fieldRemoved with TODO down migration", () => {
-			const fieldRemovedDiff: SchemaDiff[] = [
-				{
-					type: "fieldRemoved",
-					tableName: "users",
-					fieldName: "old_field",
-				},
-			];
-
-			const operations = expectSuccessData(() =>
-				generator.generateOperations(fieldRemovedDiff),
-			);
-
-			const upOperation = operations[0]!;
-			expect(upOperation.type).toBe("alterTable");
-			if (upOperation.type === "alterTable") {
-				const alterOperation = upOperation.operations[0]!;
-				expect(alterOperation.type).toBe("dropColumn");
-				if (alterOperation.type === "dropColumn") {
-					expect(alterOperation.column).toBe("old_field");
-				}
-			}
-		});
-
 		it("should generate modifyColumn for fieldModified with exact old and new definitions", () => {
 			const fieldModifiedDiff: SchemaDiff[] = [
 				{

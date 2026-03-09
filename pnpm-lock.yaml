@@ -54,12 +54,22 @@ importers:
 
   packages/adapter-mongodb:
     dependencies:
+      forja-core:
+        specifier: workspace:*
+        version: link:../core
       forja-types:
         specifier: workspace:*
         version: link:../types
       mongodb:
         specifier: ^6.3.0
         version: 6.21.0
+    devDependencies:
+      tsup:
+        specifier: ^8.0.2
+        version: 8.5.1(jiti@2.6.1)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
 
   packages/adapter-mysql:
     dependencies:

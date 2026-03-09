@@ -207,6 +207,7 @@ export interface FieldRemovedDiff extends BaseSchemaDiff {
 	readonly type: "fieldRemoved";
 	readonly tableName: string;
 	readonly fieldName: string;
+	readonly definition: FieldDefinition;
 }
 
 /**

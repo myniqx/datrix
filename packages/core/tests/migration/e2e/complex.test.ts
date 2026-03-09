@@ -80,7 +80,7 @@ describe("Migration E2E - Complex Scenarios", () => {
 				userWithPhone,
 				postModified,
 				baseTagSchema,
-			]);
+			], true);
 
 			const session = await forja.beginMigrate();
 
@@ -125,7 +125,7 @@ describe("Migration E2E - Complex Scenarios", () => {
 			const forja = await createForjaWithSchemas(tmpDir, [
 				baseUserSchema,
 				basePostSchema,
-			]);
+			], true);
 
 			const session = await forja.beginMigrate();
 
@@ -156,7 +156,7 @@ describe("Migration E2E - Complex Scenarios", () => {
 				addIndexes: [{ fields: ["name"], unique: false }],
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userWithNameIndex]);
+			const forja = await createForjaWithSchemas(tmpDir, [userWithNameIndex], true);
 			const session = await forja.beginMigrate();
 
 			assertHasChanges(session);
@@ -189,7 +189,7 @@ describe("Migration E2E - Complex Scenarios", () => {
 				removeIndexes: ["email"],
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userNoEmailIndex]);
+			const forja = await createForjaWithSchemas(tmpDir, [userNoEmailIndex], true);
 			const session = await forja.beginMigrate();
 
 			assertHasChanges(session);
@@ -237,7 +237,7 @@ describe("Migration E2E - Complex Scenarios", () => {
 				removeIndexes: ["name"],
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userNewIndexes]);
+			const forja = await createForjaWithSchemas(tmpDir, [userNewIndexes], true);
 			const session = await forja.beginMigrate();
 
 			assertHasChanges(session);
@@ -335,7 +335,7 @@ describe("Migration E2E - Complex Scenarios", () => {
 			const userV2 = cloneSchema(baseUserSchema, {
 				addFields: { phone: { type: "string" } },
 			});
-			const forja2 = await createForjaWithSchemas(tmpDir, [userV2]);
+			const forja2 = await createForjaWithSchemas(tmpDir, [userV2], true);
 			const s2 = await forja2.beginMigrate();
 			await applyMigration(s2);
 			await forja2.shutdown();
@@ -347,7 +347,7 @@ describe("Migration E2E - Complex Scenarios", () => {
 					address: { type: "string" },
 				},
 			});
-			const forja3 = await createForjaWithSchemas(tmpDir, [userV3]);
+			const forja3 = await createForjaWithSchemas(tmpDir, [userV3], true);
 			const s3 = await forja3.beginMigrate();
 			await applyMigration(s3);
 			await forja3.shutdown();
@@ -360,7 +360,7 @@ describe("Migration E2E - Complex Scenarios", () => {
 					address: { type: "string" },
 				},
 			});
-			const forja4 = await createForjaWithSchemas(tmpDir, [userV4]);
+			const forja4 = await createForjaWithSchemas(tmpDir, [userV4], true);
 			const s4 = await forja4.beginMigrate();
 			await applyMigration(s4);
 
@@ -386,7 +386,7 @@ describe("Migration E2E - Complex Scenarios", () => {
 			await forja1.shutdown();
 
 			// Second run with same schema
-			const forja = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
+			const forja = await createForjaWithSchemas(tmpDir, [baseUserSchema], true);
 			const session = await forja.beginMigrate();
 
 			// Should have no changes
@@ -412,7 +412,7 @@ describe("Migration E2E - Complex Scenarios", () => {
 			const userModified = cloneSchema(baseUserSchema, {
 				addFields: { external: { type: "string" } },
 			});
-			const forja = await createForjaWithSchemas(tmpDir, [userModified]);
+			const forja = await createForjaWithSchemas(tmpDir, [userModified], true);
 			const session = await forja.beginMigrate();
 
 			// Should detect the missing column

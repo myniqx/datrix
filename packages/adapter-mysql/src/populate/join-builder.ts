@@ -8,6 +8,7 @@
 import type { SchemaRegistry } from "forja-core/schema";
 import type { ForjaEntry, RelationField } from "forja-types/core/schema";
 import type { MySQLQueryTranslator } from "../query-translator";
+import { escapeIdentifier } from "../helpers";
 import type { JoinClause, PopulateStrategy } from "./types";
 import {
 	throwModelNotFound,
@@ -211,9 +212,9 @@ export class JoinBuilder {
 		const targetTable = targetSchema.tableName ?? relation.model.toLowerCase();
 		const foreignKey = relation.foreignKey!;
 
-		const sourceTableEsc = this.translator.escapeIdentifier(sourceTable);
-		const foreignKeyEsc = this.translator.escapeIdentifier(foreignKey);
-		const relationAlias = this.translator.escapeIdentifier(relationName);
+		const sourceTableEsc = escapeIdentifier(sourceTable);
+		const foreignKeyEsc = escapeIdentifier(foreignKey);
+		const relationAlias = escapeIdentifier(relationName);
 
 		const condition = `${sourceTableEsc}.${foreignKeyEsc} = ${relationAlias}.\`id\``;
 
@@ -255,9 +256,9 @@ export class JoinBuilder {
 		const targetTable = targetSchema.tableName ?? relation.model.toLowerCase();
 		const foreignKey = relation.foreignKey!;
 
-		const sourceTableEsc = this.translator.escapeIdentifier(sourceTable);
-		const foreignKeyEsc = this.translator.escapeIdentifier(foreignKey);
-		const relationAlias = this.translator.escapeIdentifier(relationName);
+		const sourceTableEsc = escapeIdentifier(sourceTable);
+		const foreignKeyEsc = escapeIdentifier(foreignKey);
+		const relationAlias = escapeIdentifier(relationName);
 
 		const condition = `${sourceTableEsc}.\`id\` = ${relationAlias}.${foreignKeyEsc}`;
 
@@ -310,10 +311,10 @@ export class JoinBuilder {
 		const targetTable = targetSchema.tableName ?? relation.model.toLowerCase();
 		const foreignKey = relation.foreignKey!;
 
-		const sourceTableEsc = this.translator.escapeIdentifier(sourceTable);
-		const targetTableEsc = this.translator.escapeIdentifier(targetTable);
-		const foreignKeyEsc = this.translator.escapeIdentifier(foreignKey);
-		const relationAlias = this.translator.escapeIdentifier(relationName);
+		const sourceTableEsc = escapeIdentifier(sourceTable);
+		const targetTableEsc = escapeIdentifier(targetTable);
+		const foreignKeyEsc = escapeIdentifier(foreignKey);
+		const relationAlias = escapeIdentifier(relationName);
 
 		const condition = `${sourceTableEsc}.\`id\` = ${targetTableEsc}.${foreignKeyEsc}`;
 
@@ -399,12 +400,12 @@ export class JoinBuilder {
 		}
 
 		// Escape identifiers
-		const sourceTableEsc = this.translator.escapeIdentifier(sourceTable);
-		const sourceFKEsc = this.translator.escapeIdentifier(sourceFK);
-		const targetFKEsc = this.translator.escapeIdentifier(targetFK);
-		const relationAlias = this.translator.escapeIdentifier(relationName);
+		const sourceTableEsc = escapeIdentifier(sourceTable);
+		const sourceFKEsc = escapeIdentifier(sourceFK);
+		const targetFKEsc = escapeIdentifier(targetFK);
+		const relationAlias = escapeIdentifier(relationName);
 		const junctionAlias = `${relationName}_junction`;
-		const junctionAliasEsc = this.translator.escapeIdentifier(junctionAlias);
+		const junctionAliasEsc = escapeIdentifier(junctionAlias);
 
 		// Two JOINs needed
 		return [
@@ -473,7 +474,7 @@ export class JoinBuilder {
 			});
 		}
 
-		const sourceTableEsc = this.translator.escapeIdentifier(sourceTable);
+		const sourceTableEsc = escapeIdentifier(sourceTable);
 
 		return [
 			{
@@ -510,8 +511,8 @@ export class JoinBuilder {
 	generateJoinSQL(joins: readonly JoinClause[]): string {
 		return joins
 			.map((join) => {
-				const tableEsc = this.translator.escapeIdentifier(join.table);
-				const aliasEsc = this.translator.escapeIdentifier(join.alias);
+				const tableEsc = escapeIdentifier(join.table);
+				const aliasEsc = escapeIdentifier(join.alias);
 
 				if (join.isLateral) {
 					// LATERAL joins handled by AggregationBuilder

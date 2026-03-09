@@ -25,6 +25,7 @@ import type {
 } from "forja-types/core/schema";
 import { ForjaEntry } from "forja-types";
 import { MySQLQueryObject, TranslateResult } from "./types";
+import { escapeIdentifier, escapeValue } from "./helpers";
 
 /**
  * Maximum nesting depth for WHERE clauses to prevent stack overflow
@@ -187,64 +188,9 @@ export class MySQLQueryTranslator implements QueryTranslator {
 		return value;
 	}
 
-	/**
-	 * Escape identifier (table/column name) - MySQL uses backticks
-	 */
-	escapeIdentifier(identifier: string): string {
-		if (identifier === "*") {
-			return "*";
-		}
-
-		const validIdentifierPattern = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
-
-		// TODO: bu identifies query builderde neye karsilik geliyor, bu kontrolleri orada yapmak daha mantikli..
-		if (!validIdentifierPattern.test(identifier)) {
-			throwQueryError({
-				adapter: "mysql",
-				message: `Invalid identifier '${identifier}': must start with letter or underscore, contain only alphanumeric characters and underscores`,
-			});
-		}
-
-		if (identifier.length > 64) {
-			throwQueryError({
-				adapter: "mysql",
-				message: `Invalid identifier '${identifier}': exceeds MySQL maximum length of 64 characters`,
-			});
-		}
-
-		return `\`${identifier.replace(/`/g, "``")}\``;
-	}
-
-	/**
-	 * Escape string value (for literals)
-	 */
-	escapeValue(value: unknown): string {
-		if (value === null || value === undefined) {
-			return "NULL";
-		}
-
-		if (typeof value === "string") {
-			return `'${value.replace(/'/g, "''").replace(/\\/g, "\\\\")}'`;
-		}
-
-		if (typeof value === "number") {
-			return String(value);
-		}
-
-		if (typeof value === "boolean") {
-			return value ? "1" : "0";
-		}
-
-		if (value instanceof Date) {
-			return `'${value.toISOString().slice(0, 23).replace("T", " ")}'`;
-		}
-
-		if (Array.isArray(value)) {
-			return `JSON_ARRAY(${value.map((v) => this.escapeValue(v)).join(", ")})`;
-		}
-
-		return `CAST('${JSON.stringify(value).replace(/'/g, "''")}' AS JSON)`;
-	}
+	// Interface delegation to standalone helpers
+	escapeIdentifier(identifier: string): string { return escapeIdentifier(identifier); }
+	escapeValue(value: unknown): string { return escapeValue(value); }
 
 	/**
 	 * Translate main query
@@ -311,7 +257,7 @@ export class MySQLQueryTranslator implements QueryTranslator {
 		// Handle COUNT separately (only has where, groupBy, having)
 		if (query.type === "count") {
 			parts.push("SELECT COUNT(*) as `count`");
-			parts.push(`FROM ${this.escapeIdentifier(query.table)}`);
+			parts.push(`FROM ${escapeIdentifier(query.table)}`);
 
 			if (query.where) {
 				const whereResult = this.translateWhere(
@@ -329,7 +275,7 @@ export class MySQLQueryTranslator implements QueryTranslator {
 
 			if (query.groupBy && query.groupBy.length > 0) {
 				const groupByFields = query.groupBy
-					.map((field) => this.escapeIdentifier(field))
+					.map((field) => escapeIdentifier(field))
 					.join(", ");
 				parts.push(`GROUP BY ${groupByFields}`);
 			}
@@ -366,7 +312,7 @@ export class MySQLQueryTranslator implements QueryTranslator {
 		}
 
 		// FROM clause
-		parts.push(`FROM ${this.escapeIdentifier(query.table)}`);
+		parts.push(`FROM ${escapeIdentifier(query.table)}`);
 
 		// WHERE clause (collect JOINs)
 		let whereSQL: string | undefined;
@@ -413,7 +359,7 @@ export class MySQLQueryTranslator implements QueryTranslator {
 		// GROUP BY (required for JSON aggregations)
 		const hasAggregations = metadata?.populateAggregations;
 		if (hasAggregations && query.populate) {
-			const tableEsc = this.escapeIdentifier(query.table);
+			const tableEsc = escapeIdentifier(query.table);
 			const groupByFields: string[] = [`${tableEsc}.\`id\``];
 
 			// Add populated relation primary keys to GROUP BY
@@ -424,7 +370,7 @@ export class MySQLQueryTranslator implements QueryTranslator {
 					if (field && field.type === "relation") {
 						const relKind = (field as { kind?: string }).kind;
 						if (relKind === "belongsTo" || relKind === "hasOne") {
-							const relationAlias = this.escapeIdentifier(relationName);
+							const relationAlias = escapeIdentifier(relationName);
 							groupByFields.push(`${relationAlias}.\`id\``);
 						}
 					}
@@ -438,7 +384,7 @@ export class MySQLQueryTranslator implements QueryTranslator {
 			query.groupBy.length > 0
 		) {
 			const groupByFields = query.groupBy
-				.map((field) => this.escapeIdentifier(field))
+				.map((field) => escapeIdentifier(field))
 				.join(", ");
 			parts.push(`GROUP BY ${groupByFields}`);
 		}
@@ -480,14 +426,14 @@ export class MySQLQueryTranslator implements QueryTranslator {
 		tableAlias?: string,
 	): string {
 		if (!select) {
-			return tableAlias ? `${this.escapeIdentifier(tableAlias)}.*` : "*";
+			return tableAlias ? `${escapeIdentifier(tableAlias)}.*` : "*";
 		}
 
 		return select
 			.map((field) => {
-				const escaped = this.escapeIdentifier(field as string);
+				const escaped = escapeIdentifier(field as string);
 				return tableAlias
-					? `${this.escapeIdentifier(tableAlias)}.${escaped}`
+					? `${escapeIdentifier(tableAlias)}.${escaped}`
 					: escaped;
 			})
 			.join(", ");
@@ -523,7 +469,7 @@ export class MySQLQueryTranslator implements QueryTranslator {
 			}
 		}
 		const columnKeys = [...columnSet];
-		const columns = columnKeys.map((k) => this.escapeIdentifier(k));
+		const columns = columnKeys.map((k) => escapeIdentifier(k));
 
 		// Build VALUES rows (missing keys get DEFAULT)
 		const valueRows: string[] = [];
@@ -539,7 +485,7 @@ export class MySQLQueryTranslator implements QueryTranslator {
 		}
 
 		const parts: string[] = [];
-		parts.push(`INSERT INTO ${this.escapeIdentifier(query.table)}`);
+		parts.push(`INSERT INTO ${escapeIdentifier(query.table)}`);
 		parts.push(`(${columns.join(", ")})`);
 		parts.push(`VALUES ${valueRows.join(", ")}`);
 
@@ -568,7 +514,7 @@ export class MySQLQueryTranslator implements QueryTranslator {
 
 		const parts: string[] = [];
 		const sets: string[] = [];
-		const tableName = this.escapeIdentifier(query.table);
+		const tableName = escapeIdentifier(query.table);
 
 		parts.push(`UPDATE ${tableName}`);
 
@@ -595,8 +541,8 @@ export class MySQLQueryTranslator implements QueryTranslator {
 		const hasJoins = whereJoins.length > 0;
 		for (const [key, value] of Object.entries(query.data)) {
 			const col = hasJoins
-				? `${tableName}.${this.escapeIdentifier(key)}`
-				: this.escapeIdentifier(key);
+				? `${tableName}.${escapeIdentifier(key)}`
+				: escapeIdentifier(key);
 			sets.push(
 				`${col} = ${this.addParam(value, currentSchema, key)}`,
 			);
@@ -627,7 +573,7 @@ export class MySQLQueryTranslator implements QueryTranslator {
 		query: QueryDeleteObject<T>,
 	): string {
 		const parts: string[] = [];
-		const tableName = this.escapeIdentifier(query.table);
+		const tableName = escapeIdentifier(query.table);
 
 		// WHERE clause
 		if (query.where) {
@@ -664,7 +610,7 @@ export class MySQLQueryTranslator implements QueryTranslator {
 	): string {
 		return orderBy
 			.map((item) => {
-				const field = this.escapeIdentifier(item.field as string);
+				const field = escapeIdentifier(item.field as string);
 				const direction = item.direction.toUpperCase();
 
 				if (item.nulls) {
@@ -814,11 +760,11 @@ export class MySQLQueryTranslator implements QueryTranslator {
 						value === null
 					) {
 						if (relationField.foreignKey) {
-							const fkFieldName = this.escapeIdentifier(
+							const fkFieldName = escapeIdentifier(
 								relationField.foreignKey,
 							);
 							const qualifiedFK = currentTableAlias
-								? `${this.escapeIdentifier(currentTableAlias)}.${fkFieldName}`
+								? `${escapeIdentifier(currentTableAlias)}.${fkFieldName}`
 								: fkFieldName;
 
 							if (value === null) {
@@ -848,11 +794,11 @@ export class MySQLQueryTranslator implements QueryTranslator {
 						if (hasOnlyId && relationField.foreignKey) {
 							// Simple case: { category: { id: { $ne: 1 } } } -> categoryId <> 1
 							const idValue = nestedValue["id"];
-							const fkFieldName = this.escapeIdentifier(
+							const fkFieldName = escapeIdentifier(
 								relationField.foreignKey,
 							);
 							const qualifiedFK = currentTableAlias
-								? `${this.escapeIdentifier(currentTableAlias)}.${fkFieldName}`
+								? `${escapeIdentifier(currentTableAlias)}.${fkFieldName}`
 								: fkFieldName;
 
 							if (
@@ -898,22 +844,22 @@ export class MySQLQueryTranslator implements QueryTranslator {
 							const targetTable =
 								targetSchema.tableName ?? relationField.model!.toLowerCase();
 
-							const sourceTableEsc = this.escapeIdentifier(
+							const sourceTableEsc = escapeIdentifier(
 								currentTableAlias || tableName!,
 							);
-							const targetTableEsc = this.escapeIdentifier(targetTable);
-							const relationAlias = this.escapeIdentifier(key);
+							const targetTableEsc = escapeIdentifier(targetTable);
+							const relationAlias = escapeIdentifier(key);
 
 							// Generate JOIN based on relation kind
 							let joinSQL: string;
 							const relKind = relationField.kind;
 
 							if (relKind === "belongsTo") {
-								const foreignKeyEsc = this.escapeIdentifier(relationField.foreignKey!);
+								const foreignKeyEsc = escapeIdentifier(relationField.foreignKey!);
 								// Source has FK: source.foreignKey = target.id
 								joinSQL = `LEFT JOIN ${targetTableEsc} AS ${relationAlias} ON ${sourceTableEsc}.${foreignKeyEsc} = ${relationAlias}.\`id\``;
 							} else if (relKind === "hasOne" || relKind === "hasMany") {
-								const foreignKeyEsc = this.escapeIdentifier(relationField.foreignKey!);
+								const foreignKeyEsc = escapeIdentifier(relationField.foreignKey!);
 								// Target has FK: source.id = target.foreignKey
 								joinSQL = `LEFT JOIN ${targetTableEsc} AS ${relationAlias} ON ${sourceTableEsc}.\`id\` = ${relationAlias}.${foreignKeyEsc}`;
 							} else if (relKind === "manyToMany") {
@@ -927,10 +873,10 @@ export class MySQLQueryTranslator implements QueryTranslator {
 								const targetFK = `${relationField.model}Id`;
 
 								const junctionAlias = `${key}_junction`;
-								const junctionTableEsc = this.escapeIdentifier(junctionTable);
-								const junctionAliasEsc = this.escapeIdentifier(junctionAlias);
-								const sourceFKEsc = this.escapeIdentifier(sourceFK);
-								const targetFKEsc = this.escapeIdentifier(targetFK);
+								const junctionTableEsc = escapeIdentifier(junctionTable);
+								const junctionAliasEsc = escapeIdentifier(junctionAlias);
+								const sourceFKEsc = escapeIdentifier(sourceFK);
+								const targetFKEsc = escapeIdentifier(targetFK);
 
 								const junctionJoin = `LEFT JOIN ${junctionTableEsc} AS ${junctionAliasEsc} ON ${sourceTableEsc}.\`id\` = ${junctionAliasEsc}.${sourceFKEsc}`;
 								const targetJoin = `LEFT JOIN ${targetTableEsc} AS ${relationAlias} ON ${junctionAliasEsc}.${targetFKEsc} = ${relationAlias}.\`id\``;
@@ -970,8 +916,8 @@ export class MySQLQueryTranslator implements QueryTranslator {
 
 			// Regular field handling
 			const fieldName = currentTableAlias
-				? `${this.escapeIdentifier(currentTableAlias)}.${this.escapeIdentifier(key)}`
-				: this.escapeIdentifier(key);
+				? `${escapeIdentifier(currentTableAlias)}.${escapeIdentifier(key)}`
+				: escapeIdentifier(key);
 
 			// Handle comparison operators
 			if (
