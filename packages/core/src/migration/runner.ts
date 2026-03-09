@@ -140,107 +140,177 @@ export class ForgeMigrationRunner implements MigrationRunner {
 
 	/**
 	 * Run specific migration
+	 *
+	 * Operations are split into 3 phases for adapter compatibility:
+	 * - Phase 1 (pre-tx): createTable — run before transaction
+	 * - Phase 2 (tx): alterTable, dataTransfer, createIndex, dropIndex, renameTable, raw — inside transaction
+	 * - Phase 3 (post-tx): dropTable — run after successful commit
+	 *
+	 * This split is necessary because some adapters (e.g. MongoDB) cannot run
+	 * DDL operations (create/drop collection) inside a multi-document transaction.
+	 * For SQL adapters this is harmless since DDL is transaction-safe anyway.
+	 *
+	 * NOTE: On failure during phase 2, tables created in phase 1 may remain
+	 * as empty leftovers. This is acceptable — no data loss occurs.
 	 */
 	async runOne(migration: Migration): Promise<MigrationExecutionResult> {
 		const startTime = Date.now();
 
+		// Split operations into 3 phases, preserving relative order within each phase
+		const { preOps, txOps, postOps } = this.splitOperationsByPhase(
+			migration.operations,
+		);
+
 		try {
-			// Begin transaction
+			// Phase 1: createTable operations (outside transaction)
+			for (const operation of preOps) {
+				try {
+					await this.executeOperationDirect(operation);
+				} catch (error) {
+					const executionTime = Date.now() - startTime;
+					const err = error instanceof Error ? error : new Error(String(error));
+					await this.recordSafe(migration, executionTime, "failed", err);
+					return { migration, status: "failed", executionTime, error: err };
+				}
+			}
+
+			// Phase 2: DML and non-DDL operations (inside transaction)
 			const tx = await this.adapter.beginTransaction();
 			try {
-				// Execute all operations within transaction
-				for (const operation of migration.operations) {
+				for (const operation of txOps) {
 					try {
 						await this.executeOperation(tx, operation);
 					} catch (error) {
-						// Rollback transaction on failure
 						await tx.rollback();
-
 						const executionTime = Date.now() - startTime;
-
-						// Record failure
-						await this.history.record(
-							migration,
-							executionTime,
-							"failed",
-							error as Error,
-						);
-
-						return {
-							migration,
-							status: "failed",
-							executionTime,
-							error: error as Error,
-						};
+						const err =
+							error instanceof Error ? error : new Error(String(error));
+						await this.recordSafe(migration, executionTime, "failed", err);
+						return { migration, status: "failed", executionTime, error: err };
 					}
 				}
 
 				try {
-					// Commit transaction
 					await tx.commit();
 				} catch (error) {
 					const executionTime = Date.now() - startTime;
-
-					return {
-						migration,
-						status: "failed",
-						executionTime,
-						error: error as Error,
-					};
+					const err = error instanceof Error ? error : new Error(String(error));
+					return { migration, status: "failed", executionTime, error: err };
 				}
-
-				const executionTime = Date.now() - startTime;
-				// Collect warning if recording fails, but don't fail the migration
-				const warnings: string[] = [];
-
-				// Record success
-				try {
-					await this.history.record(migration, executionTime, "completed");
-				} catch (error) {
-					warnings.push(
-						`Failed to record migration history: ${(error as Error).message}`,
-					);
-				}
-
-				return {
-					migration,
-					status: "completed",
-					executionTime,
-					...(warnings.length > 0 && { warnings }),
-				};
 			} catch (error) {
-				// Rollback on error
 				await tx.rollback();
-
 				const executionTime = Date.now() - startTime;
 				const err = error instanceof Error ? error : new Error(String(error));
-
-				const warnings: string[] = [];
-				// Record success
-				try {
-					await this.history.record(migration, executionTime, "failed", err);
-				} catch (error) {
-					warnings.push(
-						`Failed to record migration history: ${(error as Error).message}`,
-					);
-				}
-
-				return {
-					migration,
-					status: "failed",
-					executionTime,
-					error: err,
-					...(warnings.length > 0 && { warnings }),
-				};
+				await this.recordSafe(migration, executionTime, "failed", err);
+				return { migration, status: "failed", executionTime, error: err };
 			}
+
+			// Phase 3: dropTable operations (after successful commit)
+			for (const operation of postOps) {
+				try {
+					await this.executeOperationDirect(operation);
+				} catch (error) {
+					// Drop failures after successful commit are warnings, not failures.
+					// Data is already safely migrated — leftover tables can be cleaned manually.
+					const executionTime = Date.now() - startTime;
+					const warnings = [
+						`Post-commit dropTable failed: ${(error as Error).message}`,
+					];
+					await this.recordSafe(migration, executionTime, "completed");
+					return { migration, status: "completed", executionTime, warnings };
+				}
+			}
+
+			const executionTime = Date.now() - startTime;
+			const warnings: string[] = [];
+			try {
+				await this.history.record(migration, executionTime, "completed");
+			} catch (error) {
+				warnings.push(
+					`Failed to record migration history: ${(error as Error).message}`,
+				);
+			}
+
+			return {
+				migration,
+				status: "completed",
+				executionTime,
+				...(warnings.length > 0 && { warnings }),
+			};
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-
 			throw new MigrationSystemError(
 				`Failed to run migration: ${message}`,
 				"MIGRATION_ERROR",
 				error,
 			);
+		}
+	}
+
+	/**
+	 * Split migration operations into 3 phases.
+	 * Preserves relative order within each phase.
+	 *
+	 * - pre: createTable (must exist before DML references them)
+	 * - tx: everything else except dropTable
+	 * - post: dropTable (safe to drop after data is committed)
+	 */
+	private splitOperationsByPhase(operations: readonly MigrationOperation[]): {
+		readonly preOps: readonly MigrationOperation[];
+		readonly txOps: readonly MigrationOperation[];
+		readonly postOps: readonly MigrationOperation[];
+	} {
+		const preOps: MigrationOperation[] = [];
+		const txOps: MigrationOperation[] = [];
+		const postOps: MigrationOperation[] = [];
+
+		for (const op of operations) {
+			if (op.type === "createTable") {
+				preOps.push(op);
+			} else if (op.type === "dropTable" || op.type === "renameTable") {
+				postOps.push(op);
+			} else {
+				txOps.push(op);
+			}
+		}
+
+		return { preOps, txOps, postOps };
+	}
+
+	/**
+	 * Execute a migration operation directly on the adapter (outside transaction)
+	 */
+	private async executeOperationDirect(
+		operation: MigrationOperation,
+	): Promise<void> {
+		switch (operation.type) {
+			case "createTable":
+				return await this.adapter.createTable(operation.schema);
+			case "dropTable":
+				return await this.adapter.dropTable(operation.tableName);
+			case "renameTable":
+				return await this.adapter.renameTable(operation.from, operation.to);
+			default:
+				throw new MigrationSystemError(
+					`Operation type '${operation.type}' cannot run outside transaction`,
+					"MIGRATION_ERROR",
+				);
+		}
+	}
+
+	/**
+	 * Record migration history safely (never throws)
+	 */
+	private async recordSafe(
+		migration: Migration,
+		executionTime: number,
+		status: "completed" | "failed",
+		error?: Error,
+	): Promise<void> {
+		try {
+			await this.history.record(migration, executionTime, status, error);
+		} catch {
+			// Swallow — recording failure should not mask the original error
 		}
 	}
 
