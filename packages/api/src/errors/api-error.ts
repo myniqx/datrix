@@ -73,8 +73,7 @@ export const handlerError = {
 		return new ForjaApiError("Model not specified in the request URL", {
 			code: "MODEL_NOT_SPECIFIED",
 			status: 400,
-			suggestion:
-				"Ensure the URL includes the model name (e.g., /api/users).",
+			suggestion: "Ensure the URL includes the model name (e.g., /api/users).",
 		});
 	},
 
@@ -83,8 +82,7 @@ export const handlerError = {
 			code: "NOT_FOUND",
 			status: 404,
 			context: { modelName, id },
-			suggestion:
-				"Verify the ID is correct or if the record has been deleted.",
+			suggestion: "Verify the ID is correct or if the record has been deleted.",
 		});
 	},
 

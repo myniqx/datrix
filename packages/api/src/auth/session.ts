@@ -199,9 +199,7 @@ export class MemorySessionStore {
 		this.prefix = prefix;
 	}
 
-	async get(
-		sessionId: string,
-	): Promise<SessionData | undefined> {
+	async get(sessionId: string): Promise<SessionData | undefined> {
 		try {
 			const key = this.getKey(sessionId);
 			const session = this.sessions.get(key);
@@ -216,10 +214,7 @@ export class MemorySessionStore {
 		}
 	}
 
-	async set(
-		sessionId: string,
-		data: SessionData,
-	): Promise<void> {
+	async set(sessionId: string, data: SessionData): Promise<void> {
 		const key = this.getKey(sessionId);
 		this.sessions.set(key, data);
 	}

@@ -11,7 +11,10 @@
 
 import type { RawQueryParams } from "forja-types/api/parser";
 import { ForjaRecord } from "forja-types";
-import { PopulateClause, PopulateOptions } from "forja-types/core/query-builder";
+import {
+	PopulateClause,
+	PopulateOptions,
+} from "forja-types/core/query-builder";
 import { validateFieldName } from "forja-types/core/constants";
 import { populateError } from "./errors";
 
@@ -41,7 +44,9 @@ export function parsePopulate(
 	}
 
 	// Build populate clause
-	const populateClause: Record<string, PopulateOptions<ForjaRecord> | "*"> | true = {};
+	const populateClause:
+		| Record<string, PopulateOptions<ForjaRecord> | "*">
+		| true = {};
 
 	// Check for simple populate parameter (string)
 	const mainPopulate = params["populate"];
@@ -115,7 +120,9 @@ export function parsePopulate(
 
 	// If we found indexed array format, return as string[]
 	if (indexedArrayRelations.length > 0) {
-		return indexedArrayRelations.filter(Boolean) as unknown as PopulateClause<ForjaRecord>; // Remove empty slots
+		return indexedArrayRelations.filter(
+			Boolean,
+		) as unknown as PopulateClause<ForjaRecord>; // Remove empty slots
 	}
 
 	// Parse each relation (object format)
@@ -261,7 +268,7 @@ function parseRelationPath(
 
 		const populateObj =
 			typeof relationData["populate"] === "object" &&
-				!Array.isArray(relationData["populate"])
+			!Array.isArray(relationData["populate"])
 				? (relationData["populate"] as Record<string, Record<string, unknown>>)
 				: {};
 
@@ -361,7 +368,8 @@ function parseRelation(
 
 	// Add nested populates
 	if (params.populate !== undefined) {
-		const nestedPopulate: Record<string, PopulateOptions<ForjaRecord> | "*"> = {};
+		const nestedPopulate: Record<string, PopulateOptions<ForjaRecord> | "*"> =
+			{};
 
 		for (const [nestedRelation, nestedParams] of Object.entries(
 			params.populate,

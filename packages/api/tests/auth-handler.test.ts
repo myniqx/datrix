@@ -72,7 +72,7 @@ describe("Auth Handler Tests", () => {
 		for (const schema of forja.getSchemas().getAll()) {
 			try {
 				await adapter.dropTable(schema.tableName!);
-			} catch { }
+			} catch {}
 			await adapter.createTable(schema);
 		}
 	});
@@ -102,7 +102,10 @@ describe("Auth Handler Tests", () => {
 				}),
 			);
 
-			const data = await expectApiSingle<AuthUserResponse & ForjaEntry>(response, 201);
+			const data = await expectApiSingle<AuthUserResponse & ForjaEntry>(
+				response,
+				201,
+			);
 			expect(data.user!.email).toBe("newuser@test.com");
 			//      expect(data.user.role).toBe("user"); // default role
 			expect(data.token).toBeDefined();
@@ -254,7 +257,10 @@ describe("Auth Handler Tests", () => {
 				}),
 			);
 
-			const data = await expectApiSingle<AuthUserResponse & ForjaEntry>(response, 200);
+			const data = await expectApiSingle<AuthUserResponse & ForjaEntry>(
+				response,
+				200,
+			);
 			expect(data.user!.email).toBe(loginEmail);
 			expect(data.token).toBeDefined();
 			// Password should not be in response
@@ -439,7 +445,10 @@ describe("Auth Handler Tests", () => {
 				}),
 			);
 
-			const data = await expectApiSingle<AuthUserResponse & ForjaEntry>(loginResponse, 200);
+			const data = await expectApiSingle<AuthUserResponse & ForjaEntry>(
+				loginResponse,
+				200,
+			);
 			userToken = data.token ?? "";
 		});
 
@@ -451,10 +460,9 @@ describe("Auth Handler Tests", () => {
 				}),
 			);
 
-			const data = await expectApiSingle<{ email: string; role: string } & ForjaEntry>(
-				response,
-				200,
-			);
+			const data = await expectApiSingle<
+				{ email: string; role: string } & ForjaEntry
+			>(response, 200);
 			expect(data.email).toBe("metest@test.com");
 			//    expect(data.role).toBe("user");
 		});
@@ -482,7 +490,10 @@ describe("Auth Handler Tests", () => {
 				}),
 			);
 
-			const data = await expectApiSingle<{ email: string } & ForjaEntry>(response, 200);
+			const data = await expectApiSingle<{ email: string } & ForjaEntry>(
+				response,
+				200,
+			);
 			expect(data.email).toBe("metest@test.com");
 		});
 

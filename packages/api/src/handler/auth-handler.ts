@@ -56,7 +56,7 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
 				throw handlerError.permissionDenied("Registration is disabled");
 			}
 
-			const body = await request.json() as FallbackValue;
+			const body = (await request.json()) as FallbackValue;
 			const { email, password, ...extraData } = body;
 
 			if (!email || typeof email !== "string") {

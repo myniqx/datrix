@@ -50,7 +50,7 @@ function extractIdFromPath(pathname: string, prefix: string): number | null {
 	if (pathSegments.length < 2) {
 		return null;
 	}
-	const val = parseInt(pathSegments[1]!, 10);;
+	const val = parseInt(pathSegments[1]!, 10);
 	return isNaN(val) ? null : val;
 }
 

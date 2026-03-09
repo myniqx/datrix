@@ -83,7 +83,9 @@ export function parseQuery(
 			page: pagination.page ?? 1,
 			pageSize: pagination.pageSize ?? opts.defaultPageSize,
 		}),
-		...(sort !== undefined && Array.isArray(sort) && sort.length > 0 && { orderBy: sort }),
+		...(sort !== undefined &&
+			Array.isArray(sort) &&
+			sort.length > 0 && { orderBy: sort }),
 	};
 
 	return result;

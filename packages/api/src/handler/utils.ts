@@ -22,7 +22,9 @@ export function jsonResponse(data: unknown, status = 200): Response {
  * Generic ForjaError to Response converter
  * Handles ApiError (with status), ForjaValidationError (400), and base ForjaError
  */
-export function forjaErrorResponse(error: ForjaApiError | ForjaError): Response {
+export function forjaErrorResponse(
+	error: ForjaApiError | ForjaError,
+): Response {
 	let status = 400;
 
 	if (error instanceof ForjaApiError) {

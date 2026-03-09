@@ -77,7 +77,12 @@ export async function getAdapter(
 
 			// Create fresh database (skip if reusing existing)
 			if (!options?.skipCreate) {
-				await createPostgresTestDatabase(dbName, { host, port, user, password });
+				await createPostgresTestDatabase(dbName, {
+					host,
+					port,
+					user,
+					password,
+				});
 			}
 
 			return new PostgresAdapter({
@@ -167,5 +172,5 @@ export function getAdapterType(): AdapterType {
 	) {
 		return adapterEnv;
 	}
-	return "postgres"; // Default
+	return "mongodb"; // Default
 }

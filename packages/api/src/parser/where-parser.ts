@@ -26,7 +26,9 @@ import { whereError } from "./errors";
  * @returns WhereClause or undefined
  * @throws {ParserError} When validation fails
  */
-export function parseWhere(params: RawQueryParams): FallbackWhereClause | undefined {
+export function parseWhere(
+	params: RawQueryParams,
+): FallbackWhereClause | undefined {
 	const whereClause: Record<string, unknown> = {};
 
 	// Find all where[...] parameters
@@ -265,10 +267,7 @@ function parseValue(
  * @param value - The raw string value to parse
  * @param operator - Optional operator context for type-aware parsing
  */
-function parseSingleValue(
-	value: string,
-	operator?: string,
-): unknown {
+function parseSingleValue(value: string, operator?: string): unknown {
 	// Import MAX_WHERE_VALUE_LENGTH
 	const MAX_WHERE_VALUE_LENGTH = 1000;
 

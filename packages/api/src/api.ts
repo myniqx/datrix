@@ -27,7 +27,8 @@ import { FallbackInput } from "forja-types/forja";
 
 export class ApiPlugin<TRole extends string = string>
 	extends BasePlugin<ApiConfig<TRole>>
-	implements IApiPlugin<TRole> {
+	implements IApiPlugin<TRole>
+{
 	readonly name = "api";
 	readonly version = "1.0.0";
 
@@ -99,14 +100,14 @@ export class ApiPlugin<TRole extends string = string>
 			throw this.createError(
 				"Schema name 'auth' is reserved for API authentication routes",
 				"RESERVED_SCHEMA_NAME",
-			)
+			);
 		}
 
 		if (!context.schemas.has(this.userSchemaName)) {
 			throw this.createError(
 				`User schema '${this.userSchemaName}' not found. Create it before enabling auth.`,
 				"USER_SCHEMA_NOT_FOUND",
-			)
+			);
 		}
 
 		const userSchema = context.schemas.get(this.userSchemaName);
@@ -115,7 +116,7 @@ export class ApiPlugin<TRole extends string = string>
 			throw this.createError(
 				`User schema must have an '${emailField}' field`,
 				"MISSING_EMAIL_FIELD",
-			)
+			);
 		}
 
 		if (this.authConfig.jwt) {
@@ -123,15 +124,14 @@ export class ApiPlugin<TRole extends string = string>
 				throw this.createError(
 					"JWT secret must be at least 32 characters long for security",
 					"WEAK_JWT_SECRET",
-				)
+				);
 			}
 		}
 
 		this.authManager = new AuthManager(this.authConfig);
 	}
 
-	async destroy(): Promise<void> {
-	}
+	async destroy(): Promise<void> {}
 
 	override async getSchemas(): Promise<SchemaDefinition[]> {
 		if (!this.authConfig) {
@@ -255,9 +255,9 @@ export class ApiPlugin<TRole extends string = string>
 		const authData: FallbackInput = {
 			user: user["userId"]!,
 			email: user[emailField]!,
-			password: (user["password"]) || "",
-			passwordSalt: (user["passwordSalt"]) || "",
-			role: (user["role"]) || this.authConfig?.defaultRole || "user",
+			password: user["password"] || "",
+			passwordSalt: user["passwordSalt"] || "",
+			role: user["role"] || this.authConfig?.defaultRole || "user",
 		};
 
 		await this.forjaInstance!.raw.create(this.authSchemaName, authData);

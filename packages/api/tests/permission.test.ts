@@ -69,7 +69,7 @@ describe("Schema-Level Permission Tests", () => {
 		for (const schema of forja.getSchemas().getAll()) {
 			try {
 				await adapter.dropTable(schema.tableName!);
-			} catch { }
+			} catch {}
 			await adapter.createTable(schema);
 		}
 
@@ -291,7 +291,10 @@ describe("Schema-Level Permission Tests", () => {
 					createRequest(`/api/categories/${categoryId}`),
 				);
 
-				const category = await expectApiSingle<{ name: string } & ForjaEntry>(response, 200);
+				const category = await expectApiSingle<{ name: string } & ForjaEntry>(
+					response,
+					200,
+				);
 				expect(category.name).toBe("Test Category");
 			});
 
