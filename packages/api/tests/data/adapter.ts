@@ -8,15 +8,17 @@
 import { JsonAdapter } from "../../../adapter-json/src/index";
 import { PostgresAdapter } from "../../../adapter-postgres/src/index";
 import { MySQLAdapter } from "../../../adapter-mysql/src/index";
+import { MongoDBAdapter } from "../../../adapter-mongodb/src/index";
 import { createTestDatabase as createPostgresTestDatabase } from "../../../adapter-postgres/src/test-utils";
 import { createTestDatabase as createMySQLTestDatabase } from "../../../adapter-mysql/src/test-utils";
+import { createTestDatabase as createMongoDBTestDatabase } from "../../../adapter-mongodb/src/test-utils";
 import { createHash } from "node:crypto";
 import { DatabaseAdapter } from "forja-types/adapter";
 
 /**
  * Supported adapter types for testing
  */
-export type AdapterType = "json" | "postgres" | "mysql";
+export type AdapterType = "json" | "postgres" | "mysql" | "mongodb";
 
 /**
  * Generate a safe database name from root path
@@ -52,6 +54,7 @@ function generateDbName(root: string): string {
 export async function getAdapter(
 	type: AdapterType,
 	root: string,
+	options?: { skipCreate?: boolean },
 ): Promise<DatabaseAdapter> {
 	switch (type) {
 		case "json":
@@ -72,8 +75,10 @@ export async function getAdapter(
 			const user = process.env["POSTGRES_USER"] ?? "forja_test";
 			const password = process.env["POSTGRES_PASSWORD"] ?? "forja_test";
 
-			// Create fresh database
-			await createPostgresTestDatabase(dbName, { host, port, user, password });
+			// Create fresh database (skip if reusing existing)
+			if (!options?.skipCreate) {
+				await createPostgresTestDatabase(dbName, { host, port, user, password });
+			}
 
 			return new PostgresAdapter({
 				host,
@@ -99,8 +104,10 @@ export async function getAdapter(
 			const user = process.env["MYSQL_USER"] ?? "forja";
 			const password = process.env["MYSQL_PASSWORD"] ?? "forja";
 
-			// Create fresh database
-			await createMySQLTestDatabase(dbName, { host, port, user, password });
+			// Create fresh database (skip if reusing existing)
+			if (!options?.skipCreate) {
+				await createMySQLTestDatabase(dbName, { host, port, user, password });
+			}
 
 			return new MySQLAdapter({
 				host,
@@ -110,6 +117,28 @@ export async function getAdapter(
 				password,
 				connectionLimit: 10,
 				connectTimeout: 5000,
+			}) as DatabaseAdapter;
+		}
+
+		case "mongodb": {
+			const dbName = generateDbName(root);
+
+			// Parse connection config from env
+			const uri = process.env["MONGODB_URI"] ?? "mongodb://localhost:27017";
+
+			// Create fresh database (skip if reusing existing)
+			if (!options?.skipCreate) {
+				await createMongoDBTestDatabase(dbName, { uri });
+			}
+
+			return new MongoDBAdapter({
+				uri,
+				database: dbName,
+				maxPoolSize: 10,
+				minPoolSize: 2,
+				connectTimeoutMS: 5000,
+				serverSelectionTimeoutMS: 5000,
+				appName: "forja-test",
 			}) as DatabaseAdapter;
 		}
 
@@ -133,9 +162,10 @@ export function getAdapterType(): AdapterType {
 	if (
 		adapterEnv === "postgres" ||
 		adapterEnv === "mysql" ||
+		adapterEnv === "mongodb" ||
 		adapterEnv === "json"
 	) {
 		return adapterEnv;
 	}
-	return "mysql"; // Default
+	return "postgres"; // Default
 }

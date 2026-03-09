@@ -11,7 +11,7 @@ import { ForjaError, type SerializedForjaError } from "../forja-error";
 // Adapter Name
 // ============================================================================
 
-export type AdapterName = "postgres" | "mysql" | "json";
+export type AdapterName = "postgres" | "mysql" | "mongodb" | "json";
 
 // ============================================================================
 // Adapter Operation
