@@ -90,21 +90,21 @@ export interface Transaction extends QueryRunner, SchemaOperations {
  */
 export type AlterOperation =
 	| {
-		readonly type: "addColumn";
-		readonly column: string;
-		readonly definition: FieldDefinition;
-	}
+			readonly type: "addColumn";
+			readonly column: string;
+			readonly definition: FieldDefinition;
+	  }
 	| { readonly type: "dropColumn"; readonly column: string }
 	| {
-		readonly type: "modifyColumn";
-		readonly column: string;
-		readonly newDefinition: FieldDefinition;
-	}
+			readonly type: "modifyColumn";
+			readonly column: string;
+			readonly newDefinition: FieldDefinition;
+	  }
 	| {
-		readonly type: "renameColumn";
-		readonly from: string;
-		readonly to: string;
-	};
+			readonly type: "renameColumn";
+			readonly from: string;
+			readonly to: string;
+	  };
 
 /**
  * Connection state
@@ -148,7 +148,9 @@ export interface DatabaseAdapter<TConfig = object>
 /**
  * Type guard for DatabaseAdapter
  */
-export function isDatabaseAdapter(value: unknown): value is DatabaseAdapter<unknown> {
+export function isDatabaseAdapter(
+	value: unknown,
+): value is DatabaseAdapter<unknown> {
 	return (
 		typeof value === "object" &&
 		value !== null &&

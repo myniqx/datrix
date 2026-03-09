@@ -26,16 +26,16 @@ export type JsonValue =
  */
 export type DeepPartial<T> =
 	T extends Record<string, unknown>
-	? { [P in keyof T]?: DeepPartial<T[P]> }
-	: T;
+		? { [P in keyof T]?: DeepPartial<T[P]> }
+		: T;
 
 /**
  * Make all properties in T readonly recursively
  */
 export type DeepReadonly<T> =
 	T extends Record<string, unknown>
-	? { readonly [P in keyof T]: DeepReadonly<T[P]> }
-	: T;
+		? { readonly [P in keyof T]: DeepReadonly<T[P]> }
+		: T;
 
 /**
  * Extract keys from T that have values of type V

@@ -80,13 +80,13 @@ export type ForjaRecord = ForjaEntry & FallbackValue;
 
 export type FallbackValue = {
 	[key: string]:
-	| string
-	| number
-	| boolean
-	| Date
-	| null
-	| FallbackValue        // nested object (populate sonucu)
-	| FallbackValue[];     // array of nested
+		| string
+		| number
+		| boolean
+		| Date
+		| null
+		| FallbackValue // nested object (populate sonucu)
+		| FallbackValue[]; // array of nested
 };
 
 /**
@@ -301,13 +301,13 @@ export type RelationBelongsTo<T extends ForjaEntry> =
 	| RelationIdRef
 	| null
 	| {
-		connect?: RelationIdRef;
-		set?: RelationIdRef;
-		disconnect?: true;
-		create?: Partial<T>;
-		update?: { where: { id: number }; data: Partial<T> };
-		delete?: RelationIdRef;
-	};
+			connect?: RelationIdRef;
+			set?: RelationIdRef;
+			disconnect?: true;
+			create?: Partial<T>;
+			update?: { where: { id: number }; data: Partial<T> };
+			delete?: RelationIdRef;
+	  };
 
 /**
  * hasOne (1:1) relation input - write operations
@@ -340,15 +340,15 @@ export type RelationHasOne<T extends ForjaEntry> = RelationBelongsTo<T>;
 export type RelationHasMany<T extends ForjaEntry> =
 	| RelationIdRefs
 	| {
-		connect?: RelationIdRefs;
-		disconnect?: RelationIdRefs;
-		set?: RelationIdRefs;
-		create?: Partial<T> | Partial<T>[];
-		update?:
-		| { where: { id: number }; data: Partial<T> }
-		| { where: { id: number }; data: Partial<T> }[];
-		delete?: RelationIdRefs;
-	};
+			connect?: RelationIdRefs;
+			disconnect?: RelationIdRefs;
+			set?: RelationIdRefs;
+			create?: Partial<T> | Partial<T>[];
+			update?:
+				| { where: { id: number }; data: Partial<T> }
+				| { where: { id: number }; data: Partial<T> }[];
+			delete?: RelationIdRefs;
+	  };
 
 /**
  * manyToMany (N:N) relation input - write operations
@@ -381,22 +381,18 @@ export type RelationInput<T extends ForjaEntry> =
  * tags: { disconnect: [3] }
  * ```
  */
-export type AnyRelationInput =
-	| RelationIdRefs
-	| null
-	| AnyRelationInputObject;
+export type AnyRelationInput = RelationIdRefs | null | AnyRelationInputObject;
 
-export type AnyRelationInputObject =
-	{
-		connect?: RelationIdRefs;
-		disconnect?: RelationIdRefs | true;
-		set?: RelationIdRefs;
-		delete?: RelationIdRefs;
-		create?: Record<string, unknown> | Record<string, unknown>[];
-		update?:
+export type AnyRelationInputObject = {
+	connect?: RelationIdRefs;
+	disconnect?: RelationIdRefs | true;
+	set?: RelationIdRefs;
+	delete?: RelationIdRefs;
+	create?: Record<string, unknown> | Record<string, unknown>[];
+	update?:
 		| { where: { id: number }; data: Record<string, unknown> }
 		| { where: { id: number }; data: Record<string, unknown> }[];
-	};
+};
 
 /**
  * Normalized relation ID (always { id } format)
@@ -648,25 +644,25 @@ export type InferFieldType<F extends FieldDefinition<string>> = F extends {
 }
 	? string
 	: F extends { type: "number" }
-	? number
-	: F extends { type: "boolean" }
-	? boolean
-	: F extends { type: "date" }
-	? Date
-	: F extends { type: "json" }
-	? Record<string, unknown>
-	: F extends EnumField<infer T, string>
-	? T[number]
-	: F extends {
-		type: "array";
-		items: infer I extends FieldDefinition<string>;
-	}
-	? Array<InferFieldType<I>>
-	: F extends { type: "relation"; model: string }
-	? string // Just the ID for relations (runtime representation)
-	: F extends { type: "file" }
-	? string // File URL/path
-	: never;
+		? number
+		: F extends { type: "boolean" }
+			? boolean
+			: F extends { type: "date" }
+				? Date
+				: F extends { type: "json" }
+					? Record<string, unknown>
+					: F extends EnumField<infer T, string>
+						? T[number]
+						: F extends {
+									type: "array";
+									items: infer I extends FieldDefinition<string>;
+							  }
+							? Array<InferFieldType<I>>
+							: F extends { type: "relation"; model: string }
+								? string // Just the ID for relations (runtime representation)
+								: F extends { type: "file" }
+									? string // File URL/path
+									: never;
 
 /**
  * Infer TypeScript type from schema definition
@@ -710,8 +706,8 @@ export type InferFieldType<F extends FieldDefinition<string>> = F extends {
  */
 export type InferSchemaType<S extends SchemaDefinition<string>> = ForjaEntry & {
 	[K in keyof S["fields"]]: S["fields"][K] extends { required: true }
-	? InferFieldType<S["fields"][K]>
-	: InferFieldType<S["fields"][K]> | undefined;
+		? InferFieldType<S["fields"][K]>
+		: InferFieldType<S["fields"][K]> | undefined;
 };
 
 /**
@@ -808,7 +804,6 @@ export interface FieldMetadata {
 	readonly isRelation: boolean;
 	readonly isArray: boolean;
 }
-
 
 /**
  * Schema definition validation result

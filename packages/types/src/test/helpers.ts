@@ -4,7 +4,6 @@
  * Utility functions to simplify test writing
  */
 
-
 import { expect } from "vitest";
 import { ForjaError } from "../errors/forja-error";
 import { ResponseMultiData } from "../api";

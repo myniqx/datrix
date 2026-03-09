@@ -36,15 +36,8 @@ export interface RawFindManyOptions<
  * without requiring a specific model type.
  */
 export type FallbackInput = {
-	[key: string]:
-		| string
-		| number
-		| boolean
-		| Date
-		| null
-		| AnyRelationInput;
+	[key: string]: string | number | boolean | Date | null | AnyRelationInput;
 };
-
 
 /**
  * Raw CRUD operations interface (bypasses plugin hooks)

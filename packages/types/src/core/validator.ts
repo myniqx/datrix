@@ -41,14 +41,15 @@ export interface ValidationError {
 /**
  * Validation result for a single field
  */
-export type FieldValidationResult<T = unknown> = {
-	success: true;
-	data: T;
-} | {
-	success: false;
-	error: ValidationError[];
-};
-
+export type FieldValidationResult<T = unknown> =
+	| {
+			success: true;
+			data: T;
+	  }
+	| {
+			success: false;
+			error: ValidationError[];
+	  };
 
 /**
  * Field validator function type

@@ -8,7 +8,6 @@ import { ForjaEntry } from "forja-types/core/schema";
 import { QueryObject } from "../core/query-builder";
 import { ForjaError } from "../errors";
 
-
 /**
  * Valid keys for a QueryObject
  */
@@ -114,8 +113,7 @@ export function validateQueryObject<T extends ForjaEntry>(
 			code: "MISSING_QUERY_FIELD",
 			operation: "query:validate",
 			context: { query },
-			suggestion:
-				"Add 'table' field to QueryObject with the target table name",
+			suggestion: "Add 'table' field to QueryObject with the target table name",
 			expected: "table: string",
 		});
 	}
