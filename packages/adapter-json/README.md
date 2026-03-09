@@ -161,11 +161,6 @@ Each file contains:
 		"lastInsertId": 3,
 		"updatedAt": "2026-01-27T10:30:00.000Z"
 	},
-	"schema": {
-		"name": "User",
-		"tableName": "users",
-		"fields": {}
-	},
 	"data": [
 		{ "id": 1, "name": "Alice", "email": "alice@example.com" },
 		{ "id": 2, "name": "Bob", "email": "bob@example.com" }
