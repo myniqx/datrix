@@ -83,11 +83,12 @@ describe("Core - Schema Registry - Error Path", () => {
 				},
 			};
 
-			const registrationResult = () =>
-				strictSchemaRegistry.registerMany([postSchemaWithMissingRelation]);
+			strictSchemaRegistry.registerMany([postSchemaWithMissingRelation]);
+			const relationValidationResult = () =>
+				strictSchemaRegistry.finalizeRegistry();
 
-			const relationError = expectFailureError(registrationResult);
-			expect(relationError.code).toBe("INVALID_RELATIONS");
+			const relationError = expectFailureError(relationValidationResult);
+			expect(relationError.code).toBe("INVALID_RELATION_TARGET");
 		});
 	});
 });

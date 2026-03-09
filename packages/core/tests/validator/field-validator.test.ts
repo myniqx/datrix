@@ -7,8 +7,16 @@
 
 import { validateField } from "../../src";
 import { edgeCases, sampleFields } from "../../../types/src/test/fixtures";
-import { expectSuccessData } from "../../../types/src/test/helpers";
+// import { expectSuccessData } from "../../../types/src/test/helpers";
 import { describe, it, expect } from "vitest";
+
+const expectSuccessData = (e) => {
+	if (!e.success) {
+		console.error("Expected success but got failure:", e);
+	}
+	expect(e.success).toBe(true);
+	return e;
+}
 
 describe("FieldValidator - Happy Path", () => {
 	describe("Required Field Validation", () => {
@@ -19,7 +27,7 @@ describe("FieldValidator - Happy Path", () => {
 				"name",
 			);
 
-			const validatedValue = expectSuccessData(validationResult);
+			const { data: validatedValue } = expectSuccessData(validationResult);
 			expect(validatedValue).toBe("test");
 		});
 
@@ -30,7 +38,7 @@ describe("FieldValidator - Happy Path", () => {
 				"name",
 			);
 
-			const validatedValue = expectSuccessData(validationResult);
+			const { data: validatedValue } = expectSuccessData(validationResult);
 			expect(validatedValue).toBeUndefined();
 		});
 
@@ -41,7 +49,7 @@ describe("FieldValidator - Happy Path", () => {
 				"name",
 			);
 
-			const validatedValue = expectSuccessData(validationResult);
+			const { data: validatedValue } = expectSuccessData(validationResult);
 			expect(validatedValue).toBeNull();
 		});
 	});
@@ -56,7 +64,7 @@ describe("FieldValidator - Happy Path", () => {
 					"name",
 				);
 
-				const validatedString = expectSuccessData(validationResult);
+				const { data: validatedString } = expectSuccessData(validationResult);
 				expect(validatedString).toBe("hello");
 			});
 		});
@@ -148,7 +156,7 @@ describe("FieldValidator - Happy Path", () => {
 					"name",
 				);
 
-				const validatedValue = expectSuccessData(validationResult);
+				const { data: validatedValue } = expectSuccessData(validationResult);
 				expect(validatedValue).toBe("");
 			});
 
@@ -197,7 +205,7 @@ describe("FieldValidator - Happy Path", () => {
 					"age",
 				);
 
-				const validatedNumber = expectSuccessData(validationResult);
+				const { data: validatedNumber } = expectSuccessData(validationResult);
 				expect(validatedNumber).toBe(42);
 			});
 
@@ -363,7 +371,7 @@ describe("FieldValidator - Happy Path", () => {
 				"active",
 			);
 
-			const validatedBoolean = expectSuccessData(validationResult);
+			const { data: validatedBoolean } = expectSuccessData(validationResult);
 			expect(validatedBoolean).toBe(true);
 		});
 
@@ -375,7 +383,7 @@ describe("FieldValidator - Happy Path", () => {
 				"active",
 			);
 
-			const validatedBoolean = expectSuccessData(validationResult);
+			const { data: validatedBoolean } = expectSuccessData(validationResult);
 			expect(validatedBoolean).toBe(false);
 		});
 	});
@@ -390,7 +398,7 @@ describe("FieldValidator - Happy Path", () => {
 					"createdAt",
 				);
 
-				const validatedDate = expectSuccessData(validationResult);
+				const { data: validatedDate } = expectSuccessData(validationResult);
 				expect(validatedDate).toBeInstanceOf(Date);
 			});
 		});
@@ -453,7 +461,7 @@ describe("FieldValidator - Happy Path", () => {
 				"role",
 			);
 
-			const validatedEnum = expectSuccessData(validationResult);
+			const { data: validatedEnum } = expectSuccessData(validationResult);
 			expect(validatedEnum).toBe("admin");
 		});
 
@@ -466,7 +474,7 @@ describe("FieldValidator - Happy Path", () => {
 					sampleFields.roleEnum,
 					"role",
 				);
-				const validatedRole = expectSuccessData(validationResult);
+				const { data: validatedRole } = expectSuccessData(validationResult);
 				expect(validatedRole).toBe(validRole);
 			}
 		});
@@ -482,7 +490,7 @@ describe("FieldValidator - Happy Path", () => {
 					"tags",
 				);
 
-				const validatedArray = expectSuccessData(validationResult);
+				const { data: validatedArray } = expectSuccessData(validationResult);
 				expect(validatedArray).toEqual(["a", "b", "c"]);
 			});
 
@@ -494,7 +502,7 @@ describe("FieldValidator - Happy Path", () => {
 					"tags",
 				);
 
-				const validatedArray = expectSuccessData(validationResult);
+				const { data: validatedArray } = expectSuccessData(validationResult);
 				expect(validatedArray).toEqual([]);
 			});
 		});
@@ -583,7 +591,7 @@ describe("FieldValidator - Happy Path", () => {
 				"metadata",
 			);
 
-			const validatedJson = expectSuccessData(validationResult);
+			const { data: validatedJson } = expectSuccessData(validationResult);
 			expect(validatedJson).toEqual(validJsonObject);
 		});
 
@@ -595,7 +603,7 @@ describe("FieldValidator - Happy Path", () => {
 				"metadata",
 			);
 
-			const validatedJson = expectSuccessData(validationResult);
+			const { data: validatedJson } = expectSuccessData(validationResult);
 			expect(validatedJson).toEqual(jsonArray);
 		});
 
@@ -618,7 +626,7 @@ describe("FieldValidator - Happy Path", () => {
 				"metadata",
 			);
 
-			const validatedJson = expectSuccessData(validationResult);
+			const { data: validatedJson } = expectSuccessData(validationResult);
 			expect(validatedJson).toEqual(nestedJsonObject);
 		});
 	});

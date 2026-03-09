@@ -802,7 +802,19 @@ export class SchemaRegistry {
 	 * Export schemas as JSON
 	 */
 	toJSON(): Record<string, SchemaDefinition> {
-		return Object.fromEntries(this.schemas.entries());
+		const autoFields = new Set(["id", "createdAt", "updatedAt"]);
+		const result: Record<string, SchemaDefinition> = {};
+
+		for (const [name, schema] of this.schemas) {
+			const fields: Record<string, unknown> = {};
+			for (const [fieldName, fieldDef] of Object.entries(schema.fields)) {
+				if (autoFields.has(fieldName)) continue;
+				fields[fieldName] = fieldDef;
+			}
+			result[name] = { ...schema, fields } as SchemaDefinition;
+		}
+
+		return result;
 	}
 
 	/**

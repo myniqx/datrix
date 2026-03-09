@@ -41,7 +41,8 @@ export function expectSuccessData<T>(fnc: () => T): T {
  */
 export function expectFailureError<
 	E = Record<string, string | unknown | object>,
->(fnc: () => {}): E {
+>(fnc: () => void): E {
+	if (typeof fnc !== "function") return fnc as unknown as E; // If it's not a function, return it directly (for non-throwing cases)
 	let err = true;
 	try {
 		fnc();

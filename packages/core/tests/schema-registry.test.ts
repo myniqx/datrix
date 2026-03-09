@@ -150,6 +150,7 @@ describe("Core - Schema Registry - Happy Path", () => {
 
 			const exportedJson = schemaRegistry.toJSON();
 			const { tableName, ...rest } = exportedJson["User"];
+			// toJSON strips auto-injected fields (id, createdAt, updatedAt)
 			expect(rest).toEqual(userSchema);
 
 			const newSchemaRegistry = new SchemaRegistry();
