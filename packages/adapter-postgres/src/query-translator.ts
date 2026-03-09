@@ -936,19 +936,22 @@ export class PostgresQueryTranslator implements QueryTranslator {
 							let joinSQL: string;
 
 							if (relKind === "belongsTo") {
-								const foreignKeyEsc = this.escapeIdentifier(relationField.foreignKey!);
+								const foreignKeyEsc = this.escapeIdentifier(
+									relationField.foreignKey!,
+								);
 								// Source has FK: source.foreignKey = target.id
 								joinSQL = `LEFT JOIN ${targetTableEsc} AS ${relationAlias} ON ${sourceTableEsc}.${foreignKeyEsc} = ${relationAlias}."id"`;
 							} else if (relKind === "hasOne" || relKind === "hasMany") {
-								const foreignKeyEsc = this.escapeIdentifier(relationField.foreignKey!);
+								const foreignKeyEsc = this.escapeIdentifier(
+									relationField.foreignKey!,
+								);
 								// Target has FK: source.id = target.foreignKey
 								joinSQL = `LEFT JOIN ${targetTableEsc} AS ${relationAlias} ON ${sourceTableEsc}."id" = ${relationAlias}.${foreignKeyEsc}`;
 							} else if (relKind === "manyToMany") {
 								// ManyToMany: requires junction table
 								const junctionTable = relationField.through!;
-								const currentModelName = this.schemaRegistry.findModelByTableName(
-									tableName!,
-								);
+								const currentModelName =
+									this.schemaRegistry.findModelByTableName(tableName!);
 								const currentSchemaForFK = currentModelName
 									? this.schemaRegistry.get(currentModelName)
 									: currentSchema;

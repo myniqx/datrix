@@ -73,7 +73,13 @@ export class JsonQueryRunner {
 
 		// 4. Sort (mutates array in-place)
 		if (query.orderBy && query.orderBy.length > 0) {
-			result.sort((a, b) => this.sort(a as Record<string, unknown>, b as Record<string, unknown>, query.orderBy!));
+			result.sort((a, b) =>
+				this.sort(
+					a as Record<string, unknown>,
+					b as Record<string, unknown>,
+					query.orderBy!,
+				),
+			);
 		}
 
 		// 5. Offset/Limit
@@ -110,7 +116,13 @@ export class JsonQueryRunner {
 
 		// 2. Sort (mutates array in-place)
 		if (query.orderBy && query.orderBy.length > 0) {
-			result.sort((a, b) => this.sort(a as Record<string, unknown>, b as Record<string, unknown>, query.orderBy!));
+			result.sort((a, b) =>
+				this.sort(
+					a as Record<string, unknown>,
+					b as Record<string, unknown>,
+					query.orderBy!,
+				),
+			);
 		}
 
 		// 3. Offset/Limit
@@ -380,9 +392,7 @@ export class JsonQueryRunner {
 			const relatedRecords = (
 				targetTableData.data as Record<string, unknown>[]
 			).filter(
-				(r) =>
-					r[foreignKey] === sourceId ||
-					r[foreignKey] === Number(sourceId),
+				(r) => r[foreignKey] === sourceId || r[foreignKey] === Number(sourceId),
 			);
 
 			for (const related of relatedRecords) {

@@ -243,12 +243,12 @@ export class PostgresPopulator {
 		const queryWithFks: QuerySelectObject<T> =
 			fkColumnsNeeded.length > 0
 				? {
-					...query,
-					select: ([
-						...(query.select as string[]),
-						...fkColumnsNeeded,
-					] as unknown as QuerySelectObject<T>["select"])
-				}
+						...query,
+						select: [
+							...(query.select as string[]),
+							...fkColumnsNeeded,
+						] as unknown as QuerySelectObject<T>["select"],
+					}
 				: query;
 
 		const { sql, params } = this.translator.translate(queryWithFks);
@@ -299,7 +299,11 @@ export class PostgresPopulator {
 				const fkValues = rows
 					.map((row) => row[fkColumn as keyof T])
 					.filter((v) => v != null);
-				const rowToJson = this.buildSelectiveRowToJson(options.select as readonly string[], relation.model, options);
+				const rowToJson = this.buildSelectiveRowToJson(
+					options.select as readonly string[],
+					relation.model,
+					options,
+				);
 				batchQuery = `
           SELECT t."id" as _fk, ${rowToJson} as data
           FROM ${this.translator.escapeIdentifier(targetTable)} t
@@ -345,7 +349,11 @@ export class PostgresPopulator {
 			} else if (relation.kind === "hasOne") {
 				// hasOne: FK is in the TARGET table (like hasMany but single result)
 				fkColumn = relation.foreignKey!;
-				const hasOneRowToJson = this.buildSelectiveRowToJson(options.select as readonly string[], relation.model, options);
+				const hasOneRowToJson = this.buildSelectiveRowToJson(
+					options.select as readonly string[],
+					relation.model,
+					options,
+				);
 				batchQuery = `
           SELECT t.${this.translator.escapeIdentifier(fkColumn)} as _fk, ${hasOneRowToJson} as data
           FROM ${this.translator.escapeIdentifier(targetTable)} t
@@ -365,9 +373,10 @@ export class PostgresPopulator {
 					});
 				}
 
-				let relatedRows: ForjaEntry[] = batchResult.rows.map(
-					(r) => ({ ...(r.data as ForjaEntry), _fk: r._fk }),
-				);
+				let relatedRows: ForjaEntry[] = batchResult.rows.map((r) => ({
+					...(r.data as ForjaEntry),
+					_fk: r._fk,
+				}));
 
 				// Recursive nested populate
 				const nestedPopulate = options?.["populate"];
@@ -389,7 +398,11 @@ export class PostgresPopulator {
 				}
 			} else if (relation.kind === "hasMany") {
 				fkColumn = relation.foreignKey!;
-				const hasManyRowToJson = this.buildSelectiveRowToJson(options.select as readonly string[], relation.model, options);
+				const hasManyRowToJson = this.buildSelectiveRowToJson(
+					options.select as readonly string[],
+					relation.model,
+					options,
+				);
 				batchQuery = `
           SELECT t."${fkColumn}" as _fk, ${hasManyRowToJson} as data
           FROM ${this.translator.escapeIdentifier(targetTable)} t
@@ -440,7 +453,11 @@ export class PostgresPopulator {
 				const sourceFK = `${schema.name}Id`;
 				const targetFK = `${relation.model}Id`;
 
-				const m2mRowToJson = this.buildSelectiveRowToJson(options.select as readonly string[], relation.model, options);
+				const m2mRowToJson = this.buildSelectiveRowToJson(
+					options.select as readonly string[],
+					relation.model,
+					options,
+				);
 				batchQuery = `
           SELECT j."${sourceFK}" as _fk, ${m2mRowToJson} as data
           FROM ${this.translator.escapeIdentifier(targetTable)} t
@@ -527,7 +544,11 @@ export class PostgresPopulator {
 			const targetTable =
 				targetSchema.tableName ?? relation.model.toLowerCase();
 
-			const nestedRowToJson = this.buildSelectiveRowToJson(opts.select as readonly string[], relation.model, opts);
+			const nestedRowToJson = this.buildSelectiveRowToJson(
+				opts.select as readonly string[],
+				relation.model,
+				opts,
+			);
 
 			if (relation.kind === "belongsTo") {
 				const fkColumn = relation.foreignKey!;
@@ -573,11 +594,14 @@ export class PostgresPopulator {
           FROM ${this.translator.escapeIdentifier(targetTable)} t
           WHERE t.${this.translator.escapeIdentifier(fkColumn)} = ANY($1)
         `;
-				const batchResult = await this.client.query(batchQuery, [nestedParentIds]);
+				const batchResult = await this.client.query(batchQuery, [
+					nestedParentIds,
+				]);
 
-				let relatedRows: ForjaEntry[] = batchResult.rows.map(
-					(r) => ({ ...(r.data as ForjaEntry), _fk: r._fk }),
-				);
+				let relatedRows: ForjaEntry[] = batchResult.rows.map((r) => ({
+					...(r.data as ForjaEntry),
+					_fk: r._fk,
+				}));
 
 				const nestedPopulate = opts.populate;
 				if (nestedPopulate && relatedRows.length > 0) {

@@ -31,7 +31,10 @@ function pgCodeToAdapterCode(pgCode: string | undefined): string {
  * in development and wraps pg errors into ForjaAdapterError.
  */
 export class PgClient {
-	constructor(private readonly runner: Pool | PoolClient, private readonly queryObject: QueryObject) { }
+	constructor(
+		private readonly runner: Pool | PoolClient,
+		private readonly queryObject: QueryObject,
+	) {}
 
 	/**
 	 * Execute a SQL query with optional parameters.
@@ -41,7 +44,9 @@ export class PgClient {
 		params?: readonly unknown[],
 	): Promise<QueryResult<T>> {
 		if (IS_DEBUG) {
-			console.log("[PG]", sql, params ?? [], { queryObject: JSON.stringify(this.queryObject) });
+			console.log("[PG]", sql, params ?? [], {
+				queryObject: JSON.stringify(this.queryObject),
+			});
 		}
 
 		try {

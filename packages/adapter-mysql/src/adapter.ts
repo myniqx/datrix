@@ -182,7 +182,6 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 	): Promise<QueryResult<TResult>> {
 		validateQueryObject(query);
 
-
 		const queryRunner = connection ?? this.pool;
 
 		if (!queryRunner) {
@@ -206,10 +205,18 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			let prefetchedIds: readonly TResult[] | undefined;
 			if (query.type === "update" && query.where) {
 				const escapedTable = escapeIdentifier(query.table);
-				const whereResult = this.getTranslator().translateWhere(query.where, 0, query.table);
-				const joinClause = whereResult.joins.length > 0 ? ` ${whereResult.joins.join(" ")}` : "";
+				const whereResult = this.getTranslator().translateWhere(
+					query.where,
+					0,
+					query.table,
+				);
+				const joinClause =
+					whereResult.joins.length > 0 ? ` ${whereResult.joins.join(" ")}` : "";
 				const idSelectSQL = `SELECT ${escapedTable}.\`id\` FROM ${escapedTable}${joinClause} WHERE ${whereResult.sql}`;
-				const [idRows] = await client.execute(idSelectSQL, whereResult.params as unknown[]);
+				const [idRows] = await client.execute(
+					idSelectSQL,
+					whereResult.params as unknown[],
+				);
 				prefetchedIds = idRows as unknown as readonly TResult[];
 			}
 
@@ -245,9 +252,10 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			} else if (query.type === "count") {
 				const countRows = result as RowDataPacket[];
 				const countValue = countRows[0]?.["count"];
-				const count = typeof countValue === "string"
-					? parseInt(countValue, 10)
-					: (countValue as number) ?? 0;
+				const count =
+					typeof countValue === "string"
+						? parseInt(countValue, 10)
+						: ((countValue as number) ?? 0);
 
 				const metadata: QueryMetadata = {
 					rowCount: 0,
@@ -363,7 +371,10 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			throwNotConnected({ adapter: "mysql" });
 		}
 
-		const rawQuery: QueryObject = { type: "select", table: "_raw" } as QueryObject;
+		const rawQuery: QueryObject = {
+			type: "select",
+			table: "_raw",
+		} as QueryObject;
 		const client = new MySQLClient(queryRunner!, rawQuery);
 
 		try {
@@ -430,7 +441,10 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			throwNotConnected({ adapter: "mysql" });
 		}
 
-		const client = this.createClient(queryRunner!, `createTable:${schema.name}`);
+		const client = this.createClient(
+			queryRunner!,
+			`createTable:${schema.name}`,
+		);
 
 		try {
 			const columns: string[] = [];
@@ -443,12 +457,8 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 
 				if (field.type === "number" && field.references) {
 					const col = escapeIdentifier(fieldName);
-					const refTable = escapeIdentifier(
-						field.references.table,
-					);
-					const refCol = escapeIdentifier(
-						field.references.column ?? "id",
-					);
+					const refTable = escapeIdentifier(field.references.table);
+					const refCol = escapeIdentifier(field.references.column ?? "id");
 					const onDelete = field.references.onDelete
 						? ` ON DELETE ${field.references.onDelete === "setNull" ? "SET NULL" : field.references.onDelete.toUpperCase()}`
 						: "";
@@ -519,8 +529,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			// Remove schema from _forja
 			if (tableName !== FORJA_META_MODEL) {
 				const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
-				const escapedMetaTable =
-					escapeIdentifier(FORJA_META_MODEL);
+				const escapedMetaTable = escapeIdentifier(FORJA_META_MODEL);
 				await client.execute(
 					`DELETE FROM ${escapedMetaTable} WHERE \`key\` = ?`,
 					[metaKey],
@@ -551,7 +560,10 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			throwNotConnected({ adapter: "mysql" });
 		}
 
-		const client = this.createClient(queryRunner!, `renameTable:${from}->${to}`);
+		const client = this.createClient(
+			queryRunner!,
+			`renameTable:${from}->${to}`,
+		);
 
 		try {
 			const escapedFrom = escapeIdentifier(from);
@@ -562,8 +574,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			if (from !== FORJA_META_MODEL && to !== FORJA_META_MODEL) {
 				const oldKey = `${FORJA_META_KEY_PREFIX}${from}`;
 				const newKey = `${FORJA_META_KEY_PREFIX}${to}`;
-				const escapedMetaTable =
-					escapeIdentifier(FORJA_META_MODEL);
+				const escapedMetaTable = escapeIdentifier(FORJA_META_MODEL);
 				await client.execute(
 					`UPDATE ${escapedMetaTable} SET \`key\` = ? WHERE \`key\` = ?`,
 					[newKey, oldKey],
@@ -618,8 +629,12 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 							[this.config.database, tableName, op.column],
 						);
 						for (const fkRow of fkRows as RowDataPacket[]) {
-							const fkName = escapeIdentifier(fkRow["CONSTRAINT_NAME"] as string);
-							await client.execute(`ALTER TABLE ${escapedTable} DROP FOREIGN KEY ${fkName}`);
+							const fkName = escapeIdentifier(
+								fkRow["CONSTRAINT_NAME"] as string,
+							);
+							await client.execute(
+								`ALTER TABLE ${escapedTable} DROP FOREIGN KEY ${fkName}`,
+							);
 						}
 
 						const columnName = escapeIdentifier(op.column);
@@ -681,7 +696,10 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			throwNotConnected({ adapter: "mysql" });
 		}
 
-		const client = this.createClient(queryRunner!, `addIndex:${tableNameParam}`);
+		const client = this.createClient(
+			queryRunner!,
+			`addIndex:${tableNameParam}`,
+		);
 
 		try {
 			const tableName = tableNameParam;
@@ -701,9 +719,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 				return fieldName;
 			});
 
-			const fields = mappedFields
-				.map((f) => escapeIdentifier(f))
-				.join(", ");
+			const fields = mappedFields.map((f) => escapeIdentifier(f)).join(", ");
 			const unique = index.unique ? "UNIQUE " : "";
 			const using = index.type ? ` USING ${index.type.toUpperCase()}` : "";
 			const sql = `CREATE ${unique}INDEX ${escapedIndexName} ON ${escapedTable} (${fields})${using}`;
@@ -738,9 +754,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 		try {
 			const escapedTable = escapeIdentifier(tableName);
 			const escapedIndexName = escapeIdentifier(indexName);
-			await client.execute(
-				`DROP INDEX ${escapedIndexName} ON ${escapedTable}`,
-			);
+			await client.execute(`DROP INDEX ${escapedIndexName} ON ${escapedTable}`);
 		} catch (error) {
 			if (error instanceof ForjaAdapterError) throw error;
 			const message = error instanceof Error ? error.message : String(error);
@@ -764,10 +778,10 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 		const client = this.createClient(this.pool!, "getTables");
 
 		try {
-			const [rows] = await client.execute(
+			const [rows] = (await client.execute(
 				`SELECT TABLE_NAME as tableName FROM information_schema.tables WHERE table_schema = ? ORDER BY TABLE_NAME`,
 				[this.config.database],
-			) as [RowDataPacket[], unknown];
+			)) as [RowDataPacket[], unknown];
 
 			return rows.map((row) => row["tableName"] as string);
 		} catch (error) {
@@ -790,13 +804,15 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 
 		try {
 			const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
-			const escapedMetaTable =
-				escapeIdentifier(FORJA_META_MODEL);
-			const client = this.createClient(this.pool!, `getTableSchema:${tableName}`);
-			const [rows] = await client.execute(
+			const escapedMetaTable = escapeIdentifier(FORJA_META_MODEL);
+			const client = this.createClient(
+				this.pool!,
+				`getTableSchema:${tableName}`,
+			);
+			const [rows] = (await client.execute(
 				`SELECT \`value\` FROM ${escapedMetaTable} WHERE \`key\` = ?`,
 				[metaKey],
-			) as [RowDataPacket[], unknown];
+			)) as [RowDataPacket[], unknown];
 
 			if (rows.length === 0) {
 				return null;
@@ -889,10 +905,10 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 
 		try {
 			const client = this.createClient(this.pool, `tableExists:${tableName}`);
-			const [rows] = await client.execute(
+			const [rows] = (await client.execute(
 				`SELECT COUNT(*) as count FROM information_schema.tables WHERE table_schema = ? AND table_name = ?`,
 				[this.config.database, tableName],
-			) as [RowDataPacket[], unknown];
+			)) as [RowDataPacket[], unknown];
 
 			return (rows[0]?.["count"] as number) > 0;
 		} catch {

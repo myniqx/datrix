@@ -206,9 +206,7 @@ export async function handleDelete<T extends ForjaEntry>(ctx: {
 
 	const idsSet = new Set(idsToDelete);
 	const originalLength = tableData.data.length;
-	tableData.data = tableData.data.filter(
-		(d) => !idsSet.has(d["id"] as number),
-	);
+	tableData.data = tableData.data.filter((d) => !idsSet.has(d["id"] as number));
 
 	const deletedIds = rowsToDelete.map((r) => r["id"] as number);
 	const rows = deletedIds.map((id) => ({ id })) as T[];

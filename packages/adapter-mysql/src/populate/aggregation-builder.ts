@@ -332,9 +332,7 @@ export class AggregationBuilder {
 		const sourceTableEsc = escapeIdentifier(sourceTable);
 		const targetTableEsc = escapeIdentifier(targetTable);
 		const foreignKeyEsc = escapeIdentifier(foreignKey);
-		const relationAlias = escapeIdentifier(
-			`${relationName}_data`,
-		);
+		const relationAlias = escapeIdentifier(`${relationName}_data`);
 
 		// Build field selection
 		const fieldSelection = this.buildFieldSelection(
@@ -448,9 +446,7 @@ export class AggregationBuilder {
 		const targetTableEsc = escapeIdentifier(targetTable);
 		const sourceFKEsc = escapeIdentifier(sourceFK);
 		const targetFKEsc = escapeIdentifier(targetFK);
-		const relationAlias = escapeIdentifier(
-			`${relationName}_data`,
-		);
+		const relationAlias = escapeIdentifier(`${relationName}_data`);
 
 		// Build field selection
 		const fieldSelection = this.buildFieldSelection(

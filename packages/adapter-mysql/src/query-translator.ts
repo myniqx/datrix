@@ -189,8 +189,12 @@ export class MySQLQueryTranslator implements QueryTranslator {
 	}
 
 	// Interface delegation to standalone helpers
-	escapeIdentifier(identifier: string): string { return escapeIdentifier(identifier); }
-	escapeValue(value: unknown): string { return escapeValue(value); }
+	escapeIdentifier(identifier: string): string {
+		return escapeIdentifier(identifier);
+	}
+	escapeValue(value: unknown): string {
+		return escapeValue(value);
+	}
 
 	/**
 	 * Translate main query
@@ -543,9 +547,7 @@ export class MySQLQueryTranslator implements QueryTranslator {
 			const col = hasJoins
 				? `${tableName}.${escapeIdentifier(key)}`
 				: escapeIdentifier(key);
-			sets.push(
-				`${col} = ${this.addParam(value, currentSchema, key)}`,
-			);
+			sets.push(`${col} = ${this.addParam(value, currentSchema, key)}`);
 		}
 
 		parts.push(`SET ${sets.join(", ")}`);
@@ -760,9 +762,7 @@ export class MySQLQueryTranslator implements QueryTranslator {
 						value === null
 					) {
 						if (relationField.foreignKey) {
-							const fkFieldName = escapeIdentifier(
-								relationField.foreignKey,
-							);
+							const fkFieldName = escapeIdentifier(relationField.foreignKey);
 							const qualifiedFK = currentTableAlias
 								? `${escapeIdentifier(currentTableAlias)}.${fkFieldName}`
 								: fkFieldName;
@@ -794,9 +794,7 @@ export class MySQLQueryTranslator implements QueryTranslator {
 						if (hasOnlyId && relationField.foreignKey) {
 							// Simple case: { category: { id: { $ne: 1 } } } -> categoryId <> 1
 							const idValue = nestedValue["id"];
-							const fkFieldName = escapeIdentifier(
-								relationField.foreignKey,
-							);
+							const fkFieldName = escapeIdentifier(relationField.foreignKey);
 							const qualifiedFK = currentTableAlias
 								? `${escapeIdentifier(currentTableAlias)}.${fkFieldName}`
 								: fkFieldName;
@@ -855,17 +853,23 @@ export class MySQLQueryTranslator implements QueryTranslator {
 							const relKind = relationField.kind;
 
 							if (relKind === "belongsTo") {
-								const foreignKeyEsc = escapeIdentifier(relationField.foreignKey!);
+								const foreignKeyEsc = escapeIdentifier(
+									relationField.foreignKey!,
+								);
 								// Source has FK: source.foreignKey = target.id
 								joinSQL = `LEFT JOIN ${targetTableEsc} AS ${relationAlias} ON ${sourceTableEsc}.${foreignKeyEsc} = ${relationAlias}.\`id\``;
 							} else if (relKind === "hasOne" || relKind === "hasMany") {
-								const foreignKeyEsc = escapeIdentifier(relationField.foreignKey!);
+								const foreignKeyEsc = escapeIdentifier(
+									relationField.foreignKey!,
+								);
 								// Target has FK: source.id = target.foreignKey
 								joinSQL = `LEFT JOIN ${targetTableEsc} AS ${relationAlias} ON ${sourceTableEsc}.\`id\` = ${relationAlias}.${foreignKeyEsc}`;
 							} else if (relKind === "manyToMany") {
 								// ManyToMany: requires junction table (two JOINs)
-								const junctionTable = (relationField as { through?: string }).through!;
-								const currentModelName = this.schemaRegistry.findModelByTableName(tableName!);
+								const junctionTable = (relationField as { through?: string })
+									.through!;
+								const currentModelName =
+									this.schemaRegistry.findModelByTableName(tableName!);
 								const currentSchemaForFK = currentModelName
 									? this.schemaRegistry.get(currentModelName)
 									: currentSchema;

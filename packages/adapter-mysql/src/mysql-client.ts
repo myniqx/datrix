@@ -7,7 +7,12 @@
  * - MySQL error code to Forja error code mapping
  */
 
-import type { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
+import type {
+	Pool,
+	PoolConnection,
+	ResultSetHeader,
+	RowDataPacket,
+} from "mysql2/promise";
 import { ForjaAdapterError } from "forja-types/errors/adapter";
 import { QueryObject } from "forja-types";
 
@@ -38,7 +43,7 @@ export class MySQLClient {
 	constructor(
 		private readonly runner: Pool | PoolConnection,
 		private readonly queryObject: QueryObject,
-	) { }
+	) {}
 
 	/**
 	 * Execute a SQL query with optional parameters.
@@ -47,7 +52,7 @@ export class MySQLClient {
 		sql: string,
 		params?: readonly unknown[],
 	): Promise<MySQLExecuteResult> {
-		if (IS_DEBUG && this.queryObject.table !== '_forja_migrations') {
+		if (IS_DEBUG && this.queryObject.table !== "_forja_migrations") {
 			console.log("[MySQL]", sql, params ?? [], {
 				queryObject: JSON.stringify(this.queryObject),
 			});

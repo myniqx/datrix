@@ -5,7 +5,11 @@
  */
 
 import { QuerySelectObject } from "forja-types";
-import { FieldDefinition, FieldType, ForjaEntry } from "forja-types/core/schema";
+import {
+	FieldDefinition,
+	FieldType,
+	ForjaEntry,
+} from "forja-types/core/schema";
 import { PopulateStrategy } from "./populate";
 import { QueryPopulate } from "forja-types/core/query-builder";
 

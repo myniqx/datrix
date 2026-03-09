@@ -611,7 +611,6 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 
 		validateQueryObject(query);
 
-
 		if (!this.isConnected()) {
 			throwNotConnected({ adapter: "json" });
 		}
@@ -1067,7 +1066,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		_tableName: string,
 		_index: IndexDefinition,
 		_options?: SchemaOperationOptions,
-	): Promise<void> { }
+	): Promise<void> {}
 
 	async dropIndex(tableName: string, indexName: string): Promise<void> {
 		return this.dropIndexWithOptions(tableName, indexName);
@@ -1081,7 +1080,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		_tableName: string,
 		_indexName: string,
 		_options?: SchemaOperationOptions,
-	): Promise<void> { }
+	): Promise<void> {}
 
 	async getTables(): Promise<readonly string[]> {
 		if (!this.isConnected()) {

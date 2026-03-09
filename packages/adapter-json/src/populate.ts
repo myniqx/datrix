@@ -1,7 +1,4 @@
-import {
-	QuerySelect,
-	QuerySelectObject,
-} from "forja-types/core/query-builder";
+import { QuerySelect, QuerySelectObject } from "forja-types/core/query-builder";
 import type { JsonAdapter } from "./adapter";
 import type { ForjaEntry, RelationField } from "forja-types/core/schema";
 import {
@@ -13,7 +10,7 @@ import {
 import { JsonQueryRunner } from "./runner";
 
 export class JsonPopulator {
-	constructor(private adapter: JsonAdapter) { }
+	constructor(private adapter: JsonAdapter) {}
 
 	async populate<T extends ForjaEntry>(
 		rows: T[],

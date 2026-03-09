@@ -3,7 +3,11 @@
  *
  * Type definitions specific to MySQL adapter.
  */
-import { FieldDefinition, FieldType, ForjaEntry } from "forja-types/core/schema";
+import {
+	FieldDefinition,
+	FieldType,
+	ForjaEntry,
+} from "forja-types/core/schema";
 import {
 	QueryPopulate,
 	QuerySelectObject,

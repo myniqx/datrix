@@ -12,11 +12,7 @@
  * The transaction object is a thin wrapper that delegates to adapter.
  */
 
-import {
-	Transaction,
-	QueryResult,
-	AlterOperation,
-} from "forja-types/adapter";
+import { Transaction, QueryResult, AlterOperation } from "forja-types/adapter";
 import {
 	throwTransactionAlreadyCommitted,
 	throwTransactionAlreadyRolledBack,
@@ -97,9 +93,7 @@ export class JsonTransaction implements Transaction {
 	/**
 	 * Create table within transaction
 	 */
-	async createTable(
-		schema: SchemaDefinition,
-	): Promise<void> {
+	async createTable(schema: SchemaDefinition): Promise<void> {
 		this.assertActive();
 		return this.adapter.createTableWithOptions(schema, { skipWrite: true });
 	}
@@ -115,10 +109,7 @@ export class JsonTransaction implements Transaction {
 	/**
 	 * Rename table within transaction
 	 */
-	async renameTable(
-		from: string,
-		to: string,
-	): Promise<void> {
+	async renameTable(from: string, to: string): Promise<void> {
 		this.assertActive();
 		return this.adapter.renameTableWithOptions(from, to, { skipWrite: true });
 	}
@@ -139,10 +130,7 @@ export class JsonTransaction implements Transaction {
 	/**
 	 * Add index within transaction
 	 */
-	async addIndex(
-		tableName: string,
-		index: IndexDefinition,
-	): Promise<void> {
+	async addIndex(tableName: string, index: IndexDefinition): Promise<void> {
 		this.assertActive();
 		return this.adapter.addIndexWithOptions(tableName, index, {
 			skipWrite: true,
@@ -152,10 +140,7 @@ export class JsonTransaction implements Transaction {
 	/**
 	 * Drop index within transaction
 	 */
-	async dropIndex(
-		tableName: string,
-		indexName: string,
-	): Promise<void> {
+	async dropIndex(tableName: string, indexName: string): Promise<void> {
 		this.assertActive();
 		return this.adapter.dropIndexWithOptions(tableName, indexName, {
 			skipWrite: true,

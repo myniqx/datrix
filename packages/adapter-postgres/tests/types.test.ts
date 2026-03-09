@@ -75,7 +75,10 @@ describe("PostgreSQL Types", () => {
 
 	describe("Type Modifiers", () => {
 		it("should apply VARCHAR with maxLength for string", () => {
-			const result = getPostgresTypeWithModifiers({ type: "string", maxLength: 255 });
+			const result = getPostgresTypeWithModifiers({
+				type: "string",
+				maxLength: 255,
+			});
 			expect(result).toBe("VARCHAR(255)");
 		});
 
@@ -85,7 +88,10 @@ describe("PostgreSQL Types", () => {
 		});
 
 		it("should apply NUMERIC with precision for number", () => {
-			const result = getPostgresTypeWithModifiers({ type: "number", precision: 10 });
+			const result = getPostgresTypeWithModifiers({
+				type: "number",
+				precision: 10,
+			});
 			expect(result).toBe("NUMERIC(10)");
 		});
 
@@ -112,7 +118,10 @@ describe("PostgreSQL Types", () => {
 		});
 
 		it("should add array brackets for array modifier", () => {
-			const result = getPostgresTypeWithModifiers({ type: "string", array: true });
+			const result = getPostgresTypeWithModifiers({
+				type: "string",
+				array: true,
+			});
 			expect(result).toBe("TEXT[]");
 		});
 
