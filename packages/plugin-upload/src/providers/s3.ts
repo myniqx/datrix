@@ -180,9 +180,7 @@ export class S3StorageProvider implements StorageProvider {
 			);
 
 			req.on("error", (error) => {
-				reject(
-					new UploadError("S3 request failed", { originalError: error }),
-				);
+				reject(new UploadError("S3 request failed", { originalError: error }));
 			});
 
 			req.write(buffer);
@@ -252,9 +250,7 @@ export class S3StorageProvider implements StorageProvider {
 			);
 
 			req.on("error", (error) => {
-				reject(
-					new UploadError("S3 request failed", { originalError: error }),
-				);
+				reject(new UploadError("S3 request failed", { originalError: error }));
 			});
 
 			req.end();
@@ -316,9 +312,7 @@ export class S3StorageProvider implements StorageProvider {
 			);
 
 			req.on("error", (error) => {
-				reject(
-					new UploadError("S3 request failed", { originalError: error }),
-				);
+				reject(new UploadError("S3 request failed", { originalError: error }));
 			});
 
 			req.end();

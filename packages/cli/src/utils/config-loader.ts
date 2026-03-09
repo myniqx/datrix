@@ -33,10 +33,7 @@ async function resolveConfigPath(configPath?: string): Promise<string> {
 			await access(resolved);
 			return resolved;
 		} catch {
-			throw new CLIError(
-				`Config file not found: ${resolved}`,
-				"CONFIG_ERROR",
-			);
+			throw new CLIError(`Config file not found: ${resolved}`, "CONFIG_ERROR");
 		}
 	}
 
