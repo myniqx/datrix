@@ -55,13 +55,13 @@ export interface MySQLConfig {
 	 * SSL configuration
 	 */
 	readonly ssl?:
-		| boolean
-		| {
-				readonly rejectUnauthorized?: boolean;
-				readonly ca?: string;
-				readonly cert?: string;
-				readonly key?: string;
-		  };
+	| boolean
+	| {
+		readonly rejectUnauthorized?: boolean;
+		readonly ca?: string;
+		readonly cert?: string;
+		readonly key?: string;
+	};
 
 	/**
 	 * Maximum number of connections in pool
@@ -103,7 +103,7 @@ export interface MySQLConfig {
 /**
  * MySQL data types
  */
-export type MySQLDataType =
+type MySQLDataType =
 	| "TINYINT"
 	| "SMALLINT"
 	| "MEDIUMINT"
@@ -138,7 +138,7 @@ export type MySQLDataType =
 /**
  * Field type to MySQL type mapping
  */
-export const FIELD_TYPE_TO_MYSQL: Record<FieldType, MySQLDataType> = {
+const FIELD_TYPE_TO_MYSQL: Record<FieldType, MySQLDataType> = {
 	string: "TEXT",
 	number: "DOUBLE",
 	boolean: "TINYINT",
@@ -153,7 +153,7 @@ export const FIELD_TYPE_TO_MYSQL: Record<FieldType, MySQLDataType> = {
 /**
  * MySQL type to TypeScript type mapping
  */
-export const MYSQL_TO_TS_TYPE: Record<MySQLDataType, string> = {
+const MYSQL_TO_TS_TYPE: Record<MySQLDataType, string> = {
 	TINYINT: "number",
 	SMALLINT: "number",
 	MEDIUMINT: "number",
@@ -189,7 +189,7 @@ export const MYSQL_TO_TS_TYPE: Record<MySQLDataType, string> = {
 /**
  * Get MySQL type for field type
  */
-export function getMySQLType(fieldType: FieldType): MySQLDataType {
+function getMySQLType(fieldType: FieldType): MySQLDataType {
 	return FIELD_TYPE_TO_MYSQL[fieldType];
 }
 
@@ -235,7 +235,7 @@ export function getMySQLTypeWithModifiers(field: FieldDefinition): string {
 /**
  * Convert value to MySQL format
  */
-export function toMySQLValue(value: unknown, fieldType: FieldType): unknown {
+function toMySQLValue(value: unknown, fieldType: FieldType): unknown {
 	if (value === null || value === undefined) {
 		return null;
 	}
@@ -312,7 +312,7 @@ export function toMySQLValue(value: unknown, fieldType: FieldType): unknown {
 /**
  * Convert MySQL value to TypeScript
  */
-export function fromMySQLValue(value: unknown, fieldType: FieldType): unknown {
+function fromMySQLValue(value: unknown, fieldType: FieldType): unknown {
 	if (value === null || value === undefined) {
 		return null;
 	}

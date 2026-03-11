@@ -17,6 +17,7 @@ import { logger, formatError, bold, cyan } from "./utils/logger";
 import { loadConfig } from "./utils/config-loader";
 import { migrateCommand, displayMigrationStatus } from "./commands/migrate";
 import { devCommand } from "./commands/dev";
+import { generateCommand, isValidGenerateType } from "./commands/generate";
 
 /**
  * Parse command-line arguments

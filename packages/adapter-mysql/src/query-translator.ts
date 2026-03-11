@@ -1063,7 +1063,7 @@ export class MySQLQueryTranslator implements QueryTranslator {
 /**
  * Create a new MySQL query translator
  */
-export function createMySQLTranslator(
+function createMySQLTranslator(
 	schemaRegistry: SchemaRegistry,
 ): MySQLQueryTranslator {
 	return new MySQLQueryTranslator(schemaRegistry);
