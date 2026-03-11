@@ -7,7 +7,6 @@
  * Checks that referenced IDs exist in the target collection.
  */
 
-import type { Collection, Document } from "mongodb";
 import type {
 	SchemaDefinition,
 	FieldDefinition,

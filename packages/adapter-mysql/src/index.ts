@@ -29,4 +29,3 @@
 
 export { MySQLAdapter, createMySQLAdapter } from "./adapter";
 export type { MySQLConfig } from "./types";
-export { ForjaAdapterError } from "forja-types/errors/adapter";

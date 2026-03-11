@@ -7,7 +7,6 @@
  * Mirrors the JSON adapter's applyOnDeleteActions logic.
  */
 
-import type { Document } from "mongodb";
 import type { SchemaRegistry } from "forja-core/schema";
 import type { ForeignKeyReference } from "forja-types/core/schema";
 import type { MongoClient } from "./mongo-client";

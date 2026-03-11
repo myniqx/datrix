@@ -23,6 +23,7 @@ import {
 	throwInvalidRelationType,
 	throwTargetModelNotFound,
 	throwJsonAggregationError,
+	ForjaAdapterError,
 } from "forja-types/errors/adapter";
 
 /**
@@ -34,7 +35,7 @@ export class AggregationBuilder {
 	constructor(
 		private translator: MySQLQueryTranslator,
 		private schemaRegistry: SchemaRegistry,
-	) {}
+	) { }
 
 	/**
 	 * Build all aggregation clauses for a query
@@ -93,8 +94,7 @@ export class AggregationBuilder {
 				);
 				aggregations.push(aggregation);
 			} catch (error) {
-				if (error instanceof Error && error.message.includes("ADAPTER_")) {
-					// TODO: instanceof ERROR ??
+				if (error instanceof ForjaAdapterError) {
 					throw error;
 				}
 				throwJsonAggregationError({

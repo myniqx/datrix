@@ -205,12 +205,12 @@ export class MySQLPopulator {
 		const queryWithFks: QuerySelectObject<T> =
 			fkColumnsNeeded.length > 0
 				? {
-						...query,
-						select: [
-							...(query.select as string[]),
-							...fkColumnsNeeded,
-						] as unknown as QuerySelectObject<T>["select"],
-					}
+					...query,
+					select: [
+						...(query.select as string[]),
+						...fkColumnsNeeded,
+					] as unknown as QuerySelectObject<T>["select"],
+				}
 				: query;
 
 		const { sql, params } = this.translator.translate(queryWithFks);
@@ -238,7 +238,7 @@ export class MySQLPopulator {
 
 		for (const [relationName, _options] of Object.entries(query.populate!)) {
 			const relationField = schema.fields[relationName];
-			const options = _options as QueryPopulateOptions<ForjaEntry>;
+			const options = _options as QueryPopulateOptions<T>;
 			if (!relationField || relationField.type !== "relation") continue;
 
 			const relation = relationField as {
@@ -289,11 +289,11 @@ export class MySQLPopulator {
 					});
 				}
 
-				let relatedRows: ForjaEntry[] = batchResult.map(
+				let relatedRows: Partial<T>[] = batchResult.map(
 					(r) =>
 						(typeof r.data === "string"
 							? JSON.parse(r.data)
-							: r.data) as ForjaEntry,
+							: r.data) as Partial<T>,
 				);
 
 				// Recursive nested populate
@@ -341,10 +341,10 @@ export class MySQLPopulator {
 					});
 				}
 
-				let relatedRows: ForjaEntry[] = batchResult.map((r) => ({
+				let relatedRows: Partial<T>[] = batchResult.map((r) => ({
 					...((typeof r.data === "string"
 						? JSON.parse(r.data)
-						: r.data) as ForjaEntry),
+						: r.data) as Partial<T>),
 					_fk: r._fk,
 				}));
 
@@ -358,7 +358,7 @@ export class MySQLPopulator {
 				}
 
 				const dataMap = new Map(
-					relatedRows.map((r) => [(r as ForjaEntry & { _fk: number })._fk, r]),
+					relatedRows.map((r) => [(r as Partial<T> & { _fk: number })._fk, r]),
 				);
 
 				for (const row of rows) {
@@ -391,25 +391,25 @@ export class MySQLPopulator {
 					});
 				}
 
-				let allRelatedRows: ForjaEntry[] = batchResult.map((r) => ({
+				let allRelatedRows: Partial<T>[] = batchResult.map((r) => ({
 					...((typeof r.data === "string"
 						? JSON.parse(r.data)
-						: r.data) as ForjaEntry),
+						: r.data) as Partial<T>),
 					_fk: r._fk,
 				}));
 
 				const nestedPopulate = options?.["populate"];
 				if (nestedPopulate && allRelatedRows.length > 0) {
-					allRelatedRows = await this.populateBatchedRows(
+					allRelatedRows = await this.populateBatchedRows<T>(
 						allRelatedRows,
 						targetTable,
 						nestedPopulate as QueryPopulate<ForjaEntry>,
 					);
 				}
 
-				const groupMap = new Map<number, ForjaEntry[]>();
+				const groupMap = new Map<number, Partial<T>[]>();
 				for (const r of allRelatedRows) {
-					const fk = (r as ForjaEntry & { _fk: number })._fk;
+					const fk = (r as Partial<T> & { _fk: number })._fk;
 					if (!groupMap.has(fk)) groupMap.set(fk, []);
 					groupMap.get(fk)!.push(r);
 				}
@@ -450,25 +450,25 @@ export class MySQLPopulator {
 					});
 				}
 
-				let allRelatedRows: ForjaEntry[] = batchResult.map((r) => ({
+				let allRelatedRows: Partial<T>[] = batchResult.map((r) => ({
 					...((typeof r.data === "string"
 						? JSON.parse(r.data)
-						: r.data) as ForjaEntry),
+						: r.data) as Partial<T>),
 					_fk: r._fk,
 				}));
 
 				const nestedPopulate = options?.["populate"];
 				if (nestedPopulate && allRelatedRows.length > 0) {
-					allRelatedRows = await this.populateBatchedRows(
+					allRelatedRows = await this.populateBatchedRows<T>(
 						allRelatedRows,
 						targetTable,
 						nestedPopulate as QueryPopulate<ForjaEntry>,
 					);
 				}
 
-				const groupMap = new Map<number, ForjaEntry[]>();
+				const groupMap = new Map<number, Partial<T>[]>();
 				for (const r of allRelatedRows) {
-					const fk = (r as ForjaEntry & { _fk: number })._fk;
+					const fk = (r as Partial<T> & { _fk: number })._fk;
 					if (!groupMap.has(fk)) groupMap.set(fk, []);
 					groupMap.get(fk)!.push(r);
 				}
@@ -487,10 +487,10 @@ export class MySQLPopulator {
 	 * Recursively populate nested relations on already-fetched rows
 	 */
 	private async populateBatchedRows<T extends ForjaEntry>(
-		rows: ForjaEntry[],
+		rows: Partial<T>[],
 		tableName: string,
-		populate: QueryPopulate<ForjaEntry>,
-	): Promise<ForjaEntry[]> {
+		populate: QueryPopulate<T>,
+	): Promise<Partial<T>[]> {
 		const modelName = this.schemaRegistry.findModelByTableName(tableName);
 		if (!modelName) return rows;
 
@@ -530,18 +530,18 @@ export class MySQLPopulator {
           WHERE t.\`id\` IN (?)
         `;
 				const [batchRows] = await this.pool.query(batchQuery, [fkValues]);
-				let relatedRows: ForjaEntry[] = (
+				let relatedRows: Partial<T>[] = (
 					batchRows as Array<{ data: unknown }>
 				).map(
 					(r) =>
 						(typeof r.data === "string"
 							? JSON.parse(r.data)
-							: r.data) as ForjaEntry,
+							: r.data) as Partial<T>,
 				);
 
 				const nestedPopulate = opts.populate;
 				if (nestedPopulate && relatedRows.length > 0) {
-					relatedRows = await this.populateBatchedRows(
+					relatedRows = await this.populateBatchedRows<T>(
 						relatedRows,
 						targetTable,
 						nestedPopulate as QueryPopulate<ForjaEntry>,
@@ -568,18 +568,18 @@ export class MySQLPopulator {
 				const [batchRows] = await this.pool.query(batchQuery, [
 					nestedParentIds,
 				]);
-				let relatedRows: ForjaEntry[] = (
+				let relatedRows: Partial<T>[] = (
 					batchRows as Array<{ _fk: unknown; data: unknown }>
 				).map((r) => ({
 					...((typeof r.data === "string"
 						? JSON.parse(r.data)
-						: r.data) as ForjaEntry),
+						: r.data) as Partial<T>),
 					_fk: r._fk,
 				}));
 
 				const nestedPopulate = opts.populate;
 				if (nestedPopulate && relatedRows.length > 0) {
-					relatedRows = await this.populateBatchedRows(
+					relatedRows = await this.populateBatchedRows<T>(
 						relatedRows,
 						targetTable,
 						nestedPopulate as QueryPopulate<ForjaEntry>,
@@ -587,7 +587,7 @@ export class MySQLPopulator {
 				}
 
 				const dataMap = new Map(
-					relatedRows.map((r) => [(r as ForjaEntry & { _fk: number })._fk, r]),
+					relatedRows.map((r) => [(r as Partial<T> & { _fk: number })._fk, r]),
 				);
 				for (const row of rows) {
 					(row as Record<string, unknown>)[relationName] =
@@ -606,27 +606,27 @@ export class MySQLPopulator {
 				const [batchRows] = await this.pool.query(batchQuery, [
 					nestedParentIds,
 				]);
-				let allRelatedRows: ForjaEntry[] = (
+				let allRelatedRows: Partial<T>[] = (
 					batchRows as Array<{ _fk: unknown; data: unknown }>
 				).map((r) => ({
 					...((typeof r.data === "string"
 						? JSON.parse(r.data)
-						: r.data) as ForjaEntry),
+						: r.data) as Partial<T>),
 					_fk: r._fk,
 				}));
 
 				const nestedPopulate = opts.populate;
 				if (nestedPopulate && allRelatedRows.length > 0) {
-					allRelatedRows = await this.populateBatchedRows(
+					allRelatedRows = await this.populateBatchedRows<T>(
 						allRelatedRows,
 						targetTable,
 						nestedPopulate as QueryPopulate<ForjaEntry>,
 					);
 				}
 
-				const groupMap = new Map<number, ForjaEntry[]>();
+				const groupMap = new Map<number, Partial<T>[]>();
 				for (const r of allRelatedRows) {
-					const fk = (r as ForjaEntry & { _fk: number })._fk;
+					const fk = (r as Partial<T> & { _fk: number })._fk;
 					if (!groupMap.has(fk)) groupMap.set(fk, []);
 					groupMap.get(fk)!.push(r);
 				}
@@ -653,27 +653,27 @@ export class MySQLPopulator {
 				const [batchRows] = await this.pool.query(batchQuery, [
 					nestedParentIds,
 				]);
-				let allRelatedRows: ForjaEntry[] = (
+				let allRelatedRows: Partial<T>[] = (
 					batchRows as Array<{ _fk: unknown; data: unknown }>
 				).map((r) => ({
 					...((typeof r.data === "string"
 						? JSON.parse(r.data)
-						: r.data) as ForjaEntry),
+						: r.data) as Partial<T>),
 					_fk: r._fk,
 				}));
 
 				const nestedPopulate = opts.populate;
 				if (nestedPopulate && allRelatedRows.length > 0) {
-					allRelatedRows = await this.populateBatchedRows(
+					allRelatedRows = await this.populateBatchedRows<T>(
 						allRelatedRows,
 						targetTable,
-						nestedPopulate as QueryPopulate<ForjaEntry>,
+						nestedPopulate as QueryPopulate<T>,
 					);
 				}
 
-				const groupMap = new Map<number, ForjaEntry[]>();
+				const groupMap = new Map<number, Partial<T>[]>();
 				for (const r of allRelatedRows) {
-					const fk = (r as ForjaEntry & { _fk: number })._fk;
+					const fk = (r as Partial<T> & { _fk: number })._fk;
 					if (!groupMap.has(fk)) groupMap.set(fk, []);
 					groupMap.get(fk)!.push(r);
 				}
@@ -835,9 +835,9 @@ export class MySQLPopulator {
 	 * Collect FK columns needed by nested populate (belongsTo).
 	 * These must be included in JSON_OBJECT so recursive populate can use them.
 	 */
-	private collectNestedFkColumns(
+	private collectNestedFkColumns<T extends ForjaEntry>(
 		targetModel: string,
-		opts: QueryPopulateOptions<ForjaEntry>,
+		opts: QueryPopulateOptions<T>,
 	): readonly string[] {
 		if (!opts.populate) return [];
 
@@ -860,9 +860,9 @@ export class MySQLPopulator {
 	 * Build JSON_OBJECT expression for a target model.
 	 * Includes all non-relation fields + FK columns needed for nested populate.
 	 */
-	private buildJsonObject(
+	private buildJsonObject<T extends ForjaEntry>(
 		targetModel: string,
-		opts?: QueryPopulateOptions<ForjaEntry>,
+		opts?: QueryPopulateOptions<T>,
 	): string {
 		const targetSchema = this.schemaRegistry.get(targetModel);
 		if (!targetSchema) return "JSON_OBJECT()";
@@ -871,8 +871,8 @@ export class MySQLPopulator {
 		const fields: string[] = opts?.select
 			? [...(opts.select as string[])]
 			: Object.entries(targetSchema.fields)
-					.filter(([_, field]) => field.type !== "relation")
-					.map(([name]) => name);
+				.filter(([_, field]) => field.type !== "relation")
+				.map(([name]) => name);
 
 		// Inject FK columns needed for nested populate
 		if (opts) {

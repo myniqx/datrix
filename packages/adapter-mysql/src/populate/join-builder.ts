@@ -18,6 +18,7 @@ import {
 	throwTargetModelNotFound,
 	throwJoinBuildError,
 	throwJunctionTableNotFound,
+	ForjaAdapterError,
 } from "forja-types/errors/adapter";
 import { MySQLQueryObject } from "../types";
 
@@ -30,7 +31,7 @@ export class JoinBuilder {
 	constructor(
 		private schemaRegistry: SchemaRegistry,
 		private translator: MySQLQueryTranslator,
-	) {}
+	) { }
 
 	/**
 	 * Build all JOINs for a query
@@ -172,8 +173,7 @@ export class JoinBuilder {
 					});
 			}
 		} catch (error) {
-			if (error instanceof Error && error.message.includes("ADAPTER_")) {
-				// TODO: instanceof ERROR ??
+			if (error instanceof ForjaAdapterError) {
 				throw error;
 			}
 			throwJoinBuildError({

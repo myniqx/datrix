@@ -36,6 +36,7 @@ import {
 	throwIntrospectionError,
 	throwTransactionError,
 	throwQueryError,
+	AdapterErrorCode,
 } from "forja-types/errors/adapter";
 import { validateQueryObject } from "forja-types/utils/query";
 import {
@@ -344,7 +345,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 
 		return new ForjaAdapterError(`Query execution failed: ${message}`, {
 			adapter: "mysql",
-			code: forjaCode,
+			code: forjaCode as AdapterErrorCode,
 			operation: "query",
 			context: {
 				...(query && { query: { type: query.type, table: query.table } }),
