@@ -98,10 +98,10 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 	/**
 	 * Get a MongoClient wrapper for operations
 	 */
-	private createClient(
+	private createClient<T extends ForjaEntry>(
 		session: ClientSession | undefined,
-		query: QueryObject,
-	): MongoClient {
+		query: QueryObject<T>,
+	): MongoClient<T> {
 		if (!this.db) {
 			throwNotConnected({ adapter: "mongodb" });
 		}
@@ -244,7 +244,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 
 	private async executeFindOp<TResult extends ForjaEntry>(
 		op: MongoFindResult,
-		client: MongoClient,
+		client: MongoClient<TResult>,
 	): Promise<QueryResult<TResult>> {
 		// MongoDB treats limit(0) as "no limit" — return empty immediately
 		if (op.limit === 0) {
@@ -285,7 +285,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 			readonly collection: string;
 			readonly documents: readonly Document[];
 		},
-		client: MongoClient,
+		client: MongoClient<TResult>,
 	): Promise<QueryResult<TResult>> {
 		// Validate FK references (MongoDB has no FK constraints)
 		const schemaRegistry = Forja.getInstance().getSchemas();
@@ -340,7 +340,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 			readonly filter: Document;
 			readonly update: Document;
 		},
-		client: MongoClient,
+		client: MongoClient<TResult>,
 	): Promise<QueryResult<TResult>> {
 		// Validate FK references in $set data (MongoDB has no FK constraints)
 		const setData = (op.update as { $set?: Record<string, unknown> }).$set;
@@ -383,7 +383,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 
 	private async executeDeleteOp<TResult extends ForjaEntry>(
 		op: { readonly collection: string; readonly filter: Document },
-		client: MongoClient,
+		client: MongoClient<TResult>,
 	): Promise<QueryResult<TResult>> {
 		const collection = client.getCollection(op.collection);
 		const sessionOpts = client.sessionOptions();
@@ -425,7 +425,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 
 	private async executeCountOp<TResult extends ForjaEntry>(
 		op: { readonly collection: string; readonly filter: Document },
-		client: MongoClient,
+		client: MongoClient<TResult>,
 	): Promise<QueryResult<TResult>> {
 		const collection = client.getCollection(op.collection);
 		const sessionOpts = client.sessionOptions();
@@ -450,7 +450,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 	 */
 	private async executeWithPopulate<TResult extends ForjaEntry>(
 		query: QuerySelectObject<TResult>,
-		client: MongoClient,
+		client: MongoClient<TResult>,
 	): Promise<QueryResult<TResult>> {
 		const schemaRegistry = Forja.getInstance().getSchemas();
 		const populator = new MongoDBPopulator(client, schemaRegistry);
@@ -460,7 +460,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 			translated,
 			client,
 		)) as MongoFindResult;
-		const rows = await populator.populate<TResult>(
+		const rows = await populator.populate(
 			query,
 			resolved.filter,
 			resolved.projection,
@@ -485,9 +485,9 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 		schemaRegistry: SchemaRegistry,
 	): Document[] {
 		const modelName = schemaRegistry.findModelByTableName(collection);
-		if (!modelName) return [...documents];
+		if (!modelName) return documents as Document[];
 		const schema = schemaRegistry.get(modelName);
-		if (!schema) return [...documents];
+		if (!schema) return documents as Document[];
 
 		// Collect field defaults and nullable fields.
 		// SQL databases store NULL for missing optional columns and apply DEFAULT
@@ -504,26 +504,28 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 			}
 		}
 
-		if (Object.keys(fieldDefaults).length === 0) return [...documents];
+		if (Object.keys(fieldDefaults).length === 0) return documents as Document[];
 
-		return documents.map((doc) => {
-			const enriched = { ...doc };
+		// Mutate objects in-place to avoid high memory allocation in bulk inserts
+		const mutableDocs = documents as Document[];
+		for (const doc of mutableDocs) {
 			for (const [fieldName, defaultValue] of Object.entries(fieldDefaults)) {
-				if (!(fieldName in enriched)) {
-					enriched[fieldName] = defaultValue;
+				if (!(fieldName in doc)) {
+					doc[fieldName] = defaultValue;
 				}
 			}
-			return enriched;
-		});
+		}
+
+		return mutableDocs;
 	}
 
 	/**
 	 * Resolve nested relation conditions in translated query filter.
 	 * Only applies to operations that have a filter (find, count, update, delete).
 	 */
-	private async resolveFilterRelations(
+	private async resolveFilterRelations<TResult extends ForjaEntry>(
 		translated: MongoTranslateResult,
-		client: MongoClient,
+		client: MongoClient<TResult>,
 	): Promise<MongoTranslateResult> {
 		if (!("filter" in translated) || !translated.filter) return translated;
 
@@ -584,7 +586,10 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 			throwNotConnected({ adapter: "mongodb" });
 		}
 
-		const client = this.createClient(session, "rawQuery");
+		const client = this.createClient(
+			session,
+			{ type: "rawQuery", table: "raw", operation: "raw" } as unknown as QueryObject,
+		);
 
 		try {
 			// Interpret "sql" as a JSON command for MongoDB

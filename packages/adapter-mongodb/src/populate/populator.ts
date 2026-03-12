@@ -29,16 +29,16 @@ const MAX_POPULATE_DEPTH = 5;
  * - Depth 1: $lookup aggregation pipeline (single query)
  * - Depth 2+: Batched queries with $in (level-per-query)
  */
-export class MongoDBPopulator {
+export class MongoDBPopulator<T extends ForjaEntry> {
 	constructor(
-		private readonly client: MongoClient,
+		private readonly client: MongoClient<T>,
 		private readonly schemaRegistry: SchemaRegistry,
-	) {}
+	) { }
 
 	/**
 	 * Main entry point for populate
 	 */
-	async populate<T extends ForjaEntry>(
+	async populate(
 		query: QuerySelectObject<T>,
 		filter: Filter<Document>,
 		projection?: Document,
@@ -57,10 +57,10 @@ export class MongoDBPopulator {
 		}
 
 		if (maxDepth === 1) {
-			return this.executeLookup<T>(query, filter, projection, sort);
+			return this.executeLookup(query, filter, projection, sort);
 		}
 
-		return this.executeBatched<T>(query, filter, projection, sort);
+		return this.executeBatched(query, filter, projection, sort);
 	}
 
 	/**
@@ -73,7 +73,7 @@ export class MongoDBPopulator {
 	 * 4. $project → field selection
 	 * 5. $sort, $skip, $limit → pagination
 	 */
-	private async executeLookup<T extends ForjaEntry>(
+	private async executeLookup(
 		query: QuerySelectObject<T>,
 		filter: Filter<Document>,
 		projection?: Document,
@@ -93,16 +93,11 @@ export class MongoDBPopulator {
 
 		// $lookup for each relation
 		for (const [relationName, _options] of Object.entries(query.populate!)) {
-			const options = _options as QueryPopulateOptions<ForjaEntry>;
+			const options = _options as QueryPopulateOptions<T>;
 			const relationField = schema.fields[relationName];
 			if (!relationField || relationField.type !== "relation") continue;
 
-			const relation = relationField as {
-				kind: string;
-				model: string;
-				foreignKey?: string;
-				through?: string;
-			};
+			const relation = relationField
 			const targetSchema = this.schemaRegistry.get(relation.model);
 			if (!targetSchema) continue;
 
@@ -110,50 +105,25 @@ export class MongoDBPopulator {
 				targetSchema.tableName ?? relation.model.toLowerCase();
 
 			if (relation.kind === "belongsTo") {
-				pipeline.push({
-					$lookup: {
-						from: targetCollection,
-						localField: relation.foreignKey!,
-						foreignField: "id",
-						as: relationName,
-						...this.buildLookupPipeline(options),
-					},
-				});
-				// Unwind to single object (belongsTo = one record)
-				pipeline.push({
-					$unwind: {
-						path: `$${relationName}`,
-						preserveNullAndEmptyArrays: true,
-					},
-				});
-				// $unwind leaves field undefined when no match; set to null explicitly
-				pipeline.push({
-					$addFields: {
-						[relationName]: { $ifNull: [`$${relationName}`, null] },
-					},
-				});
+				pipeline.push(
+					...this.buildLookupWithUnwind(
+						targetCollection,
+						relation.foreignKey!,
+						"id",
+						relationName,
+						options,
+					),
+				);
 			} else if (relation.kind === "hasOne") {
-				pipeline.push({
-					$lookup: {
-						from: targetCollection,
-						localField: "id",
-						foreignField: relation.foreignKey!,
-						as: relationName,
-						...this.buildLookupPipeline(options),
-					},
-				});
-				pipeline.push({
-					$unwind: {
-						path: `$${relationName}`,
-						preserveNullAndEmptyArrays: true,
-					},
-				});
-				// $unwind leaves field undefined when no match; set to null explicitly
-				pipeline.push({
-					$addFields: {
-						[relationName]: { $ifNull: [`$${relationName}`, null] },
-					},
-				});
+				pipeline.push(
+					...this.buildLookupWithUnwind(
+						targetCollection,
+						"id",
+						relation.foreignKey!,
+						relationName,
+						options,
+					),
+				);
 			} else if (relation.kind === "hasMany") {
 				pipeline.push({
 					$lookup: {
@@ -235,7 +205,7 @@ export class MongoDBPopulator {
 	 * 2. For each relation: collect parent IDs → $in query → map results in memory
 	 * 3. Recurse for nested populate
 	 */
-	private async executeBatched<T extends ForjaEntry>(
+	private async executeBatched(
 		query: QuerySelectObject<T>,
 		filter: Filter<Document>,
 		projection?: Document,
@@ -281,7 +251,7 @@ export class MongoDBPopulator {
 	/**
 	 * Populate relations on already-fetched rows using batched $in queries
 	 */
-	private async populateBatchedRows<T extends ForjaEntry>(
+	private async populateBatchedRows(
 		rows: T[],
 		tableName: string,
 		populate: QueryPopulate<T>,
@@ -294,7 +264,7 @@ export class MongoDBPopulator {
 		const sessionOpts = this.client.sessionOptions();
 
 		for (const [relationName, _options] of Object.entries(populate)) {
-			const options = _options as QueryPopulateOptions<ForjaEntry>;
+			const options = _options as QueryPopulateOptions<T>;
 			const relationField = schema.fields[relationName];
 			if (!relationField || relationField.type !== "relation") continue;
 
@@ -309,7 +279,6 @@ export class MongoDBPopulator {
 
 			const targetCollection =
 				targetSchema.tableName ?? relation.model.toLowerCase();
-			const targetCol = this.client.getCollection(targetCollection);
 			let baseTargetProjection = this.buildSelectProjection(
 				options.select as readonly string[] | undefined,
 			);
@@ -331,10 +300,10 @@ export class MongoDBPopulator {
 			const targetProjection =
 				options.populate && baseTargetProjection
 					? this.injectFkColumns(
-							baseTargetProjection,
-							targetSchema,
-							options.populate as QueryPopulate<ForjaEntry>,
-						)
+						baseTargetProjection,
+						targetSchema,
+						options.populate,
+					)
 					: baseTargetProjection;
 
 			if (relation.kind === "belongsTo") {
@@ -344,33 +313,17 @@ export class MongoDBPopulator {
 					.filter((v) => v != null);
 
 				if (fkValues.length === 0) {
-					for (const row of rows) {
-						row[relationName as keyof T] = null as T[keyof T];
-					}
+					for (const row of rows) row[relationName as keyof T] = null as T[keyof T];
 					continue;
 				}
 
-				const relatedDocs = await this.client.execute(
-					`batch:${targetCollection}`,
-					() =>
-						targetCol
-							.find(
-								{ id: { $in: fkValues } },
-								{ ...sessionOpts, projection: { _id: 0, ...targetProjection } },
-							)
-							.toArray(),
+				const relatedRows = await this.fetchAndPopulateNested(
+					targetCollection,
+					{ id: { $in: fkValues } },
+					targetProjection,
+					sessionOpts,
+					options,
 				);
-
-				let relatedRows = relatedDocs as unknown as ForjaEntry[];
-
-				// Recursive nested populate
-				if (options.populate && relatedRows.length > 0) {
-					await this.populateBatchedRows(
-						relatedRows as ForjaEntry[],
-						targetCollection,
-						options.populate as QueryPopulate<ForjaEntry>,
-					);
-				}
 
 				const dataMap = new Map(relatedRows.map((r) => [r.id, r]));
 				for (const row of rows) {
@@ -383,30 +336,17 @@ export class MongoDBPopulator {
 				const fkColumn = relation.foreignKey!;
 				const parentIds = rows.map((r) => r.id);
 
-				const relatedDocs = await this.client.execute(
-					`batch:${targetCollection}`,
-					() =>
-						targetCol
-							.find(
-								{ [fkColumn]: { $in: parentIds } },
-								{ ...sessionOpts, projection: { _id: 0, ...targetProjection } },
-							)
-							.toArray(),
+				const relatedRows = await this.fetchAndPopulateNested(
+					targetCollection,
+					{ [fkColumn]: { $in: parentIds } },
+					targetProjection,
+					sessionOpts,
+					options,
 				);
-
-				let relatedRows = relatedDocs as unknown as ForjaEntry[];
-
-				if (options.populate && relatedRows.length > 0) {
-					await this.populateBatchedRows(
-						relatedRows as ForjaEntry[],
-						targetCollection,
-						options.populate as QueryPopulate<ForjaEntry>,
-					);
-				}
 
 				const dataMap = new Map(
 					relatedRows.map((r) => [
-						(r as ForjaEntry & { [key: string]: unknown })[fkColumn] as number,
+						(r as T & { [key: string]: unknown })[fkColumn] as number,
 						r,
 					]),
 				);
@@ -418,30 +358,17 @@ export class MongoDBPopulator {
 				const fkColumn = relation.foreignKey!;
 				const parentIds = rows.map((r) => r.id);
 
-				const relatedDocs = await this.client.execute(
-					`batch:${targetCollection}`,
-					() =>
-						targetCol
-							.find(
-								{ [fkColumn]: { $in: parentIds } },
-								{ ...sessionOpts, projection: { _id: 0, ...targetProjection } },
-							)
-							.toArray(),
+				const relatedRows = await this.fetchAndPopulateNested(
+					targetCollection,
+					{ [fkColumn]: { $in: parentIds } },
+					targetProjection,
+					sessionOpts,
+					options,
 				);
 
-				let allRelatedRows = relatedDocs as unknown as ForjaEntry[];
-
-				if (options.populate && allRelatedRows.length > 0) {
-					await this.populateBatchedRows(
-						allRelatedRows as ForjaEntry[],
-						targetCollection,
-						options.populate as QueryPopulate<ForjaEntry>,
-					);
-				}
-
 				const groupMap = new Map<number, ForjaEntry[]>();
-				for (const r of allRelatedRows) {
-					const fk = (r as ForjaEntry & { [key: string]: unknown })[
+				for (const r of relatedRows) {
+					const fk = (r as T & { [key: string]: unknown })[
 						fkColumn
 					] as number;
 					if (!groupMap.has(fk)) groupMap.set(fk, []);
@@ -471,34 +398,19 @@ export class MongoDBPopulator {
 
 				const targetIds = junctionDocs.map((j) => j[targetFK] as number);
 				if (targetIds.length === 0) {
-					for (const row of rows) {
-						row[relationName as keyof T] = [] as T[keyof T];
-					}
+					for (const row of rows) row[relationName as keyof T] = [] as T[keyof T];
 					continue;
 				}
 
-				const relatedDocs = await this.client.execute(
-					`batch:${targetCollection}`,
-					() =>
-						targetCol
-							.find(
-								{ id: { $in: targetIds } },
-								{ ...sessionOpts, projection: { _id: 0, ...targetProjection } },
-							)
-							.toArray(),
+				const relatedRows = await this.fetchAndPopulateNested(
+					targetCollection,
+					{ id: { $in: targetIds } },
+					targetProjection,
+					sessionOpts,
+					options,
 				);
 
-				let allRelatedRows = relatedDocs as unknown as ForjaEntry[];
-
-				if (options.populate && allRelatedRows.length > 0) {
-					await this.populateBatchedRows(
-						allRelatedRows as ForjaEntry[],
-						targetCollection,
-						options.populate as QueryPopulate<ForjaEntry>,
-					);
-				}
-
-				const targetMap = new Map(allRelatedRows.map((r) => [r.id, r]));
+				const targetMap = new Map(relatedRows.map((r) => [r.id, r]));
 
 				// Build parent → related mapping via junction
 				const groupMap = new Map<number, ForjaEntry[]>();
@@ -520,9 +432,43 @@ export class MongoDBPopulator {
 	}
 
 	/**
+	 * Helper function to fetch target collection data and recursively
+	 * populate if nested populate options are present.
+	 */
+	private async fetchAndPopulateNested(
+		targetCollection: string,
+		filter: Filter<Document>,
+		projection: Document | undefined,
+		sessionOpts: Filter<Document>,
+		options: QueryPopulateOptions<T>,
+	): Promise<T[]> {
+		const targetCol = this.client.getCollection(targetCollection);
+		const relatedDocs = await this.client.execute(
+			`batch:${targetCollection}`,
+			() =>
+				targetCol
+					.find(filter, { ...sessionOpts, projection: { _id: 0, ...projection } })
+					.toArray(),
+		);
+
+		const relatedRows = relatedDocs as unknown as T[];
+
+		if (options.populate && relatedRows.length > 0) {
+			await this.populateBatchedRows(
+				relatedRows,
+				targetCollection,
+				options.populate as QueryPopulate<ForjaEntry>,
+			);
+		}
+
+		return relatedRows;
+	}
+
+
+	/**
 	 * Build $lookup pipeline sub-options (field selection for lookup results)
 	 */
-	private buildLookupPipeline(options: QueryPopulateOptions<ForjaEntry>): {
+	private buildLookupPipeline(options: QueryPopulateOptions<T>): {
 		pipeline?: Document[];
 	} {
 		const innerPipeline: Document[] = [];
@@ -559,7 +505,7 @@ export class MongoDBPopulator {
 	/**
 	 * Build final projection for $lookup pipeline (exclude _id, include populated fields)
 	 */
-	private buildFinalProjection<T extends ForjaEntry>(
+	private buildFinalProjection(
 		baseProjection: Document | undefined,
 		populate: QueryPopulate<T>,
 	): Document | undefined {
@@ -578,9 +524,43 @@ export class MongoDBPopulator {
 	}
 
 	/**
+	 * Build standardized $lookup + $unwind pipeline steps for belongsTo/hasOne
+	 */
+	private buildLookupWithUnwind(
+		targetCollection: string,
+		localField: string,
+		foreignField: string,
+		asName: string,
+		options: QueryPopulateOptions<T>,
+	): Document[] {
+		return [
+			{
+				$lookup: {
+					from: targetCollection,
+					localField,
+					foreignField,
+					as: asName,
+					...this.buildLookupPipeline(options),
+				},
+			},
+			{
+				$unwind: {
+					path: `$${asName}`,
+					preserveNullAndEmptyArrays: true,
+				},
+			},
+			{
+				$addFields: {
+					[asName]: { $ifNull: [`$${asName}`, null] },
+				},
+			},
+		];
+	}
+
+	/**
 	 * Calculate max depth of populate tree
 	 */
-	private getMaxDepth<T extends ForjaEntry>(
+	private getMaxDepth(
 		populate: QueryPopulate<T>,
 		_tableName: string,
 		depth = 1,
@@ -609,7 +589,7 @@ export class MongoDBPopulator {
 	/**
 	 * Build relation path string for error messages
 	 */
-	private buildRelationPath<T extends ForjaEntry>(
+	private buildRelationPath(
 		populate: QueryPopulate<T>,
 		prefix = "",
 	): string {
@@ -641,7 +621,7 @@ export class MongoDBPopulator {
 	 * Without these, batched populate cannot look up related records
 	 * because the FK value (e.g. authorId) is excluded from query results.
 	 */
-	private injectFkColumns<T extends ForjaEntry>(
+	private injectFkColumns(
 		projection: Document | undefined,
 		schema: {
 			readonly fields: Record<

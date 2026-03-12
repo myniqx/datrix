@@ -376,70 +376,32 @@ export class MongoDBQueryTranslator {
 	): Record<string, unknown> {
 		const result: Record<string, unknown> = {};
 
+		const simpleOps = ["$eq", "$ne", "$gt", "$gte", "$lt", "$lte"] as const;
+		const arrayOps = ["$in", "$nin"] as const;
+
 		for (const [operator, opValue] of Object.entries(ops)) {
+			if (simpleOps.includes(operator as any)) {
+				result[operator] =
+					opValue === null
+						? null
+						: this.convertValueForField(opValue, currentSchema, fieldPath);
+				continue;
+			}
+
+			if (arrayOps.includes(operator as any)) {
+				if (!Array.isArray(opValue)) {
+					throwQueryError({
+						adapter: "mongodb",
+						message: `${operator} operator requires array value`,
+					});
+				}
+				result[operator] = opValue.map((v) =>
+					this.convertValueForField(v, currentSchema, fieldPath),
+				);
+				continue;
+			}
+
 			switch (operator) {
-				case "$eq":
-					result["$eq"] =
-						opValue === null
-							? null
-							: this.convertValueForField(opValue, currentSchema, fieldPath);
-					break;
-				case "$ne":
-					result["$ne"] =
-						opValue === null
-							? null
-							: this.convertValueForField(opValue, currentSchema, fieldPath);
-					break;
-				case "$gt":
-					result["$gt"] = this.convertValueForField(
-						opValue,
-						currentSchema,
-						fieldPath,
-					);
-					break;
-				case "$gte":
-					result["$gte"] = this.convertValueForField(
-						opValue,
-						currentSchema,
-						fieldPath,
-					);
-					break;
-				case "$lt":
-					result["$lt"] = this.convertValueForField(
-						opValue,
-						currentSchema,
-						fieldPath,
-					);
-					break;
-				case "$lte":
-					result["$lte"] = this.convertValueForField(
-						opValue,
-						currentSchema,
-						fieldPath,
-					);
-					break;
-				case "$in":
-					if (!Array.isArray(opValue)) {
-						throwQueryError({
-							adapter: "mongodb",
-							message: "$in operator requires array value",
-						});
-					}
-					result["$in"] = opValue.map((v) =>
-						this.convertValueForField(v, currentSchema, fieldPath),
-					);
-					break;
-				case "$nin":
-					if (!Array.isArray(opValue)) {
-						throwQueryError({
-							adapter: "mongodb",
-							message: "$nin operator requires array value",
-						});
-					}
-					result["$nin"] = opValue.map((v) =>
-						this.convertValueForField(v, currentSchema, fieldPath),
-					);
-					break;
 				case "$like":
 					result["$regex"] = this.likeToRegex(String(opValue));
 					break;

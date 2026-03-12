@@ -17,7 +17,7 @@
 
 import type { Document, Filter } from "mongodb";
 import type { SchemaRegistry } from "forja-core/schema";
-import type { SchemaDefinition } from "forja-types/core/schema";
+import type { ForjaEntry, SchemaDefinition } from "forja-types/core/schema";
 import type { MongoClient } from "./mongo-client";
 
 /**
@@ -40,10 +40,10 @@ export interface RelationFilter {
  *
  * @returns Cleaned filter with relation conditions resolved to ID filters
  */
-export async function resolveNestedWhere(
+export async function resolveNestedWhere<TResult extends ForjaEntry>(
 	filter: Filter<Document>,
 	tableName: string,
-	client: MongoClient,
+	client: MongoClient<TResult>,
 	schemaRegistry: SchemaRegistry,
 ): Promise<Filter<Document>> {
 	const modelName = schemaRegistry.findModelByTableName(tableName);
@@ -55,35 +55,13 @@ export async function resolveNestedWhere(
 
 	for (const [key, value] of Object.entries(filter)) {
 		// Handle logical operators recursively
-		if (key === "$and" || key === "$or") {
-			const conditions = value as Filter<Document>[];
-			const resolvedConditions: Filter<Document>[] = [];
-			for (const condition of conditions) {
-				const resolved = await resolveNestedWhere(
-					condition,
-					tableName,
-					client,
-					schemaRegistry,
-				);
-				resolvedConditions.push(resolved);
-			}
-			resolvedFilter[key] = resolvedConditions;
-			continue;
-		}
-
-		if (key === "$nor") {
-			const conditions = value as Filter<Document>[];
-			const resolvedConditions: Filter<Document>[] = [];
-			for (const condition of conditions) {
-				const resolved = await resolveNestedWhere(
-					condition,
-					tableName,
-					client,
-					schemaRegistry,
-				);
-				resolvedConditions.push(resolved);
-			}
-			resolvedFilter[key] = resolvedConditions;
+		if (key === "$and" || key === "$or" || key === "$nor") {
+			resolvedFilter[key] = await resolveLogicalOperators(
+				value as Filter<Document>[],
+				tableName,
+				client,
+				schemaRegistry,
+			);
 			continue;
 		}
 
@@ -127,9 +105,31 @@ export async function resolveNestedWhere(
 }
 
 /**
+ * Helper to resolve conditions arrays for logical operators like $and, $or, $nor
+ */
+async function resolveLogicalOperators<TResult extends ForjaEntry>(
+	conditions: Filter<Document>[],
+	tableName: string,
+	client: MongoClient<TResult>,
+	schemaRegistry: SchemaRegistry,
+): Promise<Filter<Document>[]> {
+	const resolvedConditions: Filter<Document>[] = [];
+	for (const condition of conditions) {
+		const resolved = await resolveNestedWhere(
+			condition,
+			tableName,
+			client,
+			schemaRegistry,
+		);
+		resolvedConditions.push(resolved);
+	}
+	return resolvedConditions;
+}
+
+/**
  * Resolve relation conditions to matching parent IDs.
  */
-async function resolveRelationIds(
+async function resolveRelationIds<TResult extends ForjaEntry>(
 	relation: {
 		readonly kind: string;
 		readonly model: string;
@@ -138,7 +138,7 @@ async function resolveRelationIds(
 	},
 	sourceSchema: SchemaDefinition,
 	conditions: Filter<Document>,
-	client: MongoClient,
+	client: MongoClient<TResult>,
 	schemaRegistry: SchemaRegistry,
 ): Promise<readonly number[]> {
 	const targetSchema = schemaRegistry.get(relation.model);
@@ -156,16 +156,13 @@ async function resolveRelationIds(
 	);
 
 	if (relation.kind === "belongsTo") {
-		return resolveBelongsTo(targetCollection, resolvedConditions, client);
+		// Target IDs that match conditions
+		return fetchUniqueIds(targetCollection, "id", resolvedConditions, client);
 	}
 
 	if (relation.kind === "hasOne" || relation.kind === "hasMany") {
-		return resolveHasOneOrMany(
-			targetCollection,
-			relation.foreignKey!,
-			resolvedConditions,
-			client,
-		);
+		// FK values in target that match conditions
+		return fetchUniqueIds(targetCollection, relation.foreignKey!, resolvedConditions, client);
 	}
 
 	if (relation.kind === "manyToMany") {
@@ -183,55 +180,30 @@ async function resolveRelationIds(
 }
 
 /**
- * BelongsTo: find target IDs that match conditions.
- * Caller will filter source by FK $in these IDs.
+ * Fetches matching documents and extracts unique IDs based on a specific field key.
  */
-async function resolveBelongsTo(
-	targetCollection: string,
+async function fetchUniqueIds<TResult extends ForjaEntry>(
+	collection: string,
+	fieldKey: string,
 	conditions: Filter<Document>,
-	client: MongoClient,
+	client: MongoClient<TResult>,
 ): Promise<readonly number[]> {
-	const col = client.getCollection(targetCollection);
+	const col = client.getCollection(collection);
 	const sessionOpts = client.sessionOptions();
 
-	const docs = await client.execute(`nestedWhere:${targetCollection}`, () =>
+	const docs = await client.execute(`nestedWhere:${collection}`, () =>
 		col
 			.find(conditions, {
 				...sessionOpts,
-				projection: { _id: 0, id: 1 },
-			})
-			.toArray(),
-	);
-
-	return docs.map((d) => d["id"] as number);
-}
-
-/**
- * HasOne/HasMany: find FK values in target that match conditions.
- * These FK values are the source IDs.
- */
-async function resolveHasOneOrMany(
-	targetCollection: string,
-	foreignKey: string,
-	conditions: Filter<Document>,
-	client: MongoClient,
-): Promise<readonly number[]> {
-	const col = client.getCollection(targetCollection);
-	const sessionOpts = client.sessionOptions();
-
-	const docs = await client.execute(`nestedWhere:${targetCollection}`, () =>
-		col
-			.find(conditions, {
-				...sessionOpts,
-				projection: { _id: 0, [foreignKey]: 1 },
+				projection: { _id: 0, [fieldKey]: 1 },
 			})
 			.toArray(),
 	);
 
 	const ids = new Set<number>();
 	for (const doc of docs) {
-		const fk = doc[foreignKey] as number | undefined;
-		if (fk != null) ids.add(fk);
+		const val = doc[fieldKey] as number | undefined;
+		if (val != null) ids.add(val);
 	}
 	return [...ids];
 }
@@ -240,13 +212,13 @@ async function resolveHasOneOrMany(
  * ManyToMany: find target IDs matching conditions,
  * then look up junction table to get source IDs.
  */
-async function resolveManyToMany(
+async function resolveManyToMany<TResult extends ForjaEntry>(
 	targetCollection: string,
 	junctionCollection: string,
 	sourceModelName: string,
 	targetModelName: string,
 	conditions: Filter<Document>,
-	client: MongoClient,
+	client: MongoClient<TResult>,
 ): Promise<readonly number[]> {
 	const sourceFK = `${sourceModelName}Id`;
 	const targetFK = `${targetModelName}Id`;

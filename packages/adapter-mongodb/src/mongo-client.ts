@@ -10,7 +10,7 @@
 import type { ClientSession, Collection, Db, Document } from "mongodb";
 import { ForjaAdapterError } from "forja-types/errors/adapter";
 import { mongoCodeToAdapterCode } from "./helpers";
-import { QueryObject } from "forja-types";
+import { ForjaEntry, QueryObject } from "forja-types";
 
 const IS_DEBUG = process.env["NODE_ENV"] !== "production";
 
@@ -20,12 +20,12 @@ const IS_DEBUG = process.env["NODE_ENV"] !== "production";
  * Every operation passes through a single point that logs
  * in development and wraps MongoDB errors into ForjaAdapterError.
  */
-export class MongoClient {
+export class MongoClient<T extends ForjaEntry> {
 	constructor(
 		private readonly db: Db,
 		private readonly session: ClientSession | undefined,
-		private readonly query: QueryObject,
-	) {}
+		private readonly query: QueryObject<T>,
+	) { }
 
 	/**
 	 * Get a collection handle with optional session
