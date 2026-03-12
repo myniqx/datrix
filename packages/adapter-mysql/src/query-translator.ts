@@ -403,7 +403,7 @@ export class MySQLQueryTranslator implements QueryTranslator {
 
 		// ORDER BY
 		if (query.orderBy && query.orderBy.length > 0) {
-			parts.push(`ORDER BY ${this.translateOrderBy(query.orderBy)}`);
+			parts.push(`ORDER BY ${this.translateOrderBy(query.orderBy as unknown as readonly OrderByItem<ForjaEntry>[])}`);
 		}
 
 		// LIMIT (MySQL requires LIMIT when OFFSET is used)
@@ -524,7 +524,6 @@ export class MySQLQueryTranslator implements QueryTranslator {
 
 		// Process WHERE first to get JOINs, but defer adding params
 		let whereSql: string | undefined;
-		let whereParams: readonly unknown[] = [];
 		let whereJoins: string[] = [];
 		if (query.where) {
 			const whereResult = this.translateWhere(
@@ -533,7 +532,6 @@ export class MySQLQueryTranslator implements QueryTranslator {
 				query.table,
 			);
 			whereSql = whereResult.sql;
-			whereParams = whereResult.params;
 			whereJoins = whereResult.joins;
 		}
 
@@ -708,25 +706,15 @@ export class MySQLQueryTranslator implements QueryTranslator {
 
 		for (const [key, value] of Object.entries(where)) {
 			// Handle logical operators
-			if (key === "$and") {
-				const andConditions = (value as readonly WhereClause<T>[])
+			if (key === "$and" || key === "$or") {
+				const operator = key === "$and" ? "AND" : "OR";
+				const joinedConditions = (value as readonly WhereClause<T>[])
 					.map(
 						(condition) =>
 							`(${this.translateWhereConditions(condition, depth + 1, tableName, tableAlias, joins, currentSchema)})`,
 					)
-					.join(" AND ");
-				conditions.push(`(${andConditions})`);
-				continue;
-			}
-
-			if (key === "$or") {
-				const orConditions = (value as readonly WhereClause<T>[])
-					.map(
-						(condition) =>
-							`(${this.translateWhereConditions(condition, depth + 1, tableName, tableAlias, joins, currentSchema)})`,
-					)
-					.join(" OR ");
-				conditions.push(`(${orConditions})`);
+					.join(` ${operator} `);
+				conditions.push(`(${joinedConditions})`);
 				continue;
 			}
 
@@ -1058,13 +1046,4 @@ export class MySQLQueryTranslator implements QueryTranslator {
 				});
 		}
 	}
-}
-
-/**
- * Create a new MySQL query translator
- */
-function createMySQLTranslator(
-	schemaRegistry: SchemaRegistry,
-): MySQLQueryTranslator {
-	return new MySQLQueryTranslator(schemaRegistry);
 }

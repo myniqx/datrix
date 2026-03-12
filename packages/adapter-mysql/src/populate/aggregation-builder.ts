@@ -372,7 +372,7 @@ export class AggregationBuilder {
 		// Build ORDER BY
 		let orderByClause = "";
 		if (options.orderBy && options.orderBy.length > 0) {
-			orderByClause = `ORDER BY ${this.buildOrderBy(options.orderBy)}`;
+			orderByClause = `ORDER BY ${this.buildOrderBy(options.orderBy as unknown as readonly OrderByItem<ForjaEntry>[])}`;
 		}
 
 		// Build LIMIT/OFFSET
@@ -471,7 +471,7 @@ export class AggregationBuilder {
 		// Build ORDER BY
 		let orderByClause = "";
 		if (options.orderBy && options.orderBy.length > 0) {
-			orderByClause = `ORDER BY ${this.buildOrderBy(options.orderBy)}`;
+			orderByClause = `ORDER BY ${this.buildOrderBy(options.orderBy as unknown as readonly OrderByItem<ForjaEntry>[])}`;
 		}
 
 		// Build LIMIT/OFFSET

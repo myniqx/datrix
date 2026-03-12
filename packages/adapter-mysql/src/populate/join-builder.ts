@@ -7,7 +7,6 @@
 
 import type { SchemaRegistry } from "forja-core/schema";
 import type { ForjaEntry, RelationField } from "forja-types/core/schema";
-import type { MySQLQueryTranslator } from "../query-translator";
 import { escapeIdentifier } from "../helpers";
 import type { JoinClause, PopulateStrategy } from "./types";
 import {
@@ -30,7 +29,6 @@ import { MySQLQueryObject } from "../types";
 export class JoinBuilder {
 	constructor(
 		private schemaRegistry: SchemaRegistry,
-		private translator: MySQLQueryTranslator,
 	) { }
 
 	/**

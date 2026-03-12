@@ -46,9 +46,28 @@ export class MySQLClient {
 	) { }
 
 	/**
-	 * Execute a SQL query with optional parameters.
+	 * Execute a SQL query with optional parameters (prepared statement).
 	 */
 	async execute(
+		sql: string,
+		params?: readonly unknown[],
+	): Promise<MySQLExecuteResult> {
+		return this.run("execute", sql, params);
+	}
+
+	/**
+	 * Run a SQL query with optional parameters (non-prepared).
+	 * Supports array params for WHERE IN (?), which prepared statements cannot handle.
+	 */
+	async query(
+		sql: string,
+		params?: readonly unknown[],
+	): Promise<MySQLExecuteResult> {
+		return this.run("query", sql, params);
+	}
+
+	private async run(
+		method: "execute" | "query",
 		sql: string,
 		params?: readonly unknown[],
 	): Promise<MySQLExecuteResult> {
@@ -59,7 +78,7 @@ export class MySQLClient {
 		}
 
 		try {
-			const result = await this.runner.execute(sql, params as unknown[]);
+			const result = await this.runner[method](sql, params as unknown[]);
 			return result as MySQLExecuteResult;
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);

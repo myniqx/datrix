@@ -41,7 +41,6 @@ import {
 import { validateQueryObject } from "forja-types/utils/query";
 import {
 	FieldDefinition,
-	FieldType,
 	IndexDefinition,
 	SchemaDefinition,
 } from "forja-types/core/schema";
@@ -142,7 +141,6 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			if (this.pool) {
 				await this.pool.end();
 				this.pool = undefined;
-				this.populator = undefined;
 			}
 
 			this.state = "disconnected";
@@ -295,8 +293,13 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 	): Promise<QueryResult<TResult>> {
 		try {
 			const schemaRegistry = Forja.getInstance().getSchemas();
+			const populateQuery: QueryObject = {
+				type: "select",
+				table: `_populate:${query.table}`,
+			} as QueryObject;
+			const client = new MySQLClient(queryRunner, populateQuery);
 			const populator = new MySQLPopulator(
-				queryRunner,
+				client,
 				this.getTranslator(),
 				schemaRegistry,
 			);
@@ -831,70 +834,6 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 		}
 	}
 
-	/**
-	 * Map MySQL data type to Forja FieldType
-	 */
-	private mapMySQLTypeToFieldType(dataType: string): FieldType {
-		const type = dataType.toLowerCase();
-
-		if (
-			type.includes("int") ||
-			type.includes("float") ||
-			type.includes("double") ||
-			type.includes("decimal") ||
-			type.includes("numeric")
-		) {
-			return "number";
-		}
-		if (type === "tinyint") {
-			return "boolean";
-		}
-		if (
-			type.includes("datetime") ||
-			type.includes("timestamp") ||
-			type.includes("date")
-		) {
-			return "date";
-		}
-		if (type === "json") {
-			return "json";
-		}
-		if (
-			type.includes("text") ||
-			type.includes("char") ||
-			type.includes("varchar")
-		) {
-			return "string";
-		}
-
-		return "string";
-	}
-
-	/**
-	 * Parse MySQL default value
-	 */
-	private parseMySQLDefault(defaultValue: string | null): unknown {
-		if (defaultValue === null) return undefined;
-
-		if (
-			defaultValue.toUpperCase() === "CURRENT_TIMESTAMP" ||
-			defaultValue.toUpperCase().includes("NOW()")
-		) {
-			return "NOW()";
-		}
-
-		if (defaultValue === "true" || defaultValue === "1") return true;
-		if (defaultValue === "false" || defaultValue === "0") return false;
-
-		const num = Number(defaultValue);
-		if (!isNaN(num) && defaultValue !== "") return num;
-
-		if (defaultValue.startsWith("'") && defaultValue.endsWith("'")) {
-			return defaultValue.slice(1, -1);
-		}
-
-		return defaultValue;
-	}
 
 	/**
 	 * Check if table exists
