@@ -176,25 +176,9 @@ export class MigrationSession {
 			const comparison = this.differ.compare(oldSchemas, newSchemas);
 
 			this.differences = [...comparison.differences];
-			console.log(
-				"[migration:differ] raw differences:",
-				JSON.stringify(this.differences, null, 2),
-			);
 
 			// Detect ambiguous changes
 			this.detectAmbiguousChanges();
-			console.log(
-				"[migration:session] after detectAmbiguous - differences:",
-				JSON.stringify(this.differences, null, 2),
-			);
-			console.log(
-				"[migration:session] after detectAmbiguous - ambiguous:",
-				JSON.stringify(
-					this._ambiguous.map((a) => ({ id: a.id, type: a.type })),
-					null,
-					2,
-				),
-			);
 
 			this.initialized = true;
 		} catch (error) {
@@ -1467,7 +1451,7 @@ export class MigrationSession {
 					// Remove dropTable from its current position and place it after dataTransfer
 					const [dropOp] = result.splice(newDropIdx, 1);
 					const insertAfterTransfer = result.indexOf(transferOp) + 1;
-					result.splice(insertAfterTransfer, 0, dropOp);
+					result.splice(insertAfterTransfer, 0, dropOp!);
 				}
 			}
 		}
