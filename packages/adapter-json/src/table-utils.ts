@@ -4,7 +4,7 @@ import {
 	SchemaDefinition,
 } from "forja-types/core/schema";
 import { QuerySelectObject } from "forja-types/core/query-builder";
-import { JsonTableFile } from "./types";
+import { ExecuteQueryOptions, JsonTableFile } from "./types";
 import type { JsonAdapter } from "./adapter";
 import {
 	ForjaAdapterError,
@@ -251,6 +251,7 @@ export async function applyOnDeleteActions(
 	targetTable: string,
 	idsToDelete: ReadonlyArray<number>,
 	adapter: JsonAdapter,
+	queryOptions?: ExecuteQueryOptions,
 ): Promise<void> {
 	if (idsToDelete.length === 0) return;
 
@@ -289,12 +290,15 @@ export async function applyOnDeleteActions(
 	for (const dep of deps) {
 		if (dep.onDelete !== "setNull") continue;
 
-		await adapter.executeQuery({
-			type: "update",
-			table: dep.tableName,
-			where: { [dep.fieldName]: { $in: idsToDelete } },
-			data: { [dep.fieldName]: null },
-		});
+		await adapter.executeQueryWithOptions(
+			{
+				type: "update",
+				table: dep.tableName,
+				where: { [dep.fieldName]: { $in: idsToDelete } },
+				data: { [dep.fieldName]: null },
+			},
+			queryOptions,
+		);
 	}
 
 	// Pass 3: Apply cascade (recursive - child deletes trigger their own onDelete)
@@ -311,13 +315,16 @@ export async function applyOnDeleteActions(
 		if (childIds.length === 0) continue;
 
 		// Recursive: apply onDelete for children before deleting them
-		await applyOnDeleteActions(dep.tableName, childIds, adapter);
+		await applyOnDeleteActions(dep.tableName, childIds, adapter, queryOptions);
 
-		await adapter.executeQuery({
-			type: "delete",
-			table: dep.tableName,
-			where: { id: { $in: childIds } },
-		});
+		await adapter.executeQueryWithOptions(
+			{
+				type: "delete",
+				table: dep.tableName,
+				where: { id: { $in: childIds } },
+			},
+			queryOptions,
+		);
 	}
 }
 

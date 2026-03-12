@@ -16,6 +16,7 @@ import {
 	checkUniqueConstraints,
 } from "./table-utils";
 import type { JsonAdapter } from "./adapter";
+import type { ExecuteQueryOptions } from "./types";
 import { throwQueryMissingData } from "forja-types/errors/adapter/adapter-helpers";
 
 export type QueryHandlerResult<T extends ForjaEntry> = {
@@ -188,8 +189,9 @@ export async function handleDelete<T extends ForjaEntry>(ctx: {
 	runner: JsonQueryRunner;
 	query: QueryObject<T>;
 	adapter: JsonAdapter;
+	queryOptions?: ExecuteQueryOptions;
 }): Promise<QueryHandlerResult<T>> {
-	const { runner, query, adapter } = ctx;
+	const { runner, query, adapter, queryOptions } = ctx;
 	const tableData = runner.tableData;
 
 	const deleteQuery: QuerySelectObject<T> = {
@@ -202,7 +204,8 @@ export async function handleDelete<T extends ForjaEntry>(ctx: {
 	const idsToDelete = rowsToDelete.map((r) => r.id as number);
 
 	// Apply ON DELETE actions (restrict/setNull/cascade) before deleting
-	await applyOnDeleteActions(query.table, idsToDelete, adapter);
+	// Pass queryOptions to avoid re-acquiring the already-held lock
+	await applyOnDeleteActions(query.table, idsToDelete, adapter, queryOptions);
 
 	const idsSet = new Set(idsToDelete);
 	const originalLength = tableData.data.length;
