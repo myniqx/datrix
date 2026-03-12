@@ -18,7 +18,7 @@ import { DatabaseAdapter } from "forja-types/adapter";
 /**
  * Supported adapter types for testing
  */
-export type AdapterType = "json" | "postgres" | "mysql" | "mongodb";
+export type AdapterType = "json" | "postgres" | "mysql" | "mariadb" | "mongodb";
 
 /**
  * Generate a safe database name from root path
@@ -100,14 +100,17 @@ export async function getAdapter(
 			}) as DatabaseAdapter;
 		}
 
-		case "mysql": {
+		case "mysql":
+		case "mariadb": {
 			const dbName = generateDbName(root);
+			const isMariaDB = type === "mariadb";
+			const prefix = isMariaDB ? "MARIADB" : "MYSQL";
 
 			// Parse connection config from env
-			const host = process.env["MYSQL_HOST"] ?? "localhost";
-			const port = parseInt(process.env["MYSQL_PORT"] ?? "3306", 10);
-			const user = process.env["MYSQL_USER"] ?? "forja";
-			const password = process.env["MYSQL_PASSWORD"] ?? "forja";
+			const host = process.env[`${prefix}_HOST`] ?? "localhost";
+			const port = parseInt(process.env[`${prefix}_PORT`] ?? (isMariaDB ? "3307" : "3306"), 10);
+			const user = process.env[`${prefix}_USER`] ?? "forja";
+			const password = process.env[`${prefix}_PASSWORD`] ?? "forja";
 
 			// Create fresh database (skip if reusing existing)
 			if (!options?.skipCreate) {
@@ -161,16 +164,25 @@ export async function getAdapter(
  * // npm test                    → json (default)
  * // ADAPTER=postgres npm test   → postgres
  * // ADAPTER=mysql npm test      → mysql
+ * // ADAPTER=mariadb npm test   → mariadb (uses MySQLAdapter on port 3307)
+ * // ADAPTER=mongodb npm test   → mongodb
+ *
+ * // Docker commands for test databases:
+ * // docker run -d --name mysql-test -e MYSQL_ROOT_PASSWORD=forja -e MYSQL_USER=forja -e MYSQL_PASSWORD=forja -e MYSQL_DATABASE=forja -p 3306:3306 mysql:8.0
+ * // docker run -d --name mariadb-test -e MYSQL_ROOT_PASSWORD=forja -e MYSQL_USER=forja -e MYSQL_PASSWORD=forja -e MYSQL_DATABASE=forja -p 3307:3306 mariadb:10.5
+ * // docker run -d --name postgres-test -e POSTGRES_USER=forja_test -e POSTGRES_PASSWORD=forja_test -e POSTGRES_DB=forja_test -p 5432:5432 postgres:16
+ * // docker run -d --name mongodb-test -p 27017:27017 mongo:7
  */
 export function getAdapterType(): AdapterType {
 	const adapterEnv = process.env["ADAPTER"]?.toLowerCase();
 	if (
 		adapterEnv === "postgres" ||
 		adapterEnv === "mysql" ||
+		adapterEnv === "mariadb" ||
 		adapterEnv === "mongodb" ||
 		adapterEnv === "json"
 	) {
 		return adapterEnv;
 	}
-	return "mongodb"; // Default
+	return "mariadb"; // Default
 }
