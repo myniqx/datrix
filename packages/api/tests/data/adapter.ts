@@ -184,5 +184,5 @@ export function getAdapterType(): AdapterType {
 	) {
 		return adapterEnv;
 	}
-	return "mariadb"; // Default
+	return "postgres"; // Default
 }
