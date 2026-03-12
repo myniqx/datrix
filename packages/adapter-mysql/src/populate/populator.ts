@@ -193,12 +193,7 @@ export class MySQLPopulator {
 			const options = _options as QueryPopulateOptions<T>;
 			if (!relationField || relationField.type !== "relation") continue;
 
-			const relation = relationField as {
-				kind: string;
-				model: string;
-				foreignKey?: string;
-				through?: string;
-			};
+			const relation = relationField
 			const targetSchema = this.schemaRegistry.get(relation.model);
 			if (!targetSchema) continue;
 
@@ -226,29 +221,22 @@ export class MySQLPopulator {
           WHERE t.\`id\` IN (?)
         `;
 
-				const batchResult = await this.fetchBatchQueryResults<T>(
+				let relatedRows = await this.fetchBatchQueryResults<T>(
 					batchQuery,
 					fkValues,
-				);
-
-				let relatedRows: Partial<T>[] = batchResult.map(
-					(r) =>
-						(typeof r.data === "string"
-							? JSON.parse(r.data)
-							: r.data) as Partial<T>,
 				);
 
 				// Recursive nested populate
 				const nestedPopulate = options?.["populate"];
 				if (nestedPopulate && relatedRows.length > 0) {
-					relatedRows = await this.populateBatchedRows<T>(
+					relatedRows = await this.populateBatchedRows(
 						relatedRows,
 						targetTable,
 						nestedPopulate,
 					);
 				}
 
-				const dataMap = new Map(relatedRows.map((r) => [r.id, r]));
+				const dataMap = new Map(relatedRows.map((r) => [r._fk, r]));
 
 				for (const row of rows) {
 					const fkValue = row[fkColumn as keyof T];
@@ -268,17 +256,10 @@ export class MySQLPopulator {
           WHERE t.${fkColumnEsc} IN (?)
         `;
 
-				const batchResult = await this.fetchBatchQueryResults<T>(
+				let relatedRows = await this.fetchBatchQueryResults<T>(
 					batchQuery,
 					parentIds,
 				);
-
-				let relatedRows: Partial<T>[] = batchResult.map((r) => ({
-					...((typeof r.data === "string"
-						? JSON.parse(r.data)
-						: r.data) as Partial<T>),
-					_fk: r._fk,
-				}));
 
 				const nestedPopulate = options?.["populate"];
 				if (nestedPopulate && relatedRows.length > 0) {
@@ -289,9 +270,7 @@ export class MySQLPopulator {
 					);
 				}
 
-				const dataMap = new Map(
-					relatedRows.map((r) => [(r as Partial<T> & { _fk: number })._fk, r]),
-				);
+				const dataMap = new Map(relatedRows.map((r) => [r._fk, r]));
 
 				for (const row of rows) {
 					row[relationName as keyof T] = (dataMap.get(row.id) ||
@@ -308,17 +287,10 @@ export class MySQLPopulator {
           WHERE t.${fkColumnEsc} IN (?)
         `;
 
-				const batchResult = await this.fetchBatchQueryResults<T>(
+				let allRelatedRows = await this.fetchBatchQueryResults<T>(
 					batchQuery,
 					parentIds,
 				);
-
-				let allRelatedRows: Partial<T>[] = batchResult.map((r) => ({
-					...((typeof r.data === "string"
-						? JSON.parse(r.data)
-						: r.data) as Partial<T>),
-					_fk: r._fk,
-				}));
 
 				const nestedPopulate = options?.["populate"];
 				if (nestedPopulate && allRelatedRows.length > 0) {
@@ -331,9 +303,8 @@ export class MySQLPopulator {
 
 				const groupMap = new Map<number, Partial<T>[]>();
 				for (const r of allRelatedRows) {
-					const fk = (r as Partial<T> & { _fk: number })._fk;
-					if (!groupMap.has(fk)) groupMap.set(fk, []);
-					groupMap.get(fk)!.push(r);
+					if (!groupMap.has(r._fk)) groupMap.set(r._fk, []);
+					groupMap.get(r._fk)!.push(r);
 				}
 
 				for (const row of rows) {
@@ -357,21 +328,14 @@ export class MySQLPopulator {
           WHERE j.${sourceFKEsc} IN (?)
         `;
 
-				const batchResult = await this.fetchBatchQueryResults<T>(
+				let allRelatedRows = await this.fetchBatchQueryResults<T>(
 					batchQuery,
 					parentIds,
 				);
 
-				let allRelatedRows: Partial<T>[] = batchResult.map((r) => ({
-					...((typeof r.data === "string"
-						? JSON.parse(r.data)
-						: r.data) as Partial<T>),
-					_fk: r._fk,
-				}));
-
 				const nestedPopulate = options?.["populate"];
 				if (nestedPopulate && allRelatedRows.length > 0) {
-					allRelatedRows = await this.populateBatchedRows<T>(
+					allRelatedRows = await this.populateBatchedRows(
 						allRelatedRows,
 						targetTable,
 						nestedPopulate,
@@ -380,9 +344,8 @@ export class MySQLPopulator {
 
 				const groupMap = new Map<number, Partial<T>[]>();
 				for (const r of allRelatedRows) {
-					const fk = (r as Partial<T> & { _fk: number })._fk;
-					if (!groupMap.has(fk)) groupMap.set(fk, []);
-					groupMap.get(fk)!.push(r);
+					if (!groupMap.has(r._fk)) groupMap.set(r._fk, []);
+					groupMap.get(r._fk)!.push(r);
 				}
 
 				for (const row of rows) {
@@ -399,10 +362,10 @@ export class MySQLPopulator {
 	 * Recursively populate nested relations on already-fetched rows
 	 */
 	private async populateBatchedRows<T extends ForjaEntry>(
-		rows: Partial<T>[],
+		rows: T[],
 		tableName: string,
 		populate: QueryPopulate<T>,
-	): Promise<Partial<T>[]> {
+	): Promise<T[]> {
 		const modelName = this.schemaRegistry.findModelByTableName(tableName);
 		if (!modelName) return rows;
 
@@ -477,7 +440,7 @@ export class MySQLPopulator {
 
 				for (const row of rows) {
 					(row as Record<string, unknown>)[relationName] =
-						dataMap.get(row.id) || null;
+						dataMap.get(row.id!) || null;
 				}
 			} else if (relation.kind === "hasMany") {
 				const fkColumn = relation.foreignKey!;
@@ -502,7 +465,7 @@ export class MySQLPopulator {
 
 				for (const row of rows) {
 					(row as Record<string, unknown>)[relationName] =
-						groupMap.get(row.id) || [];
+						groupMap.get(row.id!) || [];
 				}
 			} else if (relation.kind === "manyToMany") {
 				const junctionTable = relation.through!;
@@ -532,7 +495,7 @@ export class MySQLPopulator {
 
 				for (const row of rows) {
 					(row as Record<string, unknown>)[relationName] =
-						groupMap.get(row.id) || [];
+						groupMap.get(row.id!) || [];
 				}
 			}
 		}
@@ -710,15 +673,19 @@ export class MySQLPopulator {
 	}
 
 	/**
-	 * Execute a batched query and cast the result rows.
+	 * Execute a batched query, parse JSON data column, and return typed rows with _fk.
 	 * Error handling is delegated to MySQLClient.
 	 */
 	private async fetchBatchQueryResults<T extends ForjaEntry>(
 		sql: string,
 		params: unknown[],
-	): Promise<(T & { _fk?: unknown, data?: unknown })[]> {
+	): Promise<(T & { _fk: number })[]> {
 		const [rows] = await this.client.query(sql, [params]);
-		return rows as (T & { _fk?: unknown, data?: unknown })[];
+		const raw = rows as { _fk: number; data: string | Partial<T> }[];
+		return raw.map((r) => ({
+			...(typeof r.data === "string" ? JSON.parse(r.data) : r.data) as T,
+			_fk: r._fk,
+		}));
 	}
 
 	/**
@@ -731,19 +698,10 @@ export class MySQLPopulator {
 		ids: unknown[],
 		isMany: boolean = false,
 	): Promise<Map<number, R>> {
-		const batchRows = await this.fetchBatchQueryResults<T>(
+		let relatedRows = await this.fetchBatchQueryResults<T>(
 			batchQuery,
 			ids,
 		);
-
-		let relatedRows: Partial<T>[] = batchRows.map((r) => {
-			const parsedData = typeof r.data === "string" ? JSON.parse(r.data) : r.data;
-			// Store _fk inside the row for grouping later, or use `id` for belongsTo
-			return {
-				...(parsedData as Partial<T>),
-				_fk: r._fk ?? parsedData.id,
-			};
-		});
 
 		const nestedPopulate = opts.populate;
 		if (nestedPopulate && relatedRows.length > 0) {
@@ -754,14 +712,13 @@ export class MySQLPopulator {
 			);
 		}
 
-		const map = new Map<number, any>();
+		const map = new Map<number, R>();
 		for (const r of relatedRows) {
-			const fk = (r as Partial<T> & { _fk: number })._fk;
 			if (isMany) {
-				if (!map.has(fk)) map.set(fk, []);
-				map.get(fk)!.push(r);
+				if (!map.has(r._fk)) map.set(r._fk, [] as unknown as R);
+				(map.get(r._fk) as unknown as Partial<T>[]).push(r);
 			} else {
-				map.set(fk, r);
+				map.set(r._fk, r as unknown as R);
 			}
 		}
 

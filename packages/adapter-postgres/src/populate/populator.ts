@@ -17,10 +17,7 @@ import type { PopulateStrategy, PopulateOptionsAnalysis } from "./types";
 import { JoinBuilder } from "./join-builder";
 import { AggregationBuilder } from "./aggregation-builder";
 import { ResultProcessor } from "./result-processor";
-import {
-	throwMaxDepthExceeded,
-	throwPopulateQueryError,
-} from "forja-types/errors/adapter";
+import { throwMaxDepthExceeded } from "forja-types/errors/adapter";
 import { ForjaEntry } from "forja-types";
 import { PostgresQueryObject } from "forja-adapter-postgres/types";
 
@@ -124,31 +121,13 @@ export class PostgresPopulator {
 	private async executeJsonAggregation<T extends ForjaEntry>(
 		query: QuerySelectObject<T>,
 	): Promise<readonly T[]> {
-		// Build modified query with JOINs and aggregations
 		const modifiedQuery = this.buildJsonAggregationQuery(query);
-
-		// Execute query
 		const { sql, params } = this.translator.translate(modifiedQuery);
-		try {
-			const result = await this.client.query(sql, params as unknown[]);
-
-			// Process results (parse JSON fields)
-			const processed = this.resultProcessor.processJsonAggregation<T>(
-				result.rows as T[],
-				query.populate!,
-			);
-
-			return processed;
-		} catch (error) {
-			throwPopulateQueryError({
-				adapter: "postgres",
-				query,
-				sql,
-				cause: error instanceof Error ? error : new Error(String(error)),
-				strategy: "json-aggregation",
-				queryParams: params,
-			});
-		}
+		const result = await this.client.query(sql, params as unknown[]);
+		return this.resultProcessor.processJsonAggregation<T>(
+			result.rows as T[],
+			query.populate!,
+		);
 	}
 
 	/**
@@ -179,31 +158,13 @@ export class PostgresPopulator {
 	private async executeLateralJoins<T extends ForjaEntry>(
 		query: QuerySelectObject<T>,
 	): Promise<readonly T[]> {
-		// Build modified query with LATERAL JOINs
 		const modifiedQuery = this.buildLateralJoinsQuery(query);
-
-		// Execute query
 		const { sql, params } = this.translator.translate(modifiedQuery);
-		try {
-			const result = await this.client.query(sql, params as unknown[]);
-
-			// Process results (parse JSON fields)
-			const processed = this.resultProcessor.processJsonAggregation<T>(
-				result.rows as T[],
-				query.populate!,
-			);
-
-			return processed;
-		} catch (error) {
-			throwPopulateQueryError({
-				adapter: "postgres",
-				query,
-				sql,
-				cause: error instanceof Error ? error : new Error(String(error)),
-				strategy: "lateral-joins",
-				queryParams: params,
-			});
-		}
+		const result = await this.client.query(sql, params as unknown[]);
+		return this.resultProcessor.processJsonAggregation<T>(
+			result.rows as T[],
+			query.populate!,
+		);
 	}
 
 	/**
@@ -243,30 +204,17 @@ export class PostgresPopulator {
 		const queryWithFks: QuerySelectObject<T> =
 			fkColumnsNeeded.length > 0
 				? {
-						...query,
-						select: [
-							...(query.select as string[]),
-							...fkColumnsNeeded,
-						] as unknown as QuerySelectObject<T>["select"],
-					}
+					...query,
+					select: [
+						...(query.select as string[]),
+						...fkColumnsNeeded,
+					] as unknown as QuerySelectObject<T>["select"],
+				}
 				: query;
 
 		const { sql, params } = this.translator.translate(queryWithFks);
-
-		let rows: T[];
-		try {
-			const mainResult = await this.client.query(sql, params as unknown[]);
-			rows = mainResult.rows as T[];
-		} catch (error) {
-			throwPopulateQueryError({
-				adapter: "postgres",
-				query,
-				sql,
-				cause: error instanceof Error ? error : new Error(String(error)),
-				strategy: "batched-queries",
-				queryParams: params,
-			});
-		}
+		const mainResult = await this.client.query(sql, params);
+		const rows = mainResult.rows as T[];
 
 		if (rows.length === 0) {
 			return rows;
@@ -276,7 +224,7 @@ export class PostgresPopulator {
 
 		for (const [relationName, _options] of Object.entries(query.populate!)) {
 			const relationField = schema.fields[relationName];
-			const options = _options as QueryPopulateOptions<ForjaEntry>;
+			const options = _options as QueryPopulateOptions<T>;
 			if (!relationField || relationField.type !== "relation") continue;
 
 			const relation = relationField as {
@@ -309,23 +257,9 @@ export class PostgresPopulator {
           FROM ${this.translator.escapeIdentifier(targetTable)} t
           WHERE t."id" = ANY($1)
         `;
-				let batchResult;
-				try {
-					batchResult = await this.client.query(batchQuery, [fkValues]);
-				} catch (error) {
-					throwPopulateQueryError({
-						adapter: "postgres",
-						query,
-						sql: batchQuery,
-						cause: error instanceof Error ? error : new Error(String(error)),
-						strategy: "batched-queries",
-						queryParams: [fkValues],
-					});
-				}
+				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [fkValues]);
 
-				let relatedRows: ForjaEntry[] = batchResult.rows.map(
-					(r) => r.data as ForjaEntry,
-				);
+				let relatedRows = batchRows.map((r) => r.data);
 
 				// Recursive nested populate
 				const nestedPopulate = options?.["populate"];
@@ -337,7 +271,10 @@ export class PostgresPopulator {
 					);
 				}
 
-				const dataMap = new Map(relatedRows.map((r) => [r.id, r]));
+				const dataMap = new Map<number, T>();
+				for (const r of batchRows) {
+					dataMap.set(r._fk, r.data);
+				}
 
 				for (const row of rows) {
 					const fkValue = row[fkColumn as keyof T];
@@ -359,42 +296,24 @@ export class PostgresPopulator {
           FROM ${this.translator.escapeIdentifier(targetTable)} t
           WHERE t.${this.translator.escapeIdentifier(fkColumn)} = ANY($1)
         `;
-				let batchResult;
-				try {
-					batchResult = await this.client.query(batchQuery, [parentIds]);
-				} catch (error) {
-					throwPopulateQueryError({
-						adapter: "postgres",
-						query,
-						sql: batchQuery,
-						cause: error instanceof Error ? error : new Error(String(error)),
-						strategy: "batched-queries",
-						queryParams: [parentIds],
-					});
-				}
+				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [parentIds]);
 
-				let relatedRows: ForjaEntry[] = batchResult.rows.map((r) => ({
-					...(r.data as ForjaEntry),
-					_fk: r._fk,
-				}));
-
-				// Recursive nested populate
 				const nestedPopulate = options?.["populate"];
-				if (nestedPopulate && relatedRows.length > 0) {
-					relatedRows = await this.populateBatchedRows<T>(
-						relatedRows,
+				if (nestedPopulate && batchRows.length > 0) {
+					await this.populateBatchedRows<T>(
+						batchRows.map((r) => r.data),
 						targetTable,
 						nestedPopulate,
 					);
 				}
 
-				const dataMap = new Map(
-					relatedRows.map((r) => [(r as ForjaEntry & { _fk: number })._fk, r]),
-				);
+				const dataMap = new Map<number, T>();
+				for (const r of batchRows) {
+					dataMap.set(r._fk, r.data);
+				}
 
 				for (const row of rows) {
-					row[relationName as keyof T] = (dataMap.get(row.id) ||
-						null) as T[keyof T];
+					row[relationName as keyof T] = (dataMap.get(row.id) || null) as T[keyof T];
 				}
 			} else if (relation.kind === "hasMany") {
 				fkColumn = relation.foreignKey!;
@@ -408,45 +327,26 @@ export class PostgresPopulator {
           FROM ${this.translator.escapeIdentifier(targetTable)} t
           WHERE t."${fkColumn}" = ANY($1)
         `;
-				let batchResult;
-				try {
-					batchResult = await this.client.query(batchQuery, [parentIds]);
-				} catch (error) {
-					throwPopulateQueryError({
-						adapter: "postgres",
-						query,
-						sql: batchQuery,
-						cause: error instanceof Error ? error : new Error(String(error)),
-						strategy: "batched-queries",
-						queryParams: [parentIds],
-					});
-				}
+				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [parentIds]);
 
-				let allRelatedRows: ForjaEntry[] = batchResult.rows.map((r) => ({
-					...(r.data as ForjaEntry),
-					_fk: r._fk,
-				}));
-
-				// Recursive nested populate
 				const nestedPopulate = options?.["populate"];
-				if (nestedPopulate && allRelatedRows.length > 0) {
-					allRelatedRows = await this.populateBatchedRows(
-						allRelatedRows,
+				if (nestedPopulate && batchRows.length > 0) {
+					await this.populateBatchedRows<T>(
+						batchRows.map((r) => r.data),
 						targetTable,
-						nestedPopulate as QueryPopulate<ForjaEntry>,
+						nestedPopulate,
 					);
 				}
 
-				const groupMap = new Map<number, ForjaEntry[]>();
-				for (const r of allRelatedRows) {
-					const fk = (r as ForjaEntry & { _fk: number })._fk;
+				const groupMap = new Map<number, T[]>();
+				for (const r of batchRows) {
+					const fk = r._fk;
 					if (!groupMap.has(fk)) groupMap.set(fk, []);
-					groupMap.get(fk)!.push(r);
+					groupMap.get(fk)!.push(r.data);
 				}
 
 				for (const row of rows) {
-					row[relationName as keyof T] = (groupMap.get(row.id) ||
-						[]) as T[keyof T];
+					row[relationName as keyof T] = (groupMap.get(row.id) || []) as T[keyof T];
 				}
 			} else if (relation.kind === "manyToMany") {
 				const junctionTable = relation.through!;
@@ -465,45 +365,26 @@ export class PostgresPopulator {
             ON t."id" = j."${targetFK}"
           WHERE j."${sourceFK}" = ANY($1)
         `;
-				let batchResult;
-				try {
-					batchResult = await this.client.query(batchQuery, [parentIds]);
-				} catch (error) {
-					throwPopulateQueryError({
-						adapter: "postgres",
-						query,
-						sql: batchQuery,
-						cause: error instanceof Error ? error : new Error(String(error)),
-						strategy: "batched-queries",
-						queryParams: [parentIds],
-					});
-				}
+				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [parentIds]);
 
-				let allRelatedRows: ForjaEntry[] = batchResult.rows.map((r) => ({
-					...(r.data as ForjaEntry),
-					_fk: r._fk,
-				}));
-
-				// Recursive nested populate
 				const nestedPopulate = options?.["populate"];
-				if (nestedPopulate && allRelatedRows.length > 0) {
-					allRelatedRows = await this.populateBatchedRows(
-						allRelatedRows,
+				if (nestedPopulate && batchRows.length > 0) {
+					await this.populateBatchedRows<T>(
+						batchRows.map((r) => r.data),
 						targetTable,
-						nestedPopulate as QueryPopulate<ForjaEntry>,
+						nestedPopulate,
 					);
 				}
 
-				const groupMap = new Map<number, ForjaEntry[]>();
-				for (const r of allRelatedRows) {
-					const fk = (r as ForjaEntry & { _fk: number })._fk;
+				const groupMap = new Map<number, T[]>();
+				for (const r of batchRows) {
+					const fk = r._fk;
 					if (!groupMap.has(fk)) groupMap.set(fk, []);
-					groupMap.get(fk)!.push(r);
+					groupMap.get(fk)!.push(r.data);
 				}
 
 				for (const row of rows) {
-					row[relationName as keyof T] = (groupMap.get(row.id) ||
-						[]) as T[keyof T];
+					row[relationName as keyof T] = (groupMap.get(row.id) || []) as T[keyof T];
 				}
 			} else {
 				continue;
@@ -527,9 +408,11 @@ export class PostgresPopulator {
 		const schema = this.schemaRegistry.get(modelName);
 		if (!schema) return rows;
 
+		const parentIds = rows.map((r) => r.id);
+
 		for (const [relationName, _opts] of Object.entries(populate)) {
 			const relationField = schema.fields[relationName];
-			const opts = _opts as QueryPopulateOptions<ForjaEntry>;
+			const opts = _opts as QueryPopulateOptions<T>;
 			if (!relationField || relationField.type !== "relation") continue;
 
 			const relation = relationField as {
@@ -563,102 +446,87 @@ export class PostgresPopulator {
           FROM ${this.translator.escapeIdentifier(targetTable)} t
           WHERE t."id" = ANY($1)
         `;
-				const batchResult = await this.client.query(batchQuery, [fkValues]);
+				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [fkValues]);
 
-				let relatedRows: ForjaEntry[] = batchResult.rows.map(
-					(r) => r.data as ForjaEntry,
-				);
+				let relatedRows = batchRows.map((r) => r.data);
 
 				const nestedPopulate = opts.populate;
 				if (nestedPopulate && relatedRows.length > 0) {
-					relatedRows = await this.populateBatchedRows(
+					relatedRows = await this.populateBatchedRows<T>(
 						relatedRows,
 						targetTable,
-						nestedPopulate as QueryPopulate<ForjaEntry>,
+						nestedPopulate,
 					);
 				}
 
-				const dataMap = new Map(relatedRows.map((r) => [r.id, r]));
+				const dataMap = new Map<number, T>();
+				for (const r of batchRows) {
+					dataMap.set(r._fk, r.data);
+				}
 				for (const row of rows) {
 					const fkValue = row[fkColumn as keyof T];
-					row[relationName as keyof T] = (dataMap.get(fkValue as number) ||
-						null) as T[keyof T];
+					row[relationName as keyof T] = (dataMap.get(fkValue as number) || null) as T[keyof T];
 					delete row[fkColumn as keyof T];
 				}
 			} else if (relation.kind === "hasOne") {
 				const fkColumn = relation.foreignKey!;
-				const nestedParentIds = rows.map((r) => r.id);
+				const nestedParentIds = parentIds;
 
 				const batchQuery = `
           SELECT t.${this.translator.escapeIdentifier(fkColumn)} as _fk, ${nestedRowToJson} as data
           FROM ${this.translator.escapeIdentifier(targetTable)} t
           WHERE t.${this.translator.escapeIdentifier(fkColumn)} = ANY($1)
         `;
-				const batchResult = await this.client.query(batchQuery, [
-					nestedParentIds,
-				]);
-
-				let relatedRows: ForjaEntry[] = batchResult.rows.map((r) => ({
-					...(r.data as ForjaEntry),
-					_fk: r._fk,
-				}));
+				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [nestedParentIds]);
 
 				const nestedPopulate = opts.populate;
-				if (nestedPopulate && relatedRows.length > 0) {
-					relatedRows = await this.populateBatchedRows(
-						relatedRows,
+				if (nestedPopulate && batchRows.length > 0) {
+					await this.populateBatchedRows<T>(
+						batchRows.map((r) => r.data),
 						targetTable,
-						nestedPopulate as QueryPopulate<ForjaEntry>,
+						nestedPopulate,
 					);
 				}
 
-				const dataMap = new Map(
-					relatedRows.map((r) => [(r as ForjaEntry & { _fk: number })._fk, r]),
-				);
+				const dataMap = new Map<number, T>();
+				for (const r of batchRows) {
+					dataMap.set(r._fk, r.data);
+				}
 				for (const row of rows) {
-					row[relationName as keyof T] = (dataMap.get(row.id) ||
-						null) as T[keyof T];
+					row[relationName as keyof T] = (dataMap.get(row.id) || null) as T[keyof T];
 				}
 			} else if (relation.kind === "hasMany") {
 				const fkColumn = relation.foreignKey!;
-				const parentIds = rows.map((r) => r.id);
 
 				const batchQuery = `
           SELECT t."${fkColumn}" as _fk, ${nestedRowToJson} as data
           FROM ${this.translator.escapeIdentifier(targetTable)} t
           WHERE t."${fkColumn}" = ANY($1)
         `;
-				const batchResult = await this.client.query(batchQuery, [parentIds]);
-
-				let allRelatedRows: ForjaEntry[] = batchResult.rows.map((r) => ({
-					...(r.data as ForjaEntry),
-					_fk: r._fk,
-				}));
+				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [parentIds]);
 
 				const nestedPopulate = opts.populate;
-				if (nestedPopulate && allRelatedRows.length > 0) {
-					allRelatedRows = await this.populateBatchedRows(
-						allRelatedRows,
+				if (nestedPopulate && batchRows.length > 0) {
+					await this.populateBatchedRows<T>(
+						batchRows.map((r) => r.data),
 						targetTable,
-						nestedPopulate as QueryPopulate<ForjaEntry>,
+						nestedPopulate,
 					);
 				}
 
-				const groupMap = new Map<number, ForjaEntry[]>();
-				for (const r of allRelatedRows) {
-					const fk = (r as ForjaEntry & { _fk: number })._fk;
+				const groupMap = new Map<number, T[]>();
+				for (const r of batchRows) {
+					const fk = r._fk;
 					if (!groupMap.has(fk)) groupMap.set(fk, []);
-					groupMap.get(fk)!.push(r);
+					groupMap.get(fk)!.push(r.data);
 				}
 				for (const row of rows) {
-					row[relationName as keyof T] = (groupMap.get(row.id) ||
-						[]) as T[keyof T];
+					row[relationName as keyof T] = (groupMap.get(row.id) || []) as T[keyof T];
 				}
 			} else if (relation.kind === "manyToMany") {
 				const junctionTable = relation.through!;
 				const sourceFK = `${schema.name}Id`;
 				const targetFK = `${relation.model}Id`;
-				const parentIds = rows.map((r) => r.id);
 
 				const batchQuery = `
           SELECT j."${sourceFK}" as _fk, ${nestedRowToJson} as data
@@ -667,31 +535,25 @@ export class PostgresPopulator {
             ON t."id" = j."${targetFK}"
           WHERE j."${sourceFK}" = ANY($1)
         `;
-				const batchResult = await this.client.query(batchQuery, [parentIds]);
-
-				let allRelatedRows: ForjaEntry[] = batchResult.rows.map((r) => ({
-					...(r.data as ForjaEntry),
-					_fk: r._fk,
-				}));
+				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [parentIds]);
 
 				const nestedPopulate = opts.populate;
-				if (nestedPopulate && allRelatedRows.length > 0) {
-					allRelatedRows = await this.populateBatchedRows(
-						allRelatedRows,
+				if (nestedPopulate && batchRows.length > 0) {
+					await this.populateBatchedRows<T>(
+						batchRows.map((r) => r.data),
 						targetTable,
-						nestedPopulate as QueryPopulate<ForjaEntry>,
+						nestedPopulate,
 					);
 				}
 
-				const groupMap = new Map<number, ForjaEntry[]>();
-				for (const r of allRelatedRows) {
-					const fk = (r as ForjaEntry & { _fk: number })._fk;
+				const groupMap = new Map<number, T[]>();
+				for (const r of batchRows) {
+					const fk = r._fk;
 					if (!groupMap.has(fk)) groupMap.set(fk, []);
-					groupMap.get(fk)!.push(r);
+					groupMap.get(fk)!.push(r.data);
 				}
 				for (const row of rows) {
-					row[relationName as keyof T] = (groupMap.get(row.id) ||
-						[]) as T[keyof T];
+					row[relationName as keyof T] = (groupMap.get(row.id) || []) as T[keyof T];
 				}
 			}
 		}
@@ -856,9 +718,9 @@ export class PostgresPopulator {
 	 * Collect FK columns needed by nested populate (belongsTo/hasOne).
 	 * These must be included in the row_to_json so recursive populate can use them.
 	 */
-	private collectNestedFkColumns(
+	private collectNestedFkColumns<T extends ForjaEntry>(
 		targetModel: string,
-		opts: QueryPopulateOptions<ForjaEntry>,
+		opts: QueryPopulateOptions<T>,
 	): readonly string[] {
 		if (!opts.populate) return [];
 
@@ -882,10 +744,10 @@ export class PostgresPopulator {
 	 * Automatically injects FK columns needed by nested populate.
 	 * Returns: row_to_json((SELECT r FROM (SELECT t."id", t."name") r))
 	 */
-	private buildSelectiveRowToJson(
+	private buildSelectiveRowToJson<T extends ForjaEntry>(
 		select: readonly string[],
 		targetModel?: string,
-		opts?: QueryPopulateOptions<ForjaEntry>,
+		opts?: QueryPopulateOptions<T>,
 	): string {
 		const allFields = [...select];
 
@@ -926,5 +788,17 @@ export class PostgresPopulator {
 		}
 
 		return paths.join(", ");
+	}
+
+	/**
+	 * Execute a batched SQL query and cast the result rows.
+	 * Error handling is delegated to PgClient (already wraps errors in ForjaAdapterError).
+	 */
+	private async fetchBatchQueryResults<T extends ForjaEntry>(
+		sql: string,
+		params: unknown[],
+	): Promise<(T & { _fk: number; data: T })[]> {
+		const result = await this.client.query(sql, params);
+		return result.rows as (T & { _fk: number; data: T })[];
 	}
 }

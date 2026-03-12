@@ -784,25 +784,17 @@ export class PostgresQueryTranslator implements QueryTranslator {
 
 		for (const [key, value] of Object.entries(where)) {
 			// Handle logical operators
-			if (key === "$and") {
-				const andConditions = (value as readonly WhereClause<T>[])
-					.map(
-						(condition) =>
-							`(${this.translateWhereConditions(condition, depth + 1, tableName, tableAlias, joins, currentSchema)})`,
-					)
-					.join(" AND ");
-				conditions.push(`(${andConditions})`);
-				continue;
-			}
-
-			if (key === "$or") {
-				const orConditions = (value as readonly WhereClause<T>[])
-					.map(
-						(condition) =>
-							`(${this.translateWhereConditions(condition, depth + 1, tableName, tableAlias, joins, currentSchema)})`,
-					)
-					.join(" OR ");
-				conditions.push(`(${orConditions})`);
+			if (key === "$and" || key === "$or") {
+				const joined = this.resolveLogicalOperator(
+					key,
+					value as readonly WhereClause<T>[],
+					depth,
+					tableName,
+					tableAlias,
+					joins,
+					currentSchema,
+				);
+				conditions.push(joined);
 				continue;
 			}
 
@@ -825,10 +817,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
 
 				if (field && field.type === "relation") {
 					// Relation field with nested conditions
-					const relationField = field as {
-						foreignKey?: string;
-						model?: string;
-					};
+					const relationField = field
 
 					// Case 1: Simple value (number/string) → foreign key equality
 					// { category: 1 } → categoryId = 1
@@ -1041,6 +1030,26 @@ export class PostgresQueryTranslator implements QueryTranslator {
 	}
 
 	/**
+	 * Resolve $and / $or logical operators into a joined SQL condition group.
+	 */
+	private resolveLogicalOperator<T extends ForjaEntry>(
+		operator: "$and" | "$or",
+		conditions: readonly WhereClause<T>[],
+		depth: number,
+		tableName?: string,
+		tableAlias?: string,
+		joins?: string[],
+		currentSchema?: SchemaDefinition,
+	): string {
+		const separator = operator === "$and" ? " AND " : " OR ";
+		const parts = conditions.map(
+			(condition) =>
+				`(${this.translateWhereConditions(condition, depth + 1, tableName, tableAlias, joins, currentSchema)})`,
+		);
+		return `(${parts.join(separator)})`;
+	}
+
+	/**
 	 * Translate comparison operator
 	 */
 	private translateComparisonOperator(
@@ -1137,13 +1146,4 @@ export class PostgresQueryTranslator implements QueryTranslator {
 				});
 		}
 	}
-}
-
-/**
- * Create a new PostgreSQL query translator
- */
-export function createPostgresTranslator(
-	schemaRegistry: SchemaRegistry,
-): PostgresQueryTranslator {
-	return new PostgresQueryTranslator(schemaRegistry);
 }
