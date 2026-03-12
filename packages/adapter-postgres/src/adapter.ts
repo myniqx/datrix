@@ -28,11 +28,12 @@ import {
 	throwIntrospectionError,
 	throwTransactionError,
 	throwQueryError,
+	throwMetaFieldAlreadyExists,
+	throwMetaFieldNotFound,
 } from "forja-types/errors/adapter";
 import { validateQueryObject } from "forja-types/utils/query";
 import {
 	FieldDefinition,
-	FieldType,
 	ForjaEntry,
 	IndexDefinition,
 	SchemaDefinition,
@@ -692,83 +693,6 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	}
 
 	/**
-	 * Map Postgres data type to Forja FieldType
-	 */
-	private mapPostgresTypeToFieldType(
-		_dataType: string,
-		udtName: string,
-	): FieldType {
-		const type = udtName.toLowerCase();
-
-		if (
-			type.includes("int") ||
-			type.includes("float") ||
-			type.includes("double") ||
-			type.includes("numeric") ||
-			type.includes("decimal") ||
-			type.includes("real")
-		) {
-			return "number";
-		}
-		if (type.includes("bool")) {
-			return "boolean";
-		}
-		if (
-			type.includes("timestamp") ||
-			type.includes("date") ||
-			type.includes("time")
-		) {
-			return "date";
-		}
-		if (type.includes("json")) {
-			return "json";
-		}
-		if (type.startsWith("_")) {
-			return "array";
-		}
-		if (
-			type === "uuid" ||
-			type === "text" ||
-			type === "varchar" ||
-			type === "char" ||
-			type === "bpchar"
-		) {
-			return "string";
-		}
-
-		return "string";
-	}
-
-	/**
-	 * Parse Postgres default value string
-	 */
-	private parsePostgresDefault(defaultValue: string): unknown {
-		if (defaultValue === null) return undefined;
-
-		let cleaned = defaultValue.split("::")[0];
-
-		if (cleaned && cleaned.startsWith("'") && cleaned.endsWith("'")) {
-			cleaned = cleaned.substring(1, cleaned.length - 1);
-		}
-
-		if (
-			cleaned &&
-			(cleaned.toUpperCase().includes("NOW()") ||
-				cleaned.toUpperCase().includes("CURRENT_TIMESTAMP"))
-		) {
-			return "NOW()";
-		}
-
-		if (cleaned === "true") return true;
-		if (cleaned === "false") return false;
-
-		const num = Number(cleaned);
-		if (!isNaN(num) && cleaned !== "") return num;
-
-		return cleaned;
-	}
-
-	/**
 	 * Check if table exists
 	 */
 	async tableExists(tableName: string): Promise<boolean> {
@@ -855,8 +779,35 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 						fields[op.to] = fieldDef;
 						delete fields[op.from];
 					}
+					// Update relation fields that reference the renamed column
+					for (const [key, def] of Object.entries(fields)) {
+						if (
+							def.type === "relation" &&
+							def.foreignKey === op.from
+						) {
+							fields[key] = { ...def, foreignKey: op.to };
+						}
+					}
 					break;
 				}
+				case "addMetaField":
+					if (fields[op.field] !== undefined) {
+						throwMetaFieldAlreadyExists({ adapter: "postgres", field: op.field, table: tableName });
+					}
+					fields[op.field] = op.definition;
+					break;
+				case "dropMetaField":
+					if (fields[op.field] === undefined) {
+						throwMetaFieldNotFound({ adapter: "postgres", field: op.field, table: tableName });
+					}
+					delete fields[op.field];
+					break;
+				case "modifyMetaField":
+					if (fields[op.field] === undefined) {
+						throwMetaFieldNotFound({ adapter: "postgres", field: op.field, table: tableName });
+					}
+					fields[op.field] = op.newDefinition;
+					break;
 			}
 		}
 

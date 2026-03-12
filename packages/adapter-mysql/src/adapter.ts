@@ -36,6 +36,8 @@ import {
 	throwIntrospectionError,
 	throwTransactionError,
 	throwQueryError,
+	throwMetaFieldAlreadyExists,
+	throwMetaFieldNotFound,
 	AdapterErrorCode,
 } from "forja-types/errors/adapter";
 import { validateQueryObject } from "forja-types/utils/query";
@@ -921,8 +923,35 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 						fields[op.to] = fieldDef;
 						delete fields[op.from];
 					}
+					// Update relation fields that reference the renamed column
+					for (const [key, def] of Object.entries(fields)) {
+						if (
+							def.type === "relation" &&
+							def.foreignKey === op.from
+						) {
+							fields[key] = { ...def, foreignKey: op.to };
+						}
+					}
 					break;
 				}
+				case "addMetaField":
+					if (fields[op.field] !== undefined) {
+						throwMetaFieldAlreadyExists({ adapter: "mysql", field: op.field, table: tableName });
+					}
+					fields[op.field] = op.definition;
+					break;
+				case "dropMetaField":
+					if (fields[op.field] === undefined) {
+						throwMetaFieldNotFound({ adapter: "mysql", field: op.field, table: tableName });
+					}
+					delete fields[op.field];
+					break;
+				case "modifyMetaField":
+					if (fields[op.field] === undefined) {
+						throwMetaFieldNotFound({ adapter: "mysql", field: op.field, table: tableName });
+					}
+					fields[op.field] = op.newDefinition;
+					break;
 			}
 		}
 

@@ -113,11 +113,18 @@ export class ForgeMigrationGenerator implements MigrationGenerator {
 			case "fieldAdded": {
 				// Relation fields have no direct DB column — differ produces
 				// separate diffs for the actual FK column (e.g. tagId).
+				// But we still need to update _forja meta schema.
 				if (diff.definition.type === "relation") {
 					return {
 						type: "alterTable",
 						tableName: diff.tableName,
-						operations: [],
+						operations: [
+							{
+								type: "addMetaField",
+								field: diff.fieldName,
+								definition: diff.definition,
+							},
+						],
 					};
 				}
 
@@ -136,11 +143,17 @@ export class ForgeMigrationGenerator implements MigrationGenerator {
 
 			case "fieldRemoved": {
 				// Relation fields have no direct DB column
+				// But we still need to update _forja meta schema.
 				if (diff.definition.type === "relation") {
 					return {
 						type: "alterTable",
 						tableName: diff.tableName,
-						operations: [],
+						operations: [
+							{
+								type: "dropMetaField",
+								field: diff.fieldName,
+							},
+						],
 					};
 				}
 
@@ -176,6 +189,18 @@ export class ForgeMigrationGenerator implements MigrationGenerator {
 							to: newFK,
 						});
 					}
+				}
+
+				// Relation field modified — update _forja meta schema
+				if (
+					diff.oldDefinition.type === "relation" ||
+					diff.newDefinition.type === "relation"
+				) {
+					operations.push({
+						type: "modifyMetaField" as const,
+						field: diff.fieldName,
+						newDefinition: diff.newDefinition,
+					});
 				}
 
 				// If no special operation was generated, fall back to modifyColumn

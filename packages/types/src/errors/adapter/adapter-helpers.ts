@@ -497,6 +497,44 @@ export function throwResultProcessingError(params: {
 }
 
 // ============================================================================
+// Meta Field Errors (used by applyOperationsToMetaSchema in all adapters)
+// ============================================================================
+
+export function throwMetaFieldAlreadyExists(params: {
+	adapter: AdapterName;
+	field: string;
+	table: string;
+}): never {
+	throw new ForjaAdapterError(
+		`Meta field '${params.field}' already exists in schema for table '${params.table}'`,
+		{
+			adapter: params.adapter,
+			code: "ADAPTER_META_FIELD_EXISTS",
+			operation: "migration",
+			context: { field: params.field, table: params.table },
+			suggestion: `Use 'modifyMetaField' to update existing field '${params.field}'`,
+		},
+	);
+}
+
+export function throwMetaFieldNotFound(params: {
+	adapter: AdapterName;
+	field: string;
+	table: string;
+}): never {
+	throw new ForjaAdapterError(
+		`Meta field '${params.field}' not found in schema for table '${params.table}'`,
+		{
+			adapter: params.adapter,
+			code: "ADAPTER_META_FIELD_NOT_FOUND",
+			operation: "migration",
+			context: { field: params.field, table: params.table },
+			suggestion: `Use 'addMetaField' to add field '${params.field}' first`,
+		},
+	);
+}
+
+// ============================================================================
 // JSON Adapter — Lock Errors
 // ============================================================================
 

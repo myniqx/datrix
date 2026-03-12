@@ -70,7 +70,10 @@ export type AdapterErrorCode =
 	| "ADAPTER_INVALID_WHERE_FIELD"
 	| "ADAPTER_INVALID_RELATION_WHERE"
 	| "ADAPTER_UNIQUE_CONSTRAINT"
-	| "ADAPTER_FOREIGN_KEY_CONSTRAINT";
+	| "ADAPTER_FOREIGN_KEY_CONSTRAINT"
+	// --- Meta field operations ---
+	| "ADAPTER_META_FIELD_EXISTS"
+	| "ADAPTER_META_FIELD_NOT_FOUND";
 
 // ============================================================================
 // Error Context

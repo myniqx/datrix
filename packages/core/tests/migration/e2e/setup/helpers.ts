@@ -514,6 +514,89 @@ export function assertColumnInAdd(
 /**
  * Assert specific column is being dropped from a table
  */
+/**
+ * Assert that adapter's _forja schema is in sync with core registry schema.
+ * Compares field names and relation field definitions between the two sources.
+ *
+ * @param forja - Forja instance (has registry)
+ * @param modelName - Model name to check
+ */
+export async function assertSchemaSync(
+	forja: Forja,
+	modelName: string,
+): Promise<void> {
+	const registrySchema = forja.getSchemas().get(modelName);
+	expect(
+		registrySchema,
+		`Schema '${modelName}' not found in registry`,
+	).toBeDefined();
+
+	const tableName = registrySchema!.tableName ?? registrySchema!.name;
+	const adapter = forja.getAdapter();
+	const adapterSchema = await adapter.getTableSchema(tableName);
+	expect(
+		adapterSchema,
+		`Schema for table '${tableName}' not found in adapter (_forja)`,
+	).toBeDefined();
+
+	const registryFields = registrySchema!.fields;
+	const adapterFields = adapterSchema!.fields;
+
+	// Compare relation fields specifically
+	const registryRelations = Object.entries(registryFields)
+		.filter(([, def]) => def.type === "relation")
+		.sort(([a], [b]) => a.localeCompare(b));
+	const adapterRelations = Object.entries(adapterFields)
+		.filter(([, def]) => def.type === "relation")
+		.sort(([a], [b]) => a.localeCompare(b));
+
+	// Relation field names must match
+	const registryRelationNames = registryRelations.map(([name]) => name);
+	const adapterRelationNames = adapterRelations.map(([name]) => name);
+	expect(
+		adapterRelationNames,
+		`Relation field names out of sync for '${modelName}'. Registry: [${registryRelationNames}], Adapter: [${adapterRelationNames}]`,
+	).toEqual(registryRelationNames);
+
+	// Relation field definitions must match (kind, model, foreignKey)
+	for (const [name, regDef] of registryRelations) {
+		const adapterDef = adapterFields[name];
+		expect(
+			adapterDef,
+			`Relation '${name}' missing in adapter schema for '${modelName}'`,
+		).toBeDefined();
+
+		if (regDef.type === "relation" && adapterDef?.type === "relation") {
+			expect(
+				adapterDef.kind,
+				`Relation '${name}' kind mismatch in '${modelName}'`,
+			).toBe(regDef.kind);
+			expect(
+				adapterDef.model,
+				`Relation '${name}' model mismatch in '${modelName}'`,
+			).toBe(regDef.model);
+			if (regDef.foreignKey) {
+				expect(
+					adapterDef.foreignKey,
+					`Relation '${name}' foreignKey mismatch in '${modelName}'`,
+				).toBe(regDef.foreignKey);
+			}
+		}
+	}
+
+	// Non-relation field names must also match
+	const registryNonRelFields = Object.keys(registryFields)
+		.filter((k) => registryFields[k]!.type !== "relation")
+		.sort();
+	const adapterNonRelFields = Object.keys(adapterFields)
+		.filter((k) => adapterFields[k]!.type !== "relation")
+		.sort();
+	expect(
+		adapterNonRelFields,
+		`Non-relation field names out of sync for '${modelName}'`,
+	).toEqual(registryNonRelFields);
+}
+
 export function assertColumnInDrop(
 	session: MigrationSession,
 	tableName: string,

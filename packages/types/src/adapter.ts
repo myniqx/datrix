@@ -104,6 +104,17 @@ export type AlterOperation =
 			readonly type: "renameColumn";
 			readonly from: string;
 			readonly to: string;
+	  }
+	| {
+			readonly type: "addMetaField";
+			readonly field: string;
+			readonly definition: FieldDefinition;
+	  }
+	| { readonly type: "dropMetaField"; readonly field: string }
+	| {
+			readonly type: "modifyMetaField";
+			readonly field: string;
+			readonly newDefinition: FieldDefinition;
 	  };
 
 /**
