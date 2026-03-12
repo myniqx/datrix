@@ -292,9 +292,12 @@ export type OrderByClause<T extends ForjaEntry = ForjaRecord> =
 
 /**
  * QuerySelect - Normalized form of SelectClause (always array, never '*')
+ *
+ * - Default (ForjaRecord): readonly string[] — flexible, accepts any field name
+ * - Specific type:          readonly (keyof T)[] — type-safe, only valid fields
  */
 export type QuerySelect<T extends ForjaEntry = ForjaRecord> =
-	readonly (keyof T)[];
+	ForjaRecord extends T ? readonly string[] : readonly (keyof T)[];
 
 /**
  * QueryPopulateOptions - Normalized options for a single relation
