@@ -226,40 +226,23 @@ populate: {
 
 ## Error Handling
 
-All operations return `Result<T, E>` type:
+Operations throw `ForjaAdapterError` on failure:
 
 ```typescript
-const result = await adapter.executeQuery({
-	type: "select",
-	table: "users",
-});
+import { ForjaAdapterError } from "forja-types/errors/adapter";
 
-if (result.success) {
-	console.log(result.data.rows);
-} else {
-	console.error(result.error.code); // "QUERY_ERROR"
-	console.error(result.error.message); // Detailed message
+try {
+	const result = await adapter.executeQuery({
+		type: "select",
+		table: "users",
+	});
+	console.log(result.rows);
+} catch (error) {
+	if (error instanceof ForjaAdapterError) {
+		console.error(error.code); // "ADAPTER_QUERY_ERROR"
+		console.error(error.message); // Detailed message
+	}
 }
-```
-
-## TypeScript Support
-
-Full TypeScript support with type inference:
-
-```typescript
-import type { JsonAdapterConfig } from "forja-adapter-json";
-import type { QueryObject } from "forja-types/core/query-builder";
-
-const config: JsonAdapterConfig = {
-	root: "./data",
-	cacheMaxAge: 5000,
-};
-
-const query: QueryObject = {
-	type: "select",
-	table: "users",
-	where: { age: { $gt: 18 } },
-};
 ```
 
 ## License

@@ -452,7 +452,7 @@ async function processRelation<T extends ForjaEntry>({
 				},
 			});
 			const existingIds = new Set(
-				existing.rows.map((r) => r[targetFK as keyof T] as number),
+				existing.rows.map((r) => r[targetFK as keyof ForjaEntry] as number),
 			);
 			const newIds = ops.connect.filter((id) => !existingIds.has(id));
 

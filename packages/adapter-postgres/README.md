@@ -85,9 +85,9 @@ Docker setup for test database:
 
 ```bash
 docker run -d --name postgres-test \
-  -e POSTGRES_USER=forja \
-  -e POSTGRES_PASSWORD=forja \
-  -e POSTGRES_DB=forja \
+  -e POSTGRES_USER=forja_test \
+  -e POSTGRES_PASSWORD=forja_test \
+  -e POSTGRES_DB=forja_test \
   -p 5432:5432 \
   postgres:16
 ```

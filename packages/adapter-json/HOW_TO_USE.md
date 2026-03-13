@@ -7,8 +7,10 @@ This guide covers using JsonAdapter **without** Forja framework. For Forja integ
 1. [Setup & Basic Operations](#1-setup--basic-operations)
 2. [Relations & Populate](#2-relations--populate)
 3. [Query Operations](#3-query-operations)
-4. [Schema Management](#4-schema-management)
-5. [Best Practices](#5-best-practices)
+4. [Foreign Key Constraints & onDelete](#4-foreign-key-constraints--ondelete)
+5. [Transactions](#5-transactions)
+6. [Schema Management](#6-schema-management)
+7. [Best Practices](#7-best-practices)
 
 ---
 
@@ -21,7 +23,11 @@ import { JsonAdapter } from "forja-adapter-json";
 
 const adapter = new JsonAdapter({
   root: "./data",
-  cacheMaxAge: 5000 // optional, default: 5000ms
+  standalone: true, // auto-creates _forja metadata table
+  cache: true,      // enable mtime-based caching (default: true)
+  readLock: false,   // lock on reads too (default: false)
+  lockTimeout: 5000, // ms to wait for lock (default: 5000)
+  staleTimeout: 30000, // ms before lock is considered stale (default: 30000)
 });
 
 // Connect (creates root directory if needed)
@@ -34,62 +40,76 @@ await adapter.disconnect();
 ### CRUD Operations
 
 ```typescript
-// Create table first (standalone requires manual tableName)
+// Create table first
 await adapter.createTable({
-  name: "User",
+  name: "user",
   tableName: "users",
   fields: {
     name: { type: "string", required: true },
-    email: { type: "string", required: true },
-    age: { type: "number", required: false }
-  }
+    email: { type: "string", required: true, unique: true },
+    age: { type: "number" },
+  },
 });
 
 // INSERT
 const insertResult = await adapter.executeQuery({
   type: "insert",
   table: "users",
-  data: { name: "Alice", email: "alice@example.com", age: 30 }
+  data: [{ name: "Alice", email: "alice@example.com", age: 30 }],
 });
-
-if (insertResult.success) {
-  console.log("Inserted ID:", insertResult.data.rows[0].id);
-}
+console.log("Inserted ID:", insertResult.rows[0].id);
 
 // SELECT
 const selectResult = await adapter.executeQuery({
   type: "select",
   table: "users",
-  where: { age: { $gte: 18 } }
+  where: { age: { $gte: 18 } },
 });
-
-if (selectResult.success) {
-  console.log("Users:", selectResult.data.rows);
-}
+console.log("Users:", selectResult.rows);
 
 // UPDATE
 await adapter.executeQuery({
   type: "update",
   table: "users",
-  where: { id: 1 },
-  data: { age: 31 }
+  where: { id: { $eq: 1 } },
+  data: { age: 31 },
 });
 
 // DELETE
 await adapter.executeQuery({
   type: "delete",
   table: "users",
-  where: { id: 1 }
+  where: { id: { $eq: 1 } },
 });
 
 // COUNT
 const countResult = await adapter.executeQuery({
   type: "count",
   table: "users",
-  where: { age: { $gte: 18 } }
+  where: { age: { $gte: 18 } },
 });
+console.log("Count:", countResult.metadata.count);
+```
 
-console.log("Count:", countResult.data.count);
+### Error Handling
+
+All operations throw `ForjaAdapterError` on failure:
+
+```typescript
+import { ForjaAdapterError } from "forja-types/errors/adapter";
+
+try {
+  const result = await adapter.executeQuery({
+    type: "select",
+    table: "users",
+  });
+  console.log(result.rows);
+} catch (error) {
+  if (error instanceof ForjaAdapterError) {
+    console.error("Code:", error.code);
+    console.error("Message:", error.message);
+  }
+}
 ```
 
 ---
@@ -98,12 +118,12 @@ console.log("Count:", countResult.data.count);
 
 ### Relation Types Overview
 
-| Type | Example | FK Location | Populate Result | Use Case |
-|------|---------|-------------|-----------------|----------|
-| **belongsTo** | Post → User | `Post.authorId` | Single object or null | Many posts belong to one user |
-| **hasMany** | User → Posts | `Post.authorId` | Array (can be empty) | One user has many posts |
-| **hasOne** | User → Profile | `Profile.userId` | Single object or null | One user has one profile |
-| **manyToMany** | Post ↔ Category | Junction table | Array (can be empty) | Many posts, many categories |
+| Type           | Example          | FK Location    | Populate Result       | Use Case                       |
+| -------------- | ---------------- | -------------- | --------------------- | ------------------------------ |
+| **belongsTo**  | Post → User      | `Post.authorId`| Single object or null | Many posts belong to one user  |
+| **hasMany**    | User → Posts     | `Post.authorId`| Array (can be empty)  | One user has many posts        |
+| **hasOne**     | User → Profile   | `Profile.userId`| Single object or null | One user has one profile      |
+| **manyToMany** | Post ↔ Category  | Junction table | Array (can be empty)  | Many posts, many categories    |
 
 ### Populate Syntax
 
@@ -114,8 +134,8 @@ populate: { author: "*" }
 // With field selection
 populate: {
   author: {
-    select: ["name", "email"]
-  }
+    select: ["name", "email"],
+  },
 }
 
 // Nested populate (multi-level)
@@ -123,36 +143,66 @@ populate: {
   author: {
     select: ["name"],
     populate: {
-      profile: "*"
-    }
-  }
+      profile: "*",
+    },
+  },
 }
 
 // Multiple relations
 populate: {
   author: "*",
-  comments: "*",
-  tags: { select: ["name"] }
+  comments: { select: ["text"] },
+  tags: "*",
 }
 ```
 
 ### belongsTo Example
 
 ```typescript
-// Schema definition
+// Schema definitions
 await adapter.createTable({
-  name: "Post",
+  name: "user",
+  tableName: "users",
+  fields: {
+    name: { type: "string", required: true },
+    email: { type: "string", required: true },
+  },
+});
+
+await adapter.createTable({
+  name: "post",
   tableName: "posts",
   fields: {
     title: { type: "string", required: true },
-    authorId: { type: "number", required: true },
     author: {
       type: "relation",
       kind: "belongsTo",
-      model: "User",
-      foreignKey: "authorId"
-    }
-  }
+      model: "user",
+      foreignKey: "authorId",
+    },
+    authorId: {
+      type: "number",
+      hidden: true,
+      references: {
+        table: "users",
+        column: "id",
+        onDelete: "setNull",
+      },
+    },
+  },
+});
+
+// Insert data
+await adapter.executeQuery({
+  type: "insert",
+  table: "users",
+  data: [{ name: "Alice", email: "alice@example.com" }],
+});
+
+await adapter.executeQuery({
+  type: "insert",
+  table: "posts",
+  data: [{ title: "Hello World", authorId: 1 }],
 });
 
 // Query with populate
@@ -160,40 +210,33 @@ const result = await adapter.executeQuery({
   type: "select",
   table: "posts",
   populate: {
-    author: {
-      select: ["name", "email"]
-    }
-  }
+    author: { select: ["name", "email"] },
+  },
 });
 
-// Result structure
-{
-  id: 1,
-  title: "Hello World",
-  authorId: 1,
-  author: {
-    name: "Alice",
-    email: "alice@example.com"
-  }
-}
+// Result:
+// {
+//   id: 1,
+//   title: "Hello World",
+//   author: { name: "Alice", email: "alice@example.com" }
+// }
 ```
 
 ### hasMany Example
 
 ```typescript
-// Schema definition
 await adapter.createTable({
-  name: "User",
+  name: "user",
   tableName: "users",
   fields: {
     name: { type: "string", required: true },
     posts: {
       type: "relation",
       kind: "hasMany",
-      model: "Post",
-      foreignKey: "authorId"
-    }
-  }
+      model: "post",
+      foreignKey: "authorId",
+    },
+  },
 });
 
 // Query with populate
@@ -201,121 +244,109 @@ const result = await adapter.executeQuery({
   type: "select",
   table: "users",
   populate: {
-    posts: {
-      select: ["title"],
-      orderBy: [{ field: "createdAt", direction: "desc" }]
-    }
-  }
+    posts: { select: ["title"] },
+  },
 });
 
-// Result structure
-{
-  id: 1,
-  name: "Alice",
-  posts: [
-    { title: "Post 1" },
-    { title: "Post 2" }
-  ]
-}
+// Result:
+// {
+//   id: 1,
+//   name: "Alice",
+//   posts: [
+//     { title: "Post 1" },
+//     { title: "Post 2" }
+//   ]
+// }
 ```
 
 ### hasOne Example
 
 ```typescript
-// Schema definition
 await adapter.createTable({
-  name: "User",
-  tableName: "users",
-  fields: {
-    name: { type: "string", required: true },
-    profile: {
-      type: "relation",
-      kind: "hasOne",
-      model: "Profile",
-      foreignKey: "userId"
-    }
-  }
-});
-
-await adapter.createTable({
-  name: "Profile",
+  name: "profile",
   tableName: "profiles",
   fields: {
-    bio: { type: "string", required: true },
-    userId: { type: "number", required: true }
-  }
+    bio: { type: "string" },
+    userId: {
+      type: "number",
+      required: true,
+      references: { table: "users", column: "id", onDelete: "cascade" },
+    },
+  },
 });
 
-// Query with populate
+// Add relation to user schema
+// user.fields.profile = {
+//   type: "relation", kind: "hasOne", model: "profile", foreignKey: "userId"
+// }
+
 const result = await adapter.executeQuery({
   type: "select",
   table: "users",
-  where: { id: 1 },
-  populate: { profile: "*" }
+  where: { id: { $eq: 1 } },
+  populate: { profile: "*" },
 });
 
-// Result structure
-{
-  id: 1,
-  name: "Alice",
-  profile: {
-    id: 1,
-    bio: "Developer",
-    userId: 1
-  }
-}
+// Result:
+// {
+//   id: 1,
+//   name: "Alice",
+//   profile: { id: 1, bio: "Developer", userId: 1 }
+// }
 ```
 
 ### manyToMany Example
 
-**Important:** Foreign keys in junction table must follow `${schemaName}Id` format, where `schemaName` is the exact `name` field from the related schema definition.
+Junction table FK naming follows `{modelName}Id` (camelCase) convention.
 
 ```typescript
-// Schema definitions
 await adapter.createTable({
-  name: "Post",
+  name: "post",
   tableName: "posts",
   fields: {
     title: { type: "string", required: true },
     categories: {
       type: "relation",
       kind: "manyToMany",
-      model: "Category",
-      through: "post_categories" // Junction table name
-    }
-  }
+      model: "category",
+    },
+  },
 });
 
 await adapter.createTable({
-  name: "Category",
+  name: "category",
   tableName: "categories",
   fields: {
     name: { type: "string", required: true },
-    posts: {
-      type: "relation",
-      kind: "manyToMany",
-      model: "Post",
-      through: "post_categories"
-    }
-  }
+  },
 });
 
-// Junction table
-// Foreign key format: {schema.name}Id (exact match with schema name)
+// Junction table — FK names: {modelName}Id
 await adapter.createTable({
-  name: "PostCategory",
-  tableName: "post_categories",
+  name: "category_post",
+  tableName: "category_post",
   fields: {
-    PostId: { type: "number", required: true },      // matches name: "Post"
-    CategoryId: { type: "number", required: true }   // matches name: "Category"
-  }
+    postId: {
+      type: "number",
+      required: true,
+      references: { table: "posts", column: "id", onDelete: "cascade" },
+    },
+    categoryId: {
+      type: "number",
+      required: true,
+      references: { table: "categories", column: "id", onDelete: "cascade" },
+    },
+  },
 });
 
 // Insert junction records
 await adapter.executeQuery({
   type: "insert",
-  table: "post_categories",
-  data: { PostId: 1, CategoryId: 1 }
+  table: "category_post",
+  data: [
+    { postId: 1, categoryId: 1 },
+    { postId: 1, categoryId: 2 },
+  ],
 });
 
 // Query with populate
@@ -323,59 +354,19 @@ const result = await adapter.executeQuery({
   type: "select",
   table: "posts",
   populate: {
-    categories: {
-      select: ["name"]
-    }
-  }
+    categories: { select: ["name"] },
+  },
 });
 
-// Result structure
-{
-  id: 1,
-  title: "Hello World",
-  categories: [
-    { name: "Technology" },
-    { name: "Programming" }
-  ]
-}
-```
-
-### Nested Populate (3+ Levels)
-
-```typescript
-const result = await adapter.executeQuery({
-  type: "select",
-  table: "comments",
-  populate: {
-    post: {
-      populate: {
-        author: {
-          populate: {
-            profile: "*"
-          }
-        }
-      }
-    }
-  }
-});
-
-// Result structure (4 levels deep)
-{
-  id: 1,
-  text: "Great post!",
-  post: {
-    id: 1,
-    title: "Hello World",
-    author: {
-      id: 1,
-      name: "Alice",
-      profile: {
-        id: 1,
-        bio: "Developer"
-      }
-    }
-  }
-}
+// Result:
+// {
+//   id: 1,
+//   title: "Hello World",
+//   categories: [
+//     { name: "Technology" },
+//     { name: "Programming" }
+//   ]
+// }
 ```
 
 ---
@@ -386,32 +377,32 @@ const result = await adapter.executeQuery({
 
 ```typescript
 // Simple equality
-where: { name: "Alice" }
+where: { name: { $eq: "Alice" } }
 
-// Operators
+// Multiple operators
 where: {
   age: { $gte: 18, $lt: 65 },
   name: { $like: "Ali%" },
-  status: { $in: ["active", "pending"] }
+  status: { $in: ["active", "pending"] },
 }
 
 // Logical operators
 where: {
   $and: [
     { age: { $gte: 18 } },
-    { status: "active" }
-  ]
+    { status: { $eq: "active" } },
+  ],
 }
 
 where: {
   $or: [
-    { role: "admin" },
-    { role: "moderator" }
-  ]
+    { role: { $eq: "admin" } },
+    { role: { $eq: "moderator" } },
+  ],
 }
 
 where: {
-  $not: { status: "deleted" }
+  $not: { status: { $eq: "deleted" } },
 }
 
 // Nested logical operators
@@ -420,39 +411,40 @@ where: {
     { age: { $gte: 18 } },
     {
       $or: [
-        { role: "admin" },
-        { verified: true }
-      ]
-    }
-  ]
-}
-
-// Relation WHERE (filter by related data)
-where: {
-  author: {
-    name: "Alice"
-  }
+        { role: { $eq: "admin" } },
+        { verified: { $eq: true } },
+      ],
+    },
+  ],
 }
 ```
 
 ### Operators Reference
 
-| Operator | Description | Example |
-|----------|-------------|---------|
-| `$eq` | Equal (default) | `{ age: { $eq: 30 } }` |
-| `$ne` | Not equal | `{ status: { $ne: "deleted" } }` |
-| `$gt` | Greater than | `{ age: { $gt: 18 } }` |
-| `$gte` | Greater than or equal | `{ age: { $gte: 18 } }` |
-| `$lt` | Less than | `{ age: { $lt: 65 } }` |
-| `$lte` | Less than or equal | `{ age: { $lte: 65 } }` |
-| `$in` | In array | `{ role: { $in: ["admin", "mod"] } }` |
-| `$nin` | Not in array | `{ status: { $nin: ["banned"] } }` |
-| `$like` | SQL LIKE pattern | `{ name: { $like: "Ali%" } }` |
-| `$ilike` | Case-insensitive LIKE | `{ email: { $ilike: "%@gmail.com" } }` |
-| `$regex` | Regular expression | `{ name: { $regex: "^[A-Z]" } }` |
-| `$and` | Logical AND | `{ $and: [{ ... }, { ... }] }` |
-| `$or` | Logical OR | `{ $or: [{ ... }, { ... }] }` |
-| `$not` | Logical NOT | `{ $not: { status: "deleted" } }` |
+| Operator       | Description              | Example                                |
+| -------------- | ------------------------ | -------------------------------------- |
+| `$eq`          | Equal                    | `{ age: { $eq: 30 } }`                |
+| `$ne`          | Not equal                | `{ status: { $ne: "deleted" } }`      |
+| `$gt`          | Greater than             | `{ age: { $gt: 18 } }`                |
+| `$gte`         | Greater than or equal    | `{ age: { $gte: 18 } }`               |
+| `$lt`          | Less than                | `{ age: { $lt: 65 } }`                |
+| `$lte`         | Less than or equal       | `{ age: { $lte: 65 } }`               |
+| `$in`          | In array                 | `{ role: { $in: ["admin", "mod"] } }` |
+| `$nin`         | Not in array             | `{ status: { $nin: ["banned"] } }`    |
+| `$like`        | SQL LIKE pattern         | `{ name: { $like: "Ali%" } }`         |
+| `$ilike`       | Case-insensitive LIKE    | `{ email: { $ilike: "%@gmail%" } }`   |
+| `$contains`    | Contains substring       | `{ name: { $contains: "li" } }`       |
+| `$icontains`   | Case-insensitive contains| `{ name: { $icontains: "li" } }`      |
+| `$notContains` | Does not contain         | `{ name: { $notContains: "test" } }`  |
+| `$startsWith`  | Starts with              | `{ name: { $startsWith: "A" } }`      |
+| `$endsWith`    | Ends with                | `{ name: { $endsWith: "ce" } }`       |
+| `$regex`       | Regular expression       | `{ name: { $regex: "^[A-Z]" } }`      |
+| `$exists`      | Field exists             | `{ phone: { $exists: true } }`        |
+| `$null`        | Is null                  | `{ deletedAt: { $null: true } }`      |
+| `$notNull`     | Is not null              | `{ email: { $notNull: true } }`       |
+| `$and`         | Logical AND              | `{ $and: [{ ... }, { ... }] }`        |
+| `$or`          | Logical OR               | `{ $or: [{ ... }, { ... }] }`         |
+| `$not`         | Logical NOT              | `{ $not: { status: { $eq: "x" } } }`  |
 
 ### SELECT, ORDER BY, LIMIT, OFFSET
 
@@ -460,94 +452,156 @@ where: {
 const result = await adapter.executeQuery({
   type: "select",
   table: "users",
-
-  // Select specific fields
   select: ["id", "name", "email"],
-
-  // Filter
   where: { age: { $gte: 18 } },
-
-  // Sort
   orderBy: [
     { field: "name", direction: "asc" },
-    { field: "createdAt", direction: "desc" }
+    { field: "createdAt", direction: "desc" },
   ],
-
-  // Pagination
   limit: 10,
   offset: 20,
-
-  // Distinct
   distinct: true,
-
-  // Populate
   populate: {
-    posts: {
-      select: ["title"],
-      limit: 5
-    }
-  }
+    posts: { select: ["title"], limit: 5 },
+  },
 });
-```
-
-### DISTINCT
-
-```typescript
-// Get unique roles
-const result = await adapter.executeQuery({
-  type: "select",
-  table: "users",
-  select: ["role"],
-  distinct: true
-});
-
-// Result: [{ role: "admin" }, { role: "user" }, { role: "moderator" }]
 ```
 
 ---
 
-## 4. Schema Management
+## 4. Foreign Key Constraints & onDelete
+
+JsonAdapter enforces foreign key constraints and supports `onDelete` actions, mimicking SQL behavior.
+
+### Defining FK References
+
+```typescript
+await adapter.createTable({
+  name: "post",
+  tableName: "posts",
+  fields: {
+    title: { type: "string", required: true },
+    author: {
+      type: "relation",
+      kind: "belongsTo",
+      model: "user",
+      foreignKey: "authorId",
+    },
+    authorId: {
+      type: "number",
+      hidden: true,
+      references: {
+        table: "users",
+        column: "id",
+        onDelete: "setNull", // "cascade" | "setNull" | "restrict"
+      },
+    },
+  },
+});
+```
+
+### onDelete Behaviors
+
+| Action       | Behavior                                                    |
+| ------------ | ----------------------------------------------------------- |
+| `restrict`   | Prevents deletion if referenced rows exist. Throws error.   |
+| `setNull`    | Sets FK column to `null` in referencing rows on delete.      |
+| `cascade`    | Deletes all referencing rows when parent is deleted.         |
+
+Default is `setNull` when not specified.
+
+### FK Constraint Validation
+
+On insert and update, the adapter validates that referenced records exist:
+
+```typescript
+// This will throw if user with id 999 doesn't exist
+await adapter.executeQuery({
+  type: "insert",
+  table: "posts",
+  data: [{ title: "Test", authorId: 999 }],
+});
+// → ForjaAdapterError: Foreign key constraint failed: user with id '999' does not exist
+```
+
+### Unique Constraints
+
+Fields with `unique: true` are enforced on insert and update:
+
+```typescript
+await adapter.createTable({
+  name: "user",
+  tableName: "users",
+  fields: {
+    email: { type: "string", required: true, unique: true },
+  },
+});
+
+// Inserting duplicate email throws:
+// → ForjaAdapterError: Duplicate value 'alice@example.com' for unique field 'email'
+```
+
+---
+
+## 5. Transactions
+
+JsonAdapter supports transactions with full isolation:
+
+```typescript
+const tx = await adapter.beginTransaction();
+
+try {
+  await tx.executeQuery({
+    type: "insert",
+    table: "users",
+    data: [{ name: "Alice", email: "alice@example.com" }],
+  });
+
+  await tx.executeQuery({
+    type: "insert",
+    table: "posts",
+    data: [{ title: "First Post", authorId: 1 }],
+  });
+
+  // All changes written to disk atomically
+  await tx.commit();
+} catch (error) {
+  // All changes discarded
+  await tx.rollback();
+  throw error;
+}
+```
+
+Transaction guarantees:
+- Lock is held for the entire duration (no concurrent writes)
+- Reads within the transaction see uncommitted changes (read-your-writes)
+- Commit writes all modified tables to disk
+- Rollback discards all changes without touching disk
+- Schema operations (createTable, alterTable, dropTable) are supported within transactions
+
+---
+
+## 6. Schema Management
 
 ### Creating Tables
 
 ```typescript
 await adapter.createTable({
-  name: "User",           // Model name (PascalCase)
-  tableName: "users",     // File name (snake_case or lowercase)
+  name: "user",
+  tableName: "users",
   fields: {
-    name: {
-      type: "string",
-      required: true
-    },
-    email: {
-      type: "string",
-      required: true,
-      unique: true
-    },
-    age: {
-      type: "number",
-      required: false,
-      default: 0
-    },
-    role: {
-      type: "string",
-      required: true,
-      enum: ["admin", "user", "moderator"]
-    },
+    name: { type: "string", required: true },
+    email: { type: "string", required: true, unique: true },
+    age: { type: "number", default: 0 },
+    role: { type: "string" },
     posts: {
       type: "relation",
       kind: "hasMany",
-      model: "Post",
-      foreignKey: "authorId"
-    }
+      model: "post",
+      foreignKey: "authorId",
+    },
   },
-  indexes: [
-    {
-      name: "idx_email",
-      fields: ["email"],
-      unique: true
-    }
-  ]
+  indexes: [{ fields: ["email"], unique: true }],
 });
 ```
 
@@ -559,242 +613,141 @@ await adapter.alterTable("users", [
   {
     type: "addColumn",
     column: "phone",
-    definition: { type: "string", required: false }
-  }
+    definition: { type: "string" },
+  },
 ]);
 
 // Drop column
 await adapter.alterTable("users", [
-  {
-    type: "dropColumn",
-    column: "phone"
-  }
+  { type: "dropColumn", column: "phone" },
 ]);
 
 // Rename column
 await adapter.alterTable("users", [
-  {
-    type: "renameColumn",
-    oldName: "phone",
-    newName: "phoneNumber"
-  }
+  { type: "renameColumn", from: "phone", to: "phoneNumber" },
 ]);
 
-// Create index
+// Modify column
 await adapter.alterTable("users", [
   {
-    type: "createIndex",
-    index: {
-      name: "idx_email",
-      fields: ["email"],
-      unique: true
-    }
-  }
+    type: "modifyColumn",
+    column: "age",
+    newDefinition: { type: "number", required: true },
+  },
 ]);
+```
+
+### Indexes
+
+```typescript
+// Add index
+await adapter.addIndex("users", {
+  fields: ["email"],
+  unique: true,
+});
 
 // Drop index
-await adapter.alterTable("users", [
-  {
-    type: "dropIndex",
-    indexName: "idx_email"
-  }
-]);
+await adapter.dropIndex("users", "idx_users_email");
 ```
 
-### Dropping Tables
+### Other Operations
 
 ```typescript
+// Drop table
 await adapter.dropTable("users");
-```
 
-### Getting Table List
+// Rename table
+await adapter.renameTable("users", "members");
 
-```typescript
-const result = await adapter.getTables();
+// List tables
+const tables = await adapter.getTables();
+console.log(tables); // ["users", "posts", "categories"]
 
-if (result.success) {
-  console.log(result.data); // ["users", "posts", "categories"]
-}
+// Check if table exists
+const exists = await adapter.tableExists("users");
 ```
 
 ---
 
-## 5. Best Practices
+## 7. Best Practices
 
 ### Naming Conventions
 
-**✅ DO:**
-```typescript
-// Schema names: PascalCase (recommended)
-name: "User"
-name: "Post"
-name: "PostCategory"
+**Schema name:** lowercase singular (`user`, `post`, `category`)
 
-// Table names: snake_case or lowercase
-tableName: "users"
-tableName: "posts"
-tableName: "post_categories"
+**Table name:** lowercase plural or snake_case (`users`, `posts`, `post_categories`)
 
-// Foreign keys: {schemaName}Id (must match schema name exactly)
-// If schema name is "Post" → foreign key is "PostId"
-// If schema name is "User" → foreign key is "UserId"
-PostId: { type: "number" }
-CategoryId: { type: "number" }
-UserId: { type: "number" }
-```
-
-**❌ DON'T:**
-```typescript
-// Wrong: FK naming doesn't match schema name
-// Schema: name: "Post"
-postId: { type: "number" }    // Wrong: doesn't match "Post"
-post_id: { type: "number" }   // Wrong: snake_case
-POST_ID: { type: "number" }   // Wrong: UPPER_SNAKE_CASE
-
-// Only use this if schema name is actually "post" (not recommended)
-```
-
-**Why?** JsonAdapter generates FK names as `${schema.name}Id`. Your foreign keys must match the exact `name` field in the related schema, otherwise populate will fail.
-
-### Error Handling
+**Foreign keys:** `{modelName}Id` camelCase (`authorId`, `categoryId`, `userId`)
 
 ```typescript
-const result = await adapter.executeQuery({
-  type: "select",
-  table: "users"
-});
+// ✅ Correct
+{ name: "user", tableName: "users" }
+{ name: "post", tableName: "posts" }
+// FK: authorId, categoryId, postId
 
-if (!result.success) {
-  console.error("Error:", result.error.code);
-  console.error("Message:", result.error.message);
-  console.error("Details:", result.error.details);
-  return;
-}
-
-// Safe to use result.data
-const users = result.data.rows;
+// ❌ Incorrect
+{ name: "User", tableName: "Users" }
+// FK: UserId, PostId (wrong case)
 ```
 
 ### Performance Tips
 
-**1. Use caching effectively**
+1. **Keep caching enabled** — Default `cache: true` dramatically improves read performance.
+
+2. **Use SELECT to reduce data size**
 ```typescript
-const adapter = new JsonAdapter({
-  root: "./data",
-  cacheMaxAge: 10000 // Increase for read-heavy workloads
-});
+// Only fetch needed fields
+select: ["id", "name"]
 ```
 
-**2. Batch operations**
+3. **Populate selectively**
 ```typescript
-// Bad: Multiple inserts (multiple file writes)
-for (const user of users) {
-  await adapter.executeQuery({
-    type: "insert",
-    table: "users",
-    data: user
-  });
-}
-
-// Good: Single transaction (if supported in future)
-// For now, minimize separate writes
+// Only needed relations with field selection
+populate: { author: { select: ["name"] } }
 ```
 
-**3. Use SELECT to reduce data transfer**
+4. **Use batch inserts**
 ```typescript
-// Bad: Fetch all fields
-const result = await adapter.executeQuery({
-  type: "select",
-  table: "users"
-});
-
-// Good: Only needed fields
-const result = await adapter.executeQuery({
-  type: "select",
+// Single query with multiple records
+await adapter.executeQuery({
+  type: "insert",
   table: "users",
-  select: ["id", "name"]
+  data: [
+    { name: "Alice", email: "alice@example.com" },
+    { name: "Bob", email: "bob@example.com" },
+  ],
 });
 ```
 
-**4. Use populate selectively**
-```typescript
-// Bad: Populate everything
-populate: {
-  author: "*",
-  comments: "*",
-  tags: "*"
-}
+### When to Use / Not Use
 
-// Good: Only needed relations
-populate: {
-  author: { select: ["name"] }
-}
-```
+**Use JsonAdapter for:**
+- Development and testing
+- Prototyping and POCs
+- Static sites and small apps (<10k records per table)
+- CI/CD test suites (zero infrastructure)
 
-### When NOT to Use JsonAdapter
-
-**❌ Avoid if:**
-- Production application with >100 concurrent users
-- Tables with >10,000 records
-- High write frequency (>100 writes/sec)
-- Need for complex transactions
-- Real-time features (WebSockets, live updates)
-- Multi-server deployment (file sharing issues)
-
-**✅ Use PostgreSQL/MySQL adapter instead for:**
+**Switch to PostgreSQL/MySQL for:**
 - Production applications
-- Large datasets
-- High concurrency
-- Complex transactions
-- Performance-critical operations
+- >10k records per table
+- High concurrency (>100 writes/sec)
+- Multi-server deployments
 
-### File Management
-
-**Backup strategy:**
-```bash
-# Simple backup
-cp -r ./data ./data_backup_$(date +%Y%m%d)
-
-# Or use git
-cd data && git init && git add . && git commit -m "Backup"
-```
-
-**File inspection:**
-```bash
-# Pretty print JSON
-cat data/users.json | jq .
-
-# Check file size
-ls -lh data/
-
-# Count records
-cat data/users.json | jq '.data | length'
-```
-
-### Testing with JsonAdapter
+### Testing Setup
 
 ```typescript
 import { describe, it, beforeEach, afterEach } from "vitest";
 import { JsonAdapter } from "forja-adapter-json";
 import fs from "node:fs/promises";
-import path from "node:path";
 
-describe("My API", () => {
+describe("My Tests", () => {
   let adapter: JsonAdapter;
-  const testRoot = path.join(__dirname, "tmp_test");
+  const testRoot = "./tmp_test";
 
   beforeEach(async () => {
-    // Clean start for each test
     await fs.rm(testRoot, { recursive: true, force: true });
-    adapter = new JsonAdapter({ root: testRoot });
+    adapter = new JsonAdapter({ root: testRoot, standalone: true });
     await adapter.connect();
-
-    // Setup schema
-    await adapter.createTable({
-      name: "User",
-      tableName: "users",
-      fields: { /* ... */ }
-    });
   });
 
   afterEach(async () => {
@@ -802,68 +755,62 @@ describe("My API", () => {
     await fs.rm(testRoot, { recursive: true, force: true });
   });
 
-  it("should create user", async () => {
-    const result = await adapter.executeQuery({
-      type: "insert",
-      table: "users",
-      data: { name: "Test User" }
+  it("should create and query users", async () => {
+    await adapter.createTable({
+      name: "user",
+      tableName: "users",
+      fields: {
+        name: { type: "string", required: true },
+      },
     });
 
-    expect(result.success).toBe(true);
+    await adapter.executeQuery({
+      type: "insert",
+      table: "users",
+      data: [{ name: "Test User" }],
+    });
+
+    const result = await adapter.executeQuery({
+      type: "select",
+      table: "users",
+    });
+
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0].name).toBe("Test User");
   });
 });
-```
-
-### Development to Production Migration
-
-**Strategy 1: Export/Import**
-```typescript
-// Export from JsonAdapter (dev)
-const users = await jsonAdapter.executeQuery({
-  type: "select",
-  table: "users"
-});
-
-// Import to PostgreSQL (production)
-for (const user of users.data.rows) {
-  await pgAdapter.executeQuery({
-    type: "insert",
-    table: "users",
-    data: user
-  });
-}
-```
-
-**Strategy 2: Seed scripts**
-```typescript
-// seeds/users.json (from JsonAdapter data)
-[
-  { "name": "Alice", "email": "alice@example.com" },
-  { "name": "Bob", "email": "bob@example.com" }
-]
-
-// seed.ts (for production DB)
-const seedData = JSON.parse(await fs.readFile("seeds/users.json"));
-for (const user of seedData) {
-  await productionDB.insert("users", user);
-}
 ```
 
 ---
 
-## Summary
+## File Structure
 
-JsonAdapter is a powerful tool for:
-- ✅ Development and testing environments
-- ✅ Static sites and prototypes
-- ✅ Small applications with <10k records
-- ✅ Content management with relations
+```
+data/
+├── _forja.json          # Schema metadata (auto-managed)
+├── users.json           # User table
+├── posts.json           # Post table
+├── categories.json      # Category table
+└── category_post.json   # Junction table (manyToMany)
+```
 
-Remember:
-- Always use `tableName` in standalone mode
-- Follow `${ModelName}Id` naming for foreign keys
-- Use populate syntax: `"*"` or `{ select: [...], populate: {...} }`
-- Handle errors with `Result<T, E>` pattern
-- Switch to production database for real applications
+Each table file:
+
+```json
+{
+  "meta": {
+    "version": 1,
+    "name": "user",
+    "lastInsertId": 3,
+    "updatedAt": "2026-01-27T10:30:00.000Z"
+  },
+  "data": [
+    { "id": 1, "name": "Alice", "email": "alice@example.com" },
+    { "id": 2, "name": "Bob", "email": "bob@example.com" }
+  ]
+}
+```
+
+---
 
 For Forja integration, see [README.md](./README.md).

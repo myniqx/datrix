@@ -110,5 +110,5 @@ export function normalizeSelect<T extends ForjaEntry>(
 	allFields.add("createdAt" as keyof T);
 	allFields.add("updatedAt" as keyof T);
 
-	return Array.from(allFields);
+	return Array.from(allFields) as QuerySelect<T>;
 }
