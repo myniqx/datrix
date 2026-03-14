@@ -19,7 +19,7 @@ const defaults: GridParams = {
   rotateY: -30,
   scale: 1.5,
   translateY: -15,
-  opacity: 0.3,
+  opacity: 0.5,
   gridSize: 45,
   rotateZ: 10,
 }
@@ -54,17 +54,17 @@ export function GridDebugPanel() {
       </div>
 
       {/* Panel */}
-      <div className="fixed bottom-4 right-4 z-50 w-72 rounded-xl border border-border bg-card text-xs shadow-xl">
+      <div className="fixed bottom-4 right-4 z-50 rounded-xl border border-border bg-card text-xs shadow-xl">
         <button
           onClick={() => setOpen((o) => !o)}
           className="flex w-full items-center justify-between px-4 py-3 font-mono text-muted-foreground hover:text-foreground"
         >
-          <span>grid debug</span>
+          {open && <span>grid debug</span>}
           <span>{open ? "▲" : "▼"}</span>
         </button>
 
         {open && (
-          <div className="flex flex-col gap-3 border-t border-border px-4 py-3">
+          <div className="flex flex-col gap-3 border-t border-border px-4 py-3 w-72">
             {(
               [
                 ["perspective", 200, 3000, 1],

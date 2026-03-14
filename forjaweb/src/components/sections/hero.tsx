@@ -4,9 +4,11 @@ import { HeroOrb } from "./hero-orb"
 import { GridDebugPanel } from "@/components/layout/grid-debug-panel"
 
 export function Hero() {
+
   return (
     <div className="relative grid min-h-screen w-full grid-cols-2 items-center overflow-hidden">
       <GridDebugPanel />
+
 
       {/* Sol — içerik */}
       <div
@@ -40,11 +42,9 @@ export function Hero() {
       </div>
 
       {/* Sağ — orb */}
-
       <div style={{ width: "960px", height: "960px", position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)" }}>
         <HeroOrb />
       </div>
-
     </div>
   )
 }
