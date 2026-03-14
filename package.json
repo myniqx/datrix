@@ -39,7 +39,8 @@
 		"test:integration": "vitest run tests/integration",
 		"test:watch": "pnpm -r run test:watch",
 		"test:coverage": "pnpm -r run test:coverage",
-		"clean": "pnpm -r run clean"
+		"clean": "pnpm -r run clean",
+		"generate-playground": "ADAPTER=json vitest run packages/core/tests/playground/generate.test.ts"
 	},
 	"engines": {
 		"node": ">=18.0.0"

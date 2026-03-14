@@ -126,6 +126,22 @@
 	--radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* Custom scrollbar — Webkit */
+::-webkit-scrollbar {
+	width: 4px;
+	height: 4px;
+}
+::-webkit-scrollbar-track {
+	background: transparent;
+}
+::-webkit-scrollbar-thumb {
+	background: rgb(99 102 241 / 0.25);
+	border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+	background: rgb(99 102 241 / 0.5);
+}
+
 @layer base {
 	* {
 		@apply border-border outline-ring/50;
@@ -144,5 +160,11 @@
 	a {
 		color: inherit;
 		text-decoration: none;
+	}
+
+	/* Custom scrollbar — Firefox */
+	* {
+		scrollbar-width: thin;
+		scrollbar-color: rgb(99 102 241 / 0.25) transparent;
 	}
 }
