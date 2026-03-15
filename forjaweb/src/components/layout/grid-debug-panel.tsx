@@ -32,6 +32,7 @@ export function GridDebugPanel() {
     setParams((p) => ({ ...p, [key]: parseFloat(e.target.value) }))
 
   const transform = `perspective(${params.perspective}px) rotateX(${params.rotateX}deg) rotateY(${params.rotateY}deg) rotateZ(${params.rotateZ}deg) scale(${params.scale}) translateY(${params.translateY}%)`
+  const hidePanel = process.env.NODE_ENV === "production" || true
 
   return (
     <>
@@ -41,8 +42,8 @@ export function GridDebugPanel() {
           className="absolute inset-0"
           style={{
             backgroundImage: `
-              linear-gradient(to right, var(--color-border) 1px, transparent 1px),
-              linear-gradient(to bottom, var(--color-border) 1px, transparent 1px)
+              linear-gradient(to right, var(--color-border) 2px, transparent 1px),
+              linear-gradient(to bottom, var(--color-border) 2px, transparent 1px)
             `,
             backgroundSize: `${params.gridSize}px ${params.gridSize}px`,
             opacity: params.opacity,
@@ -54,7 +55,7 @@ export function GridDebugPanel() {
       </div>
 
       {/* Panel */}
-      <div className="fixed bottom-4 right-4 z-50 rounded-xl border border-border bg-card text-xs shadow-xl">
+      {!hidePanel && <div className="fixed bottom-4 right-4 z-50 rounded-xl border border-border bg-card text-xs shadow-xl">
         <button
           onClick={() => setOpen((o) => !o)}
           className="flex w-full items-center justify-between px-4 py-3 font-mono text-muted-foreground hover:text-foreground"
@@ -105,7 +106,7 @@ export function GridDebugPanel() {
             </button>
           </div>
         )}
-      </div>
+      </div>}
     </>
   )
 }

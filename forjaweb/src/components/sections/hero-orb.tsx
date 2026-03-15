@@ -220,6 +220,7 @@ interface HeroOrbProps {
 export function HeroOrb({ controlsRef }: HeroOrbProps) {
   const internalRef = useRef<OrbControls | null>(null)
   const ref = controlsRef ?? internalRef
+  const hidePanel = process.env.NODE_ENV === "production" || true
 
   return (
     <>
@@ -230,7 +231,7 @@ export function HeroOrb({ controlsRef }: HeroOrbProps) {
       >
         <LargeOrbMesh controlsRef={ref} />
       </Canvas>
-      <OrbDebugPanel controlsRef={ref} />
+      {!hidePanel && <OrbDebugPanel controlsRef={ref} />}
     </>
   )
 }

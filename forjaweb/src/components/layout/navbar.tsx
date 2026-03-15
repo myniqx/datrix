@@ -1,15 +1,17 @@
 import Link from "next/link"
-import { StarIcon, GithubIcon } from "lucide-react"
+import { StarIcon } from "lucide-react"
+import { siGithub } from "simple-icons"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Container } from "./container"
 import { ForjaLogo } from "./logo"
 import { NavbarMobile } from "./navbar-mobile"
+import { FORJA_VERSION, FORJA_GITHUB_URL, FORJA_GITHUB_REPO } from "@/data/constants"
 
 async function fetchGithubStars(): Promise<number | null> {
   try {
-    const response = await fetch("https://api.github.com/repos/myniqx/forja", {
-      next: { revalidate: 3600 }, // revalidate every hour
+    const response = await fetch(`https://api.github.com/repos/${FORJA_GITHUB_REPO}`, {
+      next: { revalidate: 3600 },
     })
     if (!response.ok) return null
     const data = await response.json() as { stargazers_count: number }
@@ -18,6 +20,13 @@ async function fetchGithubStars(): Promise<number | null> {
     return null
   }
 }
+
+const NAV_LINKS = [
+  { label: "Showcase", href: "#showcase" },
+  { label: "Features", href: "#features" },
+  { label: "Docs", href: "/docs" },
+  { label: "Packages", href: "/packages" },
+] as const
 
 export async function Navbar() {
   const starCount = await fetchGithubStars()
@@ -38,33 +47,32 @@ export async function Navbar() {
             <ForjaLogo size={28} />
           </div>
           <span className="text-lg font-bold text-foreground">forja</span>
-          <Badge variant="outline" className="px-1.5 py-0 text-xs">v0.1</Badge>
+          <Badge variant="outline" className="px-1.5 py-0 text-xs">{FORJA_VERSION}</Badge>
         </Link>
 
         {/* Desktop — nav + CTA */}
-        <div className="hidden items-center gap-6 md:flex">
-          <nav className="flex items-center gap-6 text-sm text-foreground/70">
-            <Link href="/docs" className="transition-colors hover:text-foreground">
-              Docs
-            </Link>
-            <Link href="/packages" className="transition-colors hover:text-foreground">
-              Packages
-            </Link>
+        <div className="hidden items-center gap-2 md:flex">
+          <nav className="flex items-center gap-1">
+            {NAV_LINKS.map((link) => (
+              <Button key={link.href} asChild variant="outline" size="sm">
+                <Link href={link.href}>{link.label}</Link>
+              </Button>
+            ))}
             <Button asChild variant="outline" size="sm">
               <Link
-                href="https://github.com/myniqx/forja"
+                href={FORJA_GITHUB_URL}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-2"
               >
-                <GithubIcon className="size-4" />
+                <svg role="img" viewBox="0 0 24 24" className="size-4 fill-current">
+                  <path d={siGithub.path} />
+                </svg>
                 {starLabel !== null ? (
-                  <>
-                    <span className="flex items-center gap-1 text-muted-foreground">
-                      <StarIcon className="size-3" />
-                      {starLabel}
-                    </span>
-                  </>
+                  <span className="flex items-center gap-1 text-foreground/60">
+                    <StarIcon className="size-3" />
+                    {starLabel}
+                  </span>
                 ) : (
                   "GitHub"
                 )}

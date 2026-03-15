@@ -12,6 +12,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet"
 import { ForjaLogo } from "./logo"
+import { FORJA_VERSION, FORJA_GITHUB_URL } from "@/data/constants"
 
 interface NavbarMobileProps {
   starCount: number | null
@@ -34,12 +35,24 @@ export function NavbarMobile({ starCount }: NavbarMobileProps) {
                 <ForjaLogo size={22} />
               </div>
               <span className="text-base font-bold">forja</span>
-              <Badge variant="outline" className="px-1.5 py-0 text-xs">v0.1</Badge>
+              <Badge variant="outline" className="px-1.5 py-0 text-xs">{FORJA_VERSION}</Badge>
             </div>
           </SheetTitle>
         </SheetHeader>
 
         <nav className="flex flex-col gap-1 px-6">
+          <Link
+            href="#showcase"
+            className="rounded-md px-2 py-2 text-sm text-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
+          >
+            Showcase
+          </Link>
+          <Link
+            href="#features"
+            className="rounded-md px-2 py-2 text-sm text-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
+          >
+            Features
+          </Link>
           <Link
             href="/docs"
             className="rounded-md px-2 py-2 text-sm text-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
@@ -53,7 +66,7 @@ export function NavbarMobile({ starCount }: NavbarMobileProps) {
             Packages
           </Link>
           <Link
-            href="https://github.com/myniqx/forja"
+            href={FORJA_GITHUB_URL}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-2 rounded-md px-2 py-2 text-sm text-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
@@ -61,7 +74,7 @@ export function NavbarMobile({ starCount }: NavbarMobileProps) {
             <GithubIcon className="size-4" />
             GitHub
             {starCount !== null && (
-              <span className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
+              <span className="ml-auto flex items-center gap-1 text-xs text-foreground/80">
                 <StarIcon className="size-3" />
                 {starCount >= 1000
                   ? `${(starCount / 1000).toFixed(1)}k`
