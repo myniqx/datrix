@@ -8,7 +8,7 @@ import type { QuerySelect, SelectClause } from "forja-types/core/query-builder";
 import type {
 	ForjaEntry,
 	SchemaDefinition,
-	SchemaRegistry,
+	ISchemaRegistry,
 } from "forja-types/core/schema";
 import { throwInvalidFields, throwRelationInSelect } from "./error-helper";
 
@@ -50,7 +50,7 @@ import { throwInvalidFields, throwRelationInSelect } from "./error-helper";
 export function normalizeSelect<T extends ForjaEntry>(
 	selects: SelectClause<T>[] | undefined,
 	schema: SchemaDefinition,
-	registry: SchemaRegistry,
+	registry: ISchemaRegistry,
 ): QuerySelect<T> {
 	// If no selects provided, return cached fields for "*"
 	if (!selects || selects.length === 0) {

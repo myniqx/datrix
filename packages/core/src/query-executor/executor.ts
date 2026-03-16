@@ -11,7 +11,7 @@
 
 import { DatabaseAdapter, QueryRunner } from "forja-types/adapter";
 import {
-	SchemaRegistry,
+	ISchemaRegistry,
 	SchemaDefinition,
 	ForjaEntry,
 } from "forja-types/core/schema";
@@ -53,10 +53,10 @@ export interface ExecutorOptions {
  */
 export class QueryExecutor {
 	constructor(
-		private readonly schemas: SchemaRegistry,
+		private readonly schemas: ISchemaRegistry,
 		private readonly getAdapter: () => DatabaseAdapter,
 		private readonly getDispatcher: () => Dispatcher,
-	) {}
+	) { }
 
 	/**
 	 * Execute a query
@@ -438,9 +438,9 @@ export class QueryExecutor {
 			: await dispatcher.buildQueryContext(action, schema);
 		const modifiedQuery = context
 			? ((await dispatcher.dispatchBeforeQuery(
-					query as QueryObject,
-					context,
-				)) as TQuery)
+				query as QueryObject,
+				context,
+			)) as TQuery)
 			: query;
 
 		const result = await handler(modifiedQuery);

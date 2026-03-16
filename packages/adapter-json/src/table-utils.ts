@@ -344,7 +344,7 @@ export function applySelectRecursive<T extends ForjaEntry>(
 	let result = rows as Partial<T>[];
 
 	if (select && (select as unknown as string) !== "*") {
-		const fieldsToKeep = new Set(select);
+		const fieldsToKeep = new Set(select as unknown as (keyof T)[]);
 
 		if (populate) {
 			for (const relationName of Object.keys(populate)) {

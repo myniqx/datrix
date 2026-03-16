@@ -8,7 +8,7 @@
  */
 
 import type { SchemaRegistry } from "forja-core/schema";
-import type { ForeignKeyReference } from "forja-types/core/schema";
+import type { ForeignKeyReference, ForjaEntry } from "forja-types/core/schema";
 import type { MongoClient } from "./mongo-client";
 import { ForjaAdapterError } from "forja-types/errors/adapter";
 
@@ -51,10 +51,10 @@ function findFkDependencies(
  *
  * Must be called BEFORE the actual delete.
  */
-export async function applyOnDeleteActions(
+export async function applyOnDeleteActions<T extends ForjaEntry>(
 	targetTable: string,
 	idsToDelete: readonly number[],
-	client: MongoClient,
+	client: MongoClient<T>,
 	schemaRegistry: SchemaRegistry,
 ): Promise<void> {
 	if (idsToDelete.length === 0) return;

@@ -1,5 +1,5 @@
 {
-	"name": "forja-cli",
+	"name": "@forja/cli",
 	"version": "0.1.0",
 	"description": "Command-line tools for Forja framework",
 	"author": "Forja Contributors",
@@ -28,8 +28,8 @@
 		"clean": "rm -rf dist"
 	},
 	"dependencies": {
-		"forja-core": "workspace:*",
-		"forja-types": "workspace:*"
+		"@forja/core": "workspace:*",
+		"@forja/types": "workspace:*"
 	},
 	"devDependencies": {
 		"@types/node": "^20.11.17",

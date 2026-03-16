@@ -14,7 +14,7 @@ import type {
 	ForjaEntry,
 	RelationField,
 	SchemaDefinition,
-	SchemaRegistry,
+	ISchemaRegistry,
 } from "forja-types/core/schema";
 import { throwInvalidField, throwInvalidValue } from "./error-helper";
 import { normalizeSelect } from "./select";
@@ -71,7 +71,7 @@ const MAX_POPULATE_DEPTH = 5;
 export function normalizePopulate<T extends ForjaEntry>(
 	populate: PopulateClause<T> | undefined,
 	modelName: string,
-	registry: SchemaRegistry,
+	registry: ISchemaRegistry,
 	depth = 0,
 ): PopulateClause<T> | undefined {
 	if (!populate) {
@@ -188,7 +188,7 @@ function normalizePopulateDotNotation<T extends ForjaEntry>(
 	paths: readonly string[],
 	schema: SchemaDefinition,
 	_modelName: string,
-	registry: SchemaRegistry,
+	registry: ISchemaRegistry,
 ): Record<string, PopulateOptions<T>> {
 	const result: Record<string, any> = {};
 
@@ -281,7 +281,7 @@ function normalizePopulateDotNotation<T extends ForjaEntry>(
 export function normalizePopulateArray<T extends ForjaEntry>(
 	populates: PopulateClause<T>[] | undefined,
 	modelName: string,
-	registry: SchemaRegistry,
+	registry: ISchemaRegistry,
 ): QueryPopulate<T> | undefined {
 	if (!populates || populates.length === 0) {
 		return undefined;
@@ -338,12 +338,12 @@ export function mergePopulateClauses<T extends ForjaEntry>(
 						? { where: newOptions.where || existing.where }
 						: {}),
 					...(newOptions.populate !== undefined ||
-					existing.populate !== undefined
+						existing.populate !== undefined
 						? {
-								populate: newOptions.populate
-									? mergePopulateClauses(existing.populate, newOptions.populate)
-									: existing.populate,
-							}
+							populate: newOptions.populate
+								? mergePopulateClauses(existing.populate, newOptions.populate)
+								: existing.populate,
+						}
 						: {}),
 					...(newOptions.limit !== undefined || existing.limit !== undefined
 						? { limit: newOptions.limit ?? existing.limit }

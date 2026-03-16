@@ -7,7 +7,7 @@
 
 import { DatabaseAdapter } from "forja-types/adapter";
 import {
-	SchemaRegistry,
+	ISchemaRegistry,
 	ForjaEntry,
 	ForjaRecord,
 } from "forja-types/core/schema";
@@ -40,7 +40,7 @@ export class CrudOperations implements IRawCrud {
 	private readonly executor: QueryExecutor;
 
 	constructor(
-		private readonly schemas: SchemaRegistry,
+		private readonly schemas: ISchemaRegistry,
 		readonly getAdapter: () => DatabaseAdapter,
 		private readonly getDispatcher: (() => Dispatcher) | null = null,
 	) {

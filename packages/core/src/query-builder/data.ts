@@ -15,7 +15,7 @@ import {
 	SchemaDefinition,
 	RelationField,
 	ForjaEntry,
-	SchemaRegistry,
+	ISchemaRegistry,
 	AnyRelationInputObject,
 } from "forja-types/core/schema";
 import type {
@@ -189,7 +189,7 @@ function extractIds(value: unknown): number[] {
 export function processData<T extends ForjaEntry>(
 	data: Partial<T>,
 	schema: SchemaDefinition,
-	registry: SchemaRegistry,
+	registry: ISchemaRegistry,
 	depth: number = 0,
 	visitedModels: ReadonlySet<string> = new Set(),
 ): NormalizedNestedData<T> {

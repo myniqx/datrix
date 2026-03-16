@@ -30,7 +30,7 @@ import {
 } from "./error-helper";
 import type {
 	ForjaEntry,
-	SchemaRegistry as ISchemaRegistry,
+	ISchemaRegistry as ISchemaRegistry,
 	SchemaDefinition,
 } from "forja-types/core/schema";
 

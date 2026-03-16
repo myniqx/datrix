@@ -5,7 +5,7 @@
  *
  * @example
  * ```ts
- * import { createApiPlugin } from 'forja-api';
+ * import { createApiPlugin } from '@forja/api';
  *
  * const apiPlugin = createApiPlugin({
  *   enabled: true,

@@ -7,9 +7,9 @@
 
 import type {
 	QueryPopulate,
-	OrderByItem,
 	QueryPopulateOptions,
 	QuerySelect,
+	QuerySelectObject,
 } from "forja-types/core/query-builder";
 import type { SchemaRegistry } from "forja-core/schema";
 import type { ForjaEntry, RelationField } from "forja-types/core/schema";
@@ -33,7 +33,7 @@ export class AggregationBuilder {
 	constructor(
 		private translator: PostgresQueryTranslator,
 		private schemaRegistry: SchemaRegistry,
-	) {}
+	) { }
 
 	/**
 	 * Build all aggregation clauses for a query
@@ -559,9 +559,9 @@ export class AggregationBuilder {
 	 * Build ORDER BY clause
 	 */
 	private buildOrderBy<T extends ForjaEntry>(
-		orderBy: readonly OrderByItem<T>[],
+		orderBy: QuerySelectObject<T>["orderBy"],
 	): string {
-		return orderBy
+		return orderBy!
 			.map((item) => {
 				const field = this.translator.escapeIdentifier(item.field as string);
 				const direction = item.direction.toUpperCase();

@@ -1,5 +1,5 @@
 {
-	"name": "forja-api",
+	"name": "@forja/api",
 	"version": "0.1.0",
 	"description": "HTTP request handling, query parsing, and response serialization for Forja framework",
 	"author": "Forja Contributors",
@@ -37,8 +37,8 @@
 		"clean": "rm -rf dist"
 	},
 	"dependencies": {
-		"forja-core": "workspace:*",
-		"forja-types": "workspace:*"
+		"@forja/core": "workspace:*",
+		"@forja/types": "workspace:*"
 	},
 	"devDependencies": {
 		"tsup": "^8.0.2",

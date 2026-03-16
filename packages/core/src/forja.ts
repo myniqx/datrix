@@ -531,7 +531,7 @@ export class Forja implements IForja {
  * @example
  * ```ts
  * // forja.config.ts
- * import { defineConfig } from 'forja-core';
+ * import { defineConfig } from '@forja/core';
  *
  * export default defineConfig(() => ({
  *   adapter: new JsonAdapter({ root: './data' }),

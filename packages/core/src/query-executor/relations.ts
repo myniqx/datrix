@@ -12,7 +12,7 @@
 
 import {
 	SchemaDefinition,
-	SchemaRegistry,
+	ISchemaRegistry,
 	ForjaEntry,
 	ForjaRecord,
 } from "forja-types/core/schema";
@@ -57,7 +57,7 @@ export async function processRelations<T extends ForjaEntry>(
 	parentModel: string,
 	schema: SchemaDefinition,
 	runner: QueryRunner,
-	schemaRegistry: SchemaRegistry,
+	schemaRegistry: ISchemaRegistry,
 ): Promise<void> {
 	for (const [fieldName, ops] of Object.entries(resolvedRelations)) {
 		await processRelation<T>({
@@ -98,7 +98,7 @@ export async function resolveRelationCUD<T extends ForjaEntry>(
 	relations: QueryRelations<T>,
 	schema: SchemaDefinition,
 	runner: QueryRunner,
-	schemaRegistry: SchemaRegistry,
+	schemaRegistry: ISchemaRegistry,
 ): Promise<Record<string, ResolvedRelationOps>> {
 	const resolved: Record<string, ResolvedRelationOps> = {};
 
@@ -296,7 +296,7 @@ async function processRelation<T extends ForjaEntry>({
 	ops: ResolvedRelationOps;
 	schema: SchemaDefinition;
 	runner: QueryRunner;
-	schemaRegistry: SchemaRegistry;
+	schemaRegistry: ISchemaRegistry;
 }): Promise<void> {
 	const field = schema.fields[fieldName];
 	if (!field || field.type !== "relation") {

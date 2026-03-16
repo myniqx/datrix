@@ -759,7 +759,7 @@ export function defineSchema<const T extends SchemaDefinition>(
  * Defines the contract for schema storage and retrieval.
  * Implementation is in packages/core/src/schema/registry.ts
  */
-export interface SchemaRegistry {
+export interface ISchemaRegistry {
 	/** Register a schema */
 	register(schema: SchemaDefinition): SchemaDefinition;
 	/** Get schema by name */

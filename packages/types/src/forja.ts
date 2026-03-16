@@ -10,7 +10,7 @@ import {
 	AnyRelationInput,
 	ForjaEntry,
 	ForjaRecord,
-	SchemaRegistry,
+	ISchemaRegistry,
 } from "./core/schema";
 import { ForjaPlugin, QueryAction } from "./plugin";
 
@@ -126,7 +126,7 @@ export interface IForja extends IRawCrud {
 	getPlugins(): readonly ForjaPlugin[];
 	getPlugin(name: string): ForjaPlugin | null;
 	hasPlugin(name: string): boolean;
-	getSchemas(): SchemaRegistry;
+	getSchemas(): ISchemaRegistry;
 	getMigrationConfig(): Required<MigrationConfig>;
 	getDevConfig(): Required<DevConfig>;
 	isInitialized(): boolean;

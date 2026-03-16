@@ -9,12 +9,12 @@ import type {
 	QueryObject,
 	WhereClause,
 	ComparisonOperators,
-	OrderByItem,
 	QueryCountObject,
 	QueryInsertObject,
 	QueryUpdateObject,
 	QueryDeleteObject,
 	QuerySelect,
+	QuerySelectObject,
 } from "forja-types/core/query-builder";
 import type { QueryTranslator } from "forja-types/adapter";
 import { ForjaAdapterError, throwQueryError } from "forja-types/errors/adapter";
@@ -686,9 +686,9 @@ export class PostgresQueryTranslator implements QueryTranslator {
 	 * Translate ORDER BY clause
 	 */
 	private translateOrderBy<T extends ForjaEntry>(
-		orderBy: readonly OrderByItem<T>[],
+		orderBy: QuerySelectObject<T>["orderBy"],
 	): string {
-		return orderBy
+		return orderBy!
 			.map((item) => {
 				let sql = this.escapeIdentifier(item.field as string);
 				sql += ` ${item.direction.toUpperCase()}`;

@@ -7,6 +7,7 @@
 
 import type {
 	ForjaEntry,
+	ISchemaRegistry,
 	RelationField,
 	SchemaDefinition,
 	SchemaValidationError,
@@ -16,6 +17,7 @@ import {
 	RESERVED_FIELDS,
 } from "forja-types/core/schema";
 import { FORJA_META_MODEL } from "forja-types/core/constants";
+import { QuerySelect } from "forja-types/core/query-builder";
 
 /**
  * Schema registry error
@@ -63,7 +65,7 @@ interface RegistryCache {
 /**
  * Schema registry implementation
  */
-export class SchemaRegistry {
+export class SchemaRegistry implements ISchemaRegistry {
 	private readonly schemas: Map<string, SchemaDefinition> = new Map();
 	private readonly config: Required<SchemaRegistryConfig>;
 	private locked = false;
@@ -441,7 +443,7 @@ export class SchemaRegistry {
 	 * - Hidden fields (e.g., foreign keys)
 	 * - Relation fields (use populate for these)
 	 */
-	getCachedSelectFields<T extends ForjaEntry>(modelName: string): (keyof T)[] {
+	getCachedSelectFields<T extends ForjaEntry>(modelName: string): QuerySelect<T> {
 		const schema = this.get(modelName);
 		if (!schema) {
 			throw new SchemaRegistryError(`Schema not found: ${modelName}`, {
@@ -450,7 +452,7 @@ export class SchemaRegistry {
 		}
 
 		const cached = this.cache.selectFields.get(modelName);
-		if (cached) return cached as (keyof T)[];
+		if (cached) return cached as QuerySelect<T>;
 
 		const cleanFields: string[] = [];
 		for (const [fieldName, fieldDef] of Object.entries(schema.fields)) {
@@ -460,7 +462,7 @@ export class SchemaRegistry {
 		}
 
 		this.cache.selectFields.set(modelName, cleanFields);
-		return cleanFields as (keyof T)[];
+		return cleanFields as QuerySelect<T>;
 	}
 
 	/**

@@ -7,17 +7,17 @@
  */
 
 import type { Pool, PoolClient, QueryResult, QueryResultRow } from "pg";
-import { ForjaAdapterError } from "forja-types/errors/adapter";
+import { AdapterErrorCode, ForjaAdapterError } from "forja-types/errors/adapter";
 import { QueryObject } from "forja-types";
 
 const IS_DEBUG = process.env["NODE_ENV"] !== "production";
 
-const PG_CODE_MAP: Record<string, string> = {
+const PG_CODE_MAP: Record<string, AdapterErrorCode> = {
 	"23505": "ADAPTER_UNIQUE_CONSTRAINT",
 	"23503": "ADAPTER_FOREIGN_KEY_CONSTRAINT",
 };
 
-function pgCodeToAdapterCode(pgCode: string | undefined): string {
+function pgCodeToAdapterCode(pgCode: string | undefined): AdapterErrorCode {
 	if (pgCode && pgCode in PG_CODE_MAP) {
 		return PG_CODE_MAP[pgCode]!;
 	}
@@ -34,7 +34,7 @@ export class PgClient {
 	constructor(
 		private readonly runner: Pool | PoolClient,
 		private readonly queryObject: QueryObject,
-	) {}
+	) { }
 
 	/**
 	 * Execute a SQL query with optional parameters.

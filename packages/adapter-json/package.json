@@ -1,5 +1,5 @@
 {
-	"name": "forja-adapter-json",
+	"name": "@forja/adapter-json",
 	"version": "0.1.0",
 	"description": "JSON file adapter for Forja framework",
 	"author": "Forja Contributors",
@@ -22,7 +22,7 @@
 		"clean": "rm -rf dist"
 	},
 	"dependencies": {
-		"forja-types": "workspace:*"
+		"@forja/types": "workspace:*"
 	},
 	"devDependencies": {
 		"tsup": "^8.0.2",

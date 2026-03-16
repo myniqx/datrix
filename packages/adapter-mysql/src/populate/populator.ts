@@ -362,27 +362,23 @@ export class MySQLPopulator {
 	 * Recursively populate nested relations on already-fetched rows
 	 */
 	private async populateBatchedRows<T extends ForjaEntry>(
-		rows: T[],
+		rows: (T & { _fk: number })[],
 		tableName: string,
 		populate: QueryPopulate<T>,
-	): Promise<T[]> {
+	): Promise<(T & { _fk: number })[]> {
 		const modelName = this.schemaRegistry.findModelByTableName(tableName);
 		if (!modelName) return rows;
 
 		const schema = this.schemaRegistry.get(modelName);
 		if (!schema) return rows;
 
-		for (const [relationName, _opts] of Object.entries(populate)) {
-			const relationField = schema.fields[relationName];
+		for (const [_relationName, _opts] of Object.entries(populate)) {
+			const relationField = schema.fields[_relationName];
 			const opts = _opts as QueryPopulateOptions<T>;
+			const relationName = _relationName as keyof T;
 			if (!relationField || relationField.type !== "relation") continue;
 
-			const relation = relationField as {
-				kind: string;
-				model: string;
-				foreignKey?: string;
-				through?: string;
-			};
+			const relation = relationField
 			const targetSchema = this.schemaRegistry.get(relation.model);
 			if (!targetSchema) continue;
 
@@ -392,9 +388,9 @@ export class MySQLPopulator {
 			const jsonObj = this.buildJsonObject(relation.model, opts);
 
 			if (relation.kind === "belongsTo") {
-				const fkColumn = relation.foreignKey!;
+				const fkColumn = relation.foreignKey! as keyof T;
 				const fkValues = rows
-					.map((row) => row[fkColumn as keyof ForjaEntry])
+					.map((row) => row[fkColumn])
 					.filter((v) => v != null);
 
 				if (fkValues.length === 0) continue;
@@ -413,10 +409,9 @@ export class MySQLPopulator {
 				);
 
 				for (const row of rows) {
-					const fkValue = row[fkColumn as keyof ForjaEntry];
-					(row as Record<string, unknown>)[relationName] =
-						dataMap.get(fkValue as number) || null;
-					delete (row as Record<string, unknown>)[fkColumn];
+					const fkValue = row[fkColumn];
+					(row as T)[relationName] = (dataMap.get(fkValue as number) || null) as T[keyof T];
+					delete row[fkColumn];
 				}
 			} else if (relation.kind === "hasOne") {
 				const fkColumn = relation.foreignKey!;
@@ -439,8 +434,7 @@ export class MySQLPopulator {
 				);
 
 				for (const row of rows) {
-					(row as Record<string, unknown>)[relationName] =
-						dataMap.get(row.id!) || null;
+					(row as T)[relationName] = (dataMap.get(row.id!) || null) as T[keyof T];
 				}
 			} else if (relation.kind === "hasMany") {
 				const fkColumn = relation.foreignKey!;
@@ -464,8 +458,7 @@ export class MySQLPopulator {
 				);
 
 				for (const row of rows) {
-					(row as Record<string, unknown>)[relationName] =
-						groupMap.get(row.id!) || [];
+					(row as T)[relationName] = (groupMap.get(row.id!) || []) as T[keyof T];
 				}
 			} else if (relation.kind === "manyToMany") {
 				const junctionTable = relation.through!;
@@ -494,8 +487,7 @@ export class MySQLPopulator {
 				);
 
 				for (const row of rows) {
-					(row as Record<string, unknown>)[relationName] =
-						groupMap.get(row.id!) || [];
+					(row as T)[relationName] = (groupMap.get(row.id!) || []) as T[keyof T];
 				}
 			}
 		}

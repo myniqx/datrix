@@ -1,5 +1,5 @@
 {
-	"name": "forja-core",
+	"name": "@forja/core",
 	"version": "0.1.0",
 	"description": "Core functionality for Forja framework - schema, validation, query building, migration",
 	"author": "Forja Contributors",
@@ -22,7 +22,7 @@
 		"clean": "rm -rf dist"
 	},
 	"dependencies": {
-		"forja-types": "workspace:*"
+		"@forja/types": "workspace:*"
 	},
 	"devDependencies": {
 		"tsup": "^8.0.2",

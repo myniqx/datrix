@@ -1,5 +1,5 @@
 {
-	"name": "forja-adapter-mongodb",
+	"name": "@forja/adapter-mongodb",
 	"version": "0.1.0",
 	"description": "MongoDB adapter for Forja framework",
 	"author": "Forja Contributors",
@@ -26,8 +26,8 @@
 	},
 	"dependencies": {
 		"mongodb": "^6.3.0",
-		"forja-core": "workspace:*",
-		"forja-types": "workspace:*"
+		"@forja/core": "workspace:*",
+		"@forja/types": "workspace:*"
 	},
 	"devDependencies": {
 		"tsup": "^8.0.2",

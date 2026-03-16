@@ -158,7 +158,7 @@ export class JsonQueryRunner {
 			result = data.map((item) => {
 				const projected: any = {};
 				for (const field of select) {
-					projected[field] = item[field];
+					projected[field] = item[field as keyof T];
 					if (projected[field] === undefined) {
 						projected[field] = null;
 					}

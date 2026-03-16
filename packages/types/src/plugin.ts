@@ -6,7 +6,7 @@
  */
 
 import type {
-	SchemaRegistry,
+	ISchemaRegistry,
 	SchemaDefinition,
 	FieldDefinition,
 	IndexDefinition,
@@ -50,7 +50,7 @@ export interface QueryContext {
  */
 export interface PluginContext {
 	readonly adapter: DatabaseAdapter;
-	readonly schemas: SchemaRegistry;
+	readonly schemas: ISchemaRegistry;
 	readonly config: ForjaConfig;
 }
 
@@ -74,7 +74,7 @@ export interface ForjaPlugin<TOptions = Record<string, unknown>> {
 	extendSchemas?(context: SchemaExtensionContext): Promise<SchemaExtension[]>;
 
 	// Query hooks
-	onSchemaLoad?(schemas: SchemaRegistry): Promise<void>;
+	onSchemaLoad?(schemas: ISchemaRegistry): Promise<void>;
 	onCreateQueryContext?(context: QueryContext): Promise<QueryContext>;
 	onBeforeQuery?<T extends ForjaEntry>(
 		query: QueryObject<T>,

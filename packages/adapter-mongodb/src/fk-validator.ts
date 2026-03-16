@@ -10,6 +10,7 @@
 import type {
 	SchemaDefinition,
 	FieldDefinition,
+	ForjaEntry,
 } from "forja-types/core/schema";
 import type { SchemaRegistry } from "forja-core/schema";
 import type { MongoClient } from "./mongo-client";
@@ -19,10 +20,10 @@ import { throwQueryError } from "forja-types/errors/adapter";
  * Validate FK references in documents before insert.
  * Throws if any referenced ID does not exist.
  */
-export async function validateFkReferences(
+export async function validateFkReferences<T extends ForjaEntry>(
 	collection: string,
 	documents: readonly Record<string, unknown>[],
-	client: MongoClient,
+	client: MongoClient<T>,
 	schemaRegistry: SchemaRegistry,
 ): Promise<void> {
 	const modelName = schemaRegistry.findModelByTableName(collection);
@@ -38,10 +39,10 @@ export async function validateFkReferences(
  * Validate FK references in update data.
  * Only checks fields present in the update $set.
  */
-export async function validateFkReferencesForUpdate(
+export async function validateFkReferencesForUpdate<T extends ForjaEntry>(
 	collection: string,
 	updateData: Record<string, unknown>,
-	client: MongoClient,
+	client: MongoClient<T>,
 	schemaRegistry: SchemaRegistry,
 ): Promise<void> {
 	const modelName = schemaRegistry.findModelByTableName(collection);
@@ -95,9 +96,9 @@ function collectFkChecks(
 /**
  * Run FK checks: verify all referenced IDs exist
  */
-async function runFkChecks(
+async function runFkChecks<T extends ForjaEntry>(
 	checks: readonly FkCheck[],
-	client: MongoClient,
+	client: MongoClient<T>,
 ): Promise<void> {
 	for (const check of checks) {
 		if (check.ids.size === 0) continue;

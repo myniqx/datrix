@@ -11,10 +11,10 @@ import {
 	ForjaEntry,
 	ForjaRecord,
 	SchemaDefinition,
-	SchemaRegistry,
 } from "forja-types/core/schema";
 import type { Forja } from "./forja";
 import { validateQueryObject } from "forja-types/utils/query";
+import { SchemaRegistry } from "./schema";
 
 /**
  * Create a new query context
@@ -39,7 +39,7 @@ export class Dispatcher {
 	constructor(
 		private readonly registry: PluginRegistry,
 		private readonly forja: Forja,
-	) {}
+	) { }
 
 	/**
 	 * Create and populate query context

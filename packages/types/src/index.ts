@@ -64,7 +64,7 @@ export {
 	type TypedSchema,
 	defineSchema,
 	// Registry
-	type SchemaRegistry,
+	type ISchemaRegistry as SchemaRegistry,
 	// Metadata & Validation
 	type FieldMetadata,
 	type SchemaDefinitionValidationResult,

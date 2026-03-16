@@ -14,7 +14,7 @@ export function schemaTemplate(name: string): string {
 	const schemaVarName = name.charAt(0).toLowerCase() + name.slice(1);
 	const schemaNameLower = name.toLowerCase();
 
-	return `import { defineSchema } from 'forja-types/core/schema';
+	return `import { defineSchema } from '@forja/types/core/schema';
 
 export const ${schemaVarName}Schema = defineSchema({
   name: '${schemaNameLower}',
@@ -111,7 +111,7 @@ export type ${name} = typeof ${schemaVarName}Schema['__type'];
  * Generate migration template
  */
 export function migrationTemplate(name: string, timestamp: string): string {
-	return `import type { Migration } from 'forja-types/core/migration';
+	return `import type { Migration } from '@forja/types/core/migration';
 
 export const migration: Migration = {
   metadata: {
@@ -197,9 +197,9 @@ export const migration: Migration = {
  */
 export function configTemplate(dbType: "postgres" | "mysql" | "json"): string {
 	const adapterImport: Record<string, string> = {
-		postgres: "import { createPostgresAdapter } from 'forja-adapter-postgres';",
-		mysql: "import { createMySqlAdapter } from 'forja-adapter-mysql';",
-		json: "import { createJsonAdapter } from 'forja-adapter-json';",
+		postgres: "import { createPostgresAdapter } from '@forja/adapter-postgres';",
+		mysql: "import { createMySqlAdapter } from '@forja/adapter-mysql';",
+		json: "import { createJsonAdapter } from '@forja/adapter-json';",
 	};
 
 	const connectionConfig: Record<string, string> = {
@@ -226,7 +226,7 @@ export function configTemplate(dbType: "postgres" | "mysql" | "json"): string {
 	const adapterConfig = connectionConfig[dbType];
 
 	return `${importLine}
-import { createForja } from 'forja-core';
+import { createForja } from '@forja/core';
 
 // Import your schemas here
 // import { userSchema } from './schemas/user.schema';

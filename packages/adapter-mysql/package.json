@@ -1,5 +1,5 @@
 {
-	"name": "forja-adapter-mysql",
+	"name": "@forja/adapter-mysql",
 	"version": "0.1.0",
 	"description": "MySQL adapter for Forja framework",
 	"author": "Forja Contributors",
@@ -27,8 +27,8 @@
 		"clean": "rm -rf dist"
 	},
 	"dependencies": {
-		"forja-types": "workspace:*",
-		"forja-core": "workspace:*",
+		"@forja/types": "workspace:*",
+		"@forja/core": "workspace:*",
 		"mysql2": "^3.9.1"
 	},
 	"devDependencies": {

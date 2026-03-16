@@ -10,7 +10,7 @@ import {
 import { JsonQueryRunner } from "./runner";
 
 export class JsonPopulator {
-	constructor(private adapter: JsonAdapter) {}
+	constructor(private adapter: JsonAdapter) { }
 
 	async populate<T extends ForjaEntry>(
 		rows: T[],
@@ -176,8 +176,8 @@ export class JsonPopulator {
 				// Normalize all IDs to number for consistent comparison
 				const mapping = new Map<number, number[]>();
 				for (const junction of relevantJunctions) {
-					const srcId = junction[sourceFK];
-					const tgtId = junction[targetFK];
+					const srcId = junction[sourceFK as keyof typeof junction];
+					const tgtId = junction[targetFK as keyof typeof junction];
 
 					// Normalize to number
 					const normalizedSrcId =

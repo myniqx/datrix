@@ -13,7 +13,7 @@ import type {
 	FieldType,
 	SchemaDefinition,
 	RelationField,
-	SchemaRegistry,
+	ISchemaRegistry,
 	ForjaEntry,
 	FieldDefinition,
 } from "forja-types/core/schema";
@@ -345,7 +345,7 @@ export function validateComparisonOperator(
 export function validateWhereClause<T extends ForjaEntry>(
 	where: WhereClause<T>,
 	schema: SchemaDefinition,
-	schemaRegistry?: SchemaRegistry,
+	schemaRegistry?: ISchemaRegistry,
 	depth = 0,
 ): void {
 	// Check depth limit
@@ -494,7 +494,7 @@ export function validateWhereClause<T extends ForjaEntry>(
 export function normalizeWhere<T extends ForjaEntry>(
 	wheres: WhereClause<T>[] | undefined,
 	schema: SchemaDefinition,
-	registry: SchemaRegistry,
+	registry: ISchemaRegistry,
 ): WhereClause<T> | undefined {
 	if (!wheres || wheres.length === 0) {
 		return undefined;
@@ -534,7 +534,7 @@ export function normalizeWhere<T extends ForjaEntry>(
 function normalizeWhereClause<T extends ForjaEntry>(
 	where: WhereClause<T>,
 	schema: SchemaDefinition,
-	registry: SchemaRegistry,
+	registry: ISchemaRegistry,
 ): WhereClause<T> {
 	const normalized: Record<string, unknown> = {};
 

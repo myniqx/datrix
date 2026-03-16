@@ -274,7 +274,7 @@ export class ForgeMigrationGenerator implements MigrationGenerator {
  ${escapedAuthor ? `* Author: ${escapedAuthor}` : ""}
  */
 
-import type { Migration } from 'forja-types/core/migration';
+import type { Migration } from '@forja/types/core/migration';
 
 export const migration: Migration = {
   metadata: {

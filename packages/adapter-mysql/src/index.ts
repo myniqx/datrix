@@ -6,7 +6,7 @@
  *
  * @example
  * ```typescript
- * import { createMySQLAdapter } from 'forja-adapter-mysql';
+ * import { createMySQLAdapter } from '@forja/adapter-mysql';
  *
  * // Using connection string
  * const adapter = createMySQLAdapter({

@@ -28,8 +28,8 @@ import { ForjaError } from "forja-types/errors";
  * @example
  * ```ts
  * // Next.js App Router
- * import { getForja } from 'forja-core';
- * import { handleRequest } from 'forja-api/helper';
+ * import { getForja } from '@forja/core';
+ * import { handleRequest } from '@forja/api/helper';
  *
  * async function handler(request: Request): Promise<Response> {
  *   return handleRequest(await getForja(), request);
@@ -46,8 +46,8 @@ import { ForjaError } from "forja-types/errors";
  * ```ts
  * // Express
  * import express from 'express';
- * import { getForja } from 'forja-core';
- * import { handleRequest } from 'forja-api/helper';
+ * import { getForja } from '@forja/core';
+ * import { handleRequest } from '@forja/api/helper';
  *
  * const app = express();
  *

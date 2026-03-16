@@ -1,5 +1,5 @@
 {
-	"name": "forja-plugin-upload",
+	"name": "@forja/plugin-upload",
 	"version": "0.1.0",
 	"description": "File upload plugin for Forja framework",
 	"author": "Forja Contributors",
@@ -22,8 +22,8 @@
 		"clean": "rm -rf dist"
 	},
 	"dependencies": {
-		"forja-core": "workspace:*",
-		"forja-types": "workspace:*"
+		"@forja/core": "workspace:*",
+		"@forja/types": "workspace:*"
 	},
 	"devDependencies": {
 		"tsup": "^8.0.2",

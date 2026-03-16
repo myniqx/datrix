@@ -7,7 +7,7 @@
 
 import { QueryObject } from "forja-types/core/query-builder";
 import {
-	SchemaRegistry,
+	ISchemaRegistry,
 	SchemaDefinition,
 	ForjaEntry,
 } from "forja-types/core/schema";
@@ -78,7 +78,7 @@ export abstract class BasePlugin<
 	 *
 	 * Default implementation does nothing
 	 */
-	async onSchemaLoad(_schemas: SchemaRegistry): Promise<void> {
+	async onSchemaLoad(_schemas: ISchemaRegistry): Promise<void> {
 		// Default: no-op
 	}
 
