@@ -1,6 +1,3 @@
-"use client"
-
-import Link from "next/link"
 import { MenuIcon, StarIcon, GithubIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -18,7 +15,7 @@ interface NavbarMobileProps {
   starCount: number | null
 }
 
-export function NavbarMobile({ starCount }: NavbarMobileProps) {
+export function NavbarMobile({ starCount }: NavbarMobileProps): JSX.Element {
   return (
     <Sheet>
       <SheetTrigger asChild>
@@ -41,31 +38,31 @@ export function NavbarMobile({ starCount }: NavbarMobileProps) {
         </SheetHeader>
 
         <nav className="flex flex-col gap-1 px-6">
-          <Link
+          <a
             href="#showcase"
             className="rounded-md px-2 py-2 text-sm text-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
           >
             Showcase
-          </Link>
-          <Link
+          </a>
+          <a
             href="#features"
             className="rounded-md px-2 py-2 text-sm text-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
           >
             Features
-          </Link>
-          <Link
+          </a>
+          <a
             href="/docs"
             className="rounded-md px-2 py-2 text-sm text-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
           >
             Docs
-          </Link>
-          <Link
+          </a>
+          <a
             href="/packages"
             className="rounded-md px-2 py-2 text-sm text-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
           >
             Packages
-          </Link>
-          <Link
+          </a>
+          <a
             href={FORJA_GITHUB_URL}
             target="_blank"
             rel="noopener noreferrer"
@@ -81,12 +78,12 @@ export function NavbarMobile({ starCount }: NavbarMobileProps) {
                   : starCount}
               </span>
             )}
-          </Link>
+          </a>
         </nav>
 
         <div className="mt-4 px-6">
           <Button asChild className="w-full" size="sm">
-            <Link href="/docs">Get Started</Link>
+            <a href="/docs">Get Started</a>
           </Button>
         </div>
       </SheetContent>

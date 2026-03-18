@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react"
 import { Navbar } from "@/components/layout/navbar"
 import { Footer } from "@/components/layout/footer"
 import { Section } from "@/components/layout/section"
@@ -6,11 +7,21 @@ import { Hero } from "@/components/sections/hero"
 import { Playground } from "@/components/sections/playground"
 import { Features } from "@/components/sections/features"
 import { Frameworks } from "@/components/sections/frameworks"
+import { FORJA_GITHUB_REPO } from "@/data/constants"
 
-export default function Home() {
+export default function App(): JSX.Element {
+  const [starCount, setStarCount] = useState<number | null>(null)
+
+  useEffect(() => {
+    fetch(`https://api.github.com/repos/${FORJA_GITHUB_REPO}`)
+      .then((res) => res.ok ? res.json() as Promise<{ stargazers_count: number }> : null)
+      .then((data) => { if (data) setStarCount(data.stargazers_count) })
+      .catch(() => {})
+  }, [])
+
   return (
-    <>
-      <Navbar />
+    <div className="font-sans">
+      <Navbar starCount={starCount} />
       <main>
         <Section id="hero" className="p-0">
           <Hero />
@@ -38,7 +49,7 @@ export default function Home() {
           <Frameworks />
         </Section>
       </main>
-      <Footer />
-    </>
+      <Footer starCount={starCount} />
+    </div>
   )
 }

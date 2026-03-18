@@ -1,4 +1,3 @@
-import Link from "next/link"
 import { StarIcon } from "lucide-react"
 import { siGithub } from "simple-icons"
 import { Button } from "@/components/ui/button"
@@ -6,20 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Container } from "./container"
 import { ForjaLogo } from "./logo"
 import { NavbarMobile } from "./navbar-mobile"
-import { FORJA_VERSION, FORJA_GITHUB_URL, FORJA_GITHUB_REPO } from "@/data/constants"
-
-async function fetchGithubStars(): Promise<number | null> {
-  try {
-    const response = await fetch(`https://api.github.com/repos/${FORJA_GITHUB_REPO}`, {
-      next: { revalidate: 3600 },
-    })
-    if (!response.ok) return null
-    const data = await response.json() as { stargazers_count: number }
-    return data.stargazers_count
-  } catch {
-    return null
-  }
-}
+import { FORJA_VERSION, FORJA_GITHUB_URL } from "@/data/constants"
 
 const NAV_LINKS = [
   { label: "Showcase", href: "#showcase" },
@@ -28,9 +14,11 @@ const NAV_LINKS = [
   { label: "Packages", href: "/packages" },
 ] as const
 
-export async function Navbar() {
-  const starCount = await fetchGithubStars()
+interface NavbarProps {
+  starCount: number | null
+}
 
+export function Navbar({ starCount }: NavbarProps): JSX.Element {
   const starLabel = starCount === null
     ? null
     : starCount >= 1000
@@ -42,24 +30,24 @@ export async function Navbar() {
       <Container className="flex h-16 items-center justify-between">
 
         {/* Left — logo + name + version */}
-        <Link href="/" className="flex items-center gap-3">
+        <a href="/" className="flex items-center gap-3">
           <div className="text-primary">
             <ForjaLogo size={28} />
           </div>
           <span className="text-lg font-bold text-foreground">forja</span>
           <Badge variant="outline" className="px-1.5 py-0 text-xs">{FORJA_VERSION}</Badge>
-        </Link>
+        </a>
 
         {/* Desktop — nav + CTA */}
         <div className="hidden items-center gap-2 md:flex">
           <nav className="flex items-center gap-1">
             {NAV_LINKS.map((link) => (
               <Button key={link.href} asChild variant="outline" size="sm">
-                <Link href={link.href}>{link.label}</Link>
+                <a href={link.href}>{link.label}</a>
               </Button>
             ))}
             <Button asChild variant="outline" size="sm">
-              <Link
+              <a
                 href={FORJA_GITHUB_URL}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -76,11 +64,11 @@ export async function Navbar() {
                 ) : (
                   "GitHub"
                 )}
-              </Link>
+              </a>
             </Button>
           </nav>
           <Button asChild size="sm">
-            <Link href="/docs">Get Started</Link>
+            <a href="/docs">Get Started</a>
           </Button>
         </div>
 

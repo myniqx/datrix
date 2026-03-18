@@ -1,4 +1,3 @@
-import Link from "next/link"
 import { Container } from "@/components/layout/container"
 import { Card, CardContent } from "@/components/ui/card"
 import { CopyButton } from "@/components/ui/copy-button"
@@ -21,14 +20,14 @@ export function Packages() {
           <Card key={pkg.name}>
             <CardContent className="flex flex-col gap-3 pt-5 pb-4">
               <div className="flex items-center justify-between gap-2">
-                <Link
+                <a
                   href={pkg.npm}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="font-mono text-xs font-semibold text-primary hover:underline truncate"
                 >
                   {pkg.name}
-                </Link>
+                </a>
                 <CopyButton text={`npm install ${pkg.name}`} />
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed">

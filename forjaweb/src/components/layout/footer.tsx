@@ -1,22 +1,8 @@
-import Link from "next/link"
 import { StarIcon } from "lucide-react"
 import { siGithub } from "simple-icons"
 import { Container } from "./container"
 import { ForjaLogo } from "./logo"
-import { FORJA_VERSION, FORJA_GITHUB_URL, FORJA_GITHUB_REPO } from "@/data/constants"
-
-async function fetchGithubStars(): Promise<number | null> {
-  try {
-    const response = await fetch(`https://api.github.com/repos/${FORJA_GITHUB_REPO}`, {
-      next: { revalidate: 3600 },
-    })
-    if (!response.ok) return null
-    const data = await response.json() as { stargazers_count: number }
-    return data.stargazers_count
-  } catch {
-    return null
-  }
-}
+import { FORJA_VERSION, FORJA_GITHUB_URL } from "@/data/constants"
 
 const NAV_LINKS = [
   { label: "Showcase", href: "#showcase" },
@@ -25,9 +11,11 @@ const NAV_LINKS = [
   { label: "Packages", href: "/packages" },
 ] as const
 
-export async function Footer() {
-  const starCount = await fetchGithubStars()
+interface FooterProps {
+  starCount: number | null
+}
 
+export function Footer({ starCount }: FooterProps): JSX.Element {
   const starLabel = starCount === null
     ? null
     : starCount >= 1000
@@ -50,11 +38,11 @@ export async function Footer() {
         {/* Center — links */}
         <nav className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-foreground/70">
           {NAV_LINKS.map((link) => (
-            <Link key={link.href} href={link.href} className="transition-colors hover:text-foreground">
+            <a key={link.href} href={link.href} className="transition-colors hover:text-foreground">
               {link.label}
-            </Link>
+            </a>
           ))}
-          <Link
+          <a
             href={FORJA_GITHUB_URL}
             target="_blank"
             rel="noopener noreferrer"
@@ -70,7 +58,7 @@ export async function Footer() {
                 {starLabel}
               </span>
             )}
-          </Link>
+          </a>
         </nav>
 
         {/* Right — copyright */}
