@@ -15,7 +15,7 @@ interface FooterProps {
   starCount: number | null
 }
 
-export function Footer({ starCount }: FooterProps): JSX.Element {
+export function Footer({ starCount }: FooterProps) {
   const starLabel = starCount === null
     ? null
     : starCount >= 1000

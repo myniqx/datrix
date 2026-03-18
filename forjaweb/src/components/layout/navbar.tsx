@@ -18,7 +18,7 @@ interface NavbarProps {
   starCount: number | null
 }
 
-export function Navbar({ starCount }: NavbarProps): JSX.Element {
+export function Navbar({ starCount }: NavbarProps) {
   const starLabel = starCount === null
     ? null
     : starCount >= 1000

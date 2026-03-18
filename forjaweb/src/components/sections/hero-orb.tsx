@@ -1,4 +1,3 @@
-"use client"
 
 import { useRef, useMemo, useImperativeHandle } from "react"
 import { Canvas, useFrame } from "@react-three/fiber"

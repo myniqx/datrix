@@ -9,7 +9,7 @@ import { Features } from "@/components/sections/features"
 import { Frameworks } from "@/components/sections/frameworks"
 import { FORJA_GITHUB_REPO } from "@/data/constants"
 
-export default function App(): JSX.Element {
+export default function App() {
   const [starCount, setStarCount] = useState<number | null>(null)
 
   useEffect(() => {

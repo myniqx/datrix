@@ -1,5 +1,3 @@
-"use client"
-
 import { useState, useRef } from "react"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -50,7 +48,7 @@ interface Schema {
   [key: string]: unknown
 }
 
-const { schemas, groups } = playgroundData as { schemas: Schema[]; groups: Group[] }
+const { schemas, groups } = playgroundData as unknown as { schemas: Schema[]; groups: Group[] }
 
 // ─── Code renderer ────────────────────────────────────────────────────────────
 

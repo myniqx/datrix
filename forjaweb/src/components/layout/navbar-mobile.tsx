@@ -15,7 +15,7 @@ interface NavbarMobileProps {
   starCount: number | null
 }
 
-export function NavbarMobile({ starCount }: NavbarMobileProps): JSX.Element {
+export function NavbarMobile({ starCount }: NavbarMobileProps) {
   return (
     <Sheet>
       <SheetTrigger asChild>
