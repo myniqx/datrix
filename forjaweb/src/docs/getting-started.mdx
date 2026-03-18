@@ -1,0 +1,25 @@
+---
+title: Getting Started
+description: Install and configure Forja in your project.
+---
+
+import InstallCore from './_partials/install-core.mdx'
+
+# Getting Started
+
+Forja is a TypeScript-first database management framework.
+
+## Installation
+
+<InstallCore />
+
+## Basic Usage
+
+```typescript
+import { createForja } from '@forja/core'
+import { PostgresAdapter } from '@forja/adapter-postgres'
+
+const forja = createForja({
+  adapter: new PostgresAdapter({ connectionString: process.env.DATABASE_URL }),
+})
+```

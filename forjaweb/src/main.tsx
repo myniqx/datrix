@@ -1,4 +1,5 @@
 import "@fontsource-variable/inter";
+import "highlight.js/styles/github-dark.min.css";
 import "@fontsource-variable/jetbrains-mono";
 import "./app/globals.css";
 import { StrictMode } from "react";

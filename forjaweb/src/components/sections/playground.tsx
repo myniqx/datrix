@@ -1,4 +1,4 @@
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
@@ -44,7 +44,7 @@ interface SchemaField {
 
 interface Schema {
   name: string
-  fields: Record<string, SchemaField>
+  fields: Record<string, SchemaField | undefined>
   [key: string]: unknown
 }
 
@@ -269,17 +269,20 @@ function SchemaViewer({ modelName }: { modelName: string }) {
           </code>
         </pre>
       ) : (
-        fields.map(([fieldName, def]) => (
-          <div key={fieldName} className="flex items-center gap-2 text-xs font-mono">
-            <span className="text-foreground/80 w-32 truncate">{fieldName}</span>
-            <span className={FIELD_TYPE_COLORS[def.type] ?? "text-foreground"}>
-              {def.type === "relation" ? `→ ${def.model}` : def.type}
-            </span>
-            {def.required && (
-              <span className="text-destructive text-[10px]">required</span>
-            )}
-          </div>
-        ))
+        fields.map(([fieldName, def]) => {
+          if (!def) return null
+          return (
+            <div key={fieldName} className="flex items-center gap-2 text-xs font-mono">
+              <span className="text-foreground/80 w-32 truncate">{fieldName}</span>
+              <span className={FIELD_TYPE_COLORS[def.type] ?? "text-foreground"}>
+                {def.type === "relation" ? `→ ${def.model}` : def.type}
+              </span>
+              {def.required && (
+                <span className="text-destructive text-[10px]">required</span>
+              )}
+            </div>
+          )
+        })
       )}
     </div>
   )
@@ -300,6 +303,14 @@ export function Playground() {
   const [isFullscreen, setIsFullscreen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
+  useEffect(() => {
+    function onFullscreenChange() {
+      setIsFullscreen(document.fullscreenElement === containerRef.current)
+    }
+    document.addEventListener("fullscreenchange", onFullscreenChange)
+    return () => document.removeEventListener("fullscreenchange", onFullscreenChange)
+  }, [])
+
   const currentGroup = groups.find((g) => g.id === activeGroup)!
   const currentScenario = currentGroup.scenarios.find((s) => s.id === activeScenario)
     ?? currentGroup.scenarios[0]!
@@ -316,7 +327,6 @@ export function Playground() {
     } else {
       document.exitFullscreen()
     }
-    setIsFullscreen((v) => !v)
   }
 
   return (

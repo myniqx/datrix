@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { BrowserRouter, Routes, Route } from "react-router-dom"
 import { Navbar } from "@/components/layout/navbar"
 import { Footer } from "@/components/layout/footer"
 import { Section } from "@/components/layout/section"
@@ -8,6 +9,39 @@ import { Playground } from "@/components/sections/playground"
 import { Features } from "@/components/sections/features"
 import { Frameworks } from "@/components/sections/frameworks"
 import { FORJA_GITHUB_REPO } from "@/data/constants"
+import DocsPage from "@/pages/docs-page"
+
+function HomePage() {
+  return (
+    <main>
+      <Section id="hero" className="p-0">
+        <Hero />
+      </Section>
+
+      <Section id="showcase" className="min-h-0 py-24">
+        <Container>
+          <div className="mb-12 flex flex-col gap-4">
+            <h2 className="text-3xl font-bold tracking-tight text-foreground md:text-4xl">
+              See it in action
+            </h2>
+            <p className="text-base text-foreground/80">
+              Real queries, real output. Browse CRUD operations and explore how Forja handles relations, filters, and nested queries.
+            </p>
+          </div>
+          <Playground />
+        </Container>
+      </Section>
+
+      <Section id="features" className="min-h-0">
+        <Features />
+      </Section>
+
+      <Section id="frameworks" className="min-h-0 py-0">
+        <Frameworks />
+      </Section>
+    </main>
+  )
+}
 
 export default function App() {
   const [starCount, setStarCount] = useState<number | null>(null)
@@ -20,36 +54,16 @@ export default function App() {
   }, [])
 
   return (
-    <div className="font-sans">
-      <Navbar starCount={starCount} />
-      <main>
-        <Section id="hero" className="p-0">
-          <Hero />
-        </Section>
-
-        <Section id="showcase" className="min-h-0 py-24">
-          <Container>
-            <div className="mb-12 flex flex-col gap-4">
-              <h2 className="text-3xl font-bold tracking-tight text-foreground md:text-4xl">
-                See it in action
-              </h2>
-              <p className="text-base text-foreground/80">
-                Real queries, real output. Browse CRUD operations and explore how Forja handles relations, filters, and nested queries.
-              </p>
-            </div>
-            <Playground />
-          </Container>
-        </Section>
-
-        <Section id="features" className="min-h-0">
-          <Features />
-        </Section>
-
-        <Section id="frameworks" className="min-h-0 py-0">
-          <Frameworks />
-        </Section>
-      </main>
-      <Footer starCount={starCount} />
-    </div>
+    <BrowserRouter>
+      <div className="font-sans">
+        <Navbar starCount={starCount} />
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/docs" element={<DocsPage />} />
+          <Route path="/docs/:slug" element={<DocsPage />} />
+        </Routes>
+        <Footer starCount={starCount} />
+      </div>
+    </BrowserRouter>
   )
 }
