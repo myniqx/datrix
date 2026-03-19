@@ -7,7 +7,6 @@ import remarkFrontmatter from "remark-frontmatter";
 import remarkMdxFrontmatter from "remark-mdx-frontmatter";
 import remarkGfm from "remark-gfm";
 import remarkTocExport from "./src/lib/remark-toc-export";
-import rehypeHighlight from "rehype-highlight";
 import rehypeSlug from "rehype-slug";
 
 export default defineConfig({
@@ -15,7 +14,7 @@ export default defineConfig({
     tailwindcss(),
     mdx({
       remarkPlugins: [remarkGfm, remarkFrontmatter, remarkMdxFrontmatter, remarkTocExport],
-      rehypePlugins: [rehypeSlug, rehypeHighlight],
+      rehypePlugins: [rehypeSlug],
     }),
     react(),
     tsconfigPaths(),
