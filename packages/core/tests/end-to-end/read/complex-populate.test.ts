@@ -703,6 +703,258 @@ describe("Complex Populate", () => {
 	});
 
 	// ==========================================================================
+	// Populate with where
+	// ==========================================================================
+
+	describe("Populate with where", () => {
+		let postWithMixedComments: number;
+
+		beforeAll(async () => {
+			const post = await forja.create("post", {
+				title: "Filtered Comments Post",
+				content: "Content",
+				slug: "filtered-comments-post",
+				author: userId,
+			});
+			postWithMixedComments = post.id;
+
+			await forja.createMany("comment", [
+				{ content: "Approved comment 1", post: postWithMixedComments, author: userId, isApproved: true },
+				{ content: "Approved comment 2", post: postWithMixedComments, author: userId, isApproved: true },
+				{ content: "Pending comment", post: postWithMixedComments, author: userId, isApproved: false },
+			]);
+		});
+
+		it("should filter hasMany results with where", async () => {
+			const post = await forja.findById("post", postWithMixedComments, {
+				populate: {
+					comments: {
+						where: { isApproved: true },
+					},
+				},
+			});
+
+			expect(post).not.toBeNull();
+			const comments = post!.comments as { content: string; isApproved: boolean }[];
+			expect(Array.isArray(comments)).toBe(true);
+			expect(comments.length).toBe(2);
+			for (const c of comments) {
+				expect(c.isApproved).toBe(true);
+			}
+		});
+
+		it("should return empty array when where matches nothing", async () => {
+			const post = await forja.findById("post", postWithMixedComments, {
+				populate: {
+					comments: {
+						where: { content: "nonexistent" },
+					},
+				},
+			});
+
+			expect(post).not.toBeNull();
+			expect(Array.isArray(post!.comments)).toBe(true);
+			expect((post!.comments as unknown[]).length).toBe(0);
+		});
+
+		it("should filter manyToMany results with where", async () => {
+			const user = await forja.findById("user", userId, {
+				populate: {
+					roles: {
+						where: { level: { $gte: 50 } },
+					},
+				},
+			});
+
+			expect(user).not.toBeNull();
+			const roles = user!.roles as { name: string; level: number }[];
+			expect(Array.isArray(roles)).toBe(true);
+			expect(roles.length).toBeGreaterThan(0);
+			for (const r of roles) {
+				expect(r.level).toBeGreaterThanOrEqual(50);
+			}
+		});
+	});
+
+	// ==========================================================================
+	// Populate with orderBy
+	// ==========================================================================
+
+	describe("Populate with orderBy", () => {
+		let orderedPostId: number;
+
+		beforeAll(async () => {
+			const post = await forja.create("post", {
+				title: "Ordered Comments Post",
+				content: "Content",
+				slug: "ordered-comments-post",
+				author: userId,
+			});
+			orderedPostId = post.id;
+
+			await forja.createMany("comment", [
+				{ content: "Comment C", post: orderedPostId, author: userId },
+				{ content: "Comment A", post: orderedPostId, author: userId },
+				{ content: "Comment B", post: orderedPostId, author: userId },
+			]);
+		});
+
+		it("should order hasMany results ascending", async () => {
+			const post = await forja.findById("post", orderedPostId, {
+				populate: {
+					comments: {
+						orderBy: [{ field: "content", direction: "asc" }],
+					},
+				},
+			});
+
+			expect(post).not.toBeNull();
+			const comments = post!.comments as { content: string }[];
+			expect(comments.length).toBe(3);
+			expect(comments[0].content).toBe("Comment A");
+			expect(comments[1].content).toBe("Comment B");
+			expect(comments[2].content).toBe("Comment C");
+		});
+
+		it("should order hasMany results descending", async () => {
+			const post = await forja.findById("post", orderedPostId, {
+				populate: {
+					comments: {
+						orderBy: [{ field: "content", direction: "desc" }],
+					},
+				},
+			});
+
+			expect(post).not.toBeNull();
+			const comments = post!.comments as { content: string }[];
+			expect(comments[0].content).toBe("Comment C");
+			expect(comments[2].content).toBe("Comment A");
+		});
+
+		it("should order manyToMany results by field", async () => {
+			const user = await forja.findById("user", userId, {
+				populate: {
+					roles: {
+						orderBy: [{ field: "level", direction: "asc" }],
+					},
+				},
+			});
+
+			expect(user).not.toBeNull();
+			const roles = user!.roles as { level: number }[];
+			expect(roles.length).toBeGreaterThan(1);
+			for (let i = 1; i < roles.length; i++) {
+				expect(roles[i].level).toBeGreaterThanOrEqual(roles[i - 1].level);
+			}
+		});
+	});
+
+	// ==========================================================================
+	// Populate with limit and offset
+	// ==========================================================================
+
+	describe("Populate with limit and offset", () => {
+		let paginatedPostId: number;
+
+		beforeAll(async () => {
+			const post = await forja.create("post", {
+				title: "Paginated Comments Post",
+				content: "Content",
+				slug: "paginated-comments-post",
+				author: userId,
+			});
+			paginatedPostId = post.id;
+
+			await forja.createMany("comment", [
+				{ content: "Page Comment 1", post: paginatedPostId, author: userId },
+				{ content: "Page Comment 2", post: paginatedPostId, author: userId },
+				{ content: "Page Comment 3", post: paginatedPostId, author: userId },
+				{ content: "Page Comment 4", post: paginatedPostId, author: userId },
+				{ content: "Page Comment 5", post: paginatedPostId, author: userId },
+			]);
+		});
+
+		it("should limit hasMany results", async () => {
+			const post = await forja.findById("post", paginatedPostId, {
+				populate: {
+					comments: {
+						limit: 3,
+					},
+				},
+			});
+
+			expect(post).not.toBeNull();
+			const comments = post!.comments as unknown[];
+			expect(comments.length).toBe(3);
+		});
+
+		it("should apply offset to hasMany results", async () => {
+			const post = await forja.findById("post", paginatedPostId, {
+				populate: {
+					comments: {
+						orderBy: [{ field: "content", direction: "asc" }],
+						offset: 2,
+					},
+				},
+			});
+
+			expect(post).not.toBeNull();
+			const comments = post!.comments as { content: string }[];
+			expect(comments.length).toBe(3);
+			expect(comments[0].content).toBe("Page Comment 3");
+		});
+
+		it("should apply limit and offset together (pagination)", async () => {
+			const page1 = await forja.findById("post", paginatedPostId, {
+				populate: {
+					comments: {
+						orderBy: [{ field: "content", direction: "asc" }],
+						limit: 2,
+						offset: 0,
+					},
+				},
+			});
+
+			const page2 = await forja.findById("post", paginatedPostId, {
+				populate: {
+					comments: {
+						orderBy: [{ field: "content", direction: "asc" }],
+						limit: 2,
+						offset: 2,
+					},
+				},
+			});
+
+			const p1Comments = page1!.comments as { content: string }[];
+			const p2Comments = page2!.comments as { content: string }[];
+
+			expect(p1Comments.length).toBe(2);
+			expect(p2Comments.length).toBe(2);
+
+			// Pages should not overlap
+			const p1Contents = p1Comments.map((c) => c.content);
+			const p2Contents = p2Comments.map((c) => c.content);
+			for (const content of p2Contents) {
+				expect(p1Contents).not.toContain(content);
+			}
+		});
+
+		it("should limit manyToMany results", async () => {
+			const post = await forja.findById("post", postId, {
+				populate: {
+					tags: {
+						limit: 2,
+					},
+				},
+			});
+
+			expect(post).not.toBeNull();
+			const tags = post!.tags as unknown[];
+			expect(tags.length).toBe(2);
+		});
+	});
+
+	// ==========================================================================
 	// Error Cases
 	// ==========================================================================
 

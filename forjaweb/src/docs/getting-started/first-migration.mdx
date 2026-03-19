@@ -1,0 +1,67 @@
+---
+title: First Migration
+description: Create your database tables with Forja migrations.
+order: 4
+---
+
+# First Migration
+
+Forja compares your schema definitions against the current database state and generates
+the necessary SQL operations. No migration files to write by hand.
+
+## Run migrations
+
+```bash
+npx forja migrate
+```
+
+Forja will load your `forja.config.ts`, diff your schemas against the database, and prompt
+you to confirm before applying any changes.
+
+```
+Forja Migration Tool
+
+Migration Plan:
+
+Tables to CREATE:
+  + user
+
+Total operations: 1
+
+Apply these migrations? (y/N): y
+
+✔ Migrations applied successfully
+```
+
+## Dry run
+
+Preview what will change without applying anything:
+
+```bash
+npx forja migrate --dry-run
+```
+
+## Options
+
+| Flag | Description |
+|------|-------------|
+| `--dry-run` | Preview changes without applying |
+| `--verbose` | Show field-level details in the plan |
+| `--config <path>` | Path to config file (default: `./forja.config.ts`) |
+
+## Ambiguous changes
+
+When Forja detects a change that could be interpreted as either a rename or a drop+add
+(e.g. you renamed a field), it will ask you to resolve it interactively before proceeding.
+
+```
+Ambiguous changes detected:
+
+user.name → user.fullName
+  1. Rename column (preserves data)
+  2. Drop and add (loses data)
+
+Choose option (1-2):
+```
+
+For full migration details — programmatic usage, rollbacks, and advanced options — see [CLI](/docs/cli).

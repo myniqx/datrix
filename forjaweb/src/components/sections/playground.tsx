@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react"
+import { CODE_COLORS, semanticKeyColor } from "@/components/docs/code-colors"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
@@ -52,95 +53,84 @@ const { schemas, groups } = playgroundData as unknown as { schemas: Schema[]; gr
 
 // ─── Code renderer ────────────────────────────────────────────────────────────
 
-const P = {
-  punct:    "text-muted-foreground",
-  key:      "text-foreground/60",                  // generic object keys
-  queryKey: "text-[rgb(103,232,249)]",             // where, populate, select, orderBy, limit, offset — cyan
-  opKey:    "text-[rgb(129,140,248)]",             // $eq, $gt, $and, $or etc. — indigo
-  relKey:   "text-[rgb(244,114,182)]",             // connect, disconnect, set — pink
-  str:      "text-[rgb(134,239,172)]",             // string values — green
-  num:      "text-[rgb(251,146,60)]",              // number values — orange
-  bool:     "text-[rgb(248,113,113)]",             // boolean / null values — red
-  kw:       "text-[rgb(248,113,113)]",             // forja keyword — red
-  fn:       "text-[rgb(250,204,21)]",              // method names — yellow
-  model:    "text-[rgb(134,239,172)]",             // model name strings — green
-  obj:      "text-foreground/60",                  // fallback
+// Inline styles from shared CODE_COLORS palette
+const S = {
+  punct:    { color: "var(--muted-foreground)" },
+  queryKey: { color: CODE_COLORS.queryKey },
+  opKey:    { color: CODE_COLORS.opKey },
+  relKey:   { color: CODE_COLORS.relKey },
+  str:      { color: CODE_COLORS.string },
+  num:      { color: CODE_COLORS.number },
+  bool:     { color: CODE_COLORS.boolean },
+  kw:       { color: CODE_COLORS.keyword },
+  fn:       { color: CODE_COLORS.fnName },
+  model:    { color: CODE_COLORS.modelName },
+  obj:      { color: CODE_COLORS.objectKey },
 } as const
-
-const QUERY_KEYS = new Set(["where", "populate", "select", "orderBy", "limit", "offset", "data", "query"])
-const OP_KEYS = new Set(["$eq", "$ne", "$gt", "$gte", "$lt", "$lte", "$in", "$nin", "$like", "$and", "$or", "$not"])
-const REL_KEYS = new Set(["connect", "disconnect", "set"])
-
-function keyClass(k: string): string {
-  if (QUERY_KEYS.has(k)) return P.queryKey
-  if (OP_KEYS.has(k)) return P.opKey
-  if (REL_KEYS.has(k)) return P.relKey
-  return P.key
-}
 
 function CodeArg({ value, indent = 2 }: { value: unknown; indent?: number }) {
   const pad = " ".repeat(indent)
   const innerPad = " ".repeat(indent + 2)
 
-  if (value === null) return <span className={P.kw}>null</span>
-  if (value === undefined) return <span className={P.kw}>undefined</span>
+  if (value === null) return <span style={S.kw}>null</span>
+  if (value === undefined) return <span style={S.kw}>undefined</span>
 
   if (typeof value === "string") {
-    return <span className={P.str}>&quot;{value}&quot;</span>
+    return <span style={S.str}>&quot;{value}&quot;</span>
   }
   if (typeof value === "number") {
-    return <span className={P.num}>{value}</span>
+    return <span style={S.num}>{value}</span>
   }
   if (typeof value === "boolean") {
-    return <span className={P.bool}>{String(value)}</span>
+    return <span style={S.bool}>{String(value)}</span>
   }
 
   if (Array.isArray(value)) {
-    if (value.length === 0) return <span className={P.punct}>{"[]"}</span>
+    if (value.length === 0) return <span style={S.punct}>{"[]"}</span>
     return (
       <>
-        <span className={P.punct}>{"["}</span>{"\n"}
+        <span style={S.punct}>{"["}</span>{"\n"}
         {value.map((item, i) => (
           <span key={i}>
             {innerPad}<CodeArg value={item} indent={indent + 2} />
-            <span className={P.punct}>{i < value.length - 1 ? "," : ""}</span>{"\n"}
+            <span style={S.punct}>{i < value.length - 1 ? "," : ""}</span>{"\n"}
           </span>
         ))}
-        {pad}<span className={P.punct}>{"]"}</span>
+        {pad}<span style={S.punct}>{"]"}</span>
       </>
     )
   }
 
   if (typeof value === "object") {
     const entries = Object.entries(value as Record<string, unknown>)
-    if (entries.length === 0) return <span className={P.punct}>{"{}"}</span>
+    if (entries.length === 0) return <span style={S.punct}>{"{}"}</span>
     return (
       <>
-        <span className={P.punct}>{"{"}</span>{"\n"}
+        <span style={S.punct}>{"{"}</span>{"\n"}
         {entries.map(([k, v], i) => (
           <span key={k}>
-            {innerPad}<span className={keyClass(k)}>{k}</span>
-            <span className={P.punct}>{": "}</span>
+            {innerPad}<span style={{ color: semanticKeyColor(k) }}>{k}</span>
+            <span style={S.punct}>{": "}</span>
             <CodeArg value={v} indent={indent + 2} />
-            <span className={P.punct}>{i < entries.length - 1 ? "," : ""}</span>{"\n"}
+            <span style={S.punct}>{i < entries.length - 1 ? "," : ""}</span>{"\n"}
           </span>
         ))}
-        {pad}<span className={P.punct}>{"}"}</span>
+        {pad}<span style={S.punct}>{"}"}</span>
       </>
     )
   }
 
-  return <span className={P.obj}>{String(value)}</span>
+  return <span style={S.obj}>{String(value)}</span>
 }
 
 function CodeBlock({ scenario }: { scenario: Scenario }) {
   const { action, model, query, data, idArg, options } = scenario
 
-  const fn = <><span className={P.kw}>forja</span><span className={P.punct}>.</span><span className={P.fn}>{action}</span></>
-  const mod = <span className={P.model}>&quot;{model}&quot;</span>
-  const sep = <span className={P.punct}>{", "}</span>
-  const op = <span className={P.punct}>{"("}</span>
-  const cl = <span className={P.punct}>{")"}</span>
+  const fn = <><span style={S.kw}>forja</span><span style={S.punct}>.</span><span style={S.fn}>{action}</span></>
+  const mod = <span style={S.model}>&quot;{model}&quot;</span>
+  const sep = <span style={S.punct}>{", "}</span>
+  const op = <span style={S.punct}>{"("}</span>
+  const cl = <span style={S.punct}>{")"}</span>
   const opts = options ? <>{sep}<CodeArg value={options} /></> : null
 
   return (
@@ -154,13 +144,13 @@ function CodeBlock({ scenario }: { scenario: Scenario }) {
           {mod}{query ? <>{sep}<CodeArg value={query} /></> : null}{opts}
         </>}
         {action === "update" && <>
-          {mod}{sep}<span className={P.num}>{idArg}</span>{sep}<CodeArg value={data} />{opts}
+          {mod}{sep}<span style={S.num}>{idArg}</span>{sep}<CodeArg value={data} />{opts}
         </>}
         {action === "updateMany" && <>
           {mod}{sep}<CodeArg value={query} />{sep}<CodeArg value={data} />{opts}
         </>}
         {action === "delete" && <>
-          {mod}{sep}<span className={P.num}>{idArg}</span>{opts}
+          {mod}{sep}<span style={S.num}>{idArg}</span>{opts}
         </>}
         {action === "deleteMany" && <>
           {mod}{sep}<CodeArg value={query} />{opts}
@@ -177,10 +167,10 @@ function JsonToken({ value, indent = 0 }: { value: unknown; indent?: number }) {
   const pad = "  ".repeat(indent)
   const innerPad = "  ".repeat(indent + 1)
 
-  if (value === null) return <span className={P.bool}>null</span>
-  if (typeof value === "boolean") return <span className={P.bool}>{String(value)}</span>
-  if (typeof value === "number") return <span className={P.num}>{value}</span>
-  if (typeof value === "string") return <span className={P.str}>&quot;{value}&quot;</span>
+  if (value === null) return <span style={S.bool}>null</span>
+  if (typeof value === "boolean") return <span style={S.bool}>{String(value)}</span>
+  if (typeof value === "number") return <span style={S.num}>{value}</span>
+  if (typeof value === "string") return <span style={S.str}>&quot;{value}&quot;</span>
 
   if (Array.isArray(value)) {
     if (value.length === 0) return <span>{"[]"}</span>
@@ -209,7 +199,7 @@ function JsonToken({ value, indent = 0 }: { value: unknown; indent?: number }) {
         {entries.map(([k, v], i) => (
           <span key={k}>
             {innerPad}
-            <span className={P.queryKey}>&quot;{k}&quot;</span>
+            <span style={S.queryKey}>&quot;{k}&quot;</span>
             {": "}
             <JsonToken value={v} indent={indent + 1} />
             {i < entries.length - 1 ? "," : ""}
@@ -227,14 +217,14 @@ function JsonToken({ value, indent = 0 }: { value: unknown; indent?: number }) {
 // ─── Schema Viewer ────────────────────────────────────────────────────────────
 
 const FIELD_TYPE_COLORS: Record<string, string> = {
-  string:   P.str,
-  number:   P.num,
-  boolean:  P.bool,
-  date:     P.queryKey,
-  json:     P.opKey,
-  enum:     P.fn,
-  array:    P.fn,
-  relation: P.relKey,
+  string:   CODE_COLORS.string,
+  number:   CODE_COLORS.number,
+  boolean:  CODE_COLORS.boolean,
+  date:     CODE_COLORS.queryKey,
+  json:     CODE_COLORS.opKey,
+  enum:     CODE_COLORS.fnName,
+  array:    CODE_COLORS.fnName,
+  relation: CODE_COLORS.relKey,
 }
 
 function SchemaViewer({ modelName }: { modelName: string }) {
@@ -274,7 +264,7 @@ function SchemaViewer({ modelName }: { modelName: string }) {
           return (
             <div key={fieldName} className="flex items-center gap-2 text-xs font-mono">
               <span className="text-foreground/80 w-32 truncate">{fieldName}</span>
-              <span className={FIELD_TYPE_COLORS[def.type] ?? "text-foreground"}>
+              <span style={{ color: FIELD_TYPE_COLORS[def.type] ?? CODE_COLORS.plain }}>
                 {def.type === "relation" ? `→ ${def.model}` : def.type}
               </span>
               {def.required && (

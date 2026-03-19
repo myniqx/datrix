@@ -1,3 +1,13 @@
 ```bash
-pnpm add @forja/core
+# Core packages
+pnpm add @forja/core @forja/types
+
+# CLI (dev dependency)
+pnpm add -D @forja/cli
+
+# Pick your adapter
+pnpm add @forja/adapter-postgres   # PostgreSQL
+pnpm add @forja/adapter-mysql      # MySQL / MariaDB
+pnpm add @forja/adapter-mongodb    # MongoDB
+pnpm add @forja/adapter-json       # JSON (local dev / testing)
 ```

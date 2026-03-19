@@ -1,0 +1,42 @@
+---
+title: Getting Started
+description: What is Forja and how to install it.
+order: 1
+---
+
+import InstallCore from '../_partials/install-core.mdx'
+
+# Getting Started
+
+Forja is a schema-driven database layer for TypeScript projects. Define your models, run
+migrations, and query your database — all within your existing application.
+
+It is not a standalone server or a separate process. Forja lives inside your codebase,
+works with your existing framework, and gives you full control over how and when it runs.
+
+## What Forja provides
+
+- **Schema system** — Define your data models in TypeScript with full type inference
+- **Migrations** — Forja diffs your schemas against the database and generates the necessary operations
+- **CRUD API** — Type-safe query interface with filtering, sorting, pagination and relation population
+- **Plugin system** — Extend Forja with plugins (soft delete, hooks, HTTP API, and more)
+- **CLI** — Run migrations, generate schemas and types from the command line
+
+## How it works
+
+```
+1. Define schemas       → TypeScript objects describing your data models
+2. Configure Forja      → defineConfig() with your adapter and schemas
+3. Run migrations       → forja migrate syncs your database to your schemas
+4. Query               → forja.findMany(), forja.create(), forja.update(), ...
+```
+
+## Prerequisites
+
+- Node.js 18 or later
+- TypeScript 5.0 or later
+- A supported database (PostgreSQL, MySQL, MongoDB, or JSON for local dev)
+
+## Installation
+
+<InstallCore />

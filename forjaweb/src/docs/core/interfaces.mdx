@@ -1,0 +1,164 @@
+---
+title: Interfaces
+description: Full method signatures and option types for the Forja instance.
+order: 5
+---
+
+import { TypedSignature } from "@/components/docs/typed-signature"
+
+# Interfaces
+
+All methods are available directly on the `forja` instance and identically on
+`forja.crud`. Use `forja.raw` to bypass plugin hooks — signatures are the same.
+
+---
+
+## findOne
+
+<TypedSignature
+  name="findOne"
+  lines={[
+    { param: "model", type: "string", comment: "registered schema name" },
+    { param: "where", type: "WhereClause", comment: "filter criteria" },
+    { param: "options", type: "RawCrudOptions", optional: true, comment: "select, populate" },
+  ]}
+  returns="T | null"
+  description="Returns the first record matching where, or null if none found."
+/>
+
+---
+
+## findById
+
+<TypedSignature
+  name="findById"
+  lines={[
+    { param: "model", type: "string", comment: "registered schema name" },
+    { param: "id", type: "number", comment: "record ID" },
+    { param: "options", type: "RawCrudOptions", optional: true, comment: "select, populate" },
+  ]}
+  returns="T | null"
+  description="Shorthand for findOne with where: { id }."
+/>
+
+---
+
+## findMany
+
+<TypedSignature
+  name="findMany"
+  lines={[
+    { param: "model", type: "string", comment: "registered schema name" },
+    { param: "options", type: "RawFindManyOptions", optional: true, comment: "where, select, populate, orderBy, limit, offset" },
+  ]}
+  returns="T[]"
+  description="Returns all records matching the given options. Returns an empty array if none found."
+/>
+
+---
+
+## count
+
+<TypedSignature
+  name="count"
+  lines={[
+    { param: "model", type: "string", comment: "registered schema name" },
+    { param: "where", type: "WhereClause", optional: true, comment: "filter criteria" },
+  ]}
+  returns="number"
+  description="Returns the number of records matching where. Omit where to count all records."
+/>
+
+---
+
+## create
+
+<TypedSignature
+  name="create"
+  lines={[
+    { param: "model", type: "string", comment: "registered schema name" },
+    { param: "data", type: "TInput", comment: "field values to insert" },
+    { param: "options", type: "RawCrudOptions", optional: true, comment: "select, populate on returned record" },
+  ]}
+  returns="T"
+  description="Inserts a single record and returns it. Runs full field validation and injects createdAt / updatedAt automatically."
+/>
+
+---
+
+## createMany
+
+<TypedSignature
+  name="createMany"
+  lines={[
+    { param: "model", type: "string", comment: "registered schema name" },
+    { param: "data", type: "TInput[]", comment: "array of field values" },
+    { param: "options", type: "RawCrudOptions", optional: true, comment: "select, populate on returned records" },
+  ]}
+  returns="T[]"
+  description="Inserts multiple records in a single transaction and returns them all."
+/>
+
+---
+
+## update
+
+<TypedSignature
+  name="update"
+  lines={[
+    { param: "model", type: "string", comment: "registered schema name" },
+    { param: "id", type: "number", comment: "record ID" },
+    { param: "data", type: "TInput", comment: "fields to update (partial)" },
+    { param: "options", type: "RawCrudOptions", optional: true, comment: "select, populate on returned record" },
+  ]}
+  returns="T"
+  description="Updates a single record by ID and returns it."
+  note="Throws RECORD_NOT_FOUND if the ID does not exist."
+/>
+
+---
+
+## updateMany
+
+<TypedSignature
+  name="updateMany"
+  lines={[
+    { param: "model", type: "string", comment: "registered schema name" },
+    { param: "where", type: "WhereClause", comment: "filter criteria" },
+    { param: "data", type: "TInput", comment: "fields to update (partial)" },
+    { param: "options", type: "RawCrudOptions", optional: true, comment: "select, populate on returned records" },
+  ]}
+  returns="T[]"
+  description="Updates all records matching where and returns them. Returns an empty array if no records matched."
+/>
+
+---
+
+## delete
+
+<TypedSignature
+  name="delete"
+  lines={[
+    { param: "model", type: "string", comment: "registered schema name" },
+    { param: "id", type: "number", comment: "record ID" },
+    { param: "options", type: "RawCrudOptions", optional: true, comment: "select, populate on returned record" },
+  ]}
+  returns="T"
+  description="Deletes a single record by ID and returns it."
+  note="Throws RECORD_NOT_FOUND if the ID does not exist."
+/>
+
+---
+
+## deleteMany
+
+<TypedSignature
+  name="deleteMany"
+  lines={[
+    { param: "model", type: "string", comment: "registered schema name" },
+    { param: "where", type: "WhereClause", comment: "filter criteria" },
+    { param: "options", type: "RawCrudOptions", optional: true, comment: "select, populate on returned records" },
+  ]}
+  returns="T[]"
+  description="Deletes all records matching where and returns them."
+/>

@@ -27,8 +27,7 @@ import { FallbackInput } from "forja-types/forja";
 
 export class ApiPlugin<TRole extends string = string>
 	extends BasePlugin<ApiConfig<TRole>>
-	implements IApiPlugin<TRole>
-{
+	implements IApiPlugin<TRole> {
 	readonly name = "api";
 	readonly version = "1.0.0";
 
@@ -131,7 +130,7 @@ export class ApiPlugin<TRole extends string = string>
 		this.authManager = new AuthManager(this.authConfig);
 	}
 
-	async destroy(): Promise<void> {}
+	async destroy(): Promise<void> { }
 
 	override async getSchemas(): Promise<SchemaDefinition[]> {
 		if (!this.authConfig) {
@@ -176,8 +175,7 @@ export class ApiPlugin<TRole extends string = string>
 					fields: ["user"],
 					unique: true,
 				},
-			],
-			timestamps: true,
+			]
 		});
 
 		return [authSchema];

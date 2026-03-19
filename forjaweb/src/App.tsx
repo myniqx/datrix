@@ -9,7 +9,7 @@ import { Playground } from "@/components/sections/playground"
 import { Features } from "@/components/sections/features"
 import { Frameworks } from "@/components/sections/frameworks"
 import { FORJA_GITHUB_REPO } from "@/data/constants"
-import DocsPage from "@/pages/docs-page"
+import DocsContent, { DocsLayout } from "@/pages/docs-page"
 
 function HomePage() {
   return (
@@ -56,13 +56,16 @@ export default function App() {
   return (
     <BrowserRouter>
       <div className="font-sans">
-        <Navbar starCount={starCount} />
         <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/docs" element={<DocsPage />} />
-          <Route path="/docs/:slug" element={<DocsPage />} />
+          {/* Landing — with site navbar + footer */}
+          <Route element={<><Navbar starCount={starCount} /><HomePage /><Footer starCount={starCount} /></>} path="/" />
+
+          {/* Docs — own layout, no site navbar/footer */}
+          <Route path="/docs" element={<DocsLayout />}>
+            <Route index element={<DocsContent />} />
+            <Route path="*" element={<DocsContent />} />
+          </Route>
         </Routes>
-        <Footer starCount={starCount} />
       </div>
     </BrowserRouter>
   )

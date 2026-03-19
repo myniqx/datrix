@@ -1,0 +1,185 @@
+---
+title: Types
+description: TypeScript types and interfaces used across the Forja API.
+order: 6
+---
+
+# Types
+
+---
+
+## ForjaEntry
+
+Base type that every database record extends. All three fields are managed
+automatically — they cannot be set manually.
+
+```typescript
+interface ForjaEntry {
+  id:        number
+  createdAt: Date
+  updatedAt: Date
+}
+```
+
+Attempting to write `id`, `createdAt`, or `updatedAt` directly throws
+`RESERVED_FIELD_WRITE`. Use `forja.raw` if manual control is needed.
+
+---
+
+## RawCrudOptions
+
+Options accepted by `findOne`, `findById`, `create`, `update`, and `delete`.
+
+```typescript
+interface RawCrudOptions<T> {
+  select?:   SelectClause<T>
+  populate?: PopulateClause<T>
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `select` | [`SelectClause<T>`](#selectclause) | Fields to return |
+| `populate` | [`PopulateClause<T>`](#populateclause) | Relations to load |
+
+---
+
+## RawFindManyOptions
+
+Extends `RawCrudOptions` with filtering and pagination. Used by `findMany`.
+
+```typescript
+interface RawFindManyOptions<T> extends RawCrudOptions<T> {
+  where?:   WhereClause<T>
+  orderBy?: OrderByClause<T>
+  limit?:   number
+  offset?:  number
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `where` | [`WhereClause<T>`](#whereclause) | Filter criteria |
+| `orderBy` | [`OrderByClause<T>`](#orderbyclause) | Sort order |
+| `limit` | `number` | Maximum number of records to return |
+| `offset` | `number` | Number of records to skip |
+| `select` | [`SelectClause<T>`](#selectclause) | Fields to return |
+| `populate` | [`PopulateClause<T>`](#populateclause) | Relations to load |
+
+---
+
+## WhereClause
+
+Filter expression passed to `findOne`, `count`, `updateMany`, `deleteMany`.
+
+```typescript
+type WhereClause<T> =
+  | { [K in keyof T]?: FieldFilter | T[K] }
+  | { $and: WhereClause<T>[] }
+  | { $or:  WhereClause<T>[] }
+  | { $not: WhereClause<T> }
+```
+
+Supports direct values, comparison operators, logical operators, and nested
+relation conditions. See [Query → where](/docs/core/query#where) for the full
+operator reference.
+
+```typescript
+// Direct value
+{ email: "john@example.com" }
+
+// Operator
+{ age: { $gte: 18 } }
+
+// Logical
+{ $or: [{ role: "admin" }, { role: "editor" }] }
+
+// Nested relation condition
+{ author: { verified: true } }
+```
+
+---
+
+## SelectClause
+
+Fields to include in the returned record.
+
+```typescript
+type SelectClause<T> =
+  | (keyof T)[]
+  | keyof T
+  | "*"
+```
+
+```typescript
+select: ["id", "name", "email"]  // array
+select: "name"                   // single field
+select: "*"                      // all fields (default)
+```
+
+Relation fields cannot appear in `select` — use `populate` instead.
+
+---
+
+## PopulateClause
+
+Relations to load alongside the main record.
+
+```typescript
+type PopulateClause<T> =
+  | true
+  | "*"
+  | string[]
+  | { [relation: string]: true | PopulateOptions }
+```
+
+```typescript
+populate: true                          // all relations
+populate: "*"                           // all relations
+populate: ["author", "tags"]            // specific relations
+populate: {                             // with options
+  author: { select: ["id", "name"] },
+  comments: { limit: 5, where: { isApproved: true } },
+}
+```
+
+See [Query → populate](/docs/core/query#populate) for full option reference.
+
+---
+
+## OrderByClause
+
+Sort order for `findMany`.
+
+```typescript
+type OrderByClause<T> =
+  | { field: keyof T; direction: "asc" | "desc"; nulls?: "first" | "last" }[]
+  | { [K in keyof T]?: "asc" | "desc" }
+  | string[]
+```
+
+```typescript
+// Full format
+orderBy: [{ field: "createdAt", direction: "desc", nulls: "last" }]
+
+// Object shorthand
+orderBy: { createdAt: "desc" }
+
+// String array — prefix "-" for desc
+orderBy: ["-createdAt", "name"]
+```
+
+---
+
+## FallbackInput
+
+Default input type used when no generic is provided to write operations.
+
+```typescript
+type FallbackInput = {
+  [key: string]: string | number | boolean | Date | null | AnyRelationInput
+}
+```
+
+When you pass a typed generic (`forja.create<User, CreateUserInput>(...)`),
+`FallbackInput` is replaced by your own input type.

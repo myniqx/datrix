@@ -1,0 +1,290 @@
+---
+title: Query
+description: Filtering, selecting, populating, sorting and paginating records.
+order: 3
+---
+
+# Query
+
+All read operations go through the same query system. This page covers every option
+available in `findMany`, `findOne`, `findById`, and `count`.
+
+> **Note:** `forja.findMany` and `forja.crud.findMany` are identical.
+> `forja.raw.findMany` behaves the same but skips plugin hooks (no `onBeforeQuery` / `onAfterQuery` dispatch).
+
+---
+
+## where
+
+Filter records by field values. Supports direct values, comparison operators, logical
+operators, and nested relation conditions.
+
+### Direct value (shorthand for `$eq`)
+
+```typescript
+// These are equivalent
+await forja.findMany("user", { where: { role: "admin" } });
+await forja.findMany("user", { where: { role: { $eq: "admin" } } });
+```
+
+### Comparison operators
+
+| Operator       | Types            | Description                     |
+| -------------- | ---------------- | ------------------------------- |
+| `$eq`          | all              | Equal                           |
+| `$ne`          | all              | Not equal                       |
+| `$gt`          | `number`, `date` | Greater than                    |
+| `$gte`         | `number`, `date` | Greater than or equal           |
+| `$lt`          | `number`, `date` | Less than                       |
+| `$lte`         | `number`, `date` | Less than or equal              |
+| `$in`          | all              | Value is in array               |
+| `$nin`         | all              | Value is not in array           |
+| `$like`        | `string`         | SQL LIKE pattern (`%` wildcard) |
+| `$ilike`       | `string`         | Case-insensitive LIKE           |
+| `$startsWith`  | `string`         | Starts with string              |
+| `$endsWith`    | `string`         | Ends with string                |
+| `$contains`    | `string`         | Contains substring              |
+| `$notContains` | `string`         | Does not contain substring      |
+| `$icontains`   | `string`         | Case-insensitive contains       |
+| `$regex`       | `string`         | Regular expression match        |
+| `$exists`      | all              | Field exists (not undefined)    |
+| `$null`        | all              | Field is null                   |
+| `$notNull`     | all              | Field is not null               |
+
+```typescript
+await forja.findMany("user", {
+	where: {
+		age: { $gte: 18, $lte: 65 },
+		email: { $like: "%@example.com" },
+		role: { $in: ["admin", "editor"] },
+		deletedAt: { $null: true },
+	},
+});
+```
+
+### Logical operators
+
+```typescript
+await forja.findMany("post", {
+	where: {
+		$and: [
+			{ published: true },
+			{ createdAt: { $gte: new Date("2024-01-01") } },
+		],
+	},
+});
+
+await forja.findMany("user", {
+	where: {
+		$or: [{ role: "admin" }, { role: "editor" }],
+	},
+});
+
+await forja.findMany("user", {
+	where: {
+		$not: { role: "banned" },
+	},
+});
+```
+
+### Nested relation WHERE
+
+Filter by fields on related records without a separate query:
+
+```typescript
+// Posts where the author is verified
+await forja.findMany("post", {
+	where: {
+		author: { verified: true },
+	},
+});
+
+// Deep nesting
+await forja.findMany("post", {
+	where: {
+		author: {
+			company: {
+				country: { name: { $eq: "Turkey" } },
+			},
+		},
+	},
+});
+```
+
+> The query builder validates that all field names exist in the schema before the query
+> reaches the database. Unknown fields throw an error at query time, not at runtime.
+
+---
+
+## select
+
+Choose which fields to return. By default all non-hidden, non-relation fields are returned.
+
+```typescript
+// Array of fields
+await forja.findMany("user", {
+	select: ["id", "name", "email"],
+});
+
+// Single field
+await forja.findOne("user", { id: 1 }, { select: "name" });
+
+// All fields (default behavior)
+await forja.findMany("user", { select: "*" });
+```
+
+> Relation fields cannot appear in `select` — use `populate` instead.
+
+---
+
+## populate
+
+Load related records alongside the main record.
+
+### Populate all relations
+
+```typescript
+await forja.findMany("post", { populate: "*" });
+await forja.findMany("post", { populate: true });
+```
+
+### Populate specific relations
+
+```typescript
+// Array
+await forja.findMany("post", {
+	populate: ["author", "tags"],
+});
+
+// Object — relation name as key, `true` to include
+await forja.findMany("post", {
+	populate: { author: true, tags: true },
+});
+```
+
+### Populate with options
+
+Each relation can have its own `select`, `where`, `orderBy`, `limit`, `offset`, and nested `populate`:
+
+```typescript
+await forja.findMany("post", {
+	populate: {
+		author: {
+			select: ["id", "name", "avatar"],
+		},
+		comments: {
+			where: { isApproved: true },
+			orderBy: [{ field: "createdAt", direction: "desc" }],
+			limit: 5,
+			offset: 0,
+			populate: {
+				author: { select: ["id", "name"] },
+			},
+		},
+		tags: {
+			limit: 10,
+		},
+	},
+});
+```
+
+> `where` and `orderBy` on a populated relation only make sense for **hasMany** and **manyToMany** — a `belongsTo` or `hasOne` relation always returns a single record.
+
+---
+
+## orderBy
+
+Three formats are supported:
+
+```typescript
+// Full format — explicit, supports nulls
+await forja.findMany("user", {
+	orderBy: [
+		{ field: "createdAt", direction: "desc", nulls: "last" },
+		{ field: "name", direction: "asc" },
+	],
+});
+
+// Object shortcut — single field
+await forja.findMany("user", {
+	orderBy: { createdAt: "desc" },
+});
+
+// String array — multiple fields, - prefix = desc
+await forja.findMany("user", {
+	orderBy: ["-createdAt", "name"], // createdAt DESC, name ASC
+});
+```
+
+---
+
+## limit and offset
+
+```typescript
+// Page 2 with 20 items per page
+await forja.findMany("user", {
+	limit: 20,
+	offset: 20,
+});
+```
+
+---
+
+## Type-safe queries
+
+The recommended way to get model types is via the CLI — it reads your initialized Forja
+instance and generates types for all registered schemas:
+
+```bash
+forja generate types
+```
+
+Output is written to `types/generated.ts` by default. The generated file looks like this:
+
+```typescript
+// This file is auto-generated by forja generate types
+// Do not edit manually - regenerate with: forja generate types
+
+import type {
+  ForjaEntry,
+  RelationBelongsTo,
+  RelationHasOne,
+  RelationHasMany,
+  RelationManyToMany,
+} from 'forja-types/core/schema'
+
+// ─────────────────────────────────────────
+// User  (table: users)
+// relations: posts → hasMany(post)
+// ─────────────────────────────────────────
+export interface UserBase extends ForjaEntry {
+  name: string
+  email: string
+  role?: 'admin' | 'editor' | 'user'
+}
+export interface UserRelation {
+  posts?: RelationHasMany<Post>
+}
+export type User = UserBase & UserRelation
+export type CreateUserInput = Omit<UserBase, keyof ForjaEntry> & UserRelationUpdate
+export type UpdateUserInput = Partial<Omit<UserBase, keyof ForjaEntry>> & UserRelationUpdate
+```
+
+With generated types you get full autocomplete and compile-time checks:
+
+```typescript
+import type { User } from './types/generated'
+
+const users = await forja.findMany<User>('user', {
+  where: {
+    role: { $in: ['admin', 'editor'] },    // type-checked
+    posts: { title: { $like: '%forja%' } } // nested relation WHERE
+  },
+  select: ['id', 'name'],                  // autocomplete on User fields
+  populate: {
+    posts: { select: ['id', 'title'] }     // type-safe populate
+  }
+})
+```
+
+See [CLI → generate types](/docs/cli) for output path and options.
