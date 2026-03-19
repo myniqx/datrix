@@ -3,6 +3,9 @@ import { Outlet, useLocation, Link } from "react-router-dom"
 import { DocsNavbar } from "@/components/layout/docs-navbar"
 import { buildDocNav, getDocModule } from "@/docs/use-doc-nav"
 import type { TocItem } from "@/lib/remark-toc-export"
+import { DocsCodeBlock } from "@/components/docs/code-block"
+
+const MDX_COMPONENTS = { pre: DocsCodeBlock }
 
 const NAV_SECTIONS = buildDocNav()
 
@@ -155,7 +158,7 @@ export default function DocsContent() {
 
   return (
     <article className="prose prose-invert max-w-3xl">
-      {DocComponent ? <DocComponent /> : (
+      {DocComponent ? <DocComponent components={MDX_COMPONENTS} /> : (
         <p className="text-foreground/50">Page not found.</p>
       )}
     </article>
