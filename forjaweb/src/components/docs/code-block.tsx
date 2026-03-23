@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { TYPE_DEFINITIONS, normalizeTypeName } from "./type-definitions";
+import { FUNCTION_DEFINITIONS } from "./function-definitions";
 import { CODE_COLORS, semanticKeyColor, tokenizeSignature, tokenKindToColor } from "./code-colors";
 
 // ─── Tokenizer ────────────────────────────────────────────────────────────────
@@ -95,8 +96,18 @@ function tokenize(code: string): Token[] {
       while (j < code.length && /[\w$]/.test(code[j]!)) j++;
       const word = code.slice(i, j);
 
-      // Peek ahead for function call: word(
-      const isCall = code[j] === "(";
+      // Peek ahead for function call: word( or word<...>(
+      let peekJ = j;
+      if (code[peekJ] === "<") {
+        let depth = 1;
+        peekJ++;
+        while (peekJ < code.length && depth > 0) {
+          if (code[peekJ] === "<") depth++;
+          else if (code[peekJ] === ">") depth--;
+          peekJ++;
+        }
+      }
+      const isCall = code[peekJ] === "(";
 
       let kind: TokenKind;
       if (TS_BOOLEANS.has(word)) {
@@ -173,6 +184,22 @@ function TokenSpan({ token }: { token: Token }): React.ReactElement {
     }
   }
 
+  // Check if this token is a hoverable function call
+  if (token.kind === "fnCall") {
+    const definition = FUNCTION_DEFINITIONS[token.value];
+
+    if (definition) {
+      return (
+        <HoverableToken
+          value={token.value}
+          color={color}
+          definition={definition}
+          navigate={navigate}
+        />
+      );
+    }
+  }
+
   // Plain words: check if they have semantic meaning (query/op/rel keys)
   if (token.kind === "plain") {
     const semantic = semanticKeyColor(token.value);
@@ -189,11 +216,12 @@ function TokenSpan({ token }: { token: Token }): React.ReactElement {
 import { useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import type { TypeDefinition } from "./type-definitions";
+import type { FunctionDefinition } from "./function-definitions";
 
 interface HoverableTokenProps {
   value: string;
   color: string;
-  definition: TypeDefinition;
+  definition: TypeDefinition | FunctionDefinition;
   navigate: ReturnType<typeof useNavigate>;
 }
 
@@ -206,8 +234,8 @@ function HoverableToken({ value, color, definition, navigate }: HoverableTokenPr
     const rect = ref.current.getBoundingClientRect();
     const openUpward = rect.top > window.innerHeight / 2;
     setCoords({
-      top: openUpward ? rect.top + window.scrollY : rect.bottom + window.scrollY,
-      left: rect.left + window.scrollX,
+      top: openUpward ? rect.top : rect.bottom,
+      left: rect.left,
       openUpward,
     });
   }
@@ -218,10 +246,10 @@ function HoverableToken({ value, color, definition, navigate }: HoverableTokenPr
 
   const tooltip = coords ? createPortal(
     <div
-      className="absolute z-[9999] w-96 rounded-lg shadow-2xl font-mono text-xs"
+      className="fixed z-[9999] w-96 rounded-lg shadow-2xl font-mono text-xs"
       style={{
         top: coords.openUpward ? undefined : coords.top + 6,
-        bottom: coords.openUpward ? window.innerHeight - coords.top + window.scrollY + 6 : undefined,
+        bottom: coords.openUpward ? window.innerHeight - coords.top + 6 : undefined,
         left: Math.min(coords.left, window.innerWidth - 400),
         backgroundColor: "#18181b",
         border: "1px solid #3f3f46",
@@ -291,6 +319,16 @@ export function DocsCodeBlock({ children }: PreProps): React.ReactElement {
   }
 
   const tokens = tokenize(rawCode.trimEnd());
+
+  return <TypescriptCodeBlock code={tokens} />;
+}
+
+/**
+ * Renders a tokenized TypeScript code block with syntax highlighting and hoverable tooltips.
+ * Accepts a raw string — use this when rendering signatures outside of MDX.
+ */
+export function TypescriptCodeBlock({ code }: { code: string | Token[] }): React.ReactElement {
+  const tokens = typeof code === "string" ? tokenize(code.trimEnd()) : code;
 
   return (
     <pre className="rounded-lg border font-mono text-sm leading-7 overflow-x-auto px-5 py-4"

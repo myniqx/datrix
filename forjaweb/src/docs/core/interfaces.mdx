@@ -4,8 +4,6 @@ description: Full method signatures and option types for the Forja instance.
 order: 5
 ---
 
-import { TypedSignature } from "@/components/docs/typed-signature"
-
 # Interfaces
 
 All methods are available directly on the `forja` instance and identically on
@@ -13,152 +11,299 @@ All methods are available directly on the `forja` instance and identically on
 
 ---
 
-## findOne
+## CRUD Methods
 
-<TypedSignature
-  name="findOne"
-  lines={[
-    { param: "model", type: "string", comment: "registered schema name" },
-    { param: "where", type: "WhereClause", comment: "filter criteria" },
-    { param: "options", type: "RawCrudOptions", optional: true, comment: "select, populate" },
-  ]}
-  returns="T | null"
-  description="Returns the first record matching where, or null if none found."
-/>
+### findOne
 
----
+```typescript
+findOne<T extends ForjaEntry = ForjaRecord>(
+  model: string,           // registered schema name
+  where: WhereClause<T>,   // filter criteria — must match exactly one record
+  options?: RawCrudOptions<T>, // select, populate
+): Promise<T | null>
+```
 
-## findById
-
-<TypedSignature
-  name="findById"
-  lines={[
-    { param: "model", type: "string", comment: "registered schema name" },
-    { param: "id", type: "number", comment: "record ID" },
-    { param: "options", type: "RawCrudOptions", optional: true, comment: "select, populate" },
-  ]}
-  returns="T | null"
-  description="Shorthand for findOne with where: { id }."
-/>
+Returns the first record matching `where`, or `null` if none found.
 
 ---
 
-## findMany
+### findById
 
-<TypedSignature
-  name="findMany"
-  lines={[
-    { param: "model", type: "string", comment: "registered schema name" },
-    { param: "options", type: "RawFindManyOptions", optional: true, comment: "where, select, populate, orderBy, limit, offset" },
-  ]}
-  returns="T[]"
-  description="Returns all records matching the given options. Returns an empty array if none found."
-/>
+```typescript
+findById<T extends ForjaEntry = ForjaRecord>(
+  model: string,           // registered schema name
+  id: number,              // record ID
+  options?: RawCrudOptions<T>, // select, populate
+): Promise<T | null>
+```
 
----
-
-## count
-
-<TypedSignature
-  name="count"
-  lines={[
-    { param: "model", type: "string", comment: "registered schema name" },
-    { param: "where", type: "WhereClause", optional: true, comment: "filter criteria" },
-  ]}
-  returns="number"
-  description="Returns the number of records matching where. Omit where to count all records."
-/>
+Shorthand for `findOne` with `where: { id }`. Returns `null` if not found.
 
 ---
 
-## create
+### findMany
 
-<TypedSignature
-  name="create"
-  lines={[
-    { param: "model", type: "string", comment: "registered schema name" },
-    { param: "data", type: "TInput", comment: "field values to insert" },
-    { param: "options", type: "RawCrudOptions", optional: true, comment: "select, populate on returned record" },
-  ]}
-  returns="T"
-  description="Inserts a single record and returns it. Runs full field validation and injects createdAt / updatedAt automatically."
-/>
+```typescript
+findMany<T extends ForjaEntry = ForjaRecord>(
+  model: string,                // registered schema name
+  options?: RawFindManyOptions<T>, // where, select, populate, orderBy, limit, offset
+): Promise<T[]>
+```
+
+Returns all records matching the given options. Returns an empty array if none found.
 
 ---
 
-## createMany
+### count
 
-<TypedSignature
-  name="createMany"
-  lines={[
-    { param: "model", type: "string", comment: "registered schema name" },
-    { param: "data", type: "TInput[]", comment: "array of field values" },
-    { param: "options", type: "RawCrudOptions", optional: true, comment: "select, populate on returned records" },
-  ]}
-  returns="T[]"
-  description="Inserts multiple records in a single transaction and returns them all."
-/>
+```typescript
+count<T extends ForjaEntry = ForjaRecord>(
+  model: string,          // registered schema name
+  where?: WhereClause<T>, // filter criteria — omit to count all records
+): Promise<number>
+```
+
+Returns the number of records matching `where`.
 
 ---
 
-## update
+### create
 
-<TypedSignature
-  name="update"
-  lines={[
-    { param: "model", type: "string", comment: "registered schema name" },
-    { param: "id", type: "number", comment: "record ID" },
-    { param: "data", type: "TInput", comment: "fields to update (partial)" },
-    { param: "options", type: "RawCrudOptions", optional: true, comment: "select, populate on returned record" },
-  ]}
-  returns="T"
-  description="Updates a single record by ID and returns it."
-  note="Throws RECORD_NOT_FOUND if the ID does not exist."
-/>
+```typescript
+create<T extends ForjaEntry = ForjaRecord, TInput extends FallbackInput = FallbackInput>(
+  model: string,           // registered schema name
+  data: TInput,            // field values to insert
+  options?: RawCrudOptions<T>, // select, populate on returned record
+): Promise<T>
+```
 
----
-
-## updateMany
-
-<TypedSignature
-  name="updateMany"
-  lines={[
-    { param: "model", type: "string", comment: "registered schema name" },
-    { param: "where", type: "WhereClause", comment: "filter criteria" },
-    { param: "data", type: "TInput", comment: "fields to update (partial)" },
-    { param: "options", type: "RawCrudOptions", optional: true, comment: "select, populate on returned records" },
-  ]}
-  returns="T[]"
-  description="Updates all records matching where and returns them. Returns an empty array if no records matched."
-/>
+Inserts a single record and returns it. Runs full field validation and injects
+`createdAt` / `updatedAt` automatically. See [Relations](/docs/core/relations)
+for all accepted formats in the `data` argument.
 
 ---
 
-## delete
+### createMany
 
-<TypedSignature
-  name="delete"
-  lines={[
-    { param: "model", type: "string", comment: "registered schema name" },
-    { param: "id", type: "number", comment: "record ID" },
-    { param: "options", type: "RawCrudOptions", optional: true, comment: "select, populate on returned record" },
-  ]}
-  returns="T"
-  description="Deletes a single record by ID and returns it."
-  note="Throws RECORD_NOT_FOUND if the ID does not exist."
-/>
+```typescript
+createMany<T extends ForjaEntry = ForjaRecord, TInput extends FallbackInput = FallbackInput>(
+  model: string,           // registered schema name
+  data: TInput[],          // array of field values
+  options?: RawCrudOptions<T>, // select, populate on returned records
+): Promise<T[]>
+```
+
+Inserts multiple records in a single transaction and returns them all.
 
 ---
 
-## deleteMany
+### update
 
-<TypedSignature
-  name="deleteMany"
-  lines={[
-    { param: "model", type: "string", comment: "registered schema name" },
-    { param: "where", type: "WhereClause", comment: "filter criteria" },
-    { param: "options", type: "RawCrudOptions", optional: true, comment: "select, populate on returned records" },
-  ]}
-  returns="T[]"
-  description="Deletes all records matching where and returns them."
-/>
+```typescript
+update<T extends ForjaEntry = ForjaRecord, TInput extends FallbackInput = FallbackInput>(
+  model: string,           // registered schema name
+  id: number,              // record ID to update
+  data: TInput,            // fields to update (partial)
+  options?: RawCrudOptions<T>, // select, populate on returned record
+): Promise<T>
+```
+
+Updates a single record by ID and returns it. Throws `RECORD_NOT_FOUND` if the ID does not exist.
+See [Relations](/docs/core/relations) for all accepted formats in the `data` argument.
+
+---
+
+### updateMany
+
+```typescript
+updateMany<T extends ForjaEntry = ForjaRecord, TInput extends FallbackInput = FallbackInput>(
+  model: string,           // registered schema name
+  where: WhereClause<T>,   // filter criteria
+  data: TInput,            // fields to update (partial)
+  options?: RawCrudOptions<T>, // select, populate on returned records
+): Promise<T[]>
+```
+
+Updates all records matching `where` and returns them. Returns an empty array if no records matched.
+
+---
+
+### delete
+
+```typescript
+delete<T extends ForjaEntry = ForjaRecord>(
+  model: string,           // registered schema name
+  id: number,              // record ID to delete
+  options?: RawCrudOptions<T>, // select, populate on returned record
+): Promise<T>
+```
+
+Deletes a single record by ID and returns it. Throws `RECORD_NOT_FOUND` if the ID does not exist.
+
+---
+
+### deleteMany
+
+```typescript
+deleteMany<T extends ForjaEntry = ForjaRecord>(
+  model: string,           // registered schema name
+  where: WhereClause<T>,   // filter criteria
+  options?: RawCrudOptions<T>, // select, populate on returned records
+): Promise<T[]>
+```
+
+Deletes all records matching `where` and returns them.
+
+---
+
+## Schema Access
+
+### getSchemas
+
+```typescript
+getSchemas(): SchemaRegistry
+```
+
+Returns the full schema registry. Useful for inspecting registered schemas at runtime.
+
+---
+
+### getSchema
+
+```typescript
+getSchema(
+  name: string, // registered schema name
+): SchemaDefinition | undefined
+```
+
+Returns a single schema by name, or `undefined` if not registered.
+
+---
+
+### hasSchema
+
+```typescript
+hasSchema(
+  name: string, // registered schema name
+): boolean
+```
+
+Returns `true` if a schema with the given name is registered.
+
+---
+
+### getAllSchemas
+
+```typescript
+getAllSchemas(): readonly SchemaDefinition[]
+```
+
+Returns all registered schemas as a readonly array.
+
+---
+
+## Plugin System
+
+### getPlugin
+
+```typescript
+getPlugin<T extends ForjaPlugin = ForjaPlugin>(
+  name: string, // plugin name as registered
+): T | null
+```
+
+Returns the plugin instance by name, or `null` if not found. Use the generic
+to get a typed reference to a specific plugin.
+
+---
+
+### getPlugins
+
+```typescript
+getPlugins(): readonly ForjaPlugin[]
+```
+
+Returns all registered plugin instances.
+
+---
+
+### hasPlugin
+
+```typescript
+hasPlugin(
+  name: string, // plugin name as registered
+): boolean
+```
+
+Returns `true` if a plugin with the given name is registered.
+
+---
+
+## Lifecycle
+
+### isInitialized
+
+```typescript
+isInitialized(): boolean
+```
+
+Returns `true` if `forja` has been initialized. Safe to call before initialization.
+
+---
+
+### getConfig
+
+```typescript
+getConfig(): ForjaConfig
+```
+
+Returns the active configuration object. Throws if called before initialization.
+
+---
+
+### getAdapter
+
+```typescript
+getAdapter<T extends DatabaseAdapter = DatabaseAdapter>(): T
+```
+
+Returns the active adapter instance. Use the generic to get a typed reference
+to a specific adapter implementation.
+
+---
+
+### shutdown
+
+```typescript
+shutdown(): Promise<void>
+```
+
+Destroys all plugins, closes the database connection, and resets the instance.
+After shutdown, `forja` must be re-initialized before use.
+
+---
+
+## CLI Internals
+
+### beginMigrate
+
+```typescript
+beginMigrate(): Promise<MigrationSession>
+```
+
+Compares current schemas against the live database and returns a
+`MigrationSession` for reviewing and applying changes.
+
+This method is used internally by the Forja CLI (`forja migrate`). Direct use
+is possible but not the intended workflow — prefer the CLI for migrations.
+
+```typescript
+const session = await forja.beginMigrate()
+
+if (session.hasAmbiguous) {
+  session.resolveAmbiguous("user.name->lastname", "rename")
+}
+
+const plan = session.getPlan()
+await session.apply()
+```

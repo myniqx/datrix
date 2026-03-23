@@ -1,0 +1,460 @@
+---
+title: Setup
+description: How to define schemas and configure Forja.
+order: 1
+---
+
+# Setup
+
+Two functions are the entry point to every Forja project: `defineSchema` and `defineConfig`.
+
+```bash
+pnpm add forja-core
+```
+
+---
+
+## defineSchema
+
+Wraps a schema definition object and attaches compile-time type inference. At runtime it is a no-op — it simply returns the same object. The `as const` assertion is required so TypeScript infers literal types for `type`, `kind`, `values`, etc.
+
+```typescript
+import { defineSchema } from "forja-core";
+
+const postSchema = defineSchema({
+	name: "post",
+	fields: {
+		title: { type: "string", required: true },
+	},
+} as const);
+```
+
+### Schema options
+
+```typescript
+defineSchema({
+  name: "post",      // model name — used in queries, auto-pluralized for table name
+  tableName: "blog_posts",  // override table name (optional)
+
+  fields: { ... },   // field definitions — see below
+
+  indexes: [         // optional indexes
+    { fields: ["slug"], unique: true },
+    { fields: ["authorId"] },
+  ],
+
+  permission: { ... },  // schema-level permissions — see below
+} as const)
+```
+
+---
+
+## Field types
+
+Every field must have a `type`. Additional options depend on the type.
+
+### string
+
+```typescript
+title: {
+  type: "string",
+  required: true,
+  minLength: 3,
+  maxLength: 200,
+  pattern: /^[a-z0-9-]+$/,  // regex
+  unique: true,
+  default: "",
+  validator: (v) => v.trim().length > 0 || "Cannot be blank",
+}
+```
+
+### number
+
+```typescript
+price: {
+  type: "number",
+  required: true,
+  min: 0,
+  max: 99999,
+  integer: false,   // true → validates and stores as integer
+  unique: false,
+  default: 0,
+}
+```
+
+### boolean
+
+```typescript
+isPublished: {
+  type: "boolean",
+  default: false,
+}
+```
+
+### date
+
+```typescript
+publishedAt: {
+  type: "date",
+  required: false,
+  min: new Date("2020-01-01"),
+}
+```
+
+### json
+
+```typescript
+meta: {
+  type: "json",
+  required: false,
+  // stored as JSONB (PostgreSQL) or JSON (MySQL/MongoDB)
+}
+```
+
+### enum
+
+```typescript
+status: {
+  type: "enum",
+  values: ["draft", "published", "archived"] as const,
+  default: "draft",
+}
+```
+
+### array
+
+```typescript
+tags: {
+  type: "array",
+  items: { type: "string" },  // any field type works as items
+  minItems: 0,
+  maxItems: 20,
+  unique: true,  // all items must be distinct
+}
+```
+
+### file
+
+```typescript
+avatar: {
+  type: "file",
+  allowedTypes: ["image/jpeg", "image/png", "image/webp"],
+  maxSize: 5 * 1024 * 1024,  // 5 MB in bytes
+  multiple: false,
+}
+```
+
+### relation
+
+```typescript
+// belongsTo — FK lives on this table (N:1)
+author: {
+  type: "relation",
+  kind: "belongsTo",
+  model: "user",
+  onDelete: "restrict",  // "cascade" | "setNull" | "restrict"
+}
+
+// hasMany — FK lives on the target table (1:N)
+comments: {
+  type: "relation",
+  kind: "hasMany",
+  model: "comment",
+}
+
+// hasOne — FK lives on the target table (1:1)
+profile: {
+  type: "relation",
+  kind: "hasOne",
+  model: "profile",
+}
+
+// manyToMany — junction table auto-created
+tags: {
+  type: "relation",
+  kind: "manyToMany",
+  model: "tag",
+  through: "post_tags",  // optional — defaults to auto-generated name
+}
+```
+
+---
+
+## Full example: two schemas with all types
+
+```typescript
+import { defineSchema } from "forja-core";
+import type { PermissionContext } from "forja-types/core/permission";
+
+type Roles = "admin" | "editor" | "user";
+
+// user.schema.ts
+export const userSchema = defineSchema({
+	name: "user",
+	fields: {
+		email: {
+			type: "string",
+			required: true,
+			pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+			unique: true,
+		},
+		name: {
+			type: "string",
+			required: true,
+			minLength: 2,
+			maxLength: 100,
+		},
+		role: {
+			type: "enum",
+			values: ["admin", "editor", "user"] as const,
+			default: "user",
+		},
+		age: {
+			type: "number",
+			min: 0,
+			max: 150,
+			integer: true,
+		},
+		isActive: {
+			type: "boolean",
+			default: true,
+		},
+		meta: {
+			type: "json",
+		},
+		posts: {
+			type: "relation",
+			kind: "hasMany",
+			model: "post",
+		},
+	},
+	indexes: [{ fields: ["email"], unique: true }, { fields: ["role"] }],
+	permission: {
+		create: ["admin"] as readonly Roles[],
+		read: true,
+		update: (ctx: PermissionContext) => ctx.user?.id === ctx.id,
+		delete: ["admin"] as readonly Roles[],
+	},
+} as const);
+
+// post.schema.ts
+export const postSchema = defineSchema({
+	name: "post",
+	fields: {
+		title: {
+			type: "string",
+			required: true,
+			minLength: 3,
+			maxLength: 200,
+		},
+		slug: {
+			type: "string",
+			required: true,
+			pattern: /^[a-z0-9-]+$/,
+			unique: true,
+		},
+		content: {
+			type: "string",
+			required: true,
+		},
+		status: {
+			type: "enum",
+			values: ["draft", "published", "archived"] as const,
+			default: "draft",
+		},
+		publishedAt: {
+			type: "date",
+		},
+		viewCount: {
+			type: "number",
+			default: 0,
+			min: 0,
+			integer: true,
+		},
+		cover: {
+			type: "file",
+			allowedTypes: ["image/jpeg", "image/png", "image/webp"],
+			maxSize: 5 * 1024 * 1024,
+		},
+		extraData: {
+			type: "json",
+		},
+		keywords: {
+			type: "array",
+			items: { type: "string" },
+			maxItems: 20,
+			unique: true,
+		},
+		// belongsTo — stores authorId FK on posts table
+		author: {
+			type: "relation",
+			kind: "belongsTo",
+			model: "user",
+			onDelete: "restrict",
+		},
+		// hasOne — profile table holds postId FK
+		seoMeta: {
+			type: "relation",
+			kind: "hasOne",
+			model: "seoMeta",
+		},
+		// manyToMany — junction table post_tags auto-created
+		tags: {
+			type: "relation",
+			kind: "manyToMany",
+			model: "tag",
+		},
+	},
+	indexes: [
+		{ fields: ["slug"], unique: true },
+		{ fields: ["authorId"] },
+		{ fields: ["status"] },
+	],
+	permission: {
+		create: ["admin", "editor"] as readonly Roles[],
+		read: true,
+		update: ["admin", "editor"] as readonly Roles[],
+		delete: ["admin"] as readonly Roles[],
+	},
+} as const);
+```
+
+---
+
+## Permissions
+
+Schema permissions control who can perform CRUD operations.
+
+```typescript
+permission: {
+  create: ["admin", "editor"],       // role array
+  read: true,                        // always allowed
+  update: false,                     // always denied
+  delete: (ctx) => ctx.user !== undefined,  // function — return true/false
+}
+```
+
+`PermissionValue` can be:
+
+| Value                         | Meaning                                    |
+| ----------------------------- | ------------------------------------------ |
+| `true`                        | Always allowed (public)                    |
+| `false`                       | Always denied                              |
+| `string[]`                    | Allowed if `ctx.user.role` is in the array |
+| `(ctx) => boolean`            | Custom async or sync function              |
+| Mixed array `[role, fn, ...]` | Allowed if any item passes                 |
+
+Field-level permissions strip the field from responses (`read`) or return 403 (`write`):
+
+```typescript
+email: {
+  type: "string",
+  permission: {
+    read: ["admin", "editor"],  // others get the field stripped from response
+    write: ["admin"],           // others get 403 on create/update
+  },
+}
+```
+
+---
+
+## defineConfig
+
+Creates the Forja instance factory. Call the returned function to get the initialized `Forja` instance. The factory runs only once — subsequent calls return the cached instance.
+
+```typescript
+import { defineConfig } from "forja-core";
+import { PostgresAdapter } from "@forja/adapter-postgres";
+import { userSchema, postSchema } from "./schemas";
+
+const getForja = defineConfig(() => ({
+	// Required: database adapter
+	adapter: new PostgresAdapter({
+		host: "localhost",
+		port: 5432,
+		database: "mydb",
+		user: "postgres",
+		password: process.env.DB_PASSWORD,
+	}),
+
+	// Required: schema list
+	schemas: [userSchema, postSchema],
+
+	// Optional: plugin list
+	plugins: [],
+
+	// Optional: migration settings
+	migration: {
+		auto: false, // auto-run migrations on startup (default: false)
+		directory: "./migrations", // where migration files are stored (default: ./migrations)
+		modelName: "_forja_migration", // migration history table name
+	},
+
+	// Optional: development settings
+	dev: {
+		logging: false, // log every query to console
+		validateQueries: false, // extra query validation before execution
+		prettyErrors: false, // pretty-print errors with stack traces
+	},
+}));
+
+export default getForja;
+```
+
+---
+
+## Using the instance
+
+```typescript
+import getForja from "./forja.config";
+
+// Get the initialized instance
+const forja = await getForja();
+
+// findMany — returns array
+const posts = await forja.findMany("post", {
+	where: { status: "published" },
+	orderBy: [{ field: "publishedAt", direction: "desc" }],
+	limit: 10,
+	offset: 0,
+	populate: { author: { select: ["name", "email"] } },
+});
+
+// findOne — returns record or null
+const post = await forja.findOne("post", { slug: "hello-world" });
+
+// findById — returns record or null
+const user = await forja.findById("user", 1);
+
+// count
+const total = await forja.count("post", { status: "published" });
+
+// create
+const newPost = await forja.create("post", {
+	title: "Hello World",
+	slug: "hello-world",
+	content: "...",
+	status: "draft",
+	author: 1, // connect by ID
+	tags: [1, 2, 3],
+});
+
+// update
+const updated = await forja.update("post", newPost.id, {
+	status: "published",
+	publishedAt: new Date(),
+});
+
+// updateMany
+const updatedPosts = await forja.updateMany(
+	"post",
+	{ status: "draft" },
+	{ status: "archived" },
+);
+
+// delete
+const deleted = await forja.delete("post", newPost.id);
+
+// deleteMany
+const deletedPosts = await forja.deleteMany("post", { status: "archived" });
+```

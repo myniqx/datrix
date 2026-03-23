@@ -1,0 +1,95 @@
+---
+title: PostgreSQL
+description: PostgreSQL adapter configuration and usage.
+order: 1
+---
+
+# PostgreSQL Adapter
+
+```bash
+pnpm add @forja/adapter-postgres
+```
+
+Requires `pg` (node-postgres) as a peer dependency.
+
+---
+
+## Requirements
+
+- **PostgreSQL 12+** — the adapter uses `json_agg()`, `row_to_json()`, and `LATERAL` joins for relation population.
+- Native foreign key constraints are fully supported and automatically managed by migrations.
+
+---
+
+## Configuration
+
+```typescript
+import { PostgresAdapter } from "@forja/adapter-postgres"
+
+new PostgresAdapter({
+  host:     "localhost",  // database server hostname
+  port:     5432,         // database server port
+  database: "mydb",       // database name
+  user:     "postgres",   // login user
+  password: "secret",     // login password
+
+  // SSL — pass true to enable with default settings,
+  // or an object for certificate-based auth
+  ssl: {
+    rejectUnauthorized: true,
+    ca:   "...",  // CA certificate (PEM)
+    cert: "...",  // client certificate (PEM)
+    key:  "...",  // client private key (PEM)
+  },
+
+  // Connection pool
+  max: 10,   // maximum number of connections in the pool
+  min: 2,    // minimum number of idle connections to maintain
+
+  // Timeouts (milliseconds)
+  connectionTimeoutMillis: 5000,  // time to wait for a new connection
+  idleTimeoutMillis:       30000, // time a connection can sit idle before being closed
+
+  applicationName: "my-app",  // shown in pg_stat_activity
+})
+```
+
+---
+
+## Populate strategies
+
+Three strategies are selected automatically based on query depth and complexity:
+
+- **JSON Aggregation** — default for single-level relations. Uses `json_agg()` and `row_to_json()` in a single query — no extra round-trips.
+- **LATERAL Joins** — used when populate options include `limit`, `offset`, `where`, or `orderBy`. Generates a `LEFT JOIN LATERAL (...)` subquery per relation.
+- **Batched IN Queries** — fallback for deep nesting (depth > 1) or high cardinality. Collects parent IDs and issues targeted `WHERE id = ANY($1)` queries, stitching results in Node.js memory.
+
+---
+
+## Migration
+
+All migration operations map directly to native PostgreSQL DDL (`CREATE TABLE`, `ALTER TABLE`, `CREATE INDEX`, etc.). PostgreSQL supports transactional DDL, so migrations are fully rollback-safe — structural changes are reverted automatically if a migration fails.
+
+---
+
+## Known limitations
+
+- No partial or expression indexes. Only simple field indexes with an optional unique constraint.
+- Auto-increment IDs are not gap-free. Failed inserts do not reclaim IDs.
+- `json_agg` on empty sets returns `null`, not `[]`. The adapter normalizes this to `[]` automatically.
+
+---
+
+## Field type mapping
+
+| Forja type | PostgreSQL column |
+| --- | --- |
+| `string` | `TEXT` (or `VARCHAR(n)` when `maxLength` is set) |
+| `number` | `DOUBLE PRECISION` (or `INTEGER` for foreign keys) |
+| `boolean` | `BOOLEAN` |
+| `date` | `TIMESTAMP WITH TIME ZONE` |
+| `json` | `JSONB` |
+| `array` | `JSONB` |
+| `enum` | `VARCHAR` |
+| `file` | `TEXT` |
+| `relation` | `INTEGER` (foreign key) |

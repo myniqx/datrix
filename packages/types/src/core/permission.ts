@@ -102,7 +102,6 @@ export interface SchemaPermission<
  *
  * - `read`: If user doesn't have permission, field is removed from response
  * - `write`: If user doesn't have permission, returns 403 error
- * - `'owner'`: Special keyword for owner-based access (TODO: implement)
  *
  * @template TRoles - Union type of valid role names
  * @template TRecord - The record type for the schema
@@ -122,16 +121,8 @@ export interface FieldPermission<
 	TRoles extends string = string,
 	TRecord extends ForjaEntry = ForjaEntry,
 > {
-	/**
-	 * Read permission - if denied, field is stripped from response
-	 * 'owner' is a placeholder for future owner-based access
-	 */
-	readonly read?: PermissionValue<TRoles, TRecord> | "owner";
-	/**
-	 * Write permission - if denied, returns 403 error
-	 * 'owner' is a placeholder for future owner-based access
-	 */
-	readonly write?: PermissionValue<TRoles, TRecord> | "owner";
+	readonly read?: PermissionValue<TRoles, TRecord>;
+	readonly write?: PermissionValue<TRoles, TRecord>;
 }
 
 /**
@@ -261,14 +252,9 @@ export function validateFieldPermissionRoles<TRoles extends string>(
 	const roleSet = new Set(validRoles);
 
 	const checkValue = (
-		value: PermissionValue<TRoles> | "owner" | undefined,
+		value: PermissionValue<TRoles> | undefined,
 	): void => {
-		if (
-			!value ||
-			typeof value === "boolean" ||
-			typeof value === "function" ||
-			value === "owner"
-		) {
+		if (!value || typeof value === "boolean" || typeof value === "function") {
 			return;
 		}
 

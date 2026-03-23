@@ -153,8 +153,16 @@ export function DocsLayout() {
 
 export default function DocsContent() {
   const currentSlug = useCurrentSlug()
+  const { hash } = useLocation()
   const mod = getDocModule(currentSlug)
   const DocComponent = mod?.default
+
+  useEffect(() => {
+    if (!hash) return
+    const id = hash.slice(1)
+    const el = document.getElementById(id)
+    if (el) el.scrollIntoView({ behavior: "smooth" })
+  }, [hash, currentSlug])
 
   return (
     <article className="prose prose-invert max-w-3xl">

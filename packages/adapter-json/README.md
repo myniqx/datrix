@@ -251,6 +251,6 @@ MIT © Forja Contributors
 
 ## Links
 
-- [Forja Documentation](https://forja.dev) - Configuration, schemas, migrations
+- [Forja Documentation](https://tryforja.com) - Configuration, schemas, migrations
 - [How to Use Guide](./HOW_TO_USE.md) - Standalone usage without Forja
-- [GitHub Repository](https://github.com/forja/forja)
+- [GitHub Repository](https://github.com/myniqx/forja)

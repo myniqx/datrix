@@ -1,0 +1,79 @@
+---
+title: JSON
+description: File-based JSON adapter for development and testing.
+order: 4
+---
+
+# JSON Adapter
+
+A file-based adapter that stores each table as a JSON file on disk. Intended for
+development, prototyping, and tests — not for production use.
+
+```bash
+pnpm add @forja/adapter-json
+```
+
+Zero external dependencies — only requires Node.js `fs`.
+
+---
+
+## When to use
+
+**Good for:** development, testing, static site generation, prototyping, small applications with under ~10k records per table.
+
+**Not suitable for:** high traffic, concurrent writes, large datasets, or real-time applications. File I/O and full-file rewrites on every write do not scale.
+
+---
+
+## Configuration
+
+```typescript
+import { JsonAdapter } from "@forja/adapter-json"
+
+new JsonAdapter({
+  root: "./data",  // directory where table JSON files are stored
+
+  // File locking
+  lockTimeout:  5000,   // ms to wait for a lock before failing (default: 5000)
+  staleTimeout: 30000,  // ms after which a lock is considered stale and released (default: 30000)
+
+  // In-memory cache — stores parsed JSON data and validates against file mtime
+  // Disable if another process may modify the files externally
+  cache: true,  // default: true
+
+  // Require a lock even for read operations
+  // Enable if you need strict read consistency in concurrent write scenarios
+  readLock: false,  // default: false
+
+  // Automatically create the _forja metadata table on connect
+  // Use when running the adapter without Forja core (e.g. direct usage or tests)
+  standalone: false,  // default: false
+})
+```
+
+---
+
+## Migration
+
+All migration operations (`createTable`, `alterTable`, `createIndex`, `dropTable`, etc.) are supported and operate directly on the JSON files. There is no DDL — schema changes are applied by reading and rewriting the file structure.
+
+---
+
+## Performance characteristics
+
+| Operation | Typical latency |
+| --- | --- |
+| Read (cached) | ~1–5ms |
+| Read (uncached) | ~10–50ms |
+| Write | ~50–200ms (full file rewrite) |
+| Concurrent writes | Serialized via file lock |
+
+Entire table data is loaded into memory during each operation. Performance degrades linearly with file size (~100KB per 1k records).
+
+---
+
+## Known limitations
+
+- Not suitable for high concurrency — writes are serialized with file-level locking.
+- Every write rewrites the entire file — not suitable for large tables.
+- No true transaction isolation — only the lock prevents concurrent writes within the same process.

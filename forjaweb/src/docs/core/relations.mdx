@@ -1,0 +1,220 @@
+---
+title: Relations
+description: How to write relation fields in create and update operations.
+order: 4
+---
+
+# Relations
+
+When writing records with `create`, `createMany`, `update`, or `updateMany`,
+relation fields accept several input formats. Forja normalizes all of them
+internally before hitting the database.
+
+---
+
+## Shortcut formats
+
+For most cases you do not need the full `RelationInput` object — Forja accepts
+shortcuts that are normalized automatically.
+
+### ID shortcut
+
+Pass a single number to set a relation to that record.
+
+```typescript
+// Set author to the record with id 5
+await forja.create("post", {
+  title: "Hello",
+  author: 5,
+})
+```
+
+Internally normalized to `{ set: [5] }`.
+
+### Array shortcut
+
+Pass an array of IDs or `{ id }` objects to set multiple relations at once.
+
+```typescript
+await forja.create("post", {
+  title: "Hello",
+  tags: [1, 2, 3],
+})
+
+// { id } objects also work
+await forja.create("post", {
+  title: "Hello",
+  tags: [{ id: 1 }, { id: 2 }],
+})
+```
+
+Both are normalized to `{ set: [1, 2, 3] }`.
+
+### null — clear a relation
+
+Pass `null` to remove a relation. Behavior depends on the relation kind:
+
+```typescript
+// belongsTo — sets the foreign key to null
+await forja.update("post", 1, { author: null })
+
+// hasOne — clears the relation on the target record
+await forja.update("user", 1, { profile: null })
+```
+
+Passing `null` to a `hasMany` or `manyToMany` relation throws an error.
+Use `{ set: [] }` instead to clear all connections.
+
+---
+
+## RelationInput object
+
+For full control, pass a `RelationInput` object with explicit operation keys.
+Multiple keys can be combined in a single call.
+
+### connect
+
+Link existing records without replacing others.
+
+```typescript
+await forja.update("post", 1, {
+  tags: { connect: [4, 5] },
+})
+```
+
+For `belongsTo` / `hasOne` (singular), only one ID is allowed.
+
+### disconnect
+
+Remove a link without deleting the record.
+
+```typescript
+// By ID — hasMany / manyToMany
+await forja.update("post", 1, {
+  tags: { disconnect: [4] },
+})
+
+// disconnect: true — hasOne / belongsTo (clears the relation)
+await forja.update("user", 1, {
+  profile: { disconnect: true },
+})
+```
+
+### set
+
+Replace all current connections with the given IDs. Pass an empty array to
+clear all connections.
+
+```typescript
+// Replace all tags
+await forja.update("post", 1, {
+  tags: { set: [1, 2, 3] },
+})
+
+// Clear all tags
+await forja.update("post", 1, {
+  tags: { set: [] },
+})
+```
+
+### delete
+
+Delete the related record entirely.
+
+```typescript
+await forja.update("user", 1, {
+  profile: { delete: true },
+})
+
+// hasMany / manyToMany — delete by IDs
+await forja.update("post", 1, {
+  comments: { delete: [10, 11] },
+})
+```
+
+### create — nested create
+
+Create a new related record in the same operation. Forja recursively
+normalizes the nested data and runs it in the correct order.
+
+```typescript
+// Create a post with a new comment in one call
+await forja.create("post", {
+  title: "Hello",
+  comments: {
+    create: { body: "First comment", author: 3 },
+  },
+})
+
+// Array of creates
+await forja.create("post", {
+  title: "Hello",
+  tags: {
+    create: [{ name: "typescript" }, { name: "backend" }],
+  },
+})
+```
+
+Nesting is supported up to **5 levels deep**. Circular chains
+(e.g. `Author → Post → Author`) throw an error — use `connect` to reference
+an existing record instead.
+
+### update — nested update
+
+Update a related record in the same operation. Requires a `where` clause to
+identify which record to update.
+
+```typescript
+await forja.update("post", 1, {
+  author: {
+    update: {
+      where: { id: 3 },
+      data: { name: "Jane" },
+    },
+  },
+})
+
+// Array of updates
+await forja.update("post", 1, {
+  comments: {
+    update: [
+      { where: { id: 10 }, data: { body: "Edited" } },
+      { where: { id: 11 }, data: { body: "Also edited" } },
+    ],
+  },
+})
+```
+
+---
+
+## Combining operations
+
+Multiple keys can be combined in a single relation field:
+
+```typescript
+await forja.update("post", 1, {
+  tags: {
+    connect: [5],
+    disconnect: [2],
+    create: { name: "new-tag" },
+  },
+})
+```
+
+---
+
+## Behavior by relation kind
+
+| Operation | `belongsTo` | `hasOne` | `hasMany` | `manyToMany` |
+| --- | --- | --- | --- | --- |
+| ID shortcut | ✅ single | ✅ single | ✅ array | ✅ array |
+| `null` | ✅ clears FK | ✅ clears target | ❌ | ❌ |
+| `connect` | ✅ single | ✅ single | ✅ | ✅ |
+| `disconnect` | ✅ | ✅ (`true` only) | ✅ | ✅ |
+| `set` | ✅ single | ✅ single | ✅ | ✅ |
+| `delete` | ✅ | ✅ | ✅ | ✅ |
+| `create` | ✅ single | ✅ single | ✅ | ✅ |
+| `update` | ✅ single | ✅ single | ✅ | ✅ |
+
+`belongsTo` and `hasOne` are **singular** — connecting more than one record
+at a time throws `INVALID_VALUE`.

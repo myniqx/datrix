@@ -1,6 +1,6 @@
 /**
  * Shared color palette for all code rendering components.
- * Used by: TypeTooltip, TypedSignature, Playground (CodeArg, JsonToken)
+ * Used by: DocsCodeBlock, Playground (CodeArg, JsonToken)
  */
 
 export const CODE_COLORS = {
