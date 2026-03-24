@@ -6,7 +6,7 @@
  */
 
 import type { SchemaPermission, FieldPermission } from "./permission";
-import { QuerySelect } from "./query-builder";
+import { QuerySelect, QuerySelectObject } from "./query-builder";
 
 // Re-export permission types for convenience
 export type {
@@ -186,8 +186,6 @@ export interface DateField<
 	readonly type: "date";
 	readonly min?: Date;
 	readonly max?: Date;
-	readonly autoCreate?: boolean; // Auto-set on creation
-	readonly autoUpdate?: boolean; // Auto-update on modification
 }
 
 /**
@@ -514,21 +512,58 @@ export interface IndexDefinition {
 }
 
 /**
- * Lifecycle hooks
+ * Context passed to schema lifecycle hooks
  */
-export interface LifecycleHooks<T = Record<string, unknown>> {
+export interface HookContext {
+	readonly schema: SchemaDefinition;
+	readonly metadata: Record<string, unknown>;
+}
+
+/**
+ * Lifecycle hooks
+ *
+ * Before hooks receive the current data/query and must return the (optionally modified) value.
+ * After hooks receive the result and must return the (optionally modified) value.
+ * ctx.metadata is shared between before and after hooks for the same operation.
+ */
+export interface LifecycleHooks<T extends ForjaEntry = ForjaEntry> {
+	// --- write hooks ---
 	readonly beforeCreate?: (
 		data: Partial<T>,
+		ctx: HookContext,
 	) => Promise<Partial<T>> | Partial<T>;
-	readonly afterCreate?: (data: T) => Promise<T> | T;
+	readonly afterCreate?: (
+		data: T,
+		ctx: HookContext,
+	) => Promise<T> | T;
+
 	readonly beforeUpdate?: (
 		data: Partial<T>,
+		ctx: HookContext,
 	) => Promise<Partial<T>> | Partial<T>;
-	readonly afterUpdate?: (data: T) => Promise<T> | T;
-	readonly beforeDelete?: (id: string) => Promise<void> | void;
-	readonly afterDelete?: (id: string) => Promise<void> | void;
-	readonly beforeFind?: (query: unknown) => Promise<unknown> | unknown;
-	readonly afterFind?: (results: T | T[]) => Promise<T | T[]> | T | T[];
+	readonly afterUpdate?: (
+		data: T,
+		ctx: HookContext,
+	) => Promise<T> | T;
+
+	readonly beforeDelete?: (
+		id: number,
+		ctx: HookContext,
+	) => Promise<number> | number;
+	readonly afterDelete?: (
+		id: number,
+		ctx: HookContext,
+	) => Promise<void> | void;
+
+	// --- read hooks ---
+	readonly beforeFind?: (
+		query: QuerySelectObject<T>,
+		ctx: HookContext,
+	) => Promise<QuerySelectObject<T>> | QuerySelectObject<T>;
+	readonly afterFind?: (
+		results: T[],
+		ctx: HookContext,
+	) => Promise<T[]> | T[];
 }
 
 /**

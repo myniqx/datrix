@@ -134,8 +134,8 @@ export const TYPE_DEFINITIONS: Record<string, TypeDefinition> = {
   },
   "DateField": {
     group: "Schema",
-    signature: `interface DateField {\n  type:         "date"\n  required?:    boolean\n  default?:     Date\n  min?:         Date\n  max?:         Date\n  autoCreate?:  boolean  // auto-set on record creation\n  autoUpdate?:  boolean  // auto-set on every update\n  description?: string\n  permission?:  FieldPermission\n}`,
-    description: "Date field definition. autoCreate and autoUpdate are used internally for createdAt/updatedAt — avoid setting them manually.",
+    signature: `interface DateField {\n  type:         "date"\n  required?:    boolean\n  default?:     Date\n  min?:         Date\n  max?:         Date\n  description?: string\n  permission?:  FieldPermission\n}`,
+    description: "Date field definition.",
     docsPath: "/docs/core/types#datefield",
   },
   "JsonField": {
@@ -179,6 +179,18 @@ export const TYPE_DEFINITIONS: Record<string, TypeDefinition> = {
     signature: `interface IndexDefinition {\n  name?:   string\n  fields:  readonly string[]\n  unique?: boolean\n  type?:   "btree" | "hash" | "gist" | "gin"\n}`,
     description: "Defines a database index on one or more fields. Pass to indexes[] in SchemaDefinition.",
     docsPath: "/docs/core/types#indexdefinition",
+  },
+  "HookContext": {
+    group: "Schema",
+    signature: `interface HookContext {\n  readonly schema:   SchemaDefinition\n  readonly metadata: Record<string, unknown>\n}`,
+    description: "Context passed to every lifecycle hook. metadata is mutable and shared between the before and after hook of the same operation — use it to pass data across the two phases.",
+    docsPath: "/docs/core/setup#lifecycle-hooks",
+  },
+  "LifecycleHooks": {
+    group: "Schema",
+    signature: `interface LifecycleHooks<T extends ForjaEntry = ForjaEntry> {\n  // write — before hooks return modified data, after hooks return modified record\n  beforeCreate?: (data: Partial<T>, ctx: HookContext) => Promise<Partial<T>> | Partial<T>\n  afterCreate?:  (data: T,          ctx: HookContext) => Promise<T> | T\n\n  beforeUpdate?: (data: Partial<T>, ctx: HookContext) => Promise<Partial<T>> | Partial<T>\n  afterUpdate?:  (data: T,          ctx: HookContext) => Promise<T> | T\n\n  // beforeDelete returns the id to delete (allows redirect to a different id)\n  beforeDelete?: (id: number,       ctx: HookContext) => Promise<number> | number\n  afterDelete?:  (id: number,       ctx: HookContext) => Promise<void>   | void\n\n  // read — beforeFind returns modified query, afterFind returns modified results\n  beforeFind?:   (query: QuerySelectObject<T>, ctx: HookContext) => Promise<QuerySelectObject<T>> | QuerySelectObject<T>\n  afterFind?:    (results: T[],                ctx: HookContext) => Promise<T[]> | T[]\n}`,
+    description: "Schema lifecycle hooks. Defined in the hooks field of SchemaDefinition. Hooks run after plugin hooks and only for non-raw queries. Return values replace the current data/query/result.",
+    docsPath: "/docs/core/setup#lifecycle-hooks",
   },
 
   // ─── Permissions ──────────────────────────────────────────────────────────────

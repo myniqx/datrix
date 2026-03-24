@@ -11,7 +11,10 @@ import {
 	ForjaEntry,
 	ForjaRecord,
 	SchemaDefinition,
+	HookContext,
+	LifecycleHooks,
 } from "forja-types/core/schema";
+import { QuerySelectObject } from "forja-types/core/query-builder";
 import type { Forja } from "./forja";
 import { validateQueryObject } from "forja-types/utils/query";
 import { SchemaRegistry } from "./schema";
@@ -91,10 +94,10 @@ export class Dispatcher {
 
 	/**
 	 * Execute full query lifecycle:
-	 * 1. Create context
-	 * 2. onBeforeQuery hooks
+	 * 1. Create context + shared hookCtx (metadata shared between before/after)
+	 * 2. onBeforeQuery plugin hooks + schema before hook
 	 * 3. Execute query
-	 * 4. onAfterQuery hooks
+	 * 4. onAfterQuery plugin hooks + schema after hook
 	 */
 	async executeQuery<
 		TResult extends ForjaEntry,
@@ -106,19 +109,23 @@ export class Dispatcher {
 		executor: (query: QueryObject<TResult>) => Promise<R>,
 	): Promise<R> {
 		const context = await this.buildQueryContext(action, schema);
-		const modifiedQuery = await this.dispatchBeforeQuery(query, context);
+		const hookCtx: HookContext = { schema, metadata: context.metadata };
+		const modifiedQuery = await this.dispatchBeforeQuery(query, context, hookCtx);
 		const result = await executor(modifiedQuery);
-		const finalResult = await this.dispatchAfterQuery<R>(result, context);
+		const finalResult = await this.dispatchAfterQuery<R>(result, context, hookCtx);
 		return finalResult;
 	}
 
 	/**
-	 * Dispatch onBeforeQuery hook to all plugins (serial execution)
-	 * Plugins can modify the query object.
+	 * Dispatch onBeforeQuery hook to all plugins (serial execution),
+	 * then call the schema lifecycle hook if defined.
+	 * Both plugins and schema hooks can modify and return the query.
+	 * hookCtx is shared with dispatchAfterQuery so metadata persists.
 	 */
 	async dispatchBeforeQuery<TResult extends ForjaEntry = ForjaRecord>(
 		query: QueryObject<TResult>,
 		context: QueryContext,
+		hookCtx: HookContext,
 	): Promise<QueryObject<TResult>> {
 		validateQueryObject(query);
 
@@ -138,16 +145,21 @@ export class Dispatcher {
 			}
 		}
 
+		currentQuery = await this.dispatchSchemaBeforeHook(currentQuery, context.action, hookCtx);
+
 		return currentQuery;
 	}
 
 	/**
-	 * Dispatch onAfterQuery hook to all plugins (serial execution)
-	 * Plugins can modify the result.
+	 * Dispatch onAfterQuery hook to all plugins (serial execution),
+	 * then call the schema lifecycle hook if defined.
+	 * Both plugins and schema hooks can modify and return the result.
+	 * hookCtx is the same instance as in dispatchBeforeQuery so metadata is shared.
 	 */
 	async dispatchAfterQuery<TResult extends ForjaEntry>(
 		result: TResult,
 		context: QueryContext,
+		hookCtx: HookContext,
 	): Promise<TResult> {
 		let currentResult = result;
 
@@ -164,7 +176,89 @@ export class Dispatcher {
 			}
 		}
 
+		currentResult = await this.dispatchSchemaAfterHook(currentResult, context.action, hookCtx);
+
 		return currentResult;
+	}
+
+	private async dispatchSchemaBeforeHook<TResult extends ForjaEntry>(
+		query: QueryObject<TResult>,
+		action: QueryAction,
+		hookCtx: HookContext,
+	): Promise<QueryObject<TResult>> {
+		const hooks = hookCtx.schema.hooks as LifecycleHooks<TResult> | undefined;
+		if (!hooks) return query;
+
+		if ((action === "create" || action === "createMany") && hooks.beforeCreate) {
+			if (query.type === "insert") {
+				const insertQuery = query as QueryObject<TResult> & { data: Partial<TResult>[] };
+				const modifiedItems = await Promise.all(
+					insertQuery.data.map((item) => hooks.beforeCreate!(item, hookCtx)),
+				);
+				return { ...query, data: modifiedItems } as QueryObject<TResult>;
+			}
+		}
+
+		if ((action === "update" || action === "updateMany") && hooks.beforeUpdate) {
+			if (query.type === "update") {
+				const updateQuery = query as QueryObject<TResult> & { data: Partial<TResult> };
+				const modifiedData = await hooks.beforeUpdate(updateQuery.data, hookCtx);
+				return { ...query, data: modifiedData } as QueryObject<TResult>;
+			}
+		}
+
+		if ((action === "delete" || action === "deleteMany") && hooks.beforeDelete) {
+			if (query.type === "delete") {
+				const deleteQuery = query as QueryObject<TResult> & { where?: { id?: number } };
+				if (deleteQuery.where?.id !== undefined) {
+					const modifiedId = await hooks.beforeDelete(deleteQuery.where.id, hookCtx);
+					return { ...query, where: { ...deleteQuery.where, id: modifiedId } } as QueryObject<TResult>;
+				}
+			}
+		}
+
+		if ((action === "findOne" || action === "findMany" || action === "count") && hooks.beforeFind) {
+			if (query.type === "select") {
+				const modifiedQuery = await hooks.beforeFind(query as QuerySelectObject<TResult>, hookCtx);
+				return modifiedQuery as QueryObject<TResult>;
+			}
+		}
+
+		return query;
+	}
+
+	private async dispatchSchemaAfterHook<TResult extends ForjaEntry>(
+		result: TResult,
+		action: QueryAction,
+		hookCtx: HookContext,
+	): Promise<TResult> {
+		const hooks = hookCtx.schema.hooks as LifecycleHooks<TResult> | undefined;
+		if (!hooks) return result;
+
+		const isArray = Array.isArray(result);
+		const rows = isArray ? (result as TResult[]) : [result];
+
+		if ((action === "create" || action === "createMany") && hooks.afterCreate) {
+			const modified = await Promise.all(rows.map((row) => hooks.afterCreate!(row, hookCtx)));
+			return (isArray ? modified : modified[0]) as TResult;
+		}
+
+		if ((action === "update" || action === "updateMany") && hooks.afterUpdate) {
+			const modified = await Promise.all(rows.map((row) => hooks.afterUpdate!(row, hookCtx)));
+			return (isArray ? modified : modified[0]) as TResult;
+		}
+
+		if ((action === "delete" || action === "deleteMany") && hooks.afterDelete) {
+			await Promise.all(rows.map((row) => hooks.afterDelete!((row as ForjaEntry).id, hookCtx)));
+			return result;
+		}
+
+		if ((action === "findOne" || action === "findMany") && hooks.afterFind) {
+			const modified = await hooks.afterFind(rows, hookCtx);
+			return (isArray ? modified : modified[0]) as TResult;
+		}
+
+		return result;
 	}
 }
 

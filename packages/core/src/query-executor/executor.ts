@@ -424,6 +424,7 @@ export class QueryExecutor {
 	/**
 	 * Wraps a handler with dispatcher lifecycle: buildContext → onBefore → handler → onAfter.
 	 * If noDispatcher is true, skips all hooks and runs handler directly.
+	 * hookCtx is created once and shared between before/after so metadata persists.
 	 */
 	private async withLifecycle<TResult, TQuery>(
 		action: QueryAction,
@@ -433,26 +434,27 @@ export class QueryExecutor {
 		handler: (modifiedQuery: TQuery) => Promise<TResult>,
 	): Promise<TResult> {
 		const dispatcher = this.getDispatcher();
-		const context = noDispatcher
-			? null
-			: await dispatcher.buildQueryContext(action, schema);
-		const modifiedQuery = context
-			? ((await dispatcher.dispatchBeforeQuery(
-				query as QueryObject,
-				context,
-			)) as TQuery)
-			: query;
+
+		if (noDispatcher) {
+			return handler(query);
+		}
+
+		const context = await dispatcher.buildQueryContext(action, schema);
+		const hookCtx = { schema, metadata: context.metadata };
+
+		const modifiedQuery = (await dispatcher.dispatchBeforeQuery(
+			query as QueryObject,
+			context,
+			hookCtx,
+		)) as TQuery;
 
 		const result = await handler(modifiedQuery);
 
-		if (context) {
-			return dispatcher.dispatchAfterQuery(
-				result as ForjaEntry,
-				context,
-			) as Promise<TResult>;
-		}
-
-		return result;
+		return dispatcher.dispatchAfterQuery(
+			result as ForjaEntry,
+			context,
+			hookCtx,
+		) as Promise<TResult>;
 	}
 
 	/**

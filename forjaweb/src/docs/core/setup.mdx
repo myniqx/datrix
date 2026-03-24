@@ -43,6 +43,8 @@ defineSchema({
     { fields: ["authorId"] },
   ],
 
+  hooks: { ... },    // lifecycle hooks — see below
+
   permission: { ... },  // schema-level permissions — see below
 } as const)
 ```
@@ -317,6 +319,80 @@ export const postSchema = defineSchema({
 		delete: ["admin"] as readonly Roles[],
 	},
 } as const);
+```
+
+---
+
+## Lifecycle hooks
+
+Hooks run on every non-raw query for the schema. They fire **after** plugin hooks, and only when the operation goes through the dispatcher (i.e. not on `forja.raw.*` calls).
+
+Every before hook **must return** the (optionally modified) value — the return value replaces the current data or query. After hooks must return the (optionally modified) result.
+
+`ctx.metadata` is a plain object shared between the `before` and `after` hook of the same operation. Use it to pass data across the two phases.
+
+```typescript
+import { defineSchema } from "forja-core"
+import type { ForjaEntry } from "forja-types"
+
+type Post = ForjaEntry & { title: string; slug: string; status: string }
+
+export const postSchema = defineSchema({
+  name: "post",
+  fields: { ... },
+  hooks: {
+    // --- write hooks ---
+
+    // Runs before INSERT. Returns modified data.
+    beforeCreate: async (data, ctx) => {
+      ctx.metadata.createdAt = Date.now()
+      return { ...data, slug: data.title?.toLowerCase().replace(/ /g, "-") }
+    },
+
+    // Runs after INSERT. Receives the full saved record.
+    afterCreate: async (record, ctx) => {
+      console.log("created in", Date.now() - (ctx.metadata.createdAt as number), "ms")
+      return record
+    },
+
+    // Runs before UPDATE. Returns modified data.
+    beforeUpdate: async (data, ctx) => {
+      return data  // return as-is or modify
+    },
+
+    // Runs after UPDATE. Receives the full updated record.
+    afterUpdate: async (record, ctx) => {
+      return record
+    },
+
+    // Runs before DELETE. Receives the id, must return the id to delete.
+    beforeDelete: async (id, ctx) => {
+      ctx.metadata.deletedId = id
+      return id  // return same id, or redirect to a different one
+    },
+
+    // Runs after DELETE. Receives the deleted id.
+    afterDelete: async (id, ctx) => {
+      console.log("deleted id", id)
+    },
+
+    // --- read hooks ---
+
+    // Runs before SELECT. Receives the full QuerySelectObject, must return it.
+    // Use this to inject additional WHERE conditions.
+    beforeFind: async (query, ctx) => {
+      return {
+        ...query,
+        where: { ...query.where, status: "published" },
+      }
+    },
+
+    // Runs after SELECT. Receives the result array, must return it.
+    afterFind: async (results, ctx) => {
+      return results.filter((r) => (r as Post).status !== "archived")
+    },
+  },
+} as const)
 ```
 
 ---
