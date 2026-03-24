@@ -55,9 +55,3 @@ export interface GenerateCommandOptions extends BaseCommandOptions {
 	readonly output?: string | undefined;
 }
 
-/**
- * Dev command options
- */
-export interface DevCommandOptions extends BaseCommandOptions {
-	readonly watch?: boolean | undefined;
-}

@@ -184,6 +184,24 @@ export class Forja implements IForja {
 			}
 
 			this.initialized = true;
+
+			// Auto-migrate if configured
+			const migrationConfig = this.getMigrationConfig();
+			if (migrationConfig.auto) {
+				const session = await createMigrationSession(this);
+
+				if (session.ambiguous.length > 0) {
+					const ambiguousIds = session.ambiguous.map((a) => a.id).join(", ");
+					throw new ForjaError(
+						`Auto-migration aborted: ambiguous schema changes detected (${ambiguousIds}). Run "forja migrate" interactively to resolve.`,
+						{ code: "INIT_FAILED" },
+					);
+				}
+
+				if (session.hasChanges()) {
+					await session.apply();
+				}
+			}
 		} catch (error) {
 			throw new ForjaError(
 				`Initialization failed: ${error instanceof Error ? error.message : String(error)}`,

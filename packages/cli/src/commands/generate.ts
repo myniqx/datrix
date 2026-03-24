@@ -13,8 +13,6 @@ import { CLIError } from "../types";
 import { logger, formatError } from "../utils/logger";
 import {
 	schemaTemplate,
-	migrationTemplate,
-	generateTimestamp,
 	toPascalCase,
 	toKebabCase,
 } from "../utils/templates";
@@ -22,9 +20,9 @@ import type { Forja } from "forja-core";
 import { generateTypesFile } from "../type-generator/schema-types";
 
 /**
- * Generate type (schema, migration, or types)
+ * Generate type (schema or types)
  */
-export type GenerateType = "schema" | "migration" | "types";
+export type GenerateType = "schema" | "types";
 
 /**
  * Ensure directory exists
@@ -117,40 +115,6 @@ async function generateSchema(
 }
 
 /**
- * Generate migration file
- */
-async function generateMigration(
-	name: string,
-	options: GenerateCommandOptions,
-): Promise<void> {
-	if (!name || name.trim() === "") {
-		throw new CLIError("Migration name is required", "MISSING_ARGUMENT");
-	}
-
-	const timestamp = generateTimestamp();
-	const kebabName = toKebabCase(name);
-	const filename = `${timestamp}_${kebabName}.ts`;
-	const outputDir = options.output ?? join(process.cwd(), "migrations");
-	const outputPath = join(outputDir, filename);
-
-	logger.log("");
-	logger.info(`Generating migration: ${name}`);
-	logger.info(`Version: ${timestamp}`);
-	logger.info(`Output: ${outputPath}`);
-
-	const content = migrationTemplate(name, timestamp);
-	await writeFileSafe(outputPath, content, false);
-
-	logger.log("");
-	logger.success(`Migration created: ${outputPath}`);
-	logger.log("");
-	logger.info("Next steps:");
-	logger.info("1. Edit the migration file to add operations");
-	logger.info("2. Run: forja migrate");
-	logger.log("");
-}
-
-/**
  * Generate TypeScript types from registered schemas
  */
 async function generateTypes(
@@ -187,10 +151,6 @@ export async function generateCommand(
 			await generateSchema(name, options);
 			break;
 
-		case "migration":
-			await generateMigration(name, options);
-			break;
-
 		case "types": {
 			if (!forja) {
 				throw new CLIError(
@@ -216,5 +176,5 @@ export async function generateCommand(
  * Validate generate type
  */
 export function isValidGenerateType(type: string): type is GenerateType {
-	return type === "schema" || type === "migration" || type === "types";
+	return type === "schema" || type === "types";
 }

@@ -4,19 +4,17 @@
  * Forja CLI Entry Point
  *
  * Command-line interface for Forja database management framework.
- * Provides commands for migrations, schema generation, and development mode.
+ * Provides commands for migrations and schema generation.
  */
 
 import type {
 	ParsedArgs,
 	MigrateCommandOptions,
 	GenerateCommandOptions,
-	DevCommandOptions,
 } from "./types";
 import { logger, formatError, bold, cyan } from "./utils/logger";
 import { loadConfig } from "./utils/config-loader";
 import { migrateCommand, displayMigrationStatus } from "./commands/migrate";
-import { devCommand } from "./commands/dev";
 import { generateCommand, isValidGenerateType } from "./commands/generate";
 
 /**
@@ -83,17 +81,9 @@ ${bold("COMMANDS")}
     ${bold("Options:")}
       --output <path>             Custom output directory
 
-  ${cyan("generate migration <name>")}     Generate migration file
-    ${bold("Options:")}
-      --output <path>             Custom output directory
-
   ${cyan("generate types")}                Generate TypeScript types from schemas
     ${bold("Options:")}
       --output <path>             Output file path (default: ./types/forja.ts)
-
-  ${cyan("dev")}                            Development mode with auto-reload
-    ${bold("Options:")}
-      --watch                     Enable file watching (default: true)
 
   ${cyan("help")}                           Show this help message
 
@@ -107,9 +97,7 @@ ${bold("EXAMPLES")}
   forja migrate --dry-run         # Preview without applying
   forja migrate --status          # Show migration status
   forja generate schema User      # Generate User schema template
-  forja generate migration add-users-table
   forja generate types            # Generate TypeScript types from schemas
-  forja dev                       # Start development mode
 
 ${bold("MORE INFO")}
   Documentation: https://github.com/forja/forja
@@ -166,13 +154,13 @@ async function main(): Promise<void> {
 			case "generate": {
 				if (!args.subcommand) {
 					logger.error("Missing subcommand for generate");
-					logger.info("Usage: forja generate <schema|migration|types> <name>");
+					logger.info("Usage: forja generate <schema|types> <name>");
 					process.exit(1);
 				}
 
 				if (!isValidGenerateType(args.subcommand)) {
 					logger.error(`Invalid generate type: ${args.subcommand}`);
-					logger.info("Valid types: schema, migration, types");
+					logger.info("Valid types: schema, types");
 					process.exit(1);
 				}
 
@@ -200,19 +188,6 @@ async function main(): Promise<void> {
 				}
 
 				await generateCommand(args.subcommand, name, generateOptions);
-				break;
-			}
-
-			case "dev": {
-				const forja = await loadConfig(getConfigPath(args.options));
-
-				const devOptions: DevCommandOptions = {
-					config: getConfigPath(args.options),
-					verbose: Boolean(args.options["verbose"]),
-					watch: args.options["watch"] !== false,
-				};
-
-				await devCommand(devOptions, forja);
 				break;
 			}
 

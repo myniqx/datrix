@@ -94,101 +94,14 @@ export const ${schemaVarName}Schema = defineSchema({
     // { fields: ['name'] },
   ],
 
-  permission: {
-    create: true,
-    read: true,
-    update: true,
-    delete: true,
-  },
+  // permission: Only needed if you are using @forja/api for HTTP access control.
+  // permission: {
+  //   create: true,
+  //   read: true,
+  //   update: true,
+  //   delete: true,
+  // },
 } as const);
-
-// Type inference from schema
-export type ${name} = typeof ${schemaVarName}Schema['__type'];
-`;
-}
-
-/**
- * Generate migration template
- */
-export function migrationTemplate(name: string, timestamp: string): string {
-	return `import type { Migration } from '@forja/types/core/migration';
-
-export const migration: Migration = {
-  metadata: {
-    name: '${name}',
-    version: '${timestamp}',
-    timestamp: ${Date.now()},
-    description: '${name}',
-  },
-
-  up: [
-    // Migration operations (applied in order)
-
-    // Create table example:
-    // {
-    //   type: 'createTable',
-    //   schema: {
-    //     name: 'user',
-    //     fields: {
-    //       email: { type: 'string', required: true, unique: true },
-    //       name: { type: 'string', required: true, maxLength: 100 },
-    //       isActive: { type: 'boolean', default: true },
-    //     },
-    //     indexes: [
-    //       { fields: ['email'], unique: true },
-    //     ],
-    //   },
-    // },
-
-    // Add column example:
-    // {
-    //   type: 'alterTable',
-    //   tableName: 'user',
-    //   operations: [
-    //     { type: 'addColumn', column: 'age', definition: { type: 'number', min: 0 } },
-    //   ],
-    // },
-
-    // Create index example:
-    // {
-    //   type: 'createIndex',
-    //   tableName: 'user',
-    //   index: { fields: ['name'], unique: false },
-    // },
-
-    // Raw SQL example (use sparingly, adapter-specific):
-    // {
-    //   type: 'raw',
-    //   sql: 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp"',
-    // },
-  ],
-
-  down: [
-    // Rollback operations (reverse order of up)
-
-    // Drop table example:
-    // {
-    //   type: 'dropTable',
-    //   tableName: 'user',
-    // },
-
-    // Drop column example:
-    // {
-    //   type: 'alterTable',
-    //   tableName: 'user',
-    //   operations: [
-    //     { type: 'dropColumn', column: 'age' },
-    //   ],
-    // },
-
-    // Drop index example:
-    // {
-    //   type: 'dropIndex',
-    //   tableName: 'user',
-    //   indexName: 'user_name_idx',
-    // },
-  ],
-};
 `;
 }
 
@@ -249,21 +162,6 @@ export default async function createApp() {
   return forja;
 }
 `;
-}
-
-/**
- * Generate timestamp for migration filename
- */
-export function generateTimestamp(): string {
-	const now = new Date();
-	const year = now.getFullYear();
-	const month = String(now.getMonth() + 1).padStart(2, "0");
-	const day = String(now.getDate()).padStart(2, "0");
-	const hours = String(now.getHours()).padStart(2, "0");
-	const minutes = String(now.getMinutes()).padStart(2, "0");
-	const seconds = String(now.getSeconds()).padStart(2, "0");
-
-	return `${year}${month}${day}${hours}${minutes}${seconds}`;
 }
 
 /**

@@ -5,3 +5,194 @@ order: 6
 ---
 
 # CLI
+
+```bash
+pnpm add -D @forja/cli
+```
+
+```bash
+forja <command> [options]
+```
+
+---
+
+## forja migrate
+
+Compares your schemas against the current database state and runs the necessary migrations.
+
+```bash
+forja migrate
+forja migrate --dry-run   # preview plan without applying
+forja migrate --status    # show pending change counts only
+forja migrate --verbose   # show field/index details in the plan
+```
+
+### What happens
+
+1. Loads your `forja.config.ts` and connects to the database
+2. Diffs each schema against the live table structure
+3. If there are pending changes, prints the migration plan:
+   - **green `+`** — tables/columns to create
+   - **red `-`** — tables/columns to drop
+   - **yellow `~`** — tables/columns to alter
+4. Prompts for confirmation, then applies
+
+### Ambiguous changes
+
+When a field is removed and a new one is added at the same time, Forja cannot tell whether this is a **rename** or a **drop + add**. You will be prompted to choose:
+
+```
+Ambiguous changes detected:
+
+user.name->fullName
+  ⚠ Renaming will preserve data. Dropping will lose it.
+
+  1. Rename column 'name' to 'fullName' (data preserved)
+  2. Drop column 'name' and add column 'fullName' (data lost)
+
+Choose option (1-2):
+```
+
+Call `session.resolveAmbiguous(id, type)` in code if you want to resolve programmatically instead of interactively.
+
+### Auto-migrate on startup
+
+Set `migration.auto: true` in `defineConfig` to apply migrations automatically when the app starts — no CLI needed:
+
+```typescript
+export default defineConfig(() => ({
+  adapter: new PostgresAdapter({ ... }),
+  schemas: [...],
+  migration: {
+    auto: true,
+  },
+}))
+```
+
+---
+
+## forja generate schema \<Name\>
+
+Generates a `defineSchema` template file.
+
+```bash
+forja generate schema User
+forja generate schema BlogPost --output ./src/schemas
+```
+
+Output: `schemas/user.schema.ts` (or the path specified by `--output`)
+
+```typescript
+import { defineSchema } from "@forja/types/core/schema"
+
+export const userSchema = defineSchema({
+  name: "user",
+
+  fields: {
+    // Add your fields here
+    // id, createdAt, updatedAt are added automatically
+
+    // name: {
+    //   type: "string",
+    //   required: true,
+    //   minLength: 2,
+    //   maxLength: 100,
+    // },
+  },
+
+  indexes: [
+    // { fields: ["email"], unique: true },
+  ],
+
+  // permission: Only needed if you are using @forja/api for HTTP access control.
+  // permission: {
+  //   create: true,
+  //   read: true,
+  //   update: true,
+  //   delete: true,
+  // },
+} as const)
+```
+
+After editing, run `forja migrate` to apply the new table.
+
+---
+
+## forja generate types
+
+Generates TypeScript types from all registered schemas into a single file. For each schema it produces a `Base` interface, `Relation`/`RelationUpdate` interfaces for nested types, and `Create`/`Update` input types — ready to import across your codebase.
+
+```bash
+forja generate types
+forja generate types --output ./src/types/db.ts
+```
+
+Output: `types/generated.ts` (or the path specified by `--output`)
+
+```typescript
+// generated.ts (example)
+import type {
+  ForjaEntry,
+  RelationBelongsTo,
+  RelationHasMany,
+} from "@forja/types/core/schema"
+
+// ─────────────────────────────────────────
+// User  (table: user)
+// ─────────────────────────────────────────
+
+export interface UserBase extends ForjaEntry {
+  email: string
+  name?: string
+  role: "admin" | "editor" | "user"
+}
+
+export interface UserRelation {
+  posts?: PostBase[]
+}
+
+export interface UserRelationUpdate {
+  posts?: RelationHasMany<PostBase>
+}
+
+export type User = UserBase & UserRelation
+export type CreateUserInput = Omit<UserBase, keyof ForjaEntry> & UserRelationUpdate
+export type UpdateUserInput = Partial<Omit<UserBase, keyof ForjaEntry>> & UserRelationUpdate
+
+// ─────────────────────────────────────────
+// Post  (table: post)
+// relations: author → belongsTo(user)
+// ─────────────────────────────────────────
+
+export interface PostBase extends ForjaEntry {
+  title: string
+  slug: string
+  status: "draft" | "published" | "archived"
+}
+
+export interface PostRelation {
+  author?: UserBase
+}
+
+export interface PostRelationUpdate {
+  author?: RelationBelongsTo<UserBase>
+}
+
+export type Post = PostBase & PostRelation
+export type CreatePostInput = Omit<PostBase, keyof ForjaEntry> & PostRelationUpdate
+export type UpdatePostInput = Partial<Omit<PostBase, keyof ForjaEntry>> & PostRelationUpdate
+```
+
+---
+
+## Global options
+
+| Option | Description |
+| --- | --- |
+| `--config <path>` | Path to config file (default: `./forja.config.ts`) |
+| `--verbose` | Detailed output |
+| `--help` | Show help |
+
+```bash
+forja migrate --config ./config/forja.config.ts --verbose
+```

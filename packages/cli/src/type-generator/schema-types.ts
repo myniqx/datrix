@@ -185,7 +185,7 @@ function generateHeader(): string {
 		"  RelationHasOne,",
 		"  RelationHasMany,",
 		"  RelationManyToMany,",
-		'} from "forja-types/core/schema";',
+		'} from "@forja/types/core/schema";',
 	].join("\n");
 }
 
