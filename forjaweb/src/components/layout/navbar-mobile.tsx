@@ -58,13 +58,7 @@ export function NavbarMobile({ starCount }: NavbarMobileProps) {
 					>
 						Docs
 					</a>
-					<a
-						href="/packages"
-						className="rounded-md px-2 py-2 text-sm text-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
-					>
-						Packages
-					</a>
-					<a
+<a
 						href={FORJA_GITHUB_URL}
 						target="_blank"
 						rel="noopener noreferrer"

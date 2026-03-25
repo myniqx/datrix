@@ -11,7 +11,6 @@ const NAV_LINKS = [
 	{ label: "Showcase", href: "#showcase" },
 	{ label: "Features", href: "#features" },
 	{ label: "Docs", href: "/docs" },
-	{ label: "Packages", href: "/packages" },
 ] as const;
 
 interface NavbarProps {
