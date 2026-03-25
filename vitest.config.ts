@@ -71,6 +71,8 @@ export default defineConfig({
 				"./packages/adapter-postgres/src",
 			),
 			"forja-api": path.resolve(__dirname, "./packages/api/src"),
+			"@forja/api": path.resolve(__dirname, "./packages/api/src"),
+			"@forja/api-upload": path.resolve(__dirname, "./packages/api-upload/src"),
 		},
 	},
 });

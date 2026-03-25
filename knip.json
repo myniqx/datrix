@@ -30,6 +30,9 @@
 		"packages/api": {
 			"entry": ["src/index.ts"]
 		},
+		"packages/api-upload": {
+			"entry": ["src/index.ts"]
+		},
 		"packages/cli": {
 			"entry": ["src/index.ts"]
 		}
