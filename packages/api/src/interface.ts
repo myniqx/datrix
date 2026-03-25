@@ -10,7 +10,7 @@
 import type { DefaultPermission } from "forja-types/core/permission";
 import type { Forja } from "forja-core";
 import type { AuthManager } from "./auth/manager";
-import { AuthUser } from "forja-types/api";
+import type { AuthUser, IUpload } from "forja-types/api";
 
 /**
  * API Plugin Interface
@@ -33,6 +33,11 @@ export interface IApiPlugin<TRole extends string = string> {
 	 * Auth manager instance (undefined if auth is disabled)
 	 */
 	readonly authManager?: AuthManager;
+
+	/**
+	 * Upload instance (undefined if upload is disabled)
+	 */
+	readonly upload?: IUpload;
 
 	/**
 	 * Currently authenticated user (null if not authenticated)

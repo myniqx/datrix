@@ -1,7 +1,10 @@
 /**
  * Forja API Helper
  *
- * Provides a single-line helper function for handling API requests in user code.
+ * Provides helper functions for handling API requests in user code.
+ * Works with any framework that uses the Web Request/Response API natively
+ * (Next.js App Router, Hono, Remix, Cloudflare Workers, Bun, Deno).
+ * For Node.js frameworks (Express, Fastify, Koa) use toWebRequest / sendWebResponse.
  */
 
 import { ApiPlugin } from "../api";
@@ -9,6 +12,101 @@ import { Forja } from "forja-core";
 import { forjaErrorResponse } from "../handler/utils";
 import { handlerError } from "../errors/api-error";
 import { ForjaError } from "forja-types/errors";
+
+// ─── Node.js bridge types ─────────────────────────────────────────────────────
+// Duck-typed — no express/fastify dependency required.
+
+interface NodeIncomingRequest {
+	method: string;
+	url?: string;
+	headers: Record<string, string | string[] | undefined>;
+	body?: unknown;
+	socket?: { encrypted?: boolean };
+}
+
+interface NodeOutgoingResponse {
+	statusCode: number;
+	setHeader(key: string, value: string): unknown;
+	end(body: string): void;
+}
+
+// ─── Node.js bridge ───────────────────────────────────────────────────────────
+
+/**
+ * Convert a Node.js-style incoming request (Express, Fastify, Koa, raw http.IncomingMessage)
+ * to a Web API Request.
+ *
+ * Call this before passing the request to handleRequest.
+ *
+ * @example
+ * ```ts
+ * app.all("*", async (req, res) => {
+ *   const request  = toWebRequest(req)
+ *   const response = await handleRequest(await forja(), request)
+ *   await sendWebResponse(res, response)
+ * })
+ * ```
+ */
+export function toWebRequest(req: NodeIncomingRequest): Request {
+	const protocol = req.socket?.encrypted ? "https" : "http";
+	const host = (req.headers["host"] as string | undefined) ?? "localhost";
+	const url = `${protocol}://${host}${req.url ?? "/"}`;
+
+	const headers = new Headers();
+	for (const [key, value] of Object.entries(req.headers)) {
+		if (value === undefined) continue;
+		if (Array.isArray(value)) {
+			for (const v of value) headers.append(key, v);
+		} else {
+			headers.set(key, value);
+		}
+	}
+
+	const hasBody = req.body !== undefined && req.body !== null;
+	const methodAllowsBody = !["GET", "HEAD"].includes(req.method.toUpperCase());
+
+	let body: BodyInit | undefined;
+	if (hasBody && methodAllowsBody) {
+		if (req.body instanceof Uint8Array || Buffer.isBuffer(req.body)) {
+			body = req.body as Uint8Array;
+		} else if (typeof req.body === "string") {
+			body = req.body;
+		} else {
+			body = JSON.stringify(req.body);
+		}
+	}
+
+	return new Request(url, {
+		method: req.method,
+		headers,
+		body,
+	});
+}
+
+/**
+ * Write a Web API Response back into a Node.js-style outgoing response
+ * (Express, Fastify, Koa, raw http.ServerResponse).
+ *
+ * @example
+ * ```ts
+ * app.all("*", async (req, res) => {
+ *   const request  = toWebRequest(req)
+ *   const response = await handleRequest(await forja(), request)
+ *   await sendWebResponse(res, response)
+ * })
+ * ```
+ */
+export async function sendWebResponse(
+	res: NodeOutgoingResponse,
+	response: Response,
+): Promise<void> {
+	res.statusCode = response.status;
+	response.headers.forEach((value, key) => {
+		res.setHeader(key, value);
+	});
+	const body = await response.text();
+	res.end(body);
+}
 
 /**
  * Handle Forja API Request
@@ -27,40 +125,36 @@ import { ForjaError } from "forja-types/errors";
  *
  * @example
  * ```ts
- * // Next.js App Router
- * import { getForja } from '@forja/core';
- * import { handleRequest } from '@forja/api/helper';
+ * // Next.js App Router — Web Request/Response native, no bridge needed
+ * import forja from "@/forja.config"
+ * import { handleRequest } from "@forja/api"
  *
  * async function handler(request: Request): Promise<Response> {
- *   return handleRequest(await getForja(), request);
+ *   return handleRequest(await forja(), request)
  * }
  *
- * export const GET = handler;
- * export const POST = handler;
- * export const PATCH = handler;
- * export const PUT = handler;
- * export const DELETE = handler;
+ * export const GET = handler
+ * export const POST = handler
+ * export const PATCH = handler
+ * export const PUT = handler
+ * export const DELETE = handler
  * ```
  *
  * @example
  * ```ts
- * // Express
- * import express from 'express';
- * import { getForja } from '@forja/core';
- * import { handleRequest } from '@forja/api/helper';
+ * // Express — use toWebRequest / sendWebResponse bridge
+ * import express from "express"
+ * import forja from "./forja.config"
+ * import { handleRequest, toWebRequest, sendWebResponse } from "@forja/api"
  *
- * const app = express();
+ * const app = express()
+ * app.use(express.raw({ type: "*\/*" }))
  *
- * app.all('/api/*', async (req, res) => {
- *   const request = new Request(req.url, {
- *     method: req.method,
- *     headers: req.headers,
- *     body: req.body,
- *   });
- *
- *   const response = await handleRequest(await getForja(), request);
- *   res.status(response.status).json(await response.json());
- * });
+ * app.all("*", async (req, res) => {
+ *   const request  = toWebRequest(req)
+ *   const response = await handleRequest(await forja(), request)
+ *   await sendWebResponse(res, response)
+ * })
  * ```
  */
 export async function handleRequest(

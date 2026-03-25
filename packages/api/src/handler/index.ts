@@ -13,3 +13,7 @@ export {
 	createUnifiedAuthHandler,
 	type AuthHandlerConfig,
 } from "./auth-handler";
+
+// Handler utilities (for extensions like api-upload)
+export { jsonResponse, forjaErrorResponse } from "./utils";
+export { ForjaApiError, handlerError } from "../errors/api-error";

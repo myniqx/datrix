@@ -1,4 +1,5 @@
 import type { AuthConfig } from "./auth/types";
+import type { IUpload } from "forja-types/api";
 
 /**
  * API Configuration
@@ -70,6 +71,14 @@ export interface ApiConfig<TRole extends string = string> extends Record<
 	 * Contains: roles, defaultRole, defaultPermission, jwt/session config
 	 */
 	readonly auth?: AuthConfig<TRole>;
+
+	/**
+	 * Upload instance (from @forja/api-upload)
+	 *
+	 * When defined, file upload is enabled.
+	 * Injects media schema and exposes /upload endpoints.
+	 */
+	readonly upload?: IUpload;
 
 	readonly disabled?: boolean;
 	/**

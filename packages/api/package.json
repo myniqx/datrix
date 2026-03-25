@@ -23,6 +23,12 @@
 		"*": {
 			"*": [
 				"./src/*/index.ts"
+			],
+			"errors/api-error": [
+				"./src/errors/api-error.ts"
+			],
+			"handler/utils": [
+				"./src/handler/utils.ts"
 			]
 		}
 	},

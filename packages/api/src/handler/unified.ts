@@ -223,7 +223,7 @@ async function handleDelete(ctx: RequestContext): Promise<Response> {
  * 2. Check schema-level permission (only if auth enabled) - ONCE
  * 3. Route to method handler (which handles field-level permissions if auth enabled)
  */
-export async function handleRequest<TRole extends string = string>(
+export async function handleCrudRequest<TRole extends string = string>(
 	request: Request,
 	forja: Forja,
 	api: IApiPlugin<TRole>,
@@ -254,14 +254,14 @@ export async function handleRequest<TRole extends string = string>(
 
 		switch (ctx.method) {
 			case "GET":
-				return handleGet(ctx);
+				return await handleGet(ctx);
 			case "POST":
-				return handlePost(ctx);
+				return await handlePost(ctx);
 			case "PATCH":
 			case "PUT":
-				return handleUpdate(ctx);
+				return await handleUpdate(ctx);
 			case "DELETE":
-				return handleDelete(ctx);
+				return await handleDelete(ctx);
 			default: {
 				throw handlerError.methodNotAllowed(ctx.method);
 			}

@@ -94,7 +94,10 @@ export async function buildRequestContext<TRole extends string = string>(
 
 	// 1. RESOLVE SCHEMA from URL
 	const tableName = extractTableNameFromPath(url.pathname, apiPrefix);
-	const modelName = forja.getSchemas().findModelByTableName(tableName);
+	const modelName =
+		tableName === "upload" && api.upload
+			? api.upload.getModelName()
+			: forja.getSchemas().findModelByTableName(tableName);
 	const schema = modelName ? (forja.getSchema(modelName) ?? null) : null;
 
 	// 2. DERIVE ACTION from HTTP method

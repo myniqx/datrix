@@ -14,20 +14,21 @@ import type {
 import { DefaultPermission, defineSchema } from "forja-types/core/schema";
 import { AuthManager } from "./auth/manager";
 import { createAuthHandlers } from "./handler/auth-handler";
-import { handleRequest as handleCrudRequest } from "./handler/unified";
+import { handleCrudRequest } from "./handler/unified";
 import { handlerError } from "./errors/api-error";
 import { ApiConfig } from "./types";
 import { Forja } from "forja-core";
 import type { IApiPlugin } from "./interface";
 import type { ForjaEntry, ForjaRecord } from "forja-types/core/schema";
 import { forjaErrorResponse } from "./handler/utils";
-import { AuthUser } from "forja-types/api";
+import type { AuthUser, IUpload } from "forja-types/api";
 import { QueryObject } from "forja-types";
 import { FallbackInput } from "forja-types/forja";
 
 export class ApiPlugin<TRole extends string = string>
 	extends BasePlugin<ApiConfig<TRole>>
-	implements IApiPlugin<TRole> {
+	implements IApiPlugin<TRole>
+{
 	readonly name = "api";
 	readonly version = "1.0.0";
 
@@ -37,6 +38,10 @@ export class ApiPlugin<TRole extends string = string>
 
 	public get forja(): Forja {
 		return this.forjaInstance as Forja;
+	}
+
+	public get upload(): IUpload | undefined {
+		return this.options.upload;
 	}
 
 	public setUser(user: AuthUser | null) {
@@ -130,11 +135,18 @@ export class ApiPlugin<TRole extends string = string>
 		this.authManager = new AuthManager(this.authConfig);
 	}
 
-	async destroy(): Promise<void> { }
+	async destroy(): Promise<void> {}
 
 	override async getSchemas(): Promise<SchemaDefinition[]> {
+		const schemas: SchemaDefinition[] = [];
+
+		if (this.options.upload) {
+			const uploadSchemas = await this.options.upload.getSchemas();
+			schemas.push(...uploadSchemas);
+		}
+
 		if (!this.authConfig) {
-			return [];
+			return schemas;
 		}
 
 		const authSchema = defineSchema({
@@ -175,10 +187,11 @@ export class ApiPlugin<TRole extends string = string>
 					fields: ["user"],
 					unique: true,
 				},
-			]
+			],
 		});
 
-		return [authSchema];
+		schemas.push(authSchema);
+		return schemas;
 	}
 
 	override async onBeforeQuery<T extends ForjaEntry>(
@@ -303,6 +316,14 @@ export class ApiPlugin<TRole extends string = string>
 
 		if (model === "auth" && this.authConfig) {
 			return this.handleAuthRequest(request, forja);
+		}
+
+		if (
+			model === "upload" &&
+			this.apiConfig.upload &&
+			request.method !== "GET"
+		) {
+			return this.apiConfig.upload.handleRequest(request, forja);
 		}
 
 		return handleCrudRequest(request, forja, this, {
