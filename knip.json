@@ -32,9 +32,6 @@
 		},
 		"packages/cli": {
 			"entry": ["src/index.ts"]
-		},
-		"packages/plugin-upload": {
-			"entry": ["src/index.ts"]
 		}
 	}
 }

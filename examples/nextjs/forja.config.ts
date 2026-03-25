@@ -6,7 +6,7 @@
 
 import { defineConfig } from "forja-core";
 import { JsonAdapter } from "forja-adapter-json";
-import { UploadPlugin, LocalStorageProvider } from "forja-plugin-upload";
+import { LocalStorageProvider } from "forja-api/upload";
 
 // Import schema definitions
 import { userSchema } from "./src/schemas/user.schema";
@@ -28,16 +28,13 @@ export default defineConfig(() => {
 			new ApiPlugin({
 				enabled: true,
 				prefix: "/api",
-			}),
-			new UploadPlugin({
-				provider: new LocalStorageProvider({
-					basePath: process.env.UPLOAD_DIR || "./public/uploads",
-					baseUrl: process.env.UPLOAD_URL || "http://localhost:3000/uploads",
-					ensureDirectory: true,
-				}),
-				validation: {
-					maxSize: 5 * 1024 * 1024, // 5MB
-					minSize: 1024, // 1KB
+				upload: {
+					provider: new LocalStorageProvider({
+						basePath: process.env.UPLOAD_DIR || "./public/uploads",
+						baseUrl: process.env.UPLOAD_URL || "http://localhost:3000/uploads",
+						ensureDirectory: true,
+					}),
+					maxSize: 5 * 1024 * 1024,
 					allowedMimeTypes: [
 						"image/jpeg",
 						"image/png",
@@ -46,17 +43,7 @@ export default defineConfig(() => {
 						"image/svg+xml",
 						"application/pdf",
 					],
-					allowedExtensions: [
-						"jpg",
-						"jpeg",
-						"png",
-						"gif",
-						"webp",
-						"svg",
-						"pdf",
-					],
 				},
-				enableLogging: process.env.NODE_ENV === "development",
 			}),
 		],
 
