@@ -184,18 +184,6 @@ export async function filterFieldsForRead<
 			continue;
 		}
 
-		// Handle 'owner' keyword (TODO: implement owner check)
-		if (fieldPermission.read === "owner") {
-			// TODO: Implement owner-based permission
-			// For now, allow if user exists
-			if (ctx.user) {
-				(filtered as Record<string, unknown>)[fieldName] = fieldValue;
-			} else {
-				deniedFields.push(fieldName);
-			}
-			continue;
-		}
-
 		// Evaluate permission
 		const allowed = await evaluatePermissionValue(fieldPermission.read, ctx);
 		if (allowed) {
@@ -236,15 +224,6 @@ export async function checkFieldsForWrite<TRoles extends string>(
 
 		// No permission defined = allow
 		if (!fieldPermission || fieldPermission.write === undefined) {
-			continue;
-		}
-
-		// Handle 'owner' keyword (TODO: implement owner check)
-		if (fieldPermission.write === "owner") {
-			// TODO: Implement owner-based permission
-			if (!ctx.user) {
-				deniedFields.push(fieldName);
-			}
 			continue;
 		}
 

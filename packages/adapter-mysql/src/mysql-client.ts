@@ -13,7 +13,10 @@ import type {
 	ResultSetHeader,
 	RowDataPacket,
 } from "mysql2/promise";
-import { AdapterErrorCode, ForjaAdapterError } from "forja-types/errors/adapter";
+import {
+	AdapterErrorCode,
+	ForjaAdapterError,
+} from "forja-types/errors/adapter";
 import { QueryObject } from "forja-types";
 
 const IS_DEBUG = process.env["NODE_ENV"] !== "production" && false;
@@ -43,7 +46,7 @@ export class MySQLClient {
 	constructor(
 		private readonly runner: Pool | PoolConnection,
 		private readonly queryObject: QueryObject,
-	) { }
+	) {}
 
 	/**
 	 * Execute a SQL query with optional parameters (prepared statement).

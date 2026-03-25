@@ -18,9 +18,7 @@ import { JoinBuilder } from "./join-builder";
 import { AggregationBuilder } from "./aggregation-builder";
 import { ResultProcessor } from "./result-processor";
 import { MySQLClient } from "../mysql-client";
-import {
-	throwMaxDepthExceeded,
-} from "forja-types/errors/adapter";
+import { throwMaxDepthExceeded } from "forja-types/errors/adapter";
 import { ForjaEntry } from "forja-types";
 import { MySQLQueryObject } from "../types";
 
@@ -170,12 +168,12 @@ export class MySQLPopulator {
 		const queryWithFks: QuerySelectObject<T> =
 			fkColumnsNeeded.length > 0
 				? {
-					...query,
-					select: [
-						...(query.select as string[]),
-						...fkColumnsNeeded,
-					] as unknown as QuerySelectObject<T>["select"],
-				}
+						...query,
+						select: [
+							...(query.select as string[]),
+							...fkColumnsNeeded,
+						] as unknown as QuerySelectObject<T>["select"],
+					}
 				: query;
 
 		const { sql, params } = this.translator.translate(queryWithFks);
@@ -193,7 +191,7 @@ export class MySQLPopulator {
 			const options = _options as QueryPopulateOptions<T>;
 			if (!relationField || relationField.type !== "relation") continue;
 
-			const relation = relationField
+			const relation = relationField;
 			const targetSchema = this.schemaRegistry.get(relation.model);
 			if (!targetSchema) continue;
 
@@ -378,7 +376,7 @@ export class MySQLPopulator {
 			const relationName = _relationName as keyof T;
 			if (!relationField || relationField.type !== "relation") continue;
 
-			const relation = relationField
+			const relation = relationField;
 			const targetSchema = this.schemaRegistry.get(relation.model);
 			if (!targetSchema) continue;
 
@@ -410,15 +408,14 @@ export class MySQLPopulator {
 
 				for (const row of rows) {
 					const fkValue = row[fkColumn];
-					(row as T)[relationName] = (dataMap.get(fkValue as number) || null) as T[keyof T];
+					(row as T)[relationName] = (dataMap.get(fkValue as number) ||
+						null) as T[keyof T];
 					delete row[fkColumn];
 				}
 			} else if (relation.kind === "hasOne") {
 				const fkColumn = relation.foreignKey!;
 				const fkColumnEsc = escapeIdentifier(fkColumn);
-				const nestedParentIds = rows
-					.map((r) => r.id as number)
-					.filter(Boolean);
+				const nestedParentIds = rows.map((r) => r.id as number).filter(Boolean);
 
 				const batchQuery = `
           SELECT t.${fkColumnEsc} as _fk, ${jsonObj} as data
@@ -434,14 +431,13 @@ export class MySQLPopulator {
 				);
 
 				for (const row of rows) {
-					(row as T)[relationName] = (dataMap.get(row.id!) || null) as T[keyof T];
+					(row as T)[relationName] = (dataMap.get(row.id!) ||
+						null) as T[keyof T];
 				}
 			} else if (relation.kind === "hasMany") {
 				const fkColumn = relation.foreignKey!;
 				const fkColumnEsc = escapeIdentifier(fkColumn);
-				const nestedParentIds = rows
-					.map((r) => r.id as number)
-					.filter(Boolean);
+				const nestedParentIds = rows.map((r) => r.id as number).filter(Boolean);
 
 				const batchQuery = `
           SELECT t.${fkColumnEsc} as _fk, ${jsonObj} as data
@@ -458,15 +454,14 @@ export class MySQLPopulator {
 				);
 
 				for (const row of rows) {
-					(row as T)[relationName] = (groupMap.get(row.id!) || []) as T[keyof T];
+					(row as T)[relationName] = (groupMap.get(row.id!) ||
+						[]) as T[keyof T];
 				}
 			} else if (relation.kind === "manyToMany") {
 				const junctionTable = relation.through!;
 				const sourceFK = `${schema.name}Id`;
 				const targetFK = `${relation.model}Id`;
-				const nestedParentIds = rows
-					.map((r) => r.id as number)
-					.filter(Boolean);
+				const nestedParentIds = rows.map((r) => r.id as number).filter(Boolean);
 
 				const junctionTableEsc = escapeIdentifier(junctionTable);
 				const sourceFKEsc = escapeIdentifier(sourceFK);
@@ -487,7 +482,8 @@ export class MySQLPopulator {
 				);
 
 				for (const row of rows) {
-					(row as T)[relationName] = (groupMap.get(row.id!) || []) as T[keyof T];
+					(row as T)[relationName] = (groupMap.get(row.id!) ||
+						[]) as T[keyof T];
 				}
 			}
 		}
@@ -675,7 +671,7 @@ export class MySQLPopulator {
 		const [rows] = await this.client.query(sql, [params]);
 		const raw = rows as { _fk: number; data: string | Partial<T> }[];
 		return raw.map((r) => ({
-			...(typeof r.data === "string" ? JSON.parse(r.data) : r.data) as T,
+			...((typeof r.data === "string" ? JSON.parse(r.data) : r.data) as T),
 			_fk: r._fk,
 		}));
 	}
@@ -690,10 +686,7 @@ export class MySQLPopulator {
 		ids: unknown[],
 		isMany: boolean = false,
 	): Promise<Map<number, R>> {
-		let relatedRows = await this.fetchBatchQueryResults<T>(
-			batchQuery,
-			ids,
-		);
+		let relatedRows = await this.fetchBatchQueryResults<T>(batchQuery, ids);
 
 		const nestedPopulate = opts.populate;
 		if (nestedPopulate && relatedRows.length > 0) {
@@ -732,8 +725,8 @@ export class MySQLPopulator {
 		const fields: string[] = opts?.select
 			? [...(opts.select as string[])]
 			: Object.entries(targetSchema.fields)
-				.filter(([_, field]) => field.type !== "relation")
-				.map(([name]) => name);
+					.filter(([_, field]) => field.type !== "relation")
+					.map(([name]) => name);
 
 		// Inject FK columns needed for nested populate
 		if (opts) {

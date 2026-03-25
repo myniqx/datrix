@@ -10,13 +10,18 @@ import remarkTocExport from "./src/lib/remark-toc-export";
 import rehypeSlug from "rehype-slug";
 
 export default defineConfig({
-  plugins: [
-    tailwindcss(),
-    mdx({
-      remarkPlugins: [remarkGfm, remarkFrontmatter, remarkMdxFrontmatter, remarkTocExport],
-      rehypePlugins: [rehypeSlug],
-    }),
-    react(),
-    tsconfigPaths(),
-  ],
+	plugins: [
+		tailwindcss(),
+		mdx({
+			remarkPlugins: [
+				remarkGfm,
+				remarkFrontmatter,
+				remarkMdxFrontmatter,
+				remarkTocExport,
+			],
+			rehypePlugins: [rehypeSlug],
+		}),
+		react(),
+		tsconfigPaths(),
+	],
 });

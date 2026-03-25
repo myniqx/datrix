@@ -588,10 +588,11 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 			throwNotConnected({ adapter: "mongodb" });
 		}
 
-		const client = this.createClient(
-			session,
-			{ type: "rawQuery", table: "raw", operation: "raw" } as unknown as QueryObject,
-		);
+		const client = this.createClient(session, {
+			type: "rawQuery",
+			table: "raw",
+			operation: "raw",
+		} as unknown as QueryObject);
 
 		try {
 			// Interpret "sql" as a JSON command for MongoDB
@@ -1021,10 +1022,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 					}
 					// Update relation fields that reference the renamed column
 					for (const [key, def] of Object.entries(fields)) {
-						if (
-							def.type === "relation" &&
-							def.foreignKey === op.from
-						) {
+						if (def.type === "relation" && def.foreignKey === op.from) {
 							fields[key] = { ...def, foreignKey: op.to };
 						}
 					}
@@ -1032,19 +1030,31 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 				}
 				case "addMetaField":
 					if (fields[op.field] !== undefined) {
-						throwMetaFieldAlreadyExists({ adapter: "mongodb", field: op.field, table: tableName });
+						throwMetaFieldAlreadyExists({
+							adapter: "mongodb",
+							field: op.field,
+							table: tableName,
+						});
 					}
 					fields[op.field] = op.definition;
 					break;
 				case "dropMetaField":
 					if (fields[op.field] === undefined) {
-						throwMetaFieldNotFound({ adapter: "mongodb", field: op.field, table: tableName });
+						throwMetaFieldNotFound({
+							adapter: "mongodb",
+							field: op.field,
+							table: tableName,
+						});
 					}
 					delete fields[op.field];
 					break;
 				case "modifyMetaField":
 					if (fields[op.field] === undefined) {
-						throwMetaFieldNotFound({ adapter: "mongodb", field: op.field, table: tableName });
+						throwMetaFieldNotFound({
+							adapter: "mongodb",
+							field: op.field,
+							table: tableName,
+						});
 					}
 					fields[op.field] = op.newDefinition;
 					break;

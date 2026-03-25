@@ -55,13 +55,13 @@ export interface MySQLConfig {
 	 * SSL configuration
 	 */
 	readonly ssl?:
-	| boolean
-	| {
-		readonly rejectUnauthorized?: boolean;
-		readonly ca?: string;
-		readonly cert?: string;
-		readonly key?: string;
-	};
+		| boolean
+		| {
+				readonly rejectUnauthorized?: boolean;
+				readonly ca?: string;
+				readonly cert?: string;
+				readonly key?: string;
+		  };
 
 	/**
 	 * Maximum number of connections in pool
@@ -150,7 +150,6 @@ const FIELD_TYPE_TO_MYSQL: Record<FieldType, MySQLDataType> = {
 	relation: "INT",
 };
 
-
 /**
  * Get MySQL type for field type
  */
@@ -196,7 +195,6 @@ export function getMySQLTypeWithModifiers(field: FieldDefinition): string {
 
 	return mysqlType;
 }
-
 
 /**
  * Parse MySQL connection string

@@ -817,7 +817,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
 
 				if (field && field.type === "relation") {
 					// Relation field with nested conditions
-					const relationField = field
+					const relationField = field;
 
 					// Case 1: Simple value (number/string) → foreign key equality
 					// { category: 1 } → categoryId = 1

@@ -27,9 +27,7 @@ import { MySQLQueryObject } from "../types";
  * Generates optimized JOIN clauses for different populate strategies.
  */
 export class JoinBuilder {
-	constructor(
-		private schemaRegistry: SchemaRegistry,
-	) { }
+	constructor(private schemaRegistry: SchemaRegistry) {}
 
 	/**
 	 * Build all JOINs for a query

@@ -403,7 +403,9 @@ export class MySQLQueryTranslator implements QueryTranslator {
 
 		// ORDER BY
 		if (query.orderBy && query.orderBy.length > 0) {
-			parts.push(`ORDER BY ${this.translateOrderBy(query.orderBy as unknown as readonly OrderByItem<ForjaEntry>[])}`);
+			parts.push(
+				`ORDER BY ${this.translateOrderBy(query.orderBy as unknown as readonly OrderByItem<ForjaEntry>[])}`,
+			);
 		}
 
 		// LIMIT (MySQL requires LIMIT when OFFSET is used)

@@ -33,7 +33,7 @@ export class MongoDBPopulator<T extends ForjaEntry> {
 	constructor(
 		private readonly client: MongoClient<T>,
 		private readonly schemaRegistry: SchemaRegistry,
-	) { }
+	) {}
 
 	/**
 	 * Main entry point for populate
@@ -97,7 +97,7 @@ export class MongoDBPopulator<T extends ForjaEntry> {
 			const relationField = schema.fields[relationName];
 			if (!relationField || relationField.type !== "relation") continue;
 
-			const relation = relationField
+			const relation = relationField;
 			const targetSchema = this.schemaRegistry.get(relation.model);
 			if (!targetSchema) continue;
 
@@ -300,10 +300,10 @@ export class MongoDBPopulator<T extends ForjaEntry> {
 			const targetProjection =
 				options.populate && baseTargetProjection
 					? this.injectFkColumns(
-						baseTargetProjection,
-						targetSchema,
-						options.populate,
-					)
+							baseTargetProjection,
+							targetSchema,
+							options.populate,
+						)
 					: baseTargetProjection;
 
 			if (relation.kind === "belongsTo") {
@@ -313,7 +313,8 @@ export class MongoDBPopulator<T extends ForjaEntry> {
 					.filter((v) => v != null);
 
 				if (fkValues.length === 0) {
-					for (const row of rows) row[relationName as keyof T] = null as T[keyof T];
+					for (const row of rows)
+						row[relationName as keyof T] = null as T[keyof T];
 					continue;
 				}
 
@@ -368,9 +369,7 @@ export class MongoDBPopulator<T extends ForjaEntry> {
 
 				const groupMap = new Map<number, ForjaEntry[]>();
 				for (const r of relatedRows) {
-					const fk = (r as T & { [key: string]: unknown })[
-						fkColumn
-					] as number;
+					const fk = (r as T & { [key: string]: unknown })[fkColumn] as number;
 					if (!groupMap.has(fk)) groupMap.set(fk, []);
 					groupMap.get(fk)!.push(r);
 				}
@@ -398,7 +397,8 @@ export class MongoDBPopulator<T extends ForjaEntry> {
 
 				const targetIds = junctionDocs.map((j) => j[targetFK] as number);
 				if (targetIds.length === 0) {
-					for (const row of rows) row[relationName as keyof T] = [] as T[keyof T];
+					for (const row of rows)
+						row[relationName as keyof T] = [] as T[keyof T];
 					continue;
 				}
 
@@ -447,7 +447,10 @@ export class MongoDBPopulator<T extends ForjaEntry> {
 			`batch:${targetCollection}`,
 			() =>
 				targetCol
-					.find(filter, { ...sessionOpts, projection: { _id: 0, ...projection } })
+					.find(filter, {
+						...sessionOpts,
+						projection: { _id: 0, ...projection },
+					})
 					.toArray(),
 		);
 
@@ -463,7 +466,6 @@ export class MongoDBPopulator<T extends ForjaEntry> {
 
 		return relatedRows;
 	}
-
 
 	/**
 	 * Build $lookup pipeline sub-options (field selection for lookup results)
@@ -589,10 +591,7 @@ export class MongoDBPopulator<T extends ForjaEntry> {
 	/**
 	 * Build relation path string for error messages
 	 */
-	private buildRelationPath(
-		populate: QueryPopulate<T>,
-		prefix = "",
-	): string {
+	private buildRelationPath(populate: QueryPopulate<T>, prefix = ""): string {
 		const paths: string[] = [];
 
 		for (const [relationName, options] of Object.entries(populate)) {

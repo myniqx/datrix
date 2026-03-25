@@ -133,9 +133,7 @@ async function runFkChecks<T extends ForjaEntry>(
 /**
  * Type guard for fields with references
  */
-function hasReferences(
-	field: FieldDefinition,
-): field is FieldDefinition & {
+function hasReferences(field: FieldDefinition): field is FieldDefinition & {
 	references: { table: string; column?: string };
 } {
 	return (

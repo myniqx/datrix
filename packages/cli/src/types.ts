@@ -54,4 +54,3 @@ export interface MigrateCommandOptions extends BaseCommandOptions {
 export interface GenerateCommandOptions extends BaseCommandOptions {
 	readonly output?: string | undefined;
 }
-

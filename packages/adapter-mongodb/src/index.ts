@@ -10,6 +10,4 @@
  */
 
 export { MongoDBAdapter, createMongoDBAdapter } from "./adapter";
-export type {
-	MongoDBConfig,
-} from "./types";
+export type { MongoDBConfig } from "./types";

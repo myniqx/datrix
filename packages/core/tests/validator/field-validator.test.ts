@@ -16,7 +16,7 @@ const expectSuccessData = (e) => {
 	}
 	expect(e.success).toBe(true);
 	return e;
-}
+};
 
 describe("FieldValidator - Happy Path", () => {
 	describe("Required Field Validation", () => {

@@ -719,9 +719,24 @@ describe("Complex Populate", () => {
 			postWithMixedComments = post.id;
 
 			await forja.createMany("comment", [
-				{ content: "Approved comment 1", post: postWithMixedComments, author: userId, isApproved: true },
-				{ content: "Approved comment 2", post: postWithMixedComments, author: userId, isApproved: true },
-				{ content: "Pending comment", post: postWithMixedComments, author: userId, isApproved: false },
+				{
+					content: "Approved comment 1",
+					post: postWithMixedComments,
+					author: userId,
+					isApproved: true,
+				},
+				{
+					content: "Approved comment 2",
+					post: postWithMixedComments,
+					author: userId,
+					isApproved: true,
+				},
+				{
+					content: "Pending comment",
+					post: postWithMixedComments,
+					author: userId,
+					isApproved: false,
+				},
 			]);
 		});
 
@@ -735,7 +750,10 @@ describe("Complex Populate", () => {
 			});
 
 			expect(post).not.toBeNull();
-			const comments = post!.comments as { content: string; isApproved: boolean }[];
+			const comments = post!.comments as {
+				content: string;
+				isApproved: boolean;
+			}[];
 			expect(Array.isArray(comments)).toBe(true);
 			expect(comments.length).toBe(2);
 			for (const c of comments) {

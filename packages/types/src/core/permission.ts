@@ -251,9 +251,7 @@ export function validateFieldPermissionRoles<TRoles extends string>(
 	const invalidRoles: string[] = [];
 	const roleSet = new Set(validRoles);
 
-	const checkValue = (
-		value: PermissionValue<TRoles> | undefined,
-	): void => {
+	const checkValue = (value: PermissionValue<TRoles> | undefined): void => {
 		if (!value || typeof value === "boolean" || typeof value === "function") {
 			return;
 		}

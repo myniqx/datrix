@@ -162,7 +162,12 @@ async function resolveRelationIds<TResult extends ForjaEntry>(
 
 	if (relation.kind === "hasOne" || relation.kind === "hasMany") {
 		// FK values in target that match conditions
-		return fetchUniqueIds(targetCollection, relation.foreignKey!, resolvedConditions, client);
+		return fetchUniqueIds(
+			targetCollection,
+			relation.foreignKey!,
+			resolvedConditions,
+			client,
+		);
 	}
 
 	if (relation.kind === "manyToMany") {

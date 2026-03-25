@@ -836,7 +836,6 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 		}
 	}
 
-
 	/**
 	 * Check if table exists
 	 */
@@ -925,10 +924,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 					}
 					// Update relation fields that reference the renamed column
 					for (const [key, def] of Object.entries(fields)) {
-						if (
-							def.type === "relation" &&
-							def.foreignKey === op.from
-						) {
+						if (def.type === "relation" && def.foreignKey === op.from) {
 							fields[key] = { ...def, foreignKey: op.to };
 						}
 					}
@@ -936,19 +932,31 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 				}
 				case "addMetaField":
 					if (fields[op.field] !== undefined) {
-						throwMetaFieldAlreadyExists({ adapter: "mysql", field: op.field, table: tableName });
+						throwMetaFieldAlreadyExists({
+							adapter: "mysql",
+							field: op.field,
+							table: tableName,
+						});
 					}
 					fields[op.field] = op.definition;
 					break;
 				case "dropMetaField":
 					if (fields[op.field] === undefined) {
-						throwMetaFieldNotFound({ adapter: "mysql", field: op.field, table: tableName });
+						throwMetaFieldNotFound({
+							adapter: "mysql",
+							field: op.field,
+							table: tableName,
+						});
 					}
 					delete fields[op.field];
 					break;
 				case "modifyMetaField":
 					if (fields[op.field] === undefined) {
-						throwMetaFieldNotFound({ adapter: "mysql", field: op.field, table: tableName });
+						throwMetaFieldNotFound({
+							adapter: "mysql",
+							field: op.field,
+							table: tableName,
+						});
 					}
 					fields[op.field] = op.newDefinition;
 					break;

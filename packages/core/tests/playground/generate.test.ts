@@ -57,7 +57,6 @@ interface PlaygroundGroup {
 	scenarios: PlaygroundScenario[];
 }
 
-
 // ============================================================================
 // Collector
 // ============================================================================
@@ -262,10 +261,7 @@ describe("Read", () => {
 	it("find with $and", async () => {
 		const query = {
 			where: {
-				$and: [
-					{ isActive: true },
-					{ age: { $gte: 25 } },
-				],
+				$and: [{ isActive: true }, { age: { $gte: 25 } }],
 			},
 		};
 		const output = await forja.findMany("user", query);
@@ -485,7 +481,10 @@ describe("Update", () => {
 
 describe("Delete", () => {
 	it("delete a single record by id", async () => {
-		const temp = await forja.create("tag", { name: "TempTag", color: "#AAAAAA" });
+		const temp = await forja.create("tag", {
+			name: "TempTag",
+			color: "#AAAAAA",
+		});
 		const id = temp.id as number;
 		const options = { populate: true };
 		const output = await forja.delete("tag", id, options);

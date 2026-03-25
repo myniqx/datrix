@@ -204,12 +204,12 @@ export class PostgresPopulator {
 		const queryWithFks: QuerySelectObject<T> =
 			fkColumnsNeeded.length > 0
 				? {
-					...query,
-					select: [
-						...(query.select as string[]),
-						...fkColumnsNeeded,
-					] as unknown as QuerySelectObject<T>["select"],
-				}
+						...query,
+						select: [
+							...(query.select as string[]),
+							...fkColumnsNeeded,
+						] as unknown as QuerySelectObject<T>["select"],
+					}
 				: query;
 
 		const { sql, params } = this.translator.translate(queryWithFks);
@@ -257,7 +257,9 @@ export class PostgresPopulator {
           FROM ${this.translator.escapeIdentifier(targetTable)} t
           WHERE t."id" = ANY($1)
         `;
-				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [fkValues]);
+				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [
+					fkValues,
+				]);
 
 				let relatedRows = batchRows.map((r) => r.data);
 
@@ -296,7 +298,9 @@ export class PostgresPopulator {
           FROM ${this.translator.escapeIdentifier(targetTable)} t
           WHERE t.${this.translator.escapeIdentifier(fkColumn)} = ANY($1)
         `;
-				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [parentIds]);
+				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [
+					parentIds,
+				]);
 
 				const nestedPopulate = options?.["populate"];
 				if (nestedPopulate && batchRows.length > 0) {
@@ -313,7 +317,8 @@ export class PostgresPopulator {
 				}
 
 				for (const row of rows) {
-					row[relationName as keyof T] = (dataMap.get(row.id) || null) as T[keyof T];
+					row[relationName as keyof T] = (dataMap.get(row.id) ||
+						null) as T[keyof T];
 				}
 			} else if (relation.kind === "hasMany") {
 				fkColumn = relation.foreignKey!;
@@ -327,7 +332,9 @@ export class PostgresPopulator {
           FROM ${this.translator.escapeIdentifier(targetTable)} t
           WHERE t."${fkColumn}" = ANY($1)
         `;
-				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [parentIds]);
+				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [
+					parentIds,
+				]);
 
 				const nestedPopulate = options?.["populate"];
 				if (nestedPopulate && batchRows.length > 0) {
@@ -346,7 +353,8 @@ export class PostgresPopulator {
 				}
 
 				for (const row of rows) {
-					row[relationName as keyof T] = (groupMap.get(row.id) || []) as T[keyof T];
+					row[relationName as keyof T] = (groupMap.get(row.id) ||
+						[]) as T[keyof T];
 				}
 			} else if (relation.kind === "manyToMany") {
 				const junctionTable = relation.through!;
@@ -365,7 +373,9 @@ export class PostgresPopulator {
             ON t."id" = j."${targetFK}"
           WHERE j."${sourceFK}" = ANY($1)
         `;
-				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [parentIds]);
+				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [
+					parentIds,
+				]);
 
 				const nestedPopulate = options?.["populate"];
 				if (nestedPopulate && batchRows.length > 0) {
@@ -384,7 +394,8 @@ export class PostgresPopulator {
 				}
 
 				for (const row of rows) {
-					row[relationName as keyof T] = (groupMap.get(row.id) || []) as T[keyof T];
+					row[relationName as keyof T] = (groupMap.get(row.id) ||
+						[]) as T[keyof T];
 				}
 			} else {
 				continue;
@@ -446,7 +457,9 @@ export class PostgresPopulator {
           FROM ${this.translator.escapeIdentifier(targetTable)} t
           WHERE t."id" = ANY($1)
         `;
-				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [fkValues]);
+				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [
+					fkValues,
+				]);
 
 				let relatedRows = batchRows.map((r) => r.data);
 
@@ -465,7 +478,8 @@ export class PostgresPopulator {
 				}
 				for (const row of rows) {
 					const fkValue = row[fkColumn as keyof T];
-					row[relationName as keyof T] = (dataMap.get(fkValue as number) || null) as T[keyof T];
+					row[relationName as keyof T] = (dataMap.get(fkValue as number) ||
+						null) as T[keyof T];
 					delete row[fkColumn as keyof T];
 				}
 			} else if (relation.kind === "hasOne") {
@@ -477,7 +491,9 @@ export class PostgresPopulator {
           FROM ${this.translator.escapeIdentifier(targetTable)} t
           WHERE t.${this.translator.escapeIdentifier(fkColumn)} = ANY($1)
         `;
-				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [nestedParentIds]);
+				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [
+					nestedParentIds,
+				]);
 
 				const nestedPopulate = opts.populate;
 				if (nestedPopulate && batchRows.length > 0) {
@@ -493,7 +509,8 @@ export class PostgresPopulator {
 					dataMap.set(r._fk, r.data);
 				}
 				for (const row of rows) {
-					row[relationName as keyof T] = (dataMap.get(row.id) || null) as T[keyof T];
+					row[relationName as keyof T] = (dataMap.get(row.id) ||
+						null) as T[keyof T];
 				}
 			} else if (relation.kind === "hasMany") {
 				const fkColumn = relation.foreignKey!;
@@ -503,7 +520,9 @@ export class PostgresPopulator {
           FROM ${this.translator.escapeIdentifier(targetTable)} t
           WHERE t."${fkColumn}" = ANY($1)
         `;
-				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [parentIds]);
+				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [
+					parentIds,
+				]);
 
 				const nestedPopulate = opts.populate;
 				if (nestedPopulate && batchRows.length > 0) {
@@ -521,7 +540,8 @@ export class PostgresPopulator {
 					groupMap.get(fk)!.push(r.data);
 				}
 				for (const row of rows) {
-					row[relationName as keyof T] = (groupMap.get(row.id) || []) as T[keyof T];
+					row[relationName as keyof T] = (groupMap.get(row.id) ||
+						[]) as T[keyof T];
 				}
 			} else if (relation.kind === "manyToMany") {
 				const junctionTable = relation.through!;
@@ -535,7 +555,9 @@ export class PostgresPopulator {
             ON t."id" = j."${targetFK}"
           WHERE j."${sourceFK}" = ANY($1)
         `;
-				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [parentIds]);
+				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [
+					parentIds,
+				]);
 
 				const nestedPopulate = opts.populate;
 				if (nestedPopulate && batchRows.length > 0) {
@@ -553,7 +575,8 @@ export class PostgresPopulator {
 					groupMap.get(fk)!.push(r.data);
 				}
 				for (const row of rows) {
-					row[relationName as keyof T] = (groupMap.get(row.id) || []) as T[keyof T];
+					row[relationName as keyof T] = (groupMap.get(row.id) ||
+						[]) as T[keyof T];
 				}
 			}
 		}

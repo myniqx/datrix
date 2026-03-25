@@ -110,7 +110,8 @@ export const ${schemaVarName}Schema = defineSchema({
  */
 export function configTemplate(dbType: "postgres" | "mysql" | "json"): string {
 	const adapterImport: Record<string, string> = {
-		postgres: "import { createPostgresAdapter } from '@forja/adapter-postgres';",
+		postgres:
+			"import { createPostgresAdapter } from '@forja/adapter-postgres';",
 		mysql: "import { createMySqlAdapter } from '@forja/adapter-mysql';",
 		json: "import { createJsonAdapter } from '@forja/adapter-json';",
 	};

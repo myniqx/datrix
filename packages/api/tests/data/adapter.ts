@@ -108,7 +108,10 @@ export async function getAdapter(
 
 			// Parse connection config from env
 			const host = process.env[`${prefix}_HOST`] ?? "localhost";
-			const port = parseInt(process.env[`${prefix}_PORT`] ?? (isMariaDB ? "3307" : "3306"), 10);
+			const port = parseInt(
+				process.env[`${prefix}_PORT`] ?? (isMariaDB ? "3307" : "3306"),
+				10,
+			);
 			const user = process.env[`${prefix}_USER`] ?? "forja";
 			const password = process.env[`${prefix}_PASSWORD`] ?? "forja";
 

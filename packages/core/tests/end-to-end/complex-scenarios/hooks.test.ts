@@ -56,7 +56,7 @@ function makeItemSchema(hooks?: LifecycleHooks<HookItem>): SchemaDefinition {
 	return defineSchema({
 		name: "hookItem",
 		fields: {
-			name:  { type: "string", required: true },
+			name: { type: "string", required: true },
 			value: { type: "string", required: true },
 		},
 		...(hooks ? { hooks } : {}),
@@ -84,7 +84,11 @@ async function createIsolatedForja(
 	const forja = await getForja();
 
 	// Drop + create fresh table
-	try { await adapter.dropTable("hook_items"); } catch { /* ignore */ }
+	try {
+		await adapter.dropTable("hook_items");
+	} catch {
+		/* ignore */
+	}
 	await adapter.createTable(schema);
 
 	return forja;
@@ -110,7 +114,10 @@ describe("Lifecycle Hooks", () => {
 				});
 
 				const forja = await createIsolatedForja(tmpDir, schema);
-				const item = await forja.create("hookItem", { name: "test", value: "original" });
+				const item = await forja.create("hookItem", {
+					name: "test",
+					value: "original",
+				});
 
 				expect(item["value"]).toBe("injected");
 				await fs.rm(tmpDir, { recursive: true, force: true });
@@ -124,14 +131,16 @@ describe("Lifecycle Hooks", () => {
 				// Simulates a developer forgetting to return — the hook returns undefined
 				const schema = makeItemSchema({
 					// @ts-expect-error intentionally not returning to test runtime behavior
-					beforeCreate: (_data) => { /* forgot to return */ },
+					beforeCreate: (_data) => {
+						/* forgot to return */
+					},
 				});
 
 				const forja = await createIsolatedForja(tmpDir, schema);
 
 				// Should throw because validated data becomes undefined/null
 				await expect(
-					forja.create("hookItem", { name: "test", value: "x" })
+					forja.create("hookItem", { name: "test", value: "x" }),
 				).rejects.toThrow();
 
 				await fs.rm(tmpDir, { recursive: true, force: true });
@@ -153,7 +162,10 @@ describe("Lifecycle Hooks", () => {
 				});
 
 				const forja = await createIsolatedForja(tmpDir, schema);
-				const item = await forja.create("hookItem", { name: "capture", value: "v" });
+				const item = await forja.create("hookItem", {
+					name: "capture",
+					value: "v",
+				});
 
 				expect(captured).toHaveLength(1);
 				expect(captured[0]!.id).toBe(item.id);
@@ -196,7 +208,10 @@ describe("Lifecycle Hooks", () => {
 				});
 
 				const forja = await createIsolatedForja(tmpDir, schema);
-				const item = await forja.raw.create("hookItem", { name: "raw", value: "raw-value" });
+				const item = await forja.raw.create("hookItem", {
+					name: "raw",
+					value: "raw-value",
+				});
 
 				expect(item["value"]).toBe("raw-value"); // hook did NOT run
 				await fs.rm(tmpDir, { recursive: true, force: true });
@@ -211,14 +226,19 @@ describe("Lifecycle Hooks", () => {
 
 				const schema = makeItemSchema({
 					beforeCreate: (data) => data,
-					afterCreate:  (record) => record,
+					afterCreate: (record) => record,
 					beforeUpdate: (data) => ({ ...data, value: "updated-by-hook" }),
-					afterUpdate:  (record) => record,
+					afterUpdate: (record) => record,
 				});
 
 				const forja = await createIsolatedForja(tmpDir, schema);
-				const item = await forja.create("hookItem", { name: "u", value: "original" });
-				const updated = await forja.update("hookItem", item.id, { value: "manual" });
+				const item = await forja.create("hookItem", {
+					name: "u",
+					value: "original",
+				});
+				const updated = await forja.update("hookItem", item.id, {
+					value: "manual",
+				});
 
 				expect(updated["value"]).toBe("updated-by-hook");
 				await fs.rm(tmpDir, { recursive: true, force: true });
@@ -231,16 +251,18 @@ describe("Lifecycle Hooks", () => {
 
 				const schema = makeItemSchema({
 					beforeCreate: (data) => data,
-					afterCreate:  (record) => record,
+					afterCreate: (record) => record,
 					// @ts-expect-error intentionally not returning
-					beforeUpdate: (_data) => { /* forgot to return */ },
+					beforeUpdate: (_data) => {
+						/* forgot to return */
+					},
 				});
 
 				const forja = await createIsolatedForja(tmpDir, schema);
 				const item = await forja.create("hookItem", { name: "u", value: "v" });
 
 				await expect(
-					forja.update("hookItem", item.id, { value: "new" })
+					forja.update("hookItem", item.id, { value: "new" }),
 				).rejects.toThrow();
 
 				await fs.rm(tmpDir, { recursive: true, force: true });
@@ -255,7 +277,7 @@ describe("Lifecycle Hooks", () => {
 
 				const schema = makeItemSchema({
 					beforeCreate: (data) => data,
-					afterCreate:  (record) => record,
+					afterCreate: (record) => record,
 					beforeUpdate: (data, ctx) => {
 						ctx.metadata.tag = "update-tag";
 						return data;
@@ -281,14 +303,16 @@ describe("Lifecycle Hooks", () => {
 
 				const schema = makeItemSchema({
 					beforeCreate: (data) => data,
-					afterCreate:  (record) => record,
+					afterCreate: (record) => record,
 					beforeUpdate: (data) => ({ ...data, value: "hook-value" }),
-					afterUpdate:  (record) => record,
+					afterUpdate: (record) => record,
 				});
 
 				const forja = await createIsolatedForja(tmpDir, schema);
 				const item = await forja.create("hookItem", { name: "r", value: "v" });
-				const updated = await forja.raw.update("hookItem", item.id, { value: "raw-value" });
+				const updated = await forja.raw.update("hookItem", item.id, {
+					value: "raw-value",
+				});
 
 				expect(updated["value"]).toBe("raw-value");
 				await fs.rm(tmpDir, { recursive: true, force: true });
@@ -305,7 +329,7 @@ describe("Lifecycle Hooks", () => {
 
 				const schema = makeItemSchema({
 					beforeCreate: (data) => data,
-					afterCreate:  (record) => record,
+					afterCreate: (record) => record,
 					beforeDelete: (id) => {
 						deletedIds.push(id);
 						return id; // must return id
@@ -327,17 +351,17 @@ describe("Lifecycle Hooks", () => {
 
 				const schema = makeItemSchema({
 					beforeCreate: (data) => data,
-					afterCreate:  (record) => record,
+					afterCreate: (record) => record,
 					// @ts-expect-error intentionally not returning
-					beforeDelete: (_id) => { /* forgot to return */ },
+					beforeDelete: (_id) => {
+						/* forgot to return */
+					},
 				});
 
 				const forja = await createIsolatedForja(tmpDir, schema);
 				const item = await forja.create("hookItem", { name: "d", value: "v" });
 
-				await expect(
-					forja.delete("hookItem", item.id)
-				).rejects.toThrow();
+				await expect(forja.delete("hookItem", item.id)).rejects.toThrow();
 
 				await fs.rm(tmpDir, { recursive: true, force: true });
 			});
@@ -351,9 +375,11 @@ describe("Lifecycle Hooks", () => {
 
 				const schema = makeItemSchema({
 					beforeCreate: (data) => data,
-					afterCreate:  (record) => record,
+					afterCreate: (record) => record,
 					beforeDelete: (id) => id,
-					afterDelete:  (id) => { afterIds.push(id); },
+					afterDelete: (id) => {
+						afterIds.push(id);
+					},
 				});
 
 				const forja = await createIsolatedForja(tmpDir, schema);
@@ -373,9 +399,14 @@ describe("Lifecycle Hooks", () => {
 
 				const schema = makeItemSchema({
 					beforeCreate: (data) => data,
-					afterCreate:  (record) => record,
-					beforeDelete: (id) => { called.before = true; return id; },
-					afterDelete:  ()   => { called.after  = true; },
+					afterCreate: (record) => record,
+					beforeDelete: (id) => {
+						called.before = true;
+						return id;
+					},
+					afterDelete: () => {
+						called.after = true;
+					},
 				});
 
 				const forja = await createIsolatedForja(tmpDir, schema);
@@ -397,7 +428,7 @@ describe("Lifecycle Hooks", () => {
 				// Only items with value="visible" should be returned
 				const schema = makeItemSchema({
 					beforeCreate: (data) => data,
-					afterCreate:  (record) => record,
+					afterCreate: (record) => record,
 					beforeFind: (query) => ({
 						...query,
 						where: { ...query.where, value: "visible" },
@@ -423,9 +454,11 @@ describe("Lifecycle Hooks", () => {
 
 				const schema = makeItemSchema({
 					beforeCreate: (data) => data,
-					afterCreate:  (record) => record,
+					afterCreate: (record) => record,
 					// @ts-expect-error intentionally not returning
-					beforeFind: (_query) => { /* forgot to return */ },
+					beforeFind: (_query) => {
+						/* forgot to return */
+					},
 				});
 
 				const forja = await createIsolatedForja(tmpDir, schema);
@@ -442,14 +475,13 @@ describe("Lifecycle Hooks", () => {
 
 				const schema = makeItemSchema({
 					beforeCreate: (data) => data,
-					afterCreate:  (record) => record,
-					beforeFind:   (query) => query,
-					afterFind: (results) =>
-						results.filter((r) => r.value !== "filtered"),
+					afterCreate: (record) => record,
+					beforeFind: (query) => query,
+					afterFind: (results) => results.filter((r) => r.value !== "filtered"),
 				});
 
 				const forja = await createIsolatedForja(tmpDir, schema);
-				await forja.create("hookItem", { name: "keep",   value: "keep" });
+				await forja.create("hookItem", { name: "keep", value: "keep" });
 				await forja.create("hookItem", { name: "remove", value: "filtered" });
 
 				const results = await forja.findMany("hookItem");
@@ -465,10 +497,12 @@ describe("Lifecycle Hooks", () => {
 
 				const schema = makeItemSchema({
 					beforeCreate: (data) => data,
-					afterCreate:  (record) => record,
-					beforeFind:   (query) => query,
+					afterCreate: (record) => record,
+					beforeFind: (query) => query,
 					// @ts-expect-error intentionally not returning
-					afterFind: (_results) => { /* forgot to return */ },
+					afterFind: (_results) => {
+						/* forgot to return */
+					},
 				});
 
 				const forja = await createIsolatedForja(tmpDir, schema);
@@ -488,7 +522,7 @@ describe("Lifecycle Hooks", () => {
 				// beforeFind hides all items — raw should bypass this
 				const schema = makeItemSchema({
 					beforeCreate: (data) => data,
-					afterCreate:  (record) => record,
+					afterCreate: (record) => record,
 					beforeFind: (query) => ({
 						...query,
 						where: { ...query.where, value: "__never__" },
@@ -500,10 +534,10 @@ describe("Lifecycle Hooks", () => {
 				await forja.create("hookItem", { name: "visible", value: "v" });
 
 				const normal = await forja.findMany("hookItem");
-				const raw    = await forja.raw.findMany("hookItem");
+				const raw = await forja.raw.findMany("hookItem");
 
 				expect(normal).toHaveLength(0); // hook filtered everything
-				expect(raw).toHaveLength(1);    // raw bypassed hook
+				expect(raw).toHaveLength(1); // raw bypassed hook
 				await fs.rm(tmpDir, { recursive: true, force: true });
 			});
 		});
@@ -513,23 +547,41 @@ describe("Lifecycle Hooks", () => {
 
 	describe("Plugin hooks", () => {
 		// Reusable plugin builder
-		function makePlugin(overrides: Partial<{
-			onCreateQueryContext: (ctx: QueryContext) => Promise<QueryContext>;
-			onBeforeQuery:        <T extends ForjaEntry>(q: QueryObject<T>, ctx: QueryContext) => Promise<QueryObject<T>>;
-			onAfterQuery:         <T extends ForjaEntry>(r: T, ctx: QueryContext) => Promise<T>;
-		}>) {
+		function makePlugin(
+			overrides: Partial<{
+				onCreateQueryContext: (ctx: QueryContext) => Promise<QueryContext>;
+				onBeforeQuery: <T extends ForjaEntry>(
+					q: QueryObject<T>,
+					ctx: QueryContext,
+				) => Promise<QueryObject<T>>;
+				onAfterQuery: <T extends ForjaEntry>(
+					r: T,
+					ctx: QueryContext,
+				) => Promise<T>;
+			}>,
+		) {
 			class TestPlugin extends BasePlugin<Record<string, never>> {
-				readonly name    = "test-plugin";
+				readonly name = "test-plugin";
 				readonly version = "1.0.0";
-				async init(ctx: PluginContext): Promise<void> { this.context = ctx; }
+				async init(ctx: PluginContext): Promise<void> {
+					this.context = ctx;
+				}
 				async destroy(): Promise<void> {}
-				override async onCreateQueryContext(ctx: QueryContext): Promise<QueryContext> {
+				override async onCreateQueryContext(
+					ctx: QueryContext,
+				): Promise<QueryContext> {
 					return overrides.onCreateQueryContext?.(ctx) ?? ctx;
 				}
-				override async onBeforeQuery<T extends ForjaEntry>(q: QueryObject<T>, ctx: QueryContext): Promise<QueryObject<T>> {
+				override async onBeforeQuery<T extends ForjaEntry>(
+					q: QueryObject<T>,
+					ctx: QueryContext,
+				): Promise<QueryObject<T>> {
 					return overrides.onBeforeQuery?.(q, ctx) ?? q;
 				}
-				override async onAfterQuery<T extends ForjaEntry>(r: T, ctx: QueryContext): Promise<T> {
+				override async onAfterQuery<T extends ForjaEntry>(
+					r: T,
+					ctx: QueryContext,
+				): Promise<T> {
 					return overrides.onAfterQuery?.(r, ctx) ?? r;
 				}
 			}
@@ -551,7 +603,11 @@ describe("Lifecycle Hooks", () => {
 			}));
 
 			const forja = await getForja();
-			try { await adapter.dropTable("hook_items"); } catch { /* ignore */ }
+			try {
+				await adapter.dropTable("hook_items");
+			} catch {
+				/* ignore */
+			}
 			await adapter.createTable(schema as SchemaDefinition);
 			return forja;
 		}
@@ -590,7 +646,9 @@ describe("Lifecycle Hooks", () => {
 			const plugin = makePlugin({
 				onBeforeQuery: async (query, _ctx) => {
 					if (query.type === "insert") {
-						const q = query as typeof query & { data: Record<string, unknown>[] };
+						const q = query as typeof query & {
+							data: Record<string, unknown>[];
+						};
 						return {
 							...query,
 							data: q.data.map((d) => ({ ...d, value: "plugin-value" })),
@@ -601,7 +659,10 @@ describe("Lifecycle Hooks", () => {
 			});
 
 			const forja = await createForjaWithPlugin(tmpDir, plugin);
-			const item = await forja.create("hookItem", { name: "n", value: "original" });
+			const item = await forja.create("hookItem", {
+				name: "n",
+				value: "original",
+			});
 
 			expect(item["value"]).toBe("plugin-value");
 			await fs.rm(tmpDir, { recursive: true, force: true });
@@ -642,7 +703,9 @@ describe("Lifecycle Hooks", () => {
 				onBeforeQuery: async (query, _ctx) => {
 					order.push("plugin:before");
 					if (query.type === "insert") {
-						const q = query as typeof query & { data: Record<string, unknown>[] };
+						const q = query as typeof query & {
+							data: Record<string, unknown>[];
+						};
 						return {
 							...query,
 							data: q.data.map((d) => ({ ...d, value: "plugin" })),
@@ -658,7 +721,7 @@ describe("Lifecycle Hooks", () => {
 			const schema = defineSchema({
 				name: "hookItem",
 				fields: {
-					name:  { type: "string", required: true },
+					name: { type: "string", required: true },
 					value: { type: "string", required: true },
 				},
 				hooks: {
@@ -676,10 +739,17 @@ describe("Lifecycle Hooks", () => {
 				plugins: [plugin as never],
 			}));
 			const forja = await getForja();
-			try { await adapter.dropTable("hook_items"); } catch { /* ignore */ }
+			try {
+				await adapter.dropTable("hook_items");
+			} catch {
+				/* ignore */
+			}
 			await adapter.createTable(schema);
 
-			const item = await forja.create("hookItem", { name: "n", value: "original" });
+			const item = await forja.create("hookItem", {
+				name: "n",
+				value: "original",
+			});
 
 			// Plugin ran first, then schema hook
 			expect(order).toEqual(["plugin:before", "schema:before"]);
@@ -695,8 +765,14 @@ describe("Lifecycle Hooks", () => {
 			const called = { before: false, after: false };
 
 			const plugin = makePlugin({
-				onBeforeQuery: async (q, _ctx) => { called.before = true; return q; },
-				onAfterQuery:  async (r, _ctx) => { called.after  = true; return r; },
+				onBeforeQuery: async (q, _ctx) => {
+					called.before = true;
+					return q;
+				},
+				onAfterQuery: async (r, _ctx) => {
+					called.after = true;
+					return r;
+				},
 			});
 
 			const forja = await createForjaWithPlugin(tmpDir, plugin);

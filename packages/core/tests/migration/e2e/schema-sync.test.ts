@@ -154,9 +154,15 @@ describe("Migration E2E - Schema Sync", () => {
 		// - category→tags: drop_and_add (different relation, not a rename)
 		// - categoryId FK drop: confirm_drop
 		for (const change of s2.ambiguous) {
-			if (change.type === "column_rename_or_replace" && change.removedName === "authorId") {
+			if (
+				change.type === "column_rename_or_replace" &&
+				change.removedName === "authorId"
+			) {
 				resolveAmbiguousById(s2, change.id, "rename");
-			} else if (change.type === "column_rename_or_replace" && change.removedName === "category") {
+			} else if (
+				change.type === "column_rename_or_replace" &&
+				change.removedName === "category"
+			) {
 				resolveAmbiguousById(s2, change.id, "drop_and_add");
 			} else if (change.type === "fk_column_drop") {
 				resolveAmbiguousById(s2, change.id, "confirm_drop");
@@ -244,9 +250,15 @@ describe("Migration E2E - Schema Sync", () => {
 		// - tags→reviewer: drop_and_add (different relation, not a rename)
 		// - junction table drop: confirm_drop
 		for (const change of s3.ambiguous) {
-			if (change.type === "column_rename_or_replace" && change.removedName === "writerId") {
+			if (
+				change.type === "column_rename_or_replace" &&
+				change.removedName === "writerId"
+			) {
 				resolveAmbiguousById(s3, change.id, "rename");
-			} else if (change.type === "column_rename_or_replace" && change.removedName === "tags") {
+			} else if (
+				change.type === "column_rename_or_replace" &&
+				change.removedName === "tags"
+			) {
 				resolveAmbiguousById(s3, change.id, "drop_and_add");
 			} else if (change.type === "fk_column_drop") {
 				resolveAmbiguousById(s3, change.id, "confirm_drop");

@@ -42,7 +42,7 @@ export class Dispatcher {
 	constructor(
 		private readonly registry: PluginRegistry,
 		private readonly forja: Forja,
-	) { }
+	) {}
 
 	/**
 	 * Create and populate query context
@@ -110,9 +110,17 @@ export class Dispatcher {
 	): Promise<R> {
 		const context = await this.buildQueryContext(action, schema);
 		const hookCtx: HookContext = { schema, metadata: context.metadata };
-		const modifiedQuery = await this.dispatchBeforeQuery(query, context, hookCtx);
+		const modifiedQuery = await this.dispatchBeforeQuery(
+			query,
+			context,
+			hookCtx,
+		);
 		const result = await executor(modifiedQuery);
-		const finalResult = await this.dispatchAfterQuery<R>(result, context, hookCtx);
+		const finalResult = await this.dispatchAfterQuery<R>(
+			result,
+			context,
+			hookCtx,
+		);
 		return finalResult;
 	}
 
@@ -145,7 +153,11 @@ export class Dispatcher {
 			}
 		}
 
-		currentQuery = await this.dispatchSchemaBeforeHook(currentQuery, context.action, hookCtx);
+		currentQuery = await this.dispatchSchemaBeforeHook(
+			currentQuery,
+			context.action,
+			hookCtx,
+		);
 
 		return currentQuery;
 	}
@@ -176,7 +188,11 @@ export class Dispatcher {
 			}
 		}
 
-		currentResult = await this.dispatchSchemaAfterHook(currentResult, context.action, hookCtx);
+		currentResult = await this.dispatchSchemaAfterHook(
+			currentResult,
+			context.action,
+			hookCtx,
+		);
 
 		return currentResult;
 	}
@@ -189,9 +205,14 @@ export class Dispatcher {
 		const hooks = hookCtx.schema.hooks as LifecycleHooks<TResult> | undefined;
 		if (!hooks) return query;
 
-		if ((action === "create" || action === "createMany") && hooks.beforeCreate) {
+		if (
+			(action === "create" || action === "createMany") &&
+			hooks.beforeCreate
+		) {
 			if (query.type === "insert") {
-				const insertQuery = query as QueryObject<TResult> & { data: Partial<TResult>[] };
+				const insertQuery = query as QueryObject<TResult> & {
+					data: Partial<TResult>[];
+				};
 				const modifiedItems = await Promise.all(
 					insertQuery.data.map((item) => hooks.beforeCreate!(item, hookCtx)),
 				);
@@ -199,27 +220,52 @@ export class Dispatcher {
 			}
 		}
 
-		if ((action === "update" || action === "updateMany") && hooks.beforeUpdate) {
+		if (
+			(action === "update" || action === "updateMany") &&
+			hooks.beforeUpdate
+		) {
 			if (query.type === "update") {
-				const updateQuery = query as QueryObject<TResult> & { data: Partial<TResult> };
-				const modifiedData = await hooks.beforeUpdate(updateQuery.data, hookCtx);
+				const updateQuery = query as QueryObject<TResult> & {
+					data: Partial<TResult>;
+				};
+				const modifiedData = await hooks.beforeUpdate(
+					updateQuery.data,
+					hookCtx,
+				);
 				return { ...query, data: modifiedData } as QueryObject<TResult>;
 			}
 		}
 
-		if ((action === "delete" || action === "deleteMany") && hooks.beforeDelete) {
+		if (
+			(action === "delete" || action === "deleteMany") &&
+			hooks.beforeDelete
+		) {
 			if (query.type === "delete") {
-				const deleteQuery = query as QueryObject<TResult> & { where?: { id?: number } };
+				const deleteQuery = query as QueryObject<TResult> & {
+					where?: { id?: number };
+				};
 				if (deleteQuery.where?.id !== undefined) {
-					const modifiedId = await hooks.beforeDelete(deleteQuery.where.id, hookCtx);
-					return { ...query, where: { ...deleteQuery.where, id: modifiedId } } as QueryObject<TResult>;
+					const modifiedId = await hooks.beforeDelete(
+						deleteQuery.where.id,
+						hookCtx,
+					);
+					return {
+						...query,
+						where: { ...deleteQuery.where, id: modifiedId },
+					} as QueryObject<TResult>;
 				}
 			}
 		}
 
-		if ((action === "findOne" || action === "findMany" || action === "count") && hooks.beforeFind) {
+		if (
+			(action === "findOne" || action === "findMany" || action === "count") &&
+			hooks.beforeFind
+		) {
 			if (query.type === "select") {
-				const modifiedQuery = await hooks.beforeFind(query as QuerySelectObject<TResult>, hookCtx);
+				const modifiedQuery = await hooks.beforeFind(
+					query as QuerySelectObject<TResult>,
+					hookCtx,
+				);
 				return modifiedQuery as QueryObject<TResult>;
 			}
 		}
@@ -239,17 +285,23 @@ export class Dispatcher {
 		const rows = isArray ? (result as TResult[]) : [result];
 
 		if ((action === "create" || action === "createMany") && hooks.afterCreate) {
-			const modified = await Promise.all(rows.map((row) => hooks.afterCreate!(row, hookCtx)));
+			const modified = await Promise.all(
+				rows.map((row) => hooks.afterCreate!(row, hookCtx)),
+			);
 			return (isArray ? modified : modified[0]) as TResult;
 		}
 
 		if ((action === "update" || action === "updateMany") && hooks.afterUpdate) {
-			const modified = await Promise.all(rows.map((row) => hooks.afterUpdate!(row, hookCtx)));
+			const modified = await Promise.all(
+				rows.map((row) => hooks.afterUpdate!(row, hookCtx)),
+			);
 			return (isArray ? modified : modified[0]) as TResult;
 		}
 
 		if ((action === "delete" || action === "deleteMany") && hooks.afterDelete) {
-			await Promise.all(rows.map((row) => hooks.afterDelete!((row as ForjaEntry).id, hookCtx)));
+			await Promise.all(
+				rows.map((row) => hooks.afterDelete!((row as ForjaEntry).id, hookCtx)),
+			);
 			return result;
 		}
 

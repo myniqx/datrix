@@ -11,11 +11,7 @@ import { join, dirname } from "path";
 import type { GenerateCommandOptions } from "../types";
 import { CLIError } from "../types";
 import { logger, formatError } from "../utils/logger";
-import {
-	schemaTemplate,
-	toPascalCase,
-	toKebabCase,
-} from "../utils/templates";
+import { schemaTemplate, toPascalCase, toKebabCase } from "../utils/templates";
 import type { Forja } from "forja-core";
 import { generateTypesFile } from "../type-generator/schema-types";
 

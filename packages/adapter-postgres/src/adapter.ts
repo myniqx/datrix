@@ -781,10 +781,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 					}
 					// Update relation fields that reference the renamed column
 					for (const [key, def] of Object.entries(fields)) {
-						if (
-							def.type === "relation" &&
-							def.foreignKey === op.from
-						) {
+						if (def.type === "relation" && def.foreignKey === op.from) {
 							fields[key] = { ...def, foreignKey: op.to };
 						}
 					}
@@ -792,19 +789,31 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 				}
 				case "addMetaField":
 					if (fields[op.field] !== undefined) {
-						throwMetaFieldAlreadyExists({ adapter: "postgres", field: op.field, table: tableName });
+						throwMetaFieldAlreadyExists({
+							adapter: "postgres",
+							field: op.field,
+							table: tableName,
+						});
 					}
 					fields[op.field] = op.definition;
 					break;
 				case "dropMetaField":
 					if (fields[op.field] === undefined) {
-						throwMetaFieldNotFound({ adapter: "postgres", field: op.field, table: tableName });
+						throwMetaFieldNotFound({
+							adapter: "postgres",
+							field: op.field,
+							table: tableName,
+						});
 					}
 					delete fields[op.field];
 					break;
 				case "modifyMetaField":
 					if (fields[op.field] === undefined) {
-						throwMetaFieldNotFound({ adapter: "postgres", field: op.field, table: tableName });
+						throwMetaFieldNotFound({
+							adapter: "postgres",
+							field: op.field,
+							table: tableName,
+						});
 					}
 					fields[op.field] = op.newDefinition;
 					break;

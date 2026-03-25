@@ -7,7 +7,10 @@
  */
 
 import type { Pool, PoolClient, QueryResult, QueryResultRow } from "pg";
-import { AdapterErrorCode, ForjaAdapterError } from "forja-types/errors/adapter";
+import {
+	AdapterErrorCode,
+	ForjaAdapterError,
+} from "forja-types/errors/adapter";
 import { QueryObject } from "forja-types";
 
 const IS_DEBUG = process.env["NODE_ENV"] !== "production";
@@ -34,7 +37,7 @@ export class PgClient {
 	constructor(
 		private readonly runner: Pool | PoolClient,
 		private readonly queryObject: QueryObject,
-	) { }
+	) {}
 
 	/**
 	 * Execute a SQL query with optional parameters.

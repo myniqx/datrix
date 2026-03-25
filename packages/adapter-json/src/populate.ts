@@ -10,7 +10,7 @@ import {
 import { JsonQueryRunner } from "./runner";
 
 export class JsonPopulator {
-	constructor(private adapter: JsonAdapter) { }
+	constructor(private adapter: JsonAdapter) {}
 
 	async populate<T extends ForjaEntry>(
 		rows: T[],
