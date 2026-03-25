@@ -1,0 +1,214 @@
+---
+title: Auth
+description: JWT and session authentication, roles, and permissions.
+order: 2
+---
+
+# Auth
+
+Authentication is built into `ApiPlugin`. Define an `auth` block in your config to enable it — omit it to disable completely.
+
+---
+
+## Setup
+
+```typescript
+const roles = ["admin", "editor", "user"] as const;
+type Role = (typeof roles)[number];
+
+new ApiPlugin<Role>({
+	auth: {
+		roles,
+		defaultRole: "user",
+
+		jwt: {
+			secret: "your-secret-key-at-least-32-characters",
+			expiresIn: "7d", // "1h" | "30m" | "7d" | seconds as number
+			algorithm: "HS256", // "HS256" | "HS512" — default: "HS256"
+		} satisfies JwtConfig,
+
+		session: {
+			store: "memory", // "memory" | "redis" | "database"
+			maxAge: 3600, // seconds — default: 3600
+			checkPeriod: 600, // cleanup interval in seconds
+		} satisfies SessionConfig,
+
+		defaultPermission: {
+			create: ["admin"],
+			read: true,
+			update: ["admin", "editor"],
+			delete: ["admin"],
+		},
+	} satisfies AuthConfig<Role>,
+});
+```
+
+JWT and session can be enabled simultaneously — responses include both a token and a session cookie.
+
+A `user` schema with an `email` field must exist before enabling auth. The plugin creates an `authentication` table alongside it automatically.
+
+---
+
+## Endpoints
+
+| Method | Path                 | Description                           |
+| ------ | -------------------- | ------------------------------------- |
+| `POST` | `/api/auth/register` | Create a new user account             |
+| `POST` | `/api/auth/login`    | Login, receive token / session cookie |
+| `POST` | `/api/auth/logout`   | Invalidate session                    |
+| `GET`  | `/api/auth/me`       | Get the currently authenticated user  |
+
+### Register
+
+```http
+POST /api/auth/register
+Content-Type: application/json
+
+{ "email": "user@example.com", "password": "secret123" }
+```
+
+```json
+{
+	"data": {
+		"user": { "id": 1, "email": "user@example.com" },
+		"token": "eyJ..."
+	}
+}
+```
+
+### Login
+
+```http
+POST /api/auth/login
+Content-Type: application/json
+
+{ "email": "user@example.com", "password": "secret123" }
+```
+
+When session is enabled, the response also sets a `sessionId` cookie (`HttpOnly`).
+
+### Authenticated requests
+
+Pass the JWT token in the `Authorization` header:
+
+```http
+GET /api/products
+Authorization: Bearer eyJ...
+```
+
+Or send the session cookie — the browser handles this automatically.
+
+---
+
+## Permissions
+
+Permissions are defined per schema. They control who can call each CRUD action.
+
+```typescript
+defineSchema({
+  name: "product",
+  fields: { ... },
+  permission: {
+    create: ["admin", "editor"],  // role array
+    read: true,                    // public
+    update: ["admin", "editor"],
+    delete: ["admin"],
+  } satisfies SchemaPermission<Role>,
+} satisfies SchemaDefinition)
+```
+
+### Permission values
+
+| Value                    | Meaning                             |
+| ------------------------ | ----------------------------------- |
+| `true`                   | Public — no authentication required |
+| `false`                  | Blocked for everyone                |
+| `["admin", "editor"]`    | Allowed for these roles only        |
+| `async (ctx) => boolean` | Dynamic — evaluated per request     |
+
+### Dynamic permissions
+
+```typescript
+permission: {
+  update: [
+    "admin",
+    async (ctx) => {
+      const record = await ctx.forja.findById("post", ctx.id!)
+      return record?.authorId === ctx.user?.id
+    },
+  ] satisfies PermissionValue<Role>,
+}
+```
+
+### Field-level permissions
+
+Restrict read or write access to individual fields:
+
+```typescript
+fields: {
+  email: {
+    type: "string",
+    permission: {
+      read: ["admin", "editor"],   // hidden from other roles
+    } satisfies FieldPermission<Role>,
+  },
+  salary: {
+    type: "number",
+    permission: {
+      write: ["admin"],            // only admin can set this
+    } satisfies FieldPermission<Role>,
+  },
+}
+```
+
+### defaultPermission
+
+Applied to schemas that have no `permission` defined:
+
+```typescript
+auth: {
+  defaultPermission: {
+    create: ["admin"],
+    read: true,
+    update: ["admin"],
+    delete: ["admin"],
+  },
+}
+```
+
+---
+
+## Configuration reference
+
+### `auth.jwt`
+
+| Option      | Type                 | Default   | Description                                 |
+| ----------- | -------------------- | --------- | ------------------------------------------- |
+| `secret`    | `string`             | —         | **Required.** Min 32 characters.            |
+| `expiresIn` | `string \| number`   | `"1h"`    | Token lifetime. String (`"7d"`) or seconds. |
+| `algorithm` | `"HS256" \| "HS512"` | `"HS256"` | Signing algorithm.                          |
+| `issuer`    | `string`             | —         | JWT `iss` claim.                            |
+| `audience`  | `string`             | —         | JWT `aud` claim.                            |
+
+### `auth.session`
+
+| Option        | Type                                | Default    | Description                                  |
+| ------------- | ----------------------------------- | ---------- | -------------------------------------------- |
+| `store`       | `"memory" \| "redis" \| "database"` | `"memory"` | Session storage backend.                     |
+| `maxAge`      | `number`                            | `3600`     | Session lifetime in seconds.                 |
+| `checkPeriod` | `number`                            | `600`      | Expired session cleanup interval in seconds. |
+
+### `auth.password`
+
+| Option       | Type     | Default  | Description                  |
+| ------------ | -------- | -------- | ---------------------------- |
+| `iterations` | `number` | `100000` | PBKDF2 iterations.           |
+| `keyLength`  | `number` | `64`     | Derived key length in bytes. |
+| `minLength`  | `number` | `8`      | Minimum password length.     |
+
+### `auth.userSchema`
+
+| Option  | Type     | Default   | Description                              |
+| ------- | -------- | --------- | ---------------------------------------- |
+| `name`  | `string` | `"user"`  | Schema name for the user model.          |
+| `email` | `string` | `"email"` | Field name used as the login identifier. |

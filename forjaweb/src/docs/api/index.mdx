@@ -1,7 +1,157 @@
 ---
 title: API
-description: HTTP API plugin for Forja.
+description: HTTP REST API plugin for Forja.
 order: 4
 ---
 
 # API
+
+`@forja/api` turns any Forja instance into a fully-featured REST API. Drop it in as a plugin — it auto-generates CRUD routes for every schema, handles authentication, and optionally manages file uploads.
+
+```bash
+pnpm add @forja/api
+```
+
+---
+
+## Setup
+
+```typescript
+import { defineConfig } from "forja-core"
+import { ApiPlugin } from "@forja/api"
+
+export default defineConfig(() => ({
+  adapter,
+  schemas,
+  plugins: [
+    new ApiPlugin({
+      prefix: "/api",        // route prefix — default: '/api'
+      defaultPageSize: 25,   // default page size — default: 25
+      maxPageSize: 100,       // maximum allowed page size — default: 100
+      maxPopulateDepth: 5,   // max depth for nested populate — default: 5
+      autoRoutes: true,       // auto-generate CRUD routes — default: true
+      excludeSchemas: [],     // schemas to exclude from auto-routes
+    } satisfies ApiConfig),
+  ],
+}))
+```
+
+---
+
+## What gets generated
+
+For every schema registered with Forja, `ApiPlugin` generates the following routes:
+
+| Method   | Path               | Description                                                |
+| -------- | ------------------ | ---------------------------------------------------------- |
+| `GET`    | `/api/:schema`     | List records with pagination, filtering, sorting, populate |
+| `GET`    | `/api/:schema/:id` | Get a single record                                        |
+| `POST`   | `/api/:schema`     | Create a record                                            |
+| `PATCH`  | `/api/:schema/:id` | Update a record                                            |
+| `DELETE` | `/api/:schema/:id` | Delete a record                                            |
+
+The `:schema` segment matches the schema's table name (e.g. schema `"product"` → `/api/products`).
+
+---
+
+## API helpers
+
+Four functions are exported from `@forja/api` for use in route handlers and client-side query building.
+
+### handleRequest
+
+```typescript
+handleRequest(
+  forja:   Forja,    // initialized Forja instance
+  request: Request,  // Web API Request
+): Promise<Response>
+```
+
+The main entry point. Validates that `ApiPlugin` is registered, then routes the request to the appropriate handler (auth, CRUD, or upload). All error handling is built in — always returns a `Response`, never throws.
+
+### toWebRequest
+
+```typescript
+toWebRequest(req: NodeIncomingRequest): Request
+```
+
+Converts a Node.js-style incoming request to a Web API `Request`. Works with Express, Fastify, Koa, and raw `http.IncomingMessage` — duck-typed, no framework dependency.
+
+### sendWebResponse
+
+```typescript
+sendWebResponse(
+  res:      NodeOutgoingResponse,
+  response: Response,
+): Promise<void>
+```
+
+Writes a Web API `Response` back into a Node.js-style outgoing response. Sets status code, headers, and body.
+
+### queryToParams
+
+```typescript
+queryToParams<T extends ForjaEntry = ForjaRecord>(
+  query: ParsedQuery<T> | undefined,
+): string
+```
+
+Serializes a typed query object into a URL query string. Use this on the client side to build requests — it accepts the same `ParsedQuery` shape the server parses, so client and server stay in sync. See [CRUD](/docs/api/crud#querytoparams) for usage examples.
+
+---
+
+## Request handling
+
+```typescript
+import { handleRequest } from "@forja/api"
+```
+
+### Next.js App Router
+
+Create a catch-all route at `app/api/[model]/[[...forja]]/route.ts`:
+
+```typescript
+import forja from "@/forja.config"
+import { handleRequest } from "@forja/api"
+
+async function handler(request: Request): Promise<Response> {
+  return handleRequest(await forja(), request)
+}
+
+export const GET    = handler
+export const POST   = handler
+export const PATCH  = handler
+export const PUT    = handler
+export const DELETE = handler
+```
+
+### Express
+
+Express uses Node.js `IncomingMessage`/`ServerResponse` instead of the Web `Request`/`Response` API. Use the built-in `toWebRequest` and `sendWebResponse` helpers to bridge them — no extra dependencies required.
+
+```typescript
+import express from "express"
+import forja from "./forja.config"
+import { handleRequest, toWebRequest, sendWebResponse } from "@forja/api"
+
+const app = express()
+app.use(express.raw({ type: "*/*" }))  // preserve body as Buffer
+
+app.all("*", async (req, res) => {
+  const request  = toWebRequest(req)
+  const response = await handleRequest(await forja(), request)
+  await sendWebResponse(res, response)
+})
+```
+
+The same `toWebRequest` / `sendWebResponse` pair works for Fastify, Koa, and raw `http.createServer` — anything that exposes a Node.js-style request and response.
+
+---
+
+## Features
+
+| Feature                                          | Page                       |
+| ------------------------------------------------ | -------------------------- |
+| CRUD, filtering, pagination, sorting, populate   | [CRUD](/docs/api/crud)     |
+| JWT & session authentication, roles, permissions | [Auth](/docs/api/auth)     |
+| File uploads, storage providers, image variants  | [Upload](/docs/api/upload) |
