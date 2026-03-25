@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { CODE_COLORS, semanticKeyColor } from "@/components/docs/code-colors";
+import { JsonToken } from "@/components/docs/code-block";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
 	Select,
@@ -230,63 +231,6 @@ function CodeBlock({ scenario }: { scenario: Scenario }) {
 			</code>
 		</pre>
 	);
-}
-
-// ─── JSON Renderer ────────────────────────────────────────────────────────────
-
-function JsonToken({ value, indent = 0 }: { value: unknown; indent?: number }) {
-	const pad = "  ".repeat(indent);
-	const innerPad = "  ".repeat(indent + 1);
-
-	if (value === null) return <span style={S.bool}>null</span>;
-	if (typeof value === "boolean")
-		return <span style={S.bool}>{String(value)}</span>;
-	if (typeof value === "number") return <span style={S.num}>{value}</span>;
-	if (typeof value === "string")
-		return <span style={S.str}>&quot;{value}&quot;</span>;
-
-	if (Array.isArray(value)) {
-		if (value.length === 0) return <span>{"[]"}</span>;
-		return (
-			<span>
-				{"[\n"}
-				{value.map((item, i) => (
-					<span key={i}>
-						{innerPad}
-						<JsonToken value={item} indent={indent + 1} />
-						{i < value.length - 1 ? "," : ""}
-						{"\n"}
-					</span>
-				))}
-				{pad}
-				{"]"}
-			</span>
-		);
-	}
-
-	if (typeof value === "object") {
-		const entries = Object.entries(value as Record<string, unknown>);
-		if (entries.length === 0) return <span>{"{}"}</span>;
-		return (
-			<span>
-				{"{\n"}
-				{entries.map(([k, v], i) => (
-					<span key={k}>
-						{innerPad}
-						<span style={S.queryKey}>&quot;{k}&quot;</span>
-						{": "}
-						<JsonToken value={v} indent={indent + 1} />
-						{i < entries.length - 1 ? "," : ""}
-						{"\n"}
-					</span>
-				))}
-				{pad}
-				{"}"}
-			</span>
-		);
-	}
-
-	return <span>{String(value)}</span>;
 }
 
 // ─── Schema Viewer ────────────────────────────────────────────────────────────

@@ -8,7 +8,7 @@ import {
 	tokenKindToColor,
 } from "./code-colors";
 
-// ─── Tokenizer ────────────────────────────────────────────────────────────────
+// ─── TypeScript tokenizer ─────────────────────────────────────────────────────
 
 type TokenKind =
 	| "keyword"
@@ -375,6 +375,323 @@ function HoverableToken({
 	);
 }
 
+// ─── JSON renderer ────────────────────────────────────────────────────────────
+
+/**
+ * Renders a parsed JSON value with syntax highlighting.
+ * Exported so playground.tsx can reuse it instead of duplicating.
+ */
+export function JsonToken({
+	value,
+	indent = 0,
+}: {
+	value: unknown;
+	indent?: number;
+}): React.ReactElement {
+	const pad = "  ".repeat(indent);
+	const innerPad = "  ".repeat(indent + 1);
+
+	if (value === null)
+		return <span style={{ color: CODE_COLORS.boolean }}>null</span>;
+	if (typeof value === "boolean")
+		return (
+			<span style={{ color: CODE_COLORS.boolean }}>{String(value)}</span>
+		);
+	if (typeof value === "number")
+		return <span style={{ color: CODE_COLORS.number }}>{value}</span>;
+	if (typeof value === "string")
+		return (
+			<span style={{ color: CODE_COLORS.string }}>&quot;{value}&quot;</span>
+		);
+
+	if (Array.isArray(value)) {
+		if (value.length === 0)
+			return (
+				<span style={{ color: CODE_COLORS.punctuation }}>{"[]"}</span>
+			);
+		return (
+			<span>
+				{"[\n"}
+				{value.map((item, i) => (
+					<span key={i}>
+						{innerPad}
+						<JsonToken value={item} indent={indent + 1} />
+						{i < value.length - 1 ? "," : ""}
+						{"\n"}
+					</span>
+				))}
+				{pad}
+				{"]"}
+			</span>
+		);
+	}
+
+	if (typeof value === "object") {
+		const entries = Object.entries(value as Record<string, unknown>);
+		if (entries.length === 0)
+			return (
+				<span style={{ color: CODE_COLORS.punctuation }}>{"{}"}</span>
+			);
+		return (
+			<span>
+				{"{\n"}
+				{entries.map(([k, v], i) => (
+					<span key={k}>
+						{innerPad}
+						<span style={{ color: CODE_COLORS.queryKey }}>
+							&quot;{k}&quot;
+						</span>
+						{": "}
+						<JsonToken value={v} indent={indent + 1} />
+						{i < entries.length - 1 ? "," : ""}
+						{"\n"}
+					</span>
+				))}
+				{pad}
+				{"}"}
+			</span>
+		);
+	}
+
+	return <span style={{ color: CODE_COLORS.plain }}>{String(value)}</span>;
+}
+
+// ─── JSON string renderer ─────────────────────────────────────────────────────
+
+function JsonStringBlock({ code }: { code: string }): React.ReactElement {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(code.trim());
+	} catch {
+		// Not valid JSON — render as plain
+		return (
+			<pre
+				className="rounded-lg border font-mono text-sm leading-7 overflow-x-auto px-5 py-4"
+				style={{
+					backgroundColor: "#09090b",
+					borderColor: "#27272a",
+					color: CODE_COLORS.plain,
+				}}
+			>
+				<code>{code.trimEnd()}</code>
+			</pre>
+		);
+	}
+
+	return (
+		<pre
+			className="rounded-lg border font-mono text-sm leading-7 overflow-x-auto px-5 py-4"
+			style={{ backgroundColor: "#09090b", borderColor: "#27272a" }}
+		>
+			<code>
+				<JsonToken value={parsed} />
+			</code>
+		</pre>
+	);
+}
+
+// ─── Bash tokenizer ───────────────────────────────────────────────────────────
+
+const BASH_COMMANDS = new Set([
+	"pnpm",
+	"npm",
+	"npx",
+	"yarn",
+	"node",
+	"ts-node",
+	"tsx",
+	"git",
+	"cd",
+	"ls",
+	"mkdir",
+	"rm",
+	"cp",
+	"mv",
+	"cat",
+	"echo",
+	"curl",
+	"chmod",
+	"export",
+	"source",
+	"sh",
+	"bash",
+]);
+
+type BashTokenKind = "command" | "flag" | "string" | "comment" | "plain";
+
+interface BashToken {
+	value: string;
+	kind: BashTokenKind;
+}
+
+function tokenizeBash(code: string): BashToken[] {
+	const result: BashToken[] = [];
+
+	for (const line of code.split("\n")) {
+		const trimmed = line.trimStart();
+		const leadingSpaces = line.slice(0, line.length - trimmed.length);
+		if (leadingSpaces)
+			result.push({ value: leadingSpaces, kind: "plain" });
+
+		// Comment line
+		if (trimmed.startsWith("#")) {
+			result.push({ value: trimmed, kind: "comment" });
+			result.push({ value: "\n", kind: "plain" });
+			continue;
+		}
+
+		let i = 0;
+		let isFirstWord = true;
+
+		while (i < trimmed.length) {
+			// String literal
+			if (trimmed[i] === '"' || trimmed[i] === "'") {
+				const quote = trimmed[i]!;
+				let j = i + 1;
+				while (j < trimmed.length && trimmed[j] !== quote) j++;
+				result.push({ value: trimmed.slice(i, j + 1), kind: "string" });
+				i = j + 1;
+				isFirstWord = false;
+				continue;
+			}
+
+			// Flag: --flag or -f
+			if (trimmed[i] === "-") {
+				let j = i;
+				while (j < trimmed.length && trimmed[j] !== " " && trimmed[j] !== "=") j++;
+				result.push({ value: trimmed.slice(i, j), kind: "flag" });
+				i = j;
+				isFirstWord = false;
+				continue;
+			}
+
+			// Word token
+			if (/\S/.test(trimmed[i]!)) {
+				let j = i;
+				while (j < trimmed.length && /\S/.test(trimmed[j]!)) j++;
+				const word = trimmed.slice(i, j);
+				const isCmd = isFirstWord && BASH_COMMANDS.has(word);
+				result.push({ value: word, kind: isCmd ? "command" : "plain" });
+				i = j;
+				isFirstWord = false;
+				continue;
+			}
+
+			// Whitespace
+			result.push({ value: trimmed[i]!, kind: "plain" });
+			i++;
+		}
+
+		result.push({ value: "\n", kind: "plain" });
+	}
+
+	// Trim trailing newline
+	if (result.at(-1)?.value === "\n") result.pop();
+
+	return result;
+}
+
+function bashTokenColor(kind: BashTokenKind): string {
+	switch (kind) {
+		case "command":
+			return CODE_COLORS.fnName;
+		case "flag":
+			return CODE_COLORS.keyword;
+		case "string":
+			return CODE_COLORS.string;
+		case "comment":
+			return CODE_COLORS.comment;
+		case "plain":
+		default:
+			return CODE_COLORS.plain;
+	}
+}
+
+function BashBlock({ code }: { code: string }): React.ReactElement {
+	const tokens = tokenizeBash(code.trimEnd());
+	return (
+		<pre
+			className="rounded-lg border font-mono text-sm leading-7 overflow-x-auto px-5 py-4"
+			style={{ backgroundColor: "#09090b", borderColor: "#27272a" }}
+		>
+			<code>
+				{tokens.map((t, i) => (
+					<span key={i} style={{ color: bashTokenColor(t.kind) }}>
+						{t.value}
+					</span>
+				))}
+			</code>
+		</pre>
+	);
+}
+
+// ─── HTTP tokenizer ───────────────────────────────────────────────────────────
+
+const HTTP_METHODS = new Set([
+	"GET",
+	"POST",
+	"PATCH",
+	"PUT",
+	"DELETE",
+	"HEAD",
+	"OPTIONS",
+]);
+
+function HttpBlock({ code }: { code: string }): React.ReactElement {
+	const lines = code.trimEnd().split("\n");
+	const rendered: React.ReactElement[] = [];
+
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i]!;
+
+		// Request line: METHOD /path HTTP/1.1
+		const methodMatch = line.match(/^([A-Z]+)\s+(\S+)(.*)$/);
+		if (methodMatch && HTTP_METHODS.has(methodMatch[1]!)) {
+			rendered.push(
+				<span key={i}>
+					<span style={{ color: CODE_COLORS.fnName }}>{methodMatch[1]}</span>
+					<span style={{ color: CODE_COLORS.plain }}>{" "}</span>
+					<span style={{ color: CODE_COLORS.string }}>{methodMatch[2]}</span>
+					<span style={{ color: CODE_COLORS.comment }}>{methodMatch[3]}</span>
+					{"\n"}
+				</span>,
+			);
+			continue;
+		}
+
+		// Header: Key: Value
+		const headerMatch = line.match(/^([\w-]+):\s*(.*)$/);
+		if (headerMatch) {
+			rendered.push(
+				<span key={i}>
+					<span style={{ color: CODE_COLORS.queryKey }}>{headerMatch[1]}</span>
+					<span style={{ color: CODE_COLORS.punctuation }}>: </span>
+					<span style={{ color: CODE_COLORS.string }}>{headerMatch[2]}</span>
+					{"\n"}
+				</span>,
+			);
+			continue;
+		}
+
+		// Empty line or body
+		rendered.push(
+			<span key={i} style={{ color: CODE_COLORS.plain }}>
+				{line}
+				{"\n"}
+			</span>,
+		);
+	}
+
+	return (
+		<pre
+			className="rounded-lg border font-mono text-sm leading-7 overflow-x-auto px-5 py-4"
+			style={{ backgroundColor: "#09090b", borderColor: "#27272a" }}
+		>
+			<code>{rendered}</code>
+		</pre>
+	);
+}
+
 // ─── Pre / Code override ──────────────────────────────────────────────────────
 
 interface PreProps {
@@ -383,11 +700,9 @@ interface PreProps {
 
 /**
  * Drop-in replacement for <pre> in MDX.
- * Detects language from className (e.g. "language-typescript") and renders
- * with syntax highlighting + hoverable type tooltips.
+ * Detects language from className and renders with syntax highlighting.
  */
 export function DocsCodeBlock({ children }: PreProps): React.ReactElement {
-	// MDX renders <pre><code className="language-ts">...</code></pre>
 	const codeEl = children as React.ReactElement<{
 		className?: string;
 		children?: string;
@@ -395,13 +710,7 @@ export function DocsCodeBlock({ children }: PreProps): React.ReactElement {
 	const className = codeEl?.props?.className ?? "";
 	const rawCode = codeEl?.props?.children ?? "";
 
-	const isTs =
-		className.includes("typescript") ||
-		className.includes("ts") ||
-		className.includes("tsx");
-
-	if (!isTs || typeof rawCode !== "string") {
-		// Fallback: plain pre block
+	if (typeof rawCode !== "string") {
 		return (
 			<pre className="rounded-lg bg-zinc-950 border border-zinc-800 px-5 py-4 font-mono text-sm leading-7 overflow-x-auto">
 				{children}
@@ -409,9 +718,36 @@ export function DocsCodeBlock({ children }: PreProps): React.ReactElement {
 		);
 	}
 
-	const tokens = tokenize(rawCode.trimEnd());
+	const isTs =
+		className.includes("typescript") ||
+		className.includes("language-ts") ||
+		className.includes("language-tsx");
+	const isJson = className.includes("json");
+	const isBash =
+		className.includes("bash") || className.includes("shell");
+	const isHttp = className.includes("http");
 
-	return <TypescriptCodeBlock code={tokens} />;
+	if (isTs) {
+		const tokens = tokenize(rawCode.trimEnd());
+		return <TypescriptCodeBlock code={tokens} />;
+	}
+	if (isJson) return <JsonStringBlock code={rawCode} />;
+	if (isBash) return <BashBlock code={rawCode} />;
+	if (isHttp) return <HttpBlock code={rawCode} />;
+
+	// Fallback: plain pre block
+	return (
+		<pre
+			className="rounded-lg border font-mono text-sm leading-7 overflow-x-auto px-5 py-4"
+			style={{
+				backgroundColor: "#09090b",
+				borderColor: "#27272a",
+				color: CODE_COLORS.plain,
+			}}
+		>
+			<code>{rawCode.trimEnd()}</code>
+		</pre>
+	);
 }
 
 /**

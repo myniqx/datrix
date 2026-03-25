@@ -10,7 +10,7 @@ export interface DocFrontmatter {
 export interface DocModule {
 	frontmatter: DocFrontmatter;
 	toc: TocItem[];
-	default: ComponentType;
+	default: ComponentType<{ components?: Record<string, ComponentType> }>;
 }
 
 export interface DocNavItem {

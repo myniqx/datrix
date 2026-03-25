@@ -9,6 +9,6 @@ declare module "*.mdx" {
 		order: number;
 	};
 	export const toc: TocItem[];
-	const MDXComponent: ComponentType;
+	const MDXComponent: ComponentType<{ components?: Record<string, ComponentType> }>;
 	export default MDXComponent;
 }

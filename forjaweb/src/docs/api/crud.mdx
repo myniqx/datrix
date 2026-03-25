@@ -26,7 +26,7 @@ order: 1
 
 List endpoints are paginated by default.
 
-```
+```http
 GET /api/products?page=2&pageSize=10
 ```
 
@@ -50,7 +50,7 @@ Response:
 
 Filters use a nested bracket syntax.
 
-```
+```http
 GET /api/products?where[price][$gte]=100&where[isAvailable]=true
 ```
 
@@ -71,7 +71,7 @@ GET /api/products?where[price][$gte]=100&where[isAvailable]=true
 
 ### Logical operators
 
-```
+```http
 GET /api/products?where[$or][0][price][$lt]=50&where[$or][1][stock][$gt]=100
 ```
 
@@ -79,7 +79,7 @@ GET /api/products?where[$or][0][price][$lt]=50&where[$or][1][stock][$gt]=100
 
 ## Sorting
 
-```
+```http
 GET /api/products?sort=price          // ascending
 GET /api/products?sort=-price         // descending
 GET /api/products?sort=category,-price // multiple fields
@@ -91,7 +91,7 @@ GET /api/products?sort=category,-price // multiple fields
 
 Return only specific fields:
 
-```
+```http
 GET /api/products?fields=name,price,stock
 GET /api/products?fields=*            // all fields (default)
 ```
@@ -102,7 +102,7 @@ GET /api/products?fields=*            // all fields (default)
 
 Load related records inline.
 
-```
+```http
 GET /api/products?populate=*                      // all relations, shallow
 GET /api/products?populate[category]=true         // specific relation
 GET /api/products?populate[category][fields]=name // with field selection
@@ -110,7 +110,7 @@ GET /api/products?populate[category][fields]=name // with field selection
 
 Nested populate:
 
-```
+```http
 GET /api/posts?populate[author][populate][company]=true
 ```
 
