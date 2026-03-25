@@ -173,7 +173,7 @@ export const FUNCTION_DEFINITIONS: Record<string, FunctionDefinition> = {
 		signature: `defineConfig(\n  factory: () => ForjaConfig,\n): () => Promise<Forja>`,
 		description:
 			"Define Forja configuration. Returns a function that when called, returns an initialized Forja instance.",
-		docsPath: "/docs/core/getting-started#defineconfig",
+		//	docsPath: "/docs/core/getting-started#defineconfig",
 	},
 
 	defineSchema: {
@@ -181,5 +181,46 @@ export const FUNCTION_DEFINITIONS: Record<string, FunctionDefinition> = {
 		description:
 			"Define a schema. Pass the result to schemas[] in defineConfig().",
 		docsPath: "/docs/core/schema#defineschema",
+	},
+
+	// ─── API Plugin ─────────────────────────────────────────────────────────────
+
+	ApiPlugin: {
+		signature: `new ApiPlugin<TRole extends string = string>(\n  options: ApiConfig<TRole>,\n)`,
+		description:
+			"Turns any Forja instance into a fully-featured REST API. Auto-generates CRUD routes for every schema, handles authentication, and optionally manages file uploads.",
+	},
+
+	// ─── Upload ─────────────────────────────────────────────────────────────────
+
+	Upload: {
+		signature: `new Upload<TResolutions extends string = string>(\n  options: UploadOptions<TResolutions>,\n)`,
+		description:
+			"File upload handler. Pass an instance to ApiPlugin via the upload option. Injects a media schema and exposes /upload endpoints automatically.",
+	},
+
+	LocalStorageProvider: {
+		signature: `new LocalStorageProvider(options: {\n  basePath: string,          // directory to write files into\n  baseUrl: string,           // public URL prefix\n  ensureDirectory?: boolean, // create basePath if missing — default: true\n})`,
+		description: "Stores files on the local filesystem.",
+	},
+
+	S3StorageProvider: {
+		signature: `new S3StorageProvider(options: {\n  bucket: string,\n  region: string,\n  accessKeyId: string,\n  secretAccessKey: string,\n  endpoint?: string,   // custom endpoint for R2 / MinIO\n  pathPrefix?: string, // optional key prefix\n})`,
+		description:
+			"Stores files in any S3-compatible object storage (AWS S3, R2, MinIO, etc.).",
+	},
+
+	// ─── Query serializer ────────────────────────────────────────────────────────
+
+	queryToParams: {
+		signature: `queryToParams<T extends ForjaEntry = ForjaRecord>(\n  query: ParsedQuery<T> | undefined,\n): string`,
+		description:
+			"Serializes a typed ParsedQuery object into a URL query string. Fully typed — accepts the same shape the server parses, keeping client and server query shapes in sync.",
+	},
+
+	serializeQuery: {
+		signature: `serializeQuery<T extends ForjaEntry = ForjaEntry>(\n  query: ParsedQuery<T>,\n): RawQueryParams`,
+		description:
+			"Converts a ParsedQuery object into RawQueryParams (Strapi-style key/value pairs). Use queryToParams if you need a ready-to-use query string.",
 	},
 };

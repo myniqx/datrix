@@ -209,6 +209,7 @@ function tokenColor(kind: TokenKind): string {
 		case "operator":
 			return CODE_COLORS.punctuation;
 		case "plain":
+		default:
 			return CODE_COLORS.plain;
 	}
 }
@@ -308,7 +309,7 @@ function HoverableToken({
 	const tooltip = coords
 		? createPortal(
 				<div
-					className="fixed z-[9999] w-96 rounded-lg shadow-2xl font-mono text-xs"
+					className="fixed z-9999 w-160 rounded-lg shadow-2xl font-mono text-xs"
 					style={{
 						top: coords.openUpward ? undefined : coords.top + 6,
 						bottom: coords.openUpward
@@ -321,7 +322,7 @@ function HoverableToken({
 				>
 					<pre
 						style={{ color: "#e4e4e7", margin: 0 }}
-						className="px-4 pt-3 pb-2 whitespace-pre-wrap break-words leading-relaxed"
+						className="px-4 pt-3 pb-2 whitespace-pre-wrap wrap-break-word leading-relaxed"
 					>
 						{tokenizeSignature(definition.signature).map((t, i) => (
 							<span key={i} style={{ color: tokenKindToColor(t.kind) }}>

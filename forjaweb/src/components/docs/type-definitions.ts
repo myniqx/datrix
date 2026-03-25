@@ -413,6 +413,110 @@ export const TYPE_DEFINITIONS: Record<string, TypeDefinition> = {
 			"Development mode options. All options default to false in production.",
 		docsPath: "/docs/core/types#devconfig",
 	},
+
+	// ─── API ──────────────────────────────────────────────────────────────────────
+	ApiConfig: {
+		group: "API",
+		signature: `interface ApiConfig<TRole extends string = string> {\n  prefix?:           string       // route prefix — default: '/api'\n  defaultPageSize?:  number       // default: 25\n  maxPageSize?:      number       // default: 100\n  maxPopulateDepth?: number       // default: 5\n  autoRoutes?:       boolean      // auto-generate CRUD routes — default: true\n  excludeSchemas?:   string[]     // schemas to exclude from auto-routes\n  auth?:             AuthConfig<TRole>\n  upload?:           IUpload\n}`,
+		description: "Configuration for ApiPlugin. Pass to new ApiPlugin({ ... }).",
+		docsPath: "/docs/api",
+	},
+	AuthConfig: {
+		group: "API",
+		signature: `interface AuthConfig<TRole extends string = string> {\n  roles:              readonly TRole[]\n  defaultRole:        TRole\n  defaultPermission?: SchemaPermission\n  jwt?:               JwtConfig\n  session?:           SessionConfig\n  password?:          PasswordConfig\n  userSchema?: {\n    name?:  string  // default: 'user'\n    email?: string  // default: 'email'\n  }\n}`,
+		description:
+			"Authentication configuration block inside ApiConfig. Enables JWT and/or session auth, RBAC roles, and password policy.",
+		docsPath: "/docs/api/auth",
+	},
+	JwtConfig: {
+		group: "API",
+		signature: `interface JwtConfig {\n  secret:     string                    // min 32 characters\n  expiresIn?: string | number           // e.g. \"7d\", \"1h\" or seconds\n  algorithm?: \"HS256\" | \"HS512\"        // default: \"HS256\"\n  issuer?:    string                    // JWT iss claim\n  audience?:  string                    // JWT aud claim\n}`,
+		description: "JWT signing options inside AuthConfig.",
+		docsPath: "/docs/api/auth#configuration-reference",
+	},
+	SessionConfig: {
+		group: "API",
+		signature: `interface SessionConfig {\n  store?:       \"memory\" | \"redis\" | \"database\"  // default: \"memory\"\n  maxAge?:      number  // session lifetime in seconds — default: 3600\n  checkPeriod?: number  // expired session cleanup interval — default: 600\n}`,
+		description: "Session storage options inside AuthConfig.",
+		docsPath: "/docs/api/auth#configuration-reference",
+	},
+	PasswordConfig: {
+		group: "API",
+		signature: `interface PasswordConfig {\n  iterations?: number  // PBKDF2 iterations — default: 100000\n  keyLength?:  number  // derived key length in bytes — default: 64\n  minLength?:  number  // minimum password length — default: 8\n}`,
+		description: "Password hashing policy inside AuthConfig.",
+		docsPath: "/docs/api/auth#configuration-reference",
+	},
+	ParsedQuery: {
+		group: "API",
+		signature: `interface ParsedQuery<T extends ForjaEntry = ForjaRecord> {\n  select?:   SelectClause<T>\n  where?:    WhereClause<T>\n  populate?: PopulateClause<T>\n  orderBy?:  OrderByClause<T>\n  page?:     number\n  pageSize?: number\n}`,
+		description:
+			"Typed query object accepted by queryToParams and parsed by the server. Client and server share the same shape.",
+		docsPath: "/docs/api/crud#querytoparams",
+	},
+
+	// ─── Upload ───────────────────────────────────────────────────────────────────
+	UploadOptions: {
+		group: "Upload",
+		signature: `interface UploadOptions<TResolutions extends string = string> {\n  provider:           StorageProvider\n  modelName?:         string            // default: \"media\"\n  maxSize?:           number            // max file size in bytes\n  allowedMimeTypes?:  string[]          // supports wildcards, e.g. \"image/*\"\n  format?:            ImageFormat       // convert all images to this format\n  quality?:           number            // 1–100 — default: 80\n  resolutions?:       Record<TResolutions, ResolutionConfig>\n  permission?:        SchemaPermission\n}`,
+		description:
+			"Options passed to new Upload({ ... }). Controls storage, validation, format conversion, and resolution variants.",
+		docsPath: "/docs/api/upload",
+	},
+	ImageFormat: {
+		group: "Upload",
+		signature: `type ImageFormat = \"webp\" | \"jpeg\" | \"png\" | \"avif\"`,
+		description:
+			"Target format for image conversion. All uploaded images are converted to this format before storage.",
+		docsPath: "/docs/api/upload#format-conversion",
+	},
+	ResolutionConfig: {
+		group: "Upload",
+		signature: `interface ResolutionConfig {\n  width:   number\n  height?: number   // omit to preserve aspect ratio\n  fit?:    ResizeFit\n}`,
+		description:
+			"Config for a single named resolution variant. height is optional — if omitted, aspect ratio is preserved.",
+		docsPath: "/docs/api/upload#resolution-variants",
+	},
+	ResizeFit: {
+		group: "Upload",
+		signature: `type ResizeFit =\n  | \"cover\"    // crop to fill the box exactly\n  | \"contain\"  // fit within the box, letterbox if needed\n  | \"fill\"     // stretch to fill — ignores aspect ratio\n  | \"inside\"   // resize so both dimensions fit inside the box\n  | \"outside\"  // resize so one dimension fills the box`,
+		description:
+			"Sharp fit mode used when both width and height are set on a ResolutionConfig.",
+		docsPath: "/docs/api/upload#resolution-variants",
+	},
+	LocalProviderOptions: {
+		group: "Upload",
+		signature: `interface LocalProviderOptions {\n  basePath:         string   // directory to write files into\n  baseUrl:          string   // public URL prefix\n  ensureDirectory?: boolean  // create basePath if missing — default: true\n}`,
+		description: "Options for LocalStorageProvider.",
+		docsPath: "/docs/api/upload#storage-providers",
+	},
+	S3ProviderOptions: {
+		group: "Upload",
+		signature: `interface S3ProviderOptions {\n  bucket:          string\n  region:          string\n  accessKeyId:     string\n  secretAccessKey: string\n  endpoint?:       string  // custom endpoint for R2 / MinIO\n  pathPrefix?:     string  // optional key prefix\n}`,
+		description:
+			"Options for S3StorageProvider. Compatible with AWS S3, Cloudflare R2, MinIO, and any S3-compatible storage.",
+		docsPath: "/docs/api/upload#storage-providers",
+	},
+	StorageProvider: {
+		group: "Upload",
+		signature: `interface StorageProvider {\n  readonly name: string\n  upload(file: UploadFile):   Promise<UploadResult>\n  delete(key: string):        Promise<void>\n  getUrl(key: string):        Promise<string>\n  exists(key: string):        Promise<boolean>\n}`,
+		description:
+			"Interface all storage backends must implement. Implement this to add a custom storage provider.",
+		docsPath: "/docs/api/upload#storage-providers",
+	},
+	MediaEntry: {
+		group: "Upload",
+		signature: `interface MediaEntry<TResolutions extends string = string> extends ForjaEntry {\n  filename:     string\n  originalName: string\n  mimeType:     string\n  size:         number\n  url:          string\n  key:          string\n  variants:     MediaVariants<TResolutions> | null\n}`,
+		description:
+			'Shape of a media record stored in the database. Injected as the "media" schema by ApiPlugin when upload is configured.',
+		docsPath: "/docs/api/upload#media-schema",
+	},
+	MediaVariant: {
+		group: "Upload",
+		signature: `interface MediaVariant {\n  url:      string\n  width:    number\n  height:   number\n  size:     number\n  mimeType: string\n}`,
+		description:
+			"A single processed resolution variant. Available in MediaEntry.variants under the resolution name.",
+		docsPath: "/docs/api/upload#media-schema",
+	},
 };
 
 /**
