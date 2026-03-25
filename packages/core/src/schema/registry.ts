@@ -6,6 +6,9 @@
  */
 
 import type {
+	FieldDefinition,
+	FileField,
+	FileFieldOptions,
 	ForjaEntry,
 	ISchemaRegistry,
 	RelationField,
@@ -149,6 +152,8 @@ export class SchemaRegistry implements ISchemaRegistry {
 			}
 		}
 
+		const transformedFields = this.transformFileFields(schema.fields);
+
 		const enhancedFields = {
 			id: {
 				type: "number" as const,
@@ -156,7 +161,7 @@ export class SchemaRegistry implements ISchemaRegistry {
 				autoIncrement: true,
 				required: true,
 			},
-			...schema.fields,
+			...transformedFields,
 			createdAt: {
 				type: "date" as const,
 				required: true,
@@ -443,7 +448,9 @@ export class SchemaRegistry implements ISchemaRegistry {
 	 * - Hidden fields (e.g., foreign keys)
 	 * - Relation fields (use populate for these)
 	 */
-	getCachedSelectFields<T extends ForjaEntry>(modelName: string): QuerySelect<T> {
+	getCachedSelectFields<T extends ForjaEntry>(
+		modelName: string,
+	): QuerySelect<T> {
 		const schema = this.get(modelName);
 		if (!schema) {
 			throw new SchemaRegistryError(`Schema not found: ${modelName}`, {
@@ -543,6 +550,56 @@ export class SchemaRegistry implements ISchemaRegistry {
 	 */
 	isLocked(): boolean {
 		return this.locked;
+	}
+
+	/**
+	 * Transform file fields into relation fields (Pass 0)
+	 * Called during register() before reserved fields are added.
+	 *
+	 * FileField { type: "file", multiple: false } → RelationField { kind: "belongsTo", model: "media", fileOptions: {...} }
+	 * FileField { type: "file", multiple: true }  → RelationField { kind: "hasMany",   model: "media", fileOptions: {...} }
+	 *
+	 * Upload config is NOT required here — that check is in ApiPlugin.
+	 * Core only transforms the type so adapters/migrations see a plain relation.
+	 */
+	private transformFileFields(
+		fields: Record<string, FieldDefinition>,
+	): Record<string, FieldDefinition> {
+		const result: Record<string, FieldDefinition> = {};
+
+		for (const [fieldName, field] of Object.entries(fields)) {
+			if (field.type !== "file") {
+				result[fieldName] = field;
+				continue;
+			}
+
+			const fileField = field as FileField;
+
+			const fileOptions: FileFieldOptions = {
+				...(fileField.allowedTypes !== undefined && {
+					allowedTypes: fileField.allowedTypes,
+				}),
+				...(fileField.maxSize !== undefined && {
+					maxSize: fileField.maxSize,
+				}),
+			};
+
+			const hasFileOptions = Object.keys(fileOptions).length > 0;
+
+			const relationField: RelationField = {
+				type: "relation",
+				model: "media",
+				kind: fileField.multiple ? "hasMany" : "belongsTo",
+				...(fileField.required !== undefined && {
+					required: fileField.required,
+				}),
+				...(hasFileOptions && { fileOptions }),
+			};
+
+			result[fieldName] = relationField;
+		}
+
+		return result;
 	}
 
 	/**

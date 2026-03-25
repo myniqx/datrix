@@ -59,9 +59,6 @@ export {
 	type IndexDefinition,
 	// Schema
 	type SchemaDefinition,
-	type InferFieldType,
-	type InferSchemaType,
-	type TypedSchema,
 	defineSchema,
 	// Registry
 	type ISchemaRegistry as SchemaRegistry,

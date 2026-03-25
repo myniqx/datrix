@@ -80,13 +80,13 @@ export type ForjaRecord = ForjaEntry & FallbackValue;
 
 export type FallbackValue = {
 	[key: string]:
-	| string
-	| number
-	| boolean
-	| Date
-	| null
-	| FallbackValue // nested object (populate sonucu)
-	| FallbackValue[]; // array of nested
+		| string
+		| number
+		| boolean
+		| Date
+		| null
+		| FallbackValue // nested object (populate sonucu)
+		| FallbackValue[]; // array of nested
 };
 
 /**
@@ -228,6 +228,16 @@ export interface ArrayField<
 export type RelationKind = "hasOne" | "hasMany" | "belongsTo" | "manyToMany";
 
 /**
+ * File options carried on a RelationField that was converted from a FileField.
+ * When defined, the relation is a file upload relation.
+ * Used by the upload handler — core ignores this.
+ */
+export interface FileFieldOptions {
+	readonly allowedTypes?: readonly string[]; // MIME types e.g. ["image/*", "application/pdf"]
+	readonly maxSize?: number; // In bytes
+}
+
+/**
  * Relation field definition
  */
 export interface RelationField<
@@ -240,6 +250,11 @@ export interface RelationField<
 	readonly through?: string; // Join table for manyToMany (optional - auto-generated)
 	readonly onDelete?: "cascade" | "setNull" | "restrict";
 	readonly onUpdate?: "cascade" | "restrict";
+	/**
+	 * Present only when this relation was converted from a FileField.
+	 * Upload handler reads this to validate uploaded files.
+	 */
+	readonly fileOptions?: FileFieldOptions;
 }
 
 /**
@@ -299,13 +314,13 @@ export type RelationBelongsTo<T extends ForjaEntry> =
 	| RelationIdRef
 	| null
 	| {
-		connect?: RelationIdRef;
-		set?: RelationIdRef;
-		disconnect?: true;
-		create?: Partial<T>;
-		update?: { where: { id: number }; data: Partial<T> };
-		delete?: RelationIdRef;
-	};
+			connect?: RelationIdRef;
+			set?: RelationIdRef;
+			disconnect?: true;
+			create?: Partial<T>;
+			update?: { where: { id: number }; data: Partial<T> };
+			delete?: RelationIdRef;
+	  };
 
 /**
  * hasOne (1:1) relation input - write operations
@@ -338,15 +353,15 @@ export type RelationHasOne<T extends ForjaEntry> = RelationBelongsTo<T>;
 export type RelationHasMany<T extends ForjaEntry> =
 	| RelationIdRefs
 	| {
-		connect?: RelationIdRefs;
-		disconnect?: RelationIdRefs;
-		set?: RelationIdRefs;
-		create?: Partial<T> | Partial<T>[];
-		update?:
-		| { where: { id: number }; data: Partial<T> }
-		| { where: { id: number }; data: Partial<T> }[];
-		delete?: RelationIdRefs;
-	};
+			connect?: RelationIdRefs;
+			disconnect?: RelationIdRefs;
+			set?: RelationIdRefs;
+			create?: Partial<T> | Partial<T>[];
+			update?:
+				| { where: { id: number }; data: Partial<T> }
+				| { where: { id: number }; data: Partial<T> }[];
+			delete?: RelationIdRefs;
+	  };
 
 /**
  * manyToMany (N:N) relation input - write operations
@@ -388,8 +403,8 @@ export type AnyRelationInputObject = {
 	delete?: RelationIdRefs;
 	create?: Record<string, unknown> | Record<string, unknown>[];
 	update?:
-	| { where: { id: number }; data: Record<string, unknown> }
-	| { where: { id: number }; data: Record<string, unknown> }[];
+		| { where: { id: number }; data: Record<string, unknown> }
+		| { where: { id: number }; data: Record<string, unknown> }[];
 };
 
 /**
@@ -532,38 +547,26 @@ export interface LifecycleHooks<T extends ForjaEntry = ForjaEntry> {
 		data: Partial<T>,
 		ctx: HookContext,
 	) => Promise<Partial<T>> | Partial<T>;
-	readonly afterCreate?: (
-		data: T,
-		ctx: HookContext,
-	) => Promise<T> | T;
+	readonly afterCreate?: (data: T, ctx: HookContext) => Promise<T> | T;
 
 	readonly beforeUpdate?: (
 		data: Partial<T>,
 		ctx: HookContext,
 	) => Promise<Partial<T>> | Partial<T>;
-	readonly afterUpdate?: (
-		data: T,
-		ctx: HookContext,
-	) => Promise<T> | T;
+	readonly afterUpdate?: (data: T, ctx: HookContext) => Promise<T> | T;
 
 	readonly beforeDelete?: (
 		id: number,
 		ctx: HookContext,
 	) => Promise<number> | number;
-	readonly afterDelete?: (
-		id: number,
-		ctx: HookContext,
-	) => Promise<void> | void;
+	readonly afterDelete?: (id: number, ctx: HookContext) => Promise<void> | void;
 
 	// --- read hooks ---
 	readonly beforeFind?: (
 		query: QuerySelectObject<T>,
 		ctx: HookContext,
 	) => Promise<QuerySelectObject<T>> | QuerySelectObject<T>;
-	readonly afterFind?: (
-		results: T[],
-		ctx: HookContext,
-	) => Promise<T[]> | T[];
+	readonly afterFind?: (results: T[], ctx: HookContext) => Promise<T[]> | T[];
 }
 
 /**
@@ -672,103 +675,12 @@ export type IsRelation<T> = T extends Relation<infer _R> ? true : false;
 export type UnwrapRelation<T> = T extends Relation<infer R> ? R : never;
 
 /**
- * Infer TypeScript type from field definition
- */
-export type InferFieldType<F extends FieldDefinition<string>> = F extends {
-	type: "string";
-}
-	? string
-	: F extends { type: "number" }
-	? number
-	: F extends { type: "boolean" }
-	? boolean
-	: F extends { type: "date" }
-	? Date
-	: F extends { type: "json" }
-	? Record<string, unknown>
-	: F extends EnumField<infer T, string>
-	? T[number]
-	: F extends {
-		type: "array";
-		items: infer I extends FieldDefinition<string>;
-	}
-	? Array<InferFieldType<I>>
-	: F extends { type: "relation"; model: string }
-	? string // Just the ID for relations (runtime representation)
-	: F extends { type: "file" }
-	? string // File URL/path
-	: never;
-
-/**
- * Infer TypeScript type from schema definition
- *
- * Automatically includes ForjaEntry fields (id, createdAt, updatedAt)
- * along with user-defined fields from the schema.
- *
- * **IMPORTANT:** Relation fields are branded as `Relation<T>` for type-safe
- * nested WHERE queries. At runtime they contain the ID, but at type-level
- * they represent the full related entity.
- *
- * @template S - Schema definition
- * @returns Type that combines ForjaEntry with inferred field types
+ * Define a schema definition.
+ * Returns the schema as-is with const inference preserved.
  *
  * @example
  * ```ts
- * const userSchema = defineSchema({
- *   name: 'User',
- *   fields: {
- *     name: { type: 'string', required: true },
- *     email: { type: 'string' }
- *   }
- * } as const);
- *
- * type User = InferSchemaType<typeof userSchema>;
- * // → { id: number; createdAt: Date; updatedAt: Date; name: string; email?: string }
- *
  * const postSchema = defineSchema({
- *   name: 'Post',
- *   fields: {
- *     title: { type: 'string', required: true },
- *     author: { type: 'relation', model: 'User', kind: 'belongsTo' }
- *   }
- * } as const);
- *
- * type Post = InferSchemaType<typeof postSchema>;
- * // → { id: number; ...; title: string; author?: Relation<User> }
- * //                                              ^^^^^^^^^^^^^^^^
- * //                                              Branded for type-safe WHERE!
- * ```
- */
-export type InferSchemaType<S extends SchemaDefinition<string>> = ForjaEntry & {
-	[K in keyof S["fields"]]: S["fields"][K] extends { required: true }
-	? InferFieldType<S["fields"][K]>
-	: InferFieldType<S["fields"][K]> | undefined;
-};
-
-/**
- * Type brand symbol (compile-time only, no runtime overhead)
- */
-declare const __typeBrand: unique symbol;
-
-/**
- * Schema with inferred type (branded for type safety)
- */
-export interface TypedSchema<
-	T,
-	TRoles extends string = string,
-> extends SchemaDefinition<TRoles> {
-	readonly [__typeBrand]?: T; // Optional phantom type, no runtime cost
-}
-
-/**
- * Define schema with type inference
- *
- * @example
- * ```ts
- * const roles = ['admin', 'editor', 'user'] as const;
- * type Roles = typeof roles[number];
- *
- * const postSchema = defineSchema<Roles>({
  *   name: 'post',
  *   fields: {
  *     title: { type: 'string', required: true },
@@ -781,11 +693,8 @@ export interface TypedSchema<
  * });
  * ```
  */
-export function defineSchema<const T extends SchemaDefinition>(
-	schema: T,
-): TypedSchema<InferSchemaType<T>> {
-	// No runtime transformation needed - type brand is compile-time only
-	return schema as TypedSchema<InferSchemaType<T>>;
+export function defineSchema<const T extends SchemaDefinition>(schema: T): T {
+	return schema;
 }
 
 /**
