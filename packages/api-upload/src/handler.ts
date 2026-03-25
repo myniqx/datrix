@@ -1,0 +1,236 @@
+/**
+ * Upload Handler
+ *
+ * POST /upload       — multipart/form-data parse, format conversion, variant generation, DB record
+ * DELETE /upload/:id — provider delete (all variants) + DB record delete
+ *
+ * GET /upload and GET /upload/:id fall through to normal CRUD.
+ */
+
+import type { Forja } from "forja-core";
+import type { UploadFile, MediaVariants } from "forja-types/api";
+import type { ForjaEntry } from "forja-types/core/schema";
+import {
+	ForjaApiError,
+	handlerError,
+	jsonResponse,
+	forjaErrorResponse,
+} from "@forja/api";
+import { ForjaError, ForjaValidationError } from "forja-types/errors";
+import type { UploadOptions } from "./types";
+import { convertFormat, generateVariants, isImage } from "./processor";
+
+export interface UploadHandlerOptions {
+	forja: Forja;
+	uploadOptions: UploadOptions;
+}
+
+export async function handleUploadRequest(
+	request: Request,
+	options: UploadHandlerOptions,
+): Promise<Response> {
+	try {
+		const { method } = request;
+		const url = new URL(request.url);
+
+		const pathAfterUpload = url.pathname.replace(/.*\/upload/, "");
+		const idSegment = pathAfterUpload.replace(/^\//, "").split("/")[0];
+		const id =
+			idSegment !== undefined && idSegment !== "" ? Number(idSegment) : null;
+
+		if (method === "POST" && id === null) {
+			return await handleUpload(request, options);
+		}
+
+		if (method === "DELETE" && id !== null) {
+			return await handleDeleteMedia(id, options);
+		}
+
+		return forjaErrorResponse(handlerError.methodNotAllowed(method));
+	} catch (error) {
+		if (error instanceof ForjaValidationError || error instanceof ForjaError) {
+			return forjaErrorResponse(error);
+		}
+
+		const message = error instanceof Error ? error.message : "Upload failed";
+		return forjaErrorResponse(
+			handlerError.internalError(
+				message,
+				error instanceof Error ? error : undefined,
+			),
+		);
+	}
+}
+
+async function handleUpload(
+	request: Request,
+	options: UploadHandlerOptions,
+): Promise<Response> {
+	const { forja, uploadOptions } = options;
+	const modelName = uploadOptions.modelName ?? "media";
+
+	const contentType = request.headers.get("content-type") ?? "";
+	if (!contentType.includes("multipart/form-data")) {
+		return forjaErrorResponse(
+			handlerError.invalidBody("Expected multipart/form-data"),
+		);
+	}
+
+	let formData: FormData;
+	try {
+		formData = await request.formData();
+	} catch (error) {
+		const cause = error instanceof Error ? error : undefined;
+		throw new ForjaApiError("Failed to parse multipart form data", {
+			code: "MULTIPART_PARSE_ERROR",
+			status: 400,
+			...(cause !== undefined && { cause }),
+		});
+	}
+
+	const fileEntry = formData.get("file");
+	if (!(fileEntry instanceof File)) {
+		return forjaErrorResponse(
+			handlerError.invalidBody("No file field in form data"),
+		);
+	}
+
+	const buffer = await fileEntry.arrayBuffer();
+	const rawFile: UploadFile = {
+		filename: fileEntry.name,
+		originalName: fileEntry.name,
+		mimetype: fileEntry.type,
+		size: fileEntry.size,
+		buffer: new Uint8Array(buffer),
+	};
+
+	validateFileLimits(rawFile, uploadOptions);
+
+	// Format conversion (if configured and file is an image)
+	const quality = uploadOptions.quality ?? 80;
+	const fileToUpload =
+		uploadOptions.format !== undefined && isImage(rawFile.mimetype)
+			? await convertFormat(rawFile, uploadOptions.format, quality)
+			: rawFile;
+
+	const uploadFile: UploadFile = {
+		filename: fileToUpload.filename,
+		originalName: rawFile.originalName,
+		mimetype: fileToUpload.mimetype,
+		size: fileToUpload.buffer.length,
+		buffer: fileToUpload.buffer,
+	};
+
+	// Upload original (or converted) file
+	const result = await uploadOptions.provider.upload(uploadFile);
+
+	// Generate resolution variants (if configured and file is an image)
+	let variants: MediaVariants | null = null;
+	if (uploadOptions.resolutions !== undefined && isImage(uploadFile.mimetype)) {
+		const generated = await generateVariants(
+			uploadFile,
+			uploadOptions.resolutions,
+			uploadOptions.format,
+			quality,
+			async (variantFile) => {
+				const variantResult = await uploadOptions.provider.upload(variantFile);
+				return { url: variantResult.url, key: variantResult.key };
+			},
+		);
+		variants = generated;
+	}
+
+	const mediaRecord = await forja.raw.create(modelName, {
+		filename: result.key,
+		originalName: uploadFile.originalName,
+		mimeType: uploadFile.mimetype,
+		size: uploadFile.size,
+		url: result.url,
+		key: result.key,
+		...(variants !== null && { variants }),
+	});
+
+	return jsonResponse({ data: mediaRecord }, 201);
+}
+
+/**
+ * DELETE /upload/:id
+ * Deletes all variant keys from storage, then the main record.
+ */
+async function handleDeleteMedia(
+	id: number,
+	options: UploadHandlerOptions,
+): Promise<Response> {
+	const { forja, uploadOptions } = options;
+	const modelName = uploadOptions.modelName ?? "media";
+
+	type MediaRecord = {
+		key: string;
+		variants: Record<string, { url: string }> | null;
+	} & ForjaEntry;
+	const record = await forja.raw.findOne<MediaRecord>(modelName, { id });
+
+	if (record === null) {
+		return forjaErrorResponse(handlerError.recordNotFound(modelName, id));
+	}
+
+	// Delete variant files from storage
+	if (record.variants !== null && record.variants !== undefined) {
+		for (const variant of Object.values(record.variants)) {
+			const variantKey = extractKeyFromUrl(variant.url, record.key);
+			await uploadOptions.provider.delete(variantKey);
+		}
+	}
+
+	// Delete main file from storage
+	await uploadOptions.provider.delete(record.key);
+	await forja.raw.delete(modelName, id);
+
+	return jsonResponse({ data: { id } });
+}
+
+/**
+ * Derive variant storage key from its URL using the original key as a pattern.
+ * Providers store variants with the same path prefix as the original.
+ */
+function extractKeyFromUrl(variantUrl: string, originalKey: string): string {
+	const prefix = originalKey.includes("/")
+		? originalKey.substring(0, originalKey.lastIndexOf("/") + 1)
+		: "";
+	const filename = variantUrl.substring(variantUrl.lastIndexOf("/") + 1);
+	return `${prefix}${filename}`;
+}
+
+function validateFileLimits(file: UploadFile, options: UploadOptions): void {
+	if (options.maxSize !== undefined && file.size > options.maxSize) {
+		throw new ForjaApiError(
+			`File size ${file.size} exceeds maximum allowed size ${options.maxSize}`,
+			{ code: "FILE_TOO_LARGE", status: 400 },
+		);
+	}
+
+	if (
+		options.allowedMimeTypes !== undefined &&
+		options.allowedMimeTypes.length > 0 &&
+		!isMimeTypeAllowed(file.mimetype, options.allowedMimeTypes)
+	) {
+		throw new ForjaApiError(`MIME type ${file.mimetype} is not allowed`, {
+			code: "INVALID_MIME_TYPE",
+			status: 400,
+		});
+	}
+}
+
+function isMimeTypeAllowed(
+	mimetype: string,
+	allowedTypes: readonly string[],
+): boolean {
+	for (const allowed of allowedTypes) {
+		if (allowed === mimetype) return true;
+		if (allowed.endsWith("/*")) {
+			const prefix = allowed.slice(0, -2);
+			if (mimetype.startsWith(prefix + "/")) return true;
+		}
+	}
+	return false;
+}
