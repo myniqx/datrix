@@ -239,7 +239,7 @@ export const FUNCTION_DEFINITIONS: Record<string, FunctionDefinition> = {
   authSource?: string,
 })`,
 		description:
-			"MongoDB adapter (experimental). Pass an instance to the adapter option in defineConfig().",
+			"MongoDB adapter. Pass an instance to the adapter option in defineConfig().",
 		docsPath: "/docs/adapters/mongodb",
 	},
 
@@ -295,6 +295,6 @@ export const FUNCTION_DEFINITIONS: Record<string, FunctionDefinition> = {
 	serializeQuery: {
 		signature: `serializeQuery<T extends ForjaEntry = ForjaEntry>(\n  query: ParsedQuery<T>,\n): RawQueryParams`,
 		description:
-			"Converts a ParsedQuery object into RawQueryParams (Strapi-style key/value pairs). Use queryToParams if you need a ready-to-use query string.",
+			"Converts a ParsedQuery object into RawQueryParams. Use queryToParams if you need a ready-to-use query string.",
 	},
 };

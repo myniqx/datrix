@@ -111,7 +111,7 @@ export const userSchema = defineSchema({
   //   update: true,
   //   delete: true,
   // },
-} as const)
+} satisfies SchemaDefinition)
 ```
 
 After editing, run `forja migrate` to apply the new table.

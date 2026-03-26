@@ -83,7 +83,7 @@ override async getSchemas(): Promise<SchemaDefinition[]> {
         userId:     { type: "number" },
         diff:       { type: "json" },
       },
-    } as const),
+    }),
   ]
 }
 ```
@@ -231,7 +231,7 @@ export class AuditLogPlugin extends BasePlugin<AuditLogOptions> {
           userId:     { type: "number" },
           diff:       { type: "json" },
         },
-      } as const),
+      }),
     ]
   }
 

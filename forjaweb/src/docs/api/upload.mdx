@@ -61,11 +61,11 @@ file: <binary>
     "originalName": "photo.jpg",
     "mimeType": "image/webp",
     "size": 48200,
-    "url": "https://example.com/uploads/1704067200000-abc123.webp",
     "key": "1704067200000-abc123.webp",
+    "url": "https://example.com/uploads/1704067200000-abc123.webp",
     "variants": {
-      "thumbnail": { "url": "...", "width": 150, "height": 150, "size": 4100, "mimeType": "image/webp" },
-      "small":     { "url": "...", "width": 320, "height": 213, "size": 12800, "mimeType": "image/webp" }
+      "thumbnail": { "key": "1704067200000-abc123-thumbnail.webp", "url": "...", "width": 150, "height": 150, "size": 4100, "mimeType": "image/webp" },
+      "small":     { "key": "1704067200000-abc123-small.webp", "url": "...", "width": 320, "height": 213, "size": 12800, "mimeType": "image/webp" }
     }
   }
 }
@@ -172,9 +172,9 @@ When upload is configured, `ApiPlugin` automatically registers a `media` schema 
 | `originalName` | `string` | Original filename from the upload |
 | `mimeType` | `string` | MIME type after any conversion |
 | `size` | `number` | File size in bytes |
-| `url` | `string` | Public URL |
-| `key` | `string` | Storage key used to delete the file from the provider |
-| `variants` | `json` | Map of resolution name → `MediaVariant` |
+| `key` | `string` | Storage key — used to build the URL and delete the file |
+| `url` | `string` | **Not stored.** Injected at response time via `provider.getUrl(key)` |
+| `variants` | `json` | Map of resolution name → `MediaVariant` (each variant stores `key`, not `url`) |
 
 ---
 

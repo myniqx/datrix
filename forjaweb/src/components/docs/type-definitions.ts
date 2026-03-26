@@ -455,19 +455,19 @@ export const TYPE_DEFINITIONS: Record<string, TypeDefinition> = {
 	},
 	StorageProvider: {
 		group: "Upload",
-		signature: `interface StorageProvider {\n  readonly name: string\n  upload(file: UploadFile):   Promise<UploadResult>\n  delete(key: string):        Promise<void>\n  getUrl(key: string):        Promise<string>\n  exists(key: string):        Promise<boolean>\n}`,
+		signature: `interface StorageProvider {\n  readonly name: string\n  upload(file: UploadFile):   Promise<UploadResult>\n  delete(key: string):        Promise<void>\n  getUrl(key: string):        string\n  exists(key: string):        Promise<boolean>\n}`,
 		description:
 			"Interface all storage backends must implement. Implement this to add a custom storage provider.",
 	},
 	MediaEntry: {
 		group: "Upload",
-		signature: `interface MediaEntry<TResolutions extends string = string> extends ForjaEntry {\n  filename:     string\n  originalName: string\n  mimeType:     string\n  size:         number\n  url:          string\n  key:          string\n  variants:     MediaVariants<TResolutions> | null\n}`,
+		signature: `interface MediaEntry<TResolutions extends string = string> extends ForjaEntry {\n  filename:     string\n  originalName: string\n  mimeType:     string\n  size:         number\n  key:          string\n  url:          string  // injected at response time, not stored in DB\n  variants:     MediaVariants<TResolutions> | null\n}`,
 		description:
-			'Shape of a media record stored in the database. Injected as the "media" schema by ApiPlugin when upload is configured.',
+			'Shape of a media record. key is stored in the database — url is derived at response time via the configured provider.',
 	},
 	MediaVariant: {
 		group: "Upload",
-		signature: `interface MediaVariant {\n  url:      string\n  width:    number\n  height:   number\n  size:     number\n  mimeType: string\n}`,
+		signature: `interface MediaVariant {\n  key:      string\n  url:      string  // injected at response time, not stored in DB\n  width:    number\n  height:   number\n  size:     number\n  mimeType: string\n}`,
 		description:
 			"A single processed resolution variant. Available in MediaEntry.variants under the resolution name.",
 	},
