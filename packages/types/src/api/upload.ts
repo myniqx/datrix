@@ -41,7 +41,7 @@ export interface StorageProvider {
 	readonly name: string;
 	upload(file: UploadFile): Promise<UploadResult>;
 	delete(key: string): Promise<void>;
-	getUrl(key: string): Promise<string>;
+	getUrl(key: string): string;
 	exists(key: string): Promise<boolean>;
 }
 
@@ -49,6 +49,7 @@ export interface StorageProvider {
  * A single processed variant (thumbnail, small, medium, etc.)
  */
 export interface MediaVariant {
+	readonly key: string;
 	readonly url: string;
 	readonly width: number;
 	readonly height: number;
@@ -183,6 +184,11 @@ export interface IUpload {
 	getSchemas(): Promise<SchemaDefinition[]> | SchemaDefinition[];
 	handleRequest(request: Request, forja: unknown): Promise<Response>;
 	getModelName(): string;
+	/**
+	 * Traverse any response data (including populated relations) and inject
+	 * url fields derived from key via the configured storage provider.
+	 */
+	injectUrls(data: unknown): Promise<unknown>;
 }
 
 /**

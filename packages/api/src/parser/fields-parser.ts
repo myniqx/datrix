@@ -1,7 +1,7 @@
 /**
  * Fields Parser
  *
- * Parses Strapi-style fields syntax into SelectClause.
+ * Parses fields query params into SelectClause.
  * Examples:
  *   ?fields[0]=name&fields[1]=email
  *   ?fields=name,email

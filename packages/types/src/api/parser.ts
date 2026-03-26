@@ -1,7 +1,7 @@
 /**
  * Parser Type Definitions
  *
- * Types for parsing Strapi-style query strings into QueryObject format.
+ * Types for parsing URL query strings into QueryObject format.
  * Supports: populate, fields, where, pagination, sorting
  */
 

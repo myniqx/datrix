@@ -1,7 +1,7 @@
 /**
  * Where Parser
  *
- * Parses Strapi-style where syntax into WhereClause.
+ * Parses where query params into WhereClause.
  * Examples:
  *   ?where[status]=active
  *   ?where[price][$gt]=100

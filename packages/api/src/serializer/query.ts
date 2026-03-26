@@ -1,7 +1,7 @@
 /**
  * Query Serializer
  *
- * Converts ParsedQuery objects into Strapi-style query strings (RawQueryParams).
+ * Converts ParsedQuery objects into RawQueryParams query strings.
  */
 
 import { ForjaEntry, ForjaRecord } from "forja-types";
@@ -37,7 +37,7 @@ export function queryToParams<T extends ForjaEntry = ForjaRecord>(
 }
 
 /**
- * Serialize ParsedQuery into RawQueryParams (Strapi-style)
+ * Serialize ParsedQuery into RawQueryParams
  *
  * @param query - The parsed query object to serialize
  * @returns Records of query parameters

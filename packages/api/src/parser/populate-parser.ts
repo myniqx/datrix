@@ -1,7 +1,7 @@
 /**
  * Populate Parser
  *
- * Parses Strapi-style populate syntax into PopulateClause.
+ * Parses populate query params into PopulateClause.
  * Examples:
  *   ?populate=*                                    -> populate all relations
  *   ?populate[profile]=*                           -> populate profile with all fields

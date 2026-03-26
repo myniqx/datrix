@@ -34,6 +34,8 @@ async function handleGet(ctx: RequestContext): Promise<Response> {
 		throw handlerError.schemaNotFound(ctx.url.pathname);
 	}
 
+	const { upload } = ctx.api;
+
 	if (ctx.id) {
 		const result = await forja.findById(schema.name, ctx.id, {
 			select: ctx.query?.select,
@@ -50,10 +52,12 @@ async function handleGet(ctx: RequestContext): Promise<Response> {
 				result,
 				ctx,
 			);
-			return jsonResponse({ data: filteredResult });
+			const data = upload ? await upload.injectUrls(filteredResult) : filteredResult;
+			return jsonResponse({ data });
 		}
 
-		return jsonResponse({ data: result });
+		const data = upload ? await upload.injectUrls(result) : result;
+		return jsonResponse({ data });
 	} else {
 		const page = ctx.query?.page ?? 1;
 		const pageSize = ctx.query?.pageSize ?? 25;
@@ -74,17 +78,19 @@ async function handleGet(ctx: RequestContext): Promise<Response> {
 
 		if (authEnabled) {
 			const filteredResults = await filterRecordsForRead(schema, result, ctx);
+			const data = upload ? await upload.injectUrls(filteredResults) : filteredResults;
 
 			const response: ResponseData<ForjaEntry> = {
-				data: filteredResults,
+				data: data as Partial<ForjaEntry>[],
 				meta: { total, page, pageSize, totalPages },
 			};
 
 			return jsonResponse(response);
 		}
 
+		const data = upload ? await upload.injectUrls(result) : result;
 		const response: ResponseData<ForjaEntry> = {
-			data: result,
+			data: data as ForjaEntry[],
 			meta: { total, page, pageSize, totalPages },
 		};
 
@@ -117,6 +123,8 @@ async function handlePost(ctx: RequestContext): Promise<Response> {
 		}
 	}
 
+	const { upload } = ctx.api;
+
 	const result = await forja.create(schema.name, body, {
 		select: query?.select,
 		populate: query?.populate,
@@ -128,10 +136,12 @@ async function handlePost(ctx: RequestContext): Promise<Response> {
 			result as unknown as ForjaEntry,
 			ctx,
 		);
-		return jsonResponse({ data: filteredResult }, 201);
+		const data = upload ? await upload.injectUrls(filteredResult) : filteredResult;
+		return jsonResponse({ data }, 201);
 	}
 
-	return jsonResponse({ data: result }, 201);
+	const data = upload ? await upload.injectUrls(result) : result;
+	return jsonResponse({ data }, 201);
 }
 
 /**
@@ -178,16 +188,20 @@ async function handleUpdate(ctx: RequestContext): Promise<Response> {
 		throw handlerError.recordNotFound(schema.name, id);
 	}
 
+	const { upload } = ctx.api;
+
 	if (authEnabled) {
 		const { data: filteredResult } = await filterFieldsForRead(
 			schema,
 			result as unknown as ForjaEntry,
 			ctx,
 		);
-		return jsonResponse({ data: filteredResult });
+		const data = upload ? await upload.injectUrls(filteredResult) : filteredResult;
+		return jsonResponse({ data });
 	}
 
-	return jsonResponse({ data: result });
+	const data = upload ? await upload.injectUrls(result) : result;
+	return jsonResponse({ data });
 }
 
 /**
