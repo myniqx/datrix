@@ -256,7 +256,7 @@ export class CrudOperations implements IRawCrud {
 	>(model: string, data: TInput, options?: RawCrudOptions<T>): Promise<T> {
 		const result = await this.createMany<T, TInput>(model, [data], {
 			...options,
-			action: options?.action ?? "create",
+			action: "create", // pass this to avoid "createMany" action in dispatcher for single record creation
 		});
 
 		return result[0]!;

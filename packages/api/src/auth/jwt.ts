@@ -14,6 +14,7 @@ import type {
 	TimeUnit,
 	ExpiryString,
 } from "./types";
+import { DEFAULT_API_AUTH_CONFIG } from "forja-types/config";
 import { isJwtPayload } from "./types";
 import {
 	throwJwtSignError,
@@ -43,7 +44,7 @@ export class JwtStrategy {
 
 	constructor(config: JwtConfig) {
 		this.secret = config.secret;
-		this.expiresIn = this.parseExpiry(config.expiresIn ?? "1h");
+		this.expiresIn = this.parseExpiry(config.expiresIn ?? DEFAULT_API_AUTH_CONFIG.jwt.expiresIn);
 		this.algorithm = config.algorithm ?? "HS256";
 		this.issuer = config.issuer;
 		this.audience = config.audience;

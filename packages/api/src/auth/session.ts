@@ -6,7 +6,8 @@
  */
 
 import { randomBytes } from "node:crypto";
-import type { SessionConfig, SessionData } from "./types";
+import type { SessionConfig, SessionData, SessionStore } from "./types";
+import { DEFAULT_API_AUTH_CONFIG } from "forja-types/config";
 import {
 	throwSessionCreateError,
 	throwSessionNotFound,
@@ -14,21 +15,28 @@ import {
 } from "./error-helper";
 import { ForjaAuthError } from "forja-types/errors";
 
+
+
 /**
  * Session Strategy
  *
  * Manages user sessions with configurable storage
  */
 export class SessionStrategy {
-	private readonly store: MemorySessionStore;
+	private readonly store: SessionStore;
 	private readonly maxAge: number; // in seconds
 	private readonly checkPeriod: number; // cleanup interval in seconds
 	private cleanupTimer: NodeJS.Timeout | undefined;
 
-	constructor(config: SessionConfig, store?: MemorySessionStore) {
+	constructor(config: SessionConfig) {
 		this.maxAge = config.maxAge ?? 86400; // default 24 hours
 		this.checkPeriod = config.checkPeriod ?? 3600; // default 1 hour
-		this.store = store ?? new MemorySessionStore(config.prefix);
+
+		if (config.store && typeof config.store !== "string") {
+			this.store = config.store;
+		} else {
+			this.store = new MemorySessionStore(config.prefix);
+		}
 	}
 
 	/**
@@ -190,12 +198,12 @@ export class SessionStrategy {
  *
  * Default session store implementation using Map
  */
-export class MemorySessionStore {
+export class MemorySessionStore implements SessionStore {
 	readonly name = "memory" as const;
 	private readonly sessions: Map<string, SessionData> = new Map();
 	private readonly prefix: string;
 
-	constructor(prefix = "sess:") {
+	constructor(prefix = DEFAULT_API_AUTH_CONFIG.session.prefix) {
 		this.prefix = prefix;
 	}
 

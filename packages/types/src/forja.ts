@@ -17,8 +17,9 @@ import { ForjaPlugin, QueryAction } from "./plugin";
 export interface RawCrudOptions<T extends ForjaEntry = ForjaRecord> {
 	select?: SelectClause<T> | undefined;
 	populate?: PopulateClause<T> | undefined;
-	action?: QueryAction;
 	noReturning?: boolean;
+	/** @internal Used by the dispatcher to identify the operation type for plugin hooks. */
+	action?: QueryAction;
 }
 
 export interface RawFindManyOptions<

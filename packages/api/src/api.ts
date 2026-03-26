@@ -12,8 +12,9 @@ import type {
 	SchemaDefinition,
 } from "forja-types/plugin";
 import { DefaultPermission, defineSchema } from "forja-types/core/schema";
+import { DEFAULT_API_AUTH_CONFIG } from "forja-types/config";
 import { AuthManager } from "./auth/manager";
-import { createAuthHandlers } from "./handler/auth-handler";
+import { createUnifiedAuthHandler } from "./handler/auth-handler";
 import { handleCrudRequest } from "./handler/unified";
 import { handlerError } from "./errors/api-error";
 import { ApiConfig } from "./types";
@@ -74,6 +75,14 @@ export class ApiPlugin<TRole extends string = string>
 
 	public get authDefaultRole(): TRole | undefined {
 		return this.authConfig?.defaultRole;
+	}
+
+	public get excludeSchemas(): readonly string[] {
+		return [
+			...(this.apiConfig.excludeSchemas ?? []),
+			"_forja",
+			"_forja_migrations",
+		];
 	}
 
 	private getTableName(schemaName: string): string {
@@ -314,7 +323,7 @@ export class ApiPlugin<TRole extends string = string>
 		const segments = pathAfterPrefix.split("/").filter(Boolean);
 		const model = segments[0];
 
-		if (model === "auth" && this.authConfig) {
+		if (this.authConfig && this.isAuthPath(url.pathname)) {
 			return this.handleAuthRequest(request, forja);
 		}
 
@@ -331,6 +340,21 @@ export class ApiPlugin<TRole extends string = string>
 		});
 	}
 
+	private isAuthPath(pathname: string): boolean {
+		const e = this.authConfig?.endpoints;
+		const d = DEFAULT_API_AUTH_CONFIG.endpoints;
+		const login    = e?.login    ?? d.login;
+		const register = e?.register ?? d.register;
+		const logout   = e?.logout   ?? d.logout;
+		const me       = e?.me       ?? d.me;
+		return (
+			pathname === login ||
+			pathname === register ||
+			pathname === logout ||
+			pathname === me
+		);
+	}
+
 	/**
 	 * Handle authentication requests
 	 */
@@ -344,38 +368,20 @@ export class ApiPlugin<TRole extends string = string>
 			);
 		}
 
-		const authHandlers = createAuthHandlers({
+		const handler = createUnifiedAuthHandler({
 			forja,
 			authManager: this.authManager,
 			authConfig: this.authConfig!,
 		});
 
-		const url = new URL(request.url);
-		const method = request.method;
-
-		if (url.pathname.endsWith("/register") && method === "POST") {
-			return authHandlers.register(request);
-		}
-		if (url.pathname.endsWith("/login") && method === "POST") {
-			return authHandlers.login(request);
-		}
-		if (url.pathname.endsWith("/logout") && method === "POST") {
-			return authHandlers.logout(request);
-		}
-		if (url.pathname.endsWith("/me") && method === "GET") {
-			return authHandlers.me(request);
-		}
-
-		return forjaErrorResponse(
-			handlerError.recordNotFound("Auth Route", url.pathname),
-		);
+		return handler(request);
 	}
 
 	/**
 	 * Check if API is enabled
 	 */
 	isEnabled(): boolean {
-		return this.apiConfig.enabled ?? true;
+		return !(this.apiConfig.disabled ?? false);
 	}
 
 	/**

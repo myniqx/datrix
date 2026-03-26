@@ -236,6 +236,10 @@ export async function handleCrudRequest<TRole extends string = string>(
 			throw handlerError.modelNotSpecified();
 		}
 
+		if (api.excludeSchemas.includes(ctx.schema.name)) {
+			throw handlerError.schemaNotFound(ctx.url.pathname);
+		}
+
 		if (ctx.authEnabled) {
 			const permissionResult = await checkSchemaPermission(
 				ctx.schema,

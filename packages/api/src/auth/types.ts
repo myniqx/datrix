@@ -23,6 +23,19 @@ export interface JwtPayload {
 }
 
 /**
+ * Session store interface
+ *
+ * Implement this to use a custom session backend (Redis, database, etc.)
+ */
+export interface SessionStore {
+	get(sessionId: string): Promise<SessionData | undefined>;
+	set(sessionId: string, data: SessionData): Promise<void>;
+	delete(sessionId: string): Promise<void>;
+	cleanup(): Promise<number>;
+	clear(): Promise<void>;
+}
+
+/**
  * Session data
  */
 export interface SessionData {
@@ -79,18 +92,18 @@ export interface JwtHeader {
 }
 
 /**
- * Session storage type
- */
-export type SessionStoreType = "memory" | "redis" | "database";
-
-/**
  * Session configuration
  */
 export interface SessionConfig {
-	readonly store?: SessionStoreType;
+	/**
+	 * Session storage backend.
+	 * Pass a custom SessionStore implementation for Redis, database, etc.
+	 * Defaults to in-memory store.
+	 */
+	readonly store?: "memory" | SessionStore;
 	readonly maxAge?: number; // seconds
 	readonly checkPeriod?: number; // cleanup interval in seconds
-	readonly prefix?: string; // session key prefix
+	readonly prefix?: string; // session key prefix (only used with default memory store)
 }
 
 /**

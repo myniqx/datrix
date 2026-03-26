@@ -60,6 +60,11 @@ export interface IApiPlugin<TRole extends string = string> {
 	readonly authDefaultRole: TRole | undefined;
 
 	/**
+	 * Schemas excluded from auto-generated routes (always includes internal Forja tables)
+	 */
+	readonly excludeSchemas: readonly string[];
+
+	/**
 	 * Check if API is enabled
 	 */
 	isEnabled(): boolean;

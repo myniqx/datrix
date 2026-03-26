@@ -33,10 +33,12 @@ export interface ApiConfig<TRole extends string = string> extends Record<
 	unknown
 > {
 	/**
-	 * Enable API routes
-	 * @default true
+	 * Disable all HTTP request handling.
+	 * The plugin remains loaded — schemas are still injected and migrations still run.
+	 * Use this when you want the DB schema to stay in sync but don't want to expose REST endpoints.
+	 * @default false
 	 */
-	readonly enabled?: boolean;
+	readonly disabled?: boolean;
 
 	/**
 	 * API route prefix
@@ -80,16 +82,9 @@ export interface ApiConfig<TRole extends string = string> extends Record<
 	 */
 	readonly upload?: IUpload;
 
-	readonly disabled?: boolean;
-	/**
-	 * Auto-generate CRUD routes for schemas
-	 * @default true
-	 */
-	readonly autoRoutes?: boolean;
-
 	/**
 	 * Exclude schemas from auto-generated routes
-	 * 'auth' is always reserved for authentication endpoints
+	 * '_forja' and '_forja_migrations' are always excluded
 	 * @default []
 	 */
 	readonly excludeSchemas?: readonly string[];

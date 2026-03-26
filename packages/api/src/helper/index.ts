@@ -172,10 +172,10 @@ export async function handleRequest(
 			return forjaErrorResponse(errRes);
 		}
 
-		// 2. Check if API is enabled (api.enabled = false)
+		// 2. Check if API is disabled
 		if (!api.isEnabled()) {
 			const errRes = handlerError.internalError(
-				'API is disabled. Set "enabled: true" in ForjaApi configuration.',
+				'API is disabled. Remove "disabled: true" from ApiPlugin configuration.',
 			);
 			return forjaErrorResponse(errRes);
 		}
