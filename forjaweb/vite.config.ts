@@ -8,6 +8,8 @@ import remarkMdxFrontmatter from "remark-mdx-frontmatter";
 import remarkGfm from "remark-gfm";
 import remarkTocExport from "./src/lib/remark-toc-export";
 import rehypeSlug from "rehype-slug";
+import { llmsPlugin } from "./src/lib/vite-plugin-llms";
+import { buildTypesMarkdown } from "./src/components/docs/build-types-markdown";
 
 export default defineConfig({
 	plugins: [
@@ -23,5 +25,10 @@ export default defineConfig({
 		}),
 		react(),
 		tsconfigPaths(),
+		llmsPlugin({
+			markdownOverrides: {
+				"core/types": buildTypesMarkdown(),
+			},
+		}),
 	],
 });

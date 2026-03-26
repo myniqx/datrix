@@ -30,6 +30,8 @@ const modules = import.meta.glob<DocModule>("/src/docs/**/*.mdx", {
 	eager: true,
 });
 
+import { DOC_RAWS } from "virtual:doc-raws";
+
 function isPartial(path: string): boolean {
 	return path.includes("/_partials/");
 }
@@ -132,4 +134,8 @@ export function buildDocNav(): DocNavSection[] {
 
 export function getDocModule(slug: string): DocModule | undefined {
 	return modules[`/src/docs/${slug}.mdx`];
+}
+
+export function getDocRaw(slug: string): string | undefined {
+	return DOC_RAWS[slug];
 }

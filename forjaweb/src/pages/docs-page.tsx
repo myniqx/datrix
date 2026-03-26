@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Outlet, useLocation, Link } from "react-router-dom";
 import { DocsNavbar } from "@/components/layout/docs-navbar";
-import { buildDocNav, getDocModule } from "@/docs/use-doc-nav";
+import { buildDocNav, getDocModule, getDocRaw } from "@/docs/use-doc-nav";
 import type { TocItem } from "@/lib/remark-toc-export";
 import { DocsCodeBlock } from "@/components/docs/code-block";
+import { CopyButton } from "@/components/ui/copy-button";
+import { buildTypesMarkdown } from "@/components/docs/build-types-markdown";
 
 const MDX_COMPONENTS = { pre: DocsCodeBlock };
 
@@ -16,23 +18,24 @@ function SidebarLink({
 	title,
 	currentSlug,
 	isSection = false,
+	hasActiveChild = false,
 }: {
 	slug: string;
 	title: string;
 	currentSlug: string;
 	isSection?: boolean;
+	hasActiveChild?: boolean;
 }) {
 	const isActive = currentSlug === slug;
+	const isHighlighted = isActive || (isSection && hasActiveChild);
 	return (
 		<Link
 			to={`/docs/${slug}`}
-			className={`group flex items-center gap-2 rounded-md transition-colors ${
-				isSection ? "text-sm font-medium py-1.5 px-2" : "text-sm py-1 px-2"
-			} ${
-				isActive
+			className={`group flex items-center gap-2 rounded-md transition-colors ${isSection ? "text-sm font-medium py-1.5 px-2" : "text-sm py-1 px-2"
+				} ${isHighlighted
 					? "text-foreground"
 					: "text-foreground/55 hover:text-foreground"
-			}`}
+				}`}
 		>
 			{isActive && !isSection && (
 				<span className="w-1 h-1 rounded-full bg-primary shrink-0" />
@@ -49,9 +52,14 @@ function DocsSidebar({ currentSlug }: { currentSlug: string }) {
 	return (
 		<aside className="hidden md:block w-56 shrink-0 sticky top-14 self-start h-[calc(100vh-3.5rem)] overflow-y-auto pt-8 pr-6">
 			{NAV_SECTIONS.map((section) => {
-				const sectionActive =
-					section.slug === currentSlug ||
+				const isIndexActive =
+					section.slug !== null &&
+					currentSlug === `${section.slug}/index`;
+				const hasActiveChild =
+					isIndexActive ||
 					section.items.some((i) => i.slug === currentSlug);
+				const sectionActive =
+					section.slug === currentSlug || hasActiveChild;
 
 				return (
 					<div key={section.title || "__root__"} className="mb-5">
@@ -62,6 +70,7 @@ function DocsSidebar({ currentSlug }: { currentSlug: string }) {
 									title={section.title}
 									currentSlug={currentSlug}
 									isSection
+									hasActiveChild={hasActiveChild}
 								/>
 							) : (
 								<p className="text-[11px] font-semibold uppercase tracking-widest text-foreground/30 mb-1.5 px-2">
@@ -70,9 +79,8 @@ function DocsSidebar({ currentSlug }: { currentSlug: string }) {
 							))}
 						{section.items.length > 0 && (
 							<nav
-								className={`flex flex-col border-l mt-0.5 ml-3 pl-3 ${
-									sectionActive ? "border-border/60" : "border-border/25"
-								}`}
+								className={`flex flex-col border-l mt-0.5 ml-3 pl-3 ${sectionActive ? "border-border/60" : "border-border/25"
+									}`}
 							>
 								{section.items.map((item) => (
 									<SidebarLink
@@ -136,13 +144,11 @@ function DocsToc({ items }: { items: TocItem[] }) {
 					<a
 						key={item.id}
 						href={`#${item.id}`}
-						className={`text-sm py-1 transition-colors border-l -ml-px ${
-							item.depth === 3 ? "pl-5" : "pl-3"
-						} ${
-							activeId === item.id
+						className={`text-sm py-1 transition-colors border-l -ml-px ${item.depth === 3 ? "pl-5" : "pl-3"
+							} ${activeId === item.id
 								? "text-foreground border-primary"
 								: "text-foreground/50 border-transparent hover:text-foreground/80 hover:border-border"
-						}`}
+							}`}
 					>
 						{item.text}
 					</a>
@@ -197,6 +203,27 @@ export function DocsLayout() {
 	);
 }
 
+// --- Copy for LLM button ---
+
+function stripMdxJsx(raw: string): string {
+	const noImports = raw.replace(/^import\s+.*$/gm, "");
+	const noSelfClosing = noImports.replace(/<[A-Z][A-Za-z]*[^>]*\/>/g, "");
+	const noBlock = noSelfClosing.replace(
+		/<[A-Z][A-Za-z]*[^>]*>[\s\S]*?<\/[A-Z][A-Za-z]*>/g,
+		"",
+	);
+	return noBlock.replace(/\n{3,}/g, "\n\n").trim();
+}
+
+
+function CopyForLlmButton({ slug }: { slug: string }): React.ReactElement | null {
+	const isTypes = slug === "core/types";
+	const raw = isTypes ? buildTypesMarkdown() : getDocRaw(slug);
+	if (!raw) return null;
+	const text = isTypes ? raw : stripMdxJsx(raw);
+	return <CopyButton text={text} label="copy for LLM" />;
+}
+
 // --- Content ---
 
 export default function DocsContent() {
@@ -213,12 +240,17 @@ export default function DocsContent() {
 	}, [hash, currentSlug]);
 
 	return (
-		<article className="prose prose-invert max-w-3xl">
-			{DocComponent ? (
-				<DocComponent components={MDX_COMPONENTS} />
-			) : (
-				<p className="text-foreground/50">Page not found.</p>
-			)}
-		</article>
+		<div>
+			<div className="flex justify-end mb-4">
+				<CopyForLlmButton slug={currentSlug} />
+			</div>
+			<article className="prose prose-invert max-w-3xl">
+				{DocComponent ? (
+					<DocComponent components={MDX_COMPONENTS} />
+				) : (
+					<p className="text-foreground/50">Page not found.</p>
+				)}
+			</article>
+		</div>
 	);
 }

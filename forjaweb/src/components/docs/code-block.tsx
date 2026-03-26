@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { CopyButton } from "@/components/ui/copy-button";
 import { TYPE_DEFINITIONS, normalizeTypeName } from "./type-definitions";
 import { FUNCTION_DEFINITIONS } from "./function-definitions";
 import {
@@ -607,19 +608,61 @@ function bashTokenColor(kind: BashTokenKind): string {
 	}
 }
 
+function BashLine({
+	tokens,
+	isComment,
+	isEmpty,
+}: {
+	tokens: BashToken[];
+	isComment: boolean;
+	isEmpty: boolean;
+}): React.ReactElement {
+	const copyableText = tokens.map((t) => t.value).join("").trimEnd();
+
+	return (
+		<div className="group flex items-center gap-2 min-w-0">
+			<span className="select-none shrink-0" style={{ color: "#52525b" }}>
+				{isEmpty ? " " : "$"}
+			</span>
+			<span className="flex-1 min-w-0">
+				{tokens.map((t, i) => (
+					<span key={i} style={{ color: bashTokenColor(t.kind) }}>
+						{t.value}
+					</span>
+				))}
+			</span>
+			{!isComment && !isEmpty && (
+				<span className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+					<CopyButton text={copyableText} className="rounded px-1.5 py-0.5 bg-zinc-800 text-foreground/50 hover:text-foreground/80" />
+				</span>
+			)}
+		</div>
+	);
+}
+
 function BashBlock({ code }: { code: string }): React.ReactElement {
-	const tokens = tokenizeBash(code.trimEnd());
+	const lines = code.trimEnd().split("\n");
+
 	return (
 		<pre
 			className="rounded-lg border font-mono text-sm leading-7 overflow-x-auto px-5 py-4"
 			style={{ backgroundColor: "#09090b", borderColor: "#27272a" }}
 		>
 			<code>
-				{tokens.map((t, i) => (
-					<span key={i} style={{ color: bashTokenColor(t.kind) }}>
-						{t.value}
-					</span>
-				))}
+				{lines.map((line, i) => {
+					const trimmed = line.trimStart();
+					const isEmpty = trimmed === "";
+					const isComment = trimmed.startsWith("#");
+					const tokens = tokenizeBash(line);
+					return (
+						<BashLine
+							key={i}
+							tokens={tokens}
+							isComment={isComment}
+							isEmpty={isEmpty}
+						/>
+					);
+				})}
 			</code>
 		</pre>
 	);
