@@ -98,7 +98,7 @@ export async function generateVariants<TResolutions extends string>(
 	resolutions: Record<TResolutions, ResolutionConfig>,
 	format: ImageFormat | undefined,
 	quality: number,
-	uploadFn: (variantFile: UploadFile) => Promise<{ url: string; key: string }>,
+	uploadFn: (variantFile: UploadFile) => Promise<{ key: string }>,
 ): Promise<MediaVariants<TResolutions>> {
 	if (!isImage(file.mimetype)) {
 		return {};
@@ -152,7 +152,7 @@ export async function generateVariants<TResolutions extends string>(
 			const uploaded = await uploadFn(variantFile);
 
 			variants[name] = {
-				url: uploaded.url,
+				key: uploaded.key,
 				width: variantBuffer.info.width,
 				height: variantBuffer.info.height,
 				size: variantBuffer.data.length,

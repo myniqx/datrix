@@ -22,7 +22,6 @@ export function createMediaSchema(
 			originalName: { type: "string", required: true },
 			mimeType: { type: "string", required: true },
 			size: { type: "number", required: true, integer: true },
-			url: { type: "string", required: true },
 			key: { type: "string", required: true },
 			variants: { type: "json" },
 		},

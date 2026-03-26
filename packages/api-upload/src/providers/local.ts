@@ -53,7 +53,6 @@ export class LocalStorageProvider implements StorageProvider {
 
 			return {
 				key: uniqueFilename,
-				url: this.buildUrl(uniqueFilename),
 				size: file.size,
 				mimetype: file.mimetype,
 				uploadedAt: new Date(),
@@ -88,7 +87,7 @@ export class LocalStorageProvider implements StorageProvider {
 		}
 	}
 
-	async getUrl(key: string): Promise<string> {
+	getUrl(key: string): string {
 		return this.buildUrl(key);
 	}
 

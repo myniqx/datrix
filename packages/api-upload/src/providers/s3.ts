@@ -53,7 +53,6 @@ export class S3StorageProvider implements StorageProvider {
 
 			return {
 				key,
-				url: await this.getUrl(key),
 				size: file.size,
 				mimetype: file.mimetype,
 				uploadedAt: new Date(),
@@ -75,7 +74,7 @@ export class S3StorageProvider implements StorageProvider {
 		}
 	}
 
-	async getUrl(key: string): Promise<string> {
+	getUrl(key: string): string {
 		return `https://${this.bucket}.${this.endpoint}/${key}`;
 	}
 

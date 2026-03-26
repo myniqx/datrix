@@ -23,6 +23,7 @@ import { convertFormat, generateVariants, isImage } from "./processor";
 export interface UploadHandlerOptions {
 	forja: Forja;
 	uploadOptions: UploadOptions;
+	injectUrls?: (data: unknown) => Promise<unknown>;
 }
 
 export async function handleUploadRequest(
@@ -134,7 +135,7 @@ async function handleUpload(
 			quality,
 			async (variantFile) => {
 				const variantResult = await uploadOptions.provider.upload(variantFile);
-				return { url: variantResult.url, key: variantResult.key };
+				return { key: variantResult.key };
 			},
 		);
 		variants = generated;
@@ -145,12 +146,15 @@ async function handleUpload(
 		originalName: uploadFile.originalName,
 		mimeType: uploadFile.mimetype,
 		size: uploadFile.size,
-		url: result.url,
 		key: result.key,
 		...(variants !== null && { variants }),
 	});
 
-	return jsonResponse({ data: mediaRecord }, 201);
+	const data = options.injectUrls
+		? await options.injectUrls(mediaRecord)
+		: mediaRecord;
+
+	return jsonResponse({ data }, 201);
 }
 
 /**
@@ -166,7 +170,7 @@ async function handleDeleteMedia(
 
 	type MediaRecord = {
 		key: string;
-		variants: Record<string, { url: string }> | null;
+		variants: Record<string, { key: string }> | null;
 	} & ForjaEntry;
 	const record = await forja.raw.findOne<MediaRecord>(modelName, { id });
 
@@ -177,8 +181,7 @@ async function handleDeleteMedia(
 	// Delete variant files from storage
 	if (record.variants !== null && record.variants !== undefined) {
 		for (const variant of Object.values(record.variants)) {
-			const variantKey = extractKeyFromUrl(variant.url, record.key);
-			await uploadOptions.provider.delete(variantKey);
+			await uploadOptions.provider.delete(variant.key);
 		}
 	}
 
@@ -189,17 +192,6 @@ async function handleDeleteMedia(
 	return jsonResponse({ data: { id } });
 }
 
-/**
- * Derive variant storage key from its URL using the original key as a pattern.
- * Providers store variants with the same path prefix as the original.
- */
-function extractKeyFromUrl(variantUrl: string, originalKey: string): string {
-	const prefix = originalKey.includes("/")
-		? originalKey.substring(0, originalKey.lastIndexOf("/") + 1)
-		: "";
-	const filename = variantUrl.substring(variantUrl.lastIndexOf("/") + 1);
-	return `${prefix}${filename}`;
-}
 
 function validateFileLimits(file: UploadFile, options: UploadOptions): void {
 	if (options.maxSize !== undefined && file.size > options.maxSize) {

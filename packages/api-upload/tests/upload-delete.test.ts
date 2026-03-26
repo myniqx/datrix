@@ -120,7 +120,7 @@ describe("Upload Delete Tests", () => {
 			const deleteResponse = await handleRequest(
 				createDeleteRequest(`/api/upload/${id}`),
 			);
-			const deleteData = await expectApiSingle<{ id: number }>(
+			const deleteData = await expectApiSingle(
 				deleteResponse,
 				200,
 			);
