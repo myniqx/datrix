@@ -28,9 +28,10 @@ new ApiPlugin<Role>({
 		} satisfies JwtConfig,
 
 		session: {
-			store: "memory", // "memory" | "redis" | "database"
-			maxAge: 3600, // seconds — default: 3600
-			checkPeriod: 600, // cleanup interval in seconds
+			store: "memory",   // "memory" (default) or a custom SessionStore instance
+			maxAge: 86400,     // seconds — default: 86400 (24 hours)
+			checkPeriod: 3600, // expired session cleanup interval in seconds — default: 3600
+			prefix: "forja:session:",   // session key prefix for memory store — default: "forja:session:"
 		} satisfies SessionConfig,
 
 		defaultPermission: {
@@ -185,18 +186,38 @@ auth: {
 | Option      | Type                 | Default   | Description                                 |
 | ----------- | -------------------- | --------- | ------------------------------------------- |
 | `secret`    | `string`             | —         | **Required.** Min 32 characters.            |
-| `expiresIn` | `string \| number`   | `"1h"`    | Token lifetime. String (`"7d"`) or seconds. |
+| `expiresIn` | `string \| number`   | `"7d"`    | Token lifetime. String (`"7d"`) or seconds. |
 | `algorithm` | `"HS256" \| "HS512"` | `"HS256"` | Signing algorithm.                          |
 | `issuer`    | `string`             | —         | JWT `iss` claim.                            |
 | `audience`  | `string`             | —         | JWT `aud` claim.                            |
 
 ### `auth.session`
 
-| Option        | Type                                | Default    | Description                                  |
-| ------------- | ----------------------------------- | ---------- | -------------------------------------------- |
-| `store`       | `"memory" \| "redis" \| "database"` | `"memory"` | Session storage backend.                     |
-| `maxAge`      | `number`                            | `3600`     | Session lifetime in seconds.                 |
-| `checkPeriod` | `number`                            | `600`      | Expired session cleanup interval in seconds. |
+| Option        | Type                          | Default    | Description                                                      |
+| ------------- | ----------------------------- | ---------- | ---------------------------------------------------------------- |
+| `store`       | `"memory" \| SessionStore`    | `"memory"` | Session storage backend. Pass a `SessionStore` instance for custom backends (Redis, database, etc.). |
+| `maxAge`      | `number`                      | `86400`    | Session lifetime in seconds.                                     |
+| `checkPeriod` | `number`                      | `3600`     | Expired session cleanup interval in seconds.                     |
+| `prefix`      | `string`                      | `"forja:session:"` | Session key prefix — only used with the default memory store.    |
+
+To use a custom store, implement the `SessionStore` interface exported from `@forja/api`:
+
+```typescript
+import type { SessionStore, SessionData } from "@forja/api"
+
+class RedisSessionStore implements SessionStore {
+  async get(id: string): Promise<SessionData | undefined> { ... }
+  async set(id: string, data: SessionData): Promise<void> { ... }
+  async delete(id: string): Promise<void> { ... }
+  async cleanup(): Promise<number> { ... }
+  async clear(): Promise<void> { ... }
+}
+
+// Then pass it to session config:
+session: {
+  store: new RedisSessionStore(redisClient),
+}
+```
 
 ### `auth.password`
 
@@ -212,3 +233,33 @@ auth: {
 | ------- | -------- | --------- | ---------------------------------------- |
 | `name`  | `string` | `"user"`  | Schema name for the user model.          |
 | `email` | `string` | `"email"` | Field name used as the login identifier. |
+
+### `auth.authSchemaName`
+
+| Option           | Type     | Default            | Description                                      |
+| ---------------- | -------- | ------------------ | ------------------------------------------------ |
+| `authSchemaName` | `string` | `"authentication"` | Name of the internal table that stores hashed passwords and session data alongside the user schema. |
+
+### `auth.endpoints`
+
+Override the default auth route paths or disable registration entirely:
+
+```typescript
+auth: {
+  endpoints: {
+    login:           "/auth/login",    // default
+    register:        "/auth/register", // default
+    logout:          "/auth/logout",   // default
+    me:              "/auth/me",       // default
+    disableRegister: false,            // set true to block new registrations
+  },
+}
+```
+
+| Option            | Type      | Default             | Description                          |
+| ----------------- | --------- | ------------------- | ------------------------------------ |
+| `login`           | `string`  | `"/auth/login"`     | Login endpoint path.                 |
+| `register`        | `string`  | `"/auth/register"`  | Register endpoint path.              |
+| `logout`          | `string`  | `"/auth/logout"`    | Logout endpoint path.                |
+| `me`              | `string`  | `"/auth/me"`        | Current user endpoint path.          |
+| `disableRegister` | `boolean` | `false`             | Block all new user registrations.    |

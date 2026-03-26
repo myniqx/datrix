@@ -5,7 +5,11 @@ import type { MdxjsEsm } from "mdast-util-mdx";
 
 // Inline types to avoid depending on "unified" and "mdast" packages directly
 type Root = { type: "root"; children: unknown[] };
-type Heading = { type: "heading"; depth: 1 | 2 | 3 | 4 | 5 | 6; children: unknown[] };
+type Heading = {
+	type: "heading";
+	depth: 1 | 2 | 3 | 4 | 5 | 6;
+	children: unknown[];
+};
 
 export interface TocItem {
 	depth: number; // 1 = h1, 2 = h2, 3 = h3

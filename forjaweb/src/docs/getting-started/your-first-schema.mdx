@@ -41,7 +41,7 @@ The `satisfies` keyword gives you full type checking without losing the literal 
 | `json` | Arbitrary JSON object |
 | `relation` | Reference to another schema |
 
-For full field options see [Core → Schema](/docs/core).
+For full field options see [Core: Schema](/docs/core/schema).
 
 ## Register schemas in config
 
@@ -57,5 +57,5 @@ export default defineConfig(() => ({
     connectionString: process.env.DATABASE_URL!,
   }),
   schemas: [userSchema],
-}))
+} satisfies ForjaConfig))
 ```

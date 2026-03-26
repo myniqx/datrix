@@ -16,7 +16,7 @@ pnpm add forja-core
 
 ## defineSchema
 
-Wraps a schema definition object and attaches compile-time type inference. At runtime it is a no-op — it simply returns the same object. The `as const` assertion is required so TypeScript infers literal types for `type`, `kind`, `values`, etc.
+A helper that lets TypeScript check your schema object against `SchemaDefinition`. At runtime it does nothing — it returns the object as-is. Using it is optional; passing a plain object directly is functionally identical.
 
 ```typescript
 import { defineSchema } from "forja-core";
@@ -26,7 +26,7 @@ const postSchema = defineSchema({
 	fields: {
 		title: { type: "string", required: true },
 	},
-} as const);
+});
 ```
 
 ### Schema options
@@ -46,7 +46,7 @@ defineSchema({
   hooks: { ... },    // lifecycle hooks — see below
 
   permission: { ... },  // schema-level permissions — see below
-} as const)
+})
 ```
 
 ---
@@ -237,7 +237,7 @@ export const userSchema = defineSchema({
 		update: (ctx: PermissionContext) => ctx.user?.id === ctx.id,
 		delete: ["admin"] as readonly Roles[],
 	},
-} as const);
+});
 
 // post.schema.ts
 export const postSchema = defineSchema({
@@ -318,7 +318,7 @@ export const postSchema = defineSchema({
 		update: ["admin", "editor"] as readonly Roles[],
 		delete: ["admin"] as readonly Roles[],
 	},
-} as const);
+});
 ```
 
 ---
@@ -392,7 +392,7 @@ export const postSchema = defineSchema({
       return results.filter((r) => (r as Post).status !== "archived")
     },
   },
-} as const)
+})
 ```
 
 ---
@@ -463,7 +463,7 @@ const getForja = defineConfig(() => ({
 	migration: {
 		auto: false, // auto-run migrations on startup (default: false)
 		directory: "./migrations", // where migration files are stored (default: ./migrations)
-		modelName: "_forja_migration", // migration history table name
+		modelName: "_forja_migrations", // migration history table name
 	},
 
 	// Optional: development settings

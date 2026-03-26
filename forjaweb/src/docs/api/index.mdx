@@ -27,10 +27,10 @@ export default defineConfig(() => ({
     new ApiPlugin({
       prefix: "/api",        // route prefix — default: '/api'
       defaultPageSize: 25,   // default page size — default: 25
-      maxPageSize: 100,       // maximum allowed page size — default: 100
+      maxPageSize: 100,      // maximum allowed page size — default: 100
       maxPopulateDepth: 5,   // max depth for nested populate — default: 5
-      autoRoutes: true,       // auto-generate CRUD routes — default: true
-      excludeSchemas: [],     // schemas to exclude from auto-routes
+      excludeSchemas: [],    // schemas to exclude from auto-routes — _forja and _forja_migrations are always excluded
+      disabled: false,       // disable HTTP request handling — plugin stays loaded, schemas are still injected and migrations still run
     } satisfies ApiConfig),
   ],
 }))
@@ -62,7 +62,7 @@ Four functions are exported from `@forja/api` for use in route handlers and clie
 
 ```typescript
 handleRequest(
-  forja:   Forja,    // initialized Forja instance
+  forja:   IForja,   // initialized Forja instance
   request: Request,  // Web API Request
 ): Promise<Response>
 ```

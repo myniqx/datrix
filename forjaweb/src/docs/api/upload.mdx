@@ -57,10 +57,12 @@ file: <binary>
 {
   "data": {
     "id": 1,
+    "filename": "1704067200000-abc123.webp",
     "originalName": "photo.jpg",
     "mimeType": "image/webp",
     "size": 48200,
     "url": "https://example.com/uploads/1704067200000-abc123.webp",
+    "key": "1704067200000-abc123.webp",
     "variants": {
       "thumbnail": { "url": "...", "width": 150, "height": 150, "size": 4100, "mimeType": "image/webp" },
       "small":     { "url": "...", "width": 320, "height": 213, "size": 12800, "mimeType": "image/webp" }
@@ -166,11 +168,12 @@ When upload is configured, `ApiPlugin` automatically registers a `media` schema 
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `filename` | `string` | Storage key (generated unique name) |
+| `filename` | `string` | Generated unique filename |
 | `originalName` | `string` | Original filename from the upload |
 | `mimeType` | `string` | MIME type after any conversion |
 | `size` | `number` | File size in bytes |
 | `url` | `string` | Public URL |
+| `key` | `string` | Storage key used to delete the file from the provider |
 | `variants` | `json` | Map of resolution name → `MediaVariant` |
 
 ---

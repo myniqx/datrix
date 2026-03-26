@@ -303,7 +303,14 @@ function HoverableToken({
 	}
 
 	function handleClick(): void {
-		if (definition.docsPath) navigate(definition.docsPath);
+		const typeDef = definition as TypeDefinition;
+		if (typeDef.skipDocs) return;
+		const fnDef = definition as FunctionDefinition;
+		if (fnDef.docsPath) {
+			navigate(fnDef.docsPath);
+			return;
+		}
+		navigate(`/docs/core/types#${value.toLowerCase()}`);
 	}
 
 	const tooltip = coords
@@ -345,7 +352,7 @@ function HoverableToken({
 								{definition.description}
 							</p>
 						)}
-						{definition.docsPath && (
+						{!(definition as TypeDefinition).skipDocs && (
 							<p
 								className="mt-2 font-sans text-xs"
 								style={{ color: "#60a5fa" }}
@@ -362,7 +369,7 @@ function HoverableToken({
 	return (
 		<span ref={ref} className="relative inline">
 			<span
-				style={{ color, cursor: definition.docsPath ? "pointer" : "help" }}
+				style={{ color, cursor: (definition as TypeDefinition).skipDocs ? "help" : "pointer" }}
 				className="underline decoration-dotted underline-offset-2"
 				onMouseEnter={handleMouseEnter}
 				onMouseLeave={() => setCoords(null)}
@@ -394,9 +401,7 @@ export function JsonToken({
 	if (value === null)
 		return <span style={{ color: CODE_COLORS.boolean }}>null</span>;
 	if (typeof value === "boolean")
-		return (
-			<span style={{ color: CODE_COLORS.boolean }}>{String(value)}</span>
-		);
+		return <span style={{ color: CODE_COLORS.boolean }}>{String(value)}</span>;
 	if (typeof value === "number")
 		return <span style={{ color: CODE_COLORS.number }}>{value}</span>;
 	if (typeof value === "string")
@@ -406,9 +411,7 @@ export function JsonToken({
 
 	if (Array.isArray(value)) {
 		if (value.length === 0)
-			return (
-				<span style={{ color: CODE_COLORS.punctuation }}>{"[]"}</span>
-			);
+			return <span style={{ color: CODE_COLORS.punctuation }}>{"[]"}</span>;
 		return (
 			<span>
 				{"[\n"}
@@ -429,18 +432,14 @@ export function JsonToken({
 	if (typeof value === "object") {
 		const entries = Object.entries(value as Record<string, unknown>);
 		if (entries.length === 0)
-			return (
-				<span style={{ color: CODE_COLORS.punctuation }}>{"{}"}</span>
-			);
+			return <span style={{ color: CODE_COLORS.punctuation }}>{"{}"}</span>;
 		return (
 			<span>
 				{"{\n"}
 				{entries.map(([k, v], i) => (
 					<span key={k}>
 						{innerPad}
-						<span style={{ color: CODE_COLORS.queryKey }}>
-							&quot;{k}&quot;
-						</span>
+						<span style={{ color: CODE_COLORS.queryKey }}>&quot;{k}&quot;</span>
 						{": "}
 						<JsonToken value={v} indent={indent + 1} />
 						{i < entries.length - 1 ? "," : ""}
@@ -515,6 +514,7 @@ const BASH_COMMANDS = new Set([
 	"source",
 	"sh",
 	"bash",
+	"forja",
 ]);
 
 type BashTokenKind = "command" | "flag" | "string" | "comment" | "plain";
@@ -530,8 +530,7 @@ function tokenizeBash(code: string): BashToken[] {
 	for (const line of code.split("\n")) {
 		const trimmed = line.trimStart();
 		const leadingSpaces = line.slice(0, line.length - trimmed.length);
-		if (leadingSpaces)
-			result.push({ value: leadingSpaces, kind: "plain" });
+		if (leadingSpaces) result.push({ value: leadingSpaces, kind: "plain" });
 
 		// Comment line
 		if (trimmed.startsWith("#")) {
@@ -558,7 +557,8 @@ function tokenizeBash(code: string): BashToken[] {
 			// Flag: --flag or -f
 			if (trimmed[i] === "-") {
 				let j = i;
-				while (j < trimmed.length && trimmed[j] !== " " && trimmed[j] !== "=") j++;
+				while (j < trimmed.length && trimmed[j] !== " " && trimmed[j] !== "=")
+					j++;
 				result.push({ value: trimmed.slice(i, j), kind: "flag" });
 				i = j;
 				isFirstWord = false;
@@ -650,7 +650,7 @@ function HttpBlock({ code }: { code: string }): React.ReactElement {
 			rendered.push(
 				<span key={i}>
 					<span style={{ color: CODE_COLORS.fnName }}>{methodMatch[1]}</span>
-					<span style={{ color: CODE_COLORS.plain }}>{" "}</span>
+					<span style={{ color: CODE_COLORS.plain }}> </span>
 					<span style={{ color: CODE_COLORS.string }}>{methodMatch[2]}</span>
 					<span style={{ color: CODE_COLORS.comment }}>{methodMatch[3]}</span>
 					{"\n"}
@@ -723,8 +723,7 @@ export function DocsCodeBlock({ children }: PreProps): React.ReactElement {
 		className.includes("language-ts") ||
 		className.includes("language-tsx");
 	const isJson = className.includes("json");
-	const isBash =
-		className.includes("bash") || className.includes("shell");
+	const isBash = className.includes("bash") || className.includes("shell");
 	const isHttp = className.includes("http");
 
 	if (isTs) {

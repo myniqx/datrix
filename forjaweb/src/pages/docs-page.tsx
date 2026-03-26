@@ -27,9 +27,7 @@ function SidebarLink({
 		<Link
 			to={`/docs/${slug}`}
 			className={`group flex items-center gap-2 rounded-md transition-colors ${
-				isSection
-					? "text-sm font-medium py-1.5 px-2"
-					: "text-sm py-1 px-2"
+				isSection ? "text-sm font-medium py-1.5 px-2" : "text-sm py-1 px-2"
 			} ${
 				isActive
 					? "text-foreground"

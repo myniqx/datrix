@@ -183,6 +183,80 @@ export const FUNCTION_DEFINITIONS: Record<string, FunctionDefinition> = {
 		docsPath: "/docs/core/schema#defineschema",
 	},
 
+	// ─── Adapters ───────────────────────────────────────────────────────────────
+
+	PostgresAdapter: {
+		signature: `new PostgresAdapter(config: {
+  host: string,
+  port: number,
+  database: string,
+  user: string,
+  password: string,
+  ssl?: boolean | { rejectUnauthorized?: boolean, ca?: string, cert?: string, key?: string },
+  connectionTimeoutMillis?: number,
+  idleTimeoutMillis?: number,
+  max?: number,
+  min?: number,
+  applicationName?: string,
+})`,
+		description:
+			"PostgreSQL adapter. Pass an instance to the adapter option in defineConfig().",
+		docsPath: "/docs/adapters/postgres",
+	},
+
+	MySQLAdapter: {
+		signature: `new MySQLAdapter(config: {
+  database: string,
+  user: string,
+  password: string,
+  connectionString?: string,
+  host?: string,
+  port?: number,
+  ssl?: boolean | { rejectUnauthorized?: boolean, ca?: string, cert?: string, key?: string },
+  connectionLimit?: number,
+  queueLimit?: number,
+  waitForConnections?: boolean,
+  charset?: string,
+  timezone?: string,
+})`,
+		description:
+			"MySQL/MariaDB adapter. Pass an instance to the adapter option in defineConfig().",
+		docsPath: "/docs/adapters/mysql",
+	},
+
+	MongoDBAdapter: {
+		signature: `new MongoDBAdapter(config: {
+  uri: string,
+  database: string,
+  maxPoolSize?: number,
+  minPoolSize?: number,
+  connectTimeoutMS?: number,
+  serverSelectionTimeoutMS?: number,
+  appName?: string,
+  tls?: boolean,
+  tlsCAFile?: string,
+  replicaSet?: string,
+  authSource?: string,
+})`,
+		description:
+			"MongoDB adapter (experimental). Pass an instance to the adapter option in defineConfig().",
+		docsPath: "/docs/adapters/mongodb",
+	},
+
+	JsonAdapter: {
+		signature: `new JsonAdapter(config: {
+  root: string,
+  lockTimeout?: number,
+  staleTimeout?: number,
+  cache?: boolean,
+  readLock?: boolean,
+  standalone?: boolean,
+})`,
+		description:
+			"JSON file-based adapter for development and testing. Stores each schema in a separate JSON file under the root directory.",
+		docsPath: "/docs/adapters/json",
+	},
+
 	// ─── API Plugin ─────────────────────────────────────────────────────────────
 
 	ApiPlugin: {

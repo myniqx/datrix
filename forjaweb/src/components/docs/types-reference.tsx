@@ -38,7 +38,10 @@ export function TypesReference(): React.ReactElement {
 							<div key={key}>
 								<h3 id={key.toLowerCase()}>{key}</h3>
 								<TypescriptCodeBlock code={def.signature} />
-								{def.description && <p>{def.description}</p>}
+								{def.description &&
+									def.description
+										.split("\n")
+										.map((line, i) => <p key={i}>{line}</p>)}
 								{!isLast && <hr />}
 							</div>
 						);

@@ -4,8 +4,6 @@ description: What is Forja and how to install it.
 order: 1
 ---
 
-import InstallCore from '../_partials/install-core.mdx'
-
 # Getting Started
 
 Forja is a schema-driven database layer for TypeScript projects. Define your models, run
@@ -39,4 +37,16 @@ works with your existing framework, and gives you full control over how and when
 
 ## Installation
 
-<InstallCore />
+```bash
+# Core packages
+pnpm add @forja/core @forja/types
+
+# CLI (dev dependency)
+pnpm add -D @forja/cli
+
+# Pick your adapter
+pnpm add @forja/adapter-postgres   # PostgreSQL
+pnpm add @forja/adapter-mysql      # MySQL / MariaDB
+pnpm add @forja/adapter-mongodb    # MongoDB
+pnpm add @forja/adapter-json       # JSON (local dev / testing)
+```

@@ -58,7 +58,7 @@ export function NavbarMobile({ starCount }: NavbarMobileProps) {
 					>
 						Docs
 					</a>
-<a
+					<a
 						href={FORJA_GITHUB_URL}
 						target="_blank"
 						rel="noopener noreferrer"
