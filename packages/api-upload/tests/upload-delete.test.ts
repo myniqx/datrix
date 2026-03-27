@@ -120,10 +120,7 @@ describe("Upload Delete Tests", () => {
 			const deleteResponse = await handleRequest(
 				createDeleteRequest(`/api/upload/${id}`),
 			);
-			const deleteData = await expectApiSingle(
-				deleteResponse,
-				200,
-			);
+			const deleteData = await expectApiSingle(deleteResponse, 200);
 			expect(deleteData.id).toBe(id);
 
 			// All files should be gone

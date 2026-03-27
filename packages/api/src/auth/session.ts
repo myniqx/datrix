@@ -15,8 +15,6 @@ import {
 } from "./error-helper";
 import { ForjaAuthError } from "forja-types/errors";
 
-
-
 /**
  * Session Strategy
  *

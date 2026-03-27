@@ -44,7 +44,9 @@ export class JwtStrategy {
 
 	constructor(config: JwtConfig) {
 		this.secret = config.secret;
-		this.expiresIn = this.parseExpiry(config.expiresIn ?? DEFAULT_API_AUTH_CONFIG.jwt.expiresIn);
+		this.expiresIn = this.parseExpiry(
+			config.expiresIn ?? DEFAULT_API_AUTH_CONFIG.jwt.expiresIn,
+		);
 		this.algorithm = config.algorithm ?? "HS256";
 		this.issuer = config.issuer;
 		this.audience = config.audience;

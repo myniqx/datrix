@@ -192,7 +192,6 @@ async function handleDeleteMedia(
 	return jsonResponse({ data: { id } });
 }
 
-
 function validateFileLimits(file: UploadFile, options: UploadOptions): void {
 	if (options.maxSize !== undefined && file.size > options.maxSize) {
 		throw new ForjaApiError(

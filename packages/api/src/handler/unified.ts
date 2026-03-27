@@ -52,7 +52,9 @@ async function handleGet(ctx: RequestContext): Promise<Response> {
 				result,
 				ctx,
 			);
-			const data = upload ? await upload.injectUrls(filteredResult) : filteredResult;
+			const data = upload
+				? await upload.injectUrls(filteredResult)
+				: filteredResult;
 			return jsonResponse({ data });
 		}
 
@@ -78,7 +80,9 @@ async function handleGet(ctx: RequestContext): Promise<Response> {
 
 		if (authEnabled) {
 			const filteredResults = await filterRecordsForRead(schema, result, ctx);
-			const data = upload ? await upload.injectUrls(filteredResults) : filteredResults;
+			const data = upload
+				? await upload.injectUrls(filteredResults)
+				: filteredResults;
 
 			const response: ResponseData<ForjaEntry> = {
 				data: data as Partial<ForjaEntry>[],
@@ -136,7 +140,9 @@ async function handlePost(ctx: RequestContext): Promise<Response> {
 			result as unknown as ForjaEntry,
 			ctx,
 		);
-		const data = upload ? await upload.injectUrls(filteredResult) : filteredResult;
+		const data = upload
+			? await upload.injectUrls(filteredResult)
+			: filteredResult;
 		return jsonResponse({ data }, 201);
 	}
 
@@ -196,7 +202,9 @@ async function handleUpdate(ctx: RequestContext): Promise<Response> {
 			result as unknown as ForjaEntry,
 			ctx,
 		);
-		const data = upload ? await upload.injectUrls(filteredResult) : filteredResult;
+		const data = upload
+			? await upload.injectUrls(filteredResult)
+			: filteredResult;
 		return jsonResponse({ data });
 	}
 

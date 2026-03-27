@@ -343,10 +343,10 @@ export class ApiPlugin<TRole extends string = string>
 	private isAuthPath(pathname: string): boolean {
 		const e = this.authConfig?.endpoints;
 		const d = DEFAULT_API_AUTH_CONFIG.endpoints;
-		const login    = e?.login    ?? d.login;
+		const login = e?.login ?? d.login;
 		const register = e?.register ?? d.register;
-		const logout   = e?.logout   ?? d.logout;
-		const me       = e?.me       ?? d.me;
+		const logout = e?.logout ?? d.logout;
+		const me = e?.me ?? d.me;
 		return (
 			pathname === login ||
 			pathname === register ||

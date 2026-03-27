@@ -66,13 +66,19 @@ export class Upload<TResolutions extends string = string> implements IUpload {
 			}
 
 			// Inject urls into variants
-			if (result["variants"] !== null && typeof result["variants"] === "object") {
+			if (
+				result["variants"] !== null &&
+				typeof result["variants"] === "object"
+			) {
 				const variants = result["variants"] as Record<string, unknown>;
 				for (const [name, variant] of Object.entries(variants)) {
 					if (variant !== null && typeof variant === "object") {
 						const v = variant as Record<string, unknown>;
 						if (typeof v["key"] === "string" && v["url"] === undefined) {
-							variants[name] = { ...v, url: this.options.provider.getUrl(v["key"]) };
+							variants[name] = {
+								...v,
+								url: this.options.provider.getUrl(v["key"]),
+							};
 						}
 					}
 				}
