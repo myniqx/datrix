@@ -1,5 +1,5 @@
 import { siGithub } from "simple-icons";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { ForjaLogo } from "./logo";
 import { FORJA_GITHUB_URL, FORJA_VERSION } from "@/data/constants";
 

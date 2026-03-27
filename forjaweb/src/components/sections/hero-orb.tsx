@@ -235,6 +235,7 @@ export function HeroOrb({ controlsRef }: HeroOrbProps) {
 			<Canvas
 				gl={{ alpha: true, preserveDrawingBuffer: true }}
 				camera={{ position: [0, 0, 11], fov: 65 }}
+				frameloop="always"
 				style={{ width: "100%", height: "100%", background: "transparent" }}
 			>
 				<LargeOrbMesh controlsRef={ref} />

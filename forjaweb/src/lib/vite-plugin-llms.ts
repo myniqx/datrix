@@ -24,7 +24,7 @@ function parseFrontmatter(content: string): {
 	return {
 		title: titleMatch?.[1]?.trim() ?? "Untitled",
 		description: descMatch?.[1]?.trim(),
-		order: orderMatch ? parseInt(orderMatch[1]!) : 99 as number,
+		order: orderMatch ? parseInt(orderMatch[1]!) : (99 as number),
 		body,
 	};
 }
@@ -33,10 +33,9 @@ function stripMdxJsx(body: string): string {
 	// Remove import lines
 	const noImports = body.replace(/^import\s+.*$/gm, "");
 	// Remove JSX component tags (self-closing and block)
-	const noJsx = noImports.replace(/<[A-Z][A-Za-z]*[^>]*\/>/g, "").replace(
-		/<[A-Z][A-Za-z]*[^>]*>[\s\S]*?<\/[A-Z][A-Za-z]*>/g,
-		"",
-	);
+	const noJsx = noImports
+		.replace(/<[A-Z][A-Za-z]*[^>]*\/>/g, "")
+		.replace(/<[A-Z][A-Za-z]*[^>]*>[\s\S]*?<\/[A-Z][A-Za-z]*>/g, "");
 	// Collapse multiple blank lines
 	return noJsx.replace(/\n{3,}/g, "\n\n").trim();
 }
@@ -187,7 +186,9 @@ export function llmsPlugin(options?: {
 				markdown: overrides[d.slug] ?? d.markdown,
 			}));
 			const entries = merged
-				.map((d) => `  ${JSON.stringify(d.slug)}: ${JSON.stringify(d.markdown)}`)
+				.map(
+					(d) => `  ${JSON.stringify(d.slug)}: ${JSON.stringify(d.markdown)}`,
+				)
 				.join(",\n");
 			return `export const DOC_RAWS = {\n${entries}\n};\n`;
 		},
@@ -204,11 +205,7 @@ export function llmsPlugin(options?: {
 			fs.writeFileSync(path.join(outDir, "llms.txt"), llmsTxt, "utf-8");
 
 			const llmsFull = buildLlmsFullMd(docs);
-			fs.writeFileSync(
-				path.join(outDir, "llms-full.md"),
-				llmsFull,
-				"utf-8",
-			);
+			fs.writeFileSync(path.join(outDir, "llms-full.md"), llmsFull, "utf-8");
 
 			console.log(
 				`[llms] Generated llms.txt (${docs.length} pages) and llms-full.md`,

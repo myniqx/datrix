@@ -402,7 +402,8 @@ export const TYPE_DEFINITIONS: Record<string, TypeDefinition> = {
 	SessionStore: {
 		group: "API",
 		signature: `interface SessionStore {\n  get(sessionId: string):                    Promise<SessionData | undefined>\n  set(sessionId: string, data: SessionData): Promise<void>\n  delete(sessionId: string):                 Promise<void>\n  cleanup():                                 Promise<number>\n  clear():                                   Promise<void>\n}`,
-		description: "Interface for custom session backends. Implement this to use Redis, a database, or any other storage instead of the default in-memory store.",
+		description:
+			"Interface for custom session backends. Implement this to use Redis, a database, or any other storage instead of the default in-memory store.",
 	},
 	SessionData: {
 		group: "API",
@@ -463,7 +464,7 @@ export const TYPE_DEFINITIONS: Record<string, TypeDefinition> = {
 		group: "Upload",
 		signature: `interface MediaEntry<TResolutions extends string = string> extends ForjaEntry {\n  filename:     string\n  originalName: string\n  mimeType:     string\n  size:         number\n  key:          string\n  url:          string  // injected at response time, not stored in DB\n  variants:     MediaVariants<TResolutions> | null\n}`,
 		description:
-			'Shape of a media record. key is stored in the database — url is derived at response time via the configured provider.',
+			"Shape of a media record. key is stored in the database — url is derived at response time via the configured provider.",
 	},
 	MediaVariant: {
 		group: "Upload",

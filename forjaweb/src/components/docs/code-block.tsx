@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { CopyButton } from "@/components/ui/copy-button";
 import { TYPE_DEFINITIONS, normalizeTypeName } from "./type-definitions";
 import { FUNCTION_DEFINITIONS } from "./function-definitions";
@@ -370,7 +370,10 @@ function HoverableToken({
 	return (
 		<span ref={ref} className="relative inline">
 			<span
-				style={{ color, cursor: (definition as TypeDefinition).skipDocs ? "help" : "pointer" }}
+				style={{
+					color,
+					cursor: (definition as TypeDefinition).skipDocs ? "help" : "pointer",
+				}}
 				className="underline decoration-dotted underline-offset-2"
 				onMouseEnter={handleMouseEnter}
 				onMouseLeave={() => setCoords(null)}
@@ -617,7 +620,10 @@ function BashLine({
 	isComment: boolean;
 	isEmpty: boolean;
 }): React.ReactElement {
-	const copyableText = tokens.map((t) => t.value).join("").trimEnd();
+	const copyableText = tokens
+		.map((t) => t.value)
+		.join("")
+		.trimEnd();
 
 	return (
 		<div className="group flex items-center gap-2 min-w-0">
@@ -633,7 +639,10 @@ function BashLine({
 			</span>
 			{!isComment && !isEmpty && (
 				<span className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-					<CopyButton text={copyableText} className="rounded px-1.5 py-0.5 bg-zinc-800 text-foreground/50 hover:text-foreground/80" />
+					<CopyButton
+						text={copyableText}
+						className="rounded px-1.5 py-0.5 bg-zinc-800 text-foreground/50 hover:text-foreground/80"
+					/>
 				</span>
 			)}
 		</div>
