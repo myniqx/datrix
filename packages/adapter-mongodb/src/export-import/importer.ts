@@ -44,7 +44,9 @@ export class MongoDBImporter {
 		}
 	}
 
-	private async collectSchemas(reader: ImportReader): Promise<Map<string, SchemaDefinition>> {
+	private async collectSchemas(
+		reader: ImportReader,
+	): Promise<Map<string, SchemaDefinition>> {
 		const schemas = new Map<string, SchemaDefinition>();
 		for await (const schema of reader.readSchemas()) {
 			schemas.set(schema.tableName!, schema);

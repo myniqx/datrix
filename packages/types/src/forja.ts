@@ -35,7 +35,14 @@ export interface RawFindManyOptions<
  * Scalar primitive accepted in untyped CRUD input.
  * Covers all field types: string, number, boolean, date, json (object), array.
  */
-export type FallbackScalar = string | number | boolean | Date | null | undefined | object;
+export type FallbackScalar =
+	| string
+	| number
+	| boolean
+	| Date
+	| null
+	| undefined
+	| object;
 
 /**
  * Fallback input type for untyped CRUD operations.

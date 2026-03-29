@@ -31,13 +31,18 @@ export class JsonExporter {
 		await writer.finalize();
 	}
 
-	private async exportTable(tableName: string, writer: ExportWriter): Promise<void> {
+	private async exportTable(
+		tableName: string,
+		writer: ExportWriter,
+	): Promise<void> {
 		const fs = await import("node:fs/promises");
 		const path = await import("node:path");
 		const filePath = path.join(this.root, `${tableName}.json`);
 
 		const content = await fs.readFile(filePath, "utf-8");
-		const tableFile = JSON.parse(content) as { data: Record<string, unknown>[] };
+		const tableFile = JSON.parse(content) as {
+			data: Record<string, unknown>[];
+		};
 		const rows = tableFile.data;
 
 		for (let i = 0; i < rows.length; i += CHUNK_SIZE) {

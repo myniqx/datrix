@@ -848,7 +848,9 @@ export function validateSchemaDefinition(
  * Used by SchemaRegistry.finalizeRegistry() and ZipExportWriter.finalize()
  * to guarantee consistent table creation order.
  */
-export function sortSchemasByDependency(schemas: SchemaDefinition[]): SchemaDefinition[] {
+export function sortSchemasByDependency(
+	schemas: SchemaDefinition[],
+): SchemaDefinition[] {
 	const tableToSchema = new Map<string, SchemaDefinition>();
 	for (const schema of schemas) {
 		if (schema.tableName) tableToSchema.set(schema.tableName, schema);

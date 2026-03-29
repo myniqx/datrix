@@ -19,6 +19,7 @@ import type { ExportWriter, ExportMeta } from "forja-types/adapter";
 import type { SchemaDefinition } from "forja-types/core/schema";
 import { sortSchemasByDependency } from "forja-types/core/schema";
 import { encodeHeader, encodeRow } from "./csv";
+import { logger } from "../utils/logger";
 
 interface Metadata {
 	meta: ExportMeta;
@@ -35,9 +36,23 @@ export class ZipExportWriter implements ExportWriter {
 	private tempDir: string;
 	private outputPath: string;
 	private chunkCounters = new Map<string, number>();
+	private readonly verbose: boolean;
+	private readonly onChunk?: (
+		tableName: string,
+		rows: Record<string, unknown>[],
+	) => Promise<void>;
 
-	constructor(outputPath: string) {
+	constructor(
+		outputPath: string,
+		verbose = false,
+		onChunk?: (
+			tableName: string,
+			rows: Record<string, unknown>[],
+		) => Promise<void>,
+	) {
 		this.outputPath = outputPath;
+		this.verbose = verbose;
+		this.onChunk = onChunk;
 		const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
 		this.tempDir = path.join(path.dirname(outputPath), `temp_${timestamp}`);
 	}
@@ -49,14 +64,20 @@ export class ZipExportWriter implements ExportWriter {
 
 	async writeSchema(schema: SchemaDefinition): Promise<void> {
 		this.metadata.schemas.push(schema);
+		if (this.verbose) {
+			logger.info(`  schema: ${schema.name}`);
+		}
 	}
 
-	async writeChunk(tableName: string, rows: Record<string, unknown>[]): Promise<void> {
+	async writeChunk(
+		tableName: string,
+		rows: Record<string, unknown>[],
+	): Promise<void> {
 		const schema = this.metadata.schemas.find((s) => s.tableName === tableName);
 		const fields = schema
 			? Object.entries(schema.fields)
-				.filter(([, f]) => f.type !== "relation")
-				.map(([name]) => name)
+					.filter(([, f]) => f.type !== "relation")
+					.map(([name]) => name)
 			: rows.length > 0
 				? Object.keys(rows[0]!)
 				: [];
@@ -82,6 +103,12 @@ export class ZipExportWriter implements ExportWriter {
 			lines.join("\n"),
 			"utf-8",
 		);
+
+		await this.onChunk?.(tableName, rows);
+
+		if (this.verbose) {
+			logger.info(`  chunk: ${fileName} (${rows.length} rows)`);
+		}
 	}
 
 	async finalize(): Promise<void> {

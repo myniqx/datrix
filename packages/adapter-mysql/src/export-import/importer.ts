@@ -56,7 +56,9 @@ export class MySQLImporter {
 		}
 	}
 
-	private async collectSchemas(reader: ImportReader): Promise<Map<string, SchemaDefinition>> {
+	private async collectSchemas(
+		reader: ImportReader,
+	): Promise<Map<string, SchemaDefinition>> {
 		const schemas = new Map<string, SchemaDefinition>();
 		for await (const schema of reader.readSchemas()) {
 			schemas.set(schema.tableName!, schema);
@@ -76,7 +78,9 @@ export class MySQLImporter {
 
 		for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
 			const batch = rows.slice(i, i + CHUNK_SIZE);
-			const placeholders = batch.map(() => `(${columns.map(() => "?").join(", ")})`).join(", ");
+			const placeholders = batch
+				.map(() => `(${columns.map(() => "?").join(", ")})`)
+				.join(", ");
 			const values: unknown[] = [];
 
 			for (const row of batch) {

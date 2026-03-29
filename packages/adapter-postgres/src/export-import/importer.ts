@@ -1,6 +1,9 @@
 import type { Pool } from "pg";
 import type { ImportReader } from "forja-types/adapter";
-import type { SchemaDefinition, FieldDefinition } from "forja-types/core/schema";
+import type {
+	SchemaDefinition,
+	FieldDefinition,
+} from "forja-types/core/schema";
 import type { PostgresAdapter } from "../adapter";
 import { FORJA_META_MODEL } from "forja-types/core/constants";
 
@@ -47,7 +50,9 @@ export class PostgresImporter {
 		}
 	}
 
-	private async collectSchemas(reader: ImportReader): Promise<Map<string, SchemaDefinition>> {
+	private async collectSchemas(
+		reader: ImportReader,
+	): Promise<Map<string, SchemaDefinition>> {
 		const schemas = new Map<string, SchemaDefinition>();
 		for await (const schema of reader.readSchemas()) {
 			schemas.set(schema.tableName!, schema);

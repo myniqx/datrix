@@ -228,7 +228,10 @@ export type PopulateClause<T extends ForjaEntry = ForjaRecord> =
 	| "true"
 	| (ForjaRecord extends T ? readonly string[] : readonly (keyof T)[])
 	| {
-			readonly [K in ForjaRecord extends T ? string : keyof T]?: PopulateOptions<T> | "*" | boolean;
+			readonly [K in ForjaRecord extends T ? string : keyof T]?:
+				| PopulateOptions<T>
+				| "*"
+				| boolean;
 	  };
 
 /**

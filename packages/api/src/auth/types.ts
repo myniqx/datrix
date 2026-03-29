@@ -188,29 +188,11 @@ export interface LoginCredentials {
 }
 
 /**
- * Login result
- */
-export interface LoginResult {
-	readonly user: AuthUser;
-	readonly token?: string; // JWT token if JWT is enabled
-	readonly sessionId?: string; // Session ID if session is enabled
-}
-
-/**
  * Password hash result
  */
 export interface PasswordHash {
 	readonly hash: string;
 	readonly salt: string;
-}
-
-/**
- * Auth context (attached to request)
- */
-export interface AuthContext {
-	readonly user: AuthUser | undefined;
-	readonly sessionId?: string;
-	readonly token?: string;
 }
 
 /**

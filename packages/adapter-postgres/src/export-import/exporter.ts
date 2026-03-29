@@ -33,7 +33,10 @@ export class PostgresExporter {
 		await writer.finalize();
 	}
 
-	private async exportTable(tableName: string, writer: ExportWriter): Promise<void> {
+	private async exportTable(
+		tableName: string,
+		writer: ExportWriter,
+	): Promise<void> {
 		const escapedTable = `"${tableName}"`;
 		let offset = 0;
 

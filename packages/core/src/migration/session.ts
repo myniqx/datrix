@@ -1243,36 +1243,10 @@ export class MigrationSession {
 			version: Date.now().toString(),
 			description: "Auto-generated migration",
 		});
-		console.log(
-			"[migration:generator] operations:",
-			JSON.stringify(
-				baseMigration.operations.map((op) => ({
-					type: op.type,
-					...("tableName" in op ? { tableName: op.tableName } : {}),
-					...("operations" in op ? { operations: op.operations } : {}),
-					...("description" in op ? { description: op.description } : {}),
-				})),
-				null,
-				2,
-			),
-		);
 
 		// Inject data transfer operations for resolved migrate_to_junction / migrate_first
 		const enrichedOperations = this.injectDataTransferOperations(
 			baseMigration.operations,
-		);
-		console.log(
-			"[migration:inject] final operations:",
-			JSON.stringify(
-				enrichedOperations.map((op) => ({
-					type: op.type,
-					...("tableName" in op ? { tableName: op.tableName } : {}),
-					...("operations" in op ? { operations: op.operations } : {}),
-					...("description" in op ? { description: op.description } : {}),
-				})),
-				null,
-				2,
-			),
 		);
 
 		const migration: Migration = {

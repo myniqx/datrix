@@ -38,7 +38,12 @@ function encodeValue(value: unknown): string {
 
 	// String: wrap in quotes and escape internal quotes
 	const str = String(value);
-	if (str.includes('"') || str.includes(",") || str.includes("\n") || str.includes("\r")) {
+	if (
+		str.includes('"') ||
+		str.includes(",") ||
+		str.includes("\n") ||
+		str.includes("\r")
+	) {
 		return `"${str.replace(/"/g, '""')}"`;
 	}
 
@@ -48,7 +53,10 @@ function encodeValue(value: unknown): string {
 /**
  * Encode a row of values to a CSV line
  */
-export function encodeRow(headers: string[], row: Record<string, unknown>): string {
+export function encodeRow(
+	headers: string[],
+	row: Record<string, unknown>,
+): string {
 	return headers.map((h) => encodeValue(row[h])).join(",");
 }
 

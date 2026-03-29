@@ -43,7 +43,10 @@ const allFieldsSchema = defineSchema({
 		isActive: { type: "boolean", default: true },
 		metadata: { type: "json" },
 		tags: { type: "array", items: { type: "string" } },
-		status: { type: "enum", values: ["draft", "published", "archived"] as const },
+		status: {
+			type: "enum",
+			values: ["draft", "published", "archived"] as const,
+		},
 	},
 	permission: { create: true, read: true, update: true, delete: true },
 } as const);
@@ -62,7 +65,12 @@ const authorSchema = defineSchema({
 		},
 		bio: { type: "string" },
 		isVerified: { type: "boolean", default: false },
-		posts: { type: "relation", kind: "hasMany", model: "post", foreignKey: "authorId" },
+		posts: {
+			type: "relation",
+			kind: "hasMany",
+			model: "post",
+			foreignKey: "authorId",
+		},
 	},
 	indexes: [{ fields: ["email"], unique: true }],
 	permission: { create: true, read: true, update: true, delete: true },
@@ -100,10 +108,7 @@ const postSchema = defineSchema({
 		// Self-reference: a post can reference another post as "related"
 		relatedPost: { type: "relation", kind: "belongsTo", model: "post" },
 	},
-	indexes: [
-		{ fields: ["slug"], unique: true },
-		{ fields: ["authorId"] },
-	],
+	indexes: [{ fields: ["slug"], unique: true }, { fields: ["authorId"] }],
 	permission: { create: true, read: true, update: true, delete: true },
 } as const);
 
@@ -138,13 +143,22 @@ const exportImportSchemas = [
 // Helpers
 // ============================================================================
 
-const TEST_ROOT = path.join(process.cwd(), "packages", "cli", "tests", ".tmp-cli-export-test");
+const TEST_ROOT = path.join(
+	process.cwd(),
+	"packages",
+	"cli",
+	"tests",
+	".tmp-cli-export-test",
+);
 
 function getTmpDir(name: string): string {
 	return path.join(TEST_ROOT, name);
 }
 
-async function initForja(adapterType: AdapterType, dirName: string): Promise<Forja> {
+async function initForja(
+	adapterType: AdapterType,
+	dirName: string,
+): Promise<Forja> {
 	const dir = getTmpDir(dirName);
 	await fs.rm(dir, { recursive: true, force: true });
 	await fs.mkdir(dir, { recursive: true });
@@ -202,7 +216,14 @@ function makeAuthorRows(count: number) {
 }
 
 function makeTagRows(count: number) {
-	const colors = ["#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#FF00FF", "#00FFFF"];
+	const colors = [
+		"#FF0000",
+		"#00FF00",
+		"#0000FF",
+		"#FFFF00",
+		"#FF00FF",
+		"#00FFFF",
+	];
 	return Array.from({ length: count }, (_, i) => ({
 		name: `Tag ${i}`,
 		color: colors[i % colors.length],
@@ -255,7 +276,9 @@ describe(`Export/Import (${FROM_ADAPTER} → ${TO_ADAPTER})`, () => {
 		}));
 		const allFields1 = await forja1.createMany("allFields", allFieldsBatch1);
 		const allFields2 = await forja1.createMany("allFields", allFieldsBatch2);
-		const allFieldIds = [...allFields1, ...allFields2].map((r) => r.id as number);
+		const allFieldIds = [...allFields1, ...allFields2].map(
+			(r) => r.id as number,
+		);
 
 		// authors — 1501 rows, 1 will be deleted before export → net 1500
 		const authorBatch1 = makeAuthorRows(1000);
@@ -294,7 +317,12 @@ describe(`Export/Import (${FROM_ADAPTER} → ${TO_ADAPTER})`, () => {
 				isPublished: i % 2 === 0,
 				viewCount: i * 3,
 				author: authorIds[i % authorIds.length]!,
-				tags: { connect: [tagIds[i % tagIds.length]!, tagIds[(i + 1) % tagIds.length]!] },
+				tags: {
+					connect: [
+						tagIds[i % tagIds.length]!,
+						tagIds[(i + 1) % tagIds.length]!,
+					],
+				},
 			};
 
 			// Self-ref: post i references post i-5 (ID is known at this point)
@@ -408,7 +436,16 @@ describe(`Export/Import (${FROM_ADAPTER} → ${TO_ADAPTER})`, () => {
 	// ==========================================================================
 
 	it("should preserve all field types in allFields schema", async () => {
-		const result = await forja2.findMany<{ title: string; score: number; isActive: boolean; status: string; metadata: unknown; tags: unknown[] } & ForjaEntry>("allFields", {
+		const result = await forja2.findMany<
+			{
+				title: string;
+				score: number;
+				isActive: boolean;
+				status: string;
+				metadata: unknown;
+				tags: unknown[];
+			} & ForjaEntry
+		>("allFields", {
 			where: { title: { $eq: "AllFields Record 0" } },
 		});
 
@@ -426,7 +463,13 @@ describe(`Export/Import (${FROM_ADAPTER} → ${TO_ADAPTER})`, () => {
 
 	it("should preserve null values in optional fields", async () => {
 		// Record at index 0: description is null (0 % 3 === 0), metadata is null (0 % 4 === 0)
-		const result = await forja2.findMany<{ description: string | null; metadata: unknown | null, title: string } & ForjaEntry>("allFields", {
+		const result = await forja2.findMany<
+			{
+				description: string | null;
+				metadata: unknown | null;
+				title: string;
+			} & ForjaEntry
+		>("allFields", {
 			where: { title: { $eq: "AllFields Record 0" } },
 		});
 
@@ -437,7 +480,9 @@ describe(`Export/Import (${FROM_ADAPTER} → ${TO_ADAPTER})`, () => {
 
 	it("should preserve boolean false correctly", async () => {
 		// Record at index 1: isActive = false (1 % 2 !== 0)
-		const result = await forja2.findMany<{ isActive: boolean, title: string } & ForjaEntry>("allFields", {
+		const result = await forja2.findMany<
+			{ isActive: boolean; title: string } & ForjaEntry
+		>("allFields", {
 			where: { title: { $eq: "AllFields Record 1" } },
 		});
 
@@ -446,7 +491,9 @@ describe(`Export/Import (${FROM_ADAPTER} → ${TO_ADAPTER})`, () => {
 
 	it("should preserve empty array correctly", async () => {
 		// Record at index 0: tags = [] (0 % 5 === 0)
-		const result = await forja2.findMany<{ tags: unknown[], title: string } & ForjaEntry>("allFields", {
+		const result = await forja2.findMany<
+			{ tags: unknown[]; title: string } & ForjaEntry
+		>("allFields", {
 			where: { title: { $eq: "AllFields Record 0" } },
 		});
 
@@ -477,7 +524,10 @@ describe(`Export/Import (${FROM_ADAPTER} → ${TO_ADAPTER})`, () => {
 		});
 
 		expect(result).toHaveLength(1);
-		const relatedPost = result[0]!.relatedPost as Record<string, unknown> | null;
+		const relatedPost = result[0]!.relatedPost as Record<
+			string,
+			unknown
+		> | null;
 		expect(relatedPost).not.toBeNull();
 		expect(relatedPost!["id"]).toBe(postIds[0]);
 	});
@@ -554,7 +604,7 @@ describe(`Export/Import (${FROM_ADAPTER} → ${TO_ADAPTER})`, () => {
 		const result = await forja2.findMany("post", {
 			where: { id: { $eq: knownPostId } },
 			populate: ["author"],
-			select: ["id", "title"]
+			select: ["id", "title"],
 		});
 
 		expect(result).toHaveLength(1);

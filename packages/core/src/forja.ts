@@ -70,7 +70,7 @@ export class Forja implements IForja {
 	private _crud!: CrudOperations;
 	private _rawCrud!: CrudOperations;
 
-	private constructor() { }
+	private constructor() {}
 
 	static getInstance(): Forja {
 		if (!Forja.instance) {

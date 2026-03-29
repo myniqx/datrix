@@ -19,7 +19,7 @@ import { handleCrudRequest } from "./handler/unified";
 import { handlerError } from "./errors/api-error";
 import { ApiConfig } from "./types";
 import { Forja } from "forja-core";
-import type { IApiPlugin } from "./interface";
+import type { IApiPlugin } from "forja-types/api";
 import type { ForjaEntry, ForjaRecord } from "forja-types/core/schema";
 import { forjaErrorResponse } from "./handler/utils";
 import type { AuthUser, IUpload } from "forja-types/api";

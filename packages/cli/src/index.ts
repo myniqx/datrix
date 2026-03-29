@@ -16,6 +16,7 @@ import { logger, formatError, bold, cyan } from "./utils/logger";
 import { loadConfig } from "./utils/config-loader";
 import { migrateCommand, displayMigrationStatus } from "./commands/migrate";
 import { generateCommand, isValidGenerateType } from "./commands/generate";
+import type { IApiPlugin } from "@forja/types/api";
 import { exportCommand } from "./commands/export";
 import { importCommand } from "./commands/import";
 
@@ -90,6 +91,9 @@ ${bold("COMMANDS")}
   ${cyan("export")}                        Export all data to a zip file
     ${bold("Options:")}
       --output <path>             Output file path (default: ./export_<date>.zip)
+      --include-files             Also download media files (requires api-upload plugin)
+      --pack-files [bytes]        Pack downloaded files into zip chunks (default: 1GB)
+      --resume <dir>              Resume an interrupted file export from a previous run
 
   ${cyan("import")} ${bold("<file.zip>")}             Import data from a zip file (drops all existing data)
     ${bold("Options:")}
@@ -203,9 +207,26 @@ async function main(): Promise<void> {
 
 			case "export": {
 				const forja = await loadConfig(getConfigPath(args.options));
+				const includeFiles = Boolean(args.options["include-files"]);
+				const resume =
+					typeof args.options["resume"] === "string"
+						? args.options["resume"]
+						: undefined;
+				const upload =
+					includeFiles || resume
+						? (forja.getPlugin<IApiPlugin>("api")?.upload ?? undefined)
+						: undefined;
 				await exportCommand(forja.getAdapter(), {
 					verbose: Boolean(args.options["verbose"]),
-					output: typeof args.options["output"] === "string" ? args.options["output"] : undefined,
+					output:
+						typeof args.options["output"] === "string"
+							? args.options["output"]
+							: undefined,
+					includeFiles,
+					packFiles: args.options["pack-files"] !== undefined,
+					packFilesChunkSize: typeof args.options["pack-files"] === "string" && args.options["pack-files"] !== "" ? parseInt(args.options["pack-files"], 10) : undefined,
+					resume,
+					upload,
 				});
 				break;
 			}

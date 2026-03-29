@@ -43,6 +43,10 @@ export class Upload<TResolutions extends string = string> implements IUpload {
 		return this.traverse(data);
 	}
 
+	getUrl(key: string): string {
+		return this.options.provider.getUrl(key);
+	}
+
 	private async traverse(node: unknown): Promise<unknown> {
 		if (Array.isArray(node)) {
 			const results: unknown[] = [];

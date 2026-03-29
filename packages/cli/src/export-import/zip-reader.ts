@@ -8,6 +8,7 @@ import AdmZip from "adm-zip";
 import type { ImportReader, ExportMeta } from "forja-types/adapter";
 import type { SchemaDefinition } from "forja-types/core/schema";
 import { decodeLine } from "./csv";
+import { logger } from "../utils/logger";
 
 interface Metadata {
 	meta: ExportMeta;
@@ -18,9 +19,11 @@ interface Metadata {
 export class ZipImportReader implements ImportReader {
 	private zip: AdmZip;
 	private metadata: Metadata | undefined;
+	private readonly verbose: boolean;
 
-	constructor(zipPath: string) {
+	constructor(zipPath: string, verbose = false) {
 		this.zip = new AdmZip(zipPath);
+		this.verbose = verbose;
 	}
 
 	private getMetadata(): Metadata {
@@ -42,6 +45,9 @@ export class ZipImportReader implements ImportReader {
 	async *readSchemas(): AsyncIterable<SchemaDefinition> {
 		const { schemas } = this.getMetadata();
 		for (const schema of schemas) {
+			if (this.verbose) {
+				logger.info(`  schema: ${schema.name}`);
+			}
 			yield schema;
 		}
 	}
@@ -51,7 +57,9 @@ export class ZipImportReader implements ImportReader {
 		return Object.keys(chunks);
 	}
 
-	async *readChunks(tableName: string): AsyncIterable<Record<string, unknown>[]> {
+	async *readChunks(
+		tableName: string,
+	): AsyncIterable<Record<string, unknown>[]> {
 		const metadata = this.getMetadata();
 		const chunkFiles = metadata.chunks[tableName] ?? [];
 		const schema = metadata.schemas.find((s) => s.tableName === tableName);
@@ -68,13 +76,18 @@ export class ZipImportReader implements ImportReader {
 				continue;
 			}
 
-			// First line is header
 			const headerLine = lines[0]!;
-			const headers = headerLine.split(",").map((h) => h.replace(/^"|"$/g, "").replace(/""/g, '"'));
+			const headers = headerLine
+				.split(",")
+				.map((h) => h.replace(/^"|"$/g, "").replace(/""/g, '"'));
 
 			const rows: Record<string, unknown>[] = [];
 			for (let i = 1; i < lines.length; i++) {
 				rows.push(decodeLine(lines[i]!, headers, schema));
+			}
+
+			if (this.verbose) {
+				logger.info(`  chunk: ${fileName} (${rows.length} rows)`);
 			}
 
 			yield rows;

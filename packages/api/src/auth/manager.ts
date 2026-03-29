@@ -9,9 +9,14 @@
 import { PasswordManager, type PasswordHash } from "./password";
 import { JwtStrategy } from "./jwt";
 import { SessionStrategy } from "./session";
-import { AuthConfig, AuthContext, LoginResult } from "./types";
+import { AuthConfig } from "./types";
 import { throwSessionNotConfigured } from "./error-helper";
-import { AuthUser } from "forja-types/api";
+import {
+	AuthUser,
+	AuthContext,
+	LoginResult,
+	IAuthManager,
+} from "@forja/types/api";
 
 /**
  * Auth Manager
@@ -19,7 +24,9 @@ import { AuthUser } from "forja-types/api";
  * Main authentication manager that coordinates all auth components.
  * Note: Permission checking is now schema-based (see middleware/permission.ts)
  */
-export class AuthManager<TRole extends string = string> {
+export class AuthManager<
+	TRole extends string = string,
+> implements IAuthManager<TRole> {
 	private readonly passwordManager: PasswordManager;
 	private readonly jwtStrategy: JwtStrategy | undefined;
 	private readonly sessionStrategy: SessionStrategy | undefined;

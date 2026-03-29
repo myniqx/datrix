@@ -1,11 +1,18 @@
 import path from "node:path";
 import type { DatabaseAdapter } from "forja-types/adapter";
+import type { IUpload } from "forja-types/api";
 import { logger, spinner } from "../utils/logger";
 import { ZipExportWriter } from "../export-import/zip-writer";
+import { FileExporter } from "../export-import/file-exporter";
 
 export interface ExportCommandOptions {
 	readonly output?: string;
 	readonly verbose?: boolean;
+	readonly includeFiles?: boolean;
+	readonly packFiles?: boolean;
+	readonly packFilesChunkSize?: number;
+	readonly resume?: string;
+	readonly upload?: IUpload;
 }
 
 export async function exportCommand(
@@ -13,14 +20,32 @@ export async function exportCommand(
 	options: ExportCommandOptions,
 ): Promise<void> {
 	const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+
+	if (options.includeFiles) {
+		if (!options.upload) {
+			logger.error(
+				"--include-files requires an active api-upload plugin. None was found.",
+			);
+			process.exit(1);
+		}
+		await exportWithFiles(adapter, options, timestamp);
+	} else {
+		await exportDataOnly(adapter, options, timestamp);
+	}
+}
+
+async function exportDataOnly(
+	adapter: DatabaseAdapter,
+	options: ExportCommandOptions,
+	timestamp: string,
+): Promise<void> {
 	const outputPath = options.output
 		? path.resolve(options.output)
 		: path.resolve(process.cwd(), `export_${timestamp}.zip`);
 
 	logger.info(`Exporting to: ${outputPath}`);
 
-	const writer = new ZipExportWriter(outputPath);
-
+	const writer = new ZipExportWriter(outputPath, options.verbose);
 	spinner.start("Exporting data...");
 
 	try {
@@ -28,6 +53,83 @@ export async function exportCommand(
 		spinner.succeed(`Export completed: ${outputPath}`);
 	} catch (error) {
 		spinner.fail("Export failed");
+		throw error;
+	}
+}
+
+async function exportWithFiles(
+	adapter: DatabaseAdapter,
+	options: ExportCommandOptions,
+	timestamp: string,
+): Promise<void> {
+	const upload = options.upload!;
+
+	// Determine output directory
+	const baseDir = options.output
+		? path.resolve(options.output)
+		: path.resolve(process.cwd(), `export_${timestamp}`);
+
+	const isResume = Boolean(options.resume);
+	const outputDir = options.resume ? path.resolve(options.resume) : baseDir;
+	const zipPath = path.join(outputDir, "export.zip");
+
+	const fileExporter = new FileExporter(outputDir, upload, options.packFilesChunkSize);
+	const mediaModel = upload.getModelName();
+
+	if (isResume) {
+		const exists = await fileExporter.ledgerExists();
+		if (!exists) {
+			logger.error(`No files-progress.txt found in: ${outputDir}`);
+			process.exit(1);
+		}
+		logger.info(`Resuming file export from: ${outputDir}`);
+	} else {
+		await fileExporter.init();
+		logger.info(`Exporting to: ${outputDir}`);
+
+		// DB export — intercept media chunks to build ledger
+		spinner.start("Exporting data...");
+		const writer = new ZipExportWriter(
+			zipPath,
+			options.verbose,
+			async (tableName, rows) => {
+				if (tableName === mediaModel) {
+					await fileExporter.appendToLedger(rows);
+				}
+			},
+		);
+
+		try {
+			await adapter.exportData(writer);
+			spinner.succeed("Database export completed");
+		} catch (error) {
+			spinner.fail("Database export failed");
+			throw error;
+		}
+	}
+
+	// Download pending files
+	const entries = await fileExporter.readLedger();
+	const pending = entries.filter((e) => e.status === "pending");
+
+	if (pending.length === 0) {
+		logger.info("All files already downloaded.");
+		return;
+	}
+
+	logger.info(`Downloading ${pending.length} file(s)...`);
+	spinner.start(`0 / ${entries.length} files`);
+
+	try {
+		const result = await fileExporter.downloadPending((done, total) => {
+			spinner.start(`${done} / ${total} files`);
+		}, options.packFiles);
+		if (!result.stopped) {
+			spinner.succeed(`Files exported: ${outputDir}`);
+		}
+	} catch (error) {
+		spinner.fail("File download failed");
+		logger.info(`Tip: resume with --resume ${outputDir}`);
 		throw error;
 	}
 }

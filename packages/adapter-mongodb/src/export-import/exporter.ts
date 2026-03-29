@@ -32,7 +32,10 @@ export class MongoDBExporter {
 		await writer.finalize();
 	}
 
-	private async exportCollection(tableName: string, writer: ExportWriter): Promise<void> {
+	private async exportCollection(
+		tableName: string,
+		writer: ExportWriter,
+	): Promise<void> {
 		const collection = this.db.collection(tableName);
 		let skip = 0;
 

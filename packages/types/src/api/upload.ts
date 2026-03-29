@@ -189,6 +189,11 @@ export interface IUpload {
 	 * url fields derived from key via the configured storage provider.
 	 */
 	injectUrls(data: unknown): Promise<unknown>;
+	/**
+	 * Resolve a public URL for the given storage key via the configured provider.
+	 * Used by the CLI file exporter to download files during export.
+	 */
+	getUrl(key: string): string;
 }
 
 /**

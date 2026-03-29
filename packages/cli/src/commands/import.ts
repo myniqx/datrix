@@ -32,11 +32,19 @@ export async function importCommand(
 
 	if (!options.agree) {
 		logger.log("");
-		logger.log(red("WARNING: This will permanently delete ALL data in the database!"));
-		logger.log(yellow("  All existing tables will be dropped and recreated from the export file."));
+		logger.log(
+			red("WARNING: This will permanently delete ALL data in the database!"),
+		);
+		logger.log(
+			yellow(
+				"  All existing tables will be dropped and recreated from the export file.",
+			),
+		);
 		logger.log("");
 
-		const confirmed = await confirm("Are you sure you want to continue? (y/N): ");
+		const confirmed = await confirm(
+			"Are you sure you want to continue? (y/N): ",
+		);
 
 		if (!confirmed) {
 			logger.info("Import cancelled.");
@@ -46,7 +54,7 @@ export async function importCommand(
 
 	logger.info(`Importing from: ${resolvedPath}`);
 
-	const reader = new ZipImportReader(resolvedPath);
+	const reader = new ZipImportReader(resolvedPath, options.verbose);
 
 	spinner.start("Importing data...");
 
