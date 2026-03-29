@@ -16,6 +16,9 @@ import { createPool } from "mysql2/promise";
 import { MySQLQueryTranslator } from "./query-translator";
 import { MySQLPopulator } from "./populate";
 import { MySQLClient } from "./mysql-client";
+import { MySQLExporter } from "./export-import/exporter";
+import { MySQLImporter } from "./export-import/importer";
+import { ExportWriter, ImportReader } from "forja-types/adapter";
 import type { MySQLConfig, MySQLQueryObject } from "./types";
 import { getMySQLTypeWithModifiers, parseConnectionString } from "./types";
 import { QueryObject, QuerySelectObject } from "forja-types/core/query-builder";
@@ -441,6 +444,14 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 	async createTable(
 		schema: SchemaDefinition,
 		connection?: PoolConnection,
+		options?: {
+			/**
+			 * Set to true when called from the importer.
+			 * Skips FK constraint creation (added later via ALTER TABLE) and
+			 * skips upsertSchemaMeta so the importer can restore _forja data as-is.
+			 */
+			isImport?: boolean;
+		},
 	): Promise<void> {
 		const queryRunner = connection ?? this.pool;
 		if (!queryRunner) {
@@ -461,7 +472,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 				const columnDef = this.buildColumnDefinition(fieldName, field);
 				columns.push(columnDef);
 
-				if (field.type === "number" && field.references) {
+				if (!options?.isImport && field.type === "number" && field.references) {
 					const col = escapeIdentifier(fieldName);
 					const refTable = escapeIdentifier(field.references.table);
 					const refCol = escapeIdentifier(field.references.column ?? "id");
@@ -490,8 +501,8 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 				}
 			}
 
-			// Track schema in _forja (skip for _forja itself — it tracks others)
-			if (schema.name !== FORJA_META_MODEL) {
+			// Track schema in _forja (skip for _forja itself and during import)
+			if (!options?.isImport && schema.name !== FORJA_META_MODEL) {
 				const metaExists = await this.tableExists(FORJA_META_MODEL);
 				if (!metaExists) {
 					throwMigrationError({
@@ -1051,6 +1062,14 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 		}
 
 		return rows;
+	}
+
+	async exportData(writer: ExportWriter): Promise<void> {
+		await new MySQLExporter(this.pool!, this).export(writer);
+	}
+
+	async importData(reader: ImportReader): Promise<void> {
+		await new MySQLImporter(this.pool!, this).import(reader);
 	}
 
 	/**

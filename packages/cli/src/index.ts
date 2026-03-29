@@ -16,6 +16,8 @@ import { logger, formatError, bold, cyan } from "./utils/logger";
 import { loadConfig } from "./utils/config-loader";
 import { migrateCommand, displayMigrationStatus } from "./commands/migrate";
 import { generateCommand, isValidGenerateType } from "./commands/generate";
+import { exportCommand } from "./commands/export";
+import { importCommand } from "./commands/import";
 
 /**
  * Parse command-line arguments
@@ -84,6 +86,14 @@ ${bold("COMMANDS")}
   ${cyan("generate types")}                Generate TypeScript types from schemas
     ${bold("Options:")}
       --output <path>             Output file path (default: ./types/forja.ts)
+
+  ${cyan("export")}                        Export all data to a zip file
+    ${bold("Options:")}
+      --output <path>             Output file path (default: ./export_<date>.zip)
+
+  ${cyan("import")} ${bold("<file.zip>")}             Import data from a zip file (drops all existing data)
+    ${bold("Options:")}
+      --agree                     Skip the "drop all data" confirmation prompt
 
   ${cyan("help")}                           Show this help message
 
@@ -188,6 +198,30 @@ async function main(): Promise<void> {
 				}
 
 				await generateCommand(args.subcommand, name, generateOptions);
+				break;
+			}
+
+			case "export": {
+				const forja = await loadConfig(getConfigPath(args.options));
+				await exportCommand(forja.getAdapter(), {
+					verbose: Boolean(args.options["verbose"]),
+					output: typeof args.options["output"] === "string" ? args.options["output"] : undefined,
+				});
+				break;
+			}
+
+			case "import": {
+				const filePath = args.args[0];
+				if (!filePath) {
+					logger.error("Import file path is required");
+					logger.info("Usage: forja import <file.zip> [--agree]");
+					process.exit(1);
+				}
+				const forja = await loadConfig(getConfigPath(args.options));
+				await importCommand(forja.getAdapter(), filePath, {
+					agree: Boolean(args.options["agree"]),
+					verbose: Boolean(args.options["verbose"]),
+				});
 				break;
 			}
 

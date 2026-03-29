@@ -197,9 +197,9 @@ export type WhereClause<T extends ForjaEntry = ForjaRecord> =
  * - Wildcard: '*' (all fields)
  */
 export type SelectClause<T extends ForjaEntry = ForjaRecord> =
-	| readonly (keyof T)[]
+	| (ForjaRecord extends T ? readonly string[] : readonly (keyof T)[])
 	| "*"
-	| keyof T;
+	| (ForjaRecord extends T ? string : keyof T);
 
 /**
  * Populate clause (relations to include)
@@ -226,9 +226,9 @@ export type PopulateClause<T extends ForjaEntry = ForjaRecord> =
 	| boolean
 	| "*"
 	| "true"
-	| keyof T[]
+	| (ForjaRecord extends T ? readonly string[] : readonly (keyof T)[])
 	| {
-			readonly [relation: string]: PopulateOptions<T> | "*" | boolean;
+			readonly [K in ForjaRecord extends T ? string : keyof T]?: PopulateOptions<T> | "*" | boolean;
 	  };
 
 /**

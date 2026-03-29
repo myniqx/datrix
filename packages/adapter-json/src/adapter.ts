@@ -39,6 +39,9 @@ import {
 	FORJA_META_KEY_PREFIX,
 } from "forja-types/core/constants";
 import { createMetaTable, validateTableName } from "./table-utils";
+import { JsonExporter } from "./export-import/exporter";
+import { JsonImporter } from "./export-import/importer";
+import type { ExportWriter, ImportReader } from "forja-types/adapter";
 import {
 	handleCount,
 	handleDelete,
@@ -431,8 +434,25 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		}
 	}
 
-	async createTable(schema: SchemaDefinition): Promise<void> {
-		return this.createTableWithOptions(schema);
+	async exportData(writer: ExportWriter): Promise<void> {
+		await new JsonExporter(this.config.root, this).export(writer);
+	}
+
+	async importData(reader: ImportReader): Promise<void> {
+		await new JsonImporter(this.config.root, this).import(reader);
+	}
+
+	async createTable(
+		schema: SchemaDefinition,
+		options?: {
+			/**
+			 * Set to true when called from the importer.
+			 * Skips upsertSchemaMeta so the importer can restore _forja data as-is.
+			 */
+			isImport?: boolean;
+		},
+	): Promise<void> {
+		return this.createTableWithOptions(schema, undefined, options?.isImport);
 	}
 
 	/**
@@ -441,6 +461,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 	async createTableWithOptions(
 		schema: SchemaDefinition,
 		options?: SchemaOperationOptions,
+		isImport?: boolean,
 	): Promise<void> {
 		const skipWrite = options?.skipWrite ?? false;
 
@@ -521,8 +542,8 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 			await this.updateCache(tableName, initialContent);
 		}
 
-		// Track schema in _forja (skip for _forja itself)
-		if (schema.name !== FORJA_META_MODEL) {
+		// Track schema in _forja (skip for _forja itself and during import)
+		if (!isImport && schema.name !== FORJA_META_MODEL) {
 			const metaExists = await this.tableExists(FORJA_META_MODEL);
 			if (!metaExists) {
 				throwMigrationError({

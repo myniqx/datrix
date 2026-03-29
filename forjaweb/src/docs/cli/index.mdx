@@ -185,6 +185,77 @@ export type UpdatePostInput = Partial<Omit<PostBase, keyof ForjaEntry>> & PostRe
 
 ---
 
+## forja export
+
+Exports all data from your database into a single zip file. The zip contains a `metadata.json` with schema definitions and one or more CSV chunks per table.
+
+```bash
+forja export
+forja export --output ./backups/prod-2024-01-15.zip
+```
+
+| Option | Description |
+| --- | --- |
+| `--output <path>` | Output file path (default: `./export_<timestamp>.zip`) |
+| `--verbose` | Detailed output |
+
+### What gets exported
+
+- All tables including junction tables (manyToMany)
+- All rows, chunked in batches of 1000 for memory efficiency
+- Schema definitions — so the importer can recreate tables without a running app
+- Table creation order is sorted by FK dependency, ensuring a safe import sequence
+
+### Format
+
+```
+export_2024-01-15T10-30-00.zip
+├── metadata.json        # schema definitions + chunk file index
+├── users_0.csv          # first 1000 rows of users
+├── users_1.csv          # next 1000 rows of users
+├── posts_0.csv
+└── post_tag_0.csv       # junction table
+```
+
+---
+
+## forja import
+
+Imports data from a previously exported zip file. **Drops all existing data** and restores from the export.
+
+```bash
+forja import ./backups/prod-2024-01-15.zip
+forja import ./backups/prod-2024-01-15.zip --agree   # skip confirmation prompt
+```
+
+| Option | Description |
+| --- | --- |
+| `--agree` | Skip the "drop all data" confirmation prompt |
+| `--verbose` | Detailed output |
+
+### What happens
+
+1. Prompts for confirmation (skipped with `--agree`)
+2. Drops all existing tables
+3. Recreates tables from the exported schema definitions — without FK constraints
+4. Inserts all rows chunk by chunk
+5. Adds FK constraints via `ALTER TABLE`
+6. Resets auto-increment sequences to continue from the last imported ID
+
+### Use cases
+
+- **Database migrations** — move data between adapters (e.g. JSON → PostgreSQL)
+- **Environment sync** — copy production data to staging
+- **Backups** — restore from a known good state
+
+```bash
+# Copy production data to a local JSON adapter for development
+forja export --config ./config/prod.config.ts --output ./prod-snapshot.zip
+forja import ./prod-snapshot.zip --config ./config/local.config.ts --agree
+```
+
+---
+
 ## Global options
 
 | Option | Description |

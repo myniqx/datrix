@@ -16,6 +16,40 @@ import {
 } from "./core/schema";
 import { ForjaAdapterError } from "./errors/adapter";
 
+/**
+ * Export data metadata
+ */
+export interface ExportMeta {
+	readonly version: number;
+	readonly exportedAt: string;
+}
+
+/**
+ * Writer interface for export operations.
+ *
+ * Adapter calls these methods to stream export data.
+ * CLI provides the concrete implementation (zip, file, memory, etc.)
+ */
+export interface ExportWriter {
+	writeMeta(meta: ExportMeta): Promise<void>;
+	writeSchema(schema: SchemaDefinition): Promise<void>;
+	writeChunk(tableName: string, rows: Record<string, unknown>[]): Promise<void>;
+	finalize(): Promise<void>;
+}
+
+/**
+ * Reader interface for import operations.
+ *
+ * Adapter calls these methods to stream import data.
+ * CLI provides the concrete implementation (zip, file, memory, etc.)
+ */
+export interface ImportReader {
+	readMeta(): Promise<ExportMeta>;
+	readSchemas(): AsyncIterable<SchemaDefinition>;
+	getTables(): Promise<readonly string[]>;
+	readChunks(tableName: string): AsyncIterable<Record<string, unknown>[]>;
+}
+
 export { ForjaAdapterError };
 
 /**
@@ -154,6 +188,10 @@ export interface DatabaseAdapter<TConfig = object>
 	getTables(): Promise<readonly string[]>;
 	getTableSchema(tableName: string): Promise<SchemaDefinition | null>;
 	tableExists(tableName: string): Promise<boolean>;
+
+	// Export / Import
+	exportData(writer: ExportWriter): Promise<void>;
+	importData(reader: ImportReader): Promise<void>;
 }
 
 /**
@@ -170,9 +208,13 @@ export function isDatabaseAdapter(
 		"connect" in value &&
 		"disconnect" in value &&
 		"executeQuery" in value &&
+		"exportData" in value &&
+		"importData" in value &&
 		typeof (value as DatabaseAdapter).connect === "function" &&
 		typeof (value as DatabaseAdapter).disconnect === "function" &&
-		typeof (value as DatabaseAdapter).executeQuery === "function"
+		typeof (value as DatabaseAdapter).executeQuery === "function" &&
+		typeof (value as DatabaseAdapter).exportData === "function" &&
+		typeof (value as DatabaseAdapter).importData === "function"
 	);
 }
 

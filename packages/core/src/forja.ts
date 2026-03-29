@@ -70,7 +70,7 @@ export class Forja implements IForja {
 	private _crud!: CrudOperations;
 	private _rawCrud!: CrudOperations;
 
-	private constructor() {}
+	private constructor() { }
 
 	static getInstance(): Forja {
 		if (!Forja.instance) {
@@ -203,6 +203,9 @@ export class Forja implements IForja {
 				}
 			}
 		} catch (error) {
+			if (error instanceof ForjaError) {
+				throw error;
+			}
 			throw new ForjaError(
 				`Initialization failed: ${error instanceof Error ? error.message : String(error)}`,
 				{

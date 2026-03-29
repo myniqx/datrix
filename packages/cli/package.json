@@ -29,9 +29,13 @@
 	},
 	"dependencies": {
 		"@forja/core": "workspace:*",
-		"@forja/types": "workspace:*"
+		"@forja/types": "workspace:*",
+		"adm-zip": "^0.5.16",
+		"archiver": "^7.0.1"
 	},
 	"devDependencies": {
+		"@types/adm-zip": "^0.5.8",
+		"@types/archiver": "^7.0.0",
 		"@types/node": "^20.11.17",
 		"jiti": "^2.6.1",
 		"tsup": "^8.0.2",

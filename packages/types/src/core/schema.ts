@@ -839,3 +839,75 @@ export function validateSchemaDefinition(
 		errors,
 	};
 }
+
+/**
+ * Sort schemas by FK dependency order using Kahn's topological sort.
+ * Referenced schemas (parents) come before schemas that reference them (children).
+ * Circular/unresolved schemas are appended at the end unchanged.
+ *
+ * Used by SchemaRegistry.finalizeRegistry() and ZipExportWriter.finalize()
+ * to guarantee consistent table creation order.
+ */
+export function sortSchemasByDependency(schemas: SchemaDefinition[]): SchemaDefinition[] {
+	const tableToSchema = new Map<string, SchemaDefinition>();
+	for (const schema of schemas) {
+		if (schema.tableName) tableToSchema.set(schema.tableName, schema);
+	}
+
+	const deps = new Map<string, Set<string>>();
+	for (const schema of schemas) {
+		if (schema.tableName) deps.set(schema.tableName, new Set());
+	}
+
+	for (const schema of schemas) {
+		for (const field of Object.values(schema.fields)) {
+			const ref = (field as { references?: { table: string } }).references;
+			if (!ref) continue;
+			const depTable = ref.table;
+			if (depTable !== schema.tableName && tableToSchema.has(depTable)) {
+				deps.get(schema.tableName!)!.add(depTable);
+			}
+		}
+	}
+
+	const inDegree = new Map<string, number>();
+	for (const tableName of deps.keys()) {
+		inDegree.set(tableName, 0);
+	}
+	for (const depSet of deps.values()) {
+		for (const dep of depSet) {
+			inDegree.set(dep, (inDegree.get(dep) ?? 0) + 1);
+		}
+	}
+
+	const queue: string[] = [];
+	for (const [tableName, degree] of inDegree) {
+		if (degree === 0) queue.push(tableName);
+	}
+
+	const sorted: string[] = [];
+	while (queue.length > 0) {
+		const current = queue.shift()!;
+		sorted.push(current);
+		for (const dep of deps.get(current) ?? []) {
+			const newDegree = (inDegree.get(dep) ?? 1) - 1;
+			inDegree.set(dep, newDegree);
+			if (newDegree === 0) queue.push(dep);
+		}
+	}
+
+	// Reverse: dependencies first (parents before children)
+	sorted.reverse();
+
+	const result: SchemaDefinition[] = [];
+	for (const tableName of sorted) {
+		const schema = tableToSchema.get(tableName);
+		if (schema) result.push(schema);
+	}
+	// Append any schemas without tableName or in circular deps
+	for (const schema of schemas) {
+		if (!result.includes(schema)) result.push(schema);
+	}
+
+	return result;
+}

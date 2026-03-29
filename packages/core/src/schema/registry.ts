@@ -17,6 +17,7 @@ import type {
 } from "forja-types/core/schema";
 import {
 	validateSchemaDefinition,
+	sortSchemasByDependency,
 	RESERVED_FIELDS,
 } from "forja-types/core/schema";
 import { FORJA_META_MODEL } from "forja-types/core/constants";
@@ -218,58 +219,8 @@ export class SchemaRegistry implements ISchemaRegistry {
 	 * Rebuilds the internal Map in dependency order.
 	 */
 	private sortByDependencies(): void {
-		// Build dependency graph: schema tableName -> set of referenced tableNames
-		const tableToName = new Map<string, string>();
-		const deps = new Map<string, Set<string>>();
-
-		for (const [name, schema] of this.schemas) {
-			const tableName = schema.tableName ?? name;
-			tableToName.set(tableName, name);
-			deps.set(name, new Set());
-		}
-
-		for (const [name, schema] of this.schemas) {
-			for (const field of Object.values(schema.fields)) {
-				if (field.type !== "number") continue;
-				const ref = (field as { references?: { table: string } }).references;
-				if (!ref) continue;
-
-				const depName = tableToName.get(ref.table);
-				if (depName && depName !== name) {
-					deps.get(name)!.add(depName);
-				}
-			}
-		}
-
-		// Kahn's algorithm
-		const inDegree = new Map<string, number>();
-		for (const name of deps.keys()) {
-			inDegree.set(name, 0);
-		}
-		for (const depSet of deps.values()) {
-			for (const dep of depSet) {
-				inDegree.set(dep, (inDegree.get(dep) ?? 0) + 1);
-			}
-		}
-
-		const queue: string[] = [];
-		for (const [name, degree] of inDegree) {
-			if (degree === 0) queue.push(name);
-		}
-
-		const sorted: string[] = [];
-		while (queue.length > 0) {
-			const current = queue.shift()!;
-			sorted.push(current);
-			for (const dep of deps.get(current) ?? []) {
-				const newDegree = (inDegree.get(dep) ?? 1) - 1;
-				inDegree.set(dep, newDegree);
-				if (newDegree === 0) queue.push(dep);
-			}
-		}
-
-		// Reverse: dependencies first
-		sorted.reverse();
+		const allSchemas = Array.from(this.schemas.values());
+		const sorted = sortSchemasByDependency(allSchemas);
 
 		// Rebuild Map in sorted order, _forja always first
 		const entries = new Map<string, SchemaDefinition>();
@@ -279,13 +230,9 @@ export class SchemaRegistry implements ISchemaRegistry {
 			entries.set(FORJA_META_MODEL, metaSchema);
 		}
 
-		for (const name of sorted) {
-			if (name === FORJA_META_MODEL) continue;
-			entries.set(name, this.schemas.get(name)!);
-		}
-		// Add any remaining (circular deps fallback)
-		for (const [name, schema] of this.schemas) {
-			if (!entries.has(name)) entries.set(name, schema);
+		for (const schema of sorted) {
+			if (schema.name === FORJA_META_MODEL) continue;
+			entries.set(schema.name, schema);
 		}
 
 		this.schemas.clear();

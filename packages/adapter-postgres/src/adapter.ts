@@ -45,6 +45,9 @@ import {
 } from "forja-types/core/constants";
 import { PostgresPopulator } from "./populate";
 import { PgClient } from "./pg-client";
+import { PostgresExporter } from "./export-import/exporter";
+import { PostgresImporter } from "./export-import/importer";
+import { ExportWriter, ImportReader } from "forja-types/adapter";
 
 /**
  * PostgreSQL adapter implementation
@@ -336,6 +339,14 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	async createTable(
 		schema: SchemaDefinition,
 		client?: PoolClient,
+		options?: {
+			/**
+			 * Set to true when called from the importer.
+			 * Skips FK constraint creation (added later via ALTER TABLE) and
+			 * skips upsertSchemaMeta so the importer can restore _forja data as-is.
+			 */
+			isImport?: boolean;
+		},
 	): Promise<void> {
 		const queryRunner = client ?? this.pool;
 		if (!queryRunner) {
@@ -351,7 +362,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 				const columnDef = this.buildColumnDefinition(fieldName, field);
 				columns.push(columnDef);
 
-				if (field.type === "number" && field.references) {
+				if (!options?.isImport && field.type === "number" && field.references) {
 					const col = this.getTranslator().escapeIdentifier(fieldName);
 					const refTable = this.getTranslator().escapeIdentifier(
 						field.references.table,
@@ -385,7 +396,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 				}
 			}
 
-			if (schema.name !== FORJA_META_MODEL) {
+			if (!options?.isImport && schema.name !== FORJA_META_MODEL) {
 				const metaExists = await this.tableExists(FORJA_META_MODEL);
 				if (!metaExists) {
 					throwMigrationError({
@@ -826,6 +837,14 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 			`UPDATE ${escapedMetaTable} SET "value" = $1, "updatedAt" = NOW() WHERE "key" = $2`,
 			[updatedValue, metaKey],
 		);
+	}
+
+	async exportData(writer: ExportWriter): Promise<void> {
+		await new PostgresExporter(this.pool!, this).export(writer);
+	}
+
+	async importData(reader: ImportReader): Promise<void> {
+		await new PostgresImporter(this.pool!, this).import(reader);
 	}
 
 	/**

@@ -29,6 +29,9 @@ import {
 	validateFkReferencesForUpdate,
 } from "./fk-validator";
 import { applyOnDeleteActions } from "./on-delete";
+import { MongoDBExporter } from "./export-import/exporter";
+import { MongoDBImporter } from "./export-import/importer";
+import type { ExportWriter, ImportReader } from "forja-types/adapter";
 import type {
 	MongoDBConfig,
 	MongoFindResult,
@@ -657,6 +660,13 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 	async createTable(
 		schema: SchemaDefinition,
 		_session?: ClientSession,
+		options?: {
+			/**
+			 * Set to true when called from the importer.
+			 * Skips upsertSchemaMeta so the importer can restore _forja data as-is.
+			 */
+			isImport?: boolean;
+		},
 	): Promise<void> {
 		if (!this.db) {
 			throwNotConnected({ adapter: "mongodb" });
@@ -682,8 +692,8 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 				}
 			}
 
-			// Track schema in _forja
-			if (schema.name !== FORJA_META_MODEL) {
+			// Track schema in _forja (skip for _forja itself and during import)
+			if (!options?.isImport && schema.name !== FORJA_META_MODEL) {
 				const metaExists = await this.tableExists(FORJA_META_MODEL);
 				if (!metaExists) {
 					throwMigrationError({
@@ -982,6 +992,14 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 			},
 			{ upsert: true },
 		);
+	}
+
+	async exportData(writer: ExportWriter): Promise<void> {
+		await new MongoDBExporter(this.db!, this).export(writer);
+	}
+
+	async importData(reader: ImportReader): Promise<void> {
+		await new MongoDBImporter(this.db!, this).import(reader);
 	}
 
 	private async applyOperationsToMetaSchema(
