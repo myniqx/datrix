@@ -12,7 +12,7 @@ import {
 	ForjaRecord,
 	ISchemaRegistry,
 } from "./core/schema";
-import { ForjaPlugin, QueryAction } from "./plugin";
+import { ForjaPlugin, QueryAction, SchemaDefinition } from "./plugin";
 
 export interface RawCrudOptions<T extends ForjaEntry = ForjaRecord> {
 	select?: SelectClause<T> | undefined;
@@ -141,6 +141,7 @@ export interface IForja extends IRawCrud {
 	getPlugin(name: string): ForjaPlugin | null;
 	hasPlugin(name: string): boolean;
 	getSchemas(): ISchemaRegistry;
+	getSchema(name: string): SchemaDefinition | undefined;
 	getMigrationConfig(): Required<MigrationConfig>;
 	getDevConfig(): Required<DevConfig>;
 	isInitialized(): boolean;

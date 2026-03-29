@@ -219,6 +219,81 @@ export_2024-01-15T10-30-00.zip
 
 ---
 
+### Exporting media files
+
+If your project uses `@forja/api-upload`, pass `--include-files` to also download all media files alongside the database export.
+
+```bash
+forja export --include-files
+forja export --include-files --output ./backups/full-export
+```
+
+This creates an output **directory** instead of a single zip:
+
+```
+full-export/
+├── export.zip           # database export (same format as above)
+├── files-progress.txt   # download ledger
+└── files/
+    ├── 1710000000-photo.jpg
+    └── 1710000000-thumb.jpg
+```
+
+| Option | Description |
+| --- | --- |
+| `--include-files` | Download media files in addition to DB data |
+| `--output <path>` | Output directory path (default: `./export_<timestamp>/`) |
+| `--pack-files` | Pack downloaded files into zip chunks instead of leaving them loose |
+| `--pack-files-chunk-size <bytes>` | Max bytes per chunk zip (default: 1 GB) |
+| `--resume <path>` | Resume a previously interrupted file download |
+
+#### Progress ledger
+
+`files-progress.txt` tracks the download status of every media file. Each line has the format:
+
+```
+<id> <key> <status>
+```
+
+| Status | Meaning |
+| --- | --- |
+| `pending` | Not yet downloaded |
+| `done` | Successfully downloaded |
+| `missing` | Server returned 404 — file no longer exists at the source |
+| `restricted` | Server returned 403 — file exists but credentials are not supported yet |
+
+`missing` and `restricted` entries are skipped silently and will not be retried on resume. All other errors (network failures, 5xx) stop the export so you can resume later.
+
+#### Resuming an interrupted export
+
+If a download is interrupted, run the same command with `--resume` pointing to the output directory:
+
+```bash
+forja export --include-files --resume ./backups/full-export
+```
+
+Only `pending` entries in `files-progress.txt` will be retried.
+
+#### Packing files into zip chunks
+
+Use `--pack-files` to archive downloaded files into chunks after downloading. Original files are removed after packing. Useful when transferring large exports.
+
+```bash
+forja export --include-files --pack-files
+forja export --include-files --pack-files --pack-files-chunk-size 536870912  # 512 MB chunks
+```
+
+```
+full-export/
+├── export.zip
+├── files-progress.txt
+└── files/
+    ├── chunk_0.zip
+    └── chunk_1.zip
+```
+
+---
+
 ## forja import
 
 Imports data from a previously exported zip file. **Drops all existing data** and restores from the export.

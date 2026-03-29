@@ -1,9 +1,10 @@
 import path from "node:path";
 import type { DatabaseAdapter } from "forja-types/adapter";
-import type { IUpload } from "forja-types/api";
+import type { IApiPlugin, IUpload } from "forja-types/api";
 import { logger, spinner } from "../utils/logger";
 import { ZipExportWriter } from "../export-import/zip-writer";
 import { FileExporter } from "../export-import/file-exporter";
+import { IForja } from "forja-types/forja";
 
 export interface ExportCommandOptions {
 	readonly output?: string;
@@ -12,7 +13,7 @@ export interface ExportCommandOptions {
 	readonly packFiles?: boolean;
 	readonly packFilesChunkSize?: number;
 	readonly resume?: string;
-	readonly upload?: IUpload;
+	readonly forja?: IForja;
 }
 
 export async function exportCommand(
@@ -22,7 +23,7 @@ export async function exportCommand(
 	const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
 
 	if (options.includeFiles) {
-		if (!options.upload) {
+		if (!options.forja?.getPlugin("api")?.upload) {
 			logger.error(
 				"--include-files requires an active api-upload plugin. None was found.",
 			);
@@ -62,7 +63,9 @@ async function exportWithFiles(
 	options: ExportCommandOptions,
 	timestamp: string,
 ): Promise<void> {
-	const upload = options.upload!;
+	const forja = options.forja!;
+	const api = options.forja?.getPlugin("api") as IApiPlugin | undefined;
+	const upload = api?.upload as IUpload;
 
 	// Determine output directory
 	const baseDir = options.output
@@ -73,8 +76,13 @@ async function exportWithFiles(
 	const outputDir = options.resume ? path.resolve(options.resume) : baseDir;
 	const zipPath = path.join(outputDir, "export.zip");
 
-	const fileExporter = new FileExporter(outputDir, upload, options.packFilesChunkSize);
+	const fileExporter = new FileExporter(
+		outputDir,
+		upload,
+		options.packFilesChunkSize,
+	);
 	const mediaModel = upload.getModelName();
+	const mediaTableName = forja.getSchema(mediaModel)!.tableName!;
 
 	if (isResume) {
 		const exists = await fileExporter.ledgerExists();
@@ -93,7 +101,7 @@ async function exportWithFiles(
 			zipPath,
 			options.verbose,
 			async (tableName, rows) => {
-				if (tableName === mediaModel) {
+				if (tableName === mediaTableName) {
 					await fileExporter.appendToLedger(rows);
 				}
 			},

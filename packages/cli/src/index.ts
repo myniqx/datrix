@@ -211,22 +211,23 @@ async function main(): Promise<void> {
 				const resume =
 					typeof args.options["resume"] === "string"
 						? args.options["resume"]
-						: undefined;
-				const upload =
-					includeFiles || resume
-						? (forja.getPlugin<IApiPlugin>("api")?.upload ?? undefined)
-						: undefined;
+						: undefined!;
+
 				await exportCommand(forja.getAdapter(), {
 					verbose: Boolean(args.options["verbose"]),
 					output:
 						typeof args.options["output"] === "string"
 							? args.options["output"]
-							: undefined,
+							: undefined!,
 					includeFiles,
 					packFiles: args.options["pack-files"] !== undefined,
-					packFilesChunkSize: typeof args.options["pack-files"] === "string" && args.options["pack-files"] !== "" ? parseInt(args.options["pack-files"], 10) : undefined,
+					packFilesChunkSize:
+						typeof args.options["pack-files"] === "string" &&
+						args.options["pack-files"] !== ""
+							? parseInt(args.options["pack-files"], 10)
+							: undefined!,
 					resume,
-					upload,
+					forja,
 				});
 				break;
 			}

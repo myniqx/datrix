@@ -24,7 +24,7 @@ import { logger, spinner } from "../utils/logger";
 export interface LedgerEntry {
 	id: string;
 	key: string;
-	status: "pending" | "done";
+	status: "pending" | "done" | "missing" | "restricted";
 }
 
 export interface DownloadResult {
@@ -42,7 +42,11 @@ export class FileExporter {
 	private readonly upload: IUpload;
 	private readonly chunkSizeLimit: number;
 
-	constructor(outputDir: string, upload: IUpload, chunkSizeLimit = DEFAULT_CHUNK_SIZE) {
+	constructor(
+		outputDir: string,
+		upload: IUpload,
+		chunkSizeLimit = DEFAULT_CHUNK_SIZE,
+	) {
 		this.outputDir = outputDir;
 		this.filesDir = path.join(outputDir, FILES_DIR);
 		this.ledgerPath = path.join(outputDir, LEDGER_FILENAME);
@@ -121,8 +125,14 @@ export class FileExporter {
 				if (stopped) break;
 
 				const url = this.upload.getUrl(entry.key);
-				await this.downloadFile(url, entry.key);
-				await this.markDone(entry.id);
+				const result = await this.downloadFile(url, entry.key);
+				if (result === 404) {
+					await this.markStatus(entry.id, "missing");
+				} else if (result === 403) {
+					await this.markStatus(entry.id, "restricted");
+				} else {
+					await this.markStatus(entry.id, "done");
+				}
 				doneCount++;
 				onProgress?.(doneCount, total);
 			}
@@ -167,33 +177,42 @@ export class FileExporter {
 		return this.outputDir;
 	}
 
-	private async downloadFile(url: string, key: string): Promise<void> {
+	private async downloadFile(
+		url: string,
+		key: string,
+	): Promise<404 | 403 | null> {
 		const destPath = path.join(this.filesDir, path.basename(key));
 
 		try {
 			await fs.access(destPath);
-			return;
+			return null;
 		} catch {
 			// File doesn't exist, proceed with download
 		}
 
 		const response = await fetch(url);
+		if (response.status === 404) return 404;
+		if (response.status === 403) return 403;
 		if (!response.ok) {
 			throw new Error(`Failed to download ${url}: HTTP ${response.status}`);
 		}
 
 		const buffer = await response.arrayBuffer();
 		await fs.writeFile(destPath, new Uint8Array(buffer));
+		return null;
 	}
 
-	private async markDone(id: string): Promise<void> {
+	private async markStatus(
+		id: string,
+		status: "done" | "missing" | "restricted",
+	): Promise<void> {
 		const content = await fs.readFile(this.ledgerPath, "utf-8");
 		const updated = content
 			.split("\n")
 			.map((line) => {
 				const parts = line.trim().split(" ");
 				if (parts[0] === id && parts[2] === "pending") {
-					return `${parts[0]} ${parts[1]} done`;
+					return `${parts[0]} ${parts[1]} ${status}`;
 				}
 				return line;
 			})
@@ -234,7 +253,10 @@ export class FileExporter {
 			const filePath = path.join(this.filesDir, file);
 			const stat = await fs.stat(filePath);
 
-			if (currentChunkSize + stat.size > this.chunkSizeLimit && currentFiles.length > 0) {
+			if (
+				currentChunkSize + stat.size > this.chunkSizeLimit &&
+				currentFiles.length > 0
+			) {
 				await flushChunk();
 			}
 
@@ -256,7 +278,14 @@ function parseLedger(content: string): LedgerEntry[] {
 			const parts = line.trim().split(" ");
 			if (parts.length < 3) return null;
 			const [id, key, status] = parts;
-			if (!id || !key || (status !== "pending" && status !== "done"))
+			if (
+				!id ||
+				!key ||
+				(status !== "pending" &&
+					status !== "done" &&
+					status !== "missing" &&
+					status !== "restricted")
+			)
 				return null;
 			return { id, key, status };
 		})
