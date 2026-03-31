@@ -36,9 +36,9 @@ import {
 	FieldDefinition,
 	ForjaEntry,
 	IndexDefinition,
+	ISchemaRegistry,
 	SchemaDefinition,
 } from "forja-types/core/schema";
-import { Forja } from "forja-core";
 import {
 	FORJA_META_MODEL,
 	FORJA_META_KEY_PREFIX,
@@ -58,14 +58,11 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 
 	private pool: Pool | undefined;
 	private state: ConnectionState = "disconnected";
+	private _schemas: ISchemaRegistry | undefined;
 	private _translator: PostgresQueryTranslator | undefined;
 
 	getTranslator(): PostgresQueryTranslator {
-		if (!this._translator) {
-			const schemaRegistry = Forja.getInstance().getSchemas();
-			this._translator = new PostgresQueryTranslator(schemaRegistry);
-		}
-		return this._translator;
+		return this._translator!;
 	}
 
 	constructor(config: PostgresConfig) {
@@ -75,11 +72,13 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	/**
 	 * Connect to PostgreSQL
 	 */
-	async connect(): Promise<void> {
+	async connect(schemas: ISchemaRegistry): Promise<void> {
 		if (this.state === "connected") {
 			return;
 		}
 		this.state = "connecting";
+		this._schemas = schemas;
+		this._translator = new PostgresQueryTranslator(schemas);
 
 		try {
 			this.pool = new PgPool({
@@ -174,11 +173,10 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 
 		try {
 			if (query.type === "select" && query.populate) {
-				const schemaRegistry = Forja.getInstance().getSchemas();
 				const populator = new PostgresPopulator(
 					pgClient,
 					this.getTranslator(),
-					schemaRegistry,
+					this._schemas!,
 				);
 
 				const rows = await populator.populate<TResult>(query);

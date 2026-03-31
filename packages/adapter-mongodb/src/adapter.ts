@@ -67,9 +67,9 @@ import {
 import { validateQueryObject } from "forja-types/utils/query";
 import type {
 	IndexDefinition,
+	ISchemaRegistry,
 	SchemaDefinition,
 } from "forja-types/core/schema";
-import { Forja } from "forja-core";
 import type { SchemaRegistry } from "forja-core/schema";
 import {
 	FORJA_META_MODEL,
@@ -86,6 +86,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 	private nativeClient: NativeMongoClient | undefined;
 	private db: Db | undefined;
 	private state: ConnectionState = "disconnected";
+	private _schemas: ISchemaRegistry | undefined;
 	private _translator: MongoDBQueryTranslator | undefined;
 
 	constructor(config: MongoDBConfig) {
@@ -93,11 +94,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 	}
 
 	private getTranslator(): MongoDBQueryTranslator {
-		if (!this._translator) {
-			const schemaRegistry = Forja.getInstance().getSchemas();
-			this._translator = new MongoDBQueryTranslator(schemaRegistry);
-		}
-		return this._translator;
+		return this._translator!;
 	}
 
 	/**
@@ -127,9 +124,11 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 	// Connection Management
 	// =========================================================================
 
-	async connect(): Promise<void> {
+	async connect(schemas: ISchemaRegistry): Promise<void> {
 		if (this.state === "connected") return;
 		this.state = "connecting";
+		this._schemas = schemas;
+		this._translator = new MongoDBQueryTranslator(schemas as SchemaRegistry);
 
 		try {
 			this.nativeClient = new NativeMongoClientClass(this.config.uri, {
@@ -293,19 +292,18 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 		client: MongoClient<TResult>,
 	): Promise<QueryResult<TResult>> {
 		// Validate FK references (MongoDB has no FK constraints)
-		const schemaRegistry = Forja.getInstance().getSchemas();
 		await validateFkReferences(
 			op.collection,
 			op.documents as readonly Record<string, unknown>[],
 			client,
-			schemaRegistry,
+			this._schemas!,
 		);
 
 		// Apply schema default values (MongoDB has no DEFAULT constraint)
 		const docsWithDefaults = this.applyDefaults(
 			op.collection,
 			op.documents,
-			schemaRegistry,
+			this._schemas!,
 		);
 
 		const metaCollection = this.getMetaCollection();
@@ -350,12 +348,11 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 		// Validate FK references in $set data (MongoDB has no FK constraints)
 		const setData = (op.update as { $set?: Record<string, unknown> }).$set;
 		if (setData) {
-			const schemaRegistry = Forja.getInstance().getSchemas();
 			await validateFkReferencesForUpdate(
 				op.collection,
 				setData,
 				client,
-				schemaRegistry,
+				this._schemas!,
 			);
 		}
 
@@ -405,12 +402,11 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 
 		// Apply ON DELETE actions (restrict/setNull/cascade) before deleting
 		if (idsToDelete.length > 0) {
-			const schemaRegistry = Forja.getInstance().getSchemas();
 			await applyOnDeleteActions(
 				op.collection,
 				idsToDelete,
 				client,
-				schemaRegistry,
+				this._schemas!,
 			);
 		}
 
@@ -457,8 +453,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 		query: QuerySelectObject<TResult>,
 		client: MongoClient<TResult>,
 	): Promise<QueryResult<TResult>> {
-		const schemaRegistry = Forja.getInstance().getSchemas();
-		const populator = new MongoDBPopulator(client, schemaRegistry);
+		const populator = new MongoDBPopulator(client, this._schemas!);
 
 		const translated = this.getTranslator().translate(query) as MongoFindResult;
 		const resolved = (await this.resolveFilterRelations(
@@ -487,7 +482,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 	private applyDefaults(
 		collection: string,
 		documents: readonly Document[],
-		schemaRegistry: SchemaRegistry,
+		schemaRegistry: ISchemaRegistry,
 	): Document[] {
 		const modelName = schemaRegistry.findModelByTableName(collection);
 		if (!modelName) return documents as Document[];
@@ -537,12 +532,11 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 		const filterKeys = Object.keys(translated.filter);
 		if (filterKeys.length === 0) return translated;
 
-		const schemaRegistry = Forja.getInstance().getSchemas();
 		const resolvedFilter = await resolveNestedWhere(
 			translated.filter,
 			translated.collection,
 			client,
-			schemaRegistry,
+			this._schemas!,
 		);
 
 		return { ...translated, filter: resolvedFilter } as MongoTranslateResult;

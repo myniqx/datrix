@@ -12,8 +12,7 @@ import type {
 	QueryPopulateOptions,
 	QuerySelectObject,
 } from "forja-types/core/query-builder";
-import type { SchemaRegistry } from "forja-core/schema";
-import type { ForjaEntry } from "forja-types/core/schema";
+import type { ForjaEntry, ISchemaRegistry } from "forja-types/core/schema";
 import type { MongoClient } from "../mongo-client";
 import { throwMaxDepthExceeded } from "forja-types/errors/adapter";
 
@@ -32,7 +31,7 @@ const MAX_POPULATE_DEPTH = 5;
 export class MongoDBPopulator<T extends ForjaEntry> {
 	constructor(
 		private readonly client: MongoClient<T>,
-		private readonly schemaRegistry: SchemaRegistry,
+		private readonly schemaRegistry: ISchemaRegistry,
 	) {}
 
 	/**

@@ -47,9 +47,9 @@ import { validateQueryObject } from "forja-types/utils/query";
 import {
 	FieldDefinition,
 	IndexDefinition,
+	ISchemaRegistry,
 	SchemaDefinition,
 } from "forja-types/core/schema";
-import { Forja } from "forja-core";
 import {
 	FORJA_META_MODEL,
 	FORJA_META_KEY_PREFIX,
@@ -65,6 +65,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 
 	private pool: Pool | undefined;
 	private state: ConnectionState = "disconnected";
+	private _schemas: ISchemaRegistry | undefined;
 	private _translator: MySQLQueryTranslator | undefined;
 
 	constructor(config: MySQLConfig) {
@@ -77,22 +78,20 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 	}
 
 	getTranslator(): MySQLQueryTranslator {
-		if (!this._translator) {
-			const schemaRegistry = Forja.getInstance().getSchemas();
-			this._translator = new MySQLQueryTranslator(schemaRegistry);
-		}
-		return this._translator;
+		return this._translator!;
 	}
 
 	/**
 	 * Connect to MySQL
 	 */
-	async connect(): Promise<void> {
+	async connect(schemas: ISchemaRegistry): Promise<void> {
 		if (this.state === "connected") {
 			return;
 		}
 
 		this.state = "connecting";
+		this._schemas = schemas;
+		this._translator = new MySQLQueryTranslator(schemas);
 
 		try {
 			// Build pool options
@@ -297,7 +296,6 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 		queryRunner: Pool | PoolConnection,
 	): Promise<QueryResult<TResult>> {
 		try {
-			const schemaRegistry = Forja.getInstance().getSchemas();
 			const populateQuery: QueryObject = {
 				type: "select",
 				table: `_populate:${query.table}`,
@@ -306,7 +304,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			const populator = new MySQLPopulator(
 				client,
 				this.getTranslator(),
-				schemaRegistry,
+				this._schemas!,
 			);
 
 			const rawRows = await populator.populate<TResult>(query);
@@ -1006,11 +1004,10 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 		rows: readonly TResult[],
 		tableName: string,
 	): readonly TResult[] {
-		const schemaRegistry = Forja.getInstance().getSchemas();
-		const modelName = schemaRegistry.findModelByTableName(tableName);
+		const modelName = this._schemas!.findModelByTableName(tableName);
 		if (!modelName) return rows;
 
-		const schema = schemaRegistry.get(modelName);
+		const schema = this._schemas!.get(modelName);
 		if (!schema) return rows;
 
 		// Collect fields that need conversion
@@ -1051,7 +1048,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			for (const rel of relationFields) {
 				const value = (row as Record<string, unknown>)[rel.name];
 				if (value === null || value === undefined) continue;
-				const targetSchema = schemaRegistry.get(rel.model);
+				const targetSchema = this._schemas!.get(rel.model);
 				if (!targetSchema) continue;
 				const targetTable = targetSchema.tableName ?? rel.model.toLowerCase();
 				if (Array.isArray(value)) {

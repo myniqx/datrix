@@ -16,8 +16,11 @@
  */
 
 import type { Document, Filter } from "mongodb";
-import type { SchemaRegistry } from "forja-core/schema";
-import type { ForjaEntry, SchemaDefinition } from "forja-types/core/schema";
+import type {
+	ForjaEntry,
+	ISchemaRegistry,
+	SchemaDefinition,
+} from "forja-types/core/schema";
 import type { MongoClient } from "./mongo-client";
 
 /**
@@ -44,7 +47,7 @@ export async function resolveNestedWhere<TResult extends ForjaEntry>(
 	filter: Filter<Document>,
 	tableName: string,
 	client: MongoClient<TResult>,
-	schemaRegistry: SchemaRegistry,
+	schemaRegistry: ISchemaRegistry,
 ): Promise<Filter<Document>> {
 	const modelName = schemaRegistry.findModelByTableName(tableName);
 	if (!modelName) return filter;
@@ -111,7 +114,7 @@ async function resolveLogicalOperators<TResult extends ForjaEntry>(
 	conditions: Filter<Document>[],
 	tableName: string,
 	client: MongoClient<TResult>,
-	schemaRegistry: SchemaRegistry,
+	schemaRegistry: ISchemaRegistry,
 ): Promise<Filter<Document>[]> {
 	const resolvedConditions: Filter<Document>[] = [];
 	for (const condition of conditions) {
@@ -139,7 +142,7 @@ async function resolveRelationIds<TResult extends ForjaEntry>(
 	sourceSchema: SchemaDefinition,
 	conditions: Filter<Document>,
 	client: MongoClient<TResult>,
-	schemaRegistry: SchemaRegistry,
+	schemaRegistry: ISchemaRegistry,
 ): Promise<readonly number[]> {
 	const targetSchema = schemaRegistry.get(relation.model);
 	if (!targetSchema) return [];

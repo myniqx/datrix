@@ -11,8 +11,8 @@ import type {
 	SchemaDefinition,
 	FieldDefinition,
 	ForjaEntry,
+	ISchemaRegistry,
 } from "forja-types/core/schema";
-import type { SchemaRegistry } from "forja-core/schema";
 import type { MongoClient } from "./mongo-client";
 import { throwQueryError } from "forja-types/errors/adapter";
 
@@ -24,7 +24,7 @@ export async function validateFkReferences<T extends ForjaEntry>(
 	collection: string,
 	documents: readonly Record<string, unknown>[],
 	client: MongoClient<T>,
-	schemaRegistry: SchemaRegistry,
+	schemaRegistry: ISchemaRegistry,
 ): Promise<void> {
 	const modelName = schemaRegistry.findModelByTableName(collection);
 	if (!modelName) return;
@@ -43,7 +43,7 @@ export async function validateFkReferencesForUpdate<T extends ForjaEntry>(
 	collection: string,
 	updateData: Record<string, unknown>,
 	client: MongoClient<T>,
-	schemaRegistry: SchemaRegistry,
+	schemaRegistry: ISchemaRegistry,
 ): Promise<void> {
 	const modelName = schemaRegistry.findModelByTableName(collection);
 	if (!modelName) return;

@@ -57,9 +57,6 @@ export type ConfigFactory = () => ForjaConfig;
  * Forja Main Singleton Class
  */
 export class Forja implements IForja {
-	private static instance: Forja | null = null;
-	private static initPromise: Promise<Forja> | null = null;
-
 	private config: ForjaConfig | null = null;
 	private adapter: DatabaseAdapter | null = null;
 	private pluginRegistry: PluginRegistry = new PluginRegistry();
@@ -69,15 +66,6 @@ export class Forja implements IForja {
 
 	private _crud!: CrudOperations;
 	private _rawCrud!: CrudOperations;
-
-	private constructor() {}
-
-	static getInstance(): Forja {
-		if (!Forja.instance) {
-			Forja.instance = new Forja();
-		}
-		return Forja.instance;
-	}
 
 	/**
 	 * Initialize with config object directly
@@ -106,7 +94,7 @@ export class Forja implements IForja {
 
 			// Connect to database
 			if (!options.skipConnection && this.adapter) {
-				await this.adapter.connect();
+				await this.adapter.connect(this._schemas);
 			}
 
 			// 1. Register internal _forja metadata schema
@@ -231,8 +219,6 @@ export class Forja implements IForja {
 			this._schemas.clear();
 			this.dispatcher = null;
 			this.initialized = false;
-			Forja.instance = null;
-			Forja.initPromise = null;
 		} catch (error) {
 			throw new ForjaError(
 				`Shutdown failed: ${error instanceof Error ? error.message : String(error)}`,
@@ -474,7 +460,6 @@ export class Forja implements IForja {
 		this.dispatcher = null;
 		this._schemas = new SchemaRegistry();
 		this.initialized = false;
-		Forja.initPromise = null;
 	}
 
 	private ensureInitialized(): void {
@@ -569,32 +554,33 @@ export class Forja implements IForja {
  * ```
  */
 export function defineConfig(factory: ConfigFactory): () => Promise<Forja> {
-	return async function getForjaInstance(): Promise<Forja> {
-		const instance = Forja.getInstance();
+	const instance = new Forja();
+	let initPromise: Promise<Forja> | null = null;
 
+	return async function getForjaInstance(): Promise<Forja> {
 		// Already initialized - return immediately
 		if (instance.isInitialized()) {
 			return instance;
 		}
 
 		// Initialization in progress - wait for it
-		if (Forja["initPromise"]) {
-			return Forja["initPromise"];
+		if (initPromise) {
+			return initPromise;
 		}
 
 		// Start initialization
-		Forja["initPromise"] = (async () => {
+		initPromise = (async () => {
 			const config = factory();
 
 			try {
 				await instance.initializeWithConfig(config);
 			} finally {
-				Forja["initPromise"] = null;
+				initPromise = null;
 			}
 
 			return instance;
 		})();
 
-		return Forja["initPromise"];
+		return initPromise;
 	};
 }

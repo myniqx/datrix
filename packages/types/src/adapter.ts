@@ -12,6 +12,7 @@ import {
 	FieldDefinition,
 	ForjaEntry,
 	IndexDefinition,
+	ISchemaRegistry,
 	SchemaDefinition,
 } from "./core/schema";
 import { ForjaAdapterError } from "./errors/adapter";
@@ -176,7 +177,7 @@ export interface DatabaseAdapter<TConfig = object>
 	readonly config: TConfig;
 
 	// Connection management
-	connect(): Promise<void>;
+	connect(schemas: ISchemaRegistry): Promise<void>;
 	disconnect(): Promise<void>;
 	isConnected(): boolean;
 	getConnectionState(): ConnectionState;
