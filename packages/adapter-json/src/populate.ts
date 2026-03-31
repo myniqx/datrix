@@ -83,7 +83,9 @@ export class JsonPopulator {
 			// This ensures proper handling of nested populate + select combinations
 
 			const options =
-				typeof _options === "object" && _options !== null && !Array.isArray(_options)
+				typeof _options === "object" &&
+				_options !== null &&
+				!Array.isArray(_options)
 					? (_options as QueryPopulateOptions<ForjaEntry>)
 					: undefined;
 
@@ -110,7 +112,11 @@ export class JsonPopulator {
 				let filteredMap = relatedMap;
 				if (options?.where) {
 					filteredMap = new Map();
-					const filterRunner = new JsonQueryRunner(tableData, this.adapter, targetSchema);
+					const filterRunner = new JsonQueryRunner(
+						tableData,
+						this.adapter,
+						targetSchema,
+					);
 					for (const [id, item] of relatedMap) {
 						const matched = await filterRunner.filterAndSort({
 							type: "select",
@@ -289,7 +295,10 @@ export class JsonPopulator {
 					// Apply limit/offset per-row
 					const offset = options?.offset ?? 0;
 					if (options?.limit !== undefined) {
-						relatedRecords = relatedRecords.slice(offset, offset + options.limit);
+						relatedRecords = relatedRecords.slice(
+							offset,
+							offset + options.limit,
+						);
 					} else if (offset > 0) {
 						relatedRecords = relatedRecords.slice(offset);
 					}
@@ -299,7 +308,11 @@ export class JsonPopulator {
 			}
 
 			// Nested populate (recursion)
-			if (typeof _options === "object" && _options !== null && _options.populate) {
+			if (
+				typeof _options === "object" &&
+				_options !== null &&
+				_options.populate
+			) {
 				const nextRows: T[] = [];
 				for (const row of result) {
 					const val = row[relationName as keyof T] as T;

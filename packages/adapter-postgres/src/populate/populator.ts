@@ -327,13 +327,15 @@ export class PostgresPopulator {
 					relation.model,
 					options,
 				);
+				const hasManyExtra = this.buildBatchOptionsClause(options, targetTable, 2);
 				batchQuery = `
           SELECT t."${fkColumn}" as _fk, ${hasManyRowToJson} as data
           FROM ${this.translator.escapeIdentifier(targetTable)} t
-          WHERE t."${fkColumn}" = ANY($1)
+          WHERE t."${fkColumn}" = ANY($1)${hasManyExtra.sql}
         `;
 				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [
 					parentIds,
+					...hasManyExtra.params,
 				]);
 
 				const nestedPopulate = options?.["populate"];
@@ -366,15 +368,17 @@ export class PostgresPopulator {
 					relation.model,
 					options,
 				);
+				const m2mExtra = this.buildBatchOptionsClause(options, targetTable, 2);
 				batchQuery = `
           SELECT j."${sourceFK}" as _fk, ${m2mRowToJson} as data
           FROM ${this.translator.escapeIdentifier(targetTable)} t
           INNER JOIN ${this.translator.escapeIdentifier(junctionTable)} j
             ON t."id" = j."${targetFK}"
-          WHERE j."${sourceFK}" = ANY($1)
+          WHERE j."${sourceFK}" = ANY($1)${m2mExtra.sql}
         `;
 				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [
 					parentIds,
+					...m2mExtra.params,
 				]);
 
 				const nestedPopulate = options?.["populate"];
@@ -514,14 +518,16 @@ export class PostgresPopulator {
 				}
 			} else if (relation.kind === "hasMany") {
 				const fkColumn = relation.foreignKey!;
+				const hasManyExtra = this.buildBatchOptionsClause(opts, targetTable, 2);
 
 				const batchQuery = `
           SELECT t."${fkColumn}" as _fk, ${nestedRowToJson} as data
           FROM ${this.translator.escapeIdentifier(targetTable)} t
-          WHERE t."${fkColumn}" = ANY($1)
+          WHERE t."${fkColumn}" = ANY($1)${hasManyExtra.sql}
         `;
 				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [
 					parentIds,
+					...hasManyExtra.params,
 				]);
 
 				const nestedPopulate = opts.populate;
@@ -547,16 +553,18 @@ export class PostgresPopulator {
 				const junctionTable = relation.through!;
 				const sourceFK = `${schema.name}Id`;
 				const targetFK = `${relation.model}Id`;
+				const m2mExtra = this.buildBatchOptionsClause(opts, targetTable, 2);
 
 				const batchQuery = `
           SELECT j."${sourceFK}" as _fk, ${nestedRowToJson} as data
           FROM ${this.translator.escapeIdentifier(targetTable)} t
           INNER JOIN ${this.translator.escapeIdentifier(junctionTable)} j
             ON t."id" = j."${targetFK}"
-          WHERE j."${sourceFK}" = ANY($1)
+          WHERE j."${sourceFK}" = ANY($1)${m2mExtra.sql}
         `;
 				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [
 					parentIds,
+					...m2mExtra.params,
 				]);
 
 				const nestedPopulate = opts.populate;
@@ -723,17 +731,17 @@ export class PostgresPopulator {
 	 * 3. Default → json-aggregation (subquery-based, no row explosion)
 	 */
 	private selectStrategy(analysis: PopulateOptionsAnalysis): PopulateStrategy {
-		// Complex options: use LATERAL joins
-		if (analysis.hasComplexOptions) {
+		// Complex options at depth 1: LATERAL joins (per-row limit/offset/where/orderBy)
+		if (analysis.hasComplexOptions && analysis.maxDepth === 1) {
 			return "lateral-joins";
 		}
 
-		// Deep nesting or high cardinality: use batched queries
-		if (analysis.maxDepth > 1 || analysis.estimatedCost > 8) {
+		// Deep nesting or complex options at depth > 1: batched queries
+		if (analysis.maxDepth > 1 || analysis.hasComplexOptions) {
 			return "batched-queries";
 		}
 
-		// Default: JSON aggregation (subquery-based)
+		// Default: JSON aggregation (single query, most performant)
 		return "json-aggregation";
 	}
 
@@ -788,6 +796,42 @@ export class PostgresPopulator {
 			.map((field) => `t.${this.translator.escapeIdentifier(field as string)}`)
 			.join(", ");
 		return `row_to_json((SELECT r FROM (SELECT ${fields}) r))`;
+	}
+
+	/**
+	 * Build extra SQL clauses (WHERE/ORDER BY) for batch queries from populate options.
+	 * Returns the SQL fragment to append and the extra params (starting at startParamIndex).
+	 */
+	private buildBatchOptionsClause<T extends ForjaEntry>(
+		options: QueryPopulateOptions<T>,
+		targetTable: string,
+		startParamIndex: number,
+	): { sql: string; params: unknown[] } {
+		let sql = "";
+		const params: unknown[] = [];
+
+		if (options.where) {
+			const whereResult = this.translator.translateWhere(
+				options.where,
+				startParamIndex,
+				targetTable,
+			);
+			sql += ` AND ${whereResult.sql}`;
+			params.push(...whereResult.params);
+		}
+
+		if (options.orderBy && options.orderBy.length > 0) {
+			const orderSQL = options.orderBy
+				.map((item) => {
+					let s = `t.${this.translator.escapeIdentifier(item.field as string)} ${item.direction.toUpperCase()}`;
+					if (item.nulls) s += ` NULLS ${item.nulls.toUpperCase()}`;
+					return s;
+				})
+				.join(", ");
+			sql += ` ORDER BY ${orderSQL}`;
+		}
+
+		return { sql, params };
 	}
 
 	/**
