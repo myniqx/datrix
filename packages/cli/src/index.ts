@@ -236,13 +236,23 @@ async function main(): Promise<void> {
 				const filePath = args.args[0];
 				if (!filePath) {
 					logger.error("Import file path is required");
-					logger.info("Usage: forja import <file.zip> [--agree]");
+					logger.info("Usage: forja import <path> [--agree]");
 					process.exit(1);
 				}
 				const forja = await loadConfig(getConfigPath(args.options));
+				const withFiles = args.options["with-files"] !== undefined;
+				const onlyFiles = args.options["only-files"] !== undefined;
+				const importResume =
+					typeof args.options["resume"] === "string"
+						? args.options["resume"]
+						: undefined;
 				await importCommand(forja.getAdapter(), filePath, {
 					agree: Boolean(args.options["agree"]),
 					verbose: Boolean(args.options["verbose"]),
+					withFiles,
+					onlyFiles,
+					resume: importResume,
+					forja,
 				});
 				break;
 			}

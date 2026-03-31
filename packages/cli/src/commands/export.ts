@@ -24,10 +24,9 @@ export async function exportCommand(
 
 	if (options.includeFiles) {
 		if (!options.forja?.getPlugin("api")?.upload) {
-			logger.error(
+			throw new Error(
 				"--include-files requires an active api-upload plugin. None was found.",
 			);
-			process.exit(1);
 		}
 		await exportWithFiles(adapter, options, timestamp);
 	} else {
@@ -87,8 +86,9 @@ async function exportWithFiles(
 	if (isResume) {
 		const exists = await fileExporter.ledgerExists();
 		if (!exists) {
-			logger.error(`No files-progress.txt found in: ${outputDir}`);
-			process.exit(1);
+			throw new Error(
+				`No files-progress.txt found in: ${outputDir}. Did you mean to use --resume with a valid export directory?`,
+			);
 		}
 		logger.info(`Resuming file export from: ${outputDir}`);
 	} else {
