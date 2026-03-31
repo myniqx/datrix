@@ -66,15 +66,8 @@ describe("Auth Handler Tests", () => {
 		// Initialize Forja with auth config
 		const getForja = await createTestConfigWithAuth(tmpDir);
 		forja = await getForja();
-
-		// Create tables
-		const adapter = forja.getAdapter();
-		for (const schema of forja.getSchemas().getAll()) {
-			try {
-				await adapter.dropTable(schema.tableName!);
-			} catch {}
-			await adapter.createTable(schema);
-		}
+		const migrate = await forja.beginMigrate();
+		await migrate.apply();
 	});
 
 	afterAll(async () => {

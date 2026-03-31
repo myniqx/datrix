@@ -593,12 +593,8 @@ describe("Lifecycle Hooks", () => {
 			}));
 
 			const forja = await getForja();
-			try {
-				await adapter.dropTable("hook_items");
-			} catch {
-				/* ignore */
-			}
-			await adapter.createTable(schema as SchemaDefinition);
+			const migration = await forja.beginMigrate();
+			await migration.apply();
 			return forja;
 		}
 

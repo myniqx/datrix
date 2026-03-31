@@ -150,10 +150,10 @@ export function normalizePopulate<T extends ForjaEntry>(
 				...value,
 				// Normalize select for this level (if provided)
 				select: normalizeSelect(
-					[value.select],
+					value.select !== undefined ? [value.select] : undefined,
 					registry.get(targetModel)!,
 					registry,
-				), // value.select ? registry.getCachedSelectFields(targetModel) : undefined,
+				),
 				// Recursively process nested populate
 				populate: value.populate
 					? normalizePopulate(value.populate, targetModel, registry, depth + 1)

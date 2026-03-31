@@ -1,4 +1,8 @@
-import { QuerySelect, QuerySelectObject } from "forja-types/core/query-builder";
+import {
+	QuerySelect,
+	QuerySelectObject,
+	QueryPopulateOptions,
+} from "forja-types/core/query-builder";
 import type { JsonAdapter } from "./adapter";
 import type { ForjaEntry, RelationField } from "forja-types/core/schema";
 import {
@@ -78,6 +82,11 @@ export class JsonPopulator {
 			// NOTE: We no longer apply select here - it's handled by adapter's applySelectRecursive
 			// This ensures proper handling of nested populate + select combinations
 
+			const options =
+				typeof _options === "object" && _options !== null && !Array.isArray(_options)
+					? (_options as QueryPopulateOptions<ForjaEntry>)
+					: undefined;
+
 			// Map data based on relation type
 			if (kind === "belongsTo") {
 				// Source has FK (e.g. Post.authorId -> User.id)
@@ -97,13 +106,31 @@ export class JsonPopulator {
 					}
 				}
 
+				// If where is specified, pre-filter the map using runner's match logic
+				let filteredMap = relatedMap;
+				if (options?.where) {
+					filteredMap = new Map();
+					const filterRunner = new JsonQueryRunner(tableData, this.adapter, targetSchema);
+					for (const [id, item] of relatedMap) {
+						const matched = await filterRunner.filterAndSort({
+							type: "select",
+							table: targetTable,
+							where: options.where,
+							select: "*" as unknown as QuerySelect,
+						});
+						if (matched.some((r) => r["id"] === id)) {
+							filteredMap.set(id, item);
+						}
+					}
+				}
+
 				for (const row of result) {
 					const fkValue = row[foreignKey as keyof T] as
 						| number
 						| null
 						| undefined;
 					if (fkValue !== null && fkValue !== undefined) {
-						row[relationName as keyof T] = (relatedMap.get(fkValue) ??
+						row[relationName as keyof T] = (filteredMap.get(fkValue) ??
 							null) as T[keyof T];
 					} else {
 						row[relationName as keyof T] = null as T[keyof T];
@@ -132,12 +159,36 @@ export class JsonPopulator {
 					}
 				}
 
+				const hasSortOrFilter =
+					options?.where ||
+					options?.orderBy ||
+					options?.limit !== undefined ||
+					options?.offset !== undefined;
+
 				for (const row of result) {
 					const rowId = row["id"] as string | number;
-					const group = grouped.get(rowId) ?? [];
+					let group = grouped.get(rowId) ?? [];
+
 					if (kind === "hasOne") {
 						row[relationName as keyof T] = (group[0] ?? null) as T[keyof T];
 					} else {
+						if (hasSortOrFilter && group.length > 0) {
+							const groupTable = { ...tableData, data: group };
+							const groupRunner = new JsonQueryRunner(
+								groupTable,
+								this.adapter,
+								targetSchema,
+							);
+							group = await groupRunner.filterAndSort({
+								type: "select",
+								table: targetTable,
+								where: options?.where,
+								orderBy: options?.orderBy,
+								limit: options?.limit,
+								offset: options?.offset,
+								select: "*" as unknown as QuerySelect,
+							});
+						}
 						row[relationName as keyof T] = group as T[keyof T];
 					}
 				}
@@ -196,44 +247,59 @@ export class JsonPopulator {
 					ids.forEach((id) => allTargetIds.add(id));
 				}
 
-				// Filter target records directly from relatedData (already loaded)
-				// Use runner for schema-aware ID comparison
+				// Filter target records with id filter merged with user's where
 				const targetDataForRunner =
 					await this.adapter.getCachedTable(targetTable);
 				if (!targetDataForRunner) continue;
 
+				const idFilter = { id: { $in: Array.from(allTargetIds) } };
+				const userWhere = options?.where;
+				const mergedWhere = userWhere
+					? { $and: [idFilter, userWhere] }
+					: idFilter;
+
 				const targetRunner = new JsonQueryRunner(
 					targetDataForRunner,
 					this.adapter,
+					targetSchema,
 				);
 				const targetRecords = await targetRunner.run({
 					type: "select",
 					table: targetTable,
-					where: { id: { $in: Array.from(allTargetIds) } },
+					where: mergedWhere as QuerySelectObject["where"],
+					orderBy: options?.orderBy,
 					select: "*" as unknown as QuerySelect,
 				});
 
-				// Map to result rows
+				// Map to result rows, applying limit/offset per-row
 				for (const row of result) {
 					const rowId = row["id"];
 					const normalizedRowId =
 						typeof rowId === "string" ? Number(rowId) : (rowId as number);
 					const targetIds = mapping.get(normalizedRowId) ?? [];
 
-					// Filter using normalized IDs
-					const relatedRecords = targetRecords.filter((r) => {
+					// Filter to this row's related records (already where/order filtered above)
+					let relatedRecords = targetRecords.filter((r) => {
 						const rID = r["id"];
 						const normalizedRID =
 							typeof rID === "string" ? Number(rID) : (rID as number);
 						return targetIds.includes(normalizedRID);
 					});
 
+					// Apply limit/offset per-row
+					const offset = options?.offset ?? 0;
+					if (options?.limit !== undefined) {
+						relatedRecords = relatedRecords.slice(offset, offset + options.limit);
+					} else if (offset > 0) {
+						relatedRecords = relatedRecords.slice(offset);
+					}
+
 					row[relationName as keyof T] = relatedRecords as T[keyof T];
 				}
 			}
 
 			// Nested populate (recursion)
-			if (typeof _options === "object" && _options.populate) {
+			if (typeof _options === "object" && _options !== null && _options.populate) {
 				const nextRows: T[] = [];
 				for (const row of result) {
 					const val = row[relationName as keyof T] as T;
