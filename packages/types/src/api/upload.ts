@@ -27,7 +27,6 @@ export interface UploadFile {
  */
 export interface UploadResult {
 	readonly key: string;
-	readonly url: string;
 	readonly size: number;
 	readonly mimetype: string;
 	readonly uploadedAt: Date;
@@ -194,6 +193,11 @@ export interface IUpload {
 	 * Used by the CLI file exporter to download files during export.
 	 */
 	getUrl(key: string): string;
+	/**
+	 * The underlying storage provider.
+	 * Used by the CLI file importer to upload files directly.
+	 */
+	readonly provider: StorageProvider;
 }
 
 /**

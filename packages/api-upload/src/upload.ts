@@ -15,8 +15,11 @@ import type { UploadOptions } from "./types";
 export class Upload<TResolutions extends string = string> implements IUpload {
 	private readonly options: UploadOptions<TResolutions>;
 
+	readonly provider: UploadOptions<TResolutions>["provider"];
+
 	constructor(options: UploadOptions<TResolutions>) {
 		this.options = options;
+		this.provider = options.provider;
 	}
 
 	getModelName(): string {
