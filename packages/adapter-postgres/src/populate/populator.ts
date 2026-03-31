@@ -158,13 +158,263 @@ export class PostgresPopulator {
 	private async executeLateralJoins<T extends ForjaEntry>(
 		query: QuerySelectObject<T>,
 	): Promise<readonly T[]> {
-		const modifiedQuery = this.buildLateralJoinsQuery(query);
-		const { sql, params } = this.translator.translate(modifiedQuery);
-		const result = await this.client.query(sql, params as unknown[]);
-		return this.resultProcessor.processJsonAggregation<T>(
-			result.rows as T[],
-			query.populate!,
-		);
+		const modelName = this.schemaRegistry.findModelByTableName(query.table);
+		if (!modelName) return [];
+
+		const schema = this.schemaRegistry.get(modelName);
+		if (!schema) return [];
+
+		// Collect FK columns needed for belongsTo so they are present in main result
+		const fkColumnsNeeded: string[] = [];
+		for (const [relationName] of Object.entries(query.populate ?? {})) {
+			const relationField = schema.fields[relationName];
+			if (!relationField || relationField.type !== "relation") continue;
+			const rel = relationField as { kind: string; foreignKey?: string };
+			if (rel.kind === "belongsTo" && rel.foreignKey) {
+				fkColumnsNeeded.push(rel.foreignKey);
+			}
+		}
+
+		// Run main query without populate
+		const mainQuery: QuerySelectObject<T> =
+			fkColumnsNeeded.length > 0
+				? {
+						...query,
+						populate: undefined,
+						select: [
+							...(query.select as string[]),
+							...fkColumnsNeeded,
+						] as unknown as QuerySelectObject<T>["select"],
+					}
+				: { ...query, populate: undefined };
+
+		const { sql: mainSql, params: mainParams } =
+			this.translator.translate(mainQuery);
+		const mainResult = await this.client.query(mainSql, mainParams);
+		const rows = mainResult.rows as T[];
+
+		if (rows.length === 0) return rows;
+
+		const parentIds = rows.map((row) => row.id);
+
+		for (const [relationName, _options] of Object.entries(query.populate!)) {
+			const relationField = schema.fields[relationName];
+			const options = _options as QueryPopulateOptions<T>;
+			if (!relationField || relationField.type !== "relation") continue;
+
+			const relation = relationField as {
+				kind: string;
+				model: string;
+				foreignKey?: string;
+				through?: string;
+			};
+			const targetSchema = this.schemaRegistry.get(relation.model);
+			if (!targetSchema) continue;
+
+			const targetTable =
+				targetSchema.tableName ?? relation.model.toLowerCase();
+			const rowToJson = this.buildSelectiveRowToJson(
+				options.select as readonly string[],
+				relation.model,
+				options,
+			);
+
+			if (relation.kind === "belongsTo") {
+				const fkColumn = relation.foreignKey!;
+				const fkValues = rows
+					.map((row) => row[fkColumn as keyof T])
+					.filter((v) => v != null);
+
+				if (fkValues.length === 0) {
+					for (const row of rows) {
+						row[relationName as keyof T] = null as T[keyof T];
+						delete row[fkColumn as keyof T];
+					}
+					continue;
+				}
+
+				const whereExtra = this.buildBatchOptionsClause(
+					options,
+					targetTable,
+					2,
+				);
+				const lateralSql = `
+          SELECT t."id" as _fk, ${rowToJson} as data
+          FROM ${this.translator.escapeIdentifier(targetTable)} t
+          WHERE t."id" = ANY($1)${whereExtra.sql}
+        `;
+				const batchRows = await this.fetchBatchQueryResults<T>(lateralSql, [
+					fkValues,
+					...whereExtra.params,
+				]);
+
+				const dataMap = new Map<number, T>();
+				for (const r of batchRows) dataMap.set(r._fk, r.data);
+
+				for (const row of rows) {
+					const fkValue = row[fkColumn as keyof T];
+					row[relationName as keyof T] = (dataMap.get(fkValue as number) ??
+						null) as T[keyof T];
+					delete row[fkColumn as keyof T];
+				}
+			} else if (relation.kind === "hasOne") {
+				const fkColumn = relation.foreignKey!;
+				const whereExtra = this.buildBatchOptionsClause(
+					options,
+					targetTable,
+					2,
+				);
+				const lateralSql = `
+          SELECT t.${this.translator.escapeIdentifier(fkColumn)} as _fk, ${rowToJson} as data
+          FROM ${this.translator.escapeIdentifier(targetTable)} t
+          WHERE t.${this.translator.escapeIdentifier(fkColumn)} = ANY($1)${whereExtra.sql}
+        `;
+				const batchRows = await this.fetchBatchQueryResults<T>(lateralSql, [
+					parentIds,
+					...whereExtra.params,
+				]);
+
+				const dataMap = new Map<number, T>();
+				for (const r of batchRows) dataMap.set(r._fk, r.data);
+
+				for (const row of rows) {
+					row[relationName as keyof T] = (dataMap.get(row.id) ??
+						null) as T[keyof T];
+				}
+			} else if (relation.kind === "hasMany") {
+				const fkColumn = relation.foreignKey!;
+				const innerParams: unknown[] = [parentIds];
+				let paramIdx = 2;
+
+				let whereSQL = "";
+				if (options.where) {
+					const whereResult = this.translator.translateWhere(
+						options.where,
+						paramIdx,
+						targetTable,
+					);
+					whereSQL = ` AND ${whereResult.sql}`;
+					innerParams.push(...whereResult.params);
+					paramIdx += whereResult.params.length;
+				}
+
+				let orderSQL = "";
+				if (options.orderBy && options.orderBy.length > 0) {
+					orderSQL =
+						" ORDER BY " +
+						options.orderBy
+							.map((item) => {
+								let s = `t.${this.translator.escapeIdentifier(item.field as string)} ${item.direction.toUpperCase()}`;
+								if (item.nulls) s += ` NULLS ${item.nulls.toUpperCase()}`;
+								return s;
+							})
+							.join(", ");
+				}
+
+				let limitSQL = "";
+				if (options.limit !== undefined) {
+					limitSQL = ` LIMIT $${paramIdx}`;
+					innerParams.push(options.limit);
+					paramIdx++;
+				}
+
+				let offsetSQL = "";
+				if (options.offset !== undefined && options.offset > 0) {
+					offsetSQL = ` OFFSET $${paramIdx}`;
+					innerParams.push(options.offset);
+				}
+
+				const lateralSql = `
+          SELECT t."${fkColumn}" as _fk, ${rowToJson} as data
+          FROM ${this.translator.escapeIdentifier(targetTable)} t
+          WHERE t."${fkColumn}" = ANY($1)${whereSQL}${orderSQL}${limitSQL}${offsetSQL}
+        `;
+				const batchRows = await this.fetchBatchQueryResults<T>(
+					lateralSql,
+					innerParams,
+				);
+
+				const groupMap = new Map<number, T[]>();
+				for (const r of batchRows) {
+					const fk = r._fk;
+					if (!groupMap.has(fk)) groupMap.set(fk, []);
+					groupMap.get(fk)!.push(r.data);
+				}
+				for (const row of rows) {
+					row[relationName as keyof T] = (groupMap.get(row.id) ??
+						[]) as T[keyof T];
+				}
+			} else if (relation.kind === "manyToMany") {
+				const junctionTable = relation.through!;
+				const sourceFK = `${schema.name}Id`;
+				const targetFK = `${relation.model}Id`;
+				const innerParams: unknown[] = [parentIds];
+				let paramIdx = 2;
+
+				let whereSQL = "";
+				if (options.where) {
+					const whereResult = this.translator.translateWhere(
+						options.where,
+						paramIdx,
+						targetTable,
+					);
+					whereSQL = ` AND ${whereResult.sql}`;
+					innerParams.push(...whereResult.params);
+					paramIdx += whereResult.params.length;
+				}
+
+				let orderSQL = "";
+				if (options.orderBy && options.orderBy.length > 0) {
+					orderSQL =
+						" ORDER BY " +
+						options.orderBy
+							.map((item) => {
+								let s = `t.${this.translator.escapeIdentifier(item.field as string)} ${item.direction.toUpperCase()}`;
+								if (item.nulls) s += ` NULLS ${item.nulls.toUpperCase()}`;
+								return s;
+							})
+							.join(", ");
+				}
+
+				let limitSQL = "";
+				if (options.limit !== undefined) {
+					limitSQL = ` LIMIT $${paramIdx}`;
+					innerParams.push(options.limit);
+					paramIdx++;
+				}
+
+				let offsetSQL = "";
+				if (options.offset !== undefined && options.offset > 0) {
+					offsetSQL = ` OFFSET $${paramIdx}`;
+					innerParams.push(options.offset);
+				}
+
+				const lateralSql = `
+          SELECT j."${sourceFK}" as _fk, ${rowToJson} as data
+          FROM ${this.translator.escapeIdentifier(targetTable)} t
+          INNER JOIN ${this.translator.escapeIdentifier(junctionTable)} j
+            ON t."id" = j."${targetFK}"
+          WHERE j."${sourceFK}" = ANY($1)${whereSQL}${orderSQL}${limitSQL}${offsetSQL}
+        `;
+				const batchRows = await this.fetchBatchQueryResults<T>(
+					lateralSql,
+					innerParams,
+				);
+
+				const groupMap = new Map<number, T[]>();
+				for (const r of batchRows) {
+					const fk = r._fk;
+					if (!groupMap.has(fk)) groupMap.set(fk, []);
+					groupMap.get(fk)!.push(r.data);
+				}
+				for (const row of rows) {
+					row[relationName as keyof T] = (groupMap.get(row.id) ??
+						[]) as T[keyof T];
+				}
+			}
+		}
+
+		return rows;
 	}
 
 	/**
@@ -614,21 +864,6 @@ export class PostgresPopulator {
 			_metadata: {
 				populateJoins: joinSQL,
 				populateAggregations: aggregationSQL,
-			},
-		} as PostgresQueryObject<T>;
-	}
-
-	/**
-	 * Build query with LATERAL joins
-	 */
-	private buildLateralJoinsQuery<T extends ForjaEntry>(
-		query: QuerySelectObject<T>,
-	): PostgresQueryObject<T> {
-		return {
-			...query,
-			_metadata: {
-				populateStrategy: "lateral-joins" as const,
-				populateClause: query.populate,
 			},
 		} as PostgresQueryObject<T>;
 	}
