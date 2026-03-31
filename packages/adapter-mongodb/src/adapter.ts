@@ -716,7 +716,11 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 		}
 	}
 
-	async dropTable(tableName: string, _session?: ClientSession): Promise<void> {
+	async dropTable(
+		tableName: string,
+		_session?: ClientSession,
+		options?: { isImport?: boolean },
+	): Promise<void> {
 		if (!this.db) {
 			throwNotConnected({ adapter: "mongodb" });
 		}
@@ -724,8 +728,8 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 		try {
 			await this.db!.collection(tableName).drop();
 
-			// Remove schema from _forja
-			if (tableName !== FORJA_META_MODEL) {
+			// Remove schema from _forja (skip during import — _forja data will be restored as-is)
+			if (!options?.isImport && tableName !== FORJA_META_MODEL) {
 				const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
 				const metaCollection = this.getMetaCollection();
 				await metaCollection.deleteOne({ key: metaKey });

@@ -567,6 +567,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		options?: SchemaOperationOptions,
 	): Promise<void> {
 		const skipWrite = options?.skipWrite ?? false;
+		const isImport = options?.isImport ?? false;
 
 		if (!this.isConnected()) {
 			throwNotConnected({ adapter: "json" });
@@ -613,8 +614,8 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 			this.invalidateCache(tableName);
 		}
 
-		// Remove schema from _forja
-		if (tableName !== FORJA_META_MODEL) {
+		// Remove schema from _forja (skip during import — _forja data will be restored as-is)
+		if (!isImport && tableName !== FORJA_META_MODEL) {
 			// TODO: _forja table diger tablelar gibi bir table. burada kod tekrari yapmak yerine executeQuery({delete from _forja where key = metaKey}) gibi bir sey yapilabilir. eger lock problem cikarmiyorsa
 			const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
 			const metaFile = await this.readTable(FORJA_META_MODEL);

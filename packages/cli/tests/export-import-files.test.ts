@@ -1,15 +1,21 @@
 /**
- * Export --include-files Tests
+ * Export/Import --include-files Tests
  *
- * Tests file export/resume/pack functionality using a real LocalStorageProvider
- * and a lightweight HTTP server that serves the uploaded files.
+ * Tests file export/resume/pack and import/resume functionality using a real
+ * LocalStorageProvider and a lightweight HTTP server that serves the uploaded files.
  *
- * Setup per test:
+ * Export setup per test:
  *  1. Forja instance with ApiPlugin + Upload (LocalStorageProvider)
  *  2. HTTP server pointing at the same upload directory
  *  3. Seed media records by calling the upload handler
  *  4. Run exportCommand with --include-files
  *  5. Assert files-progress.txt and files/ directory
+ *
+ * Import setup per test:
+ *  1. Run exportCommand first to produce an export directory
+ *  2. Create a second Forja instance with a separate upload directory (target)
+ *  3. Run importCommand --with-files or --only-files against the export directory
+ *  4. Assert files landed in target storage and DB records updated
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
@@ -19,6 +25,7 @@ import fsSync from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { exportCommand } from "../src/commands/export";
+import { importCommand } from "../src/commands/import";
 import { FileExporter } from "../src/export-import/file-exporter";
 import AdmZip from "adm-zip";
 
@@ -188,7 +195,7 @@ let tmpDir: string;
 let uploadDir: string;
 
 beforeEach(async () => {
-	tmpDir = getTmpDir(`test-${Date.now()}`);
+	tmpDir = getTmpDir(`test-export-import-files`);
 	uploadDir = path.join(tmpDir, "uploads");
 	await fs.rm(tmpDir, { recursive: true, force: true });
 
@@ -208,22 +215,13 @@ afterEach(async () => {
 
 describe("export --include-files", () => {
 	it("should fail if upload plugin is not configured", async () => {
-		const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => {
-			throw new Error("process.exit called") as never;
-		});
-
-		try {
-			await exportCommand(forja.getAdapter(), {
+		await expect(
+			exportCommand(forja.getAdapter(), {
 				includeFiles: true,
 				forja: undefined!,
 				output: path.join(tmpDir, "out"),
-			});
-		} catch {
-			// ignore error thrown from exportCommand since it calls process.exit
-		}
-
-		expect(exitSpy).toHaveBeenCalledWith(1);
-		exitSpy.mockRestore();
+			}),
+		).rejects.toThrow("api-upload plugin");
 	});
 
 	it("should create files-progress.txt and files/ directory after export", async () => {
@@ -400,18 +398,13 @@ describe("export --include-files --resume", () => {
 	});
 
 	it("should fail with error if resume dir has no ledger", async () => {
-		const exitSpy = vi
-			.spyOn(process, "exit")
-			.mockImplementation(() => undefined as never);
-
-		await exportCommand(forja.getAdapter(), {
-			includeFiles: true,
-			forja,
-			resume: path.join(tmpDir, "nonexistent-dir"),
-		});
-
-		expect(exitSpy).toHaveBeenCalledWith(1);
-		exitSpy.mockRestore();
+		await expect(
+			exportCommand(forja.getAdapter(), {
+				includeFiles: true,
+				forja,
+				resume: path.join(tmpDir, "nonexistent-dir"),
+			}),
+		).rejects.toThrow("files-progress.txt");
 	});
 });
 
@@ -500,5 +493,358 @@ describe("export --include-files --pack-files", () => {
 			f.startsWith("chunk_"),
 		);
 		expect(chunks.length).toBeGreaterThanOrEqual(2);
+	});
+});
+
+// ============================================================================
+
+describe("import --with-files", () => {
+	it("should fail if upload plugin is not configured", async () => {
+		await expect(
+			importCommand(forja.getAdapter(), path.join(tmpDir, "export-out"), {
+				withFiles: true,
+				agree: true,
+			}),
+		).rejects.toThrow("api-upload plugin");
+	});
+
+	it("should fail if files/ directory does not exist", async () => {
+		const exportDir = path.join(tmpDir, "export-out");
+		await fs.mkdir(exportDir, { recursive: true });
+		await fs.writeFile(path.join(exportDir, "export.zip"), "fake", "utf-8");
+
+		await expect(
+			importCommand(forja.getAdapter(), exportDir, {
+				withFiles: true,
+				agree: true,
+				forja,
+			}),
+		).rejects.toThrow("No files/ directory found");
+	});
+
+	it("should upload files to storage and mark ledger as done", async () => {
+		await seedMediaRecord(forja, uploadDir, {
+			key: "import-001.jpg",
+			content: "hello-import",
+		});
+
+		const exportDir = path.join(tmpDir, "export-out");
+		await exportCommand(forja.getAdapter(), {
+			includeFiles: true,
+			forja,
+			output: exportDir,
+		});
+
+		// Clear storage — simulate moving to a new server
+		await fs.rm(uploadDir, { recursive: true, force: true });
+		await fs.mkdir(uploadDir, { recursive: true });
+
+		await importCommand(forja.getAdapter(), exportDir, {
+			withFiles: true,
+			agree: true,
+			forja,
+		});
+
+		// File should be back in storage
+		const storageFiles = await fs.readdir(uploadDir);
+		expect(storageFiles.length).toBeGreaterThan(0);
+
+		// import-progress.txt should have all entries as done
+		const ledger = await fs.readFile(
+			path.join(exportDir, "import-progress.txt"),
+			"utf-8",
+		);
+		const lines = ledger.split("\n").filter((l) => l.trim() !== "");
+		expect(lines.length).toBeGreaterThan(0);
+		for (const line of lines) {
+			expect(line.endsWith("done")).toBe(true);
+		}
+	});
+
+	it("should update DB record key after upload", async () => {
+		await seedMediaRecord(forja, uploadDir, {
+			key: "import-002.jpg",
+			content: "update-my-key",
+		});
+
+		const exportDir = path.join(tmpDir, "export-out");
+		await exportCommand(forja.getAdapter(), {
+			includeFiles: true,
+			forja,
+			output: exportDir,
+		});
+
+		// Clear storage
+		await fs.rm(uploadDir, { recursive: true, force: true });
+		await fs.mkdir(uploadDir, { recursive: true });
+
+		await importCommand(forja.getAdapter(), exportDir, {
+			withFiles: true,
+			agree: true,
+			forja,
+		});
+
+		// DB record key should now point to the newly uploaded file
+		const records = await forja.raw.findMany("media");
+		expect(records.length).toBe(1);
+		const newKey = records[0]!["key"] as string;
+		// New key should exist in storage
+		expect(fsSync.existsSync(path.join(uploadDir, newKey))).toBe(true);
+	});
+
+	it("should update variant keys in DB after upload", async () => {
+		await seedMediaRecord(forja, uploadDir, {
+			key: "import-003.jpg",
+			content: "main-file",
+			variants: {
+				thumbnail: { key: "import-003-thumb.jpg" },
+			},
+		});
+
+		const exportDir = path.join(tmpDir, "export-out");
+		await exportCommand(forja.getAdapter(), {
+			includeFiles: true,
+			forja,
+			output: exportDir,
+		});
+
+		// Clear storage
+		await fs.rm(uploadDir, { recursive: true, force: true });
+		await fs.mkdir(uploadDir, { recursive: true });
+
+		await importCommand(forja.getAdapter(), exportDir, {
+			withFiles: true,
+			agree: true,
+			forja,
+		});
+
+		const records = await forja.raw.findMany("media");
+		expect(records.length).toBe(1);
+		const variants = records[0]!["variants"] as Record<
+			string,
+			{ key: string }
+		> | null;
+		expect(variants).not.toBeNull();
+		// Variant key should exist in storage
+		expect(
+			fsSync.existsSync(path.join(uploadDir, variants!["thumbnail"]!.key)),
+		).toBe(true);
+	});
+
+	it("should skip missing files and mark them as skipped in ledger", async () => {
+		await seedMediaRecord(forja, uploadDir, {
+			key: "import-004.jpg",
+			content: "present",
+		});
+		await seedMediaRecord(forja, uploadDir, {
+			key: "import-005.jpg",
+			content: "also-present",
+		});
+
+		const exportDir = path.join(tmpDir, "export-out");
+		await exportCommand(forja.getAdapter(), {
+			includeFiles: true,
+			forja,
+			output: exportDir,
+		});
+
+		// Remove one file from export dir to simulate missing source
+		await fs.unlink(path.join(exportDir, "files", "import-005.jpg"));
+
+		// Clear storage
+		await fs.rm(uploadDir, { recursive: true, force: true });
+		await fs.mkdir(uploadDir, { recursive: true });
+
+		await importCommand(forja.getAdapter(), exportDir, {
+			withFiles: true,
+			agree: true,
+			forja,
+		});
+
+		const ledger = await fs.readFile(
+			path.join(exportDir, "import-progress.txt"),
+			"utf-8",
+		);
+		expect(ledger).toContain("import-004.jpg done");
+		expect(ledger).toContain("import-005.jpg skipped");
+	});
+
+	it("should skip re-upload if file already exists in storage", async () => {
+		await seedMediaRecord(forja, uploadDir, {
+			key: "import-006.jpg",
+			content: "already-there",
+		});
+
+		const exportDir = path.join(tmpDir, "export-out");
+		await exportCommand(forja.getAdapter(), {
+			includeFiles: true,
+			forja,
+			output: exportDir,
+		});
+
+		// Clear storage except keep the original file to trigger exists check
+		const filesToDelete = (await fs.readdir(uploadDir)).filter(
+			(f) => f !== "import-006.jpg",
+		);
+		for (const f of filesToDelete) {
+			await fs.unlink(path.join(uploadDir, f));
+		}
+
+		const upload = forja.getPlugin<IApiPlugin>("api")!.upload!;
+		const uploadSpy = vi.spyOn(upload.provider, "upload");
+
+		await importCommand(forja.getAdapter(), exportDir, {
+			withFiles: true,
+			agree: true,
+			forja,
+		});
+
+		expect(uploadSpy).not.toHaveBeenCalled();
+		uploadSpy.mockRestore();
+	});
+});
+
+// ============================================================================
+
+describe("import --only-files", () => {
+	it("should upload files without re-importing DB data", async () => {
+		await seedMediaRecord(forja, uploadDir, {
+			key: "only-001.jpg",
+			content: "only-files-content",
+		});
+
+		const exportDir = path.join(tmpDir, "export-out");
+		await exportCommand(forja.getAdapter(), {
+			includeFiles: true,
+			forja,
+			output: exportDir,
+		});
+
+		// Clear storage — DB stays intact
+		await fs.rm(uploadDir, { recursive: true, force: true });
+		await fs.mkdir(uploadDir, { recursive: true });
+
+		const recordsBefore = await forja.raw.findMany("media");
+		expect(recordsBefore.length).toBe(1);
+
+		await importCommand(forja.getAdapter(), exportDir, {
+			onlyFiles: true,
+			agree: true,
+			forja,
+		});
+
+		// File should be back in storage
+		const storageFiles = await fs.readdir(uploadDir);
+		expect(storageFiles.length).toBeGreaterThan(0);
+
+		// DB record count unchanged
+		const recordsAfter = await forja.raw.findMany("media");
+		expect(recordsAfter.length).toBe(1);
+	});
+});
+
+// ============================================================================
+
+describe("import --with-files --resume", () => {
+	it("should fail if resume dir has no import ledger", async () => {
+		await expect(
+			importCommand(forja.getAdapter(), path.join(tmpDir, "export-out"), {
+				withFiles: true,
+				agree: true,
+				resume: path.join(tmpDir, "nonexistent-dir"),
+				forja,
+			}),
+		).rejects.toThrow("No import-progress.txt found");
+	});
+
+	it("should skip already-done entries on resume", async () => {
+		await seedMediaRecord(forja, uploadDir, {
+			key: "resume-001.jpg",
+			content: "resume-a",
+		});
+		await seedMediaRecord(forja, uploadDir, {
+			key: "resume-002.jpg",
+			content: "resume-b",
+		});
+
+		const exportDir = path.join(tmpDir, "export-out");
+		await exportCommand(forja.getAdapter(), {
+			includeFiles: true,
+			forja,
+			output: exportDir,
+		});
+
+		// Clear storage
+		await fs.rm(uploadDir, { recursive: true, force: true });
+		await fs.mkdir(uploadDir, { recursive: true });
+
+		// Build partial import ledger — first entry done, second pending
+		const exportLedger = await fs.readFile(
+			path.join(exportDir, "files-progress.txt"),
+			"utf-8",
+		);
+		const exportLines = exportLedger.split("\n").filter((l) => l.trim() !== "");
+		const [id0, key0] = exportLines[0]!.split(" ");
+		const [id1, key1] = exportLines[1]!.split(" ");
+		await fs.writeFile(
+			path.join(exportDir, "import-progress.txt"),
+			`${id0} ${key0} done\n${id1} ${key1} pending\n`,
+			"utf-8",
+		);
+
+		const upload = forja.getPlugin<IApiPlugin>("api")!.upload!;
+		const uploadSpy = vi.spyOn(upload.provider, "upload");
+
+		await importCommand(forja.getAdapter(), exportDir, {
+			withFiles: true,
+			agree: true,
+			resume: exportDir,
+			forja,
+		});
+
+		// Only the pending entry should have been uploaded
+		expect(uploadSpy).toHaveBeenCalledTimes(1);
+		uploadSpy.mockRestore();
+	});
+});
+
+// ============================================================================
+
+describe("import --with-files + packed export", () => {
+	it("should extract chunk zips and upload files", async () => {
+		await seedMediaRecord(forja, uploadDir, {
+			key: "packed-001.jpg",
+			content: "packed-content-a",
+		});
+		await seedMediaRecord(forja, uploadDir, {
+			key: "packed-002.jpg",
+			content: "packed-content-b",
+		});
+
+		const exportDir = path.join(tmpDir, "export-out");
+		await exportCommand(forja.getAdapter(), {
+			includeFiles: true,
+			packFiles: true,
+			forja,
+			output: exportDir,
+		});
+
+		// Verify files are packed
+		const filesBeforeImport = await fs.readdir(path.join(exportDir, "files"));
+		expect(filesBeforeImport.every((f) => f.startsWith("chunk_"))).toBe(true);
+
+		// Clear storage
+		await fs.rm(uploadDir, { recursive: true, force: true });
+		await fs.mkdir(uploadDir, { recursive: true });
+
+		await importCommand(forja.getAdapter(), exportDir, {
+			withFiles: true,
+			agree: true,
+			forja,
+		});
+
+		// Both files should be back in storage
+		const storageFiles = await fs.readdir(uploadDir);
+		expect(storageFiles.length).toBe(2);
 	});
 });

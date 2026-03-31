@@ -531,6 +531,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 	async dropTable(
 		tableName: string,
 		connection?: PoolConnection,
+		options?: { isImport?: boolean },
 	): Promise<void> {
 		const queryRunner = connection ?? this.pool;
 		if (!queryRunner) {
@@ -543,8 +544,8 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			const escapedTable = escapeIdentifier(tableName);
 			await client.execute(`DROP TABLE IF EXISTS ${escapedTable}`);
 
-			// Remove schema from _forja
-			if (tableName !== FORJA_META_MODEL) {
+			// Remove schema from _forja (skip during import — _forja data will be restored as-is)
+			if (!options?.isImport && tableName !== FORJA_META_MODEL) {
 				const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
 				const escapedMetaTable = escapeIdentifier(FORJA_META_MODEL);
 				await client.execute(

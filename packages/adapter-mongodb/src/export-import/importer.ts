@@ -19,7 +19,7 @@ export class MongoDBImporter {
 		// 1. Drop all existing collections
 		const existingTables = await this.adapter.getTables();
 		for (const tableName of existingTables) {
-			await this.adapter.dropTable(tableName);
+			await this.adapter.dropTable(tableName, undefined, { isImport: true });
 		}
 
 		// 2. Create collections — isImport skips upsertSchemaMeta so the importer

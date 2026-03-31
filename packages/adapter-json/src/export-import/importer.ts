@@ -17,7 +17,7 @@ export class JsonImporter {
 		// 1. Drop all existing tables
 		const existingTables = await this.adapter.getTables();
 		for (const tableName of existingTables) {
-			await this.adapter.dropTable(tableName);
+			await this.adapter.dropTableWithOptions(tableName, { isImport: true });
 		}
 
 		// 2. Create tables — isImport skips upsertSchemaMeta so the importer

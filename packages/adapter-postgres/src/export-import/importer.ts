@@ -21,7 +21,7 @@ export class PostgresImporter {
 		// 1. Drop all existing tables
 		const existingTables = await this.adapter.getTables();
 		for (const tableName of existingTables) {
-			await this.adapter.dropTable(tableName);
+			await this.adapter.dropTable(tableName, undefined, { isImport: true });
 		}
 
 		// 2. Create tables — isImport skips FK constraints and _forja meta writes.

@@ -70,4 +70,6 @@ export interface SchemaOperationOptions {
 	skipLock?: boolean;
 	/** Skip writing to disk (transaction will write on commit) */
 	skipWrite?: boolean;
+	/** Skip _forja metadata operations (used during import) */
+	isImport?: boolean;
 }

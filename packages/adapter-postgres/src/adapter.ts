@@ -422,7 +422,11 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	/**
 	 * Drop table
 	 */
-	async dropTable(tableName: string, client?: PoolClient): Promise<void> {
+	async dropTable(
+		tableName: string,
+		client?: PoolClient,
+		options?: { isImport?: boolean },
+	): Promise<void> {
 		const queryRunner = client ?? this.pool;
 		if (!queryRunner) {
 			throwNotConnected({ adapter: "postgres" });
@@ -432,7 +436,8 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 			const escapedTable = this.getTranslator().escapeIdentifier(tableName);
 			await queryRunner!.query(`DROP TABLE IF EXISTS ${escapedTable}`);
 
-			if (tableName !== FORJA_META_MODEL) {
+			// Remove schema from _forja (skip during import — _forja data will be restored as-is)
+			if (!options?.isImport && tableName !== FORJA_META_MODEL) {
 				const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
 				const escapedMetaTable =
 					this.getTranslator().escapeIdentifier(FORJA_META_MODEL);
