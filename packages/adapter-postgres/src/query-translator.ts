@@ -18,10 +18,10 @@ import type {
 } from "forja-types/core/query-builder";
 import type { QueryTranslator } from "forja-types/adapter";
 import { ForjaAdapterError, throwQueryError } from "forja-types/errors/adapter";
-import type { SchemaRegistry } from "forja-core/schema";
 import type {
 	SchemaDefinition,
 	FieldDefinition,
+	ISchemaRegistry,
 } from "forja-types/core/schema";
 import { ForjaEntry } from "forja-types";
 import { PostgresQueryObject, TranslateResult } from "./types";
@@ -37,9 +37,9 @@ const MAX_WHERE_DEPTH = 10;
 export class PostgresQueryTranslator implements QueryTranslator {
 	private paramIndex = 0;
 	private params: unknown[] = [];
-	private schemaRegistry: SchemaRegistry;
+	private schemaRegistry: ISchemaRegistry;
 
-	constructor(schemaRegistry: SchemaRegistry) {
+	constructor(schemaRegistry: ISchemaRegistry) {
 		this.schemaRegistry = schemaRegistry;
 	}
 
