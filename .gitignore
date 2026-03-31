@@ -45,6 +45,7 @@ Thumbs.db
 *.tmp
 .cache/
 .temp/
+**/tests/.tmp*
 
 # Database
 *.db

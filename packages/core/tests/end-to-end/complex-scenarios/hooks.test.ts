@@ -21,15 +21,11 @@
  * - plugin hooks skipped on forja.raw.*
  */
 
-import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { Forja, defineConfig } from "forja-core";
 import { BasePlugin } from "forja-core/plugin/plugin";
 import { defineSchema } from "forja-types/core/schema";
-import type {
-	ForjaEntry,
-	HookContext,
-	LifecycleHooks,
-} from "forja-types/core/schema";
+import type { ForjaEntry, LifecycleHooks } from "forja-types/core/schema";
 import type {
 	PluginContext,
 	QueryContext,
@@ -60,7 +56,7 @@ function makeItemSchema(hooks?: LifecycleHooks<HookItem>): SchemaDefinition {
 			value: { type: "string", required: true },
 		},
 		...(hooks ? { hooks } : {}),
-	} as const) as unknown as SchemaDefinition;
+	});
 }
 
 // ============================================================================
@@ -82,14 +78,8 @@ async function createIsolatedForja(
 	}));
 
 	const forja = await getForja();
-
-	// Drop + create fresh table
-	try {
-		await adapter.dropTable("hook_items");
-	} catch {
-		/* ignore */
-	}
-	await adapter.createTable(schema);
+	const migration = await forja.beginMigrate();
+	await migration.apply();
 
 	return forja;
 }
