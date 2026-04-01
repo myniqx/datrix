@@ -123,7 +123,7 @@ export class MySQLImporter {
 
 	private async resetAutoIncrement(tableName: string): Promise<void> {
 		const escapedTable = `\`${tableName}\``;
-		const [rows] = await this.pool.execute<Array<{ maxId: number | null }>>(
+		const [rows] = await this.pool.execute(
 			`SELECT MAX(\`id\`) as maxId FROM ${escapedTable}`,
 		);
 		const maxId = (rows as Array<{ maxId: number | null }>)[0]?.maxId ?? 0;

@@ -1,9 +1,6 @@
 import type { Pool } from "pg";
 import type { ImportReader } from "forja-types/adapter";
-import type {
-	SchemaDefinition,
-	FieldDefinition,
-} from "forja-types/core/schema";
+import type { SchemaDefinition } from "forja-types/core/schema";
 import type { PostgresAdapter } from "../adapter";
 import { FORJA_META_MODEL } from "forja-types/core/constants";
 

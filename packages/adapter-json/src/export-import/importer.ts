@@ -3,8 +3,6 @@ import type { SchemaDefinition } from "forja-types/core/schema";
 import type { JsonAdapter } from "../adapter";
 import type { JsonTableFile } from "../types";
 
-const CHUNK_SIZE = 1000;
-
 export class JsonImporter {
 	constructor(
 		private root: string,
