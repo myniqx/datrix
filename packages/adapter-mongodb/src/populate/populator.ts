@@ -14,6 +14,7 @@ import type {
 } from "forja-types/core/query-builder";
 import type { ForjaEntry, ISchemaRegistry } from "forja-types/core/schema";
 import type { MongoClient } from "../mongo-client";
+import type { MongoDBQueryTranslator } from "../query-translator";
 import { throwMaxDepthExceeded } from "forja-types/errors/adapter";
 
 /**
@@ -32,6 +33,7 @@ export class MongoDBPopulator<T extends ForjaEntry> {
 	constructor(
 		private readonly client: MongoClient<T>,
 		private readonly schemaRegistry: ISchemaRegistry,
+		private readonly translator: MongoDBQueryTranslator,
 	) {}
 
 	/**
@@ -111,6 +113,7 @@ export class MongoDBPopulator<T extends ForjaEntry> {
 						"id",
 						relationName,
 						options,
+						targetCollection,
 					),
 				);
 			} else if (relation.kind === "hasOne") {
@@ -121,6 +124,7 @@ export class MongoDBPopulator<T extends ForjaEntry> {
 						relation.foreignKey!,
 						relationName,
 						options,
+						targetCollection,
 					),
 				);
 			} else if (relation.kind === "hasMany") {
@@ -130,7 +134,7 @@ export class MongoDBPopulator<T extends ForjaEntry> {
 						localField: "id",
 						foreignField: relation.foreignKey!,
 						as: relationName,
-						...this.buildLookupPipeline(options),
+						...this.buildLookupPipeline(options, targetCollection),
 					},
 				});
 			} else if (relation.kind === "manyToMany") {
@@ -154,7 +158,7 @@ export class MongoDBPopulator<T extends ForjaEntry> {
 						localField: `${junctionAlias}.${targetFK}`,
 						foreignField: "id",
 						as: relationName,
-						...this.buildLookupPipeline(options),
+						...this.buildLookupPipeline(options, targetCollection),
 					},
 				});
 				// Remove junction temp field
@@ -441,16 +445,41 @@ export class MongoDBPopulator<T extends ForjaEntry> {
 		sessionOpts: Filter<Document>,
 		options: QueryPopulateOptions<T>,
 	): Promise<T[]> {
+		// Merge user where into the base filter
+		let mergedFilter = filter;
+		if (options.where) {
+			const whereFilter = this.translator.translateWhere(
+				options.where,
+				targetCollection,
+			);
+			if (Object.keys(whereFilter).length > 0) {
+				mergedFilter = { $and: [filter, whereFilter] } as Filter<Document>;
+			}
+		}
+
+		// Build sort document from orderBy
+		let sort: Document | undefined;
+		if (options.orderBy && options.orderBy.length > 0) {
+			sort = {};
+			for (const item of options.orderBy) {
+				sort[item.field as string] = item.direction === "asc" ? 1 : -1;
+			}
+		}
+
 		const targetCol = this.client.getCollection(targetCollection);
+		let cursor = targetCol.find(mergedFilter, {
+			...sessionOpts,
+			projection: { _id: 0, ...projection },
+		});
+
+		if (sort) cursor = cursor.sort(sort);
+		if (options.offset !== undefined && options.offset > 0)
+			cursor = cursor.skip(options.offset);
+		if (options.limit !== undefined) cursor = cursor.limit(options.limit);
+
 		const relatedDocs = await this.client.execute(
 			`batch:${targetCollection}`,
-			() =>
-				targetCol
-					.find(filter, {
-						...sessionOpts,
-						projection: { _id: 0, ...projection },
-					})
-					.toArray(),
+			() => cursor.toArray(),
 		);
 
 		const relatedRows = relatedDocs as unknown as T[];
@@ -469,12 +498,43 @@ export class MongoDBPopulator<T extends ForjaEntry> {
 	/**
 	 * Build $lookup pipeline sub-options (field selection for lookup results)
 	 */
-	private buildLookupPipeline(options: QueryPopulateOptions<T>): {
-		pipeline?: Document[];
-	} {
+	private buildLookupPipeline(
+		options: QueryPopulateOptions<T>,
+		targetCollection?: string,
+	): { pipeline?: Document[] } {
 		const innerPipeline: Document[] = [];
 
-		// Always exclude _id from lookup results
+		// $match for where filter
+		if (options.where) {
+			const filter = this.translator.translateWhere(
+				options.where,
+				targetCollection,
+			);
+			if (Object.keys(filter).length > 0) {
+				innerPipeline.push({ $match: filter });
+			}
+		}
+
+		// $sort for orderBy
+		if (options.orderBy && options.orderBy.length > 0) {
+			const sort: Document = {};
+			for (const item of options.orderBy) {
+				sort[item.field as string] = item.direction === "asc" ? 1 : -1;
+			}
+			innerPipeline.push({ $sort: sort });
+		}
+
+		// $skip for offset
+		if (options.offset !== undefined && options.offset > 0) {
+			innerPipeline.push({ $skip: options.offset });
+		}
+
+		// $limit for limit
+		if (options.limit !== undefined) {
+			innerPipeline.push({ $limit: options.limit });
+		}
+
+		// $project for select (always exclude _id)
 		const selectProjection = this.buildSelectProjection(
 			options.select as readonly string[] | undefined,
 		);
@@ -484,7 +544,6 @@ export class MongoDBPopulator<T extends ForjaEntry> {
 			innerPipeline.push({ $project: { _id: 0 } });
 		}
 
-		if (innerPipeline.length === 0) return {};
 		return { pipeline: innerPipeline };
 	}
 
@@ -533,6 +592,7 @@ export class MongoDBPopulator<T extends ForjaEntry> {
 		foreignField: string,
 		asName: string,
 		options: QueryPopulateOptions<T>,
+		collectionName?: string,
 	): Document[] {
 		return [
 			{
@@ -541,7 +601,7 @@ export class MongoDBPopulator<T extends ForjaEntry> {
 					localField,
 					foreignField,
 					as: asName,
-					...this.buildLookupPipeline(options),
+					...this.buildLookupPipeline(options, collectionName),
 				},
 			},
 			{
