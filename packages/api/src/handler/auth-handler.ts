@@ -321,7 +321,10 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
 /**
  * Create unified auth handler (handles routing internally)
  */
-export function createUnifiedAuthHandler(config: AuthHandlerConfig) {
+export function createUnifiedAuthHandler(
+	config: AuthHandlerConfig,
+	apiPrefix: string = "/api",
+) {
 	const handlers = createAuthHandlers(config);
 	const { authConfig } = config;
 
@@ -338,7 +341,7 @@ export function createUnifiedAuthHandler(config: AuthHandlerConfig) {
 
 	return async function authHandler(request: Request): Promise<Response> {
 		const url = new URL(request.url);
-		const path = url.pathname;
+		const path = url.pathname.slice(apiPrefix.length);
 		const method = request.method;
 
 		if (path === endpoints.register && method === "POST") {

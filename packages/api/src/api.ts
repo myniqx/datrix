@@ -323,7 +323,7 @@ export class ApiPlugin<TRole extends string = string>
 		const segments = pathAfterPrefix.split("/").filter(Boolean);
 		const model = segments[0];
 
-		if (this.authConfig && this.isAuthPath(url.pathname)) {
+		if (this.authConfig && this.isAuthPath(pathAfterPrefix)) {
 			return this.handleAuthRequest(request, forja);
 		}
 
@@ -347,11 +347,14 @@ export class ApiPlugin<TRole extends string = string>
 		const register = e?.register ?? d.register;
 		const logout = e?.logout ?? d.logout;
 		const me = e?.me ?? d.me;
+
+		const authPrefix = [login, register, logout, me]
+			.map((p) => p.split("/")[1])
+			.find(Boolean) ?? "auth";
+
 		return (
-			pathname === login ||
-			pathname === register ||
-			pathname === logout ||
-			pathname === me
+			pathname.startsWith(`/${authPrefix}/`) ||
+			pathname === `/${authPrefix}`
 		);
 	}
 
@@ -368,11 +371,14 @@ export class ApiPlugin<TRole extends string = string>
 			);
 		}
 
-		const handler = createUnifiedAuthHandler({
-			forja,
-			authManager: this.authManager,
-			authConfig: this.authConfig!,
-		});
+		const handler = createUnifiedAuthHandler(
+			{
+				forja,
+				authManager: this.authManager,
+				authConfig: this.authConfig!,
+			},
+			this.apiConfig.prefix ?? "/api",
+		);
 
 		return handler(request);
 	}
