@@ -28,7 +28,6 @@
 export { ApiPlugin } from "./api";
 
 // Auth exports
-export type { SessionStore } from "./auth/session";
 export { MemorySessionStore } from "./auth/session";
 
 export { handleRequest } from "./helper";

@@ -10,7 +10,6 @@ import type {
 	RequestContext,
 	ContextBuilderOptions,
 } from "../middleware/types";
-import type { IApiPlugin } from "../interface";
 import { buildRequestContext } from "../middleware/context";
 import {
 	checkSchemaPermission,
@@ -23,6 +22,7 @@ import { handlerError } from "../errors/api-error";
 import { ForjaError, ForjaValidationError } from "forja-types/errors";
 import type { ForjaEntry } from "forja-types/core/schema";
 import { ResponseData } from "forja-types";
+import { IApiPlugin } from "forja-types/api";
 
 /**
  * Handle GET request

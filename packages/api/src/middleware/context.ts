@@ -11,11 +11,11 @@ import type {
 	ContextBuilderOptions,
 } from "./types";
 import type { Forja } from "forja-core";
-import type { IApiPlugin } from "../interface";
 import { ParserError } from "forja-types/api/parser";
 import { methodToAction } from "./permission";
 import { parseQuery } from "../parser";
 import { FallbackInput } from "forja-types/forja";
+import { AuthUser, IApiPlugin } from "forja-types/api";
 
 /**
  * Extract table name from URL path
@@ -107,7 +107,7 @@ export async function buildRequestContext<TRole extends string = string>(
 	const id = extractIdFromPath(url.pathname, apiPrefix);
 
 	// 4. AUTHENTICATE (only if auth is enabled)
-	let user = null;
+	let user: AuthUser | null = null;
 	if (authEnabled && api.authManager) {
 		const authResult = await api.authManager.authenticate(request);
 		user = authResult?.user ?? null;
