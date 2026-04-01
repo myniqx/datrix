@@ -10,7 +10,7 @@
  *   - type UpdateUserInput = Partial<Omit<UserBase, keyof ForjaEntry>> & UserRelationUpdate
  */
 
-import type { RelationField, SchemaDefinition } from "forja-types/core/schema";
+import type { RelationField, SchemaDefinition } from "@forja/types/core/schema";
 import { toPascalCase } from "../utils/templates";
 import {
 	scalarFieldToTypeString,
@@ -185,7 +185,7 @@ function generateHeader(): string {
 		"  RelationHasOne,",
 		"  RelationHasMany,",
 		"  RelationManyToMany,",
-		'} from "@forja/types/core/schema";',
+		'} from "@forja/types//core/schema";',
 	].join("\n");
 }
 

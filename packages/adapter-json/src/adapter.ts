@@ -6,14 +6,14 @@ import {
 	DatabaseAdapter,
 	QueryResult,
 	Transaction,
-} from "forja-types/adapter";
-import { QueryObject } from "forja-types/core/query-builder";
+} from "@forja/types/adapter";
+import { QueryObject } from "@forja/types/core/query-builder";
 import {
 	ForjaEntry,
 	IndexDefinition,
 	SchemaDefinition,
-} from "forja-types/core/schema";
-import { validateQueryObject } from "forja-types/utils/query";
+} from "@forja/types/core/schema";
+import { validateQueryObject } from "@forja/types/utils/query";
 import {
 	CacheEntry,
 	ExecuteQueryOptions,
@@ -32,16 +32,16 @@ import {
 	throwQueryError,
 	throwMetaFieldAlreadyExists,
 	throwMetaFieldNotFound,
-} from "forja-types/errors/adapter";
+} from "@forja/types/errors";
 import { JsonTransaction } from "./transaction";
 import {
 	FORJA_META_MODEL,
 	FORJA_META_KEY_PREFIX,
-} from "forja-types/core/constants";
+} from "@forja/types/core/constants";
 import { createMetaTable, validateTableName } from "./table-utils";
 import { JsonExporter } from "./export-import/exporter";
 import { JsonImporter } from "./export-import/importer";
-import type { ExportWriter, ImportReader } from "forja-types/adapter";
+import type { ExportWriter, ImportReader } from "@forja/types/adapter";
 import {
 	handleCount,
 	handleDelete,

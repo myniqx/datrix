@@ -2,15 +2,15 @@ import {
 	QuerySelect,
 	QuerySelectObject,
 	QueryPopulateOptions,
-} from "forja-types/core/query-builder";
+} from "@forja/types/core/query-builder";
 import type { JsonAdapter } from "./adapter";
-import type { ForjaEntry, RelationField } from "forja-types/core/schema";
+import type { ForjaEntry, RelationField } from "@forja/types/core/schema";
 import {
 	throwSchemaNotFound,
 	throwRelationNotFound,
 	throwInvalidRelationType,
 	throwTargetModelNotFound,
-} from "forja-types/errors/adapter";
+} from "@forja/types/errors";
 import { JsonQueryRunner } from "./runner";
 
 export class JsonPopulator {
@@ -25,17 +25,18 @@ export class JsonPopulator {
 		}
 
 		// Get current schema directly from table file (cache-aware, O(1) lookup)
-		const currentSchema = await this.adapter.getSchemaByTableName(query.table);
-		if (!currentSchema) {
+		const _currentSchema = await this.adapter.getSchemaByTableName(query.table);
+		if (!_currentSchema) {
 			throwSchemaNotFound({ adapter: "json", modelName: query.table });
 		}
+		const currentSchema = _currentSchema!;
 		const currentModelName = currentSchema.name;
 
 		const result = [...rows];
 
 		for (const [relationName, _options] of Object.entries(query.populate)) {
 			// Get relation field from current schema
-			const relationField = currentSchema.fields[relationName];
+			const relationField = currentSchema.fields[relationName]!;
 			if (!relationField) {
 				throwRelationNotFound({
 					adapter: "json",
@@ -71,7 +72,7 @@ export class JsonPopulator {
 			}
 
 			const targetTable =
-				targetSchema.tableName ?? targetModelName.toLowerCase();
+				targetSchema!.tableName ?? targetModelName.toLowerCase();
 
 			// Load target table using adapter's cache
 			const tableData = await this.adapter.getCachedTable(targetTable);
@@ -115,7 +116,7 @@ export class JsonPopulator {
 					const filterRunner = new JsonQueryRunner(
 						tableData,
 						this.adapter,
-						targetSchema,
+						targetSchema!,
 					);
 					for (const [id, item] of relatedMap) {
 						const matched = await filterRunner.filterAndSort({
@@ -183,7 +184,7 @@ export class JsonPopulator {
 							const groupRunner = new JsonQueryRunner(
 								groupTable,
 								this.adapter,
-								targetSchema,
+								targetSchema!,
 							);
 							group = (await groupRunner.filterAndSort({
 								type: "select",
@@ -267,7 +268,7 @@ export class JsonPopulator {
 				const targetRunner = new JsonQueryRunner(
 					targetDataForRunner,
 					this.adapter,
-					targetSchema,
+					targetSchema!,
 				);
 				const targetRecords = await targetRunner.run({
 					type: "select",

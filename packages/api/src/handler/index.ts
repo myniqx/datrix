@@ -5,7 +5,7 @@
  */
 
 // Unified handler (recommended)
-export { handleRequest } from "./unified";
+export { handleCrudRequest } from "./unified";
 
 // Auth handlers
 export {

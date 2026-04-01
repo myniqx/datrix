@@ -15,9 +15,9 @@ import fs from "node:fs/promises";
 import fsSync from "node:fs";
 import path from "node:path";
 import archiver from "archiver";
-import type { ExportWriter, ExportMeta } from "forja-types/adapter";
-import type { SchemaDefinition } from "forja-types/core/schema";
-import { sortSchemasByDependency } from "forja-types/core/schema";
+import type { ExportWriter, ExportMeta } from "@forja/types/adapter";
+import type { SchemaDefinition } from "@forja/types/core/schema";
+import { sortSchemasByDependency } from "@forja/types/core/schema";
 import { encodeHeader, encodeRow } from "./csv";
 import { logger } from "../utils/logger";
 
@@ -52,7 +52,7 @@ export class ZipExportWriter implements ExportWriter {
 	) {
 		this.outputPath = outputPath;
 		this.verbose = verbose;
-		this.onChunk = onChunk;
+		if (onChunk) this.onChunk = onChunk;
 		const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
 		this.tempDir = path.join(path.dirname(outputPath), `temp_${timestamp}`);
 	}

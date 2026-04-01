@@ -12,11 +12,11 @@ import { SessionStrategy } from "./session";
 import { AuthConfig } from "./types";
 import { throwSessionNotConfigured } from "./error-helper";
 import {
-	AuthUser,
 	AuthContext,
-	LoginResult,
+	AuthUser,
 	IAuthManager,
-} from "@forja/types/api";
+	LoginResult,
+} from "forja-types/api/auth";
 
 /**
  * Auth Manager
@@ -26,7 +26,7 @@ import {
  */
 export class AuthManager<
 	TRole extends string = string,
-> implements IAuthManager<TRole> {
+> implements IAuthManager {
 	private readonly passwordManager: PasswordManager;
 	private readonly jwtStrategy: JwtStrategy | undefined;
 	private readonly sessionStrategy: SessionStrategy | undefined;

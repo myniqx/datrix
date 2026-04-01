@@ -14,7 +14,7 @@ export function schemaTemplate(name: string): string {
 	const schemaVarName = name.charAt(0).toLowerCase() + name.slice(1);
 	const schemaNameLower = name.toLowerCase();
 
-	return `import { defineSchema } from '@forja/types/core/schema';
+	return `import { defineSchema } from '@forja/types//core/schema';
 
 export const ${schemaVarName}Schema = defineSchema({
   name: '${schemaNameLower}',

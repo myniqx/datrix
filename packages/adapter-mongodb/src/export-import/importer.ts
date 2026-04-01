@@ -1,9 +1,9 @@
 import type { Db, Document } from "mongodb";
-import type { ImportReader } from "forja-types/adapter";
-import type { SchemaDefinition } from "forja-types/core/schema";
+import type { ImportReader } from "@forja/types/adapter";
+import type { SchemaDefinition } from "@forja/types/core/schema";
 import type { MongoDBAdapter } from "../adapter";
 import { COUNTER_KEY_PREFIX } from "../types";
-import { FORJA_META_MODEL } from "forja-types/core/constants";
+import { FORJA_META_MODEL } from "@forja/types/core/constants";
 
 const CHUNK_SIZE = 1000;
 

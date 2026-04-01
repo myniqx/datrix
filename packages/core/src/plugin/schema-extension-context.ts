@@ -10,7 +10,7 @@ import type {
 	SchemaExtensionContext,
 	SchemaModifier,
 	SchemaPattern,
-} from "forja-types/plugin";
+} from "@forja/types/plugin";
 
 export class SchemaExtensionContextImpl implements SchemaExtensionContext {
 	constructor(public readonly schemas: ReadonlyArray<SchemaDefinition>) {}

@@ -15,8 +15,8 @@ import type {
 	FieldDefinition,
 	ForjaEntry,
 	RelationField,
-} from "forja-types/core/schema";
-import type { ValidatorOptions } from "forja-types/core/validator";
+} from "@forja/types/core/schema";
+import type { ValidatorOptions } from "@forja/types/core/validator";
 import { validateField } from "./field-validator";
 import {
 	createValidationError,

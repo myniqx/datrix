@@ -20,7 +20,7 @@ import type {
 	ForjaEntry,
 	ISchemaRegistry,
 	SchemaDefinition,
-} from "forja-types/core/schema";
+} from "@forja/types/core/schema";
 import type { MongoClient } from "./mongo-client";
 
 /**

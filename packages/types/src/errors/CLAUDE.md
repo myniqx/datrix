@@ -23,7 +23,7 @@ All errors in Forja follow a consistent pattern:
 All Forja errors extend from `ForjaError`, which extends native JavaScript `Error`.
 
 ```typescript
-import { ForjaError } from "forja-types/errors";
+import { ForjaError } from "../errors";
 
 throw new ForjaError("Database connection failed", {
 	code: "CONNECTION_FAILED",
@@ -205,8 +205,8 @@ throwParserInvalidOperator(parser, operator, location);
 **File:** `packages/core/src/mixins/error-helper.ts`
 
 ```typescript
-import { ForjaCrudError, type CrudOperation } from "forja-types/errors";
-import type { QueryObject } from "forja-types/core/query-builder";
+import { ForjaCrudError, type CrudOperation } from "../errors";
+import type { QueryObject } from "../core/query-builder";
 
 /**
  * Throw query execution error
@@ -407,7 +407,7 @@ import {
 	ForjaValidationError,
 	ForjaCrudError,
 	ForjaConfigError,
-} from "forja-types/errors";
+} from "../errors";
 
 // Helpers
 import { throwQueryExecutionError } from "./error-helper";
@@ -439,7 +439,7 @@ When creating a new specialized error class:
 ### Type Guard Usage
 
 ```typescript
-import { ForjaError, ForjaCrudError } from "forja-types/errors";
+import { ForjaError, ForjaCrudError } from "../errors";
 
 try {
 	await crud.findOne("User", { email: "test@example.com" });

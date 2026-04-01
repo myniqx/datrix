@@ -8,7 +8,7 @@
 import {
 	ForjaQueryBuilderError,
 	type QueryBuilderComponent,
-} from "forja-types/errors";
+} from "@forja/types/errors";
 
 /**
  * Throw invalid field error

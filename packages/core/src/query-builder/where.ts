@@ -8,7 +8,7 @@
 import type {
 	ComparisonOperators,
 	WhereClause,
-} from "forja-types/core/query-builder";
+} from "@forja/types/core/query-builder";
 import type {
 	FieldType,
 	SchemaDefinition,
@@ -16,7 +16,7 @@ import type {
 	ISchemaRegistry,
 	ForjaEntry,
 	FieldDefinition,
-} from "forja-types/core/schema";
+} from "@forja/types/core/schema";
 import {
 	throwInvalidOperator,
 	throwInvalidValue,

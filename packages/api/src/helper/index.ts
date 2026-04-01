@@ -65,7 +65,7 @@ export function toWebRequest(req: NodeIncomingRequest): Request {
 	const hasBody = req.body !== undefined && req.body !== null;
 	const methodAllowsBody = !["GET", "HEAD"].includes(req.method.toUpperCase());
 
-	let body: BodyInit | undefined;
+	let body: RequestInit["body"] = undefined!;
 	if (hasBody && methodAllowsBody) {
 		if (req.body instanceof Uint8Array || Buffer.isBuffer(req.body)) {
 			body = req.body as Uint8Array;

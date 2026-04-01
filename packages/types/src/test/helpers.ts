@@ -7,7 +7,7 @@
 import { expect } from "vitest";
 import { ForjaError } from "../errors/forja-error";
 import { ResponseMultiData } from "../api";
-import { ForjaEntry, ForjaRecord } from "forja-types/core/schema";
+import { ForjaEntry, ForjaRecord } from "../core/schema";
 
 /**
  * Assert Result success and return data (RECOMMENDED)

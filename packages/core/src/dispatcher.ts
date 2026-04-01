@@ -5,18 +5,18 @@
  * Ensures hooks are called in the correct order and provides error isolation.
  */
 
-import { QueryObject } from "forja-types/core/query-builder";
-import { PluginRegistry, QueryAction, QueryContext } from "forja-types/plugin";
+import { QueryObject } from "@forja/types/core/query-builder";
+import { PluginRegistry, QueryAction, QueryContext } from "@forja/types/plugin";
 import {
 	ForjaEntry,
 	ForjaRecord,
 	SchemaDefinition,
 	HookContext,
 	LifecycleHooks,
-} from "forja-types/core/schema";
-import { QuerySelectObject } from "forja-types/core/query-builder";
+} from "@forja/types/core/schema";
+import { QuerySelectObject } from "@forja/types/core/query-builder";
 import type { Forja } from "./forja";
-import { validateQueryObject } from "forja-types/utils/query";
+import { validateQueryObject } from "@forja/types/utils/query";
 import { SchemaRegistry } from "./schema";
 
 /**

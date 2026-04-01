@@ -12,19 +12,19 @@
  * The transaction object is a thin wrapper that delegates to adapter.
  */
 
-import { Transaction, QueryResult, AlterOperation } from "forja-types/adapter";
+import { Transaction, QueryResult, AlterOperation } from "@forja/types/adapter";
 import {
 	throwTransactionAlreadyCommitted,
 	throwTransactionAlreadyRolledBack,
 	throwTransactionSavepointNotSupported,
 	throwRawQueryNotSupported,
-} from "forja-types/errors/adapter";
-import { QueryObject } from "forja-types/core/query-builder";
+} from "@forja/types/errors";
+import { QueryObject } from "@forja/types/core/query-builder";
 import {
 	ForjaEntry,
 	IndexDefinition,
 	SchemaDefinition,
-} from "forja-types/core/schema";
+} from "@forja/types/core/schema";
 import type { JsonAdapter } from "./adapter";
 
 /**

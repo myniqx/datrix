@@ -5,12 +5,12 @@
  * Plugins can extend this class instead of implementing ForjaPlugin from scratch.
  */
 
-import { QueryObject } from "forja-types/core/query-builder";
+import { QueryObject } from "@forja/types/core/query-builder";
 import {
 	ISchemaRegistry,
 	SchemaDefinition,
 	ForjaEntry,
-} from "forja-types/core/schema";
+} from "@forja/types/core/schema";
 import {
 	ForjaPlugin,
 	PluginContext,
@@ -18,7 +18,7 @@ import {
 	SchemaExtensionContext,
 	SchemaExtension,
 	QueryContext,
-} from "forja-types/plugin";
+} from "@forja/types/plugin";
 
 /**
  * Abstract base plugin class

@@ -31,7 +31,7 @@ import {
 import { applyOnDeleteActions } from "./on-delete";
 import { MongoDBExporter } from "./export-import/exporter";
 import { MongoDBImporter } from "./export-import/importer";
-import type { ExportWriter, ImportReader } from "forja-types/adapter";
+import type { ExportWriter, ImportReader } from "@forja/types/adapter";
 import type {
 	MongoDBConfig,
 	MongoFindResult,
@@ -42,8 +42,8 @@ import { getNextIds } from "./helpers";
 import type {
 	QueryObject,
 	QuerySelectObject,
-} from "forja-types/core/query-builder";
-import type { ForjaEntry } from "forja-types";
+} from "@forja/types/core/query-builder";
+import type { ForjaEntry } from "@forja/types";
 import type {
 	AlterOperation,
 	ConnectionState,
@@ -51,7 +51,7 @@ import type {
 	QueryMetadata,
 	QueryResult,
 	Transaction,
-} from "forja-types/adapter";
+} from "@forja/types/adapter";
 import {
 	ForjaAdapterError,
 	throwNotConnected,
@@ -63,18 +63,18 @@ import {
 	throwQueryError,
 	throwMetaFieldAlreadyExists,
 	throwMetaFieldNotFound,
-} from "forja-types/errors/adapter";
-import { validateQueryObject } from "forja-types/utils/query";
+} from "@forja/types/errors";
+import { validateQueryObject } from "@forja/types/utils/query";
 import type {
 	IndexDefinition,
 	ISchemaRegistry,
 	SchemaDefinition,
-} from "forja-types/core/schema";
+} from "@forja/types/core/schema";
 import type { SchemaRegistry } from "forja-core/schema";
 import {
 	FORJA_META_MODEL,
 	FORJA_META_KEY_PREFIX,
-} from "forja-types/core/constants";
+} from "@forja/types/core/constants";
 
 /**
  * MongoDB adapter implementation

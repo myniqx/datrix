@@ -18,14 +18,14 @@ import type {
 	QueryDeleteObject,
 	QuerySelect,
 	QuerySelectObject,
-} from "forja-types/core/query-builder";
+} from "@forja/types/core/query-builder";
 import type { SchemaRegistry } from "forja-core/schema";
 import type {
 	SchemaDefinition,
 	FieldDefinition,
-} from "forja-types/core/schema";
-import { ForjaEntry } from "forja-types";
-import { throwQueryError } from "forja-types/errors/adapter";
+} from "@forja/types/core/schema";
+import { ForjaEntry } from "@forja/types";
+import { throwQueryError } from "@forja/types/errors";
 import type {
 	MongoTranslateResult,
 	MongoFindResult,

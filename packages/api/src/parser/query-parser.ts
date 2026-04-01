@@ -23,7 +23,7 @@ import { parseFields } from "./fields-parser";
 import { parseWhere } from "./where-parser";
 import { parsePopulate } from "./populate-parser";
 import { paginationError, sortError } from "./errors";
-import { ForjaRecord } from "forja-types";
+import { ForjaEntry, ForjaRecord } from "forja-types";
 
 /**
  * Default parser options
@@ -46,7 +46,7 @@ const DEFAULT_OPTIONS: Required<ParserOptions> = {
 export function parseQuery(
 	params: RawQueryParams,
 	options?: Partial<ParserOptions>,
-): ParsedQuery<ForjaRecord> {
+): ParsedQuery<ForjaEntry> {
 	const opts: Required<ParserOptions> = {
 		...DEFAULT_OPTIONS,
 		...options,
@@ -75,7 +75,7 @@ export function parseQuery(
 		);
 	}
 
-	const result: ParsedQuery<ForjaRecord> = {
+	const result = {
 		...(fields !== undefined && fields !== "*" && { select: fields }),
 		...(where !== undefined && { where }),
 		...(populate !== undefined && { populate }),
@@ -86,7 +86,7 @@ export function parseQuery(
 		...(sort !== undefined &&
 			Array.isArray(sort) &&
 			sort.length > 0 && { orderBy: sort }),
-	};
+	} as ParsedQuery<ForjaEntry>;
 
 	return result;
 }

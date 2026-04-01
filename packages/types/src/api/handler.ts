@@ -5,7 +5,7 @@
  * Framework-agnostic - works with Next.js, Express, Fastify, etc.
  */
 
-import { ForjaError } from "forja-types/errors";
+import { ForjaError } from "../errors";
 import { ForjaEntry } from "../core/schema";
 
 /**

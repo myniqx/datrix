@@ -27,7 +27,7 @@ export type RawQueryParams = Record<
  * Parsed query result
  */
 
-export interface ParsedQuery<T extends ForjaEntry = ForjaRecord> {
+export interface ParsedQuery<T extends ForjaEntry = ForjaEntry> {
 	readonly select?: SelectClause<T>;
 	readonly where?: WhereClause<T>;
 	readonly populate?: PopulateClause<T>;

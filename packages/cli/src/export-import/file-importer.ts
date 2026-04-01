@@ -22,9 +22,9 @@ import fs from "node:fs/promises";
 import fsSync from "node:fs";
 import path from "node:path";
 import AdmZip from "adm-zip";
-import type { IUpload } from "forja-types/api";
-import type { IForja } from "forja-types";
-import { logger, spinner } from "../utils/logger";
+import type { IUpload } from "@forja/types/api/upload";
+import type { IForja } from "@forja/types/forja";
+import { logger } from "../utils/logger";
 import type { LedgerEntry } from "./file-exporter";
 
 export interface ImportLedgerEntry {
@@ -41,14 +41,12 @@ export interface ImportResult {
 const IMPORT_LEDGER_FILENAME = "import-progress.txt";
 
 export class FileImporter {
-	private readonly importDir: string;
 	private readonly filesDir: string;
 	private readonly ledgerPath: string;
 	private readonly upload: IUpload;
 	private readonly forja: IForja;
 
 	constructor(importDir: string, upload: IUpload, forja: IForja) {
-		this.importDir = importDir;
 		this.filesDir = path.join(importDir, "files");
 		this.ledgerPath = path.join(importDir, IMPORT_LEDGER_FILENAME);
 		this.upload = upload;

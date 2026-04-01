@@ -157,6 +157,7 @@ export async function generateVariants<TResolutions extends string>(
 				height: variantBuffer.info.height,
 				size: variantBuffer.data.length,
 				mimeType: outputMime,
+				url: undefined!,
 			};
 		} catch (error) {
 			if (error instanceof ForjaError) throw error;

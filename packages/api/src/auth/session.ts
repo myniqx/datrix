@@ -201,7 +201,7 @@ export class MemorySessionStore implements SessionStore {
 	private readonly sessions: Map<string, SessionData> = new Map();
 	private readonly prefix: string;
 
-	constructor(prefix = DEFAULT_API_AUTH_CONFIG.session.prefix) {
+	constructor(prefix: string = DEFAULT_API_AUTH_CONFIG.session.prefix) {
 		this.prefix = prefix;
 	}
 

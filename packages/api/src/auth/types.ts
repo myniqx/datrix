@@ -7,7 +7,6 @@
 
 import type { DefaultPermission } from "forja-types/core/permission";
 import type { PasswordConfig } from "./password";
-import { AuthUser } from "forja-types/api";
 
 /**
  * JWT payload (base)

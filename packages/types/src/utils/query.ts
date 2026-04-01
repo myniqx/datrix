@@ -4,7 +4,7 @@
  * Provides runtime validation for QueryObject structure.
  */
 
-import { ForjaEntry } from "forja-types/core/schema";
+import { ForjaEntry } from "../core/schema";
 import { QueryObject } from "../core/query-builder";
 import { ForjaError } from "../errors";
 

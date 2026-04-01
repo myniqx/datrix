@@ -1,9 +1,9 @@
 import path from "node:path";
 import fsSync from "node:fs";
 import * as readline from "readline";
-import type { DatabaseAdapter } from "forja-types/adapter";
-import type { IApiPlugin } from "forja-types/api";
-import type { IForja } from "forja-types";
+import type { DatabaseAdapter } from "@forja/types/adapter";
+import type { IApiPlugin } from "@forja/types/api/interface";
+import type { IForja } from "@forja/types/forja";
 import { logger, spinner, red, yellow } from "../utils/logger";
 import { ZipImportReader } from "../export-import/zip-reader";
 import { FileImporter } from "../export-import/file-importer";
@@ -12,11 +12,11 @@ import { FileExporter } from "../export-import/file-exporter";
 export type AgreeOption = boolean | "drop-db" | "missing-files";
 
 export interface ImportCommandOptions {
-	readonly agree?: AgreeOption;
-	readonly verbose?: boolean;
-	readonly withFiles?: boolean;
-	readonly onlyFiles?: boolean;
-	readonly resume?: string;
+	readonly agree?: AgreeOption | undefined;
+	readonly verbose?: boolean | undefined;
+	readonly withFiles?: boolean | undefined;
+	readonly onlyFiles?: boolean | undefined;
+	readonly resume?: string | undefined;
 	readonly forja?: IForja;
 }
 

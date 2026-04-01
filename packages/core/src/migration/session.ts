@@ -11,12 +11,12 @@
  * - Preview and apply migrations
  */
 
-import { DatabaseAdapter, QueryRunner } from "forja-types/adapter";
+import { DatabaseAdapter, QueryRunner } from "@forja/types/adapter";
 import {
 	SchemaDefinition,
 	FieldDefinition,
 	ForjaRecord,
-} from "forja-types/core/schema";
+} from "@forja/types/core/schema";
 import {
 	Migration,
 	MigrationOperation,
@@ -25,8 +25,8 @@ import {
 	SchemaDiff,
 	FieldAddedDiff,
 	MigrationExecutionResult,
-} from "forja-types/core/migration";
-import { IForja } from "forja-types/forja";
+} from "@forja/types/core/migration";
+import { IForja } from "@forja/types/forja";
 import { ForgeSchemaDiffer } from "./differ";
 import { ForgeMigrationGenerator } from "./generator";
 import { ForgeMigrationHistory } from "./history";

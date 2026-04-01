@@ -8,7 +8,7 @@
 import {
 	ForjaConfigError,
 	ForjaConfigValidationError,
-} from "forja-types/errors";
+} from "@forja/types/errors";
 
 /**
  * Throw config not found error

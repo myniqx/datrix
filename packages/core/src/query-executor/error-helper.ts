@@ -10,7 +10,7 @@ import {
 	CrudOperation,
 	ForjaCrudError,
 	ForjaError,
-} from "forja-types/errors";
+} from "@forja/types/errors";
 
 /**
  * Options for throwing CRUD errors

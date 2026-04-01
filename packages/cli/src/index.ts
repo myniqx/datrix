@@ -16,7 +16,6 @@ import { logger, formatError, bold, cyan } from "./utils/logger";
 import { loadConfig } from "./utils/config-loader";
 import { migrateCommand, displayMigrationStatus } from "./commands/migrate";
 import { generateCommand, isValidGenerateType } from "./commands/generate";
-import type { IApiPlugin } from "@forja/types/api";
 import { exportCommand } from "./commands/export";
 import { importCommand } from "./commands/import";
 

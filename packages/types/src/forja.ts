@@ -138,7 +138,7 @@ export interface IForja extends IRawCrud {
 	getConfig(): ForjaConfig;
 	getAdapter<T extends DatabaseAdapter = DatabaseAdapter>(): T;
 	getPlugins(): readonly ForjaPlugin[];
-	getPlugin(name: string): ForjaPlugin | null;
+	getPlugin<T extends ForjaPlugin = ForjaPlugin>(name: string): T | null;
 	hasPlugin(name: string): boolean;
 	getSchemas(): ISchemaRegistry;
 	getSchema(name: string): SchemaDefinition | undefined;

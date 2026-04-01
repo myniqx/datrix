@@ -8,8 +8,8 @@
 import {
 	ValidationError,
 	ValidationErrorCode,
-} from "forja-types/core/validator";
-import { ForjaValidationError } from "forja-types/errors/core/validation";
+} from "@forja/types/core/validator";
+import { ForjaValidationError } from "@forja/types/errors/core/validation";
 
 /**
  * Create a validation error

@@ -1,4 +1,4 @@
-import { throwLockTimeout } from "forja-types/errors/adapter/adapter-helpers";
+import { throwLockTimeout } from "@forja/types/errors";
 import fs from "node:fs/promises";
 import path from "node:path";
 

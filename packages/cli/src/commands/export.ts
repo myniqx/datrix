@@ -1,10 +1,10 @@
 import path from "node:path";
-import type { DatabaseAdapter } from "forja-types/adapter";
-import type { IApiPlugin, IUpload } from "forja-types/api";
+import type { DatabaseAdapter } from "@forja/types/adapter";
 import { logger, spinner } from "../utils/logger";
 import { ZipExportWriter } from "../export-import/zip-writer";
 import { FileExporter } from "../export-import/file-exporter";
-import { IForja } from "forja-types/forja";
+import { IForja } from "@forja/types/forja";
+import { IApiPlugin } from "packages/types/src/api";
 
 export interface ExportCommandOptions {
 	readonly output?: string;
@@ -23,7 +23,7 @@ export async function exportCommand(
 	const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
 
 	if (options.includeFiles) {
-		if (!options.forja?.getPlugin("api")?.upload) {
+		if (!options.forja?.getPlugin<IApiPlugin>("api")?.upload) {
 			throw new Error(
 				"--include-files requires an active api-upload plugin. None was found.",
 			);
@@ -63,8 +63,8 @@ async function exportWithFiles(
 	timestamp: string,
 ): Promise<void> {
 	const forja = options.forja!;
-	const api = options.forja?.getPlugin("api") as IApiPlugin | undefined;
-	const upload = api?.upload as IUpload;
+	const api = options.forja?.getPlugin<IApiPlugin>("api");
+	const upload = api?.upload!;
 
 	// Determine output directory
 	const baseDir = options.output

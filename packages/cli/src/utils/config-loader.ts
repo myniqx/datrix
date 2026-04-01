@@ -8,7 +8,7 @@
 import { resolve } from "path";
 import { access } from "fs/promises";
 import { CLIError } from "../types";
-import type { Forja } from "forja-core";
+import { Forja } from "@forja/core";
 
 /**
  * Default config file name

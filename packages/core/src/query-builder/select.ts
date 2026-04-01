@@ -4,12 +4,15 @@
  * All SELECT-related operations: merging, validation, normalization.
  */
 
-import type { QuerySelect, SelectClause } from "forja-types/core/query-builder";
+import type {
+	QuerySelect,
+	SelectClause,
+} from "@forja/types/core/query-builder";
 import type {
 	ForjaEntry,
 	SchemaDefinition,
 	ISchemaRegistry,
-} from "forja-types/core/schema";
+} from "@forja/types/core/schema";
 import { throwInvalidFields, throwRelationInSelect } from "./error-helper";
 
 /**

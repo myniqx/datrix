@@ -1,5 +1,5 @@
 /**
- * Forja - Main Singleton Class
+ * Forja - Main Class
  *
  * Central orchestrator for the Forja framework.
  * Manages configuration, database adapter, plugins, and schemas.
@@ -11,27 +11,27 @@ import {
 	DevConfig,
 	DEFAULT_MIGRATION_CONFIG,
 	DEFAULT_DEV_CONFIG,
-} from "forja-types/config";
-import { DatabaseAdapter } from "forja-types/adapter";
+} from "@forja/types/config";
+import { DatabaseAdapter } from "@forja/types/adapter";
 import {
 	ForjaPlugin,
 	PluginContext,
 	SchemaExtension,
-} from "forja-types/plugin";
-import { WhereClause } from "forja-types/core/query-builder";
+} from "@forja/types/plugin";
+import { WhereClause } from "@forja/types/core/query-builder";
 import { CrudOperations } from "./mixins/crud";
 import { SchemaExtensionContextImpl } from "./plugin/schema-extension-context";
 import { Dispatcher, createDispatcher } from "./dispatcher";
-import { PluginRegistry } from "forja-types/plugin";
+import { PluginRegistry } from "@forja/types/plugin";
 import { SchemaRegistry } from "./schema";
-import { ForjaEntry, ForjaRecord } from "forja-types";
+import { ForjaEntry, ForjaRecord } from "@forja/types";
 import {
 	IForja,
 	RawCrudOptions,
 	RawFindManyOptions,
 	FallbackInput,
-} from "forja-types/forja";
-import { ForjaError } from "forja-types/errors";
+} from "@forja/types/forja";
+import { ForjaError } from "@forja/types/errors";
 import {
 	getMigrationSchema,
 	DEFAULT_MIGRATION_MODEL,
@@ -54,7 +54,7 @@ export interface ForjaInitOptions {
 export type ConfigFactory = () => ForjaConfig;
 
 /**
- * Forja Main Singleton Class
+ * Forja Main Class
  */
 export class Forja implements IForja {
 	private config: ForjaConfig | null = null;

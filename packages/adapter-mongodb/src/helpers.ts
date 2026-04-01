@@ -6,7 +6,7 @@
  */
 
 import type { Collection, Document } from "mongodb";
-import { throwQueryError } from "forja-types/errors/adapter";
+import { throwQueryError } from "@forja/types/errors";
 import { COUNTER_KEY_PREFIX } from "./types";
 
 const VALID_IDENTIFIER_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
@@ -83,7 +83,7 @@ export async function getNextIds(
 		});
 	}
 
-	const lastId = result["value"] as number;
+	const lastId = result!["value"] as number;
 	// Return the first ID in the reserved range
 	return lastId - count + 1;
 }

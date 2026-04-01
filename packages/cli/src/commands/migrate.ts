@@ -8,7 +8,7 @@
  * - Status display (--status)
  */
 
-import type { MigrationSession, MigrationPlan } from "forja-core";
+import type { MigrationSession, MigrationPlan } from "@forja/core";
 import type { MigrateCommandOptions } from "../types";
 import { CLIError } from "../types";
 import {

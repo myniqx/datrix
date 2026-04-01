@@ -11,7 +11,7 @@ import {
 	MigrationOperation,
 	MigrationSystemError,
 	SchemaDiff,
-} from "forja-types/core/migration";
+} from "@forja/types/core/migration";
 
 /**
  * Migration generator implementation
