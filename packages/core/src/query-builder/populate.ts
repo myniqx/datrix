@@ -108,12 +108,7 @@ export function normalizePopulate<T extends ForjaEntry>(
 
 	// Handle array format - dot notation ['category', 'author.company']
 	if (Array.isArray(populate)) {
-		return normalizePopulateDotNotation(
-			populate,
-			schema,
-			modelName,
-			registry,
-		) as PopulateClause<T>;
+		return normalizePopulateDotNotation(populate, schema, modelName, registry);
 	}
 
 	// Handle object format
@@ -189,7 +184,7 @@ function normalizePopulateDotNotation<T extends ForjaEntry>(
 	schema: SchemaDefinition,
 	_modelName: string,
 	registry: ISchemaRegistry,
-): Record<string, PopulateOptions<T>> {
+): PopulateClause<T> {
 	const result: Record<string, any> = {};
 
 	for (const path of paths) {

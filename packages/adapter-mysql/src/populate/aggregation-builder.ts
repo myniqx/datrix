@@ -11,8 +11,11 @@ import type {
 	QueryPopulateOptions,
 	QuerySelect,
 } from "forja-types/core/query-builder";
-import type { SchemaRegistry } from "forja-core/schema";
-import type { ForjaEntry, RelationField } from "forja-types/core/schema";
+import type {
+	ForjaEntry,
+	ISchemaRegistry,
+	RelationField,
+} from "forja-types/core/schema";
 import type { MySQLQueryTranslator } from "../query-translator";
 import { escapeIdentifier } from "../helpers";
 import type { AggregationClause, PopulateFieldSelection } from "./types";
@@ -34,7 +37,7 @@ import {
 export class AggregationBuilder {
 	constructor(
 		private translator: MySQLQueryTranslator,
-		private schemaRegistry: SchemaRegistry,
+		private schemaRegistry: ISchemaRegistry,
 	) {}
 
 	/**

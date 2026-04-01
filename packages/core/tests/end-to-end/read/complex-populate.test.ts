@@ -993,4 +993,153 @@ describe("Complex Populate", () => {
 			).rejects.toThrow();
 		});
 	});
+
+	// ==========================================================================
+	// Strategy Coverage
+	//
+	// Postgres/MySQL have 3 strategies:
+	//   json-aggregation : depth 1, no complex options   → covered in populate.test.ts
+	//   lateral-joins    : depth 1 + complex options     → covered above (where/orderBy/limit sections)
+	//   batched-queries  : depth > 1                     → covered above (Deep Nested Populate)
+	//
+	// The cases below specifically target:
+	//   batched-queries depth > 1 WITH complex options (where/orderBy inside nested populate)
+	//   This exercises the populateBatchedRows where/orderBy branch in postgres/mysql adaptors.
+	// ==========================================================================
+
+	describe("Strategy Coverage: batched-queries depth>1 + complex options", () => {
+		it("should filter nested hasMany with where (depth>1)", async () => {
+			// post → author (depth 1) → posts (depth 2) with where filter on nested hasMany
+			// In postgres/mysql this forces batched-queries path with where clause
+			const post = await forja.findById("post", postId, {
+				populate: {
+					author: {
+						populate: {
+							posts: {
+								where: { isPublished: true },
+							},
+						},
+					},
+				},
+			});
+
+			expect(post).not.toBeNull();
+			const author = post!.author as {
+				name: string;
+				posts: { isPublished: boolean }[];
+			};
+			expect(author).toBeDefined();
+			expect(Array.isArray(author.posts)).toBe(true);
+			for (const p of author.posts) {
+				expect(p.isPublished).toBe(true);
+			}
+		});
+
+		it("should order nested hasMany with orderBy (depth>1)", async () => {
+			// post → author (depth 1) → posts (depth 2) with orderBy
+			const post = await forja.findById("post", postId, {
+				populate: {
+					author: {
+						populate: {
+							posts: {
+								orderBy: [{ field: "title", direction: "asc" }],
+							},
+						},
+					},
+				},
+			});
+
+			expect(post).not.toBeNull();
+			const author = post!.author as {
+				posts: { title: string }[];
+			};
+			expect(author).toBeDefined();
+			expect(Array.isArray(author.posts)).toBe(true);
+
+			const titles = author.posts.map((p) => p.title);
+			const sorted = [...titles].sort();
+			expect(titles).toEqual(sorted);
+		});
+
+		it("should filter nested manyToMany with where (depth>1)", async () => {
+			// post → author (depth 1) → roles (depth 2, manyToMany) with where filter
+			const post = await forja.findById("post", postId, {
+				populate: {
+					author: {
+						populate: {
+							roles: {
+								where: { level: { $gte: 50 } },
+							},
+						},
+					},
+				},
+			});
+
+			expect(post).not.toBeNull();
+			const author = post!.author as {
+				roles: { name: string; level: number }[];
+			};
+			expect(author).toBeDefined();
+			expect(Array.isArray(author.roles)).toBe(true);
+			expect(author.roles.length).toBeGreaterThan(0);
+			for (const r of author.roles) {
+				expect(r.level).toBeGreaterThanOrEqual(50);
+			}
+		});
+
+		it("should apply limit on nested hasMany (depth>1)", async () => {
+			// post → author (depth 1) → posts (depth 2) with limit
+			const post = await forja.findById("post", postId, {
+				populate: {
+					author: {
+						populate: {
+							posts: {
+								limit: 1,
+							},
+						},
+					},
+				},
+			});
+
+			expect(post).not.toBeNull();
+			const author = post!.author as {
+				posts: unknown[];
+			};
+			expect(author).toBeDefined();
+			expect(Array.isArray(author.posts)).toBe(true);
+			expect(author.posts.length).toBeLessThanOrEqual(1);
+		});
+
+		it("should combine where + orderBy + limit on nested hasMany (depth>1)", async () => {
+			// post → author (depth 1) → posts (depth 2) combining all complex options
+			const post = await forja.findById("post", postId, {
+				populate: {
+					author: {
+						populate: {
+							posts: {
+								where: { isPublished: true },
+								orderBy: [{ field: "title", direction: "desc" }],
+								limit: 2,
+							},
+						},
+					},
+				},
+			});
+
+			expect(post).not.toBeNull();
+			const author = post!.author as {
+				posts: { title: string; isPublished: boolean }[];
+			};
+			expect(author).toBeDefined();
+			expect(Array.isArray(author.posts)).toBe(true);
+			expect(author.posts.length).toBeLessThanOrEqual(2);
+			for (const p of author.posts) {
+				expect(p.isPublished).toBe(true);
+			}
+
+			const titles = author.posts.map((p) => p.title);
+			const sortedDesc = [...titles].sort().reverse();
+			expect(titles).toEqual(sortedDesc);
+		});
+	});
 });

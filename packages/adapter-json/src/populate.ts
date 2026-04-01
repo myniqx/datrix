@@ -151,7 +151,7 @@ export class JsonPopulator {
 				);
 
 				// Group related items by FK
-				const grouped = new Map<string | number, Record<string, unknown>[]>();
+				const grouped = new Map<number, Record<string, unknown>[]>();
 				for (const item of relatedData) {
 					const fkValue = item[foreignKey] as number | null | undefined;
 					if (
@@ -172,7 +172,7 @@ export class JsonPopulator {
 					options?.offset !== undefined;
 
 				for (const row of result) {
-					const rowId = row["id"] as string | number;
+					const rowId = row["id"] as number;
 					let group = grouped.get(rowId) ?? [];
 
 					if (kind === "hasOne") {
@@ -185,15 +185,15 @@ export class JsonPopulator {
 								this.adapter,
 								targetSchema,
 							);
-							group = await groupRunner.filterAndSort({
+							group = (await groupRunner.filterAndSort({
 								type: "select",
 								table: targetTable,
-								where: options?.where,
+								where: options?.where!,
 								orderBy: options?.orderBy,
 								limit: options?.limit,
 								offset: options?.offset,
 								select: "*" as unknown as QuerySelect,
-							});
+							})) as unknown as Record<string, unknown>[];
 						}
 						row[relationName as keyof T] = group as T[keyof T];
 					}
@@ -272,7 +272,7 @@ export class JsonPopulator {
 				const targetRecords = await targetRunner.run({
 					type: "select",
 					table: targetTable,
-					where: mergedWhere as QuerySelectObject["where"],
+					where: mergedWhere,
 					orderBy: options?.orderBy,
 					select: "*" as unknown as QuerySelect,
 				});

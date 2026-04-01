@@ -5,8 +5,11 @@
  * Supports all relation types: belongsTo, hasOne, hasMany, manyToMany.
  */
 
-import type { SchemaRegistry } from "forja-core/schema";
-import type { ForjaEntry, RelationField } from "forja-types/core/schema";
+import type {
+	ForjaEntry,
+	ISchemaRegistry,
+	RelationField,
+} from "forja-types/core/schema";
 import type { PostgresQueryTranslator } from "../query-translator";
 import type { JoinClause, PopulateStrategy } from "./types";
 import {
@@ -27,7 +30,7 @@ import { PostgresQueryObject } from "forja-adapter-postgres/types";
  */
 export class JoinBuilder {
 	constructor(
-		private schemaRegistry: SchemaRegistry,
+		private schemaRegistry: ISchemaRegistry,
 		private translator: PostgresQueryTranslator,
 	) {}
 

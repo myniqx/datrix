@@ -6,8 +6,11 @@
  */
 
 import type { QueryPopulate } from "forja-types/core/query-builder";
-import type { SchemaRegistry } from "forja-core/schema";
-import type { ForjaEntry, RelationField } from "forja-types/core/schema";
+import type {
+	ForjaEntry,
+	ISchemaRegistry,
+	RelationField,
+} from "forja-types/core/schema";
 import { throwResultProcessingError } from "forja-types/errors/adapter";
 
 /**
@@ -16,7 +19,7 @@ import { throwResultProcessingError } from "forja-types/errors/adapter";
  * Processes flat SQL results into nested structures with populated relations.
  */
 export class ResultProcessor {
-	constructor(private schemaRegistry: SchemaRegistry) {}
+	constructor(private schemaRegistry: ISchemaRegistry) {}
 
 	/**
 	 * Process JSON aggregation results

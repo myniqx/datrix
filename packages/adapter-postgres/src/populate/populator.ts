@@ -11,7 +11,6 @@ import type {
 	QuerySelectObject,
 } from "forja-types/core/query-builder";
 import type { PgClient } from "../pg-client";
-import type { SchemaRegistry } from "forja-core/schema";
 import type { PostgresQueryTranslator } from "../query-translator";
 import type { PopulateStrategy, PopulateOptionsAnalysis } from "./types";
 import { JoinBuilder } from "./join-builder";
@@ -20,6 +19,7 @@ import { ResultProcessor } from "./result-processor";
 import { throwMaxDepthExceeded } from "forja-types/errors/adapter";
 import { ForjaEntry } from "forja-types";
 import { PostgresQueryObject } from "forja-adapter-postgres/types";
+import { ISchemaRegistry } from "forja-types/core/schema";
 
 /**
  * Maximum populate nesting depth
@@ -48,7 +48,7 @@ export class PostgresPopulator {
 	constructor(
 		private client: PgClient,
 		private translator: PostgresQueryTranslator,
-		private schemaRegistry: SchemaRegistry,
+		private schemaRegistry: ISchemaRegistry,
 	) {
 		this.joinBuilder = new JoinBuilder(schemaRegistry, translator);
 		this.aggregationBuilder = new AggregationBuilder(
@@ -577,7 +577,11 @@ export class PostgresPopulator {
 					relation.model,
 					options,
 				);
-				const hasManyExtra = this.buildBatchOptionsClause(options, targetTable, 2);
+				const hasManyExtra = this.buildBatchOptionsClause(
+					options,
+					targetTable,
+					2,
+				);
 				batchQuery = `
           SELECT t."${fkColumn}" as _fk, ${hasManyRowToJson} as data
           FROM ${this.translator.escapeIdentifier(targetTable)} t

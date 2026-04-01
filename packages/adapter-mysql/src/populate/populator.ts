@@ -10,7 +10,6 @@ import type {
 	QueryPopulateOptions,
 	QuerySelectObject,
 } from "forja-types/core/query-builder";
-import type { SchemaRegistry } from "forja-core/schema";
 import type { MySQLQueryTranslator } from "../query-translator";
 import { escapeIdentifier } from "../helpers";
 import type { PopulateStrategy, PopulateOptionsAnalysis } from "./types";
@@ -21,6 +20,7 @@ import { MySQLClient } from "../mysql-client";
 import { throwMaxDepthExceeded } from "forja-types/errors/adapter";
 import { ForjaEntry } from "forja-types";
 import { MySQLQueryObject } from "../types";
+import { ISchemaRegistry } from "forja-types/core/schema";
 
 /**
  * Maximum populate nesting depth
@@ -49,7 +49,7 @@ export class MySQLPopulator {
 	constructor(
 		private client: MySQLClient,
 		private translator: MySQLQueryTranslator,
-		private schemaRegistry: SchemaRegistry,
+		private schemaRegistry: ISchemaRegistry,
 	) {
 		this.joinBuilder = new JoinBuilder(schemaRegistry);
 		this.aggregationBuilder = new AggregationBuilder(
@@ -289,12 +289,11 @@ export class MySQLPopulator {
           FROM ${targetTableEsc} t
           WHERE t.${fkColumnEsc} IN (?)${whereSQL}${orderSQL}${limitSQL}${offsetSQL}
         `;
-				const allRelatedRows =
-					await this.fetchBatchQueryResultsWithParams<T>(
-						lateralSql,
-						parentIds,
-						innerParams,
-					);
+				const allRelatedRows = await this.fetchBatchQueryResultsWithParams<T>(
+					lateralSql,
+					parentIds,
+					innerParams,
+				);
 
 				const groupMap = new Map<number, Partial<T>[]>();
 				for (const r of allRelatedRows) {
@@ -356,12 +355,11 @@ export class MySQLPopulator {
           INNER JOIN ${junctionTableEsc} j ON t.\`id\` = j.${targetFKEsc}
           WHERE j.${sourceFKEsc} IN (?)${whereSQL}${orderSQL}${limitSQL}${offsetSQL}
         `;
-				const allRelatedRows =
-					await this.fetchBatchQueryResultsWithParams<T>(
-						lateralSql,
-						parentIds,
-						innerParams,
-					);
+				const allRelatedRows = await this.fetchBatchQueryResultsWithParams<T>(
+					lateralSql,
+					parentIds,
+					innerParams,
+				);
 
 				const groupMap = new Map<number, Partial<T>[]>();
 				for (const r of allRelatedRows) {
@@ -759,7 +757,6 @@ export class MySQLPopulator {
 			},
 		} as MySQLQueryObject<T>;
 	}
-
 
 	/**
 	 * Analyze populate requirements

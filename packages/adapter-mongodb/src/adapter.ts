@@ -453,7 +453,11 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 		query: QuerySelectObject<TResult>,
 		client: MongoClient<TResult>,
 	): Promise<QueryResult<TResult>> {
-		const populator = new MongoDBPopulator(client, this._schemas!, this._translator!);
+		const populator = new MongoDBPopulator(
+			client,
+			this._schemas!,
+			this._translator!,
+		);
 
 		const translated = this.getTranslator().translate(query) as MongoFindResult;
 		const resolved = (await this.resolveFilterRelations(

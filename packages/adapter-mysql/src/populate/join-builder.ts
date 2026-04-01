@@ -5,8 +5,11 @@
  * Supports all relation types: belongsTo, hasOne, hasMany, manyToMany.
  */
 
-import type { SchemaRegistry } from "forja-core/schema";
-import type { ForjaEntry, RelationField } from "forja-types/core/schema";
+import type {
+	ForjaEntry,
+	ISchemaRegistry,
+	RelationField,
+} from "forja-types/core/schema";
 import { escapeIdentifier } from "../helpers";
 import type { JoinClause, PopulateStrategy } from "./types";
 import {
@@ -27,7 +30,7 @@ import { MySQLQueryObject } from "../types";
  * Generates optimized JOIN clauses for different populate strategies.
  */
 export class JoinBuilder {
-	constructor(private schemaRegistry: SchemaRegistry) {}
+	constructor(private schemaRegistry: ISchemaRegistry) {}
 
 	/**
 	 * Build all JOINs for a query
