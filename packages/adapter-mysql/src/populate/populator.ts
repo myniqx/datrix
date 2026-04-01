@@ -129,14 +129,253 @@ export class MySQLPopulator {
 	private async executeLateralJoins<T extends ForjaEntry>(
 		query: QuerySelectObject<T>,
 	): Promise<readonly T[]> {
-		const modifiedQuery = this.buildLateralJoinsQuery(query);
-		const { sql, params } = this.translator.translate(modifiedQuery);
-		const [rows] = await this.client.execute(sql, params as unknown[]);
+		const modelName = this.schemaRegistry.findModelByTableName(query.table);
+		if (!modelName) return [];
 
-		return this.resultProcessor.processJsonAggregation<T>(
-			rows as T[],
-			query.populate!,
+		const schema = this.schemaRegistry.get(modelName);
+		if (!schema) return [];
+
+		// Collect FK columns needed for belongsTo so they are present in main result
+		const fkColumnsNeeded: string[] = [];
+		for (const [relationName] of Object.entries(query.populate ?? {})) {
+			const relationField = schema.fields[relationName];
+			if (!relationField || relationField.type !== "relation") continue;
+			const rel = relationField as { kind: string; foreignKey?: string };
+			if (rel.kind === "belongsTo" && rel.foreignKey) {
+				fkColumnsNeeded.push(rel.foreignKey);
+			}
+		}
+
+		// Run main query without populate
+		const mainQuery: QuerySelectObject<T> =
+			fkColumnsNeeded.length > 0
+				? {
+						...query,
+						populate: undefined,
+						select: [
+							...(query.select as string[]),
+							...fkColumnsNeeded,
+						] as unknown as QuerySelectObject<T>["select"],
+					}
+				: { ...query, populate: undefined };
+
+		const { sql: mainSql, params: mainParams } =
+			this.translator.translate(mainQuery);
+		const [mainRows] = await this.client.execute(
+			mainSql,
+			mainParams as unknown[],
 		);
+		const rows = mainRows as T[];
+
+		if (rows.length === 0) return rows;
+
+		const parentIds = rows.map((row) => row.id);
+
+		for (const [relationName, _options] of Object.entries(query.populate!)) {
+			const relationField = schema.fields[relationName];
+			const options = _options as QueryPopulateOptions<T>;
+			if (!relationField || relationField.type !== "relation") continue;
+
+			const relation = relationField as {
+				kind: string;
+				model: string;
+				foreignKey?: string;
+				through?: string;
+			};
+			const targetSchema = this.schemaRegistry.get(relation.model);
+			if (!targetSchema) continue;
+
+			const targetTable =
+				targetSchema.tableName ?? relation.model.toLowerCase();
+			const targetTableEsc = escapeIdentifier(targetTable);
+			const jsonObj = this.buildJsonObject(relation.model, options);
+
+			if (relation.kind === "belongsTo") {
+				const fkColumn = relation.foreignKey!;
+				const fkValues = rows
+					.map((row) => row[fkColumn as keyof T])
+					.filter((v) => v != null);
+
+				if (fkValues.length === 0) {
+					for (const row of rows) {
+						row[relationName as keyof T] = null as T[keyof T];
+						delete row[fkColumn as keyof T];
+					}
+					continue;
+				}
+
+				const extra = this.buildBatchOptionsClause(options, targetTable);
+				const lateralSql = `
+          SELECT t.\`id\` as _fk, ${jsonObj} as data
+          FROM ${targetTableEsc} t
+          WHERE t.\`id\` IN (?)${extra.sql}
+        `;
+				const relatedRows = await this.fetchBatchQueryResultsWithParams<T>(
+					lateralSql,
+					fkValues,
+					extra.params,
+				);
+
+				const dataMap = new Map(relatedRows.map((r) => [r._fk, r]));
+				for (const row of rows) {
+					const fkValue = row[fkColumn as keyof T];
+					row[relationName as keyof T] = (dataMap.get(fkValue as number) ??
+						null) as T[keyof T];
+					delete row[fkColumn as keyof T];
+				}
+			} else if (relation.kind === "hasOne") {
+				const fkColumn = relation.foreignKey!;
+				const fkColumnEsc = escapeIdentifier(fkColumn);
+				const extra = this.buildBatchOptionsClause(options, targetTable);
+				const lateralSql = `
+          SELECT t.${fkColumnEsc} as _fk, ${jsonObj} as data
+          FROM ${targetTableEsc} t
+          WHERE t.${fkColumnEsc} IN (?)${extra.sql}
+        `;
+				const relatedRows = await this.fetchBatchQueryResultsWithParams<T>(
+					lateralSql,
+					parentIds,
+					extra.params,
+				);
+
+				const dataMap = new Map(relatedRows.map((r) => [r._fk, r]));
+				for (const row of rows) {
+					row[relationName as keyof T] = (dataMap.get(row.id) ??
+						null) as T[keyof T];
+				}
+			} else if (relation.kind === "hasMany") {
+				const fkColumn = relation.foreignKey!;
+				const fkColumnEsc = escapeIdentifier(fkColumn);
+				const innerParams: unknown[] = [];
+
+				let whereSQL = "";
+				if (options.where) {
+					const whereResult = this.translator.translateWhere(
+						options.where,
+						0,
+						targetTable,
+					);
+					whereSQL = ` AND ${whereResult.sql}`;
+					innerParams.push(...whereResult.params);
+				}
+
+				let orderSQL = "";
+				if (options.orderBy && options.orderBy.length > 0) {
+					orderSQL =
+						" ORDER BY " +
+						options.orderBy
+							.map((item) => {
+								let s = `t.${escapeIdentifier(item.field as string)} ${item.direction.toUpperCase()}`;
+								if (item.nulls) s += ` NULLS ${item.nulls.toUpperCase()}`;
+								return s;
+							})
+							.join(", ");
+				}
+
+				let limitSQL = "";
+				if (options.limit !== undefined) {
+					limitSQL = " LIMIT ?";
+					innerParams.push(options.limit);
+				}
+
+				let offsetSQL = "";
+				if (options.offset !== undefined && options.offset > 0) {
+					offsetSQL = " OFFSET ?";
+					innerParams.push(options.offset);
+				}
+
+				const lateralSql = `
+          SELECT t.${fkColumnEsc} as _fk, ${jsonObj} as data
+          FROM ${targetTableEsc} t
+          WHERE t.${fkColumnEsc} IN (?)${whereSQL}${orderSQL}${limitSQL}${offsetSQL}
+        `;
+				const allRelatedRows =
+					await this.fetchBatchQueryResultsWithParams<T>(
+						lateralSql,
+						parentIds,
+						innerParams,
+					);
+
+				const groupMap = new Map<number, Partial<T>[]>();
+				for (const r of allRelatedRows) {
+					if (!groupMap.has(r._fk)) groupMap.set(r._fk, []);
+					groupMap.get(r._fk)!.push(r);
+				}
+				for (const row of rows) {
+					row[relationName as keyof T] = (groupMap.get(row.id) ??
+						[]) as T[keyof T];
+				}
+			} else if (relation.kind === "manyToMany") {
+				const junctionTable = relation.through!;
+				const sourceFK = `${schema.name}Id`;
+				const targetFK = `${relation.model}Id`;
+				const junctionTableEsc = escapeIdentifier(junctionTable);
+				const sourceFKEsc = escapeIdentifier(sourceFK);
+				const targetFKEsc = escapeIdentifier(targetFK);
+				const innerParams: unknown[] = [];
+
+				let whereSQL = "";
+				if (options.where) {
+					const whereResult = this.translator.translateWhere(
+						options.where,
+						0,
+						targetTable,
+					);
+					whereSQL = ` AND ${whereResult.sql}`;
+					innerParams.push(...whereResult.params);
+				}
+
+				let orderSQL = "";
+				if (options.orderBy && options.orderBy.length > 0) {
+					orderSQL =
+						" ORDER BY " +
+						options.orderBy
+							.map((item) => {
+								let s = `t.${escapeIdentifier(item.field as string)} ${item.direction.toUpperCase()}`;
+								if (item.nulls) s += ` NULLS ${item.nulls.toUpperCase()}`;
+								return s;
+							})
+							.join(", ");
+				}
+
+				let limitSQL = "";
+				if (options.limit !== undefined) {
+					limitSQL = " LIMIT ?";
+					innerParams.push(options.limit);
+				}
+
+				let offsetSQL = "";
+				if (options.offset !== undefined && options.offset > 0) {
+					offsetSQL = " OFFSET ?";
+					innerParams.push(options.offset);
+				}
+
+				const lateralSql = `
+          SELECT j.${sourceFKEsc} as _fk, ${jsonObj} as data
+          FROM ${targetTableEsc} t
+          INNER JOIN ${junctionTableEsc} j ON t.\`id\` = j.${targetFKEsc}
+          WHERE j.${sourceFKEsc} IN (?)${whereSQL}${orderSQL}${limitSQL}${offsetSQL}
+        `;
+				const allRelatedRows =
+					await this.fetchBatchQueryResultsWithParams<T>(
+						lateralSql,
+						parentIds,
+						innerParams,
+					);
+
+				const groupMap = new Map<number, Partial<T>[]>();
+				for (const r of allRelatedRows) {
+					if (!groupMap.has(r._fk)) groupMap.set(r._fk, []);
+					groupMap.get(r._fk)!.push(r);
+				}
+				for (const row of rows) {
+					row[relationName as keyof T] = (groupMap.get(row.id) ??
+						[]) as T[keyof T];
+				}
+			}
+		}
+
+		return rows;
 	}
 
 	/**
@@ -278,16 +517,18 @@ export class MySQLPopulator {
 				const fkColumn = relation.foreignKey!;
 				const fkColumnEsc = escapeIdentifier(fkColumn);
 				const jsonObj = this.buildJsonObject(relation.model, options);
+				const extra = this.buildBatchOptionsClause(options, targetTable);
 
 				const batchQuery = `
           SELECT t.${fkColumnEsc} as _fk, ${jsonObj} as data
           FROM ${targetTableEsc} t
-          WHERE t.${fkColumnEsc} IN (?)
+          WHERE t.${fkColumnEsc} IN (?)${extra.sql}
         `;
 
-				let allRelatedRows = await this.fetchBatchQueryResults<T>(
+				let allRelatedRows = await this.fetchBatchQueryResultsWithParams<T>(
 					batchQuery,
 					parentIds,
+					extra.params,
 				);
 
 				const nestedPopulate = options?.["populate"];
@@ -318,17 +559,19 @@ export class MySQLPopulator {
 				const sourceFKEsc = escapeIdentifier(sourceFK);
 				const targetFKEsc = escapeIdentifier(targetFK);
 				const jsonObj = this.buildJsonObject(relation.model, options);
+				const extra = this.buildBatchOptionsClause(options, targetTable);
 
 				const batchQuery = `
           SELECT j.${sourceFKEsc} as _fk, ${jsonObj} as data
           FROM ${targetTableEsc} t
           INNER JOIN ${junctionTableEsc} j ON t.\`id\` = j.${targetFKEsc}
-          WHERE j.${sourceFKEsc} IN (?)
+          WHERE j.${sourceFKEsc} IN (?)${extra.sql}
         `;
 
-				let allRelatedRows = await this.fetchBatchQueryResults<T>(
+				let allRelatedRows = await this.fetchBatchQueryResultsWithParams<T>(
 					batchQuery,
 					parentIds,
+					extra.params,
 				);
 
 				const nestedPopulate = options?.["populate"];
@@ -517,20 +760,6 @@ export class MySQLPopulator {
 		} as MySQLQueryObject<T>;
 	}
 
-	/**
-	 * Build query with LATERAL joins
-	 */
-	private buildLateralJoinsQuery<T extends ForjaEntry>(
-		query: QuerySelectObject<T>,
-	): MySQLQueryObject<T> {
-		return {
-			...query,
-			_metadata: {
-				populateStrategy: "lateral-joins" as const,
-				populateClause: query.populate,
-			},
-		} as MySQLQueryObject<T>;
-	}
 
 	/**
 	 * Analyze populate requirements
@@ -621,17 +850,17 @@ export class MySQLPopulator {
 	 * 3. Default → json-aggregation (subquery-based, no row explosion)
 	 */
 	private selectStrategy(analysis: PopulateOptionsAnalysis): PopulateStrategy {
-		// Complex options: use LATERAL joins
-		if (analysis.hasComplexOptions) {
+		// Complex options at depth 1: LATERAL joins (per-row limit/offset/where/orderBy)
+		if (analysis.hasComplexOptions && analysis.maxDepth === 1) {
 			return "lateral-joins";
 		}
 
-		// Deep nesting or high cardinality: use batched queries
-		if (analysis.maxDepth > 1 || analysis.estimatedCost > 8) {
+		// Deep nesting or complex options at depth > 1: batched queries
+		if (analysis.maxDepth > 1 || analysis.hasComplexOptions) {
 			return "batched-queries";
 		}
 
-		// Default: JSON aggregation (subquery-based)
+		// Default: JSON aggregation (single query, most performant)
 		return "json-aggregation";
 	}
 
@@ -669,6 +898,23 @@ export class MySQLPopulator {
 		params: unknown[],
 	): Promise<(T & { _fk: number })[]> {
 		const [rows] = await this.client.query(sql, [params]);
+		const raw = rows as { _fk: number; data: string | Partial<T> }[];
+		return raw.map((r) => ({
+			...((typeof r.data === "string" ? JSON.parse(r.data) : r.data) as T),
+			_fk: r._fk,
+		}));
+	}
+
+	/**
+	 * Like fetchBatchQueryResults but supports extra params after the IN (?) array.
+	 * MySQL positional params: first param is the IN array, rest are flat extra params.
+	 */
+	private async fetchBatchQueryResultsWithParams<T extends ForjaEntry>(
+		sql: string,
+		inParams: unknown[],
+		extraParams: unknown[],
+	): Promise<(T & { _fk: number })[]> {
+		const [rows] = await this.client.query(sql, [inParams, ...extraParams]);
 		const raw = rows as { _fk: number; data: string | Partial<T> }[];
 		return raw.map((r) => ({
 			...((typeof r.data === "string" ? JSON.parse(r.data) : r.data) as T),
@@ -743,6 +989,41 @@ export class MySQLPopulator {
 			.join(", ");
 
 		return `JSON_OBJECT(${jsonPairs})`;
+	}
+
+	/**
+	 * Build extra SQL clauses (WHERE/ORDER BY) for batch/lateral queries from populate options.
+	 * MySQL uses positional ? params — returns sql fragment and params to append.
+	 */
+	private buildBatchOptionsClause<T extends ForjaEntry>(
+		options: QueryPopulateOptions<T>,
+		targetTable: string,
+	): { sql: string; params: unknown[] } {
+		let sql = "";
+		const params: unknown[] = [];
+
+		if (options.where) {
+			const whereResult = this.translator.translateWhere(
+				options.where,
+				0,
+				targetTable,
+			);
+			sql += ` AND ${whereResult.sql}`;
+			params.push(...whereResult.params);
+		}
+
+		if (options.orderBy && options.orderBy.length > 0) {
+			const orderSQL = options.orderBy
+				.map((item) => {
+					let s = `t.${escapeIdentifier(item.field as string)} ${item.direction.toUpperCase()}`;
+					if (item.nulls) s += ` NULLS ${item.nulls.toUpperCase()}`;
+					return s;
+				})
+				.join(", ");
+			sql += ` ORDER BY ${orderSQL}`;
+		}
+
+		return { sql, params };
 	}
 
 	/**
