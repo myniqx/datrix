@@ -266,6 +266,133 @@ indexes: [
 ]
 ```
 
+## Lifecycle hooks
+
+Lifecycle hooks let you intercept and modify data at each stage of a write or read operation. They are defined directly on a schema and fire only for that schema.
+
+```typescript
+import { defineSchema } from "@forja/core"
+import type { QueryContext } from "@forja/types/core/query-context"
+import type {
+  QueryInsertObject,
+  QueryUpdateObject,
+  QueryDeleteObject,
+  QuerySelectObject,
+} from "@forja/types/core/query-builder"
+
+const postSchema = defineSchema({
+  name: "post",
+  fields: {
+    title:   { type: "string", required: true },
+    status:  { type: "enum", values: ["draft", "published"], required: true },
+  },
+  hooks: {
+    beforeCreate: (
+      query: QueryInsertObject<Post>,
+      ctx: QueryContext,
+    ): QueryInsertObject<Post> => {
+      // Runs before INSERT — can modify the query (e.g. inject default field values)
+      return {
+        ...query,
+        data: query.data.map((d) => ({ ...d, status: d.status ?? "draft" })),
+      }
+    },
+
+    afterCreate: (
+      records: readonly Post[],
+      ctx: QueryContext,
+    ): readonly Post[] => {
+      // Runs after INSERT — receives all inserted records
+      return records
+    },
+
+    beforeUpdate: (
+      query: QueryUpdateObject<Post>,
+      ctx: QueryContext,
+    ): QueryUpdateObject<Post> => {
+      // Runs before UPDATE — must return the (possibly modified) query
+      return query
+    },
+
+    afterUpdate: (
+      records: readonly Post[],
+      ctx: QueryContext,
+    ): readonly Post[] => records,
+
+    beforeDelete: (
+      query: QueryDeleteObject<Post>,
+      ctx: QueryContext,
+    ): QueryDeleteObject<Post> => {
+      // Runs before DELETE — receives the full delete query, must return it
+      return query
+    },
+
+    afterDelete: (
+      records: readonly Post[],
+      ctx: QueryContext,
+    ): void => {
+      // Runs after DELETE — receives the deleted records, return value is ignored
+    },
+
+    beforeFind: (
+      query: QuerySelectObject<Post>,
+      ctx: QueryContext,
+    ): QuerySelectObject<Post> => {
+      // Runs before SELECT — can modify the query object
+      return query
+    },
+
+    afterFind: (
+      records: readonly Post[],
+      ctx: QueryContext,
+    ): readonly Post[] => {
+      // Runs after SELECT — receives all matching rows, must return them
+      return records
+    },
+  },
+})
+```
+
+### Error behaviour
+
+| Hook type | If hook throws | If hook returns `undefined` |
+| --- | --- | --- |
+| `before*` | Error propagates — operation is aborted | `HOOK_INVALID_RETURN` error thrown |
+| `after*` | Warning logged — operation result is still returned | Warning logged |
+
+After-hook errors are non-fatal by design: the database write already completed. The error is logged with `console.warn` and the result is returned as-is.
+
+### Sharing data between before and after
+
+`ctx.metadata` is a plain mutable object shared between the before and after hook for the same operation:
+
+```typescript
+hooks: {
+  beforeUpdate: (query, ctx) => {
+    ctx.metadata.previousStatus = query.data.status
+    return query
+  },
+  afterUpdate: (records, ctx) => {
+    for (const record of records) {
+      if (ctx.metadata.previousStatus !== record.status) {
+        // status changed — trigger a side effect
+      }
+    }
+    return records
+  },
+}
+```
+
+### Execution order
+
+Schema hooks run after all plugin query hooks:
+
+```
+onBeforeQuery (plugins) → before* (schema) → [query runs] → onAfterQuery (plugins) → after* (schema)
+```
+
+---
+
 ## How Forja initializes schemas
 
 When you call `getForja()` for the first time, Forja runs the following sequence:

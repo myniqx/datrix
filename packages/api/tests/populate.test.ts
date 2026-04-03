@@ -11,13 +11,13 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { Forja } from "forja-core";
+import { Forja } from "@forja/core";
 import { handleRequest } from "../src/helper";
 import { createTestConfig, getTmpDir } from "./data";
 import { serializeQuery } from "../src/serializer/query";
 import { createRequest } from "./data/helper";
 import fs from "node:fs/promises";
-import { expectApiSingle } from "forja-types/test/helpers";
+import { expectApiSingle } from "@forja/types/test/helpers";
 
 describe("Populate Integration Tests", () => {
 	let forja: Forja;

@@ -6,7 +6,6 @@
  */
 
 import { describe, it, beforeAll, afterAll, expect } from "vitest";
-import { Forja } from "forja-core";
 import { createForjaWithSchemas, getTmpDir } from "./setup/config";
 import { getAdapter, getAdapterType } from "./setup/adapter";
 import { baseUserSchema, cloneSchema, TABLE_NAMES } from "./setup/schemas-base";
@@ -14,8 +13,6 @@ import {
 	dropAllTables,
 	assertColumnExists,
 	assertColumnNotExists,
-	assertTableExists,
-	assertTableNotExists,
 	assertAmbiguousCount,
 	assertHasAmbiguous,
 	assertNoAmbiguous,
@@ -24,7 +21,7 @@ import {
 	resolveAmbiguousById,
 	autoResolveAmbiguous,
 } from "./setup/helpers";
-import type { DatabaseAdapter } from "forja-types/adapter";
+import type { DatabaseAdapter } from "@forja/types/adapter";
 
 describe("Migration E2E - Ambiguous Detection", () => {
 	const tmpDir = getTmpDir("ambiguous");

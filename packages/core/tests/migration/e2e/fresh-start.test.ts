@@ -25,7 +25,7 @@ import {
 	assertHasChanges,
 	applyMigration,
 } from "./setup/helpers";
-import type { DatabaseAdapter } from "forja-types/adapter";
+import type { DatabaseAdapter } from "@forja/types/adapter";
 
 describe("Migration E2E - Fresh Start", () => {
 	const tmpDir = getTmpDir("fresh-start");

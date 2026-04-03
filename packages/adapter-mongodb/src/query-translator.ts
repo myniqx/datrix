@@ -19,7 +19,7 @@ import type {
 	QuerySelect,
 	QuerySelectObject,
 } from "@forja/types/core/query-builder";
-import type { SchemaRegistry } from "forja-core/schema";
+import type { SchemaRegistry } from "@forja/core";
 import type {
 	SchemaDefinition,
 	FieldDefinition,
@@ -45,7 +45,7 @@ const MAX_WHERE_DEPTH = 10;
  * MongoDB query translator implementation
  */
 export class MongoDBQueryTranslator {
-	constructor(private readonly schemaRegistry: SchemaRegistry) {}
+	constructor(private readonly schemaRegistry: SchemaRegistry) { }
 
 	/**
 	 * Translate a QueryObject into a MongoDB operation descriptor
@@ -282,10 +282,10 @@ export class MongoDBQueryTranslator {
 								value === null
 									? null
 									: this.convertValueForField(
-											value,
-											currentSchema,
-											relationField.foreignKey,
-										);
+										value,
+										currentSchema,
+										relationField.foreignKey,
+									);
 						}
 						continue;
 					}

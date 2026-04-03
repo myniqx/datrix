@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { JsonAdapter } from "../src/adapter";
-import { QueryObject } from "forja-types/core/query-builder";
-import { expectSuccessData } from "forja-types/test/helpers";
+import { QueryObject } from "@forja/types/core/query-builder";
+import { expectSuccessData } from "@forja/types/test/helpers";
 
 describe("JsonAdapter - Advanced Features", () => {
 	const root = path.join(__dirname, "tmp_features_test");

@@ -1,5 +1,5 @@
-import { queryToParams } from "forja-api";
-import { ForjaEntry, ParsedQuery } from "forja-types";
+import { queryToParams } from "@forja/api";
+import { ForjaEntry, ParsedQuery } from "@forja/types";
 
 export function createRequest(
 	url: string,

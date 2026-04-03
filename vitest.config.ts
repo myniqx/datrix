@@ -38,39 +38,20 @@ export default defineConfig({
 	resolve: {
 		alias: {
 			// Monorepo package aliases
-			"forja-types": path.resolve(__dirname, "./packages/types/src"),
-			"forja-types/core/schema": path.resolve(
+			"@forja/types": path.resolve(__dirname, "./packages/types/src"),
+			"@forja/core": path.resolve(__dirname, "./packages/core/src"),
+			"@forja/core/plugin/plugin": path.resolve(
 				__dirname,
-				"./packages/types/src/core/schema.ts",
+				"./packages/core/src/plugin/plugin.ts",
 			),
-			"forja-types/core/query-builder": path.resolve(
-				__dirname,
-				"./packages/types/src/core/query-builder.ts",
-			),
-			"forja-types/adapter": path.resolve(
-				__dirname,
-				"./packages/types/src/adapter.ts",
-			),
-			"forja-types/utils": path.resolve(
-				__dirname,
-				"./packages/types/src/utils.ts",
-			),
-
-			"forja-core": path.resolve(__dirname, "./packages/core/src"),
-			"forja-core/query-builder": path.resolve(
-				__dirname,
-				"./packages/core/src/query-builder",
-			),
-			"forja-core/schema": path.resolve(
-				__dirname,
-				"./packages/core/src/schema",
-			),
-
-			"forja-adapter-postgres": path.resolve(
+			"@forja/adapter-postgres": path.resolve(
 				__dirname,
 				"./packages/adapter-postgres/src",
 			),
-			"forja-api": path.resolve(__dirname, "./packages/api/src"),
+			"@forja/adapter-mysql": path.resolve(
+				__dirname,
+				"./packages/adapter-mysql/src",
+			),
 			"@forja/api": path.resolve(__dirname, "./packages/api/src"),
 			"@forja/api-upload": path.resolve(__dirname, "./packages/api-upload/src"),
 		},

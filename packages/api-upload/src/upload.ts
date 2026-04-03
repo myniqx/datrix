@@ -5,9 +5,9 @@
  * @template TResolutions - Union of resolution names (e.g. "thumbnail" | "small" | "medium")
  */
 
-import type { Forja } from "forja-core";
-import type { IUpload } from "forja-types/api";
-import type { SchemaDefinition } from "forja-types/core/schema";
+import type { Forja } from "@forja/core";
+import type { IUpload } from "@forja/types/api";
+import type { SchemaDefinition } from "@forja/types/core/schema";
 import { createMediaSchema } from "./schema";
 import { handleUploadRequest } from "./handler";
 import type { UploadOptions } from "./types";

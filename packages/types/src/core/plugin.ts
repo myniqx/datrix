@@ -11,39 +11,13 @@ import type {
 	FieldDefinition,
 	IndexDefinition,
 	ForjaEntry,
-} from "./core/schema";
-import type { DatabaseAdapter } from "./adapter";
-import type { ForjaConfig } from "./config";
-import { QueryObject } from "./core/query-builder";
-import { IForja } from "./forja";
-import { AuthUser } from "./api";
+} from "./schema";
+import type { DatabaseAdapter } from "../adapter";
+import type { ForjaConfig } from "../config";
+import { QueryObject } from "./query-builder";
+import { QueryContext } from "./query-context";
 
-export type { SchemaDefinition } from "./core/schema";
-
-/**
- * Query operation type
- */
-export type QueryAction =
-	| "findOne"
-	| "findMany"
-	| "count"
-	| "create"
-	| "createMany"
-	| "update"
-	| "updateMany"
-	| "delete"
-	| "deleteMany";
-
-/**
- * Query context passed to plugin hooks
- */
-export interface QueryContext {
-	readonly action: QueryAction;
-	readonly schema: SchemaDefinition;
-	readonly forja: IForja;
-	readonly metadata: Record<string, unknown>;
-	user?: AuthUser | undefined;
-}
+export type { SchemaDefinition } from "./schema";
 
 /**
  * Plugin context (provided during initialization)
@@ -148,7 +122,7 @@ export type {
 	PermissionValue,
 	PermissionContext,
 	PermissionFn,
-} from "./core/permission";
+} from "./permission";
 
 /**
  * Upload plugin types

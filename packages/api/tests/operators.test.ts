@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { Forja } from "forja-core";
+import { Forja } from "@forja/core";
 import { handleRequest } from "../src/helper";
 import { createTestConfig, getTmpDir, testSchemas } from "./data";
 import { serializeQuery } from "../src/serializer/query";

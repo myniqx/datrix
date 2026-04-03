@@ -14,7 +14,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { Forja } from "forja-core";
+import { Forja } from "@forja/core";
 import fs from "node:fs/promises";
 import { createTestConfig, getTmpDir, setupTables } from "../setup";
 

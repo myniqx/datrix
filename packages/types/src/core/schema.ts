@@ -6,7 +6,9 @@
  */
 
 import type { SchemaPermission, FieldPermission } from "./permission";
-import { QuerySelect, QuerySelectObject } from "./query-builder";
+import { QuerySelect } from "./query-builder";
+import type { ForjaEntry } from "./entry";
+import type { LifecycleHooks } from "./hooks";
 
 // Re-export permission types for convenience
 export type {
@@ -41,53 +43,7 @@ export const RESERVED_FIELDS = ["id", "createdAt", "updatedAt"] as const;
  */
 export type ReservedFieldName = (typeof RESERVED_FIELDS)[number];
 
-/**
- * Base type for all database entries
- *
- * All schemas automatically include these fields:
- * - id: Auto-incremented primary key
- * - createdAt: Timestamp when record was created
- * - updatedAt: Timestamp when record was last updated
- */
-export interface ForjaEntry {
-	readonly id: number;
-	createdAt: Date;
-	updatedAt: Date;
-}
-
-/**
- * Flexible record type for type-safe queries
- *
- * Combines ForjaEntry (reserved fields) with Record<string, unknown> (any additional fields).
- * Used as default generic constraint throughout the type system.
- *
- * This allows:
- * - Type safety for reserved fields (id, createdAt, updatedAt)
- * - Flexibility for custom fields
- * - Progressive type enhancement (start loose, add types later)
- *
- * @example
- * ```ts
- * // Without specific type - uses ForjaRecord
- * const where: WhereClause = { id: 5, anyField: 'value' };
- *
- * // With specific type - full type safety
- * type Post = { id: number; title: string; ... };
- * const where: WhereClause<Post> = { title: 'Hello' };
- * ```
- */
-export type ForjaRecord = ForjaEntry & FallbackValue;
-
-export type FallbackValue = {
-	[key: string]:
-		| string
-		| number
-		| boolean
-		| Date
-		| null
-		| FallbackValue // nested object (populate sonucu)
-		| FallbackValue[]; // array of nested
-};
+export type { ForjaEntry, ForjaRecord, FallbackValue } from "./entry";
 
 /**
  * Primitive field types
@@ -526,48 +482,7 @@ export interface IndexDefinition {
 	readonly type?: "btree" | "hash" | "gist" | "gin";
 }
 
-/**
- * Context passed to schema lifecycle hooks
- */
-export interface HookContext {
-	readonly schema: SchemaDefinition;
-	readonly metadata: Record<string, unknown>;
-}
-
-/**
- * Lifecycle hooks
- *
- * Before hooks receive the current data/query and must return the (optionally modified) value.
- * After hooks receive the result and must return the (optionally modified) value.
- * ctx.metadata is shared between before and after hooks for the same operation.
- */
-export interface LifecycleHooks<T extends ForjaEntry = ForjaEntry> {
-	// --- write hooks ---
-	readonly beforeCreate?: (
-		data: Partial<T>,
-		ctx: HookContext,
-	) => Promise<Partial<T>> | Partial<T>;
-	readonly afterCreate?: (data: T, ctx: HookContext) => Promise<T> | T;
-
-	readonly beforeUpdate?: (
-		data: Partial<T>,
-		ctx: HookContext,
-	) => Promise<Partial<T>> | Partial<T>;
-	readonly afterUpdate?: (data: T, ctx: HookContext) => Promise<T> | T;
-
-	readonly beforeDelete?: (
-		id: number,
-		ctx: HookContext,
-	) => Promise<number> | number;
-	readonly afterDelete?: (id: number, ctx: HookContext) => Promise<void> | void;
-
-	// --- read hooks ---
-	readonly beforeFind?: (
-		query: QuerySelectObject<T>,
-		ctx: HookContext,
-	) => Promise<QuerySelectObject<T>> | QuerySelectObject<T>;
-	readonly afterFind?: (results: T[], ctx: HookContext) => Promise<T[]> | T[];
-}
+export type { LifecycleHooks } from "./hooks";
 
 /**
  * Schema definition

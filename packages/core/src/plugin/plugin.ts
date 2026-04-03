@@ -17,8 +17,8 @@ import {
 	PluginError,
 	SchemaExtensionContext,
 	SchemaExtension,
-	QueryContext,
-} from "@forja/types/plugin";
+} from "@forja/types/core/plugin";
+import { QueryContext } from "@forja/types/core/query-context";
 
 /**
  * Abstract base plugin class

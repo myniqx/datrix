@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { Forja } from "forja-core";
+import { Forja } from "@forja/core";
 import { handleRequest } from "../src/helper";
 import { createTestConfig, getTmpDir } from "./data";
 import { createRequest } from "./data/helper";
@@ -21,9 +21,9 @@ import {
 	expectApiMulti,
 	expectApiError,
 	randomEmail,
-} from "forja-types/test/helpers";
+} from "@forja/types/test/helpers";
 import fs from "node:fs/promises";
-import { ParsedQuery } from "forja-types";
+import { ParsedQuery } from "@forja/types";
 
 describe("CRUD Relation API Tests", () => {
 	let forja: Forja;

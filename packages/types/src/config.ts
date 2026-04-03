@@ -6,7 +6,7 @@
  */
 
 import type { DatabaseAdapter } from "./adapter";
-import type { ForjaPlugin } from "./plugin";
+import type { ForjaPlugin } from "./core/plugin";
 import type { SchemaDefinition } from "./core/schema";
 
 /**

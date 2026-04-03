@@ -17,9 +17,9 @@ const FROM_ADAPTER: AdapterType = "json";
 const TO_ADAPTER: AdapterType = "json";
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { defineConfig, Forja } from "forja-core";
-import type { ForjaConfig, ForjaEntry } from "forja-types";
-import { defineSchema } from "forja-types/core/schema";
+import { defineConfig, Forja } from "@forja/core";
+import type { ForjaConfig, ForjaEntry } from "@forja/types";
+import { defineSchema } from "@forja/types/core/schema";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { getAdapter, type AdapterType } from "../../api/tests/data/adapter";

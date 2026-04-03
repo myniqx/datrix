@@ -8,7 +8,7 @@
  */
 
 import { describe, it, beforeAll, afterAll } from "vitest";
-import { Forja } from "forja-core";
+import { Forja } from "@forja/core";
 import fs from "node:fs/promises";
 import path from "node:path";
 import {

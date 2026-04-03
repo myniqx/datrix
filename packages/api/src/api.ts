@@ -5,26 +5,26 @@
  * Manages authentication schema, user sync, and auth routes.
  */
 
-import { BasePlugin } from "forja-core/plugin/plugin";
+import { BasePlugin } from "@forja/core/plugin/plugin";
 import type {
 	PluginContext,
 	QueryContext,
 	SchemaDefinition,
-} from "forja-types/plugin";
-import { DefaultPermission, defineSchema } from "forja-types/core/schema";
-import { DEFAULT_API_AUTH_CONFIG } from "forja-types/config";
+} from "@forja/types/core/plugin";
+import { DefaultPermission, defineSchema } from "@forja/types/core/schema";
+import { DEFAULT_API_AUTH_CONFIG } from "@forja/types/config";
 import { AuthManager } from "./auth/manager";
 import { createUnifiedAuthHandler } from "./handler/auth-handler";
 import { handleCrudRequest } from "./handler/unified";
 import { handlerError } from "./errors/api-error";
 import { ApiConfig } from "./types";
-import { Forja } from "forja-core";
-import type { IApiPlugin } from "forja-types/api";
-import type { ForjaEntry, ForjaRecord } from "forja-types/core/schema";
+import { Forja } from "@forja/core";
+import type { IApiPlugin } from "@forja/types/api";
+import type { ForjaEntry, ForjaRecord } from "@forja/types/core/schema";
 import { forjaErrorResponse } from "./handler/utils";
-import type { AuthUser, IUpload } from "forja-types/api";
-import { QueryObject } from "forja-types";
-import { FallbackInput } from "forja-types/forja";
+import type { AuthUser, IUpload } from "@forja/types/api";
+import { QueryObject } from "@forja/types";
+import { FallbackInput } from "@forja/types/forja";
 
 export class ApiPlugin<TRole extends string = string>
 	extends BasePlugin<ApiConfig<TRole>>
@@ -348,13 +348,12 @@ export class ApiPlugin<TRole extends string = string>
 		const logout = e?.logout ?? d.logout;
 		const me = e?.me ?? d.me;
 
-		const authPrefix = [login, register, logout, me]
-			.map((p) => p.split("/")[1])
-			.find(Boolean) ?? "auth";
+		const authPrefix =
+			[login, register, logout, me].map((p) => p.split("/")[1]).find(Boolean) ??
+			"auth";
 
 		return (
-			pathname.startsWith(`/${authPrefix}/`) ||
-			pathname === `/${authPrefix}`
+			pathname.startsWith(`/${authPrefix}/`) || pathname === `/${authPrefix}`
 		);
 	}
 

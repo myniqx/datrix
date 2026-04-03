@@ -19,7 +19,7 @@ pnpm add forja-core
 A helper that lets TypeScript check your schema object against `SchemaDefinition`. At runtime it does nothing — it returns the object as-is. Using it is optional; passing a plain object directly is functionally identical.
 
 ```typescript
-import { defineSchema } from "forja-core";
+import { defineSchema } from "@forja/core";
 
 const postSchema = defineSchema({
 	name: "post",
@@ -185,8 +185,8 @@ tags: {
 ## Full example: two schemas with all types
 
 ```typescript
-import { defineSchema } from "forja-core";
-import type { PermissionContext } from "forja-types/core/permission";
+import { defineSchema } from "@forja/core";
+import type { PermissionContext } from "@forja/types/core/permission";
 
 type Roles = "admin" | "editor" | "user";
 
@@ -332,8 +332,8 @@ Every before hook **must return** the (optionally modified) value — the return
 `ctx.metadata` is a plain object shared between the `before` and `after` hook of the same operation. Use it to pass data across the two phases.
 
 ```typescript
-import { defineSchema } from "forja-core"
-import type { ForjaEntry } from "forja-types"
+import { defineSchema } from "@forja/core"
+import type { ForjaEntry } from "@forja/types"
 
 type Post = ForjaEntry & { title: string; slug: string; status: string }
 
@@ -439,7 +439,7 @@ email: {
 Creates the Forja instance factory. Call the returned function to get the initialized `Forja` instance. The factory runs only once — subsequent calls return the cached instance.
 
 ```typescript
-import { defineConfig } from "forja-core";
+import { defineConfig } from "@forja/core";
 import { PostgresAdapter } from "@forja/adapter-postgres";
 import { userSchema, postSchema } from "./schemas";
 

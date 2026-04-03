@@ -14,7 +14,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { Forja } from "forja-core";
+import { Forja } from "@forja/core";
 import { handleRequest } from "../src/helper";
 import {
 	createTestConfigWithAuth,
@@ -29,9 +29,9 @@ import {
 	expectApiForbidden,
 	expectApiUnauthorized,
 	expectApiMulti,
-} from "forja-types/test/helpers";
+} from "@forja/types/test/helpers";
 import { createRequest } from "./data/helper";
-import { ForjaEntry } from "forja-types";
+import { ForjaEntry } from "@forja/types";
 import { getTmpDir } from "./data";
 
 describe("Schema-Level Permission Tests", () => {

@@ -8,7 +8,7 @@
 import type {
 	OrderByItem,
 	OrderDirection,
-} from "forja-types/core/query-builder";
+} from "@forja/types/core/query-builder";
 import {
 	ParserError,
 	buildErrorLocation,
@@ -17,13 +17,13 @@ import {
 	type ParsedPagination,
 	type ParsedSort,
 	type ParsedQuery,
-} from "forja-types/api/parser";
-import { validateFieldName } from "forja-types/core/constants";
+} from "@forja/types/api/parser";
+import { validateFieldName } from "@forja/types/core/constants";
 import { parseFields } from "./fields-parser";
 import { parseWhere } from "./where-parser";
 import { parsePopulate } from "./populate-parser";
 import { paginationError, sortError } from "./errors";
-import { ForjaEntry, ForjaRecord } from "forja-types";
+import { ForjaEntry, ForjaRecord } from "@forja/types";
 
 /**
  * Default parser options

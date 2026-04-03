@@ -5,7 +5,7 @@
  * Handles authentication, permission checking, and routing
  */
 
-import type { Forja } from "forja-core";
+import type { Forja } from "@forja/core";
 import type {
 	RequestContext,
 	ContextBuilderOptions,
@@ -19,10 +19,10 @@ import {
 } from "../middleware/permission";
 import { jsonResponse, forjaErrorResponse } from "./utils";
 import { handlerError } from "../errors/api-error";
-import { ForjaError, ForjaValidationError } from "forja-types/errors";
-import type { ForjaEntry } from "forja-types/core/schema";
-import { ResponseData } from "forja-types";
-import { IApiPlugin } from "forja-types/api";
+import { ForjaError, ForjaValidationError } from "@forja/types/errors";
+import type { ForjaEntry } from "@forja/types/core/schema";
+import { ResponseData } from "@forja/types";
+import { IApiPlugin } from "@forja/types/api";
 
 /**
  * Handle GET request

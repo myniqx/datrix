@@ -7,16 +7,16 @@
  * GET /upload and GET /upload/:id fall through to normal CRUD.
  */
 
-import type { Forja } from "forja-core";
-import type { UploadFile, MediaVariants } from "forja-types/api";
-import type { ForjaEntry } from "forja-types/core/schema";
+import type { Forja } from "@forja/core";
+import type { UploadFile, MediaVariants } from "@forja/types/api";
+import type { ForjaEntry } from "@forja/types/core/schema";
 import {
 	ForjaApiError,
 	handlerError,
 	jsonResponse,
 	forjaErrorResponse,
 } from "@forja/api";
-import { ForjaError, ForjaValidationError } from "forja-types/errors";
+import { ForjaError, ForjaValidationError } from "@forja/types/errors";
 import type { UploadOptions } from "./types";
 import { convertFormat, generateVariants, isImage } from "./processor";
 

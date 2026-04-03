@@ -4,8 +4,8 @@
  * Common utilities for seeding data, assertions, and performance measurement.
  */
 
-import type { Forja } from "forja-core";
-import type { ForjaEntry } from "forja-types/core/schema";
+import type { Forja } from "@forja/core";
+import type { ForjaEntry } from "@forja/types/core/schema";
 import { expect } from "vitest";
 
 // ============================================================================

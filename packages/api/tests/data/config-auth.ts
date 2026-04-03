@@ -1,7 +1,7 @@
-import { defineConfig } from "forja-core";
+import { defineConfig } from "@forja/core";
 import { ApiPlugin } from "../../src/api";
 import { testSchemas } from "./schemas";
-import { ForjaConfig } from "forja-types";
+import { ForjaConfig } from "@forja/types";
 import { getAdapter, getAdapterType } from "./adapter";
 
 /**

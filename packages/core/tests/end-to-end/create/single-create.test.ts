@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { Forja } from "forja-core";
+import { Forja } from "@forja/core";
 import fs from "node:fs/promises";
 import {
 	createTestConfig,
@@ -22,7 +22,7 @@ import {
 	expectAutoFields,
 	expectValidTimestamps,
 } from "../setup";
-import { expectForjaErrorAsync } from "forja-types/test/helpers";
+import { expectForjaErrorAsync } from "@forja/types/test/helpers";
 
 describe("Single Create", () => {
 	let forja: Forja;

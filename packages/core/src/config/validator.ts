@@ -6,7 +6,7 @@
 
 import { ForjaConfig, MigrationConfig, DevConfig } from "@forja/types/config";
 import { isDatabaseAdapter } from "@forja/types/adapter";
-import { isForjaPlugin } from "@forja/types/plugin";
+import { isForjaPlugin } from "@forja/types/core/plugin";
 import {
 	throwConfigInvalidType,
 	throwConfigEmpty,

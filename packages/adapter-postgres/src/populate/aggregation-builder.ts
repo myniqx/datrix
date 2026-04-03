@@ -10,12 +10,12 @@ import type {
 	QueryPopulateOptions,
 	QuerySelect,
 	QuerySelectObject,
-} from "forja-types/core/query-builder";
+} from "@forja/types/core/query-builder";
 import type {
 	ForjaEntry,
 	ISchemaRegistry,
 	RelationField,
-} from "forja-types/core/schema";
+} from "@forja/types/core/schema";
 import type { PostgresQueryTranslator } from "../query-translator";
 import type { AggregationClause, PopulateFieldSelection } from "./types";
 import {
@@ -25,7 +25,7 @@ import {
 	throwInvalidRelationType,
 	throwTargetModelNotFound,
 	throwJsonAggregationError,
-} from "forja-types/errors/adapter";
+} from "@forja/types/errors/adapter";
 
 /**
  * Aggregation Builder Class

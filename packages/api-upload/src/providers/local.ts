@@ -7,9 +7,9 @@ import type {
 	UploadFile,
 	UploadResult,
 	LocalProviderOptions,
-} from "forja-types/api";
-import { generateUniqueFilename, sanitizeFilename } from "forja-types/api";
-import { ForjaError } from "forja-types/errors";
+} from "@forja/types/api";
+import { generateUniqueFilename, sanitizeFilename } from "@forja/types/api";
+import { ForjaError } from "@forja/types/errors";
 
 class UploadError extends ForjaError {
 	constructor(message: string, cause?: Error) {

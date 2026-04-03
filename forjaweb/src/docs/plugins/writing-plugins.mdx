@@ -19,8 +19,8 @@ A plugin is a class that implements the `ForjaPlugin` interface. Forja provides 
 | Recommended for | Most plugins | Low-level / framework use |
 
 ```typescript
-import { BasePlugin } from "forja-core/plugin/plugin"
-import type { PluginContext } from "forja-types/plugin"
+import { BasePlugin } from "@forja/core/plugin/plugin"
+import type { PluginContext } from "@forja/types/core/plugin"
 
 export class MyPlugin extends BasePlugin<MyPluginOptions> {
   readonly name    = "my-plugin"
@@ -40,7 +40,7 @@ export class MyPlugin extends BasePlugin<MyPluginOptions> {
 Register it in `defineConfig`:
 
 ```typescript
-import { defineConfig } from "forja-core"
+import { defineConfig } from "@forja/core"
 
 export default defineConfig(() => ({
   adapter: ...,
@@ -200,11 +200,12 @@ override async onAfterQuery<T extends ForjaEntry>(
 A plugin that writes an audit log entry after every create, update, or delete operation.
 
 ```typescript
-import { BasePlugin } from "forja-core/plugin/plugin"
-import { defineSchema } from "forja-core"
-import type { PluginContext, QueryContext, SchemaDefinition } from "forja-types/plugin"
-import type { ForjaEntry } from "forja-types/core/schema"
-import type { QueryObject } from "forja-types/core/query-builder"
+import { BasePlugin } from "@forja/core/plugin/plugin"
+import { defineSchema } from "@forja/core"
+import type { PluginContext, SchemaDefinition } from "@forja/types/core/plugin"
+import type { QueryContext } from "@forja/types/core/query-context"
+import type { ForjaEntry } from "@forja/types/core/schema"
+import type { QueryObject } from "@forja/types/core/query-builder"
 
 interface AuditLogOptions {
   readonly schemas?: readonly string[]  // limit to specific schemas — undefined = all

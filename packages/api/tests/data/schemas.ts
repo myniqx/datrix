@@ -1,6 +1,6 @@
-import { defineSchema, ForjaEntry } from "forja-types/core/schema";
-import type { PermissionContext } from "forja-types/core/permission";
-import { Forja } from "forja-core";
+import { defineSchema, ForjaEntry } from "@forja/types/core/schema";
+import type { PermissionContext } from "@forja/types/core/permission";
+import { Forja } from "@forja/core";
 
 /**
  * Test Roles Type

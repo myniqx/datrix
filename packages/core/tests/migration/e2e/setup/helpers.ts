@@ -5,8 +5,8 @@
  */
 
 import { expect } from "vitest";
-import type { DatabaseAdapter } from "forja-types/adapter";
-import type { MigrationSession, AmbiguousChange, Forja } from "forja-core";
+import type { DatabaseAdapter } from "@forja/types/adapter";
+import type { MigrationSession, AmbiguousChange, Forja } from "@forja/core";
 
 // ============================================
 // Table Name Resolution

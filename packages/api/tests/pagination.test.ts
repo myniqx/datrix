@@ -12,11 +12,14 @@
  */
 
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
-import { Forja } from "forja-core";
+import { Forja } from "@forja/core";
 import { handleRequest } from "../src/helper";
 import { createTestConfig, getTmpDir } from "./data";
 import { createRequest } from "./data/helper";
-import { expectApiMulti, expectPaginationMeta } from "forja-types/test/helpers";
+import {
+	expectApiMulti,
+	expectPaginationMeta,
+} from "@forja/types/test/helpers";
 import fs from "node:fs/promises";
 
 describe("Pagination Integration Tests", () => {

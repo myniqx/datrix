@@ -5,31 +5,36 @@
  * Ensures hooks are called in the correct order and provides error isolation.
  */
 
-import { QueryObject } from "@forja/types/core/query-builder";
-import { PluginRegistry, QueryAction, QueryContext } from "@forja/types/plugin";
+import {
+	QueryObject,
+	QuerySelectObject,
+	QueryInsertObject,
+	QueryUpdateObject,
+	QueryDeleteObject,
+} from "@forja/types/core/query-builder";
+import { PluginRegistry } from "@forja/types/core/plugin";
+import { QueryAction, QueryContext } from "@forja/types/core/query-context";
 import {
 	ForjaEntry,
 	ForjaRecord,
 	SchemaDefinition,
-	HookContext,
 	LifecycleHooks,
 } from "@forja/types/core/schema";
-import { QuerySelectObject } from "@forja/types/core/query-builder";
-import type { Forja } from "./forja";
+import type { Forja } from "../forja";
 import { validateQueryObject } from "@forja/types/utils/query";
-import { SchemaRegistry } from "./schema";
+import { SchemaRegistry } from "../schema";
+import {
+	throwHookInvalidReturn,
+	throwHookPluginError,
+	warnAfterHookError,
+} from "./hook-errors";
 
 /**
  * Create a new query context
  */
-function createQueryContext(
-	action: QueryAction,
-	schema: SchemaDefinition,
-	forja: Forja,
-): QueryContext {
+function createQueryContext(action: QueryAction, forja: Forja): QueryContext {
 	return {
 		action,
-		schema,
 		forja,
 		metadata: {},
 	};
@@ -49,11 +54,8 @@ export class Dispatcher {
 	 *
 	 * This allows plugins to enrich the context before query execution.
 	 */
-	async buildQueryContext(
-		action: QueryAction,
-		schema: SchemaDefinition,
-	): Promise<QueryContext> {
-		let context = createQueryContext(action, schema, this.forja);
+	async buildQueryContext(action: QueryAction): Promise<QueryContext> {
+		let context = createQueryContext(action, this.forja);
 
 		for (const plugin of this.registry.getAll()) {
 			try {
@@ -108,20 +110,14 @@ export class Dispatcher {
 		query: QueryObject<TResult>,
 		executor: (query: QueryObject<TResult>) => Promise<R>,
 	): Promise<R> {
-		const context = await this.buildQueryContext(action, schema);
-		const hookCtx: HookContext = { schema, metadata: context.metadata };
+		const context = await this.buildQueryContext(action);
 		const modifiedQuery = await this.dispatchBeforeQuery(
 			query,
+			schema,
 			context,
-			hookCtx,
 		);
 		const result = await executor(modifiedQuery);
-		const finalResult = await this.dispatchAfterQuery<R>(
-			result,
-			context,
-			hookCtx,
-		);
-		return finalResult;
+		return this.dispatchAfterQuery<R>(result, schema, context);
 	}
 
 	/**
@@ -132,8 +128,8 @@ export class Dispatcher {
 	 */
 	async dispatchBeforeQuery<TResult extends ForjaEntry = ForjaRecord>(
 		query: QueryObject<TResult>,
+		schema: SchemaDefinition,
 		context: QueryContext,
-		hookCtx: HookContext,
 	): Promise<QueryObject<TResult>> {
 		validateQueryObject(query);
 
@@ -145,18 +141,14 @@ export class Dispatcher {
 					currentQuery = await plugin.onBeforeQuery(currentQuery, context);
 				}
 			} catch (error) {
-				console.error(
-					`[Dispatcher] Error in plugin '${plugin.name}' onBeforeQuery:`,
-					error,
-				);
-				throw error;
+				throwHookPluginError(plugin.name, "onBeforeQuery", error);
 			}
 		}
 
 		currentQuery = await this.dispatchSchemaBeforeHook(
 			currentQuery,
-			context.action,
-			hookCtx,
+			schema,
+			context,
 		);
 
 		return currentQuery;
@@ -170,8 +162,8 @@ export class Dispatcher {
 	 */
 	async dispatchAfterQuery<TResult extends ForjaEntry>(
 		result: TResult,
+		schema: SchemaDefinition,
 		context: QueryContext,
-		hookCtx: HookContext,
 	): Promise<TResult> {
 		let currentResult = result;
 
@@ -181,17 +173,14 @@ export class Dispatcher {
 					currentResult = await plugin.onAfterQuery(currentResult, context);
 				}
 			} catch (error) {
-				console.error(
-					`[Dispatcher] Error in plugin '${plugin.name}' onAfterQuery:`,
-					error,
-				);
+				warnAfterHookError("afterFind", error);
 			}
 		}
 
 		currentResult = await this.dispatchSchemaAfterHook(
 			currentResult,
-			context.action,
-			hookCtx,
+			schema,
+			context,
 		);
 
 		return currentResult;
@@ -199,75 +188,64 @@ export class Dispatcher {
 
 	private async dispatchSchemaBeforeHook<TResult extends ForjaEntry>(
 		query: QueryObject<TResult>,
-		action: QueryAction,
-		hookCtx: HookContext,
+		schema: SchemaDefinition,
+		context: QueryContext,
 	): Promise<QueryObject<TResult>> {
-		const hooks = hookCtx.schema.hooks as LifecycleHooks<TResult> | undefined;
+		const hooks = schema.hooks as LifecycleHooks<TResult> | undefined;
 		if (!hooks) return query;
+
+		const { action } = context;
 
 		if (
 			(action === "create" || action === "createMany") &&
-			hooks.beforeCreate
+			hooks.beforeCreate &&
+			query.type === "insert"
 		) {
-			if (query.type === "insert") {
-				const insertQuery = query as QueryObject<TResult> & {
-					data: Partial<TResult>[];
-				};
-				const modifiedItems = await Promise.all(
-					insertQuery.data.map((item) => hooks.beforeCreate!(item, hookCtx)),
-				);
-				return { ...query, data: modifiedItems } as QueryObject<TResult>;
-			}
+			const modified = await hooks.beforeCreate(
+				query as QueryInsertObject<TResult>,
+				context,
+			);
+			if (modified == null) throwHookInvalidReturn("beforeCreate");
+			return modified as QueryObject<TResult>;
 		}
 
 		if (
 			(action === "update" || action === "updateMany") &&
-			hooks.beforeUpdate
+			hooks.beforeUpdate &&
+			query.type === "update"
 		) {
-			if (query.type === "update") {
-				const updateQuery = query as QueryObject<TResult> & {
-					data: Partial<TResult>;
-				};
-				const modifiedData = await hooks.beforeUpdate(
-					updateQuery.data,
-					hookCtx,
-				);
-				return { ...query, data: modifiedData } as QueryObject<TResult>;
-			}
+			const modified = await hooks.beforeUpdate(
+				query as QueryUpdateObject<TResult>,
+				context,
+			);
+			if (modified == null) throwHookInvalidReturn("beforeUpdate");
+			return modified as QueryObject<TResult>;
 		}
 
 		if (
 			(action === "delete" || action === "deleteMany") &&
-			hooks.beforeDelete
+			hooks.beforeDelete &&
+			query.type === "delete"
 		) {
-			if (query.type === "delete") {
-				const deleteQuery = query as QueryObject<TResult> & {
-					where?: { id?: number };
-				};
-				if (deleteQuery.where?.id !== undefined) {
-					const modifiedId = await hooks.beforeDelete(
-						deleteQuery.where.id,
-						hookCtx,
-					);
-					return {
-						...query,
-						where: { ...deleteQuery.where, id: modifiedId },
-					} as QueryObject<TResult>;
-				}
-			}
+			const modified = await hooks.beforeDelete(
+				query as QueryDeleteObject<TResult>,
+				context,
+			);
+			if (modified == null) throwHookInvalidReturn("beforeDelete");
+			return modified as QueryObject<TResult>;
 		}
 
 		if (
 			(action === "findOne" || action === "findMany" || action === "count") &&
-			hooks.beforeFind
+			hooks.beforeFind &&
+			query.type === "select"
 		) {
-			if (query.type === "select") {
-				const modifiedQuery = await hooks.beforeFind(
-					query as QuerySelectObject<TResult>,
-					hookCtx,
-				);
-				return modifiedQuery as QueryObject<TResult>;
-			}
+			const modified = await hooks.beforeFind(
+				query as QuerySelectObject<TResult>,
+				context,
+			);
+			if (modified == null) throwHookInvalidReturn("beforeFind");
+			return modified as QueryObject<TResult>;
 		}
 
 		return query;
@@ -275,39 +253,46 @@ export class Dispatcher {
 
 	private async dispatchSchemaAfterHook<TResult extends ForjaEntry>(
 		result: TResult,
-		action: QueryAction,
-		hookCtx: HookContext,
+		schema: SchemaDefinition,
+		context: QueryContext,
 	): Promise<TResult> {
-		const hooks = hookCtx.schema.hooks as LifecycleHooks<TResult> | undefined;
+		const hooks = schema.hooks as LifecycleHooks<TResult> | undefined;
 		if (!hooks) return result;
 
-		const isArray = Array.isArray(result);
-		const rows = isArray ? (result as TResult[]) : [result];
+		const { action } = context;
+		const rows = result;
 
 		if ((action === "create" || action === "createMany") && hooks.afterCreate) {
-			const modified = await Promise.all(
-				rows.map((row) => hooks.afterCreate!(row, hookCtx)),
-			);
-			return (isArray ? modified : modified[0]) as TResult;
+			try {
+				return await hooks.afterCreate(rows, context);
+			} catch (error) {
+				warnAfterHookError("afterCreate", error);
+			}
 		}
 
 		if ((action === "update" || action === "updateMany") && hooks.afterUpdate) {
-			const modified = await Promise.all(
-				rows.map((row) => hooks.afterUpdate!(row, hookCtx)),
-			);
-			return (isArray ? modified : modified[0]) as TResult;
+			try {
+				return await hooks.afterUpdate(rows, context);
+			} catch (error) {
+				warnAfterHookError("afterUpdate", error);
+			}
 		}
 
 		if ((action === "delete" || action === "deleteMany") && hooks.afterDelete) {
-			await Promise.all(
-				rows.map((row) => hooks.afterDelete!((row as ForjaEntry).id, hookCtx)),
-			);
+			try {
+				await hooks.afterDelete(rows, context);
+			} catch (error) {
+				warnAfterHookError("afterDelete", error);
+			}
 			return result;
 		}
 
 		if ((action === "findOne" || action === "findMany") && hooks.afterFind) {
-			const modified = await hooks.afterFind(rows, hookCtx);
-			return (isArray ? modified : modified[0]) as TResult;
+			try {
+				return await hooks.afterFind(rows, context);
+			} catch (error) {
+				warnAfterHookError("afterFind", error);
+			}
 		}
 
 		return result;

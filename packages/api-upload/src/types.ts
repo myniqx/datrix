@@ -2,8 +2,8 @@
  * api-upload types
  */
 
-import type { StorageProvider } from "forja-types/api";
-import type { SchemaPermission } from "forja-types/core/schema";
+import type { StorageProvider } from "@forja/types/api";
+import type { SchemaPermission } from "@forja/types/core/schema";
 
 /**
  * Output format for image conversion.

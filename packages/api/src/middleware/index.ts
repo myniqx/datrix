@@ -22,4 +22,4 @@ export type {
 } from "./types";
 
 // Re-export permission types
-export type { PermissionAction } from "forja-types/core/permission";
+export type { PermissionAction } from "@forja/types/core/permission";

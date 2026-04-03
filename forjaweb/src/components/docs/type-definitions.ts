@@ -185,17 +185,11 @@ export const TYPE_DEFINITIONS: Record<string, TypeDefinition> = {
 		description:
 			"Defines a database index on one or more fields. Pass to indexes[] in SchemaDefinition.",
 	},
-	HookContext: {
-		group: "Schema",
-		signature: `interface HookContext {\n  readonly schema:   SchemaDefinition\n  readonly metadata: Record<string, unknown>\n}`,
-		description:
-			"Context passed to every lifecycle hook. metadata is mutable and shared between the before and after hook of the same operation — use it to pass data across the two phases.",
-	},
 	LifecycleHooks: {
 		group: "Schema",
-		signature: `interface LifecycleHooks<T extends ForjaEntry = ForjaEntry> {\n  // write — before hooks return modified data, after hooks return modified record\n  beforeCreate?: (data: Partial<T>, ctx: HookContext) => Promise<Partial<T>> | Partial<T>\n  afterCreate?:  (data: T,          ctx: HookContext) => Promise<T> | T\n\n  beforeUpdate?: (data: Partial<T>, ctx: HookContext) => Promise<Partial<T>> | Partial<T>\n  afterUpdate?:  (data: T,          ctx: HookContext) => Promise<T> | T\n\n  // beforeDelete returns the id to delete (allows redirect to a different id)\n  beforeDelete?: (id: number,       ctx: HookContext) => Promise<number> | number\n  afterDelete?:  (id: number,       ctx: HookContext) => Promise<void>   | void\n\n  // read — beforeFind returns modified query, afterFind returns modified results\n  beforeFind?:   (query: QuerySelectObject<T>, ctx: HookContext) => Promise<QuerySelectObject<T>> | QuerySelectObject<T>\n  afterFind?:    (results: T[],                ctx: HookContext) => Promise<T[]> | T[]\n}`,
+		signature: `interface LifecycleHooks<T extends ForjaEntry = ForjaEntry> {\n  beforeCreate?: (\n    query: QueryInsertObject<T>,\n    ctx: QueryContext,\n  ) => Promise<QueryInsertObject<T>> | QueryInsertObject<T>\n\n  afterCreate?: (\n    records: readonly T[],\n    ctx: QueryContext,\n  ) => Promise<readonly T[]> | readonly T[]\n\n  beforeUpdate?: (\n    query: QueryUpdateObject<T>,\n    ctx: QueryContext,\n  ) => Promise<QueryUpdateObject<T>> | QueryUpdateObject<T>\n\n  afterUpdate?: (\n    records: readonly T[],\n    ctx: QueryContext,\n  ) => Promise<readonly T[]> | readonly T[]\n\n  beforeDelete?: (\n    query: QueryDeleteObject<T>,\n    ctx: QueryContext,\n  ) => Promise<QueryDeleteObject<T>> | QueryDeleteObject<T>\n\n  afterDelete?: (\n    records: readonly T[],\n    ctx: QueryContext,\n  ) => Promise<void> | void\n\n  beforeFind?: (\n    query: QuerySelectObject<T>,\n    ctx: QueryContext,\n  ) => Promise<QuerySelectObject<T>> | QuerySelectObject<T>\n\n  afterFind?: (\n    records: readonly T[],\n    ctx: QueryContext,\n  ) => Promise<readonly T[]> | readonly T[]\n}`,
 		description:
-			"Schema lifecycle hooks. Defined in the hooks field of SchemaDefinition. Hooks run after plugin hooks and only for non-raw queries. Return values replace the current data/query/result.",
+			"Schema lifecycle hooks. Defined in the hooks field of SchemaDefinition. Before hooks receive the full query object and must return it. After hooks receive all affected records as an array. ctx.forja gives access to the Forja instance for additional queries.",
 	},
 
 	// ─── Permissions ──────────────────────────────────────────────────────────────
@@ -258,9 +252,9 @@ export const TYPE_DEFINITIONS: Record<string, TypeDefinition> = {
 	},
 	QueryContext: {
 		group: "Plugin",
-		signature: `interface QueryContext {\n  readonly action:   QueryAction\n  readonly schema:   SchemaDefinition\n  readonly metadata: Record<string, unknown>\n  user?:             AuthUser\n}`,
+		signature: `interface QueryContext {\n  readonly action:   QueryAction\n  readonly forja:    IForja\n  readonly metadata: Record<string, unknown>\n  user?:             AuthUser\n}`,
 		description:
-			"Context passed to onBeforeQuery / onAfterQuery plugin hooks. Contains the action being performed and the schema being queried.",
+			"Context passed to plugin hooks and schema lifecycle hooks. Gives access to the current action, the Forja instance, shared metadata, and the authenticated user.",
 	},
 	SchemaExtensionContext: {
 		group: "Plugin",
@@ -273,6 +267,35 @@ export const TYPE_DEFINITIONS: Record<string, TypeDefinition> = {
 		signature: `interface SchemaExtension {\n  readonly targetSchema:   string\n  readonly fields?:        Record<string, FieldDefinition>\n  readonly removeFields?:  string[]\n  readonly modifyFields?:  Record<string, Partial<FieldDefinition>>\n  readonly indexes?:       IndexDefinition[]\n}`,
 		description:
 			"Describes fields and indexes to add, remove, or modify on an existing schema. Returned from extendSchemas().",
+	},
+
+	QueryInsertObject: {
+		group: "Plugin",
+		signature: `interface QueryInsertObject<T> {\n  type:   "insert"\n  table:  string\n  data:   Partial<T>[]\n}`,
+		description:
+			"Query object passed to beforeCreate hooks. data contains the array of records to be inserted — modify it to change what gets written.",
+		skipDocs: true,
+	},
+	QueryUpdateObject: {
+		group: "Plugin",
+		signature: `interface QueryUpdateObject<T> {\n  type:   "update"\n  table:  string\n  data:   Partial<T>\n  where?: WhereClause<T>\n}`,
+		description:
+			"Query object passed to beforeUpdate hooks. data contains the fields to update — modify it to change what gets written.",
+		skipDocs: true,
+	},
+	QueryDeleteObject: {
+		group: "Plugin",
+		signature: `interface QueryDeleteObject<T> {\n  type:   "delete"\n  table:  string\n  where?: WhereClause<T>\n}`,
+		description:
+			"Query object passed to beforeDelete hooks. where determines which records are deleted — modify it to restrict or redirect the delete.",
+		skipDocs: true,
+	},
+	QuerySelectObject: {
+		group: "Plugin",
+		signature: `interface QuerySelectObject<T> {\n  type:     "select"\n  table:    string\n  where?:   WhereClause<T>\n  select?:  SelectClause<T>\n  orderBy?: OrderByClause<T>\n  limit?:   number\n  offset?:  number\n}`,
+		description:
+			"Query object passed to beforeFind hooks. Modify where, limit, offset, or orderBy to control which records are returned.",
+		skipDocs: true,
 	},
 
 	QueryAction: {

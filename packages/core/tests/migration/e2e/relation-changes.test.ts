@@ -48,7 +48,7 @@ import {
 	applyMigration,
 	autoResolveAmbiguous,
 } from "./setup/helpers";
-import type { DatabaseAdapter } from "forja-types/adapter";
+import type { DatabaseAdapter } from "@forja/types/adapter";
 
 describe("Migration E2E - Relation Changes", () => {
 	const tmpDir = getTmpDir("relation-changes");

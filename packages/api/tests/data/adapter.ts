@@ -13,7 +13,7 @@ import { createTestDatabase as createPostgresTestDatabase } from "../../../adapt
 import { createTestDatabase as createMySQLTestDatabase } from "../../../adapter-mysql/src/test-utils";
 import { createTestDatabase as createMongoDBTestDatabase } from "../../../adapter-mongodb/src/test-utils";
 import { createHash } from "node:crypto";
-import { DatabaseAdapter } from "forja-types/adapter";
+import { DatabaseAdapter } from "@forja/types/adapter";
 
 /**
  * Supported adapter types for testing

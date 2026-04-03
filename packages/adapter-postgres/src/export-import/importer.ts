@@ -1,8 +1,8 @@
 import type { Pool } from "pg";
-import type { ImportReader } from "forja-types/adapter";
-import type { SchemaDefinition } from "forja-types/core/schema";
+import type { ImportReader } from "@forja/types/adapter";
+import type { SchemaDefinition } from "@forja/types/core/schema";
 import type { PostgresAdapter } from "../adapter";
-import { FORJA_META_MODEL } from "forja-types/core/constants";
+import { FORJA_META_MODEL } from "@forja/types/core/constants";
 
 const CHUNK_SIZE = 1000;
 

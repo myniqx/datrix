@@ -4,9 +4,9 @@
  * Creates Forja instances for migration testing.
  */
 
-import { defineConfig, Forja } from "forja-core";
-import type { ForjaConfig } from "forja-types";
-import type { SchemaDefinition } from "forja-types/core/schema";
+import { defineConfig, Forja } from "@forja/core";
+import type { ForjaConfig } from "@forja/types";
+import type { SchemaDefinition } from "@forja/types/core/schema";
 import path from "node:path";
 import { getAdapter, getAdapterType } from "./adapter";
 

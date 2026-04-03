@@ -12,7 +12,8 @@ import {
 	ForjaRecord,
 	ISchemaRegistry,
 } from "./core/schema";
-import { ForjaPlugin, QueryAction, SchemaDefinition } from "./plugin";
+import { ForjaPlugin, SchemaDefinition } from "./core/plugin";
+import { QueryAction } from "./core/query-context";
 
 export interface RawCrudOptions<T extends ForjaEntry = ForjaRecord> {
 	select?: SelectClause<T> | undefined;

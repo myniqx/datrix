@@ -19,7 +19,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { Forja } from "forja-core";
+import { Forja } from "@forja/core";
 import fs from "node:fs/promises";
 import fsSync from "node:fs";
 import http from "node:http";
@@ -32,12 +32,12 @@ import AdmZip from "adm-zip";
 // ============================================================================
 // Imports using vitest alias paths
 // ============================================================================
-import { ApiPlugin } from "forja-api";
+import { ApiPlugin } from "@forja/api";
 import { Upload, LocalStorageProvider } from "@forja/api-upload";
 import { JsonAdapter } from "../../adapter-json/src/index";
-import type { ForjaConfig } from "forja-types";
-import { defineConfig } from "forja-core";
-import { IApiPlugin } from "forja-types/api";
+import type { ForjaConfig } from "@forja/types";
+import { defineConfig } from "@forja/core";
+import { IApiPlugin } from "@forja/types/api";
 
 // ============================================================================
 // Constants

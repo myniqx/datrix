@@ -24,7 +24,7 @@ import {
 	QueryDeleteObject,
 	WhereClause,
 } from "@forja/types/core/query-builder";
-import { QueryAction } from "@forja/types/plugin";
+import { QueryAction } from "@forja/types/core/query-context";
 import { Dispatcher } from "../dispatcher";
 import { validateData } from "./validation";
 import { processRelations, resolveRelationCUD } from "./relations";
@@ -424,7 +424,7 @@ export class QueryExecutor {
 	/**
 	 * Wraps a handler with dispatcher lifecycle: buildContext → onBefore → handler → onAfter.
 	 * If noDispatcher is true, skips all hooks and runs handler directly.
-	 * hookCtx is created once and shared between before/after so metadata persists.
+	 * context.metadata is shared between before/after hooks for the same operation.
 	 */
 	private async withLifecycle<TResult, TQuery>(
 		action: QueryAction,
@@ -439,21 +439,20 @@ export class QueryExecutor {
 			return handler(query);
 		}
 
-		const context = await dispatcher.buildQueryContext(action, schema);
-		const hookCtx = { schema, metadata: context.metadata };
+		const context = await dispatcher.buildQueryContext(action);
 
 		const modifiedQuery = (await dispatcher.dispatchBeforeQuery(
 			query as QueryObject,
+			schema,
 			context,
-			hookCtx,
 		)) as TQuery;
 
 		const result = await handler(modifiedQuery);
 
 		return dispatcher.dispatchAfterQuery(
 			result as ForjaEntry,
+			schema,
 			context,
-			hookCtx,
 		) as Promise<TResult>;
 	}
 

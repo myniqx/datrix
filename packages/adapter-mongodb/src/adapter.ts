@@ -70,7 +70,7 @@ import type {
 	ISchemaRegistry,
 	SchemaDefinition,
 } from "@forja/types/core/schema";
-import type { SchemaRegistry } from "forja-core/schema";
+import type { SchemaRegistry } from "@forja/core";
 import {
 	FORJA_META_MODEL,
 	FORJA_META_KEY_PREFIX,

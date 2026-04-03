@@ -11,19 +11,19 @@
  * separate from user business data in the 'user' table.
  */
 
-import type { Forja } from "forja-core";
-import { DEFAULT_API_AUTH_CONFIG } from "forja-types/config";
+import type { Forja } from "@forja/core";
+import { DEFAULT_API_AUTH_CONFIG } from "@forja/types/config";
 import { AuthManager } from "../auth/manager";
 import type { AuthConfig } from "../auth/types";
 import { jsonResponse, extractSessionId, forjaErrorResponse } from "./utils";
 import { authError } from "../errors/auth-error";
 import { handlerError } from "../errors/api-error";
-import { ForjaError } from "forja-types/errors";
-import { AuthenticatedUser } from "forja-types/api/auth";
-import { ForjaEntry } from "forja-types";
-import { AuthUser } from "forja-types/api";
-import { FallbackValue } from "forja-types/core/schema";
-import { FallbackInput } from "forja-types/forja";
+import { ForjaError } from "@forja/types/errors";
+import { AuthenticatedUser } from "@forja/types/api/auth";
+import { ForjaEntry } from "@forja/types";
+import { AuthUser } from "@forja/types/api";
+import { FallbackValue } from "@forja/types/core/schema";
+import { FallbackInput } from "@forja/types/forja";
 
 /**
  * Auth Handler Configuration

@@ -9,13 +9,13 @@
  *   ?populate[posts][populate][comments]=*         -> nested populate
  */
 
-import type { RawQueryParams } from "forja-types/api/parser";
-import { ForjaRecord } from "forja-types";
+import type { RawQueryParams } from "@forja/types/api/parser";
+import { ForjaRecord } from "@forja/types";
 import {
 	PopulateClause,
 	PopulateOptions,
-} from "forja-types/core/query-builder";
-import { validateFieldName } from "forja-types/core/constants";
+} from "@forja/types/core/query-builder";
+import { validateFieldName } from "@forja/types/core/constants";
 import { populateError } from "./errors";
 
 /**

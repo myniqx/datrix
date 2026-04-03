@@ -5,8 +5,8 @@
  * No API plugin - tests CRUD directly via Forja instance.
  */
 
-import { defineConfig, Forja } from "forja-core";
-import type { ForjaConfig } from "forja-types";
+import { defineConfig, Forja } from "@forja/core";
+import type { ForjaConfig } from "@forja/types";
 import path from "node:path";
 import { getAdapter, getAdapterType } from "./adapter";
 import { testSchemas } from "./schemas";

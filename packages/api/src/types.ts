@@ -1,5 +1,5 @@
 import type { AuthConfig } from "./auth/types";
-import type { IUpload } from "forja-types/api";
+import type { IUpload } from "@forja/types/api";
 
 /**
  * API Configuration

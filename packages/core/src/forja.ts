@@ -17,12 +17,12 @@ import {
 	ForjaPlugin,
 	PluginContext,
 	SchemaExtension,
-} from "@forja/types/plugin";
+} from "@forja/types/core/plugin";
 import { WhereClause } from "@forja/types/core/query-builder";
 import { CrudOperations } from "./mixins/crud";
 import { SchemaExtensionContextImpl } from "./plugin/schema-extension-context";
 import { Dispatcher, createDispatcher } from "./dispatcher";
-import { PluginRegistry } from "@forja/types/plugin";
+import { PluginRegistry } from "@forja/types/core/plugin";
 import { SchemaRegistry } from "./schema";
 import { ForjaEntry, ForjaRecord } from "@forja/types";
 import {

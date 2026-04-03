@@ -22,16 +22,13 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { Forja, defineConfig } from "forja-core";
-import { BasePlugin } from "forja-core/plugin/plugin";
-import { defineSchema } from "forja-types/core/schema";
-import type { ForjaEntry, LifecycleHooks } from "forja-types/core/schema";
-import type {
-	PluginContext,
-	QueryContext,
-	SchemaDefinition,
-} from "forja-types/plugin";
-import type { QueryObject } from "forja-types/core/query-builder";
+import { Forja, defineConfig } from "@forja/core";
+import { BasePlugin } from "@forja/core/plugin/plugin";
+import { defineSchema } from "@forja/types/core/schema";
+import type { ForjaEntry, LifecycleHooks } from "@forja/types/core/schema";
+import type { PluginContext, SchemaDefinition } from "@forja/types/core/plugin";
+import type { QueryContext } from "@forja/types/core/query-context";
+import type { QueryObject } from "@forja/types/core/query-builder";
 import fs from "node:fs/promises";
 import { getAdapter, getAdapterType, getTmpDir } from "../setup";
 
@@ -99,8 +96,11 @@ describe("Lifecycle Hooks", () => {
 				await fs.mkdir(tmpDir, { recursive: true });
 
 				const schema = makeItemSchema({
-					beforeCreate: (data) => ({ ...data, value: "injected" }),
-					afterCreate: (record) => record,
+					beforeCreate: (query) => ({
+						...query,
+						data: query.data.map((d) => ({ ...d, value: "injected" })),
+					}),
+					afterCreate: (records) => records,
 				});
 
 				const forja = await createIsolatedForja(tmpDir, schema);
@@ -144,10 +144,10 @@ describe("Lifecycle Hooks", () => {
 				const captured: HookItem[] = [];
 
 				const schema = makeItemSchema({
-					beforeCreate: (data) => data,
-					afterCreate: (record) => {
-						captured.push(record);
-						return record;
+					beforeCreate: (query) => query,
+					afterCreate: (records) => {
+						for (const r of records) captured.push(r);
+						return records;
 					},
 				});
 
@@ -170,13 +170,13 @@ describe("Lifecycle Hooks", () => {
 				let sharedValue: unknown;
 
 				const schema = makeItemSchema({
-					beforeCreate: (data, ctx) => {
+					beforeCreate: (query, ctx) => {
 						ctx.metadata.stamp = "hello";
-						return data;
+						return query;
 					},
-					afterCreate: (record, ctx) => {
+					afterCreate: (records, ctx) => {
 						sharedValue = ctx.metadata.stamp;
-						return record;
+						return records;
 					},
 				});
 
@@ -193,8 +193,11 @@ describe("Lifecycle Hooks", () => {
 				await fs.mkdir(tmpDir, { recursive: true });
 
 				const schema = makeItemSchema({
-					beforeCreate: (data) => ({ ...data, value: "hook-injected" }),
-					afterCreate: (record) => record,
+					beforeCreate: (query) => ({
+						...query,
+						data: query.data.map((d) => ({ ...d, value: "hook-injected" })),
+					}),
+					afterCreate: (records) => records,
 				});
 
 				const forja = await createIsolatedForja(tmpDir, schema);
@@ -215,10 +218,13 @@ describe("Lifecycle Hooks", () => {
 				await fs.mkdir(tmpDir, { recursive: true });
 
 				const schema = makeItemSchema({
-					beforeCreate: (data) => data,
-					afterCreate: (record) => record,
-					beforeUpdate: (data) => ({ ...data, value: "updated-by-hook" }),
-					afterUpdate: (record) => record,
+					beforeCreate: (query) => query,
+					afterCreate: (records) => records,
+					beforeUpdate: (query) => ({
+						...query,
+						data: { ...query.data, value: "updated-by-hook" },
+					}),
+					afterUpdate: (records) => records,
 				});
 
 				const forja = await createIsolatedForja(tmpDir, schema);
@@ -240,10 +246,10 @@ describe("Lifecycle Hooks", () => {
 				await fs.mkdir(tmpDir, { recursive: true });
 
 				const schema = makeItemSchema({
-					beforeCreate: (data) => data,
-					afterCreate: (record) => record,
+					beforeCreate: (query) => query,
+					afterCreate: (records) => records,
 					// @ts-expect-error intentionally not returning
-					beforeUpdate: (_data) => {
+					beforeUpdate: (_query) => {
 						/* forgot to return */
 					},
 				});
@@ -266,15 +272,15 @@ describe("Lifecycle Hooks", () => {
 				let sharedValue: unknown;
 
 				const schema = makeItemSchema({
-					beforeCreate: (data) => data,
-					afterCreate: (record) => record,
-					beforeUpdate: (data, ctx) => {
+					beforeCreate: (query) => query,
+					afterCreate: (records) => records,
+					beforeUpdate: (query, ctx) => {
 						ctx.metadata.tag = "update-tag";
-						return data;
+						return query;
 					},
-					afterUpdate: (record, ctx) => {
+					afterUpdate: (records, ctx) => {
 						sharedValue = ctx.metadata.tag;
-						return record;
+						return records;
 					},
 				});
 
@@ -292,10 +298,13 @@ describe("Lifecycle Hooks", () => {
 				await fs.mkdir(tmpDir, { recursive: true });
 
 				const schema = makeItemSchema({
-					beforeCreate: (data) => data,
-					afterCreate: (record) => record,
-					beforeUpdate: (data) => ({ ...data, value: "hook-value" }),
-					afterUpdate: (record) => record,
+					beforeCreate: (query) => query,
+					afterCreate: (records) => records,
+					beforeUpdate: (query) => ({
+						...query,
+						data: { ...query.data, value: "hook-value" },
+					}),
+					afterUpdate: (records) => records,
 				});
 
 				const forja = await createIsolatedForja(tmpDir, schema);
@@ -318,11 +327,12 @@ describe("Lifecycle Hooks", () => {
 				const deletedIds: number[] = [];
 
 				const schema = makeItemSchema({
-					beforeCreate: (data) => data,
-					afterCreate: (record) => record,
-					beforeDelete: (id) => {
-						deletedIds.push(id);
-						return id; // must return id
+					beforeCreate: (query) => query,
+					afterCreate: (records) => records,
+					beforeDelete: (query) => {
+						const id = (query.where as { id?: number })?.id;
+						if (id !== undefined) deletedIds.push(id);
+						return query;
 					},
 				});
 
@@ -340,10 +350,10 @@ describe("Lifecycle Hooks", () => {
 				await fs.mkdir(tmpDir, { recursive: true });
 
 				const schema = makeItemSchema({
-					beforeCreate: (data) => data,
-					afterCreate: (record) => record,
+					beforeCreate: (query) => query,
+					afterCreate: (records) => records,
 					// @ts-expect-error intentionally not returning
-					beforeDelete: (_id) => {
+					beforeDelete: (_query) => {
 						/* forgot to return */
 					},
 				});
@@ -356,7 +366,7 @@ describe("Lifecycle Hooks", () => {
 				await fs.rm(tmpDir, { recursive: true, force: true });
 			});
 
-			it("afterDelete is called with the deleted record id", async () => {
+			it("afterDelete is called with the deleted records", async () => {
 				const tmpDir = getTmpDir("hooks_after_delete");
 				await fs.rm(tmpDir, { recursive: true, force: true });
 				await fs.mkdir(tmpDir, { recursive: true });
@@ -364,11 +374,11 @@ describe("Lifecycle Hooks", () => {
 				const afterIds: number[] = [];
 
 				const schema = makeItemSchema({
-					beforeCreate: (data) => data,
-					afterCreate: (record) => record,
-					beforeDelete: (id) => id,
-					afterDelete: (id) => {
-						afterIds.push(id);
+					beforeCreate: (query) => query,
+					afterCreate: (records) => records,
+					beforeDelete: (query) => query,
+					afterDelete: (records) => {
+						for (const r of records) afterIds.push(r.id);
 					},
 				});
 
@@ -388,11 +398,11 @@ describe("Lifecycle Hooks", () => {
 				const called = { before: false, after: false };
 
 				const schema = makeItemSchema({
-					beforeCreate: (data) => data,
-					afterCreate: (record) => record,
-					beforeDelete: (id) => {
+					beforeCreate: (query) => query,
+					afterCreate: (records) => records,
+					beforeDelete: (query) => {
 						called.before = true;
-						return id;
+						return query;
 					},
 					afterDelete: () => {
 						called.after = true;
@@ -417,8 +427,8 @@ describe("Lifecycle Hooks", () => {
 
 				// Only items with value="visible" should be returned
 				const schema = makeItemSchema({
-					beforeCreate: (data) => data,
-					afterCreate: (record) => record,
+					beforeCreate: (query) => query,
+					afterCreate: (records) => records,
 					beforeFind: (query) => ({
 						...query,
 						where: { ...query.where, value: "visible" },
@@ -443,8 +453,8 @@ describe("Lifecycle Hooks", () => {
 				await fs.mkdir(tmpDir, { recursive: true });
 
 				const schema = makeItemSchema({
-					beforeCreate: (data) => data,
-					afterCreate: (record) => record,
+					beforeCreate: (query) => query,
+					afterCreate: (records) => records,
 					// @ts-expect-error intentionally not returning
 					beforeFind: (_query) => {
 						/* forgot to return */
@@ -464,8 +474,8 @@ describe("Lifecycle Hooks", () => {
 				await fs.mkdir(tmpDir, { recursive: true });
 
 				const schema = makeItemSchema({
-					beforeCreate: (data) => data,
-					afterCreate: (record) => record,
+					beforeCreate: (query) => query,
+					afterCreate: (records) => records,
 					beforeFind: (query) => query,
 					afterFind: (results) => results.filter((r) => r.value !== "filtered"),
 				});
@@ -486,8 +496,8 @@ describe("Lifecycle Hooks", () => {
 				await fs.mkdir(tmpDir, { recursive: true });
 
 				const schema = makeItemSchema({
-					beforeCreate: (data) => data,
-					afterCreate: (record) => record,
+					beforeCreate: (query) => query,
+					afterCreate: (records) => records,
 					beforeFind: (query) => query,
 					// @ts-expect-error intentionally not returning
 					afterFind: (_results) => {
@@ -511,8 +521,8 @@ describe("Lifecycle Hooks", () => {
 
 				// beforeFind hides all items — raw should bypass this
 				const schema = makeItemSchema({
-					beforeCreate: (data) => data,
-					afterCreate: (record) => record,
+					beforeCreate: (query) => query,
+					afterCreate: (records) => records,
 					beforeFind: (query) => ({
 						...query,
 						where: { ...query.where, value: "__never__" },
@@ -660,11 +670,15 @@ describe("Lifecycle Hooks", () => {
 			await fs.mkdir(tmpDir, { recursive: true });
 
 			// Plugin appends "-enriched" to name in results
+			// onAfterQuery receives an array for create action
 			const plugin = makePlugin({
 				onAfterQuery: async (result, ctx) => {
 					if (ctx.action === "create") {
-						const r = result as unknown as HookItem;
-						return { ...r, name: r.name + "-enriched" } as typeof result;
+						const rows = result as unknown as HookItem[];
+						return rows.map((r) => ({
+							...r,
+							name: r.name + "-enriched",
+						})) as unknown as typeof result;
 					}
 					return result;
 				},
@@ -711,11 +725,17 @@ describe("Lifecycle Hooks", () => {
 					value: { type: "string", required: true },
 				},
 				hooks: {
-					beforeCreate: (data) => {
+					beforeCreate: (query) => {
 						order.push("schema:before");
-						return { ...data, value: (data.value as string) + "-schema" };
+						return {
+							...query,
+							data: query.data.map((d) => ({
+								...d,
+								value: (d.value as string) + "-schema",
+							})),
+						};
 					},
-					afterCreate: (record) => record,
+					afterCreate: (records) => records,
 				},
 			} as const) as unknown as SchemaDefinition;
 
@@ -725,12 +745,9 @@ describe("Lifecycle Hooks", () => {
 				plugins: [plugin as never],
 			}));
 			const forja = await getForja();
-			try {
-				await adapter.dropTable("hook_items");
-			} catch {
-				/* ignore */
-			}
-			await adapter.createTable(schema);
+
+			const migration = await forja.beginMigrate();
+			await migration.apply();
 
 			const item = await forja.create("hookItem", {
 				name: "n",

@@ -4,8 +4,8 @@
  * Shared utility functions for handlers
  */
 
-import { ParserError } from "forja-types/api/parser";
-import { ForjaError, ForjaValidationError } from "forja-types/errors";
+import { ParserError } from "@forja/types/api/parser";
+import { ForjaError, ForjaValidationError } from "@forja/types/errors";
 import { ForjaApiError } from "../errors/api-error";
 
 /**
