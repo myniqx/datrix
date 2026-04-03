@@ -632,6 +632,7 @@ export class MySQLQueryTranslator implements QueryTranslator {
 		where: WhereClause<T>,
 		startIndex: number,
 		tableName?: string,
+		tableAlias?: string,
 	): {
 		readonly sql: string;
 		readonly params: readonly unknown[];
@@ -658,7 +659,7 @@ export class MySQLQueryTranslator implements QueryTranslator {
 				where,
 				0,
 				tableName,
-				undefined,
+				tableAlias,
 				whereJoins,
 				currentSchema,
 			);

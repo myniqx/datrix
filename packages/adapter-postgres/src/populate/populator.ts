@@ -236,7 +236,7 @@ export class PostgresPopulator {
 				const whereExtra = this.buildBatchOptionsClause(
 					options,
 					targetTable,
-					2,
+					1,
 				);
 				const lateralSql = `
           SELECT t."id" as _fk, ${rowToJson} as data
@@ -262,7 +262,7 @@ export class PostgresPopulator {
 				const whereExtra = this.buildBatchOptionsClause(
 					options,
 					targetTable,
-					2,
+					1,
 				);
 				const lateralSql = `
           SELECT t.${this.translator.escapeIdentifier(fkColumn)} as _fk, ${rowToJson} as data
@@ -290,8 +290,9 @@ export class PostgresPopulator {
 				if (options.where) {
 					const whereResult = this.translator.translateWhere(
 						options.where,
-						paramIdx,
+						paramIdx - 1,
 						targetTable,
+						"t",
 					);
 					whereSQL = ` AND ${whereResult.sql}`;
 					innerParams.push(...whereResult.params);
@@ -355,8 +356,9 @@ export class PostgresPopulator {
 				if (options.where) {
 					const whereResult = this.translator.translateWhere(
 						options.where,
-						paramIdx,
+						paramIdx - 1,
 						targetTable,
+						"t",
 					);
 					whereSQL = ` AND ${whereResult.sql}`;
 					innerParams.push(...whereResult.params);
@@ -580,7 +582,7 @@ export class PostgresPopulator {
 				const hasManyExtra = this.buildBatchOptionsClause(
 					options,
 					targetTable,
-					2,
+					1,
 				);
 				batchQuery = `
           SELECT t."${fkColumn}" as _fk, ${hasManyRowToJson} as data
@@ -622,7 +624,7 @@ export class PostgresPopulator {
 					relation.model,
 					options,
 				);
-				const m2mExtra = this.buildBatchOptionsClause(options, targetTable, 2);
+				const m2mExtra = this.buildBatchOptionsClause(options, targetTable, 1);
 				batchQuery = `
           SELECT j."${sourceFK}" as _fk, ${m2mRowToJson} as data
           FROM ${this.translator.escapeIdentifier(targetTable)} t
@@ -772,7 +774,7 @@ export class PostgresPopulator {
 				}
 			} else if (relation.kind === "hasMany") {
 				const fkColumn = relation.foreignKey!;
-				const hasManyExtra = this.buildBatchOptionsClause(opts, targetTable, 2);
+				const hasManyExtra = this.buildBatchOptionsClause(opts, targetTable, 1);
 
 				const batchQuery = `
           SELECT t."${fkColumn}" as _fk, ${nestedRowToJson} as data
@@ -807,7 +809,7 @@ export class PostgresPopulator {
 				const junctionTable = relation.through!;
 				const sourceFK = `${schema.name}Id`;
 				const targetFK = `${relation.model}Id`;
-				const m2mExtra = this.buildBatchOptionsClause(opts, targetTable, 2);
+				const m2mExtra = this.buildBatchOptionsClause(opts, targetTable, 1);
 
 				const batchQuery = `
           SELECT j."${sourceFK}" as _fk, ${nestedRowToJson} as data
@@ -1048,15 +1050,18 @@ export class PostgresPopulator {
 	): { sql: string; params: unknown[] } {
 		let sql = "";
 		const params: unknown[] = [];
+		let paramIdx = startParamIndex;
 
 		if (options.where) {
 			const whereResult = this.translator.translateWhere(
 				options.where,
-				startParamIndex,
+				paramIdx,
 				targetTable,
+				"t",
 			);
 			sql += ` AND ${whereResult.sql}`;
 			params.push(...whereResult.params);
+			paramIdx += whereResult.params.length;
 		}
 
 		if (options.orderBy && options.orderBy.length > 0) {
@@ -1068,6 +1073,18 @@ export class PostgresPopulator {
 				})
 				.join(", ");
 			sql += ` ORDER BY ${orderSQL}`;
+		}
+
+		if (options.limit !== undefined) {
+			sql += ` LIMIT $${paramIdx + 1}`;
+			params.push(options.limit);
+			paramIdx++;
+		}
+
+		if (options.offset !== undefined && options.offset > 0) {
+			sql += ` OFFSET $${paramIdx + 1}`;
+			params.push(options.offset);
+			paramIdx++;
 		}
 
 		return { sql, params };

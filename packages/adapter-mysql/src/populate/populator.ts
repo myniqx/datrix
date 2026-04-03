@@ -254,6 +254,7 @@ export class MySQLPopulator {
 						options.where,
 						0,
 						targetTable,
+						"t",
 					);
 					whereSQL = ` AND ${whereResult.sql}`;
 					innerParams.push(...whereResult.params);
@@ -273,13 +274,17 @@ export class MySQLPopulator {
 				}
 
 				let limitSQL = "";
+				let offsetSQL = "";
 				if (options.limit !== undefined) {
 					limitSQL = " LIMIT ?";
 					innerParams.push(options.limit);
-				}
-
-				let offsetSQL = "";
-				if (options.offset !== undefined && options.offset > 0) {
+					if (options.offset !== undefined && options.offset > 0) {
+						offsetSQL = " OFFSET ?";
+						innerParams.push(options.offset);
+					}
+				} else if (options.offset !== undefined && options.offset > 0) {
+					// MySQL requires LIMIT when using OFFSET
+					limitSQL = " LIMIT 18446744073709551615";
 					offsetSQL = " OFFSET ?";
 					innerParams.push(options.offset);
 				}
@@ -319,6 +324,7 @@ export class MySQLPopulator {
 						options.where,
 						0,
 						targetTable,
+						"t",
 					);
 					whereSQL = ` AND ${whereResult.sql}`;
 					innerParams.push(...whereResult.params);
@@ -338,13 +344,17 @@ export class MySQLPopulator {
 				}
 
 				let limitSQL = "";
+				let offsetSQL = "";
 				if (options.limit !== undefined) {
 					limitSQL = " LIMIT ?";
 					innerParams.push(options.limit);
-				}
-
-				let offsetSQL = "";
-				if (options.offset !== undefined && options.offset > 0) {
+					if (options.offset !== undefined && options.offset > 0) {
+						offsetSQL = " OFFSET ?";
+						innerParams.push(options.offset);
+					}
+				} else if (options.offset !== undefined && options.offset > 0) {
+					// MySQL requires LIMIT when using OFFSET
+					limitSQL = " LIMIT 18446744073709551615";
 					offsetSQL = " OFFSET ?";
 					innerParams.push(options.offset);
 				}
@@ -679,23 +689,37 @@ export class MySQLPopulator {
 				const fkColumn = relation.foreignKey!;
 				const fkColumnEsc = escapeIdentifier(fkColumn);
 				const nestedParentIds = rows.map((r) => r.id as number).filter(Boolean);
+				const hasManyExtra = this.buildBatchOptionsClause(opts, targetTable);
 
 				const batchQuery = `
           SELECT t.${fkColumnEsc} as _fk, ${jsonObj} as data
           FROM ${targetTableEsc} t
-          WHERE t.${fkColumnEsc} IN (?)
+          WHERE t.${fkColumnEsc} IN (?)${hasManyExtra.sql}
         `;
 
-				const groupMap = await this.fetchAndPopulateNested<T, Partial<T>[]>(
-					opts,
-					targetTable,
+				let relatedRowsHM = await this.fetchBatchQueryResultsWithParams<T>(
 					batchQuery,
 					nestedParentIds,
-					true,
+					hasManyExtra.params,
 				);
 
+				const nestedPopulateHM = opts.populate;
+				if (nestedPopulateHM && relatedRowsHM.length > 0) {
+					relatedRowsHM = await this.populateBatchedRows<T>(
+						relatedRowsHM,
+						targetTable,
+						nestedPopulateHM,
+					);
+				}
+
+				const groupMapHM = new Map<number, Partial<T>[]>();
+				for (const r of relatedRowsHM) {
+					if (!groupMapHM.has(r._fk)) groupMapHM.set(r._fk, []);
+					groupMapHM.get(r._fk)!.push(r);
+				}
+
 				for (const row of rows) {
-					(row as T)[relationName] = (groupMap.get(row.id!) ||
+					(row as T)[relationName] = (groupMapHM.get(row.id!) ||
 						[]) as T[keyof T];
 				}
 			} else if (relation.kind === "manyToMany") {
@@ -707,23 +731,38 @@ export class MySQLPopulator {
 				const junctionTableEsc = escapeIdentifier(junctionTable);
 				const sourceFKEsc = escapeIdentifier(sourceFK);
 				const targetFKEsc = escapeIdentifier(targetFK);
+				const m2mExtra = this.buildBatchOptionsClause(opts, targetTable);
 
 				const batchQuery = `
           SELECT j.${sourceFKEsc} as _fk, ${jsonObj} as data
           FROM ${targetTableEsc} t
           INNER JOIN ${junctionTableEsc} j ON t.\`id\` = j.${targetFKEsc}
-          WHERE j.${sourceFKEsc} IN (?)
+          WHERE j.${sourceFKEsc} IN (?)${m2mExtra.sql}
         `;
-				const groupMap = await this.fetchAndPopulateNested<T, Partial<T>[]>(
-					opts,
-					targetTable,
+
+				let relatedRowsM2M = await this.fetchBatchQueryResultsWithParams<T>(
 					batchQuery,
 					nestedParentIds,
-					true,
+					m2mExtra.params,
 				);
 
+				const nestedPopulateM2M = opts.populate;
+				if (nestedPopulateM2M && relatedRowsM2M.length > 0) {
+					relatedRowsM2M = await this.populateBatchedRows<T>(
+						relatedRowsM2M,
+						targetTable,
+						nestedPopulateM2M,
+					);
+				}
+
+				const groupMapM2M = new Map<number, Partial<T>[]>();
+				for (const r of relatedRowsM2M) {
+					if (!groupMapM2M.has(r._fk)) groupMapM2M.set(r._fk, []);
+					groupMapM2M.get(r._fk)!.push(r);
+				}
+
 				for (const row of rows) {
-					(row as T)[relationName] = (groupMap.get(row.id!) ||
+					(row as T)[relationName] = (groupMapM2M.get(row.id!) ||
 						[]) as T[keyof T];
 				}
 			}
@@ -1004,6 +1043,7 @@ export class MySQLPopulator {
 				options.where,
 				0,
 				targetTable,
+				"t",
 			);
 			sql += ` AND ${whereResult.sql}`;
 			params.push(...whereResult.params);
@@ -1018,6 +1058,19 @@ export class MySQLPopulator {
 				})
 				.join(", ");
 			sql += ` ORDER BY ${orderSQL}`;
+		}
+
+		if (options.limit !== undefined) {
+			sql += ` LIMIT ?`;
+			params.push(options.limit);
+			if (options.offset !== undefined && options.offset > 0) {
+				sql += ` OFFSET ?`;
+				params.push(options.offset);
+			}
+		} else if (options.offset !== undefined && options.offset > 0) {
+			// MySQL requires LIMIT when using OFFSET
+			sql += ` LIMIT 18446744073709551615 OFFSET ?`;
+			params.push(options.offset);
 		}
 
 		return { sql, params };
