@@ -85,7 +85,13 @@ export class MySQLImporter {
 
 			for (const row of batch) {
 				for (const col of columns) {
-					values.push(row[col] ?? null);
+					const val = row[col] ?? null;
+					// mysql2 driver does not auto-serialize objects/arrays for JSON columns
+					values.push(
+						val !== null && typeof val === "object" && !(val instanceof Date)
+							? JSON.stringify(val)
+							: val,
+					);
 				}
 			}
 

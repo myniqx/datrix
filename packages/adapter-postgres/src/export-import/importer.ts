@@ -77,7 +77,13 @@ export class PostgresImporter {
 				const rowPlaceholders = columns.map(() => `$${paramIndex++}`);
 				placeholders.push(`(${rowPlaceholders.join(", ")})`);
 				for (const col of columns) {
-					values.push(row[col] ?? null);
+					const val = row[col] ?? null;
+					// pg driver does not auto-serialize objects/arrays for JSONB columns
+					values.push(
+						val !== null && typeof val === "object" && !(val instanceof Date)
+							? JSON.stringify(val)
+							: val,
+					);
 				}
 			}
 

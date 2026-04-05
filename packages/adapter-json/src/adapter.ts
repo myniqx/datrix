@@ -542,14 +542,16 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 			await this.updateCache(tableName, initialContent);
 		}
 
-		// Track schema in _forja (skip for _forja itself and during import)
-		if (!isImport && schema.name !== FORJA_META_MODEL) {
-			const metaExists = await this.tableExists(FORJA_META_MODEL);
-			if (!metaExists) {
-				throwMigrationError({
-					adapter: "json",
-					message: `Cannot create table '${schema.name}': '${FORJA_META_MODEL}' table does not exist yet. Create '${FORJA_META_MODEL}' first.`,
-				});
+		// Track schema in _forja (skip during import — _forja data will be restored as-is)
+		if (!isImport) {
+			if (schema.name !== FORJA_META_MODEL) {
+				const metaExists = await this.tableExists(FORJA_META_MODEL);
+				if (!metaExists) {
+					throwMigrationError({
+						adapter: "json",
+						message: `Cannot create table '${schema.name}': '${FORJA_META_MODEL}' table does not exist yet. Create '${FORJA_META_MODEL}' first.`,
+					});
+				}
 			}
 			await this.upsertSchemaMeta(schema, skipWrite);
 		}

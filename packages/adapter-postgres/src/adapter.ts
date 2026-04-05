@@ -394,13 +394,16 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 				}
 			}
 
-			if (!options?.isImport && schema.name !== FORJA_META_MODEL) {
-				const metaExists = await this.tableExists(FORJA_META_MODEL);
-				if (!metaExists) {
-					throwMigrationError({
-						adapter: "postgres",
-						message: `Cannot create table '${schema.name}': '${FORJA_META_MODEL}' table does not exist yet. Create '${FORJA_META_MODEL}' first.`,
-					});
+			// Track schema in _forja (skip during import — _forja data will be restored as-is)
+			if (!options?.isImport) {
+				if (schema.name !== FORJA_META_MODEL) {
+					const metaExists = await this.tableExists(FORJA_META_MODEL);
+					if (!metaExists) {
+						throwMigrationError({
+							adapter: "postgres",
+							message: `Cannot create table '${schema.name}': '${FORJA_META_MODEL}' table does not exist yet. Create '${FORJA_META_MODEL}' first.`,
+						});
+					}
 				}
 
 				await this.upsertSchemaMeta(schema, queryRunner!);

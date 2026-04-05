@@ -45,7 +45,7 @@ const MAX_WHERE_DEPTH = 10;
  * MongoDB query translator implementation
  */
 export class MongoDBQueryTranslator {
-	constructor(private readonly schemaRegistry: SchemaRegistry) { }
+	constructor(private readonly schemaRegistry: SchemaRegistry) {}
 
 	/**
 	 * Translate a QueryObject into a MongoDB operation descriptor
@@ -282,10 +282,10 @@ export class MongoDBQueryTranslator {
 								value === null
 									? null
 									: this.convertValueForField(
-										value,
-										currentSchema,
-										relationField.foreignKey,
-									);
+											value,
+											currentSchema,
+											relationField.foreignKey,
+										);
 						}
 						continue;
 					}

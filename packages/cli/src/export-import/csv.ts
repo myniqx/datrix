@@ -31,9 +31,14 @@ function encodeValue(value: unknown): string {
 		return String(value);
 	}
 
+	if (value instanceof Date) {
+		return value.toISOString();
+	}
+
 	if (typeof value === "object" || Array.isArray(value)) {
-		const json = JSON.stringify(value);
-		return `"${json.replace(/"/g, '""')}"`;
+		// Serialize to JSON string, then treat it as a regular string (quoted + escaped)
+		const str = JSON.stringify(value);
+		return `"${str.replace(/"/g, '""')}"`;
 	}
 
 	// String: wrap in quotes and escape internal quotes
@@ -140,6 +145,11 @@ function decodeValue(raw: string, fieldType?: string): unknown {
 	}
 
 	if (fieldType === "date") {
+		return new Date(raw);
+	}
+
+	// Auto-detect ISO 8601 date strings even without schema field type info
+	if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(raw)) {
 		return new Date(raw);
 	}
 
