@@ -8,7 +8,7 @@
  * - Mixed arrays with OR logic (['admin', (ctx) => ctx.user?.id === ctx.record?.authorId])
  */
 
-import type { ForjaEntry, SchemaDefinition } from "@forja/core/types";
+import type { ForjaEntry, SchemaDefinition } from "@forja/core";
 import type {
 	PermissionAction,
 	PermissionValue,
@@ -19,8 +19,8 @@ import type {
 	PermissionCheckResult,
 	FieldPermission,
 	FieldPermissionCheckResult,
-} from "@forja/core/types";
-import { isPermissionFn } from "@forja/core/types";
+} from "@forja/core";
+import { isPermissionFn } from "@forja/core";
 import type { RequestContext } from "./types";
 
 /**

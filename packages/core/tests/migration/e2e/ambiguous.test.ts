@@ -21,7 +21,7 @@ import {
 	resolveAmbiguousById,
 	autoResolveAmbiguous,
 } from "./setup/helpers";
-import type { DatabaseAdapter } from "@forja/core/types/adapter";
+import type { DatabaseAdapter } from "@forja/core";
 
 describe("Migration E2E - Ambiguous Detection", () => {
 	const tmpDir = getTmpDir("ambiguous");

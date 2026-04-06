@@ -9,12 +9,9 @@ import type {
 	UploadFile,
 	UploadResult,
 	S3ProviderOptions,
-} from "@forja/core/types/api";
-import {
-	generateUniqueFilename,
-	sanitizeFilename,
-} from "@forja/core/types/api";
-import { ForjaError } from "@forja/core/types/errors";
+} from "@forja/core";
+import { generateUniqueFilename, sanitizeFilename } from "@forja/core";
+import { ForjaError } from "@forja/core";
 
 class UploadError extends ForjaError {
 	constructor(message: string, cause?: Error) {

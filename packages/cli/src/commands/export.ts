@@ -1,10 +1,10 @@
 import path from "node:path";
-import type { DatabaseAdapter } from "@forja/core/types/adapter";
+import type { DatabaseAdapter } from "@forja/core";
 import { logger, spinner } from "../utils/logger";
 import { ZipExportWriter } from "../export-import/zip-writer";
 import { FileExporter } from "../export-import/file-exporter";
-import { IForja } from "@forja/core/types";
-import { IApiPlugin } from "@forja/core/types/api";
+import { IForja } from "@forja/core";
+import { IApiPlugin } from "@forja/core";
 
 export interface ExportCommandOptions {
 	readonly output?: string;

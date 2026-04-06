@@ -1,5 +1,5 @@
-import { defineSchema, ForjaEntry } from "@forja/core/types";
-import type { PermissionContext } from "@forja/core/types";
+import { defineSchema, ForjaEntry } from "@forja/core";
+import type { PermissionContext } from "@forja/core";
 import { Forja } from "@forja/core";
 
 /**

@@ -4,6 +4,27 @@
 	"description": "PostgreSQL adapter for Forja framework",
 	"author": "Forja Contributors",
 	"license": "MIT",
+	"homepage": "https://tryforja.com",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/myniqx/forja.git",
+		"directory": "packages/adapter-postgres"
+	},
+	"bugs": {
+		"url": "https://github.com/myniqx/forja/issues"
+	},
+	"keywords": [
+		"database",
+		"orm",
+		"typescript",
+		"postgresql",
+		"postgres",
+		"adapter",
+		"forja"
+	],
+	"engines": {
+		"node": ">=18.0.0"
+	},
 	"main": "./dist/index.js",
 	"module": "./dist/index.mjs",
 	"types": "./dist/index.d.ts",
@@ -18,17 +39,23 @@
 		"dist"
 	],
 	"sideEffects": false,
+	"publishConfig": {
+		"access": "public"
+	},
 	"scripts": {
 		"build": "tsup",
 		"dev": "tsup --watch",
 		"type-check": "tsc --noEmit",
 		"clean": "rm -rf dist"
 	},
+	"peerDependencies": {
+		"@forja/core": "^0.1.0"
+	},
 	"dependencies": {
-		"pg": "^8.11.3",
-		"@forja/core": "workspace:*"
+		"pg": "^8.11.3"
 	},
 	"devDependencies": {
+		"@forja/core": "workspace:*",
 		"tsup": "^8.0.2",
 		"typescript": "^5.3.3",
 		"@types/pg": "^8.11.0"

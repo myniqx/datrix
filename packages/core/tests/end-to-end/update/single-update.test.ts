@@ -24,7 +24,7 @@ import {
 	seedBasicData,
 	type SeedResult,
 } from "../setup";
-import { expectForjaErrorAsync } from "@forja/core/types/test/helpers";
+import { expectForjaErrorAsync } from "../../test/helpers";
 
 describe("Update Operations", () => {
 	let forja: Forja;

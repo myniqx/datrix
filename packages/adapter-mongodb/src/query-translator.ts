@@ -18,11 +18,11 @@ import type {
 	QueryDeleteObject,
 	QuerySelect,
 	QuerySelectObject,
-} from "@forja/core/types";
-import type { SchemaRegistry } from "@forja/core";
-import type { SchemaDefinition, FieldDefinition } from "@forja/core/types";
-import { ForjaEntry } from "@forja/core/types";
-import { throwQueryError } from "@forja/core/types/errors";
+	ISchemaRegistry,
+} from "@forja/core";
+import type { SchemaDefinition, FieldDefinition } from "@forja/core";
+import { ForjaEntry } from "@forja/core";
+import { throwQueryError } from "@forja/core";
 import type {
 	MongoTranslateResult,
 	MongoFindResult,
@@ -42,7 +42,7 @@ const MAX_WHERE_DEPTH = 10;
  * MongoDB query translator implementation
  */
 export class MongoDBQueryTranslator {
-	constructor(private readonly schemaRegistry: SchemaRegistry) {}
+	constructor(private readonly schemaRegistry: ISchemaRegistry) {}
 
 	/**
 	 * Translate a QueryObject into a MongoDB operation descriptor

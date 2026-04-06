@@ -5,7 +5,7 @@
  * Tests will clone and modify these as needed.
  */
 
-import { defineSchema } from "@forja/core/types";
+import { defineSchema } from "@forja/core";
 
 /**
  * Table name constants for easy reference

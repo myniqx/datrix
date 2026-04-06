@@ -8,9 +8,9 @@
  */
 
 import type { ClientSession, Collection, Db, Document } from "mongodb";
-import { ForjaAdapterError } from "@forja/core/types/errors";
+import { ForjaAdapterError } from "@forja/core";
 import { mongoCodeToAdapterCode } from "./helpers";
-import { ForjaEntry, QueryObject } from "@forja/core/types";
+import { ForjaEntry, QueryObject } from "@forja/core";
 
 const IS_DEBUG = process.env["NODE_ENV"] !== "production";
 

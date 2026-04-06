@@ -1,4 +1,4 @@
-import { throwLockTimeout } from "@forja/core/types/errors";
+import { throwLockTimeout } from "@forja/core";
 import fs from "node:fs/promises";
 import path from "node:path";
 

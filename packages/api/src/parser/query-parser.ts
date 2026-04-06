@@ -5,7 +5,7 @@
  * Combines fields, where, populate, pagination, and sorting.
  */
 
-import type { OrderByItem, OrderDirection } from "@forja/core/types";
+import type { OrderByItem, OrderDirection } from "@forja/core";
 import {
 	ParserError,
 	buildErrorLocation,
@@ -14,13 +14,13 @@ import {
 	type ParsedPagination,
 	type ParsedSort,
 	type ParsedQuery,
-} from "@forja/core/types/api";
-import { validateFieldName } from "@forja/core/types";
+} from "@forja/core";
+import { validateFieldName } from "@forja/core";
 import { parseFields } from "./fields-parser";
 import { parseWhere } from "./where-parser";
 import { parsePopulate } from "./populate-parser";
 import { paginationError, sortError } from "./errors";
-import { ForjaEntry, ForjaRecord } from "@forja/core/types";
+import { ForjaEntry, ForjaRecord } from "@forja/core";
 
 /**
  * Default parser options

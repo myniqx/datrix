@@ -1,9 +1,5 @@
-import {
-	ForjaEntry,
-	ForeignKeyReference,
-	SchemaDefinition,
-} from "@forja/core/types";
-import { QuerySelectObject } from "@forja/core/types";
+import { ForjaEntry, ForeignKeyReference, SchemaDefinition } from "@forja/core";
+import { QuerySelectObject } from "@forja/core";
 import { ExecuteQueryOptions, JsonTableFile } from "./types";
 import type { JsonAdapter } from "./adapter";
 import {
@@ -12,8 +8,8 @@ import {
 	throwMigrationError,
 	throwUniqueConstraintField,
 	throwUniqueConstraintIndex,
-} from "@forja/core/types/errors";
-import { FORJA_META_MODEL } from "@forja/core/types";
+} from "@forja/core";
+import { FORJA_META_MODEL } from "@forja/core";
 
 /**
  * Validate table name for security (no null bytes, path separators, or parent refs)

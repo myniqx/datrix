@@ -43,33 +43,13 @@ export default defineConfig({
 	resolve: {
 		alias: {
 			// Monorepo package aliases
-			"@forja/core/types/api": path.resolve(
-				__dirname,
-				"./packages/core/src/types/api/index.ts",
-			),
-			"@forja/core/types/cli": path.resolve(
-				__dirname,
-				"./packages/core/src/types/cli/index.ts",
-			),
-			"@forja/core/types/adapter": path.resolve(
-				__dirname,
-				"./packages/core/src/types/adapter/index.ts",
-			),
-			"@forja/core/types/errors": path.resolve(
-				__dirname,
-				"./packages/core/src/types/errors/index.ts",
-			),
-			"@forja/core/types/utils": path.resolve(
+			"@forja/core": path.resolve(
 				__dirname,
 				"./packages/core/src/types/utils/index.ts",
 			),
-			"@forja/core/types": path.resolve(
+			"@forja/core": path.resolve(
 				__dirname,
 				"./packages/core/src/types/core/index.ts",
-			),
-			"@forja/core/plugin/plugin": path.resolve(
-				__dirname,
-				"./packages/core/src/plugin/plugin.ts",
 			),
 			"@forja/core": path.resolve(__dirname, "./packages/core/src"),
 			"@forja/adapter-postgres": path.resolve(

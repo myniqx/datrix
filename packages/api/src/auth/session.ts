@@ -7,13 +7,13 @@
 
 import { randomBytes } from "node:crypto";
 import type { SessionConfig, SessionData, SessionStore } from "./types";
-import { DEFAULT_API_AUTH_CONFIG } from "@forja/core/types/api";
+import { DEFAULT_API_AUTH_CONFIG } from "@forja/core";
 import {
 	throwSessionCreateError,
 	throwSessionNotFound,
 	throwSessionExpired,
 } from "./error-helper";
-import { ForjaAuthError } from "@forja/core/types/errors";
+import { ForjaAuthError } from "@forja/core";
 
 /**
  * Session Strategy

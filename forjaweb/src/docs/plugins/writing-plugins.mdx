@@ -19,8 +19,8 @@ A plugin is a class that implements the `ForjaPlugin` interface. Forja provides 
 | Recommended for | Most plugins | Low-level / framework use |
 
 ```typescript
-import { BasePlugin } from "@forja/core/plugin/plugin"
-import type { PluginContext } from "@forja/core/types"
+import { BasePlugin } from "@forja/core"
+import type { PluginContext } from "@forja/core"
 
 export class MyPlugin extends BasePlugin<MyPluginOptions> {
   readonly name    = "my-plugin"
@@ -200,12 +200,12 @@ override async onAfterQuery<T extends ForjaEntry>(
 A plugin that writes an audit log entry after every create, update, or delete operation.
 
 ```typescript
-import { BasePlugin } from "@forja/core/plugin/plugin"
+import { BasePlugin } from "@forja/core"
 import { defineSchema } from "@forja/core"
-import type { PluginContext, SchemaDefinition } from "@forja/core/types"
-import type { QueryContext } from "@forja/core/types"
-import type { ForjaEntry } from "@forja/core/types"
-import type { QueryObject } from "@forja/core/types"
+import type { PluginContext, SchemaDefinition } from "@forja/core"
+import type { QueryContext } from "@forja/core"
+import type { ForjaEntry } from "@forja/core"
+import type { QueryObject } from "@forja/core"
 
 interface AuditLogOptions {
   readonly schemas?: readonly string[]  // limit to specific schemas — undefined = all

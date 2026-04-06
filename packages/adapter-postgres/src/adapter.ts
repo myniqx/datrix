@@ -11,7 +11,7 @@ import { Pool as PgPool } from "pg";
 import { PostgresQueryTranslator } from "./query-translator";
 import type { PostgresConfig } from "./types";
 import { getPostgresTypeWithModifiers } from "./types";
-import { QueryObject } from "@forja/core/types";
+import { QueryObject } from "@forja/core";
 import {
 	AlterOperation,
 	ConnectionState,
@@ -19,7 +19,7 @@ import {
 	QueryMetadata,
 	QueryResult,
 	Transaction,
-} from "@forja/core/types/adapter";
+} from "@forja/core";
 import {
 	ForjaAdapterError,
 	throwNotConnected,
@@ -30,21 +30,21 @@ import {
 	throwQueryError,
 	throwMetaFieldAlreadyExists,
 	throwMetaFieldNotFound,
-} from "@forja/core/types/errors";
-import { validateQueryObject } from "@forja/core/types/utils";
+} from "@forja/core";
+import { validateQueryObject } from "@forja/core";
 import {
 	FieldDefinition,
 	ForjaEntry,
 	IndexDefinition,
 	ISchemaRegistry,
 	SchemaDefinition,
-} from "@forja/core/types";
-import { FORJA_META_MODEL, FORJA_META_KEY_PREFIX } from "@forja/core/types";
+} from "@forja/core";
+import { FORJA_META_MODEL, FORJA_META_KEY_PREFIX } from "@forja/core";
 import { PostgresPopulator } from "./populate";
 import { PgClient } from "./pg-client";
 import { PostgresExporter } from "./export-import/exporter";
 import { PostgresImporter } from "./export-import/importer";
-import { ExportWriter, ImportReader } from "@forja/core/types/adapter";
+import { ExportWriter, ImportReader } from "@forja/core";
 
 /**
  * PostgreSQL adapter implementation

@@ -29,9 +29,9 @@ import {
 	expectApiForbidden,
 	expectApiUnauthorized,
 	expectApiMulti,
-} from "@forja/core/types/test/helpers";
+} from "../../core/tests/test/helpers";
 import { createRequest } from "./data/helper";
-import { ForjaEntry } from "@forja/core/types";
+import { ForjaEntry } from "@forja/core";
 import { getTmpDir } from "./data";
 
 describe("Schema-Level Permission Tests", () => {

@@ -13,11 +13,8 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { Forja } from "@forja/core";
 import fs from "node:fs/promises";
 import path from "node:path";
-import {
-	expectApiSingle,
-	expectApiError,
-} from "@forja/core/types/test/helpers";
-import type { MediaEntry, MediaVariant } from "@forja/core/types/api";
+import { expectApiSingle, expectApiError } from "../../core/tests/test/helpers";
+import type { MediaEntry, MediaVariant } from "@forja/core";
 import { createUploadTestConfig, type TestResolutions } from "./data/config";
 import {
 	createCheckerboardPng,

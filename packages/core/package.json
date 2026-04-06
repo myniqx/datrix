@@ -4,23 +4,44 @@
 	"description": "Core functionality for Forja framework - schema, validation, query building, migration",
 	"author": "Forja Contributors",
 	"license": "MIT",
+	"homepage": "https://tryforja.com",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/myniqx/forja.git",
+		"directory": "packages/core"
+	},
+	"bugs": {
+		"url": "https://github.com/myniqx/forja/issues"
+	},
+	"keywords": [
+		"database",
+		"orm",
+		"typescript",
+		"schema",
+		"query-builder",
+		"migration",
+		"type-safe"
+	],
+	"engines": {
+		"node": ">=18.0.0"
+	},
 	"main": "./dist/index.js",
 	"module": "./dist/index.mjs",
 	"types": "./dist/index.d.ts",
 	"exports": {
-		".": "./src/index.ts",
-		"./*": "./src/*.ts",
-		"./types/api": "./src/types/api/index.ts",
-		"./types/cli": "./src/types/cli/index.ts",
-		"./types/adapter": "./src/types/adapter/index.ts",
-		"./types/errors": "./src/types/errors/index.ts",
-		"./types/utils": "./src/types/utils/index.ts",
-		"./types": "./src/types/core/index.ts"
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.mjs",
+			"require": "./dist/index.js"
+		}
 	},
 	"files": [
 		"dist"
 	],
 	"sideEffects": false,
+	"publishConfig": {
+		"access": "public"
+	},
 	"scripts": {
 		"build": "tsup",
 		"dev": "tsup --watch",

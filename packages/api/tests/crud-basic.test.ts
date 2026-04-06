@@ -15,7 +15,7 @@ import {
 	expectApiSingle,
 	expectApiMulti,
 	expectApiError,
-} from "@forja/core/types/test/helpers";
+} from "../../core/tests/test/helpers";
 import fs from "node:fs/promises";
 
 describe("API CRUD Integration Tests", () => {

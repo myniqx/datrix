@@ -8,7 +8,7 @@
  * - Relation validation
  */
 
-import { SchemaRegistry } from "../src";
+import { SchemaRegistry } from "../src/schema";
 import { SchemaDefinition } from "../src/types/core/schema";
 import { expectFailureError } from "./test/helpers";
 import { describe, it, expect, beforeEach } from "vitest";

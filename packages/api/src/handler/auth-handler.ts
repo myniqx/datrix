@@ -12,18 +12,18 @@
  */
 
 import type { Forja } from "@forja/core";
-import { DEFAULT_API_AUTH_CONFIG } from "@forja/core/types/api";
+import { DEFAULT_API_AUTH_CONFIG } from "@forja/core";
 import { AuthManager } from "../auth/manager";
 import type { AuthConfig } from "../auth/types";
 import { jsonResponse, extractSessionId, forjaErrorResponse } from "./utils";
 import { authError } from "../errors/auth-error";
 import { handlerError } from "../errors/api-error";
-import { ForjaError } from "@forja/core/types/errors";
-import { AuthenticatedUser } from "@forja/core/types/api/auth";
-import { ForjaEntry } from "@forja/core/types";
-import { AuthUser } from "@forja/core/types/api";
-import { FallbackValue } from "@forja/core/types";
-import { FallbackInput } from "@forja/core/types";
+import { ForjaError } from "@forja/core";
+import { AuthenticatedUser } from "@forja/core";
+import { ForjaEntry } from "@forja/core";
+import { AuthUser } from "@forja/core";
+import { FallbackValue } from "@forja/core";
+import { FallbackInput } from "@forja/core";
 
 /**
  * Auth Handler Configuration

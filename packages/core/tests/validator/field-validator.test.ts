@@ -5,7 +5,7 @@
  * Target: 95%+ coverage
  */
 
-import { validateField } from "../../src";
+import { validateField } from "../../src/validator";
 import { edgeCases, sampleFields } from "../test/fixtures";
 import { describe, it, expect } from "vitest";
 

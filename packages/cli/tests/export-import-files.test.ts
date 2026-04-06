@@ -35,9 +35,9 @@ import AdmZip from "adm-zip";
 import { ApiPlugin } from "@forja/api";
 import { Upload, LocalStorageProvider } from "@forja/api-upload";
 import { JsonAdapter } from "../../adapter-json/src/index";
-import type { ForjaConfig } from "@forja/core/types";
+import type { ForjaConfig } from "@forja/core";
 import { defineConfig } from "@forja/core";
-import { IApiPlugin } from "@forja/core/types/api";
+import { IApiPlugin } from "@forja/core";
 
 // ============================================================================
 // Constants

@@ -14,7 +14,7 @@ export function schemaTemplate(name: string): string {
 	const schemaVarName = name.charAt(0).toLowerCase() + name.slice(1);
 	const schemaNameLower = name.toLowerCase();
 
-	return `import { defineSchema } from '@forja/core/types//core/schema';
+	return `import { defineSchema } from '@forja/core';
 
 export const ${schemaVarName}Schema = defineSchema({
   name: '${schemaNameLower}',
@@ -108,12 +108,15 @@ export const ${schemaVarName}Schema = defineSchema({
 /**
  * Generate config template
  */
-export function configTemplate(dbType: "postgres" | "mysql" | "json"): string {
+export function configTemplate(
+	dbType: "postgres" | "mysql" | "json" | "mongodb",
+): string {
 	const adapterImport: Record<string, string> = {
 		postgres:
 			"import { createPostgresAdapter } from '@forja/adapter-postgres';",
 		mysql: "import { createMySqlAdapter } from '@forja/adapter-mysql';",
 		json: "import { createJsonAdapter } from '@forja/adapter-json';",
+		mongodb: "import { createMongoDbAdapter } from '@forja/adapter-mongodb';",
 	};
 
 	const connectionConfig: Record<string, string> = {

@@ -31,7 +31,7 @@ import {
 import { applyOnDeleteActions } from "./on-delete";
 import { MongoDBExporter } from "./export-import/exporter";
 import { MongoDBImporter } from "./export-import/importer";
-import type { ExportWriter, ImportReader } from "@forja/core/types/adapter";
+import type { ExportWriter, ImportReader } from "@forja/core";
 import type {
 	MongoDBConfig,
 	MongoFindResult,
@@ -39,8 +39,8 @@ import type {
 } from "./types";
 import { COUNTER_KEY_PREFIX } from "./types";
 import { getNextIds } from "./helpers";
-import type { QueryObject, QuerySelectObject } from "@forja/core/types";
-import type { ForjaEntry } from "@forja/core/types";
+import type { QueryObject, QuerySelectObject } from "@forja/core";
+import type { ForjaEntry } from "@forja/core";
 import type {
 	AlterOperation,
 	ConnectionState,
@@ -48,7 +48,7 @@ import type {
 	QueryMetadata,
 	QueryResult,
 	Transaction,
-} from "@forja/core/types/adapter";
+} from "@forja/core";
 import {
 	ForjaAdapterError,
 	throwNotConnected,
@@ -60,15 +60,14 @@ import {
 	throwQueryError,
 	throwMetaFieldAlreadyExists,
 	throwMetaFieldNotFound,
-} from "@forja/core/types/errors";
-import { validateQueryObject } from "@forja/core/types/utils";
+} from "@forja/core";
+import { validateQueryObject } from "@forja/core";
 import type {
 	IndexDefinition,
 	ISchemaRegistry,
 	SchemaDefinition,
-} from "@forja/core/types";
-import type { SchemaRegistry } from "@forja/core";
-import { FORJA_META_MODEL, FORJA_META_KEY_PREFIX } from "@forja/core/types";
+} from "@forja/core";
+import { FORJA_META_MODEL, FORJA_META_KEY_PREFIX } from "@forja/core";
 
 /**
  * MongoDB adapter implementation
@@ -122,7 +121,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 		if (this.state === "connected") return;
 		this.state = "connecting";
 		this._schemas = schemas;
-		this._translator = new MongoDBQueryTranslator(schemas as SchemaRegistry);
+		this._translator = new MongoDBQueryTranslator(schemas);
 
 		try {
 			this.nativeClient = new NativeMongoClientClass(this.config.uri, {

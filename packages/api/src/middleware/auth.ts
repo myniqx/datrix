@@ -4,7 +4,7 @@
  * Handles authentication from JWT token or session cookie
  */
 
-import { AuthUser } from "@forja/core/types/api";
+import { AuthUser } from "@forja/core";
 import type { AuthManager } from "../auth/manager";
 
 /**

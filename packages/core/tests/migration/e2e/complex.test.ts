@@ -26,7 +26,7 @@ import {
 	applyMigration,
 	autoResolveAmbiguous,
 } from "./setup/helpers";
-import type { DatabaseAdapter } from "@forja/core/types/adapter";
+import type { DatabaseAdapter } from "@forja/core";
 
 describe("Migration E2E - Complex Scenarios", () => {
 	const tmpDir = getTmpDir("complex");

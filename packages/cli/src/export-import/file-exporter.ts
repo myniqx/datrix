@@ -18,7 +18,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import fsSync from "node:fs";
 import archiver from "archiver";
-import type { IUpload } from "@forja/core/types/api/upload";
+import type { IUpload } from "@forja/core";
 import { logger, spinner } from "../utils/logger";
 
 export interface LedgerEntry {

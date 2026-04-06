@@ -229,7 +229,7 @@ populate: {
 Operations throw `ForjaAdapterError` on failure:
 
 ```typescript
-import { ForjaAdapterError } from "@forja/core/types/errors";
+import { ForjaAdapterError } from "@forja/core";
 
 try {
 	const result = await adapter.executeQuery({

@@ -5,11 +5,7 @@
  * Supports all relation types: belongsTo, hasOne, hasMany, manyToMany.
  */
 
-import type {
-	ForjaEntry,
-	ISchemaRegistry,
-	RelationField,
-} from "@forja/core/types";
+import type { ForjaEntry, ISchemaRegistry, RelationField } from "@forja/core";
 import type { PostgresQueryTranslator } from "../query-translator";
 import type { JoinClause, PopulateStrategy } from "./types";
 import {
@@ -20,7 +16,7 @@ import {
 	throwTargetModelNotFound,
 	throwJoinBuildError,
 	throwJunctionTableNotFound,
-} from "@forja/core/types/errors";
+} from "@forja/core";
 import { PostgresQueryObject } from "../types";
 
 /**

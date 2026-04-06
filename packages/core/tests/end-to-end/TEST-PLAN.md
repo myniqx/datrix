@@ -64,7 +64,7 @@ Dinamik ve karmaşık schemalar oluşturmak için bir generator:
 // setup/schemas.ts
 
 import { defineSchema } from "@forja/core"; >> bu definition yanlis. boyle bir paket yok.
-import type { SchemaDefinition } from "@forja/core/types";
+import type { SchemaDefinition } from "@forja/core";
 
 // Field type factories
 const stringField = (opts?: Partial<StringFieldDef>) => ({ >> bunlari yazmadan once hangi tipler kullanilmis kontrol etmelisin

@@ -19,10 +19,10 @@ import {
 } from "../middleware/permission";
 import { jsonResponse, forjaErrorResponse } from "./utils";
 import { handlerError } from "../errors/api-error";
-import { ForjaError, ForjaValidationError } from "@forja/core/types/errors";
-import type { ForjaEntry } from "@forja/core/types";
-import { ResponseData } from "@forja/core/types/api";
-import { IApiPlugin } from "@forja/core/types/api";
+import { ForjaError, ForjaValidationError } from "@forja/core";
+import type { ForjaEntry } from "@forja/core";
+import { ResponseData } from "@forja/core";
+import { IApiPlugin } from "@forja/core";
 
 /**
  * Handle GET request

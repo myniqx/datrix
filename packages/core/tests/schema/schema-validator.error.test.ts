@@ -5,7 +5,7 @@
  * Target: 95%+ coverage
  */
 
-import { validatePartial, validateSchema } from "../../src";
+import { validatePartial, validateSchema } from "../../src/validator";
 import {
 	assertSchema,
 	isValid,

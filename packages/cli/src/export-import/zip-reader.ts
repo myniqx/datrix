@@ -5,8 +5,8 @@
  */
 
 import AdmZip from "adm-zip";
-import type { ImportReader, ExportMeta } from "@forja/core/types/adapter";
-import type { SchemaDefinition } from "@forja/core/types";
+import type { ImportReader, ExportMeta } from "@forja/core";
+import type { SchemaDefinition } from "@forja/core";
 import { decodeLine } from "./csv";
 import { logger } from "../utils/logger";
 

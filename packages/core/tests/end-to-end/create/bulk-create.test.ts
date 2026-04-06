@@ -25,7 +25,7 @@ import {
 	expectAutoFields,
 	measureTime,
 } from "../setup";
-import { expectForjaErrorAsync } from "@forja/core/types/test/helpers";
+import { expectForjaErrorAsync } from "../../test/helpers";
 
 describe("Bulk Create", () => {
 	let forja: Forja;

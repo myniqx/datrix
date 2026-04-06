@@ -11,11 +11,11 @@ import type {
 	QueryPopulate,
 	QueryPopulateOptions,
 	QuerySelectObject,
-} from "@forja/core/types";
-import type { ForjaEntry, ISchemaRegistry } from "@forja/core/types";
+} from "@forja/core";
+import type { ForjaEntry, ISchemaRegistry } from "@forja/core";
 import type { MongoClient } from "../mongo-client";
 import type { MongoDBQueryTranslator } from "../query-translator";
-import { throwMaxDepthExceeded } from "@forja/core/types/errors";
+import { throwMaxDepthExceeded } from "@forja/core";
 
 /**
  * Maximum populate nesting depth

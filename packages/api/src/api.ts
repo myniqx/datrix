@@ -5,26 +5,26 @@
  * Manages authentication schema, user sync, and auth routes.
  */
 
-import { BasePlugin } from "@forja/core/plugin/plugin";
+import { BasePlugin } from "@forja/core";
 import type {
 	PluginContext,
 	QueryContext,
 	SchemaDefinition,
-} from "@forja/core/types";
-import { DefaultPermission, defineSchema } from "@forja/core/types";
-import { DEFAULT_API_AUTH_CONFIG } from "@forja/core/types/api";
+} from "@forja/core";
+import { DefaultPermission, defineSchema } from "@forja/core";
+import { DEFAULT_API_AUTH_CONFIG } from "@forja/core";
 import { AuthManager } from "./auth/manager";
 import { createUnifiedAuthHandler } from "./handler/auth-handler";
 import { handleCrudRequest } from "./handler/unified";
 import { handlerError } from "./errors/api-error";
 import { ApiConfig } from "./types";
 import { Forja } from "@forja/core";
-import type { IApiPlugin } from "@forja/core/types/api";
-import type { ForjaEntry, ForjaRecord } from "@forja/core/types";
+import type { IApiPlugin } from "@forja/core";
+import type { ForjaEntry, ForjaRecord } from "@forja/core";
 import { forjaErrorResponse } from "./handler/utils";
-import type { AuthUser, IUpload } from "@forja/core/types/api";
-import { QueryObject } from "@forja/core/types";
-import { FallbackInput } from "@forja/core/types";
+import type { AuthUser, IUpload } from "@forja/core";
+import { QueryObject } from "@forja/core";
+import { FallbackInput } from "@forja/core";
 
 export class ApiPlugin<TRole extends string = string>
 	extends BasePlugin<ApiConfig<TRole>>

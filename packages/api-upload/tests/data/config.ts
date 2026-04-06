@@ -10,7 +10,7 @@ import { defineConfig } from "@forja/core";
 import { ApiPlugin } from "@forja/api";
 import { Upload, LocalStorageProvider } from "@forja/api-upload";
 import { JsonAdapter } from "../../../adapter-json/src/index";
-import type { ForjaConfig } from "@forja/core/types";
+import type { ForjaConfig } from "@forja/core";
 
 /** Resolution names used across upload tests */
 export type TestResolutions = "thumbnail" | "small" | "medium";

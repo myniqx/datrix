@@ -5,7 +5,7 @@
  */
 
 import type { Forja } from "@forja/core";
-import type { ForjaEntry } from "@forja/core/types";
+import type { ForjaEntry } from "@forja/core";
 import { expect } from "vitest";
 
 // ============================================================================

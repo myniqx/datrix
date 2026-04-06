@@ -1,5 +1,5 @@
 import type { Pool } from "pg";
-import type { ExportWriter } from "@forja/core/types/adapter";
+import type { ExportWriter } from "@forja/core";
 import type { PostgresAdapter } from "../adapter";
 
 const CHUNK_SIZE = 1000;

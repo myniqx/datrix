@@ -4,6 +4,25 @@
 	"description": "Command-line tools for Forja framework",
 	"author": "Forja Contributors",
 	"license": "MIT",
+	"homepage": "https://tryforja.com",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/myniqx/forja.git",
+		"directory": "packages/cli"
+	},
+	"bugs": {
+		"url": "https://github.com/myniqx/forja/issues"
+	},
+	"keywords": [
+		"cli",
+		"typescript",
+		"migrate",
+		"codegen",
+		"forja"
+	],
+	"engines": {
+		"node": ">=18.0.0"
+	},
 	"main": "./dist/index.js",
 	"module": "./dist/index.mjs",
 	"types": "./dist/index.d.ts",
@@ -21,18 +40,24 @@
 		"dist"
 	],
 	"sideEffects": false,
+	"publishConfig": {
+		"access": "public"
+	},
 	"scripts": {
 		"build": "tsup",
 		"dev": "tsup --watch",
 		"type-check": "tsc --noEmit",
 		"clean": "rm -rf dist"
 	},
+	"peerDependencies": {
+		"@forja/core": "^0.1.0"
+	},
 	"dependencies": {
-		"@forja/core": "workspace:*",
 		"adm-zip": "^0.5.16",
 		"archiver": "^7.0.1"
 	},
 	"devDependencies": {
+		"@forja/core": "workspace:*",
 		"@types/adm-zip": "^0.5.8",
 		"@types/archiver": "^7.0.0",
 		"@types/node": "^20.11.17",

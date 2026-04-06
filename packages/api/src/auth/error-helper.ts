@@ -5,7 +5,7 @@
  * Provides consistent error messages and suggestions.
  */
 
-import { ForjaAuthError } from "@forja/core/types/errors";
+import { ForjaAuthError } from "@forja/core";
 
 // ============================================================================
 // JWT Errors

@@ -14,8 +14,8 @@ import {
 	expectApiSingle,
 	expectApiMulti,
 	expectApiError,
-} from "@forja/core/types/test/helpers";
-import type { MediaEntry } from "@forja/core/types/api";
+} from "../../core/tests/test/helpers";
+import type { MediaEntry } from "@forja/core";
 import { createUploadTestConfig } from "./data/config";
 import {
 	createCheckerboardPng,

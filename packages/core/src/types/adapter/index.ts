@@ -220,35 +220,6 @@ export function isDatabaseAdapter(
 }
 
 /**
- * Adapter factory type
- */
-export type AdapterFactory<TConfig = object> = (
-	config: TConfig,
-) => DatabaseAdapter<TConfig>;
-
-/**
- * Registered adapters
- */
-export type AdapterRegistry = {
-	readonly postgres?: AdapterFactory;
-	readonly mysql?: AdapterFactory;
-	readonly mongodb?: AdapterFactory;
-};
-
-/**
- * Adapter name
- */
-export type AdapterName = keyof AdapterRegistry;
-
-/**
- * Query builder context
- */
-export interface QueryBuilderContext {
-	readonly schema: SchemaDefinition;
-	readonly adapter: DatabaseAdapter;
-}
-
-/**
  * SQL parameter placeholder style
  */
 export type ParameterStyle =

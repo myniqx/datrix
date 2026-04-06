@@ -22,7 +22,7 @@ import {
 	expectAutoFields,
 	expectValidTimestamps,
 } from "../setup";
-import { expectForjaErrorAsync } from "@forja/core/types/test/helpers";
+import { expectForjaErrorAsync } from "../../test/helpers";
 
 describe("Single Create", () => {
 	let forja: Forja;

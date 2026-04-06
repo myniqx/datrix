@@ -5,19 +5,19 @@ import {
 	QuerySelectObject,
 	QuerySelect,
 	QueryCountObject,
-} from "@forja/core/types";
+} from "@forja/core";
 import {
 	ForjaEntry,
 	ForjaRecord,
 	RelationField,
 	SchemaDefinition,
-} from "@forja/core/types";
+} from "@forja/core";
 import { JsonTableFile } from "./types";
 import type { JsonAdapter } from "./adapter";
 import {
 	throwInvalidRelationWhereSyntax,
 	throwInvalidWhereField,
-} from "@forja/core/types/errors";
+} from "@forja/core";
 
 export class JsonQueryRunner {
 	private schema: SchemaDefinition | undefined;

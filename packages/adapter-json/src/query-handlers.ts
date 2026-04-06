@@ -1,11 +1,11 @@
-import { ForjaEntry } from "@forja/core/types";
+import { ForjaEntry } from "@forja/core";
 import {
 	QueryCountObject,
 	QueryInsertObject,
 	QueryObject,
 	QuerySelectObject,
 	QueryUpdateObject,
-} from "@forja/core/types";
+} from "@forja/core";
 import { JsonQueryRunner } from "./runner";
 import { JsonPopulator } from "./populate";
 import {
@@ -17,7 +17,7 @@ import {
 } from "./table-utils";
 import type { JsonAdapter } from "./adapter";
 import type { ExecuteQueryOptions } from "./types";
-import { throwQueryMissingData } from "@forja/core/types/errors";
+import { throwQueryMissingData } from "@forja/core";
 
 export type QueryHandlerResult<T extends ForjaEntry> = {
 	rows: T[];

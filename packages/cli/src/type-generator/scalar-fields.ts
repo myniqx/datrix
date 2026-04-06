@@ -4,7 +4,7 @@
  * Generates TypeScript type strings for non-relation fields.
  */
 
-import type { ArrayField, EnumField, FieldDefinition } from "@forja/core/types";
+import type { ArrayField, EnumField, FieldDefinition } from "@forja/core";
 
 /**
  * Generate TypeScript type string for a scalar field

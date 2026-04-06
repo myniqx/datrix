@@ -5,8 +5,8 @@
  * Framework-agnostic - works with Next.js, Express, Fastify, etc.
  */
 
-import { ForjaError } from "@forja/core/types/errors";
-import { ForjaEntry } from "@forja/core/types";
+import { ForjaError } from "@forja/core";
+import { ForjaEntry } from "@forja/core";
 
 /**
  * Next.js App Router request

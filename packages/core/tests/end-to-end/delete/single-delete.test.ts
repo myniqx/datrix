@@ -16,7 +16,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { Forja } from "@forja/core";
 import fs from "node:fs/promises";
 import { createTestConfig, getTmpDir, setupTables } from "../setup";
-import { expectForjaErrorAsync } from "@forja/core/types/test/helpers";
+import { expectForjaErrorAsync } from "../../test/helpers";
 
 describe("Delete Operations", () => {
 	let forja: Forja;

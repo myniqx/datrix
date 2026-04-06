@@ -110,59 +110,6 @@ export type PluginFactory<TOptions = Record<string, unknown>> = (
 ) => ForjaPlugin<TOptions>;
 
 /**
- * Auth plugin types
- */
-
-// Permission types are now in core/permission.ts
-// Re-export for backwards compatibility
-export type {
-	PermissionAction,
-	SchemaPermission,
-	FieldPermission,
-	PermissionValue,
-	PermissionContext,
-	PermissionFn,
-} from "./permission";
-
-/**
- * Upload plugin types
- */
-
-/**
- * Upload file data
- */
-export interface UploadFile {
-	readonly filename: string;
-	readonly originalName: string;
-	readonly mimetype: string;
-	readonly size: number;
-	readonly buffer: Uint8Array;
-}
-
-/**
- * Upload result
- */
-export interface UploadResult {
-	readonly key: string;
-	readonly url: string;
-	readonly size: number;
-	readonly mimetype: string;
-	readonly uploadedAt: Date;
-}
-
-/**
- * Storage provider interface
- */
-export interface StorageProvider {
-	readonly name: string;
-
-	upload(file: UploadFile): Promise<UploadResult>;
-	delete(key: string): Promise<void>;
-	getUrl(key: string): Promise<string>;
-	exists(key: string): Promise<boolean>;
-}
-
-/**
  * Upload error
  */
 export class UploadError extends PluginError {

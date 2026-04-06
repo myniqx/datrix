@@ -4,12 +4,12 @@
  * Type definitions for middleware system
  */
 
-import type { ParsedQuery } from "@forja/core/types/api";
-import type { SchemaDefinition } from "@forja/core/types";
-import type { PermissionAction } from "@forja/core/types";
+import type { ParsedQuery } from "@forja/core";
+import type { SchemaDefinition } from "@forja/core";
+import type { PermissionAction } from "@forja/core";
 import type { Forja } from "@forja/core";
-import { AuthUser, IApiPlugin } from "@forja/core/types/api";
-import { FallbackInput } from "@forja/core/types";
+import { AuthUser, IApiPlugin } from "@forja/core";
+import { FallbackInput } from "@forja/core";
 
 /**
  * HTTP Methods

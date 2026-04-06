@@ -5,8 +5,8 @@
  */
 
 import { defineConfig, Forja } from "@forja/core";
-import type { ForjaConfig } from "@forja/core/types";
-import type { SchemaDefinition } from "@forja/core/types";
+import type { ForjaConfig } from "@forja/core";
+import type { SchemaDefinition } from "@forja/core";
 import path from "node:path";
 import { getAdapter, getAdapterType } from "./adapter";
 

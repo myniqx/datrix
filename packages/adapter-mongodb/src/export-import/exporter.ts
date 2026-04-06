@@ -1,5 +1,5 @@
 import type { Db } from "mongodb";
-import type { ExportWriter } from "@forja/core/types/adapter";
+import type { ExportWriter } from "@forja/core";
 import type { MongoDBAdapter } from "../adapter";
 
 const CHUNK_SIZE = 1000;

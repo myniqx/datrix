@@ -5,7 +5,7 @@
  * Target: 95%+ coverage
  */
 
-import { validateField } from "../../src";
+import { validateField } from "../../src/validator";
 import { sampleFields } from "../test/fixtures";
 import { expectFailureError } from "../test/helpers";
 import { describe, it, expect } from "vitest";

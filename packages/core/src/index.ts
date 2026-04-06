@@ -8,25 +8,11 @@
 export { Forja, defineConfig } from "./forja";
 export type { ForjaInitOptions, ConfigFactory } from "./forja";
 
-// Re-export schema system
-export * from "./schema";
-
-// Re-export validator system
-export * from "./validator";
-
-// Re-export query builder
-export * from "./query-builder";
-
-// Re-export migration system
-export * from "./migration";
-
-// This is the final part!
-
-// for adapters
+export * from "./types/core";
 export * from "./types/adapter";
-
-// for cli
+export * from "./types/api";
 export * from "./types/cli";
-
-// for utils
-export * from "./types/utils/query";
+export * from "./types/errors";
+export * from "./types/utils";
+export * from "./plugin/plugin";
+export * from "./migration";

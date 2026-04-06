@@ -18,11 +18,11 @@ import { MySQLPopulator } from "./populate";
 import { MySQLClient } from "./mysql-client";
 import { MySQLExporter } from "./export-import/exporter";
 import { MySQLImporter } from "./export-import/importer";
-import { ExportWriter, ImportReader } from "@forja/core/types/adapter";
+import { ExportWriter, ImportReader } from "@forja/core";
 import type { MySQLConfig, MySQLQueryObject } from "./types";
 import { getMySQLTypeWithModifiers, parseConnectionString } from "./types";
-import { QueryObject, QuerySelectObject } from "@forja/core/types";
-import { ForjaEntry } from "@forja/core/types";
+import { QueryObject, QuerySelectObject } from "@forja/core";
+import { ForjaEntry } from "@forja/core";
 import {
 	AlterOperation,
 	ConnectionState,
@@ -30,7 +30,7 @@ import {
 	QueryMetadata,
 	QueryResult,
 	Transaction,
-} from "@forja/core/types/adapter";
+} from "@forja/core";
 import {
 	ForjaAdapterError,
 	throwNotConnected,
@@ -42,15 +42,15 @@ import {
 	throwMetaFieldAlreadyExists,
 	throwMetaFieldNotFound,
 	AdapterErrorCode,
-} from "@forja/core/types/errors";
-import { validateQueryObject } from "@forja/core/types/utils";
+} from "@forja/core";
+import { validateQueryObject } from "@forja/core";
 import {
 	FieldDefinition,
 	IndexDefinition,
 	ISchemaRegistry,
 	SchemaDefinition,
-} from "@forja/core/types";
-import { FORJA_META_MODEL, FORJA_META_KEY_PREFIX } from "@forja/core/types";
+} from "@forja/core";
+import { FORJA_META_MODEL, FORJA_META_KEY_PREFIX } from "@forja/core";
 import { escapeIdentifier, escapeValue } from "./helpers";
 
 /**

@@ -13,8 +13,8 @@ import type {
 	ResultSetHeader,
 	RowDataPacket,
 } from "mysql2/promise";
-import { AdapterErrorCode, ForjaAdapterError } from "@forja/core/types/errors";
-import { QueryObject } from "@forja/core/types";
+import { AdapterErrorCode, ForjaAdapterError } from "@forja/core";
+import { QueryObject } from "@forja/core";
 
 const IS_DEBUG = process.env["NODE_ENV"] !== "production" && false;
 

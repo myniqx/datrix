@@ -11,9 +11,9 @@ import type {
 	ForeignKeyReference,
 	ForjaEntry,
 	ISchemaRegistry,
-} from "@forja/core/types";
+} from "@forja/core";
 import type { MongoClient } from "./mongo-client";
-import { ForjaAdapterError } from "@forja/core/types/errors";
+import { ForjaAdapterError } from "@forja/core";
 
 interface FkDependency {
 	readonly tableName: string;

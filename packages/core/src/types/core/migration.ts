@@ -299,7 +299,7 @@ export interface MigrationExecutionResult {
 /**
  * Migration plan (list of migrations to execute)
  */
-export interface MigrationPlan {
+export interface MigrationFilePlan {
 	readonly migrations: readonly Migration[];
 	readonly target?: string; // Target version (undefined = latest)
 }
@@ -398,7 +398,7 @@ export interface MigrationRunner {
 	/**
 	 * Get migration plan
 	 */
-	getPlan(options?: { readonly target?: string }): MigrationPlan;
+	getPlan(options?: { readonly target?: string }): MigrationFilePlan;
 }
 
 /**

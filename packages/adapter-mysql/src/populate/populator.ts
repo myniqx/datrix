@@ -9,7 +9,7 @@ import type {
 	QueryPopulate,
 	QueryPopulateOptions,
 	QuerySelectObject,
-} from "@forja/core/types";
+} from "@forja/core";
 import type { MySQLQueryTranslator } from "../query-translator";
 import { escapeIdentifier } from "../helpers";
 import type { PopulateStrategy, PopulateOptionsAnalysis } from "./types";
@@ -17,10 +17,10 @@ import { JoinBuilder } from "./join-builder";
 import { AggregationBuilder } from "./aggregation-builder";
 import { ResultProcessor } from "./result-processor";
 import { MySQLClient } from "../mysql-client";
-import { throwMaxDepthExceeded } from "@forja/core/types/errors";
-import { ForjaEntry } from "@forja/core/types";
+import { throwMaxDepthExceeded } from "@forja/core";
+import { ForjaEntry } from "@forja/core";
 import { MySQLQueryObject } from "../types";
-import { ISchemaRegistry } from "@forja/core/types";
+import { ISchemaRegistry } from "@forja/core";
 
 /**
  * Maximum populate nesting depth

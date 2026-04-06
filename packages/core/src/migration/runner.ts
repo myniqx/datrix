@@ -10,8 +10,8 @@ import type {
 	MigrationHistory,
 	MigrationHistoryRecord,
 	MigrationExecutionResult,
-	MigrationPlan,
 	MigrationOperation,
+	MigrationFilePlan,
 } from "../types/core/migration";
 import { MigrationSystemError } from "../types/core/migration";
 import { DatabaseAdapter, Transaction } from "../types/adapter";
@@ -317,7 +317,7 @@ export class ForgeMigrationRunner implements MigrationRunner {
 	/**
 	 * Get migration plan
 	 */
-	getPlan(options?: { readonly target?: string }): MigrationPlan {
+	getPlan(options?: { readonly target?: string }): MigrationFilePlan {
 		try {
 			let migrations = [...this.migrations];
 
