@@ -23,12 +23,12 @@ import {
 	throwTransactionSavepointNotSupported,
 	throwRawQueryNotSupported,
 } from "@forja/core/types/errors";
-import { QueryObject } from "@forja/core/types/core/query-builder";
+import { QueryObject } from "@forja/core/types";
 import {
 	ForjaEntry,
 	IndexDefinition,
 	SchemaDefinition,
-} from "@forja/core/types/core/schema";
+} from "@forja/core/types";
 import type { JsonAdapter } from "./adapter";
 
 /**

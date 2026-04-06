@@ -13,9 +13,9 @@ import type {
 	ForjaEntry,
 } from "./schema";
 import type { DatabaseAdapter } from "../adapter";
-import type { ForjaConfig } from "../config";
 import { QueryObject } from "./query-builder";
 import { QueryContext } from "./query-context";
+import { ForjaConfig } from "./config";
 
 export type { SchemaDefinition } from "./schema";
 

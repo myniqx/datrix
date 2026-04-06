@@ -11,7 +11,7 @@
  * - JSON/array: stringified, wrapped in quotes
  */
 
-import type { SchemaDefinition } from "@forja/core/types/core/schema";
+import type { SchemaDefinition } from "@forja/core/types";
 
 const NULL_TOKEN = "\\N";
 

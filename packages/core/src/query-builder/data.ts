@@ -17,13 +17,13 @@ import {
 	ForjaEntry,
 	ISchemaRegistry,
 	AnyRelationInputObject,
-} from "@forja/core/types/core/schema";
+} from "../types/core/schema";
 import type {
 	NormalizedNestedData,
 	NormalizedRelationOperations,
 	NormalizedRelationUpdate,
 	QueryRelations,
-} from "@forja/core/types/core/query-builder";
+} from "../types/core/query-builder";
 import { throwInvalidField, throwInvalidValue } from "./error-helper";
 
 /**

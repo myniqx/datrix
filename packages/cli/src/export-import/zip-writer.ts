@@ -16,8 +16,8 @@ import fsSync from "node:fs";
 import path from "node:path";
 import archiver from "archiver";
 import type { ExportWriter, ExportMeta } from "@forja/core/types/adapter";
-import type { SchemaDefinition } from "@forja/core/types/core/schema";
-import { sortSchemasByDependency } from "@forja/core/types/core/schema";
+import type { SchemaDefinition } from "@forja/core/types";
+import { sortSchemasByDependency } from "@forja/core/types";
 import { encodeHeader, encodeRow } from "./csv";
 import { logger } from "../utils/logger";
 

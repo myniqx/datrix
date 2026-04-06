@@ -5,11 +5,8 @@
  * Moved here from plugin-upload so api package can reference it directly.
  */
 
-import type {
-	ForjaEntry,
-	SchemaDefinition,
-	SchemaPermission,
-} from "../core/schema";
+import { SchemaPermission } from "../core/permission";
+import type { ForjaEntry, SchemaDefinition } from "../core/schema";
 
 /**
  * Raw file data received from multipart/form-data parsing

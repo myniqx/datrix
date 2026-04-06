@@ -272,13 +272,13 @@ Lifecycle hooks let you intercept and modify data at each stage of a write or re
 
 ```typescript
 import { defineSchema } from "@forja/core"
-import type { QueryContext } from "@forja/core/types/core/query-context"
+import type { QueryContext } from "@forja/core/types"
 import type {
   QueryInsertObject,
   QueryUpdateObject,
   QueryDeleteObject,
   QuerySelectObject,
-} from "@forja/core/types/core/query-builder"
+} from "@forja/core/types"
 
 const postSchema = defineSchema({
   name: "post",

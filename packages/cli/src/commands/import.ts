@@ -3,7 +3,7 @@ import fsSync from "node:fs";
 import * as readline from "readline";
 import type { DatabaseAdapter } from "@forja/core/types/adapter";
 import type { IApiPlugin } from "@forja/core/types/api/interface";
-import type { IForja } from "@forja/core/types/forja";
+import type { IForja } from "@forja/core/types";
 import { logger, spinner, red, yellow } from "../utils/logger";
 import { ZipImportReader } from "../export-import/zip-reader";
 import { FileImporter } from "../export-import/file-importer";

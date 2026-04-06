@@ -14,7 +14,7 @@ import type {
 	OrderByItem,
 	OrderDirection,
 	OrderByClause,
-} from "@forja/core/types/core/query-builder";
+} from "../types/core/query-builder";
 
 import { normalizeWhere } from "./where";
 import { normalizePopulateArray } from "./populate";
@@ -32,7 +32,7 @@ import type {
 	ForjaEntry,
 	ISchemaRegistry as ISchemaRegistry,
 	SchemaDefinition,
-} from "@forja/core/types/core/schema";
+} from "../types/core/schema";
 
 /**
  * Deep clone an object (safe for JSON-serializable data)

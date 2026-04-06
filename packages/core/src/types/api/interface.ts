@@ -1,7 +1,7 @@
 import { DefaultPermission } from "../core/permission";
 import { AuthUser, IAuthManager } from "./auth";
 import { IUpload } from "./upload";
-import { IForja } from "../forja";
+import { IForja } from "../core/forja";
 import { ForjaPlugin } from "../core/plugin";
 
 /**

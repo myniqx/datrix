@@ -26,25 +26,25 @@ export interface LifecycleHooks<T extends ForjaEntry = ForjaEntry> {
 		ctx: QueryContext,
 	) => Promise<QueryInsertObject<T>> | QueryInsertObject<T>;
 	readonly afterCreate?: (
-		records: readonly T[],
+		records: T[],
 		ctx: QueryContext,
-	) => Promise<readonly T[]> | readonly T[];
+	) => Promise<T[]> | T[];
 
 	readonly beforeUpdate?: (
 		query: QueryUpdateObject<T>,
 		ctx: QueryContext,
 	) => Promise<QueryUpdateObject<T>> | QueryUpdateObject<T>;
 	readonly afterUpdate?: (
-		records: readonly T[],
+		records: T[],
 		ctx: QueryContext,
-	) => Promise<readonly T[]> | readonly T[];
+	) => Promise<T[]> | T[];
 
 	readonly beforeDelete?: (
 		query: QueryDeleteObject<T>,
 		ctx: QueryContext,
 	) => Promise<QueryDeleteObject<T>> | QueryDeleteObject<T>;
 	readonly afterDelete?: (
-		records: readonly T[],
+		records: T[],
 		ctx: QueryContext,
 	) => Promise<void> | void;
 
@@ -53,8 +53,5 @@ export interface LifecycleHooks<T extends ForjaEntry = ForjaEntry> {
 		query: QuerySelectObject<T>,
 		ctx: QueryContext,
 	) => Promise<QuerySelectObject<T>> | QuerySelectObject<T>;
-	readonly afterFind?: (
-		records: readonly T[],
-		ctx: QueryContext,
-	) => Promise<readonly T[]> | readonly T[];
+	readonly afterFind?: (records: T[], ctx: QueryContext) => Promise<T[]> | T[];
 }

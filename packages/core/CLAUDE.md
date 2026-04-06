@@ -107,7 +107,7 @@ Forja uses a layered validation architecture. Each layer has specific responsibi
 
 ### Validation Error Codes
 
-Defined in `@forja/core/types/core/validator.ts`:
+Defined in `@forja/core/types`:
 
 - `REQUIRED` - Required field missing
 - `TYPE_MISMATCH` - Wrong type

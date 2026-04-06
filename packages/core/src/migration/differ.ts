@@ -10,11 +10,8 @@ import {
 	SchemaComparison,
 	SchemaDiff,
 	SchemaDiffer,
-} from "@forja/core/types/core/migration";
-import {
-	FieldDefinition,
-	SchemaDefinition,
-} from "@forja/core/types/core/schema";
+} from "../types/core/migration";
+import { FieldDefinition, SchemaDefinition } from "../types/core/schema";
 
 /**
  * Type guard for SchemaDefinition

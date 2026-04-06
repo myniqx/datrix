@@ -1,6 +1,6 @@
 import type { Pool, RowDataPacket } from "mysql2/promise";
 import type { ExportWriter } from "@forja/core/types/adapter";
-import type { SchemaDefinition } from "@forja/core/types/core/schema";
+import type { SchemaDefinition } from "@forja/core/types";
 import type { MySQLAdapter } from "../adapter";
 
 const CHUNK_SIZE = 1000;

@@ -15,17 +15,14 @@ import type {
 	QueryDeleteObject,
 	QuerySelect,
 	QueryCountObject,
-} from "@forja/core/types/core/query-builder";
+} from "@forja/core/types";
 import type { QueryTranslator } from "@forja/core/types/adapter";
-import {
-	ForjaAdapterError,
-	throwQueryError,
-} from "@forja/core/types/errors/adapter";
+import { ForjaAdapterError, throwQueryError } from "@forja/core/types/errors";
 import type {
 	SchemaDefinition,
 	FieldDefinition,
 	ISchemaRegistry,
-} from "@forja/core/types/core/schema";
+} from "@forja/core/types";
 import { ForjaEntry } from "@forja/core/types";
 import { MySQLQueryObject, TranslateResult } from "./types";
 import { escapeIdentifier, escapeValue } from "./helpers";

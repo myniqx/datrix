@@ -9,7 +9,7 @@ import type {
 	ForjaEntry,
 	ISchemaRegistry,
 	RelationField,
-} from "@forja/core/types/core/schema";
+} from "@forja/core/types";
 import type { PostgresQueryTranslator } from "../query-translator";
 import type { JoinClause, PopulateStrategy } from "./types";
 import {
@@ -20,8 +20,8 @@ import {
 	throwTargetModelNotFound,
 	throwJoinBuildError,
 	throwJunctionTableNotFound,
-} from "@forja/core/types/errors/adapter";
-import { PostgresQueryObject } from "@forja/adapter-postgres/types";
+} from "@forja/core/types/errors";
+import { PostgresQueryObject } from "../types";
 
 /**
  * JOIN Builder Class

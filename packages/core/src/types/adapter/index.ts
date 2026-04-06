@@ -7,15 +7,15 @@
  * Error handling: All methods throw ForjaAdapterError on failure instead of returning Result.
  */
 
-import { QueryObject, WhereClause } from "./core/query-builder";
+import { QueryObject, WhereClause } from "../core/query-builder";
 import {
 	FieldDefinition,
 	ForjaEntry,
 	IndexDefinition,
 	ISchemaRegistry,
 	SchemaDefinition,
-} from "./core/schema";
-import { ForjaAdapterError } from "./errors/adapter";
+} from "../core/schema";
+import { ForjaAdapterError } from "../errors/adapter";
 
 /**
  * Export data metadata

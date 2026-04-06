@@ -18,12 +18,9 @@ import type {
 	QueryDeleteObject,
 	QuerySelect,
 	QuerySelectObject,
-} from "@forja/core/types/core/query-builder";
+} from "@forja/core/types";
 import type { SchemaRegistry } from "@forja/core";
-import type {
-	SchemaDefinition,
-	FieldDefinition,
-} from "@forja/core/types/core/schema";
+import type { SchemaDefinition, FieldDefinition } from "@forja/core/types";
 import { ForjaEntry } from "@forja/core/types";
 import { throwQueryError } from "@forja/core/types/errors";
 import type {

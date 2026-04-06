@@ -11,7 +11,7 @@ import {
 	PopulateClause,
 	PopulateOptions,
 	QueryPrimitive,
-} from "@forja/core/types/core/query-builder";
+} from "@forja/core/types";
 
 export function queryToParams<T extends ForjaEntry = ForjaRecord>(
 	query: ParsedQuery<T> | undefined,

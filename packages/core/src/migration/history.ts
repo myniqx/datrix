@@ -12,9 +12,9 @@ import {
 	MigrationHistoryRecord,
 	MigrationStatus,
 	MigrationSystemError,
-} from "@forja/core/types/core/migration";
-import { IForja } from "@forja/core/types/forja";
-import { ForjaEntry } from "@forja/core/types";
+} from "../types/core/migration";
+import { IForja } from "../types/core/forja";
+import { ForjaEntry } from "../types/core/schema";
 import { DEFAULT_MIGRATION_MODEL, FORJA_META_MODEL } from "./schema";
 
 /**

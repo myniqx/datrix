@@ -5,11 +5,8 @@
  * Provides detailed error information for debugging.
  */
 
-import {
-	ValidationError,
-	ValidationErrorCode,
-} from "@forja/core/types/core/validator";
-import { ForjaValidationError } from "@forja/core/types/errors/core/validation";
+import { ValidationError, ValidationErrorCode } from "../types/core/validator";
+import { ForjaValidationError } from "../types/errors/core/validation";
 
 /**
  * Create a validation error

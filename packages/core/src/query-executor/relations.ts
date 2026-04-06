@@ -11,18 +11,15 @@
  */
 
 import {
-	SchemaDefinition,
-	ISchemaRegistry,
-	ForjaEntry,
-	ForjaRecord,
-} from "@forja/core/types/core/schema";
-import {
 	QueryRelations,
 	NormalizedRelationOperations,
 	WhereClause,
-} from "@forja/core/types/core/query-builder";
-import { QueryRunner } from "@forja/core/types/adapter";
+} from "../types/core/query-builder";
 import { validateData } from "./validation";
+import { ForjaEntry, ForjaRecord } from "../types/core/entry";
+import { SchemaDefinition } from "../types";
+import { QueryRunner } from "../types/adapter";
+import { ISchemaRegistry } from "../types/core/schema";
 
 /**
  * Resolved relation operations (mutable, after CUD resolution)

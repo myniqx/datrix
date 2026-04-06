@@ -1,11 +1,11 @@
-import { ForjaEntry } from "@forja/core/types/core/schema";
+import { ForjaEntry } from "@forja/core/types";
 import {
 	QueryCountObject,
 	QueryInsertObject,
 	QueryObject,
 	QuerySelectObject,
 	QueryUpdateObject,
-} from "@forja/core/types/core/query-builder";
+} from "@forja/core/types";
 import { JsonQueryRunner } from "./runner";
 import { JsonPopulator } from "./populate";
 import {

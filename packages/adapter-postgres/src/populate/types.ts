@@ -4,7 +4,7 @@
  * Type definitions for populate functionality.
  */
 
-import type { QuerySelect } from "@forja/core/types/core/query-builder";
+import type { QuerySelect } from "@forja/core/types";
 
 /**
  * Populate strategy selection

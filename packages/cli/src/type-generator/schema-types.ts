@@ -10,10 +10,7 @@
  *   - type UpdateUserInput = Partial<Omit<UserBase, keyof ForjaEntry>> & UserRelationUpdate
  */
 
-import type {
-	RelationField,
-	SchemaDefinition,
-} from "@forja/core/types/core/schema";
+import type { RelationField, SchemaDefinition } from "@forja/core/types";
 import { toPascalCase } from "../utils/templates";
 import {
 	scalarFieldToTypeString,

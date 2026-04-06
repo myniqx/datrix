@@ -10,28 +10,6 @@ import { QuerySelect } from "./query-builder";
 import type { ForjaEntry } from "./entry";
 import type { LifecycleHooks } from "./hooks";
 
-// Re-export permission types for convenience
-export type {
-	SchemaPermission,
-	FieldPermission,
-	PermissionValue,
-	PermissionAction,
-	FieldPermissionAction,
-	PermissionContext,
-	PermissionFn,
-	DefaultPermission,
-	PermissionCheckResult,
-	FieldPermissionCheckResult,
-} from "./permission";
-
-export {
-	isPermissionFn,
-	isRoleArray,
-	isMixedPermissionArray,
-	validatePermissionRoles,
-	validateFieldPermissionRoles,
-} from "./permission";
-
 /**
  * Reserved field names that are automatically added to all schemas
  * and cannot be defined manually by users
@@ -535,59 +513,6 @@ export interface SchemaDefinition<
 	 */
 	readonly _isJunctionTable?: boolean;
 }
-
-/**
- * Relation brand symbol (compile-time only, zero runtime cost)
- * Used to distinguish relation fields from scalar fields in the type system
- */
-declare const __relationBrand: unique symbol;
-
-/**
- * Branded type for relation fields
- *
- * At runtime: Contains the ID (string | number)
- * At type level: Represents the full related entity
- *
- * This allows type-safe nested WHERE queries while keeping runtime simple.
- *
- * @template T - The related entity type
- *
- * @example
- * ```ts
- * type Post = {
- *   id: number;
- *   title: string;
- *   author: Relation<User>;  // Runtime: number, Type: User
- * };
- *
- * // Type-safe nested WHERE
- * const where: WhereClause<Post> = {
- *   author: {  // ✅ Knows this is User
- *     name: { $like: 'John%' }
- *   }
- * };
- * ```
- */
-export type Relation<T extends ForjaEntry> = T & {
-	readonly [__relationBrand]: true;
-};
-
-/**
- * Check if a type is a Relation brand
- * Utility type for conditional type logic
- */
-export type IsRelation<T> = T extends Relation<infer _R> ? true : false;
-
-/**
- * Extract the inner type from a Relation brand
- *
- * @example
- * ```ts
- * type AuthorRelation = Relation<User>;
- * type InnerType = UnwrapRelation<AuthorRelation>;  // User
- * ```
- */
-export type UnwrapRelation<T> = T extends Relation<infer R> ? R : never;
 
 /**
  * Define a schema definition.

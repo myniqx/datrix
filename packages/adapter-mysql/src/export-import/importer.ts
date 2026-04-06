@@ -1,8 +1,8 @@
 import type { Pool } from "mysql2/promise";
 import type { ImportReader } from "@forja/core/types/adapter";
-import type { SchemaDefinition } from "@forja/core/types/core/schema";
+import type { SchemaDefinition } from "@forja/core/types";
 import type { MySQLAdapter } from "../adapter";
-import { FORJA_META_MODEL } from "@forja/core/types/core/constants";
+import { FORJA_META_MODEL } from "@forja/core/types";
 
 const CHUNK_SIZE = 1000;
 

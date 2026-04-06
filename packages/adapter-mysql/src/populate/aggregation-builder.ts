@@ -10,12 +10,12 @@ import type {
 	OrderByItem,
 	QueryPopulateOptions,
 	QuerySelect,
-} from "@forja/core/types/core/query-builder";
+} from "@forja/core/types";
 import type {
 	ForjaEntry,
 	ISchemaRegistry,
 	RelationField,
-} from "@forja/core/types/core/schema";
+} from "@forja/core/types";
 import type { MySQLQueryTranslator } from "../query-translator";
 import { escapeIdentifier } from "../helpers";
 import type { AggregationClause, PopulateFieldSelection } from "./types";
@@ -27,7 +27,7 @@ import {
 	throwTargetModelNotFound,
 	throwJsonAggregationError,
 	ForjaAdapterError,
-} from "@forja/core/types/errors/adapter";
+} from "@forja/core/types/errors";
 
 /**
  * Aggregation Builder Class

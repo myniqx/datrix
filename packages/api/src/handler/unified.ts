@@ -20,8 +20,8 @@ import {
 import { jsonResponse, forjaErrorResponse } from "./utils";
 import { handlerError } from "../errors/api-error";
 import { ForjaError, ForjaValidationError } from "@forja/core/types/errors";
-import type { ForjaEntry } from "@forja/core/types/core/schema";
-import { ResponseData } from "@forja/core/types";
+import type { ForjaEntry } from "@forja/core/types";
+import { ResponseData } from "@forja/core/types/api";
 import { IApiPlugin } from "@forja/core/types/api";
 
 /**
@@ -84,8 +84,8 @@ async function handleGet(ctx: RequestContext): Promise<Response> {
 				? await upload.injectUrls(filteredResults)
 				: filteredResults;
 
-			const response: ResponseData<ForjaEntry> = {
-				data: data as Partial<ForjaEntry>[],
+			const response: ResponseData = {
+				data,
 				meta: { total, page, pageSize, totalPages },
 			};
 
@@ -93,8 +93,8 @@ async function handleGet(ctx: RequestContext): Promise<Response> {
 		}
 
 		const data = upload ? await upload.injectUrls(result) : result;
-		const response: ResponseData<ForjaEntry> = {
-			data: data as ForjaEntry[],
+		const response: ResponseData = {
+			data,
 			meta: { total, page, pageSize, totalPages },
 		};
 

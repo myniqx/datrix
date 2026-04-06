@@ -1,4 +1,4 @@
-import { IForja } from "../forja";
+import { IForja } from "./forja";
 import { AuthUser } from "../api";
 
 /**

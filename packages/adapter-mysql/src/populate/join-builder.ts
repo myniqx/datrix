@@ -9,7 +9,7 @@ import type {
 	ForjaEntry,
 	ISchemaRegistry,
 	RelationField,
-} from "@forja/core/types/core/schema";
+} from "@forja/core/types";
 import { escapeIdentifier } from "../helpers";
 import type { JoinClause, PopulateStrategy } from "./types";
 import {
@@ -21,7 +21,7 @@ import {
 	throwJoinBuildError,
 	throwJunctionTableNotFound,
 	ForjaAdapterError,
-} from "@forja/core/types/errors/adapter";
+} from "@forja/core/types/errors";
 import { MySQLQueryObject } from "../types";
 
 /**

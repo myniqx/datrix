@@ -17,7 +17,7 @@ import {
 import {
 	MAX_WHERE_VALUE_LENGTH,
 	MAX_LOGICAL_NESTING_DEPTH,
-} from "@forja/core/types/core/constants";
+} from "@forja/core/types";
 
 /**
  * Where Parser Errors

@@ -7,7 +7,7 @@
 
 import type { Forja } from "@forja/core";
 import type { IUpload } from "@forja/core/types/api";
-import type { SchemaDefinition } from "@forja/core/types/core/schema";
+import type { SchemaDefinition } from "@forja/core/types";
 import { createMediaSchema } from "./schema";
 import { handleUploadRequest } from "./handler";
 import type { UploadOptions } from "./types";

@@ -22,8 +22,8 @@ import fs from "node:fs/promises";
 import fsSync from "node:fs";
 import path from "node:path";
 import AdmZip from "adm-zip";
-import type { IUpload } from "@forja/core/types/api/upload";
-import type { IForja } from "@forja/core/types/forja";
+import type { IUpload } from "@forja/core/types/api";
+import type { IForja } from "@forja/core/types";
 import { logger } from "../utils/logger";
 import type { LedgerEntry } from "./file-exporter";
 

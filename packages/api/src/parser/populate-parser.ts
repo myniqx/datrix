@@ -11,11 +11,8 @@
 
 import type { RawQueryParams } from "@forja/core/types/api/parser";
 import { ForjaRecord } from "@forja/core/types";
-import {
-	PopulateClause,
-	PopulateOptions,
-} from "@forja/core/types/core/query-builder";
-import { validateFieldName } from "@forja/core/types/core/constants";
+import { PopulateClause, PopulateOptions } from "@forja/core/types";
+import { validateFieldName } from "@forja/core/types";
 import { populateError } from "./errors";
 
 /**

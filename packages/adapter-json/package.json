@@ -25,6 +25,9 @@
 		"type-check": "tsc --noEmit",
 		"clean": "rm -rf dist"
 	},
+	"dependencies": {
+		"@forja/core": "workspace:*"
+	},
 	"devDependencies": {
 		"tsup": "^8.0.2",
 		"typescript": "^5.3.3"

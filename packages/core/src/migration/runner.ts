@@ -12,9 +12,9 @@ import type {
 	MigrationExecutionResult,
 	MigrationPlan,
 	MigrationOperation,
-} from "@forja/core/types/core/migration";
-import { MigrationSystemError } from "@forja/core/types/core/migration";
-import { DatabaseAdapter, Transaction } from "@forja/core/types/adapter";
+} from "../types/core/migration";
+import { MigrationSystemError } from "../types/core/migration";
+import { DatabaseAdapter, Transaction } from "../types/adapter";
 
 /**
  * Migration runner implementation

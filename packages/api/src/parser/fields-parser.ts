@@ -8,10 +8,7 @@
  */
 
 import type { RawQueryParams } from "@forja/core/types/api/parser";
-import {
-	MAX_ARRAY_INDEX,
-	validateFieldName,
-} from "@forja/core/types/core/constants";
+import { MAX_ARRAY_INDEX, validateFieldName } from "@forja/core/types";
 import { fieldsError } from "./errors";
 
 /**

@@ -5,13 +5,9 @@
  */
 
 import { QuerySelectObject } from "@forja/core/types";
-import {
-	FieldDefinition,
-	FieldType,
-	ForjaEntry,
-} from "@forja/core/types/core/schema";
+import { FieldDefinition, FieldType, ForjaEntry } from "@forja/core/types";
 import { PopulateStrategy } from "./populate";
-import { QueryPopulate } from "@forja/core/types/core/query-builder";
+import { QueryPopulate } from "@forja/core/types";
 
 export interface TranslateResult {
 	readonly sql: string;

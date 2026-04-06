@@ -11,27 +11,27 @@ import {
 	DevConfig,
 	DEFAULT_MIGRATION_CONFIG,
 	DEFAULT_DEV_CONFIG,
-} from "@forja/core/types/config";
-import { DatabaseAdapter } from "@forja/core/types/adapter";
+} from "./types/core/config";
+import { DatabaseAdapter } from "./types/adapter";
 import {
 	ForjaPlugin,
 	PluginContext,
 	SchemaExtension,
-} from "@forja/core/types/core/plugin";
-import { WhereClause } from "@forja/core/types/core/query-builder";
+} from "./types/core/plugin";
+import { WhereClause } from "./types/core/query-builder";
 import { CrudOperations } from "./mixins/crud";
 import { SchemaExtensionContextImpl } from "./plugin/schema-extension-context";
 import { Dispatcher, createDispatcher } from "./dispatcher";
-import { PluginRegistry } from "@forja/core/types/core/plugin";
+import { PluginRegistry } from "./types/core/plugin";
 import { SchemaRegistry } from "./schema";
-import { ForjaEntry, ForjaRecord } from "@forja/core/types";
+import { ForjaEntry, ForjaRecord } from "./types/core/schema";
 import {
 	IForja,
 	RawCrudOptions,
 	RawFindManyOptions,
 	FallbackInput,
-} from "@forja/core/types/forja";
-import { ForjaError } from "@forja/core/types/errors";
+} from "./types/core/forja";
+import { ForjaError } from "./types/errors";
 import {
 	getMigrationSchema,
 	DEFAULT_MIGRATION_MODEL,
@@ -537,7 +537,7 @@ export class Forja implements IForja {
  * @example
  * ```ts
  * // forja.config.ts
- * import { defineConfig } from '@forja/core';
+ * import { defineConfig } from '..';
  *
  * export default defineConfig(() => ({
  *   adapter: new JsonAdapter({ root: './data' }),

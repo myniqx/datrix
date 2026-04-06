@@ -7,7 +7,7 @@
 
 import { randomBytes } from "node:crypto";
 import type { SessionConfig, SessionData, SessionStore } from "./types";
-import { DEFAULT_API_AUTH_CONFIG } from "@forja/core/types/config";
+import { DEFAULT_API_AUTH_CONFIG } from "@forja/core/types/api";
 import {
 	throwSessionCreateError,
 	throwSessionNotFound,

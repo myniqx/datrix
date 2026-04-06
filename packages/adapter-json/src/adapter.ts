@@ -7,13 +7,13 @@ import {
 	QueryResult,
 	Transaction,
 } from "@forja/core/types/adapter";
-import { QueryObject } from "@forja/core/types/core/query-builder";
+import { QueryObject } from "@forja/core/types";
 import {
 	ForjaEntry,
 	IndexDefinition,
 	SchemaDefinition,
-} from "@forja/core/types/core/schema";
-import { validateQueryObject } from "@forja/core/types/utils/query";
+} from "@forja/core/types";
+import { validateQueryObject } from "@forja/core/utils";
 import {
 	CacheEntry,
 	ExecuteQueryOptions,
@@ -34,10 +34,7 @@ import {
 	throwMetaFieldNotFound,
 } from "@forja/core/types/errors";
 import { JsonTransaction } from "./transaction";
-import {
-	FORJA_META_MODEL,
-	FORJA_META_KEY_PREFIX,
-} from "@forja/core/types/core/constants";
+import { FORJA_META_MODEL, FORJA_META_KEY_PREFIX } from "@forja/core/types";
 import { createMetaTable, validateTableName } from "./table-utils";
 import { JsonExporter } from "./export-import/exporter";
 import { JsonImporter } from "./export-import/importer";

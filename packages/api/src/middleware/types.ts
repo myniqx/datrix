@@ -5,11 +5,11 @@
  */
 
 import type { ParsedQuery } from "@forja/core/types/api/parser";
-import type { SchemaDefinition } from "@forja/core/types/core/schema";
-import type { PermissionAction } from "@forja/core/types/core/permission";
+import type { SchemaDefinition } from "@forja/core/types";
+import type { PermissionAction } from "@forja/core/types";
 import type { Forja } from "@forja/core";
 import { AuthUser, IApiPlugin } from "@forja/core/types/api";
-import { FallbackInput } from "@forja/core/types/forja";
+import { FallbackInput } from "@forja/core/types";
 
 /**
  * HTTP Methods

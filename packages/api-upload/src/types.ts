@@ -3,7 +3,7 @@
  */
 
 import type { StorageProvider } from "@forja/core/types/api";
-import type { SchemaPermission } from "@forja/core/types/core/schema";
+import type { SchemaPermission } from "@forja/core/types";
 
 /**
  * Output format for image conversion.

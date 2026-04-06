@@ -5,10 +5,7 @@
  * differentiating between read (nested types) and write (RelationXxx<T>) modes.
  */
 
-import type {
-	RelationField,
-	RelationKind,
-} from "@forja/core/types/core/schema";
+import type { RelationField, RelationKind } from "@forja/core/types";
 import { toPascalCase } from "../utils/templates";
 
 /**

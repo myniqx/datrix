@@ -39,10 +39,7 @@ import type {
 } from "./types";
 import { COUNTER_KEY_PREFIX } from "./types";
 import { getNextIds } from "./helpers";
-import type {
-	QueryObject,
-	QuerySelectObject,
-} from "@forja/core/types/core/query-builder";
+import type { QueryObject, QuerySelectObject } from "@forja/core/types";
 import type { ForjaEntry } from "@forja/core/types";
 import type {
 	AlterOperation,
@@ -69,12 +66,9 @@ import type {
 	IndexDefinition,
 	ISchemaRegistry,
 	SchemaDefinition,
-} from "@forja/core/types/core/schema";
+} from "@forja/core/types";
 import type { SchemaRegistry } from "@forja/core";
-import {
-	FORJA_META_MODEL,
-	FORJA_META_KEY_PREFIX,
-} from "@forja/core/types/core/constants";
+import { FORJA_META_MODEL, FORJA_META_KEY_PREFIX } from "@forja/core/types";
 
 /**
  * MongoDB adapter implementation

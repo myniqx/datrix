@@ -20,7 +20,7 @@ A plugin is a class that implements the `ForjaPlugin` interface. Forja provides 
 
 ```typescript
 import { BasePlugin } from "@forja/core/plugin/plugin"
-import type { PluginContext } from "@forja/core/types/core/plugin"
+import type { PluginContext } from "@forja/core/types"
 
 export class MyPlugin extends BasePlugin<MyPluginOptions> {
   readonly name    = "my-plugin"
@@ -202,10 +202,10 @@ A plugin that writes an audit log entry after every create, update, or delete op
 ```typescript
 import { BasePlugin } from "@forja/core/plugin/plugin"
 import { defineSchema } from "@forja/core"
-import type { PluginContext, SchemaDefinition } from "@forja/core/types/core/plugin"
-import type { QueryContext } from "@forja/core/types/core/query-context"
-import type { ForjaEntry } from "@forja/core/types/core/schema"
-import type { QueryObject } from "@forja/core/types/core/query-builder"
+import type { PluginContext, SchemaDefinition } from "@forja/core/types"
+import type { QueryContext } from "@forja/core/types"
+import type { ForjaEntry } from "@forja/core/types"
+import type { QueryObject } from "@forja/core/types"
 
 interface AuditLogOptions {
   readonly schemas?: readonly string[]  // limit to specific schemas — undefined = all

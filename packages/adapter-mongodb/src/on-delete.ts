@@ -11,7 +11,7 @@ import type {
 	ForeignKeyReference,
 	ForjaEntry,
 	ISchemaRegistry,
-} from "@forja/core/types/core/schema";
+} from "@forja/core/types";
 import type { MongoClient } from "./mongo-client";
 import { ForjaAdapterError } from "@forja/core/types/errors";
 

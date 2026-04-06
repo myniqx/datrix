@@ -12,7 +12,7 @@ import type {
 	FieldDefinition,
 	ForjaEntry,
 	ISchemaRegistry,
-} from "@forja/core/types/core/schema";
+} from "@forja/core/types";
 import type { MongoClient } from "./mongo-client";
 import { throwQueryError } from "@forja/core/types/errors";
 

@@ -11,7 +11,7 @@ import {
 	MigrationOperation,
 	MigrationSystemError,
 	SchemaDiff,
-} from "@forja/core/types/core/migration";
+} from "../types/core/migration";
 
 /**
  * Migration generator implementation
@@ -274,7 +274,7 @@ export class ForgeMigrationGenerator implements MigrationGenerator {
  ${escapedAuthor ? `* Author: ${escapedAuthor}` : ""}
  */
 
-import type { Migration } from '@forja/core/types/core/migration';
+import type { Migration } from '../types/core/migration';
 
 export const migration: Migration = {
   metadata: {

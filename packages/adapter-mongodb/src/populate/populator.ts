@@ -11,11 +11,8 @@ import type {
 	QueryPopulate,
 	QueryPopulateOptions,
 	QuerySelectObject,
-} from "@forja/core/types/core/query-builder";
-import type {
-	ForjaEntry,
-	ISchemaRegistry,
-} from "@forja/core/types/core/schema";
+} from "@forja/core/types";
+import type { ForjaEntry, ISchemaRegistry } from "@forja/core/types";
 import type { MongoClient } from "../mongo-client";
 import type { MongoDBQueryTranslator } from "../query-translator";
 import { throwMaxDepthExceeded } from "@forja/core/types/errors";
@@ -491,7 +488,7 @@ export class MongoDBPopulator<T extends ForjaEntry> {
 			await this.populateBatchedRows(
 				relatedRows,
 				targetCollection,
-				options.populate as QueryPopulate<ForjaEntry>,
+				options.populate,
 			);
 		}
 
@@ -638,11 +635,7 @@ export class MongoDBPopulator<T extends ForjaEntry> {
 				"populate" in options &&
 				options.populate
 			) {
-				const nestedDepth = this.getMaxDepth(
-					options.populate as QueryPopulate<ForjaEntry>,
-					"",
-					depth + 1,
-				);
+				const nestedDepth = this.getMaxDepth(options.populate, "", depth + 1);
 				if (nestedDepth > maxDepth) maxDepth = nestedDepth;
 			}
 		}
@@ -666,10 +659,7 @@ export class MongoDBPopulator<T extends ForjaEntry> {
 				"populate" in options &&
 				options.populate
 			) {
-				const nested = this.buildRelationPath(
-					options.populate as QueryPopulate<ForjaEntry>,
-					currentPath,
-				);
+				const nested = this.buildRelationPath(options.populate, currentPath);
 				paths.push(...nested.split(", "));
 			}
 		}

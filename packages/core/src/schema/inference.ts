@@ -11,7 +11,7 @@ import type {
 	FieldDefinition,
 	RelationField,
 	SchemaDefinition,
-} from "@forja/core/types/core/schema";
+} from "../types/core/schema";
 
 /**
  * Infer type from field definition at runtime

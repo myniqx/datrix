@@ -5,20 +5,16 @@
  * This class encapsulates all data manipulation logic.
  */
 
-import { DatabaseAdapter } from "@forja/core/types/adapter";
-import {
-	ISchemaRegistry,
-	ForjaEntry,
-	ForjaRecord,
-} from "@forja/core/types/core/schema";
-import { WhereClause } from "@forja/core/types/core/query-builder";
+import { DatabaseAdapter } from "../types/adapter";
+import { ISchemaRegistry, ForjaEntry, ForjaRecord } from "../types/core/schema";
+import { WhereClause } from "../types/core/query-builder";
 import { Dispatcher } from "../dispatcher";
 import {
 	IRawCrud,
 	RawCrudOptions,
 	RawFindManyOptions,
 	FallbackInput,
-} from "@forja/core/types/forja";
+} from "../types/core/forja";
 import {
 	selectFrom,
 	countFrom,

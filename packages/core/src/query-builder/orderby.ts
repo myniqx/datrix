@@ -14,8 +14,8 @@ import type {
 	QueryOrderBy,
 	OrderByItem,
 	OrderDirection,
-} from "@forja/core/types/core/query-builder";
-import type { ForjaEntry } from "@forja/core/types/core/schema";
+} from "../types/core/query-builder";
+import type { ForjaEntry } from "../types/core/schema";
 
 /**
  * Check if input is already normalized (array of OrderByItem)

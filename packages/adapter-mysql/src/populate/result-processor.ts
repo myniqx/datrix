@@ -5,13 +5,13 @@
  * Handles JSON parsing and nested structure creation.
  */
 
-import type { QueryPopulate } from "@forja/core/types/core/query-builder";
+import type { QueryPopulate } from "@forja/core/types";
 import type {
 	ForjaEntry,
 	ISchemaRegistry,
 	RelationField,
-} from "@forja/core/types/core/schema";
-import { throwResultProcessingError } from "@forja/core/types/errors/adapter";
+} from "@forja/core/types";
+import { throwResultProcessingError } from "@forja/core/types/errors";
 
 /**
  * Result Processor Class

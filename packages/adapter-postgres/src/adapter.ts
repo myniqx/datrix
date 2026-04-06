@@ -11,7 +11,7 @@ import { Pool as PgPool } from "pg";
 import { PostgresQueryTranslator } from "./query-translator";
 import type { PostgresConfig } from "./types";
 import { getPostgresTypeWithModifiers } from "./types";
-import { QueryObject } from "@forja/core/types/core/query-builder";
+import { QueryObject } from "@forja/core/types";
 import {
 	AlterOperation,
 	ConnectionState,
@@ -30,7 +30,7 @@ import {
 	throwQueryError,
 	throwMetaFieldAlreadyExists,
 	throwMetaFieldNotFound,
-} from "@forja/core/types/errors/adapter";
+} from "@forja/core/types/errors";
 import { validateQueryObject } from "@forja/core/types/utils/query";
 import {
 	FieldDefinition,
@@ -38,11 +38,8 @@ import {
 	IndexDefinition,
 	ISchemaRegistry,
 	SchemaDefinition,
-} from "@forja/core/types/core/schema";
-import {
-	FORJA_META_MODEL,
-	FORJA_META_KEY_PREFIX,
-} from "@forja/core/types/core/constants";
+} from "@forja/core/types";
+import { FORJA_META_MODEL, FORJA_META_KEY_PREFIX } from "@forja/core/types";
 import { PostgresPopulator } from "./populate";
 import { PgClient } from "./pg-client";
 import { PostgresExporter } from "./export-import/exporter";

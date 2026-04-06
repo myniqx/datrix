@@ -19,3 +19,14 @@ export * from "./query-builder";
 
 // Re-export migration system
 export * from "./migration";
+
+// This is the final part!
+
+// for adapters
+export * from "./types/adapter";
+
+// for cli
+export * from "./types/cli";
+
+// for utils
+export * from "./types/utils/query";

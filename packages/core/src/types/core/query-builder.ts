@@ -5,7 +5,7 @@
  * Query builder produces QueryObject instances that adapters translate to SQL/NoSQL.
  */
 
-import { ForjaEntry, ForjaRecord, Relation } from "./schema";
+import { ForjaEntry, ForjaRecord, RelationInput } from "./schema";
 
 /**
  * Primitive values that can be used in queries
@@ -177,7 +177,7 @@ export type FallbackWhereClause = {
  * Typed WHERE clause for specific model types.
  */
 type TypedWhereClause<T extends ForjaEntry> = Writable<{
-	[K in keyof T]?: T[K] extends Relation<infer R>
+	[K in keyof T]?: T[K] extends RelationInput<infer R extends ForjaEntry>
 		? WhereClause<R>
 		: T[K] extends ScalarValue
 			? T[K] | ComparisonOperators<T[K]>
@@ -321,7 +321,9 @@ export type QueryPopulateOptions<T extends ForjaEntry> = {
  * QueryPopulateOptions of the related entity type.
  */
 export type QueryPopulate<T extends ForjaEntry = ForjaRecord> = {
-	readonly [K in keyof T]?: T[K] extends Relation<infer R>
+	readonly [K in keyof T]?: T[K] extends RelationInput<
+		infer R extends ForjaEntry
+	>
 		? QueryPopulateOptions<R>
 		: never;
 };
@@ -419,7 +421,9 @@ export interface NormalizedRelationUpdate<
  * ```
  */
 export type QueryRelations<T extends ForjaEntry> = {
-	readonly [K in keyof T]?: T[K] extends Relation<infer R>
+	readonly [K in keyof T]?: T[K] extends RelationInput<
+		infer R extends ForjaEntry
+	>
 		? NormalizedRelationOperations<R>
 		: never;
 };

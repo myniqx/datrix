@@ -3,8 +3,8 @@ import type { DatabaseAdapter } from "@forja/core/types/adapter";
 import { logger, spinner } from "../utils/logger";
 import { ZipExportWriter } from "../export-import/zip-writer";
 import { FileExporter } from "../export-import/file-exporter";
-import { IForja } from "@forja/core/types/forja";
-import { IApiPlugin } from "packages/types/src/api";
+import { IForja } from "@forja/core/types";
+import { IApiPlugin } from "@forja/core/types/api";
 
 export interface ExportCommandOptions {
 	readonly output?: string;

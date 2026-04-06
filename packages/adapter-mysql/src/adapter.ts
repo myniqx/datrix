@@ -21,10 +21,7 @@ import { MySQLImporter } from "./export-import/importer";
 import { ExportWriter, ImportReader } from "@forja/core/types/adapter";
 import type { MySQLConfig, MySQLQueryObject } from "./types";
 import { getMySQLTypeWithModifiers, parseConnectionString } from "./types";
-import {
-	QueryObject,
-	QuerySelectObject,
-} from "@forja/core/types/core/query-builder";
+import { QueryObject, QuerySelectObject } from "@forja/core/types";
 import { ForjaEntry } from "@forja/core/types";
 import {
 	AlterOperation,
@@ -45,18 +42,15 @@ import {
 	throwMetaFieldAlreadyExists,
 	throwMetaFieldNotFound,
 	AdapterErrorCode,
-} from "@forja/core/types/errors/adapter";
+} from "@forja/core/types/errors";
 import { validateQueryObject } from "@forja/core/types/utils/query";
 import {
 	FieldDefinition,
 	IndexDefinition,
 	ISchemaRegistry,
 	SchemaDefinition,
-} from "@forja/core/types/core/schema";
-import {
-	FORJA_META_MODEL,
-	FORJA_META_KEY_PREFIX,
-} from "@forja/core/types/core/constants";
+} from "@forja/core/types";
+import { FORJA_META_MODEL, FORJA_META_KEY_PREFIX } from "@forja/core/types";
 import { escapeIdentifier, escapeValue } from "./helpers";
 
 /**

@@ -11,20 +11,17 @@ import {
 	QueryInsertObject,
 	QueryUpdateObject,
 	QueryDeleteObject,
-} from "@forja/core/types/core/query-builder";
-import { PluginRegistry } from "@forja/core/types/core/plugin";
-import {
-	QueryAction,
-	QueryContext,
-} from "@forja/core/types/core/query-context";
+} from "../types/core/query-builder";
+import { PluginRegistry } from "../types/core/plugin";
+import { QueryAction, QueryContext } from "../types/core/query-context";
 import {
 	ForjaEntry,
 	ForjaRecord,
 	SchemaDefinition,
 	LifecycleHooks,
-} from "@forja/core/types/core/schema";
+} from "../types/core/schema";
 import type { Forja } from "../forja";
-import { validateQueryObject } from "@forja/core/types/utils/query";
+import { validateQueryObject } from "../types/utils/query";
 import { SchemaRegistry } from "../schema";
 import {
 	throwHookInvalidReturn,
@@ -259,7 +256,7 @@ export class Dispatcher {
 		schema: SchemaDefinition,
 		context: QueryContext,
 	): Promise<TResult> {
-		const hooks = schema.hooks as LifecycleHooks<TResult> | undefined;
+		const hooks = schema.hooks;
 		if (!hooks) return result;
 
 		const { action } = context;
@@ -267,7 +264,10 @@ export class Dispatcher {
 
 		if ((action === "create" || action === "createMany") && hooks.afterCreate) {
 			try {
-				return await hooks.afterCreate(rows, context);
+				return (await hooks.afterCreate(
+					rows as unknown as ForjaEntry[],
+					context,
+				)) as unknown as TResult;
 			} catch (error) {
 				warnAfterHookError("afterCreate", error);
 			}
@@ -275,7 +275,10 @@ export class Dispatcher {
 
 		if ((action === "update" || action === "updateMany") && hooks.afterUpdate) {
 			try {
-				return await hooks.afterUpdate(rows, context);
+				return (await hooks.afterUpdate(
+					rows as unknown as ForjaEntry[],
+					context,
+				)) as unknown as TResult;
 			} catch (error) {
 				warnAfterHookError("afterUpdate", error);
 			}
@@ -283,7 +286,7 @@ export class Dispatcher {
 
 		if ((action === "delete" || action === "deleteMany") && hooks.afterDelete) {
 			try {
-				await hooks.afterDelete(rows, context);
+				await hooks.afterDelete(rows as unknown as ForjaEntry[], context);
 			} catch (error) {
 				warnAfterHookError("afterDelete", error);
 			}
@@ -292,7 +295,10 @@ export class Dispatcher {
 
 		if ((action === "findOne" || action === "findMany") && hooks.afterFind) {
 			try {
-				return await hooks.afterFind(rows, context);
+				return (await hooks.afterFind(
+					rows as unknown as ForjaEntry[],
+					context,
+				)) as unknown as TResult;
 			} catch (error) {
 				warnAfterHookError("afterFind", error);
 			}

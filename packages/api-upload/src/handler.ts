@@ -9,7 +9,7 @@
 
 import type { Forja } from "@forja/core";
 import type { UploadFile, MediaVariants } from "@forja/core/types/api";
-import type { ForjaEntry } from "@forja/core/types/core/schema";
+import type { ForjaEntry } from "@forja/core/types";
 import {
 	ForjaApiError,
 	handlerError,
@@ -172,7 +172,7 @@ async function handleDeleteMedia(
 		key: string;
 		variants: Record<string, { key: string }> | null;
 	} & ForjaEntry;
-	const record = await forja.raw.findOne<MediaRecord>(modelName, { id });
+	const record = await forja.raw.findById<MediaRecord>(modelName, id);
 
 	if (record === null) {
 		return forjaErrorResponse(handlerError.recordNotFound(modelName, id));

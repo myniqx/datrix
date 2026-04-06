@@ -5,10 +5,7 @@
  * Provides consistent error formatting across all config validators.
  */
 
-import {
-	ForjaConfigError,
-	ForjaConfigValidationError,
-} from "@forja/core/types/errors";
+import { ForjaConfigError, ForjaConfigValidationError } from "../types/errors";
 
 /**
  * Throw config not found error

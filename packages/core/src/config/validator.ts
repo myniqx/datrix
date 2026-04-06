@@ -4,13 +4,9 @@
  * Validates ForjaConfig structure and values
  */
 
-import {
-	ForjaConfig,
-	MigrationConfig,
-	DevConfig,
-} from "@forja/core/types/config";
-import { isDatabaseAdapter } from "@forja/core/types/adapter";
-import { isForjaPlugin } from "@forja/core/types/core/plugin";
+import { ForjaConfig, MigrationConfig, DevConfig } from "../types/core/config";
+import { isDatabaseAdapter } from "../types/adapter";
+import { isForjaPlugin } from "../types/core/plugin";
 import {
 	throwConfigInvalidType,
 	throwConfigEmpty,

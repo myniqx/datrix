@@ -5,8 +5,8 @@
  * This schema is automatically registered by Forja during initialization.
  */
 
-import { defineSchema } from "@forja/core/types/core/schema";
-import { FORJA_META_MODEL } from "@forja/core/types/core/constants";
+import { defineSchema } from "../types/core/schema";
+import { FORJA_META_MODEL } from "../types/core/constants";
 export { FORJA_META_MODEL };
 
 /**

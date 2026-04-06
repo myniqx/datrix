@@ -83,7 +83,7 @@ forja generate schema BlogPost --output ./src/schemas
 Output: `schemas/user.schema.ts` (or the path specified by `--output`)
 
 ```typescript
-import { defineSchema } from "@forja/core/types/core/schema"
+import { defineSchema } from "@forja/core/types"
 
 export const userSchema = defineSchema({
   name: "user",
@@ -135,7 +135,7 @@ import type {
   ForjaEntry,
   RelationBelongsTo,
   RelationHasMany,
-} from "@forja/core/types/core/schema"
+} from "@forja/core/types"
 
 // ─────────────────────────────────────────
 // User  (table: user)

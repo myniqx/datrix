@@ -2,9 +2,9 @@ import {
 	QuerySelect,
 	QuerySelectObject,
 	QueryPopulateOptions,
-} from "@forja/core/types/core/query-builder";
+} from "@forja/core/types";
 import type { JsonAdapter } from "./adapter";
-import type { ForjaEntry, RelationField } from "@forja/core/types/core/schema";
+import type { ForjaEntry, RelationField } from "@forja/core/types";
 import {
 	throwSchemaNotFound,
 	throwRelationNotFound,

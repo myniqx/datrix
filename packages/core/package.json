@@ -9,7 +9,13 @@
 	"types": "./dist/index.d.ts",
 	"exports": {
 		".": "./src/index.ts",
-		"./*": "./src/*.ts"
+		"./*": "./src/*.ts",
+		"./types/api": "./src/types/api/index.ts",
+		"./types/cli": "./src/types/cli/index.ts",
+		"./types/adapter": "./src/types/adapter/index.ts",
+		"./types/errors": "./src/types/errors/index.ts",
+		"./utils": "./src/types/utils/index.ts",
+		"./types": "./src/types/core/index.ts"
 	},
 	"files": [
 		"dist"

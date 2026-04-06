@@ -7,10 +7,7 @@
  */
 
 import type { Pool, PoolClient, QueryResult, QueryResultRow } from "pg";
-import {
-	AdapterErrorCode,
-	ForjaAdapterError,
-} from "@forja/core/types/errors/adapter";
+import { AdapterErrorCode, ForjaAdapterError } from "@forja/core/types/errors";
 import { QueryObject } from "@forja/core/types";
 
 const IS_DEBUG = process.env["NODE_ENV"] !== "production";

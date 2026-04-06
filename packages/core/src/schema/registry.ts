@@ -14,14 +14,14 @@ import type {
 	RelationField,
 	SchemaDefinition,
 	SchemaValidationError,
-} from "@forja/core/types/core/schema";
+} from "../types/core/schema";
 import {
 	validateSchemaDefinition,
 	sortSchemasByDependency,
 	RESERVED_FIELDS,
-} from "@forja/core/types/core/schema";
-import { FORJA_META_MODEL } from "@forja/core/types/core/constants";
-import { QuerySelect } from "@forja/core/types/core/query-builder";
+} from "../types/core/schema";
+import { FORJA_META_MODEL } from "../types/core/constants";
+import { QuerySelect } from "../types/core/query-builder";
 
 /**
  * Schema registry error

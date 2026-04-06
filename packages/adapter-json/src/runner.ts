@@ -5,13 +5,13 @@ import {
 	QuerySelectObject,
 	QuerySelect,
 	QueryCountObject,
-} from "@forja/core/types/core/query-builder";
+} from "@forja/core/types";
 import {
 	ForjaEntry,
 	ForjaRecord,
 	RelationField,
 	SchemaDefinition,
-} from "@forja/core/types/core/schema";
+} from "@forja/core/types";
 import { JsonTableFile } from "./types";
 import type { JsonAdapter } from "./adapter";
 import {
