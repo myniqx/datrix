@@ -11,27 +11,27 @@ import {
 	DevConfig,
 	DEFAULT_MIGRATION_CONFIG,
 	DEFAULT_DEV_CONFIG,
-} from "@forja/types/config";
-import { DatabaseAdapter } from "@forja/types/adapter";
+} from "@forja/core/types/config";
+import { DatabaseAdapter } from "@forja/core/types/adapter";
 import {
 	ForjaPlugin,
 	PluginContext,
 	SchemaExtension,
-} from "@forja/types/core/plugin";
-import { WhereClause } from "@forja/types/core/query-builder";
+} from "@forja/core/types/core/plugin";
+import { WhereClause } from "@forja/core/types/core/query-builder";
 import { CrudOperations } from "./mixins/crud";
 import { SchemaExtensionContextImpl } from "./plugin/schema-extension-context";
 import { Dispatcher, createDispatcher } from "./dispatcher";
-import { PluginRegistry } from "@forja/types/core/plugin";
+import { PluginRegistry } from "@forja/core/types/core/plugin";
 import { SchemaRegistry } from "./schema";
-import { ForjaEntry, ForjaRecord } from "@forja/types";
+import { ForjaEntry, ForjaRecord } from "@forja/core/types";
 import {
 	IForja,
 	RawCrudOptions,
 	RawFindManyOptions,
 	FallbackInput,
-} from "@forja/types/forja";
-import { ForjaError } from "@forja/types/errors";
+} from "@forja/core/types/forja";
+import { ForjaError } from "@forja/core/types/errors";
 import {
 	getMigrationSchema,
 	DEFAULT_MIGRATION_MODEL,

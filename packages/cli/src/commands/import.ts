@@ -1,9 +1,9 @@
 import path from "node:path";
 import fsSync from "node:fs";
 import * as readline from "readline";
-import type { DatabaseAdapter } from "@forja/types/adapter";
-import type { IApiPlugin } from "@forja/types/api/interface";
-import type { IForja } from "@forja/types/forja";
+import type { DatabaseAdapter } from "@forja/core/types/adapter";
+import type { IApiPlugin } from "@forja/core/types/api/interface";
+import type { IForja } from "@forja/core/types/forja";
 import { logger, spinner, red, yellow } from "../utils/logger";
 import { ZipImportReader } from "../export-import/zip-reader";
 import { FileImporter } from "../export-import/file-importer";

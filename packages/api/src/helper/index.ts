@@ -11,7 +11,7 @@ import { ApiPlugin } from "../api";
 import { Forja } from "@forja/core";
 import { forjaErrorResponse } from "../handler/utils";
 import { handlerError } from "../errors/api-error";
-import { ForjaError } from "@forja/types/errors";
+import { ForjaError } from "@forja/core/types/errors";
 
 // ─── Node.js bridge types ─────────────────────────────────────────────────────
 // Duck-typed — no express/fastify dependency required.

@@ -4,14 +4,14 @@
  * Converts ParsedQuery objects into RawQueryParams query strings.
  */
 
-import { ForjaEntry, ForjaRecord } from "@forja/types";
-import { ParsedQuery, RawQueryParams } from "@forja/types/api/parser";
+import { ForjaEntry, ForjaRecord } from "@forja/core/types";
+import { ParsedQuery, RawQueryParams } from "@forja/core/types/api/parser";
 import {
 	WhereClause,
 	PopulateClause,
 	PopulateOptions,
 	QueryPrimitive,
-} from "@forja/types/core/query-builder";
+} from "@forja/core/types/core/query-builder";
 
 export function queryToParams<T extends ForjaEntry = ForjaRecord>(
 	query: ParsedQuery<T> | undefined,

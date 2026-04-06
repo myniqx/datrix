@@ -8,11 +8,15 @@
 	"module": "./dist/index.mjs",
 	"types": "./dist/index.d.ts",
 	"exports": {
-		".": "./src/index.ts",
-		"./*": "./src/*.ts"
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.mjs",
+			"require": "./dist/index.js"
+		}
 	},
 	"files": [
-		"dist"
+		"dist",
+		"README.md"
 	],
 	"sideEffects": false,
 	"scripts": {
@@ -20,9 +24,6 @@
 		"dev": "tsup --watch",
 		"type-check": "tsc --noEmit",
 		"clean": "rm -rf dist"
-	},
-	"dependencies": {
-		"@forja/types": "workspace:*"
 	},
 	"devDependencies": {
 		"tsup": "^8.0.2",

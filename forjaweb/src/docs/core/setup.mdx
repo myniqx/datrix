@@ -186,7 +186,7 @@ tags: {
 
 ```typescript
 import { defineSchema } from "@forja/core";
-import type { PermissionContext } from "@forja/types/core/permission";
+import type { PermissionContext } from "@forja/core/types/core/permission";
 
 type Roles = "admin" | "editor" | "user";
 
@@ -333,7 +333,7 @@ Every before hook **must return** the (optionally modified) value — the return
 
 ```typescript
 import { defineSchema } from "@forja/core"
-import type { ForjaEntry } from "@forja/types"
+import type { ForjaEntry } from "@forja/core/types"
 
 type Post = ForjaEntry & { title: string; slug: string; status: string }
 

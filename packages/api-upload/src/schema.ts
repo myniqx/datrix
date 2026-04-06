@@ -2,11 +2,11 @@
  * Media Schema Factory
  */
 
-import { defineSchema } from "@forja/types/core/schema";
+import { defineSchema } from "@forja/core/types/core/schema";
 import type {
 	SchemaPermission,
 	SchemaDefinition,
-} from "@forja/types/core/schema";
+} from "@forja/core/types/core/schema";
 import type { UploadOptions } from "./types";
 
 export function createMediaSchema(

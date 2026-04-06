@@ -5,7 +5,7 @@
  */
 
 import { expect } from "vitest";
-import type { DatabaseAdapter } from "@forja/types/adapter";
+import type { DatabaseAdapter } from "@forja/core/types/adapter";
 import type { MigrationSession, AmbiguousChange, Forja } from "@forja/core";
 
 // ============================================

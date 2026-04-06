@@ -2,10 +2,10 @@
  * Authentication Plugin Types
  *
  * Type definitions for the authentication plugin including JWT and Session.
- * Permission/RBAC types are now in forja-types/core/permission.
+ * Permission/RBAC types are now in @forja/core/types/core/permission.
  */
 
-import type { DefaultPermission } from "@forja/types/core/permission";
+import type { DefaultPermission } from "@forja/core/types/core/permission";
 import type { PasswordConfig } from "./password";
 
 /**

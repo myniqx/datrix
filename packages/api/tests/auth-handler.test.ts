@@ -12,10 +12,13 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { Forja } from "@forja/core";
 import { createTestConfigWithAuth } from "./data/config-auth";
 import { createRequest } from "./data/helper";
-import { expectApiSingle, expectApiError } from "@forja/types/test/helpers";
+import {
+	expectApiSingle,
+	expectApiError,
+} from "@forja/core/types/test/helpers";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { ForjaEntry } from "@forja/types";
+import { ForjaEntry } from "@forja/core/types";
 
 /** User response from auth endpoints */
 interface AuthUserResponse {

@@ -1,4 +1,4 @@
-import { ForjaError } from "@forja/types/errors";
+import { ForjaError } from "@forja/core/types/errors";
 
 type BeforeHookName =
 	| "beforeCreate"

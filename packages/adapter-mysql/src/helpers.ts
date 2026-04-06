@@ -4,7 +4,7 @@
  * Standalone utilities that don't depend on Forja singleton or class state.
  */
 
-import { throwQueryError } from "@forja/types/errors/adapter";
+import { throwQueryError } from "@forja/core/types/errors/adapter";
 
 const VALID_IDENTIFIER_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 const MAX_IDENTIFIER_LENGTH = 64;

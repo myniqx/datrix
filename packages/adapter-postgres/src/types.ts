@@ -4,14 +4,14 @@
  * Type definitions specific to PostgreSQL adapter.
  */
 
-import { QuerySelectObject } from "@forja/types";
+import { QuerySelectObject } from "@forja/core/types";
 import {
 	FieldDefinition,
 	FieldType,
 	ForjaEntry,
-} from "@forja/types/core/schema";
+} from "@forja/core/types/core/schema";
 import { PopulateStrategy } from "./populate";
-import { QueryPopulate } from "@forja/types/core/query-builder";
+import { QueryPopulate } from "@forja/core/types/core/query-builder";
 
 export interface TranslateResult {
 	readonly sql: string;

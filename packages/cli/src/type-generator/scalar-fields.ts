@@ -8,7 +8,7 @@ import type {
 	ArrayField,
 	EnumField,
 	FieldDefinition,
-} from "@forja/types/core/schema";
+} from "@forja/core/types/core/schema";
 
 /**
  * Generate TypeScript type string for a scalar field

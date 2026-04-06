@@ -9,13 +9,13 @@ import type {
 	PopulateClause,
 	PopulateOptions,
 	QueryPopulate,
-} from "@forja/types/core/query-builder";
+} from "@forja/core/types/core/query-builder";
 import type {
 	ForjaEntry,
 	RelationField,
 	SchemaDefinition,
 	ISchemaRegistry,
-} from "@forja/types/core/schema";
+} from "@forja/core/types/core/schema";
 import { throwInvalidField, throwInvalidValue } from "./error-helper";
 import { normalizeSelect } from "./select";
 

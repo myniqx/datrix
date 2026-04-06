@@ -12,7 +12,7 @@ validate data, generate migrations, and build queries.
 ## Defining a schema
 
 ```typescript
-import type { SchemaDefinition } from '@forja/types'
+import type { SchemaDefinition } from '@forja/core/types'
 
 export const userSchema = {
   name: 'user',
@@ -272,13 +272,13 @@ Lifecycle hooks let you intercept and modify data at each stage of a write or re
 
 ```typescript
 import { defineSchema } from "@forja/core"
-import type { QueryContext } from "@forja/types/core/query-context"
+import type { QueryContext } from "@forja/core/types/core/query-context"
 import type {
   QueryInsertObject,
   QueryUpdateObject,
   QueryDeleteObject,
   QuerySelectObject,
-} from "@forja/types/core/query-builder"
+} from "@forja/core/types/core/query-builder"
 
 const postSchema = defineSchema({
   name: "post",

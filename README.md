@@ -25,7 +25,6 @@ Forja gives you:
 | Package | Description |
 | ------- | ----------- |
 | [`@forja/core`](./packages/core/README.md) | Schema definition, validation, query building, CRUD dispatcher, migration engine, plugin system |
-| [`@forja/types`](./packages/types/) | Shared TypeScript types used across all packages — adapters, plugins, API, upload |
 
 ### Adapters
 

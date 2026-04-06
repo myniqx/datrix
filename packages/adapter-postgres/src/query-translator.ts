@@ -15,18 +15,18 @@ import type {
 	QueryDeleteObject,
 	QuerySelect,
 	QuerySelectObject,
-} from "@forja/types/core/query-builder";
-import type { QueryTranslator } from "@forja/types/adapter";
+} from "@forja/core/types/core/query-builder";
+import type { QueryTranslator } from "@forja/core/types/adapter";
 import {
 	ForjaAdapterError,
 	throwQueryError,
-} from "@forja/types/errors/adapter";
+} from "@forja/core/types/errors/adapter";
 import type {
 	SchemaDefinition,
 	FieldDefinition,
 	ISchemaRegistry,
-} from "@forja/types/core/schema";
-import { ForjaEntry } from "@forja/types";
+} from "@forja/core/types/core/schema";
+import { ForjaEntry } from "@forja/core/types";
 import { PostgresQueryObject, TranslateResult } from "./types";
 
 /**

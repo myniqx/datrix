@@ -1,9 +1,9 @@
 import path from "node:path";
-import type { DatabaseAdapter } from "@forja/types/adapter";
+import type { DatabaseAdapter } from "@forja/core/types/adapter";
 import { logger, spinner } from "../utils/logger";
 import { ZipExportWriter } from "../export-import/zip-writer";
 import { FileExporter } from "../export-import/file-exporter";
-import { IForja } from "@forja/types/forja";
+import { IForja } from "@forja/core/types/forja";
 import { IApiPlugin } from "packages/types/src/api";
 
 export interface ExportCommandOptions {

@@ -34,7 +34,7 @@ import {
 	assertNoChanges,
 	resolveAmbiguousById,
 } from "./setup/helpers";
-import type { DatabaseAdapter } from "@forja/types/adapter";
+import type { DatabaseAdapter } from "@forja/core/types/adapter";
 
 describe("Migration E2E - Schema Sync", () => {
 	const tmpDir = getTmpDir("schema-sync");

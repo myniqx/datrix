@@ -9,17 +9,17 @@ import type {
 	QueryPopulate,
 	QueryPopulateOptions,
 	QuerySelectObject,
-} from "@forja/types/core/query-builder";
+} from "@forja/core/types/core/query-builder";
 import type { PgClient } from "../pg-client";
 import type { PostgresQueryTranslator } from "../query-translator";
 import type { PopulateStrategy, PopulateOptionsAnalysis } from "./types";
 import { JoinBuilder } from "./join-builder";
 import { AggregationBuilder } from "./aggregation-builder";
 import { ResultProcessor } from "./result-processor";
-import { throwMaxDepthExceeded } from "@forja/types/errors/adapter";
-import { ForjaEntry } from "@forja/types";
+import { throwMaxDepthExceeded } from "@forja/core/types/errors/adapter";
+import { ForjaEntry } from "@forja/core/types";
 import { PostgresQueryObject } from "@forja/adapter-postgres/types";
-import { ISchemaRegistry } from "@forja/types/core/schema";
+import { ISchemaRegistry } from "@forja/core/types/core/schema";
 
 /**
  * Maximum populate nesting depth

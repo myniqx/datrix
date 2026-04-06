@@ -6,7 +6,7 @@
  */
 
 import type { Collection, Document } from "mongodb";
-import { throwQueryError } from "@forja/types/errors";
+import { throwQueryError } from "@forja/core/types/errors";
 import { COUNTER_KEY_PREFIX } from "./types";
 
 const VALID_IDENTIFIER_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_]*$/;

@@ -16,7 +16,10 @@ import { Forja } from "@forja/core";
 import { handleRequest } from "../src/helper";
 import { createTestConfig, getTmpDir } from "./data";
 import { createRequest } from "./data/helper";
-import { expectApiSingle, expectApiMulti } from "@forja/types/test/helpers";
+import {
+	expectApiSingle,
+	expectApiMulti,
+} from "@forja/core/types/test/helpers";
 import fs from "node:fs/promises";
 
 describe("ManyToMany Populate Integration Tests", () => {

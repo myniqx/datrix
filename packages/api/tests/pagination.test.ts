@@ -19,7 +19,7 @@ import { createRequest } from "./data/helper";
 import {
 	expectApiMulti,
 	expectPaginationMeta,
-} from "@forja/types/test/helpers";
+} from "@forja/core/types/test/helpers";
 import fs from "node:fs/promises";
 
 describe("Pagination Integration Tests", () => {

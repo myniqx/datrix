@@ -14,7 +14,7 @@ import type {
 	TimeUnit,
 	ExpiryString,
 } from "./types";
-import { DEFAULT_API_AUTH_CONFIG } from "@forja/types/config";
+import { DEFAULT_API_AUTH_CONFIG } from "@forja/core/types/config";
 import { isJwtPayload } from "./types";
 import {
 	throwJwtSignError,

@@ -38,7 +38,6 @@ export default defineConfig({
 	resolve: {
 		alias: {
 			// Monorepo package aliases
-			"@forja/types": path.resolve(__dirname, "./packages/types/src"),
 			"@forja/core": path.resolve(__dirname, "./packages/core/src"),
 			"@forja/core/plugin/plugin": path.resolve(
 				__dirname,

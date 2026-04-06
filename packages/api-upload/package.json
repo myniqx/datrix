@@ -27,8 +27,7 @@
 	"dependencies": {
 		"sharp": "^0.34.5",
 		"@forja/api": "workspace:*",
-		"@forja/core": "workspace:*",
-		"@forja/types": "workspace:*"
+		"@forja/core": "workspace:*"
 	},
 	"devDependencies": {
 		"@types/sharp": "^0.32.0",

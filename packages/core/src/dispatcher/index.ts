@@ -11,17 +11,20 @@ import {
 	QueryInsertObject,
 	QueryUpdateObject,
 	QueryDeleteObject,
-} from "@forja/types/core/query-builder";
-import { PluginRegistry } from "@forja/types/core/plugin";
-import { QueryAction, QueryContext } from "@forja/types/core/query-context";
+} from "@forja/core/types/core/query-builder";
+import { PluginRegistry } from "@forja/core/types/core/plugin";
+import {
+	QueryAction,
+	QueryContext,
+} from "@forja/core/types/core/query-context";
 import {
 	ForjaEntry,
 	ForjaRecord,
 	SchemaDefinition,
 	LifecycleHooks,
-} from "@forja/types/core/schema";
+} from "@forja/core/types/core/schema";
 import type { Forja } from "../forja";
-import { validateQueryObject } from "@forja/types/utils/query";
+import { validateQueryObject } from "@forja/core/types/utils/query";
 import { SchemaRegistry } from "../schema";
 import {
 	throwHookInvalidReturn,

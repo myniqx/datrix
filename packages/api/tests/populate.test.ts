@@ -17,7 +17,7 @@ import { createTestConfig, getTmpDir } from "./data";
 import { serializeQuery } from "../src/serializer/query";
 import { createRequest } from "./data/helper";
 import fs from "node:fs/promises";
-import { expectApiSingle } from "@forja/types/test/helpers";
+import { expectApiSingle } from "@forja/core/types/test/helpers";
 
 describe("Populate Integration Tests", () => {
 	let forja: Forja;

@@ -16,7 +16,7 @@ import {
 	AuthUser,
 	IAuthManager,
 	LoginResult,
-} from "@forja/types/api/auth";
+} from "@forja/core/types/api/auth";
 
 /**
  * Auth Manager

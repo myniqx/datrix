@@ -8,15 +8,15 @@
  */
 
 import type { Forja } from "@forja/core";
-import type { UploadFile, MediaVariants } from "@forja/types/api";
-import type { ForjaEntry } from "@forja/types/core/schema";
+import type { UploadFile, MediaVariants } from "@forja/core/types/api";
+import type { ForjaEntry } from "@forja/core/types/core/schema";
 import {
 	ForjaApiError,
 	handlerError,
 	jsonResponse,
 	forjaErrorResponse,
 } from "@forja/api";
-import { ForjaError, ForjaValidationError } from "@forja/types/errors";
+import { ForjaError, ForjaValidationError } from "@forja/core/types/errors";
 import type { UploadOptions } from "./types";
 import { convertFormat, generateVariants, isImage } from "./processor";
 

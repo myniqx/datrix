@@ -17,9 +17,9 @@ import type {
 	EnumField,
 	ArrayField,
 	DateField,
-} from "@forja/types/core/schema";
+} from "@forja/core/types/core/schema";
 import { createValidationError, formatErrorMessage } from "./errors";
-import { FieldValidationResult } from "@forja/types/core/validator";
+import { FieldValidationResult } from "@forja/core/types/core/validator";
 
 /**
  * Type guards

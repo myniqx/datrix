@@ -2,15 +2,15 @@ import {
 	QuerySelect,
 	QuerySelectObject,
 	QueryPopulateOptions,
-} from "@forja/types/core/query-builder";
+} from "@forja/core/types/core/query-builder";
 import type { JsonAdapter } from "./adapter";
-import type { ForjaEntry, RelationField } from "@forja/types/core/schema";
+import type { ForjaEntry, RelationField } from "@forja/core/types/core/schema";
 import {
 	throwSchemaNotFound,
 	throwRelationNotFound,
 	throwInvalidRelationType,
 	throwTargetModelNotFound,
-} from "@forja/types/errors";
+} from "@forja/core/types/errors";
 import { JsonQueryRunner } from "./runner";
 
 export class JsonPopulator {

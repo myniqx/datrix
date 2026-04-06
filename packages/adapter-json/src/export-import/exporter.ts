@@ -1,4 +1,4 @@
-import type { ExportWriter } from "@forja/types/adapter";
+import type { ExportWriter } from "@forja/core/types/adapter";
 import type { JsonAdapter } from "../adapter";
 
 const CHUNK_SIZE = 1000;

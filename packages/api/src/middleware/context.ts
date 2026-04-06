@@ -11,11 +11,11 @@ import type {
 	ContextBuilderOptions,
 } from "./types";
 import type { Forja } from "@forja/core";
-import { ParserError } from "@forja/types/api/parser";
+import { ParserError } from "@forja/core/types/api/parser";
 import { methodToAction } from "./permission";
 import { parseQuery } from "../parser";
-import { FallbackInput } from "@forja/types/forja";
-import { AuthUser, IApiPlugin } from "@forja/types/api";
+import { FallbackInput } from "@forja/core/types/forja";
+import { AuthUser, IApiPlugin } from "@forja/core/types/api";
 
 /**
  * Extract table name from URL path

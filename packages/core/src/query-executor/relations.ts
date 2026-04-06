@@ -15,13 +15,13 @@ import {
 	ISchemaRegistry,
 	ForjaEntry,
 	ForjaRecord,
-} from "@forja/types/core/schema";
+} from "@forja/core/types/core/schema";
 import {
 	QueryRelations,
 	NormalizedRelationOperations,
 	WhereClause,
-} from "@forja/types/core/query-builder";
-import { QueryRunner } from "@forja/types/adapter";
+} from "@forja/core/types/core/query-builder";
+import { QueryRunner } from "@forja/core/types/adapter";
 import { validateData } from "./validation";
 
 /**

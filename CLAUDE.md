@@ -40,10 +40,10 @@ Forja is a TypeScript-first database management framework designed as a plugin f
 ### Package Dependency Flow
 
 ```
-@forja/types  ←  @forja/core  ←  @forja/adapter-*
-                              ←  @forja/api
-                              ←  @forja/api-upload
-                              ←  @forja/cli
+@forja/core  ←  @forja/adapter-*
+             ←  @forja/api
+             ←  @forja/api-upload
+             ←  @forja/cli
 ```
 
 No circular dependencies. Adapters and plugins depend on core and types, never the reverse.
@@ -60,7 +60,6 @@ Three layers with strict separation of responsibilities:
 
 ### Key Packages
 
-- **`@forja/types`** — Zero runtime code. Pure TypeScript definitions shared across all packages.
 - **`@forja/core`** — Schema registry, query builder, executor, validator, migration engine, plugin base class.
 - **`@forja/adapter-*`** — Database-specific SQL generation. Postgres supports three populate strategies: JSON aggregation, LATERAL joins, batched IN queries.
 - **`@forja/api`** — Auto-generated REST CRUD routes. JWT/session auth, RBAC, adapters for Next.js/Express/Fastify/Koa.

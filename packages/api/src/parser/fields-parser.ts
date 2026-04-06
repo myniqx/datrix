@@ -7,11 +7,11 @@
  *   ?fields=name,email
  */
 
-import type { RawQueryParams } from "@forja/types/api/parser";
+import type { RawQueryParams } from "@forja/core/types/api/parser";
 import {
 	MAX_ARRAY_INDEX,
 	validateFieldName,
-} from "@forja/types/core/constants";
+} from "@forja/core/types/core/constants";
 import { fieldsError } from "./errors";
 
 /**

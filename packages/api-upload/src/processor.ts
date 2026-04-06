@@ -5,9 +5,13 @@
  * Only processes images — non-image files are passed through unchanged.
  */
 
-import type { UploadFile, MediaVariant, MediaVariants } from "@forja/types/api";
+import type {
+	UploadFile,
+	MediaVariant,
+	MediaVariants,
+} from "@forja/core/types/api";
 import type { ImageFormat, ResolutionConfig } from "./types";
-import { ForjaError } from "@forja/types/errors";
+import { ForjaError } from "@forja/core/types/errors";
 
 const IMAGE_MIME_TYPES = new Set([
 	"image/jpeg",

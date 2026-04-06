@@ -96,7 +96,7 @@ console.log("Count:", countResult.metadata.count);
 All operations throw `ForjaAdapterError` on failure:
 
 ```typescript
-import { ForjaAdapterError } from "@forja/types/errors";
+import { ForjaAdapterError } from "@forja/core/types/errors";
 
 try {
   const result = await adapter.executeQuery({

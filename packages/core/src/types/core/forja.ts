@@ -1,19 +1,19 @@
-import { DatabaseAdapter } from "./adapter";
+import { DatabaseAdapter } from "../adapter";
 import { DevConfig, ForjaConfig, MigrationConfig } from "./config";
 import {
 	PopulateClause,
 	SelectClause,
 	WhereClause,
 	OrderByClause,
-} from "./core/query-builder";
+} from "./query-builder";
 import {
 	AnyRelationInput,
 	ForjaEntry,
 	ForjaRecord,
 	ISchemaRegistry,
-} from "./core/schema";
-import { ForjaPlugin, SchemaDefinition } from "./core/plugin";
-import { QueryAction } from "./core/query-context";
+} from "./schema";
+import { ForjaPlugin, SchemaDefinition } from "./plugin";
+import { QueryAction } from "./query-context";
 
 export interface RawCrudOptions<T extends ForjaEntry = ForjaRecord> {
 	select?: SelectClause<T> | undefined;

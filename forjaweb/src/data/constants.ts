@@ -1,7 +1,7 @@
 export const FORJA_VERSION = "v0.1";
 export const FORJA_GITHUB_REPO = "myniqx/forja";
 export const FORJA_GITHUB_URL = `https://github.com/${FORJA_GITHUB_REPO}`;
-export const FORJA_NPM_INSTALL = "npm install @forja/core @forja/types";
+export const FORJA_NPM_INSTALL = "npm install @forja/core";
 
 export const FORJA_PACKAGES = [
 	{
@@ -9,12 +9,6 @@ export const FORJA_PACKAGES = [
 		description:
 			"Schema engine, query executor, migration system, and plugin runtime.",
 		npm: "https://www.npmjs.com/package/@forja/core",
-	},
-	{
-		name: "@forja/types",
-		description:
-			"Shared TypeScript types — ForjaEntry, QueryObject, adapters, plugins.",
-		npm: "https://www.npmjs.com/package/@forja/types",
 	},
 	{
 		name: "@forja/adapter-postgres",

@@ -9,12 +9,12 @@
  * 5. Plugin hooks (via dispatcher)
  */
 
-import { DatabaseAdapter, QueryRunner } from "@forja/types/adapter";
+import { DatabaseAdapter, QueryRunner } from "@forja/core/types/adapter";
 import {
 	ISchemaRegistry,
 	SchemaDefinition,
 	ForjaEntry,
-} from "@forja/types/core/schema";
+} from "@forja/core/types/core/schema";
 import {
 	QueryObject,
 	QuerySelectObject,
@@ -23,8 +23,8 @@ import {
 	QueryUpdateObject,
 	QueryDeleteObject,
 	WhereClause,
-} from "@forja/types/core/query-builder";
-import { QueryAction } from "@forja/types/core/query-context";
+} from "@forja/core/types/core/query-builder";
+import { QueryAction } from "@forja/core/types/core/query-context";
 import { Dispatcher } from "../dispatcher";
 import { validateData } from "./validation";
 import { processRelations, resolveRelationCUD } from "./relations";

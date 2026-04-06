@@ -1,5 +1,5 @@
-import type { ImportReader } from "@forja/types/adapter";
-import type { SchemaDefinition } from "@forja/types/core/schema";
+import type { ImportReader } from "@forja/core/types/adapter";
+import type { SchemaDefinition } from "@forja/core/types/core/schema";
 import type { JsonAdapter } from "../adapter";
 import type { JsonTableFile } from "../types";
 

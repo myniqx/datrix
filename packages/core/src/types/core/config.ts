@@ -1,13 +1,12 @@
 /**
- * Configuration Types
+ * Core Configuration Types
  *
- * This file defines all configuration-related types for Forja framework.
- * Config files (forja.config.ts) should export values matching these types.
+ * Forja framework configuration types used in forja.config.ts files.
  */
 
-import type { DatabaseAdapter } from "./adapter";
-import type { ForjaPlugin } from "./core/plugin";
-import type { SchemaDefinition } from "./core/schema";
+import type { DatabaseAdapter } from "../adapter";
+import type { ForjaPlugin } from "./plugin";
+import type { SchemaDefinition } from "./schema";
 
 /**
  * Main Forja Configuration
@@ -123,8 +122,8 @@ export interface DevConfig {
  * Supports both ESM default export and direct export
  */
 export type ConfigFileExport<T extends ForjaConfig = ForjaConfig> =
-	| T // Direct export
-	| { default: T }; // ESM default export
+	| T
+	| { default: T };
 
 /**
  * Config loading options
@@ -174,52 +173,6 @@ export function isForjaConfig(value: unknown): value is ForjaConfig {
 export function hasDefaultExport<T>(value: unknown): value is { default: T } {
 	return typeof value === "object" && value !== null && "default" in value;
 }
-
-/**
- * Default API configuration values
- */
-export const DEFAULT_API_CONFIG = {
-	enabled: true,
-	prefix: "/api",
-	defaultPageSize: 25,
-	maxPageSize: 100,
-	maxPopulateDepth: 5,
-	autoRoutes: true,
-	excludeSchemas: [],
-} as const;
-
-/**
- * Default API Auth configuration values
- */
-export const DEFAULT_API_AUTH_CONFIG = {
-	enabled: true,
-	userSchema: {
-		name: "user",
-		email: "email",
-	},
-	jwt: {
-		expiresIn: "7d",
-		algorithm: "HS256" as const,
-	},
-	session: {
-		store: "memory" as const,
-		maxAge: 86400, // 24 hours
-		checkPeriod: 3600, // 1 hour
-		prefix: "forja:session:",
-	},
-	password: {
-		iterations: 100000,
-		keyLength: 64,
-		minLength: 8,
-	},
-	endpoints: {
-		login: "/auth/login",
-		register: "/auth/register",
-		logout: "/auth/logout",
-		me: "/auth/me",
-		disableRegister: false,
-	},
-} as const;
 
 /**
  * Default migration configuration values

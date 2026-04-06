@@ -6,9 +6,9 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { defineSchema } from "@forja/types/core/schema";
+import { defineSchema } from "@forja/core/types/core/schema";
 import { FORJA_META_MODEL } from "@forja/core";
-import { DatabaseAdapter } from "@forja/types";
+import { DatabaseAdapter } from "@forja/core/types";
 import { createForjaWithSchemas, getTmpDir } from "../e2e/setup/config";
 import { dropAllTables } from "../e2e/setup/helpers";
 

@@ -10,21 +10,21 @@ import type {
 	PluginContext,
 	QueryContext,
 	SchemaDefinition,
-} from "@forja/types/core/plugin";
-import { DefaultPermission, defineSchema } from "@forja/types/core/schema";
-import { DEFAULT_API_AUTH_CONFIG } from "@forja/types/config";
+} from "@forja/core/types/core/plugin";
+import { DefaultPermission, defineSchema } from "@forja/core/types/core/schema";
+import { DEFAULT_API_AUTH_CONFIG } from "@forja/core/types/config";
 import { AuthManager } from "./auth/manager";
 import { createUnifiedAuthHandler } from "./handler/auth-handler";
 import { handleCrudRequest } from "./handler/unified";
 import { handlerError } from "./errors/api-error";
 import { ApiConfig } from "./types";
 import { Forja } from "@forja/core";
-import type { IApiPlugin } from "@forja/types/api";
-import type { ForjaEntry, ForjaRecord } from "@forja/types/core/schema";
+import type { IApiPlugin } from "@forja/core/types/api";
+import type { ForjaEntry, ForjaRecord } from "@forja/core/types/core/schema";
 import { forjaErrorResponse } from "./handler/utils";
-import type { AuthUser, IUpload } from "@forja/types/api";
-import { QueryObject } from "@forja/types";
-import { FallbackInput } from "@forja/types/forja";
+import type { AuthUser, IUpload } from "@forja/core/types/api";
+import { QueryObject } from "@forja/core/types";
+import { FallbackInput } from "@forja/core/types/forja";
 
 export class ApiPlugin<TRole extends string = string>
 	extends BasePlugin<ApiConfig<TRole>>

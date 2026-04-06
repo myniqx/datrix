@@ -26,8 +26,7 @@
 	},
 	"dependencies": {
 		"pg": "^8.11.3",
-		"@forja/core": "workspace:*",
-		"@forja/types": "workspace:*"
+		"@forja/core": "workspace:*"
 	},
 	"devDependencies": {
 		"tsup": "^8.0.2",

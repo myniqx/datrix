@@ -16,8 +16,8 @@ import type {
 import {
 	AdapterErrorCode,
 	ForjaAdapterError,
-} from "@forja/types/errors/adapter";
-import { QueryObject } from "@forja/types";
+} from "@forja/core/types/errors/adapter";
+import { QueryObject } from "@forja/core/types";
 
 const IS_DEBUG = process.env["NODE_ENV"] !== "production" && false;
 

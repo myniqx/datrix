@@ -21,9 +21,9 @@ import {
 	expectApiMulti,
 	expectApiError,
 	randomEmail,
-} from "@forja/types/test/helpers";
+} from "@forja/core/types/test/helpers";
 import fs from "node:fs/promises";
-import { ParsedQuery } from "@forja/types";
+import { ParsedQuery } from "@forja/core/types";
 
 describe("CRUD Relation API Tests", () => {
 	let forja: Forja;

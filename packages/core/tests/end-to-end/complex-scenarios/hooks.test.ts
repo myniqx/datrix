@@ -24,11 +24,14 @@
 import { describe, it, expect } from "vitest";
 import { Forja, defineConfig } from "@forja/core";
 import { BasePlugin } from "@forja/core/plugin/plugin";
-import { defineSchema } from "@forja/types/core/schema";
-import type { ForjaEntry, LifecycleHooks } from "@forja/types/core/schema";
-import type { PluginContext, SchemaDefinition } from "@forja/types/core/plugin";
-import type { QueryContext } from "@forja/types/core/query-context";
-import type { QueryObject } from "@forja/types/core/query-builder";
+import { defineSchema } from "@forja/core/types/core/schema";
+import type { ForjaEntry, LifecycleHooks } from "@forja/core/types/core/schema";
+import type {
+	PluginContext,
+	SchemaDefinition,
+} from "@forja/core/types/core/plugin";
+import type { QueryContext } from "@forja/core/types/core/query-context";
+import type { QueryObject } from "@forja/core/types/core/query-builder";
 import fs from "node:fs/promises";
 import { getAdapter, getAdapterType, getTmpDir } from "../setup";
 

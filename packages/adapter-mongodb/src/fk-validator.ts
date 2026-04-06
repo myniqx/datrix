@@ -12,9 +12,9 @@ import type {
 	FieldDefinition,
 	ForjaEntry,
 	ISchemaRegistry,
-} from "@forja/types/core/schema";
+} from "@forja/core/types/core/schema";
 import type { MongoClient } from "./mongo-client";
-import { throwQueryError } from "@forja/types/errors";
+import { throwQueryError } from "@forja/core/types/errors";
 
 /**
  * Validate FK references in documents before insert.
