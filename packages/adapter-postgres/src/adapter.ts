@@ -31,7 +31,7 @@ import {
 	throwMetaFieldAlreadyExists,
 	throwMetaFieldNotFound,
 } from "@forja/core/types/errors";
-import { validateQueryObject } from "@forja/core/types/utils/query";
+import { validateQueryObject } from "@forja/core/types/utils";
 import {
 	FieldDefinition,
 	ForjaEntry,

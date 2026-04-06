@@ -6,8 +6,8 @@
  */
 
 import { validateField } from "../../src";
-import { sampleFields } from "../../../types/src/test/fixtures";
-import { expectFailureError } from "../../../types/src/test/helpers";
+import { sampleFields } from "../test/fixtures";
+import { expectFailureError } from "../test/helpers";
 import { describe, it, expect } from "vitest";
 
 describe("FieldValidator - Error Path", () => {

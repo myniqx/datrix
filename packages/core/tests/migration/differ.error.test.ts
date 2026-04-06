@@ -11,8 +11,8 @@
 
 import { describe, it, expect } from "vitest";
 import { ForgeSchemaDiffer } from "../../src/migration/differ";
-import { SchemaDefinition } from "../../../types/src/core/schema";
-import { expectFailureError } from "../../../types/src/test/helpers";
+import { SchemaDefinition } from "../../src/types";
+import { expectFailureError } from "../test/helpers";
 
 describe("SchemaDiffer - Error Path", () => {
 	const differ = new ForgeSchemaDiffer();

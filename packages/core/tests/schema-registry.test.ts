@@ -10,7 +10,7 @@
  */
 
 import { SchemaRegistry } from "../src";
-import { SchemaDefinition } from "../../types/src/core/schema";
+import { SchemaDefinition } from "../src/types/core/schema";
 import { describe, it, expect, beforeEach } from "vitest";
 
 describe("Core - Schema Registry - Happy Path", () => {

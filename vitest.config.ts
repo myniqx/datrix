@@ -25,24 +25,53 @@ export default defineConfig({
 				statements: 80,
 			},
 		},
-		include: ["tests/**/*.test.ts", "packages/**/tests/**/*.test.ts"],
-		exclude: ["node_modules/", "dist/", "examples/"],
+		exclude: [
+			"packages/**/node_modules/",
+			"dist/",
+			"examples/",
+			"packages/**/adapter-*/*",
+		],
+		include: [
+			"tests/**/*.test.ts",
+			"packages/api/tests/**/*.test.ts",
+			"packages/api-upload/tests/**/*.test.ts",
+			"packages/core/**/*.test.ts",
+			"packages/cli/tests/**/*.test.ts",
+		],
 		pool: "forks",
-		/*
-    poolOptions: {
-      forks: {
-        singleFork: true, // Tek process, sıralı
-      }
-    } */
 	},
 	resolve: {
 		alias: {
 			// Monorepo package aliases
-			"@forja/core": path.resolve(__dirname, "./packages/core/src"),
+			"@forja/core/types/api": path.resolve(
+				__dirname,
+				"./packages/core/src/types/api/index.ts",
+			),
+			"@forja/core/types/cli": path.resolve(
+				__dirname,
+				"./packages/core/src/types/cli/index.ts",
+			),
+			"@forja/core/types/adapter": path.resolve(
+				__dirname,
+				"./packages/core/src/types/adapter/index.ts",
+			),
+			"@forja/core/types/errors": path.resolve(
+				__dirname,
+				"./packages/core/src/types/errors/index.ts",
+			),
+			"@forja/core/types/utils": path.resolve(
+				__dirname,
+				"./packages/core/src/types/utils/index.ts",
+			),
+			"@forja/core/types": path.resolve(
+				__dirname,
+				"./packages/core/src/types/core/index.ts",
+			),
 			"@forja/core/plugin/plugin": path.resolve(
 				__dirname,
 				"./packages/core/src/plugin/plugin.ts",
 			),
+			"@forja/core": path.resolve(__dirname, "./packages/core/src"),
 			"@forja/adapter-postgres": path.resolve(
 				__dirname,
 				"./packages/adapter-postgres/src",

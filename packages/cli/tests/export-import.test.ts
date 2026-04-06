@@ -13,13 +13,13 @@
  *
  * Change these two constants to test cross-adapter scenarios:
  */
-const FROM_ADAPTER: AdapterType = "mongodb";
+const FROM_ADAPTER: AdapterType = "json";
 const TO_ADAPTER: AdapterType = "json";
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { defineConfig, Forja } from "@forja/core";
 import type { ForjaConfig, ForjaEntry } from "@forja/core/types";
-import { defineSchema } from "@forja/core/types/core/schema";
+import { defineSchema } from "@forja/core/types";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { getAdapter, type AdapterType } from "../../api/tests/data/adapter";

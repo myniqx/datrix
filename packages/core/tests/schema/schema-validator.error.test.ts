@@ -10,14 +10,9 @@ import {
 	assertSchema,
 	isValid,
 	validateMany,
-	validateOrThrow,
 } from "../../src/validator/schema-validator";
-import {
-	invalidData,
-	sampleSchemas,
-	validData,
-} from "../../../types/src/test/fixtures";
-import { expectFailureError } from "../../../types/src/test/helpers";
+import { invalidData, sampleSchemas, validData } from "../test/fixtures";
+import { expectFailureError } from "../test/helpers";
 import { describe, it, expect } from "vitest";
 
 describe("SchemaValidator - Error Path", () => {

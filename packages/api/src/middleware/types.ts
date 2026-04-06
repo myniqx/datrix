@@ -4,7 +4,7 @@
  * Type definitions for middleware system
  */
 
-import type { ParsedQuery } from "@forja/core/types/api/parser";
+import type { ParsedQuery } from "@forja/core/types/api";
 import type { SchemaDefinition } from "@forja/core/types";
 import type { PermissionAction } from "@forja/core/types";
 import type { Forja } from "@forja/core";

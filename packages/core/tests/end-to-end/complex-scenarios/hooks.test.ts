@@ -24,8 +24,8 @@
 import { describe, it, expect } from "vitest";
 import { Forja, defineConfig } from "@forja/core";
 import { BasePlugin } from "@forja/core/plugin/plugin";
-import { defineSchema } from "@forja/core/types/core/schema";
-import type { ForjaEntry, LifecycleHooks } from "@forja/core/types/core/schema";
+import { defineSchema } from "@forja/core/types";
+import type { ForjaEntry, LifecycleHooks } from "@forja/core/types";
 import type {
 	PluginContext,
 	SchemaDefinition,

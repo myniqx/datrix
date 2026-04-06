@@ -10,14 +10,9 @@ import {
 	assertSchema,
 	isValid,
 	validateMany,
-	validateOrThrow,
 } from "../../src/validator/schema-validator";
-import {
-	createTestData,
-	sampleSchemas,
-	validData,
-} from "../../../types/src/test/fixtures";
-import { expectSuccessData } from "../../../types/src/test/helpers";
+import { createTestData, sampleSchemas, validData } from "../test/fixtures";
+import { expectSuccessData } from "../test/helpers";
 import { describe, it, expect } from "vitest";
 
 describe("SchemaValidator - Happy Path", () => {

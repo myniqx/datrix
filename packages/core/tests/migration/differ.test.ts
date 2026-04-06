@@ -6,9 +6,9 @@
 
 import { describe, it, expect } from "vitest";
 import { ForgeSchemaDiffer } from "../../src/migration/differ";
-import { SchemaDefinition } from "../../../types/src/core/schema";
-import { parserTestData } from "../../../types/src/test/fixtures";
-import { expectSuccessData } from "../../../types/src/test/helpers";
+import { SchemaDefinition } from "../../src/types/core";
+import { parserTestData } from "../test/fixtures";
+import { expectSuccessData } from "../test/helpers";
 
 describe("SchemaDiffer - Happy Path", () => {
 	const differ = new ForgeSchemaDiffer();

@@ -123,7 +123,7 @@ async function createForjaWithUpload(tmpDir: string): Promise<Forja> {
 
 	const getForja = defineConfig(() => {
 		const config: ForjaConfig = {
-			adapter: adapter as unknown as ForjaConfig["adapter"],
+			adapter,
 			schemas: [],
 			plugins: [
 				new ApiPlugin({

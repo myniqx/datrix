@@ -5,7 +5,7 @@
  */
 
 import { ForjaEntry, ForjaRecord } from "@forja/core/types";
-import { ParsedQuery, RawQueryParams } from "@forja/core/types/api/parser";
+import { ParsedQuery, RawQueryParams } from "@forja/core/types/api";
 import {
 	WhereClause,
 	PopulateClause,

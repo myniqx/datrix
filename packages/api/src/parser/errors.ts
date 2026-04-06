@@ -13,7 +13,7 @@ import {
 	type FieldsErrorContext,
 	type PaginationErrorContext,
 	type SortErrorContext,
-} from "@forja/core/types/api/parser";
+} from "@forja/core/types/api";
 import {
 	MAX_WHERE_VALUE_LENGTH,
 	MAX_LOGICAL_NESTING_DEPTH,

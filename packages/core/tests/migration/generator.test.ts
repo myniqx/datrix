@@ -6,9 +6,9 @@
  */
 
 import { ForgeMigrationGenerator } from "../../src/migration/generator";
-import { SchemaDiff } from "../../../types/src/core/migration";
+import { SchemaDiff } from "../../src/types/core";
 import { describe, it, expect } from "vitest";
-import { expectSuccessData } from "../../../types/src/test/helpers";
+import { expectSuccessData } from "../test/helpers";
 
 describe("MigrationGenerator - Happy Path", () => {
 	const generator = new ForgeMigrationGenerator();

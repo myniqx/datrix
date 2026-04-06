@@ -9,8 +9,8 @@
  */
 
 import { Dispatcher } from "../src/dispatcher";
-import { QueryObject } from "../../types/src/core/query-builder";
-import { ForjaPlugin, PluginRegistry } from "../../types/src/plugin";
+import { QueryObject } from "../src/types/core/query-builder";
+import { ForjaPlugin, PluginRegistry } from "../src/types/core";
 import { describe, it, expect, vi } from "vitest";
 
 describe("Core - Dispatcher - Happy Path", () => {
@@ -20,23 +20,23 @@ describe("Core - Dispatcher - Happy Path", () => {
 			name: "p1",
 			version: "1",
 			options: {},
-			init: async () => ({ success: true, data: undefined }),
-			destroy: async () => ({ success: true, data: undefined }),
+			init: async () => {},
+			destroy: async () => {},
 			onSchemaLoad: vi.fn(),
 		};
 		const secondPlugin: ForjaPlugin = {
 			name: "p2",
 			version: "1",
 			options: {},
-			init: async () => ({ success: true, data: undefined }),
-			destroy: async () => ({ success: true, data: undefined }),
+			init: async () => {},
+			destroy: async () => {},
 			onSchemaLoad: vi.fn(),
 		};
 
 		pluginRegistry.register(firstPlugin);
 		pluginRegistry.register(secondPlugin);
 
-		const dispatcher = new Dispatcher(pluginRegistry);
+		const dispatcher = new Dispatcher(pluginRegistry, null!);
 		const mockSchemaRegistry: any = { name: "Registry" };
 
 		await dispatcher.dispatchSchemaLoad(mockSchemaRegistry);
@@ -51,26 +51,30 @@ describe("Core - Dispatcher - Happy Path", () => {
 			name: "p1",
 			version: "1",
 			options: {},
-			init: async () => ({ success: true, data: undefined }),
-			destroy: async () => ({ success: true, data: undefined }),
+			init: async () => {},
+			destroy: async () => {},
 			onBeforeQuery: async (q) => ({ ...q, table: q.table + "_p1" }),
 		};
 		const tableAppendingPlugin2: ForjaPlugin = {
 			name: "p2",
 			version: "1",
 			options: {},
-			init: async () => ({ success: true, data: undefined }),
-			destroy: async () => ({ success: true, data: undefined }),
+			init: async () => {},
+			destroy: async () => {},
 			onBeforeQuery: async (q) => ({ ...q, table: q.table + "_p2" }),
 		};
 
 		pluginRegistry.register(tableAppendingPlugin1);
 		pluginRegistry.register(tableAppendingPlugin2);
 
-		const dispatcher = new Dispatcher(pluginRegistry);
+		const dispatcher = new Dispatcher(pluginRegistry, null!);
 		const initialQuery: QueryObject = { type: "select", table: "users" };
 
-		const modifiedQuery = await dispatcher.dispatchBeforeQuery(initialQuery);
+		const modifiedQuery = await dispatcher.dispatchBeforeQuery(
+			initialQuery,
+			{ hooks: null! },
+			null!,
+		);
 
 		expect(modifiedQuery.table).toBe("users_p1_p2");
 	});
@@ -81,16 +85,20 @@ describe("Core - Dispatcher - Happy Path", () => {
 			name: "p1",
 			version: "1",
 			options: {},
-			init: async () => ({ success: true, data: undefined }),
-			destroy: async () => ({ success: true, data: undefined }),
+			init: async () => {},
+			destroy: async () => {},
 			onAfterQuery: async (r: any) => ({ ...r, count: (r.count || 0) + 1 }),
 		};
 
 		pluginRegistry.register(countIncrementingPlugin);
 
-		const dispatcher = new Dispatcher(pluginRegistry);
+		const dispatcher = new Dispatcher(pluginRegistry, null!);
 		const initialResult = { count: 10 };
-		const modifiedResult = await dispatcher.dispatchAfterQuery(initialResult);
+		const modifiedResult = await dispatcher.dispatchAfterQuery(
+			initialResult,
+			{ hooks: null! },
+			null!,
+		);
 
 		expect(modifiedResult.count).toBe(11);
 	});
@@ -101,8 +109,8 @@ describe("Core - Dispatcher - Happy Path", () => {
 			name: "p1",
 			version: "1",
 			options: {},
-			init: async () => ({ success: true, data: undefined }),
-			destroy: async () => ({ success: true, data: undefined }),
+			init: async () => {},
+			destroy: async () => {},
 			onBeforeQuery: async (q) => ({
 				...q,
 				meta: { ...q.meta, p1_data: "hello" },
@@ -112,8 +120,8 @@ describe("Core - Dispatcher - Happy Path", () => {
 			name: "p2",
 			version: "1",
 			options: {},
-			init: async () => ({ success: true, data: undefined }),
-			destroy: async () => ({ success: true, data: undefined }),
+			init: async () => {},
+			destroy: async () => {},
 			onBeforeQuery: async (q) => {
 				const p1Data = q.meta?.["p1_data"];
 				return { ...q, table: q.table + "_" + p1Data };
@@ -123,9 +131,13 @@ describe("Core - Dispatcher - Happy Path", () => {
 		pluginRegistry.register(metaSettingPlugin);
 		pluginRegistry.register(metaReadingPlugin);
 
-		const dispatcher = new Dispatcher(pluginRegistry);
+		const dispatcher = new Dispatcher(pluginRegistry, null!);
 		const initialQuery: QueryObject = { type: "select", table: "users" };
-		const finalQuery = await dispatcher.dispatchBeforeQuery(initialQuery);
+		const finalQuery = await dispatcher.dispatchBeforeQuery(
+			initialQuery,
+			{ hooks: null! },
+			null!,
+		);
 
 		expect(finalQuery.table).toBe("users_hello");
 		expect(finalQuery.meta?.["p1_data"]).toBe("hello");

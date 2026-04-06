@@ -7,19 +7,23 @@
  */
 
 import { Dispatcher } from "../src/dispatcher";
-import { QueryObject } from "../../types/src/core/query-builder";
-import { ForjaPlugin, PluginRegistry } from "../../types/src/plugin";
+import { QueryObject } from "../src/types";
+import { ForjaPlugin, PluginRegistry } from "../src/types";
 import { describe, it, expect } from "vitest";
 
 describe("Core - Dispatcher - Error Path", () => {
 	it("should throw if entrance query is invalid", async () => {
 		const emptyPluginRegistry = new PluginRegistry();
-		const dispatcher = new Dispatcher(emptyPluginRegistry);
+		const dispatcher = new Dispatcher(emptyPluginRegistry, null!);
 
 		const invalidEntranceQuery = { table: "users" } as any;
 
 		await expect(
-			dispatcher.dispatchBeforeQuery(invalidEntranceQuery),
+			dispatcher.dispatchBeforeQuery(
+				invalidEntranceQuery,
+				{ hooks: null! },
+				null!,
+			),
 		).rejects.toThrow("QueryObject is missing required field");
 	});
 
@@ -38,14 +42,18 @@ describe("Core - Dispatcher - Error Path", () => {
 			};
 			pluginRegistry.register(invalidQueryReturningPlugin);
 
-			const dispatcher = new Dispatcher(pluginRegistry);
+			const dispatcher = new Dispatcher(pluginRegistry as any, null!);
 			const validEntranceQuery: QueryObject = {
 				type: "select",
 				table: "users",
 			};
 
 			await expect(
-				dispatcher.dispatchBeforeQuery(validEntranceQuery),
+				dispatcher.dispatchBeforeQuery(
+					validEntranceQuery as any,
+					{ hooks: null! },
+					null!,
+				),
 			).rejects.toThrow("Plugin 'bad-plugin' returned an invalid query");
 		},
 	);

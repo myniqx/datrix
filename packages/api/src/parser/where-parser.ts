@@ -9,7 +9,7 @@
  */
 
 import type { FallbackWhereClause } from "@forja/core/types";
-import type { RawQueryParams } from "@forja/core/types/api/parser";
+import type { RawQueryParams } from "@forja/core/types/api";
 import {
 	validateFieldName,
 	isValidWhereOperator,

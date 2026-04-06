@@ -9,8 +9,8 @@
  */
 
 import { SchemaRegistry } from "../src";
-import { SchemaDefinition } from "../../types/src/core/schema";
-import { expectFailureError } from "../../types/src/test/helpers";
+import { SchemaDefinition } from "../src/types/core/schema";
+import { expectFailureError } from "./test/helpers";
 import { describe, it, expect, beforeEach } from "vitest";
 
 describe("Core - Schema Registry - Error Path", () => {

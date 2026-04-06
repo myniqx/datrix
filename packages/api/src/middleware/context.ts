@@ -11,7 +11,7 @@ import type {
 	ContextBuilderOptions,
 } from "./types";
 import type { Forja } from "@forja/core";
-import { ParserError } from "@forja/core/types/api/parser";
+import { ParserError } from "@forja/core/types/api";
 import { methodToAction } from "./permission";
 import { parseQuery } from "../parser";
 import { FallbackInput } from "@forja/core/types";

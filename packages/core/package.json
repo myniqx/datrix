@@ -14,7 +14,7 @@
 		"./types/cli": "./src/types/cli/index.ts",
 		"./types/adapter": "./src/types/adapter/index.ts",
 		"./types/errors": "./src/types/errors/index.ts",
-		"./utils": "./src/types/utils/index.ts",
+		"./types/utils": "./src/types/utils/index.ts",
 		"./types": "./src/types/core/index.ts"
 	},
 	"files": [

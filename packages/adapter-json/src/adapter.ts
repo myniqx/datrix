@@ -13,7 +13,7 @@ import {
 	IndexDefinition,
 	SchemaDefinition,
 } from "@forja/core/types";
-import { validateQueryObject } from "@forja/core/utils";
+import { validateQueryObject } from "@forja/core/types/utils";
 import {
 	CacheEntry,
 	ExecuteQueryOptions,

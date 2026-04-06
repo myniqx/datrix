@@ -14,7 +14,7 @@ import {
 	type ParsedPagination,
 	type ParsedSort,
 	type ParsedQuery,
-} from "@forja/core/types/api/parser";
+} from "@forja/core/types/api";
 import { validateFieldName } from "@forja/core/types";
 import { parseFields } from "./fields-parser";
 import { parseWhere } from "./where-parser";

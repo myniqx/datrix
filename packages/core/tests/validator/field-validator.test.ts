@@ -6,8 +6,7 @@
  */
 
 import { validateField } from "../../src";
-import { edgeCases, sampleFields } from "../../../types/src/test/fixtures";
-// import { expectSuccessData } from "../../../types/src/test/helpers";
+import { edgeCases, sampleFields } from "../test/fixtures";
 import { describe, it, expect } from "vitest";
 
 const expectSuccessData = (e) => {

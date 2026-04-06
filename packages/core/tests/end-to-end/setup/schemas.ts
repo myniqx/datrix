@@ -9,7 +9,7 @@
  * - Self-referencing (parent-child)
  */
 
-import { defineSchema } from "@forja/core/types/core/schema";
+import { defineSchema } from "@forja/core/types";
 import type { FieldDefinition } from "@forja/core/types";
 
 // ============================================================================

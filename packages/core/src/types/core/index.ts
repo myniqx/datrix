@@ -10,3 +10,4 @@ export * from "./plugin";
 export * from "./constants";
 export * from "./hooks";
 export * from "./forja";
+export * from "./migration";

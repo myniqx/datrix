@@ -429,8 +429,8 @@
 						"id": 6,
 						"name": "GraphQL",
 						"color": "#E10098",
-						"createdAt": "2026-03-14T16:34:38.010Z",
-						"updatedAt": "2026-03-14T16:34:38.010Z"
+						"createdAt": "2026-04-06T14:58:32.281Z",
+						"updatedAt": "2026-04-06T14:58:32.281Z"
 					}
 				},
 				{
@@ -453,15 +453,15 @@
 							"id": 7,
 							"name": "Rust",
 							"color": "#CE422B",
-							"createdAt": "2026-03-14T16:34:38.013Z",
-							"updatedAt": "2026-03-14T16:34:38.013Z"
+							"createdAt": "2026-04-06T14:58:32.283Z",
+							"updatedAt": "2026-04-06T14:58:32.283Z"
 						},
 						{
 							"id": 8,
 							"name": "Go",
 							"color": "#00ADD8",
-							"createdAt": "2026-03-14T16:34:38.013Z",
-							"updatedAt": "2026-03-14T16:34:38.013Z"
+							"createdAt": "2026-04-06T14:58:32.284Z",
+							"updatedAt": "2026-04-06T14:58:32.284Z"
 						}
 					]
 				},
@@ -488,18 +488,16 @@
 						"slug": "intro-to-forja",
 						"isPublished": true,
 						"viewCount": 0,
-						"createdAt": "2026-03-14T16:34:38.019Z",
-						"updatedAt": "2026-03-14T16:34:38.019Z",
+						"createdAt": "2026-04-06T14:58:32.286Z",
+						"updatedAt": "2026-04-06T14:58:32.286Z",
 						"author": {
 							"id": 1,
 							"email": "admin@acme.com",
 							"name": "Admin User",
-							"lastName": null,
 							"age": 35,
 							"isActive": true,
-							"metadata": null,
-							"createdAt": "2026-03-14T17:34:37.973+01:00",
-							"updatedAt": "2026-03-14T17:34:37.973+01:00"
+							"createdAt": "2026-04-06T14:58:32.264Z",
+							"updatedAt": "2026-04-06T14:58:32.264Z"
 						},
 						"category": {
 							"id": 2,
@@ -507,8 +505,8 @@
 							"slug": "programming",
 							"description": "Programming tutorials",
 							"isActive": true,
-							"createdAt": "2026-03-14T17:34:37.983+01:00",
-							"updatedAt": "2026-03-14T17:34:37.983+01:00"
+							"createdAt": "2026-04-06T14:58:32.270Z",
+							"updatedAt": "2026-04-06T14:58:32.270Z"
 						},
 						"tags": [],
 						"comments": []
@@ -540,18 +538,16 @@
 						"slug": "full-stack-typescript",
 						"isPublished": true,
 						"viewCount": 0,
-						"createdAt": "2026-03-14T16:34:38.026Z",
-						"updatedAt": "2026-03-14T16:34:38.026Z",
+						"createdAt": "2026-04-06T14:58:32.290Z",
+						"updatedAt": "2026-04-06T14:58:32.290Z",
 						"author": {
 							"id": 2,
 							"email": "editor@acme.com",
 							"name": "Editor User",
-							"lastName": null,
 							"age": 28,
 							"isActive": true,
-							"metadata": null,
-							"createdAt": "2026-03-14T17:34:37.973+01:00",
-							"updatedAt": "2026-03-14T17:34:37.973+01:00"
+							"createdAt": "2026-04-06T14:58:32.264Z",
+							"updatedAt": "2026-04-06T14:58:32.264Z"
 						},
 						"category": {
 							"id": 2,
@@ -559,23 +555,23 @@
 							"slug": "programming",
 							"description": "Programming tutorials",
 							"isActive": true,
-							"createdAt": "2026-03-14T17:34:37.983+01:00",
-							"updatedAt": "2026-03-14T17:34:37.983+01:00"
+							"createdAt": "2026-04-06T14:58:32.270Z",
+							"updatedAt": "2026-04-06T14:58:32.270Z"
 						},
 						"tags": [
 							{
 								"id": 1,
 								"name": "JavaScript",
 								"color": "#F7DF1E",
-								"createdAt": "2026-03-14T17:34:37.988+01:00",
-								"updatedAt": "2026-03-14T17:34:37.988+01:00"
+								"createdAt": "2026-04-06T14:58:32.273Z",
+								"updatedAt": "2026-04-06T14:58:32.273Z"
 							},
 							{
 								"id": 2,
 								"name": "TypeScript",
 								"color": "#3178C6",
-								"createdAt": "2026-03-14T17:34:37.988+01:00",
-								"updatedAt": "2026-03-14T17:34:37.988+01:00"
+								"createdAt": "2026-04-06T14:58:32.273Z",
+								"updatedAt": "2026-04-06T14:58:32.273Z"
 							}
 						],
 						"comments": []
@@ -601,8 +597,8 @@
 							"age": 35,
 							"isActive": true,
 							"metadata": null,
-							"createdAt": "2026-03-14T16:34:37.973Z",
-							"updatedAt": "2026-03-14T16:34:37.973Z"
+							"createdAt": "2026-04-06T14:58:32.264Z",
+							"updatedAt": "2026-04-06T14:58:32.264Z"
 						},
 						{
 							"id": 2,
@@ -612,8 +608,8 @@
 							"age": 28,
 							"isActive": true,
 							"metadata": null,
-							"createdAt": "2026-03-14T16:34:37.973Z",
-							"updatedAt": "2026-03-14T16:34:37.973Z"
+							"createdAt": "2026-04-06T14:58:32.264Z",
+							"updatedAt": "2026-04-06T14:58:32.264Z"
 						},
 						{
 							"id": 3,
@@ -623,8 +619,8 @@
 							"age": 25,
 							"isActive": true,
 							"metadata": null,
-							"createdAt": "2026-03-14T16:34:37.973Z",
-							"updatedAt": "2026-03-14T16:34:37.973Z"
+							"createdAt": "2026-04-06T14:58:32.264Z",
+							"updatedAt": "2026-04-06T14:58:32.264Z"
 						},
 						{
 							"id": 4,
@@ -634,8 +630,8 @@
 							"age": 40,
 							"isActive": true,
 							"metadata": null,
-							"createdAt": "2026-03-14T16:34:37.973Z",
-							"updatedAt": "2026-03-14T16:34:37.973Z"
+							"createdAt": "2026-04-06T14:58:32.264Z",
+							"updatedAt": "2026-04-06T14:58:32.264Z"
 						},
 						{
 							"id": 5,
@@ -645,8 +641,8 @@
 							"age": 30,
 							"isActive": false,
 							"metadata": null,
-							"createdAt": "2026-03-14T16:34:37.973Z",
-							"updatedAt": "2026-03-14T16:34:37.973Z"
+							"createdAt": "2026-04-06T14:58:32.264Z",
+							"updatedAt": "2026-04-06T14:58:32.264Z"
 						}
 					]
 				},
@@ -669,8 +665,8 @@
 							"age": 35,
 							"isActive": true,
 							"metadata": null,
-							"createdAt": "2026-03-14T16:34:37.973Z",
-							"updatedAt": "2026-03-14T16:34:37.973Z"
+							"createdAt": "2026-04-06T14:58:32.264Z",
+							"updatedAt": "2026-04-06T14:58:32.264Z"
 						},
 						{
 							"id": 2,
@@ -680,8 +676,8 @@
 							"age": 28,
 							"isActive": true,
 							"metadata": null,
-							"createdAt": "2026-03-14T16:34:37.973Z",
-							"updatedAt": "2026-03-14T16:34:37.973Z"
+							"createdAt": "2026-04-06T14:58:32.264Z",
+							"updatedAt": "2026-04-06T14:58:32.264Z"
 						},
 						{
 							"id": 3,
@@ -691,8 +687,8 @@
 							"age": 25,
 							"isActive": true,
 							"metadata": null,
-							"createdAt": "2026-03-14T16:34:37.973Z",
-							"updatedAt": "2026-03-14T16:34:37.973Z"
+							"createdAt": "2026-04-06T14:58:32.264Z",
+							"updatedAt": "2026-04-06T14:58:32.264Z"
 						},
 						{
 							"id": 4,
@@ -702,8 +698,8 @@
 							"age": 40,
 							"isActive": true,
 							"metadata": null,
-							"createdAt": "2026-03-14T16:34:37.973Z",
-							"updatedAt": "2026-03-14T16:34:37.973Z"
+							"createdAt": "2026-04-06T14:58:32.264Z",
+							"updatedAt": "2026-04-06T14:58:32.264Z"
 						}
 					]
 				},
@@ -734,8 +730,8 @@
 							"age": 30,
 							"isActive": false,
 							"metadata": null,
-							"createdAt": "2026-03-14T16:34:37.973Z",
-							"updatedAt": "2026-03-14T16:34:37.973Z"
+							"createdAt": "2026-04-06T14:58:32.264Z",
+							"updatedAt": "2026-04-06T14:58:32.264Z"
 						},
 						{
 							"id": 1,
@@ -745,8 +741,8 @@
 							"age": 35,
 							"isActive": true,
 							"metadata": null,
-							"createdAt": "2026-03-14T16:34:37.973Z",
-							"updatedAt": "2026-03-14T16:34:37.973Z"
+							"createdAt": "2026-04-06T14:58:32.264Z",
+							"updatedAt": "2026-04-06T14:58:32.264Z"
 						},
 						{
 							"id": 4,
@@ -756,8 +752,8 @@
 							"age": 40,
 							"isActive": true,
 							"metadata": null,
-							"createdAt": "2026-03-14T16:34:37.973Z",
-							"updatedAt": "2026-03-14T16:34:37.973Z"
+							"createdAt": "2026-04-06T14:58:32.264Z",
+							"updatedAt": "2026-04-06T14:58:32.264Z"
 						}
 					]
 				},
@@ -789,8 +785,8 @@
 							"age": 35,
 							"isActive": true,
 							"metadata": null,
-							"createdAt": "2026-03-14T16:34:37.973Z",
-							"updatedAt": "2026-03-14T16:34:37.973Z"
+							"createdAt": "2026-04-06T14:58:32.264Z",
+							"updatedAt": "2026-04-06T14:58:32.264Z"
 						},
 						{
 							"id": 2,
@@ -800,8 +796,8 @@
 							"age": 28,
 							"isActive": true,
 							"metadata": null,
-							"createdAt": "2026-03-14T16:34:37.973Z",
-							"updatedAt": "2026-03-14T16:34:37.973Z"
+							"createdAt": "2026-04-06T14:58:32.264Z",
+							"updatedAt": "2026-04-06T14:58:32.264Z"
 						},
 						{
 							"id": 3,
@@ -811,8 +807,8 @@
 							"age": 25,
 							"isActive": true,
 							"metadata": null,
-							"createdAt": "2026-03-14T16:34:37.973Z",
-							"updatedAt": "2026-03-14T16:34:37.973Z"
+							"createdAt": "2026-04-06T14:58:32.264Z",
+							"updatedAt": "2026-04-06T14:58:32.264Z"
 						},
 						{
 							"id": 4,
@@ -822,8 +818,8 @@
 							"age": 40,
 							"isActive": true,
 							"metadata": null,
-							"createdAt": "2026-03-14T16:34:37.973Z",
-							"updatedAt": "2026-03-14T16:34:37.973Z"
+							"createdAt": "2026-04-06T14:58:32.264Z",
+							"updatedAt": "2026-04-06T14:58:32.264Z"
 						}
 					]
 				},
@@ -843,29 +839,29 @@
 							"id": 1,
 							"name": "Admin User",
 							"email": "admin@acme.com",
-							"createdAt": "2026-03-14T16:34:37.973Z",
-							"updatedAt": "2026-03-14T16:34:37.973Z"
+							"createdAt": "2026-04-06T14:58:32.264Z",
+							"updatedAt": "2026-04-06T14:58:32.264Z"
 						},
 						{
 							"id": 2,
 							"name": "Editor User",
 							"email": "editor@acme.com",
-							"createdAt": "2026-03-14T16:34:37.973Z",
-							"updatedAt": "2026-03-14T16:34:37.973Z"
+							"createdAt": "2026-04-06T14:58:32.264Z",
+							"updatedAt": "2026-04-06T14:58:32.264Z"
 						},
 						{
 							"id": 3,
 							"name": "Viewer User",
 							"email": "viewer@acme.com",
-							"createdAt": "2026-03-14T16:34:37.973Z",
-							"updatedAt": "2026-03-14T16:34:37.973Z"
+							"createdAt": "2026-04-06T14:58:32.264Z",
+							"updatedAt": "2026-04-06T14:58:32.264Z"
 						},
 						{
 							"id": 4,
 							"name": "Tech Admin",
 							"email": "admin@tech.com",
-							"createdAt": "2026-03-14T16:34:37.973Z",
-							"updatedAt": "2026-03-14T16:34:37.973Z"
+							"createdAt": "2026-04-06T14:58:32.264Z",
+							"updatedAt": "2026-04-06T14:58:32.264Z"
 						}
 					]
 				},
@@ -893,8 +889,8 @@
 							"age": 35,
 							"isActive": true,
 							"metadata": null,
-							"createdAt": "2026-03-14T16:34:37.973Z",
-							"updatedAt": "2026-03-14T16:34:37.973Z"
+							"createdAt": "2026-04-06T14:58:32.264Z",
+							"updatedAt": "2026-04-06T14:58:32.264Z"
 						},
 						{
 							"id": 2,
@@ -904,8 +900,8 @@
 							"age": 28,
 							"isActive": true,
 							"metadata": null,
-							"createdAt": "2026-03-14T16:34:37.973Z",
-							"updatedAt": "2026-03-14T16:34:37.973Z"
+							"createdAt": "2026-04-06T14:58:32.264Z",
+							"updatedAt": "2026-04-06T14:58:32.264Z"
 						}
 					]
 				},
@@ -935,18 +931,16 @@
 							"slug": "getting-started-typescript",
 							"isPublished": true,
 							"viewCount": 100,
-							"createdAt": "2026-03-14T16:34:37.994Z",
-							"updatedAt": "2026-03-14T16:34:37.994Z",
+							"createdAt": "2026-04-06T14:58:32.275Z",
+							"updatedAt": "2026-04-06T14:58:32.275Z",
 							"author": {
 								"id": 1,
 								"email": "admin@acme.com",
 								"name": "Admin User",
-								"lastName": null,
 								"age": 35,
 								"isActive": true,
-								"metadata": null,
-								"createdAt": "2026-03-14T17:34:37.973+01:00",
-								"updatedAt": "2026-03-14T17:34:37.973+01:00"
+								"createdAt": "2026-04-06T14:58:32.264Z",
+								"updatedAt": "2026-04-06T14:58:32.264Z"
 							},
 							"category": {
 								"id": 2,
@@ -954,8 +948,8 @@
 								"slug": "programming",
 								"description": "Programming tutorials",
 								"isActive": true,
-								"createdAt": "2026-03-14T17:34:37.983+01:00",
-								"updatedAt": "2026-03-14T17:34:37.983+01:00"
+								"createdAt": "2026-04-06T14:58:32.270Z",
+								"updatedAt": "2026-04-06T14:58:32.270Z"
 							}
 						},
 						{
@@ -965,18 +959,16 @@
 							"slug": "docker-beginners",
 							"isPublished": true,
 							"viewCount": 50,
-							"createdAt": "2026-03-14T16:34:37.994Z",
-							"updatedAt": "2026-03-14T16:34:37.994Z",
+							"createdAt": "2026-04-06T14:58:32.275Z",
+							"updatedAt": "2026-04-06T14:58:32.275Z",
 							"author": {
 								"id": 2,
 								"email": "editor@acme.com",
 								"name": "Editor User",
-								"lastName": null,
 								"age": 28,
 								"isActive": true,
-								"metadata": null,
-								"createdAt": "2026-03-14T17:34:37.973+01:00",
-								"updatedAt": "2026-03-14T17:34:37.973+01:00"
+								"createdAt": "2026-04-06T14:58:32.264Z",
+								"updatedAt": "2026-04-06T14:58:32.264Z"
 							},
 							"category": {
 								"id": 3,
@@ -984,8 +976,8 @@
 								"slug": "devops",
 								"description": "DevOps practices",
 								"isActive": true,
-								"createdAt": "2026-03-14T17:34:37.983+01:00",
-								"updatedAt": "2026-03-14T17:34:37.983+01:00"
+								"createdAt": "2026-04-06T14:58:32.270Z",
+								"updatedAt": "2026-04-06T14:58:32.270Z"
 							}
 						},
 						{
@@ -995,18 +987,16 @@
 							"slug": "intro-to-forja",
 							"isPublished": true,
 							"viewCount": 0,
-							"createdAt": "2026-03-14T16:34:38.019Z",
-							"updatedAt": "2026-03-14T16:34:38.019Z",
+							"createdAt": "2026-04-06T14:58:32.286Z",
+							"updatedAt": "2026-04-06T14:58:32.286Z",
 							"author": {
 								"id": 1,
 								"email": "admin@acme.com",
 								"name": "Admin User",
-								"lastName": null,
 								"age": 35,
 								"isActive": true,
-								"metadata": null,
-								"createdAt": "2026-03-14T17:34:37.973+01:00",
-								"updatedAt": "2026-03-14T17:34:37.973+01:00"
+								"createdAt": "2026-04-06T14:58:32.264Z",
+								"updatedAt": "2026-04-06T14:58:32.264Z"
 							},
 							"category": {
 								"id": 2,
@@ -1014,8 +1004,8 @@
 								"slug": "programming",
 								"description": "Programming tutorials",
 								"isActive": true,
-								"createdAt": "2026-03-14T17:34:37.983+01:00",
-								"updatedAt": "2026-03-14T17:34:37.983+01:00"
+								"createdAt": "2026-04-06T14:58:32.270Z",
+								"updatedAt": "2026-04-06T14:58:32.270Z"
 							}
 						},
 						{
@@ -1025,18 +1015,16 @@
 							"slug": "full-stack-typescript",
 							"isPublished": true,
 							"viewCount": 0,
-							"createdAt": "2026-03-14T16:34:38.026Z",
-							"updatedAt": "2026-03-14T16:34:38.026Z",
+							"createdAt": "2026-04-06T14:58:32.290Z",
+							"updatedAt": "2026-04-06T14:58:32.290Z",
 							"author": {
 								"id": 2,
 								"email": "editor@acme.com",
 								"name": "Editor User",
-								"lastName": null,
 								"age": 28,
 								"isActive": true,
-								"metadata": null,
-								"createdAt": "2026-03-14T17:34:37.973+01:00",
-								"updatedAt": "2026-03-14T17:34:37.973+01:00"
+								"createdAt": "2026-04-06T14:58:32.264Z",
+								"updatedAt": "2026-04-06T14:58:32.264Z"
 							},
 							"category": {
 								"id": 2,
@@ -1044,8 +1032,8 @@
 								"slug": "programming",
 								"description": "Programming tutorials",
 								"isActive": true,
-								"createdAt": "2026-03-14T17:34:37.983+01:00",
-								"updatedAt": "2026-03-14T17:34:37.983+01:00"
+								"createdAt": "2026-04-06T14:58:32.270Z",
+								"updatedAt": "2026-04-06T14:58:32.270Z"
 							}
 						}
 					]
@@ -1078,21 +1066,21 @@
 							"slug": "getting-started-typescript",
 							"isPublished": true,
 							"viewCount": 100,
-							"createdAt": "2026-03-14T16:34:37.994Z",
-							"updatedAt": "2026-03-14T16:34:37.994Z",
+							"createdAt": "2026-04-06T14:58:32.275Z",
+							"updatedAt": "2026-04-06T14:58:32.275Z",
 							"author": {
 								"id": 1,
 								"name": "Admin User",
 								"email": "admin@acme.com",
-								"createdAt": "2026-03-14T17:34:37.973+01:00",
-								"updatedAt": "2026-03-14T17:34:37.973+01:00",
+								"createdAt": "2026-04-06T14:58:32.264Z",
+								"updatedAt": "2026-04-06T14:58:32.264Z",
 								"organization": {
 									"id": 1,
 									"name": "Acme Corp",
 									"country": "USA",
 									"isActive": true,
-									"createdAt": "2026-03-14T17:34:37.95+01:00",
-									"updatedAt": "2026-03-14T17:34:37.95+01:00"
+									"createdAt": "2026-04-06T14:58:32.255Z",
+									"updatedAt": "2026-04-06T14:58:32.255Z"
 								}
 							}
 						},
@@ -1103,21 +1091,21 @@
 							"slug": "docker-beginners",
 							"isPublished": true,
 							"viewCount": 50,
-							"createdAt": "2026-03-14T16:34:37.994Z",
-							"updatedAt": "2026-03-14T16:34:37.994Z",
+							"createdAt": "2026-04-06T14:58:32.275Z",
+							"updatedAt": "2026-04-06T14:58:32.275Z",
 							"author": {
 								"id": 2,
 								"name": "Editor User",
 								"email": "editor@acme.com",
-								"createdAt": "2026-03-14T17:34:37.973+01:00",
-								"updatedAt": "2026-03-14T17:34:37.973+01:00",
+								"createdAt": "2026-04-06T14:58:32.264Z",
+								"updatedAt": "2026-04-06T14:58:32.264Z",
 								"organization": {
 									"id": 1,
 									"name": "Acme Corp",
 									"country": "USA",
 									"isActive": true,
-									"createdAt": "2026-03-14T17:34:37.95+01:00",
-									"updatedAt": "2026-03-14T17:34:37.95+01:00"
+									"createdAt": "2026-04-06T14:58:32.255Z",
+									"updatedAt": "2026-04-06T14:58:32.255Z"
 								}
 							}
 						},
@@ -1128,21 +1116,21 @@
 							"slug": "intro-to-forja",
 							"isPublished": true,
 							"viewCount": 0,
-							"createdAt": "2026-03-14T16:34:38.019Z",
-							"updatedAt": "2026-03-14T16:34:38.019Z",
+							"createdAt": "2026-04-06T14:58:32.286Z",
+							"updatedAt": "2026-04-06T14:58:32.286Z",
 							"author": {
 								"id": 1,
 								"name": "Admin User",
 								"email": "admin@acme.com",
-								"createdAt": "2026-03-14T17:34:37.973+01:00",
-								"updatedAt": "2026-03-14T17:34:37.973+01:00",
+								"createdAt": "2026-04-06T14:58:32.264Z",
+								"updatedAt": "2026-04-06T14:58:32.264Z",
 								"organization": {
 									"id": 1,
 									"name": "Acme Corp",
 									"country": "USA",
 									"isActive": true,
-									"createdAt": "2026-03-14T17:34:37.95+01:00",
-									"updatedAt": "2026-03-14T17:34:37.95+01:00"
+									"createdAt": "2026-04-06T14:58:32.255Z",
+									"updatedAt": "2026-04-06T14:58:32.255Z"
 								}
 							}
 						},
@@ -1153,21 +1141,21 @@
 							"slug": "full-stack-typescript",
 							"isPublished": true,
 							"viewCount": 0,
-							"createdAt": "2026-03-14T16:34:38.026Z",
-							"updatedAt": "2026-03-14T16:34:38.026Z",
+							"createdAt": "2026-04-06T14:58:32.290Z",
+							"updatedAt": "2026-04-06T14:58:32.290Z",
 							"author": {
 								"id": 2,
 								"name": "Editor User",
 								"email": "editor@acme.com",
-								"createdAt": "2026-03-14T17:34:37.973+01:00",
-								"updatedAt": "2026-03-14T17:34:37.973+01:00",
+								"createdAt": "2026-04-06T14:58:32.264Z",
+								"updatedAt": "2026-04-06T14:58:32.264Z",
 								"organization": {
 									"id": 1,
 									"name": "Acme Corp",
 									"country": "USA",
 									"isActive": true,
-									"createdAt": "2026-03-14T17:34:37.95+01:00",
-									"updatedAt": "2026-03-14T17:34:37.95+01:00"
+									"createdAt": "2026-04-06T14:58:32.255Z",
+									"updatedAt": "2026-04-06T14:58:32.255Z"
 								}
 							}
 						}
@@ -1196,8 +1184,8 @@
 							"slug": "getting-started-typescript",
 							"isPublished": true,
 							"viewCount": 100,
-							"createdAt": "2026-03-14T16:34:37.994Z",
-							"updatedAt": "2026-03-14T16:34:37.994Z"
+							"createdAt": "2026-04-06T14:58:32.275Z",
+							"updatedAt": "2026-04-06T14:58:32.275Z"
 						},
 						{
 							"id": 3,
@@ -1206,8 +1194,8 @@
 							"slug": "draft-post",
 							"isPublished": false,
 							"viewCount": 0,
-							"createdAt": "2026-03-14T16:34:37.994Z",
-							"updatedAt": "2026-03-14T16:34:37.994Z"
+							"createdAt": "2026-04-06T14:58:32.275Z",
+							"updatedAt": "2026-04-06T14:58:32.275Z"
 						},
 						{
 							"id": 4,
@@ -1216,8 +1204,8 @@
 							"slug": "intro-to-forja",
 							"isPublished": true,
 							"viewCount": 0,
-							"createdAt": "2026-03-14T16:34:38.019Z",
-							"updatedAt": "2026-03-14T16:34:38.019Z"
+							"createdAt": "2026-04-06T14:58:32.286Z",
+							"updatedAt": "2026-04-06T14:58:32.286Z"
 						}
 					]
 				},
@@ -1253,19 +1241,17 @@
 						"id": 3,
 						"email": "viewer@acme.com",
 						"name": "Viewer User",
-						"lastName": null,
 						"age": 26,
 						"isActive": true,
-						"metadata": null,
-						"createdAt": "2026-03-14T16:34:37.973Z",
-						"updatedAt": "2026-03-14T16:34:38.048Z",
+						"createdAt": "2026-04-06T14:58:32.264Z",
+						"updatedAt": "2026-04-06T14:58:32.307Z",
 						"organization": {
 							"id": 1,
 							"name": "Acme Corp",
 							"country": "USA",
 							"isActive": true,
-							"createdAt": "2026-03-14T17:34:37.95+01:00",
-							"updatedAt": "2026-03-14T17:34:37.95+01:00"
+							"createdAt": "2026-04-06T14:58:32.255Z",
+							"updatedAt": "2026-04-06T14:58:32.255Z"
 						},
 						"department": null,
 						"roles": [],
@@ -1295,18 +1281,16 @@
 							"slug": "draft-post",
 							"isPublished": false,
 							"viewCount": 0,
-							"createdAt": "2026-03-14T16:34:37.994Z",
-							"updatedAt": "2026-03-14T16:34:38.055Z",
+							"createdAt": "2026-04-06T14:58:32.275Z",
+							"updatedAt": "2026-04-06T14:58:32.310Z",
 							"author": {
 								"id": 1,
 								"email": "admin@acme.com",
 								"name": "Admin User",
-								"lastName": null,
 								"age": 35,
 								"isActive": true,
-								"metadata": null,
-								"createdAt": "2026-03-14T17:34:37.973+01:00",
-								"updatedAt": "2026-03-14T17:34:37.973+01:00"
+								"createdAt": "2026-04-06T14:58:32.264Z",
+								"updatedAt": "2026-04-06T14:58:32.264Z"
 							},
 							"category": {
 								"id": 2,
@@ -1314,23 +1298,23 @@
 								"slug": "programming",
 								"description": "Programming tutorials",
 								"isActive": true,
-								"createdAt": "2026-03-14T17:34:37.983+01:00",
-								"updatedAt": "2026-03-14T17:34:37.983+01:00"
+								"createdAt": "2026-04-06T14:58:32.270Z",
+								"updatedAt": "2026-04-06T14:58:32.270Z"
 							},
 							"tags": [
 								{
 									"id": 1,
 									"name": "JavaScript",
 									"color": "#F7DF1E",
-									"createdAt": "2026-03-14T17:34:37.988+01:00",
-									"updatedAt": "2026-03-14T17:34:37.988+01:00"
+									"createdAt": "2026-04-06T14:58:32.273Z",
+									"updatedAt": "2026-04-06T14:58:32.273Z"
 								},
 								{
 									"id": 2,
 									"name": "TypeScript",
 									"color": "#3178C6",
-									"createdAt": "2026-03-14T17:34:37.988+01:00",
-									"updatedAt": "2026-03-14T17:34:37.988+01:00"
+									"createdAt": "2026-04-06T14:58:32.273Z",
+									"updatedAt": "2026-04-06T14:58:32.273Z"
 								}
 							],
 							"comments": []
@@ -1355,77 +1339,75 @@
 						"id": 1,
 						"email": "admin@acme.com",
 						"name": "Admin User",
-						"lastName": null,
 						"age": 35,
 						"isActive": true,
-						"metadata": null,
-						"createdAt": "2026-03-14T16:34:37.973Z",
-						"updatedAt": "2026-03-14T16:34:38.059Z",
+						"createdAt": "2026-04-06T14:58:32.264Z",
+						"updatedAt": "2026-04-06T14:58:32.313Z",
 						"organization": {
 							"id": 1,
 							"name": "Acme Corp",
 							"country": "USA",
 							"isActive": true,
-							"createdAt": "2026-03-14T17:34:37.95+01:00",
-							"updatedAt": "2026-03-14T17:34:37.95+01:00"
+							"createdAt": "2026-04-06T14:58:32.255Z",
+							"updatedAt": "2026-04-06T14:58:32.255Z"
 						},
 						"department": {
 							"id": 1,
 							"name": "Engineering",
 							"code": "ENG",
 							"budget": 100000,
-							"createdAt": "2026-03-14T17:34:37.961+01:00",
-							"updatedAt": "2026-03-14T17:34:37.961+01:00"
+							"createdAt": "2026-04-06T14:58:32.259Z",
+							"updatedAt": "2026-04-06T14:58:32.259Z"
 						},
 						"roles": [
 							{
 								"id": 1,
 								"name": "Admin",
+								"description": "Full access",
 								"level": 100,
-								"createdAt": "2026-03-14T17:34:37.968+01:00",
-								"updatedAt": "2026-03-14T17:34:37.968+01:00",
-								"description": "Full access"
+								"createdAt": "2026-04-06T14:58:32.263Z",
+								"updatedAt": "2026-04-06T14:58:32.263Z"
 							},
 							{
 								"id": 2,
 								"name": "Editor",
+								"description": "Can edit content",
 								"level": 50,
-								"createdAt": "2026-03-14T17:34:37.969+01:00",
-								"updatedAt": "2026-03-14T17:34:37.969+01:00",
-								"description": "Can edit content"
+								"createdAt": "2026-04-06T14:58:32.263Z",
+								"updatedAt": "2026-04-06T14:58:32.263Z"
 							}
 						],
 						"favoriteCategory": null,
 						"posts": [
 							{
 								"id": 1,
-								"slug": "getting-started-typescript",
 								"title": "Getting Started with TypeScript",
 								"content": "TypeScript is a typed superset of JavaScript...",
-								"createdAt": "2026-03-14T17:34:37.994+01:00",
-								"updatedAt": "2026-03-14T17:34:37.994+01:00",
+								"slug": "getting-started-typescript",
+								"isPublished": true,
 								"viewCount": 100,
-								"isPublished": true
+								"createdAt": "2026-04-06T14:58:32.275Z",
+								"updatedAt": "2026-04-06T14:58:32.275Z"
 							},
 							{
 								"id": 3,
-								"slug": "draft-post",
 								"title": "Draft Post",
 								"content": "This is a draft...",
-								"createdAt": "2026-03-14T17:34:37.994+01:00",
-								"updatedAt": "2026-03-14T17:34:38.055+01:00",
+								"slug": "draft-post",
+								"isPublished": false,
 								"viewCount": 0,
-								"isPublished": false
+								"createdAt": "2026-04-06T14:58:32.275Z",
+								"updatedAt": "2026-04-06T14:58:32.310Z"
 							},
 							{
 								"id": 4,
-								"slug": "intro-to-forja",
 								"title": "Intro to Forja",
 								"content": "Forja is a type-safe database framework.",
-								"createdAt": "2026-03-14T17:34:38.019+01:00",
-								"updatedAt": "2026-03-14T17:34:38.019+01:00",
+								"slug": "intro-to-forja",
+								"isPublished": true,
 								"viewCount": 0,
-								"isPublished": true
+								"createdAt": "2026-04-06T14:58:32.286Z",
+								"updatedAt": "2026-04-06T14:58:32.286Z"
 							}
 						]
 					}
@@ -1455,50 +1437,48 @@
 						"id": 2,
 						"email": "editor@acme.com",
 						"name": "Editor User",
-						"lastName": null,
 						"age": 28,
 						"isActive": true,
-						"metadata": null,
-						"createdAt": "2026-03-14T16:34:37.973Z",
-						"updatedAt": "2026-03-14T16:34:38.068Z",
+						"createdAt": "2026-04-06T14:58:32.264Z",
+						"updatedAt": "2026-04-06T14:58:32.321Z",
 						"organization": {
 							"id": 1,
 							"name": "Acme Corp",
 							"country": "USA",
 							"isActive": true,
-							"createdAt": "2026-03-14T17:34:37.95+01:00",
-							"updatedAt": "2026-03-14T17:34:37.95+01:00"
+							"createdAt": "2026-04-06T14:58:32.255Z",
+							"updatedAt": "2026-04-06T14:58:32.255Z"
 						},
 						"department": {
 							"id": 2,
 							"name": "Marketing",
 							"code": "MKT",
 							"budget": 50000,
-							"createdAt": "2026-03-14T17:34:37.962+01:00",
-							"updatedAt": "2026-03-14T17:34:37.962+01:00"
+							"createdAt": "2026-04-06T14:58:32.260Z",
+							"updatedAt": "2026-04-06T14:58:32.260Z"
 						},
 						"roles": [],
 						"favoriteCategory": null,
 						"posts": [
 							{
 								"id": 2,
-								"slug": "docker-beginners",
 								"title": "Docker for Beginners",
 								"content": "Docker is a containerization platform...",
-								"createdAt": "2026-03-14T17:34:37.994+01:00",
-								"updatedAt": "2026-03-14T17:34:37.994+01:00",
+								"slug": "docker-beginners",
+								"isPublished": true,
 								"viewCount": 50,
-								"isPublished": true
+								"createdAt": "2026-04-06T14:58:32.275Z",
+								"updatedAt": "2026-04-06T14:58:32.275Z"
 							},
 							{
 								"id": 5,
-								"slug": "full-stack-typescript",
 								"title": "Full Stack with TypeScript",
 								"content": "Building full stack apps with TypeScript.",
-								"createdAt": "2026-03-14T17:34:38.026+01:00",
-								"updatedAt": "2026-03-14T17:34:38.026+01:00",
+								"slug": "full-stack-typescript",
+								"isPublished": true,
 								"viewCount": 0,
-								"isPublished": true
+								"createdAt": "2026-04-06T14:58:32.290Z",
+								"updatedAt": "2026-04-06T14:58:32.290Z"
 							}
 						]
 					}
@@ -1522,8 +1502,8 @@
 						"id": 9,
 						"name": "TempTag",
 						"color": "#AAAAAA",
-						"createdAt": "2026-03-14T16:34:38.073Z",
-						"updatedAt": "2026-03-14T16:34:38.073Z"
+						"createdAt": "2026-04-06T14:58:32.326Z",
+						"updatedAt": "2026-04-06T14:58:32.326Z"
 					}
 				},
 				{
@@ -1541,15 +1521,15 @@
 							"id": 10,
 							"name": "OldTag1",
 							"color": "#111111",
-							"createdAt": "2026-03-14T16:34:38.079Z",
-							"updatedAt": "2026-03-14T16:34:38.079Z"
+							"createdAt": "2026-04-06T14:58:32.329Z",
+							"updatedAt": "2026-04-06T14:58:32.329Z"
 						},
 						{
 							"id": 11,
 							"name": "OldTag2",
 							"color": "#222222",
-							"createdAt": "2026-03-14T16:34:38.079Z",
-							"updatedAt": "2026-03-14T16:34:38.079Z"
+							"createdAt": "2026-04-06T14:58:32.329Z",
+							"updatedAt": "2026-04-06T14:58:32.329Z"
 						}
 					]
 				}
