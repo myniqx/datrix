@@ -1,9 +1,9 @@
-export const FORJA_VERSION = "v0.1";
-export const FORJA_GITHUB_REPO = "myniqx/datrix";
-export const FORJA_GITHUB_URL = `https://github.com/${FORJA_GITHUB_REPO}`;
-export const FORJA_NPM_INSTALL = "npm install @datrix/core";
+export const DATRIX_VERSION = "v0.1";
+export const DATRIX_GITHUB_REPO = "myniqx/datrix";
+export const DATRIX_GITHUB_URL = `https://github.com/${DATRIX_GITHUB_REPO}`;
+export const DATRIX_NPM_INSTALL = "npm install @datrix/core";
 
-export const FORJA_PACKAGES = [
+export const DATRIX_PACKAGES = [
 	{
 		name: "@datrix/core",
 		description:
@@ -46,7 +46,7 @@ export const FORJA_PACKAGES = [
 	},
 ] as const;
 
-export const FORJA_FRAMEWORKS = [
+export const DATRIX_FRAMEWORKS = [
 	{ name: "Next.js", icon: "/icons/nextjs.svg" },
 	{ name: "Express", icon: "/icons/express.svg" },
 	{ name: "Fastify", icon: "/icons/fastify.svg" },

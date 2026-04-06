@@ -5,8 +5,21 @@ import { useDatrix } from "../hooks/useDatrix";
 import { faker } from "@faker-js/faker";
 import { generateBulkFakeComments } from "../utils/faker";
 import CommentTree from "./CommentTree";
-import type { Topic, User, Comment, Like } from "../schemas";
-import { connect } from "http2";
+import type {
+	Topic,
+	User,
+	Comment,
+	Like,
+	LikeRelationUpdate,
+	CreateLikeInput,
+	UpdateLikeInput,
+	CreateCommentInput,
+	UpdateCommentInput,
+	CreateUserInput,
+	UpdateUserInput,
+	CreateTopicInput,
+	UpdateTopicInput,
+} from "../../types/generated";
 
 interface TopicSectionProps {
 	globalSearch?: string;
@@ -46,10 +59,20 @@ export default function TopicSection({ globalSearch }: TopicSectionProps) {
 		create: createTopic,
 		update: updateTopic,
 		refetch: refetchTopics,
-	} = useDatrix<Topic>("topic", topicQuery);
-	const { data: users } = useDatrix<User>("user");
-	const { create: createComment } = useDatrix<Comment>("comment");
-	const { create: createLike, remove: removeLike } = useDatrix<Like>("like");
+	} = useDatrix<Topic, CreateTopicInput, UpdateTopicInput>("topic", topicQuery);
+	const { data: users } = useDatrix<User, CreateUserInput, UpdateUserInput>(
+		"user",
+	);
+	const { create: createComment } = useDatrix<
+		Comment,
+		CreateCommentInput,
+		UpdateCommentInput
+	>("comment");
+	const { create: createLike, remove: removeLike } = useDatrix<
+		Like,
+		CreateLikeInput,
+		UpdateLikeInput
+	>("like", undefined, { invalidateModels: ["topic"] });
 
 	const [isCreating, setIsCreating] = useState(false);
 	const [expandedTopic, setExpandedTopic] = useState<number | null>(null);
@@ -215,10 +238,11 @@ export default function TopicSection({ globalSearch }: TopicSectionProps) {
 										<div className="relative group/likes">
 											<button
 												onClick={() => handleToggleTopicLike(topic)}
-												className={`flex items-center gap-1.5 text-xs font-bold transition-colors ${topic.likes?.some((l) => l.user?.id === users[0]?.id)
+												className={`flex items-center gap-1.5 text-xs font-bold transition-colors ${
+													topic.likes?.some((l) => l.user?.id === users[0]?.id)
 														? "text-rose-600"
 														: "text-slate-500 hover:text-rose-600"
-													}`}
+												}`}
 											>
 												<svg
 													className={`w-4 h-4 ${topic.likes?.some((l) => l.user?.id === users[0]?.id) ? "fill-rose-600" : ""}`}

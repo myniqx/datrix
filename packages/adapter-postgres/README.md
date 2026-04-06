@@ -5,7 +5,7 @@ PostgreSQL adapter for the Datrix framework. Provides full CRUD, relation popula
 ## Installation
 
 ```bash
-pnpm add datrix-adapter-postgres
+pnpm add @datrix/adapter-postgres
 ```
 
 Requires `pg` (node-postgres) driver as a peer dependency.
@@ -13,7 +13,7 @@ Requires `pg` (node-postgres) driver as a peer dependency.
 ## Configuration
 
 ```typescript
-import { PostgresAdapter } from "datrix-adapter-postgres";
+import { PostgresAdapter } from "@datrix/adapter-postgres";
 
 const adapter = new PostgresAdapter({
   host: "localhost",

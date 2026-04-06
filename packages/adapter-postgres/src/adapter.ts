@@ -39,7 +39,7 @@ import {
 	ISchemaRegistry,
 	SchemaDefinition,
 } from "@datrix/core";
-import { FORJA_META_MODEL, FORJA_META_KEY_PREFIX } from "@datrix/core";
+import { DATRIX_META_MODEL, DATRIX_META_KEY_PREFIX } from "@datrix/core";
 import { PostgresPopulator } from "./populate";
 import { PgClient } from "./pg-client";
 import { PostgresExporter } from "./export-import/exporter";
@@ -393,12 +393,12 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 
 			// Track schema in _datrix (skip during import — _datrix data will be restored as-is)
 			if (!options?.isImport) {
-				if (schema.name !== FORJA_META_MODEL) {
-					const metaExists = await this.tableExists(FORJA_META_MODEL);
+				if (schema.name !== DATRIX_META_MODEL) {
+					const metaExists = await this.tableExists(DATRIX_META_MODEL);
 					if (!metaExists) {
 						throwMigrationError({
 							adapter: "postgres",
-							message: `Cannot create table '${schema.name}': '${FORJA_META_MODEL}' table does not exist yet. Create '${FORJA_META_MODEL}' first.`,
+							message: `Cannot create table '${schema.name}': '${DATRIX_META_MODEL}' table does not exist yet. Create '${DATRIX_META_MODEL}' first.`,
 						});
 					}
 				}
@@ -435,10 +435,10 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 			await queryRunner!.query(`DROP TABLE IF EXISTS ${escapedTable}`);
 
 			// Remove schema from _datrix (skip during import — _datrix data will be restored as-is)
-			if (!options?.isImport && tableName !== FORJA_META_MODEL) {
-				const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
+			if (!options?.isImport && tableName !== DATRIX_META_MODEL) {
+				const metaKey = `${DATRIX_META_KEY_PREFIX}${tableName}`;
 				const escapedMetaTable =
-					this.getTranslator().escapeIdentifier(FORJA_META_MODEL);
+					this.getTranslator().escapeIdentifier(DATRIX_META_MODEL);
 				await queryRunner!.query(
 					`DELETE FROM ${escapedMetaTable} WHERE "key" = $1`,
 					[metaKey],
@@ -477,10 +477,10 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 				`ALTER TABLE ${escapedFrom} RENAME TO ${escapedTo}`,
 			);
 
-			if (from !== FORJA_META_MODEL && to !== FORJA_META_MODEL) {
-				const oldKey = `${FORJA_META_KEY_PREFIX}${from}`;
-				const newKey = `${FORJA_META_KEY_PREFIX}${to}`;
-				const escapedMetaTable = translator.escapeIdentifier(FORJA_META_MODEL);
+			if (from !== DATRIX_META_MODEL && to !== DATRIX_META_MODEL) {
+				const oldKey = `${DATRIX_META_KEY_PREFIX}${from}`;
+				const newKey = `${DATRIX_META_KEY_PREFIX}${to}`;
+				const escapedMetaTable = translator.escapeIdentifier(DATRIX_META_MODEL);
 				await queryRunner!.query(
 					`UPDATE ${escapedMetaTable} SET "key" = $1 WHERE "key" = $2`,
 					[newKey, oldKey],
@@ -552,7 +552,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 				}
 			}
 
-			if (tableName !== FORJA_META_MODEL) {
+			if (tableName !== DATRIX_META_MODEL) {
 				await this.applyOperationsToMetaSchema(
 					tableName,
 					operations,
@@ -682,9 +682,9 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 		}
 
 		try {
-			const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
+			const metaKey = `${DATRIX_META_KEY_PREFIX}${tableName}`;
 			const escapedMetaTable =
-				this.getTranslator().escapeIdentifier(FORJA_META_MODEL);
+				this.getTranslator().escapeIdentifier(DATRIX_META_MODEL);
 			const metaResult = await this.pool!.query<{ value: string }>(
 				`SELECT "value" FROM ${escapedMetaTable} WHERE "key" = $1`,
 				[metaKey],
@@ -737,10 +737,10 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 		schema: SchemaDefinition,
 		queryRunner: Pool | PoolClient,
 	): Promise<void> {
-		const metaKey = `${FORJA_META_KEY_PREFIX}${schema.tableName ?? schema.name}`;
+		const metaKey = `${DATRIX_META_KEY_PREFIX}${schema.tableName ?? schema.name}`;
 		const metaValue = JSON.stringify(schema);
 		const escapedMetaTable =
-			this.getTranslator().escapeIdentifier(FORJA_META_MODEL);
+			this.getTranslator().escapeIdentifier(DATRIX_META_MODEL);
 		await queryRunner.query(
 			`INSERT INTO ${escapedMetaTable} ("key", "value", "createdAt", "updatedAt")
 			 VALUES ($1, $2, NOW(), NOW())
@@ -757,9 +757,9 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 		operations: readonly AlterOperation[],
 		queryRunner: Pool | PoolClient,
 	): Promise<void> {
-		const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
+		const metaKey = `${DATRIX_META_KEY_PREFIX}${tableName}`;
 		const escapedMetaTable =
-			this.getTranslator().escapeIdentifier(FORJA_META_MODEL);
+			this.getTranslator().escapeIdentifier(DATRIX_META_MODEL);
 		const metaResult = await queryRunner.query<{ value: string }>(
 			`SELECT "value" FROM ${escapedMetaTable} WHERE "key" = $1`,
 			[metaKey],

@@ -42,3 +42,4 @@ next-env.d.ts
 
 # datrix generated types
 /types/generated.ts
+./data/

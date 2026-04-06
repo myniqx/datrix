@@ -3,7 +3,7 @@ import type { ImportReader } from "@datrix/core";
 import type { SchemaDefinition } from "@datrix/core";
 import type { MongoDBAdapter } from "../adapter";
 import { COUNTER_KEY_PREFIX } from "../types";
-import { FORJA_META_MODEL } from "@datrix/core";
+import { DATRIX_META_MODEL } from "@datrix/core";
 
 const CHUNK_SIZE = 1000;
 
@@ -38,7 +38,7 @@ export class MongoDBImporter {
 
 		// 4. Reset counters for all collections
 		for (const tableName of tables) {
-			if (tableName !== FORJA_META_MODEL) {
+			if (tableName !== DATRIX_META_MODEL) {
 				await this.resetCounter(tableName);
 			}
 		}
@@ -69,7 +69,7 @@ export class MongoDBImporter {
 	}
 
 	private async resetCounter(tableName: string): Promise<void> {
-		const metaCollection = this.db.collection(FORJA_META_MODEL);
+		const metaCollection = this.db.collection(DATRIX_META_MODEL);
 		const collection = this.db.collection(tableName);
 
 		const lastDoc = await collection

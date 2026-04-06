@@ -5,7 +5,7 @@ MySQL adapter for the Datrix framework. Provides full CRUD, relation population,
 ## Installation
 
 ```bash
-pnpm add datrix-adapter-mysql
+pnpm add @datrix/adapter-mysql
 ```
 
 Requires `mysql2` driver as a peer dependency.
@@ -13,7 +13,7 @@ Requires `mysql2` driver as a peer dependency.
 ## Configuration
 
 ```typescript
-import { MySQLAdapter } from "datrix-adapter-mysql";
+import { MySQLAdapter } from "@datrix/adapter-mysql";
 
 const adapter = new MySQLAdapter({
   host: "localhost",

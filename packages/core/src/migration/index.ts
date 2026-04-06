@@ -25,5 +25,5 @@ export {
 	getMigrationSchema,
 	DEFAULT_MIGRATION_MODEL,
 	getDatrixMetaSchema,
-	FORJA_META_MODEL,
+	DATRIX_META_MODEL,
 } from "./schema";

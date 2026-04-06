@@ -15,7 +15,7 @@ import { toPascalCase } from "../utils/templates";
 export function relationReadType(field: RelationField): string {
 	const modelName = toPascalCase(field.model);
 	const isMulti = field.kind === "hasMany" || field.kind === "manyToMany";
-	return isMulti ? `${modelName}Base[]` : `${modelName}Base`;
+	return isMulti ? `${modelName}[]` : `${modelName}`;
 }
 
 /**
@@ -41,5 +41,5 @@ export function relationWriteWrapper(kind: RelationKind): string {
 export function relationWriteType(field: RelationField): string {
 	const modelName = toPascalCase(field.model);
 	const wrapper = relationWriteWrapper(field.kind);
-	return `${wrapper}<${modelName}Base>`;
+	return `${wrapper}<${modelName}>`;
 }

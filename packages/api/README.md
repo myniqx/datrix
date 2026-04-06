@@ -11,7 +11,7 @@ pnpm add @datrix/api
 ## Setup
 
 ```typescript
-import { defineConfig } from "datrix-core"
+import { defineConfig } from "@datrix/core"
 import { ApiPlugin } from "@datrix/api"
 
 export default defineConfig(() => ({

@@ -67,7 +67,7 @@ import type {
 	ISchemaRegistry,
 	SchemaDefinition,
 } from "@datrix/core";
-import { FORJA_META_MODEL, FORJA_META_KEY_PREFIX } from "@datrix/core";
+import { DATRIX_META_MODEL, DATRIX_META_KEY_PREFIX } from "@datrix/core";
 
 /**
  * MongoDB adapter implementation
@@ -110,7 +110,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 		if (!this.db) {
 			throwNotConnected({ adapter: "mongodb" });
 		}
-		return this.db!.collection(FORJA_META_MODEL);
+		return this.db!.collection(DATRIX_META_MODEL);
 	}
 
 	// =========================================================================
@@ -669,7 +669,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 
 			// _datrix is a key/value meta collection - index on `key`, not `id`
 			const collection = this.db!.collection(schema.tableName!);
-			if (schema.name === FORJA_META_MODEL) {
+			if (schema.name === DATRIX_META_MODEL) {
 				await collection.createIndex({ key: 1 }, { unique: true });
 			} else {
 				// Regular collections get unique index on auto-increment `id`
@@ -685,12 +685,12 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 
 			// Track schema in _datrix (skip during import — _datrix data will be restored as-is)
 			if (!options?.isImport) {
-				if (schema.name !== FORJA_META_MODEL) {
-					const metaExists = await this.tableExists(FORJA_META_MODEL);
+				if (schema.name !== DATRIX_META_MODEL) {
+					const metaExists = await this.tableExists(DATRIX_META_MODEL);
 					if (!metaExists) {
 						throwMigrationError({
 							adapter: "mongodb",
-							message: `Cannot create collection '${schema.name}': '${FORJA_META_MODEL}' collection does not exist yet. Create '${FORJA_META_MODEL}' first.`,
+							message: `Cannot create collection '${schema.name}': '${DATRIX_META_MODEL}' collection does not exist yet. Create '${DATRIX_META_MODEL}' first.`,
 						});
 					}
 				}
@@ -722,8 +722,8 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 			await this.db!.collection(tableName).drop();
 
 			// Remove schema from _datrix (skip during import — _datrix data will be restored as-is)
-			if (!options?.isImport && tableName !== FORJA_META_MODEL) {
-				const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
+			if (!options?.isImport && tableName !== DATRIX_META_MODEL) {
+				const metaKey = `${DATRIX_META_KEY_PREFIX}${tableName}`;
 				const metaCollection = this.getMetaCollection();
 				await metaCollection.deleteOne({ key: metaKey });
 
@@ -756,10 +756,10 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 			await this.db!.collection(from).rename(to);
 
 			// Update key in _datrix
-			if (from !== FORJA_META_MODEL && to !== FORJA_META_MODEL) {
+			if (from !== DATRIX_META_MODEL && to !== DATRIX_META_MODEL) {
 				const metaCollection = this.getMetaCollection();
-				const oldKey = `${FORJA_META_KEY_PREFIX}${from}`;
-				const newKey = `${FORJA_META_KEY_PREFIX}${to}`;
+				const oldKey = `${DATRIX_META_KEY_PREFIX}${from}`;
+				const newKey = `${DATRIX_META_KEY_PREFIX}${to}`;
 				await metaCollection.updateOne(
 					{ key: oldKey },
 					{ $set: { key: newKey } },
@@ -825,7 +825,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 			}
 
 			// Update schema in _datrix
-			if (tableName !== FORJA_META_MODEL) {
+			if (tableName !== DATRIX_META_MODEL) {
 				await this.applyOperationsToMetaSchema(tableName, operations);
 			}
 		} catch (error) {
@@ -940,7 +940,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 		}
 
 		try {
-			const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
+			const metaKey = `${DATRIX_META_KEY_PREFIX}${tableName}`;
 			const metaCollection = this.getMetaCollection();
 			const doc = await metaCollection.findOne({ key: metaKey });
 
@@ -977,7 +977,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 
 	private async upsertSchemaMeta(schema: SchemaDefinition): Promise<void> {
 		const metaCollection = this.getMetaCollection();
-		const metaKey = `${FORJA_META_KEY_PREFIX}${schema.tableName ?? schema.name}`;
+		const metaKey = `${DATRIX_META_KEY_PREFIX}${schema.tableName ?? schema.name}`;
 		const metaValue = JSON.stringify(schema);
 		const now = new Date();
 
@@ -1004,7 +1004,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 		operations: readonly AlterOperation[],
 	): Promise<void> {
 		const metaCollection = this.getMetaCollection();
-		const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
+		const metaKey = `${DATRIX_META_KEY_PREFIX}${tableName}`;
 		const doc = await metaCollection.findOne({ key: metaKey });
 
 		if (!doc) {

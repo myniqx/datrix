@@ -9,7 +9,7 @@ import {
 	throwUniqueConstraintField,
 	throwUniqueConstraintIndex,
 } from "@datrix/core";
-import { FORJA_META_MODEL } from "@datrix/core";
+import { DATRIX_META_MODEL } from "@datrix/core";
 
 /**
  * Validate table name for security (no null bytes, path separators, or parent refs)
@@ -45,14 +45,14 @@ export function validateTableName(tableName: string): void {
  * Called during connect() when standalone: true is set in config.
  */
 export async function createMetaTable(adapter: JsonAdapter): Promise<void> {
-	const metaExists = await adapter.tableExists(FORJA_META_MODEL);
+	const metaExists = await adapter.tableExists(DATRIX_META_MODEL);
 	if (metaExists) {
 		return;
 	}
 
 	const metaSchema: SchemaDefinition = {
-		name: FORJA_META_MODEL,
-		tableName: FORJA_META_MODEL,
+		name: DATRIX_META_MODEL,
+		tableName: DATRIX_META_MODEL,
 		fields: {
 			id: { type: "number", autoIncrement: true },
 			key: { type: "string", required: true, unique: true, maxLength: 255 },

@@ -20,7 +20,7 @@ import {
 	sortSchemasByDependency,
 	RESERVED_FIELDS,
 } from "../types/core/schema";
-import { FORJA_META_MODEL } from "../types/core/constants";
+import { DATRIX_META_MODEL } from "../types/core/constants";
 import { QuerySelect } from "../types/core/query-builder";
 
 /**
@@ -225,13 +225,13 @@ export class SchemaRegistry implements ISchemaRegistry {
 		// Rebuild Map in sorted order, _datrix always first
 		const entries = new Map<string, SchemaDefinition>();
 
-		const metaSchema = this.schemas.get(FORJA_META_MODEL);
+		const metaSchema = this.schemas.get(DATRIX_META_MODEL);
 		if (metaSchema) {
-			entries.set(FORJA_META_MODEL, metaSchema);
+			entries.set(DATRIX_META_MODEL, metaSchema);
 		}
 
 		for (const schema of sorted) {
-			if (schema.name === FORJA_META_MODEL) continue;
+			if (schema.name === DATRIX_META_MODEL) continue;
 			entries.set(schema.name, schema);
 		}
 

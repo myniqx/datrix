@@ -5,7 +5,7 @@ MongoDB adapter for the Datrix framework. Provides full CRUD, relation populatio
 ## Installation
 
 ```bash
-pnpm add datrix-adapter-mongodb
+pnpm add @datrix/adapter-mongodb
 ```
 
 Requires `mongodb` driver as a peer dependency.
@@ -13,7 +13,7 @@ Requires `mongodb` driver as a peer dependency.
 ## Configuration
 
 ```typescript
-import { createMongoDBAdapter } from "datrix-adapter-mongodb";
+import { createMongoDBAdapter } from "@datrix/adapter-mongodb";
 
 const adapter = createMongoDBAdapter({
   uri: "mongodb://localhost:27017",

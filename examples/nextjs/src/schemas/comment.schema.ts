@@ -1,4 +1,4 @@
-import { defineSchema } from "datrix-types/core/schema";
+import { defineSchema } from "@datrix/core";
 
 /**
  * Comment Schema
@@ -9,6 +9,10 @@ export const commentSchema = defineSchema({
 		content: {
 			type: "string",
 			required: true,
+		},
+		likesCount: {
+			type: "number",
+			default: 0,
 		},
 		// Relations
 		author: {

@@ -30,8 +30,8 @@ npm install datrix-adapter-json
 ## Quick Start with Datrix
 
 ```typescript
-import { defineConfig } from "datrix-core";
-import { JsonAdapter } from "datrix-adapter-json";
+import { defineConfig } from "@datrix/core";
+import { JsonAdapter } from "@datrix/adapter-json";
 
 // Create Datrix configuration
 const config = defineConfig(() => ({

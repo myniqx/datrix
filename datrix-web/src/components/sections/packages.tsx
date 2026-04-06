@@ -1,7 +1,7 @@
 import { Container } from "@/components/layout/container";
 import { Card, CardContent } from "@/components/ui/card";
 import { CopyButton } from "@/components/ui/copy-button";
-import { FORJA_PACKAGES } from "@/data/constants";
+import { DATRIX_PACKAGES } from "@/data/constants";
 
 export function Packages() {
 	return (
@@ -16,7 +16,7 @@ export function Packages() {
 			</div>
 
 			<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-				{FORJA_PACKAGES.map((pkg) => (
+				{DATRIX_PACKAGES.map((pkg) => (
 					<Card key={pkg.name}>
 						<CardContent className="flex flex-col gap-3 pt-5 pb-4">
 							<div className="flex items-center justify-between gap-2">

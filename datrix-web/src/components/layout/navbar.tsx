@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Container } from "./container";
 import { DatrixLogo } from "./logo";
 import { NavbarMobile } from "./navbar-mobile";
-import { FORJA_VERSION, FORJA_GITHUB_URL } from "@/data/constants";
+import { DATRIX_VERSION, DATRIX_GITHUB_URL } from "@/data/constants";
 
 const NAV_LINKS = [
 	{ label: "Showcase", href: "#showcase" },
@@ -35,7 +35,7 @@ export function Navbar({ starCount }: NavbarProps) {
 					</div>
 					<span className="text-lg font-bold text-foreground">datrix</span>
 					<Badge variant="outline" className="px-1.5 py-0 text-xs">
-						{FORJA_VERSION}
+						{DATRIX_VERSION}
 					</Badge>
 				</a>
 
@@ -49,7 +49,7 @@ export function Navbar({ starCount }: NavbarProps) {
 						))}
 						<Button asChild variant="outline" size="sm">
 							<a
-								href={FORJA_GITHUB_URL}
+								href={DATRIX_GITHUB_URL}
 								target="_blank"
 								rel="noopener noreferrer"
 								className="flex items-center gap-2"

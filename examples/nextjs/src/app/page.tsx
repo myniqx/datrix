@@ -83,9 +83,9 @@ export default function Home() {
 						</span>
 					</h2>
 					<p className="text-lg text-slate-500 max-w-2xl mx-auto">
-						This demo showcases Datrix's advanced features: nested relationships,
-						recursive population, smart sorting, and real-time fake data
-						generation.
+						This demo showcases Datrix's advanced features: nested
+						relationships, recursive population, smart sorting, and real-time
+						fake data generation.
 					</p>
 				</section>
 

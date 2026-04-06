@@ -179,6 +179,10 @@ export type FallbackWhereClause = {
 type TypedWhereClause<T extends DatrixEntry> = Writable<{
 	[K in keyof T]?: T[K] extends RelationInput<infer R extends DatrixEntry>
 	? WhereClause<R>
+	: NonNullable<T[K]> extends DatrixEntry
+	? WhereClause<NonNullable<T[K]>>
+	: NonNullable<T[K]> extends DatrixEntry[]
+	? WhereClause<NonNullable<T[K]>[number]>
 	: T[K] extends ScalarValue
 	? T[K] | ComparisonOperators<T[K]>
 	: never;
@@ -222,17 +226,25 @@ export type PopulateOptions<T extends DatrixEntry> = {
  * - Object notation: { relation1: true, relation2: { select: [...] } }
  * - false: No populate (explicit opt-out)
  */
+type TypedPopulateValue<T> =
+	NonNullable<T> extends DatrixEntry
+		? PopulateOptions<NonNullable<T>> | "*" | boolean
+		: NonNullable<T> extends DatrixEntry[]
+		? PopulateOptions<NonNullable<T>[number]> | "*" | boolean
+		: PopulateOptions<DatrixRecord> | "*" | boolean;
+
+type TypedPopulateClause<T extends DatrixEntry> = {
+	readonly [K in keyof T]?: TypedPopulateValue<T[K]>;
+};
+
 export type PopulateClause<T extends DatrixEntry = DatrixRecord> =
 	| boolean
 	| "*"
 	| "true"
 	| (DatrixRecord extends T ? readonly string[] : readonly (keyof T)[])
-	| {
-		readonly [K in DatrixRecord extends T ? string : keyof T]?:
-		| PopulateOptions<T>
-		| "*"
-		| boolean;
-	};
+	| (DatrixRecord extends T
+		? Record<string, PopulateOptions<DatrixRecord> | "*" | boolean>
+		: TypedPopulateClause<T>);
 
 /**
  * Order direction

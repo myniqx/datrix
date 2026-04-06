@@ -30,7 +30,7 @@ import {
 	throwMetaFieldNotFound,
 } from "@datrix/core";
 import { JsonTransaction } from "./transaction";
-import { FORJA_META_MODEL, FORJA_META_KEY_PREFIX } from "@datrix/core";
+import { DATRIX_META_MODEL, DATRIX_META_KEY_PREFIX } from "@datrix/core";
 import { createMetaTable, validateTableName } from "./table-utils";
 import { JsonExporter } from "./export-import/exporter";
 import { JsonImporter } from "./export-import/importer";
@@ -273,8 +273,8 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 	 * @param tableName - Physical table name (e.g. "users")
 	 */
 	async readTableSchema(tableName: string): Promise<SchemaDefinition> {
-		const metaFile = await this.readTable(FORJA_META_MODEL);
-		const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
+		const metaFile = await this.readTable(DATRIX_META_MODEL);
+		const metaKey = `${DATRIX_META_KEY_PREFIX}${tableName}`;
 		const row = metaFile.data.find(
 			(r) => (r as Record<string, unknown>)["key"] === metaKey,
 		);
@@ -293,9 +293,9 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		schema: SchemaDefinition,
 		skipWrite: boolean,
 	): Promise<void> {
-		const metaKey = `${FORJA_META_KEY_PREFIX}${schema.tableName ?? schema.name}`;
+		const metaKey = `${DATRIX_META_KEY_PREFIX}${schema.tableName ?? schema.name}`;
 		const metaValue = JSON.stringify(schema);
-		const metaFile = await this.readTable(FORJA_META_MODEL);
+		const metaFile = await this.readTable(DATRIX_META_MODEL);
 
 		const existingIndex = metaFile.data.findIndex(
 			(r) => (r as Record<string, unknown>)["key"] === metaKey,
@@ -317,15 +317,15 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		metaFile.meta.updatedAt = new Date().toISOString();
 
 		if (skipWrite) {
-			this.activeTransactionCache!.set(FORJA_META_MODEL, {
+			this.activeTransactionCache!.set(DATRIX_META_MODEL, {
 				data: metaFile,
 				mtime: Date.now(),
 			});
-			this.activeTransactionModifiedTables!.add(FORJA_META_MODEL);
+			this.activeTransactionModifiedTables!.add(DATRIX_META_MODEL);
 		} else {
-			const filePath = this.getTablePath(FORJA_META_MODEL);
+			const filePath = this.getTablePath(DATRIX_META_MODEL);
 			await fs.writeFile(filePath, JSON.stringify(metaFile, null, 2), "utf-8");
-			await this.updateCache(FORJA_META_MODEL, metaFile);
+			await this.updateCache(DATRIX_META_MODEL, metaFile);
 		}
 	}
 
@@ -537,12 +537,12 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 
 		// Track schema in _datrix (skip during import — _datrix data will be restored as-is)
 		if (!isImport) {
-			if (schema.name !== FORJA_META_MODEL) {
-				const metaExists = await this.tableExists(FORJA_META_MODEL);
+			if (schema.name !== DATRIX_META_MODEL) {
+				const metaExists = await this.tableExists(DATRIX_META_MODEL);
 				if (!metaExists) {
 					throwMigrationError({
 						adapter: "json",
-						message: `Cannot create table '${schema.name}': '${FORJA_META_MODEL}' table does not exist yet. Create '${FORJA_META_MODEL}' first.`,
+						message: `Cannot create table '${schema.name}': '${DATRIX_META_MODEL}' table does not exist yet. Create '${DATRIX_META_MODEL}' first.`,
 					});
 				}
 			}
@@ -610,29 +610,29 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		}
 
 		// Remove schema from _datrix (skip during import — _datrix data will be restored as-is)
-		if (!isImport && tableName !== FORJA_META_MODEL) {
+		if (!isImport && tableName !== DATRIX_META_MODEL) {
 			// TODO: _datrix table diger tablelar gibi bir table. burada kod tekrari yapmak yerine executeQuery({delete from _datrix where key = metaKey}) gibi bir sey yapilabilir. eger lock problem cikarmiyorsa
-			const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
-			const metaFile = await this.readTable(FORJA_META_MODEL);
+			const metaKey = `${DATRIX_META_KEY_PREFIX}${tableName}`;
+			const metaFile = await this.readTable(DATRIX_META_MODEL);
 			metaFile.data = metaFile.data.filter(
 				(r) => (r as Record<string, unknown>)["key"] !== metaKey,
 			);
 			metaFile.meta.updatedAt = new Date().toISOString();
 
 			if (skipWrite) {
-				this.activeTransactionCache!.set(FORJA_META_MODEL, {
+				this.activeTransactionCache!.set(DATRIX_META_MODEL, {
 					data: metaFile,
 					mtime: Date.now(),
 				});
-				this.activeTransactionModifiedTables!.add(FORJA_META_MODEL);
+				this.activeTransactionModifiedTables!.add(DATRIX_META_MODEL);
 			} else {
-				const filePath = this.getTablePath(FORJA_META_MODEL);
+				const filePath = this.getTablePath(DATRIX_META_MODEL);
 				await fs.writeFile(
 					filePath,
 					JSON.stringify(metaFile, null, 2),
 					"utf-8",
 				);
-				await this.updateCache(FORJA_META_MODEL, metaFile);
+				await this.updateCache(DATRIX_META_MODEL, metaFile);
 			}
 		}
 	}
@@ -996,7 +996,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		}
 
 		// Update schema in _datrix
-		if (tableName !== FORJA_META_MODEL) {
+		if (tableName !== DATRIX_META_MODEL) {
 			await this.applyOperationsToMetaSchema(tableName, operations, skipWrite);
 		}
 	}
@@ -1084,10 +1084,10 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		}
 
 		// Update key in _datrix
-		if (from !== FORJA_META_MODEL && to !== FORJA_META_MODEL) {
-			const oldKey = `${FORJA_META_KEY_PREFIX}${from}`;
-			const newKey = `${FORJA_META_KEY_PREFIX}${to}`;
-			const metaFile = await this.readTable(FORJA_META_MODEL);
+		if (from !== DATRIX_META_MODEL && to !== DATRIX_META_MODEL) {
+			const oldKey = `${DATRIX_META_KEY_PREFIX}${from}`;
+			const newKey = `${DATRIX_META_KEY_PREFIX}${to}`;
+			const metaFile = await this.readTable(DATRIX_META_MODEL);
 			const row = metaFile.data.find(
 				(r) => (r as Record<string, unknown>)["key"] === oldKey,
 			);
@@ -1096,19 +1096,19 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 				metaFile.meta.updatedAt = new Date().toISOString();
 
 				if (skipWrite) {
-					this.activeTransactionCache!.set(FORJA_META_MODEL, {
+					this.activeTransactionCache!.set(DATRIX_META_MODEL, {
 						data: metaFile,
 						mtime: Date.now(),
 					});
-					this.activeTransactionModifiedTables!.add(FORJA_META_MODEL);
+					this.activeTransactionModifiedTables!.add(DATRIX_META_MODEL);
 				} else {
-					const metaPath = this.getTablePath(FORJA_META_MODEL);
+					const metaPath = this.getTablePath(DATRIX_META_MODEL);
 					await fs.writeFile(
 						metaPath,
 						JSON.stringify(metaFile, null, 2),
 						"utf-8",
 					);
-					await this.updateCache(FORJA_META_MODEL, metaFile);
+					await this.updateCache(DATRIX_META_MODEL, metaFile);
 				}
 			}
 		}

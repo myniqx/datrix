@@ -7,12 +7,12 @@
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { defineSchema } from "@datrix/core";
-import { FORJA_META_MODEL } from "@datrix/core";
+import { DATRIX_META_MODEL } from "@datrix/core";
 import { DatabaseAdapter } from "@datrix/core";
 import { createDatrixWithSchemas, getTmpDir } from "../e2e/setup/config";
 import { dropAllTables } from "../e2e/setup/helpers";
 
-const FORJA_META_KEY_PREFIX = "_schema_";
+const DATRIX_META_KEY_PREFIX = "_schema_";
 
 const tmpDir = getTmpDir("datrix_meta");
 
@@ -24,10 +24,10 @@ async function readStoredSchema(
 	adapter: DatabaseAdapter,
 	tableName: string,
 ): Promise<Record<string, unknown>> {
-	const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
+	const metaKey = `${DATRIX_META_KEY_PREFIX}${tableName}`;
 	const queryResult = await adapter.executeQuery({
 		type: "select",
-		table: FORJA_META_MODEL,
+		table: DATRIX_META_MODEL,
 		select: ["id", "key", "value"],
 		where: { key: { $eq: metaKey } },
 	});
@@ -47,10 +47,10 @@ async function assertNotInDatrix(
 	adapter: DatabaseAdapter,
 	tableName: string,
 ): Promise<void> {
-	const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
+	const metaKey = `${DATRIX_META_KEY_PREFIX}${tableName}`;
 	const queryResult = await adapter.executeQuery({
 		type: "select",
-		table: FORJA_META_MODEL,
+		table: DATRIX_META_MODEL,
 		select: ["id", "key", "value"],
 		where: { key: { $eq: metaKey } },
 	});
@@ -83,7 +83,7 @@ describe("_datrix metadata table", () => {
 		await dropAllTables(adapter);
 
 		// Re-create _datrix after dropping all tables
-		const metaSchema = datrix.getSchemas().get(FORJA_META_MODEL)!;
+		const metaSchema = datrix.getSchemas().get(DATRIX_META_MODEL)!;
 		await adapter.createTable(metaSchema);
 	});
 
@@ -115,20 +115,20 @@ describe("_datrix metadata table", () => {
 		} as const);
 
 		// Drop _datrix to simulate missing meta table
-		await adapter.dropTable(FORJA_META_MODEL);
+		await adapter.dropTable(DATRIX_META_MODEL);
 		let error = false;
 		try {
 			await adapter.createTable(freshSchema);
 			error = true;
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			expect(message).toContain(FORJA_META_MODEL);
+			expect(message).toContain(DATRIX_META_MODEL);
 		}
 		expect(error).toBe(false);
 
 		// Restore _datrix for subsequent tests
 		const datrix = await createDatrixWithSchemas(tmpDir, []);
-		const metaSchema = datrix.getSchemas().get(FORJA_META_MODEL)!;
+		const metaSchema = datrix.getSchemas().get(DATRIX_META_MODEL)!;
 		await adapter.createTable(metaSchema);
 
 		// Re-insert products schema since it was lost

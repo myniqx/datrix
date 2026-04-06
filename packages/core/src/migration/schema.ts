@@ -6,8 +6,8 @@
  */
 
 import { defineSchema } from "../types/core/schema";
-import { FORJA_META_MODEL } from "../types/core/constants";
-export { FORJA_META_MODEL };
+import { DATRIX_META_MODEL } from "../types/core/constants";
+export { DATRIX_META_MODEL };
 
 /**
  * Default model name for migration history
@@ -96,8 +96,8 @@ export type MigrationHistorySchema = ReturnType<typeof getMigrationSchema>;
  */
 export function getDatrixMetaSchema() {
 	return defineSchema({
-		name: FORJA_META_MODEL,
-		tableName: FORJA_META_MODEL,
+		name: DATRIX_META_MODEL,
+		tableName: DATRIX_META_MODEL,
 
 		fields: {
 			key: {
