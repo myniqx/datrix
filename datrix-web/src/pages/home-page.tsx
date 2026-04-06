@@ -8,7 +8,7 @@ import { Hero } from "@/components/sections/hero";
 import { Playground } from "@/components/sections/playground";
 import { Features } from "@/components/sections/features";
 import { Frameworks } from "@/components/sections/frameworks";
-import { FORJA_GITHUB_REPO } from "@/data/constants";
+import { DATRIX_GITHUB_REPO } from "@/data/constants";
 
 export const meta: MetaFunction = () => [
 	{ title: "Datrix — Schema-driven database layer for TypeScript" },
@@ -34,7 +34,7 @@ export default function HomePage() {
 	const [starCount, setStarCount] = useState<number | null>(null);
 
 	useEffect(() => {
-		fetch(`https://api.github.com/repos/${FORJA_GITHUB_REPO}`)
+		fetch(`https://api.github.com/repos/${DATRIX_GITHUB_REPO}`)
 			.then((res) =>
 				res.ok ? (res.json() as Promise<{ stargazers_count: number }>) : null,
 			)

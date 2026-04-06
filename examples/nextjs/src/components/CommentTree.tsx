@@ -3,7 +3,16 @@
 import { useDatrix } from "../hooks/useDatrix";
 import { generateFakeComment } from "../utils/faker";
 import { useState } from "react";
-import type { Comment, User, Like } from "../schemas";
+import type {
+	Comment,
+	User,
+	Like,
+	CreateLikeInput,
+	UpdateLikeInput,
+	CreateCommentInput,
+	UpdateCommentInput,
+} from "../../types/generated";
+import { OrderByItem } from "@datrix/core";
 
 interface CommentTreeProps {
 	comments: Comment[];
@@ -18,8 +27,16 @@ export default function CommentTree({
 	users,
 	parentId,
 }: CommentTreeProps) {
-	const { create: createComment } = useDatrix<Comment>("comment");
-	const { create: createLike, remove: removeLike } = useDatrix<Like>("like");
+	const { create: createComment } = useDatrix<
+		Comment,
+		CreateCommentInput,
+		UpdateCommentInput
+	>("comment");
+	const { create: createLike, remove: removeLike } = useDatrix<
+		Like,
+		CreateLikeInput,
+		UpdateLikeInput
+	>("like", undefined, { invalidateModels: ["comment"] });
 	const [commentSort, setCommentSort] = useState<"new" | "popular">("new");
 	const [searchTerm, setSearchTerm] = useState("");
 
@@ -27,35 +44,36 @@ export default function CommentTree({
 
 	const commentQuery = isRoot
 		? {
-			where: {
-				topic: { id: { $eq: topicId } },
-				...(searchTerm.trim() && {
-					$or: [
-						{ content: { $contains: searchTerm } },
-						{ author: { name: { $contains: searchTerm } } },
-					],
-				}),
-			},
-			populate: {
-				author: true,
-				replies: {
-					populate: { author: true, likes: { populate: { user: true } } },
+				where: {
+					topic: { id: { $eq: topicId } },
+					...(searchTerm.trim() && {
+						$or: [
+							{ content: { $contains: searchTerm } },
+							{ author: { name: { $contains: searchTerm } } },
+						],
+					}),
 				},
-				likes: { populate: { user: true } },
-			},
-			orderBy: [
-				{
-					field: commentSort === "new" ? "createdAt" : "likesCount",
-					direction: "desc" as const,
+				populate: {
+					author: true,
+					replies: {
+						populate: { author: true, likes: { populate: { user: true } } },
+					},
+					likes: { populate: { user: true } },
 				},
-			],
-		}
+				orderBy: [
+					{
+						field: commentSort === "new" ? "createdAt" : "likesCount",
+						direction: "desc" as const,
+					} satisfies OrderByItem<Comment>,
+				],
+			}
 		: undefined;
 
-	const { data: fetchedComments, isLoading: searching } = useDatrix<Comment>(
-		"comment",
-		commentQuery!,
-	);
+	const { data: fetchedComments, isLoading: searching } = useDatrix<
+		Comment,
+		CreateCommentInput,
+		UpdateCommentInput
+	>("comment", commentQuery!);
 	const comments = isRoot ? fetchedComments : initialComments;
 
 	const handleReply = async (pId: number) => {
@@ -148,10 +166,11 @@ export default function CommentTree({
 							<div className="relative group/commentlikes">
 								<button
 									onClick={() => handleToggleLike(comment)}
-									className={`flex items-center gap-1 text-[11px] font-semibold transition-colors ${comment.likes?.some((l) => l.user?.id === users[0]?.id)
+									className={`flex items-center gap-1 text-[11px] font-semibold transition-colors ${
+										comment.likes?.some((l) => l.user?.id === users[0]?.id)
 											? "text-red-500"
 											: "text-slate-400 hover:text-red-500"
-										}`}
+									}`}
 								>
 									<svg
 										xmlns="http://www.w3.org/2000/svg"

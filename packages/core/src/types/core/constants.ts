@@ -179,12 +179,12 @@ export function getOperatorValueType(
 /**
  * Internal metadata table name used by all adapters to store schema snapshots
  */
-export const FORJA_META_MODEL = "_datrix";
+export const DATRIX_META_MODEL = "_datrix";
 
 /**
  * Key prefix for schema entries stored in the _datrix metadata table
  */
-export const FORJA_META_KEY_PREFIX = "_schema_";
+export const DATRIX_META_KEY_PREFIX = "_schema_";
 
 /**
  * Field name validation pattern

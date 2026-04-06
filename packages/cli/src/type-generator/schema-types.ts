@@ -10,7 +10,7 @@
  *   - type UpdateUserInput = Partial<Omit<UserBase, keyof DatrixEntry>> & UserRelationUpdate
  */
 
-import type { RelationField, SchemaDefinition } from "@datrix/core";
+import { DATRIX_META_MODEL, type RelationField, type SchemaDefinition } from "@datrix/core";
 import { toPascalCase } from "../utils/templates";
 import {
 	scalarFieldToTypeString,
@@ -118,7 +118,7 @@ function generateTypeAliases(name: string): string {
 /**
  * Internal schema names that should be excluded from generated types
  */
-const INTERNAL_SCHEMA_NAMES = ["_datrix_migration"] as const;
+const INTERNAL_SCHEMA_NAMES = ["_datrix_migration", DATRIX_META_MODEL] as const;
 
 /**
  * Check if schema should be excluded from type generation

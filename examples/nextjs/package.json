@@ -1,26 +1,25 @@
 {
-	"name": "nextjs",
+	"name": "nextjs-example",
 	"version": "0.1.0",
 	"private": true,
 	"scripts": {
 		"dev": "next dev",
 		"build": "next build",
-		"start": "next start",
-		"datrix": "node --import ../../packages/cli/node_modules/jiti/lib/jiti-register.mjs ../../packages/cli/src/index.ts"
+		"start": "next start"
 	},
 	"dependencies": {
+		"@datrix/adapter-json": "workspace:*",
+		"@datrix/api": "workspace:*",
+		"@datrix/api-upload": "workspace:*",
+		"@datrix/core": "workspace:*",
 		"@tanstack/react-query": "^5.90.20",
-		"datrix-adapter-json": "file:../../packages/adapter-json",
-		"datrix-api": "file:../../packages/api",
-		"datrix-core": "file:../../packages/core",
-		"datrix-types": "file:../../packages/types",
 		"next": "16.1.1",
 		"react": "19.2.3",
 		"react-dom": "19.2.3"
 	},
 	"devDependencies": {
-		"datrix-cli": "file:../../packages/cli",
 		"@faker-js/faker": "^10.2.0",
+		"@datrix/cli": "workspace:*",
 		"@tailwindcss/postcss": "^4.1.18",
 		"@types/node": "^20.19.28",
 		"@types/react": "^19.2.8",

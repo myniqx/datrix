@@ -2,7 +2,7 @@ import type { Pool } from "mysql2/promise";
 import type { ImportReader } from "@datrix/core";
 import type { SchemaDefinition } from "@datrix/core";
 import type { MySQLAdapter } from "../adapter";
-import { FORJA_META_MODEL } from "@datrix/core";
+import { DATRIX_META_MODEL } from "@datrix/core";
 
 const CHUNK_SIZE = 1000;
 
@@ -41,7 +41,7 @@ export class MySQLImporter {
 
 			// 5. Add FK constraints (skip _datrix)
 			for (const schema of schemas.values()) {
-				if (schema.name === FORJA_META_MODEL) continue;
+				if (schema.name === DATRIX_META_MODEL) continue;
 				await this.addForeignKeys(schema);
 			}
 		} finally {

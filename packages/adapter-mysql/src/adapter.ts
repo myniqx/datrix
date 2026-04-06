@@ -50,7 +50,7 @@ import {
 	ISchemaRegistry,
 	SchemaDefinition,
 } from "@datrix/core";
-import { FORJA_META_MODEL, FORJA_META_KEY_PREFIX } from "@datrix/core";
+import { DATRIX_META_MODEL, DATRIX_META_KEY_PREFIX } from "@datrix/core";
 import { escapeIdentifier, escapeValue } from "./helpers";
 
 /**
@@ -498,12 +498,12 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 
 			// Track schema in _datrix (skip during import — _datrix data will be restored as-is)
 			if (!options?.isImport) {
-				if (schema.name !== FORJA_META_MODEL) {
-					const metaExists = await this.tableExists(FORJA_META_MODEL);
+				if (schema.name !== DATRIX_META_MODEL) {
+					const metaExists = await this.tableExists(DATRIX_META_MODEL);
 					if (!metaExists) {
 						throwMigrationError({
 							adapter: "mysql",
-							message: `Cannot create table '${schema.name}': '${FORJA_META_MODEL}' table does not exist yet. Create '${FORJA_META_MODEL}' first.`,
+							message: `Cannot create table '${schema.name}': '${DATRIX_META_MODEL}' table does not exist yet. Create '${DATRIX_META_MODEL}' first.`,
 						});
 					}
 				}
@@ -542,9 +542,9 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			await client.execute(`DROP TABLE IF EXISTS ${escapedTable}`);
 
 			// Remove schema from _datrix (skip during import — _datrix data will be restored as-is)
-			if (!options?.isImport && tableName !== FORJA_META_MODEL) {
-				const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
-				const escapedMetaTable = escapeIdentifier(FORJA_META_MODEL);
+			if (!options?.isImport && tableName !== DATRIX_META_MODEL) {
+				const metaKey = `${DATRIX_META_KEY_PREFIX}${tableName}`;
+				const escapedMetaTable = escapeIdentifier(DATRIX_META_MODEL);
 				await client.execute(
 					`DELETE FROM ${escapedMetaTable} WHERE \`key\` = ?`,
 					[metaKey],
@@ -586,10 +586,10 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			await client.execute(`RENAME TABLE ${escapedFrom} TO ${escapedTo}`);
 
 			// Update key in _datrix
-			if (from !== FORJA_META_MODEL && to !== FORJA_META_MODEL) {
-				const oldKey = `${FORJA_META_KEY_PREFIX}${from}`;
-				const newKey = `${FORJA_META_KEY_PREFIX}${to}`;
-				const escapedMetaTable = escapeIdentifier(FORJA_META_MODEL);
+			if (from !== DATRIX_META_MODEL && to !== DATRIX_META_MODEL) {
+				const oldKey = `${DATRIX_META_KEY_PREFIX}${from}`;
+				const newKey = `${DATRIX_META_KEY_PREFIX}${to}`;
+				const escapedMetaTable = escapeIdentifier(DATRIX_META_MODEL);
 				await client.execute(
 					`UPDATE ${escapedMetaTable} SET \`key\` = ? WHERE \`key\` = ?`,
 					[newKey, oldKey],
@@ -678,7 +678,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			}
 
 			// Update schema in _datrix
-			if (tableName !== FORJA_META_MODEL) {
+			if (tableName !== DATRIX_META_MODEL) {
 				await this.applyOperationsToMetaSchema(
 					tableName,
 					operations,
@@ -818,8 +818,8 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 		}
 
 		try {
-			const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
-			const escapedMetaTable = escapeIdentifier(FORJA_META_MODEL);
+			const metaKey = `${DATRIX_META_KEY_PREFIX}${tableName}`;
+			const escapedMetaTable = escapeIdentifier(DATRIX_META_MODEL);
 			const client = this.createClient(
 				this.pool!,
 				`getTableSchema:${tableName}`,
@@ -874,9 +874,9 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 		queryRunner: Pool | PoolConnection,
 	): Promise<void> {
 		const client = this.createClient(queryRunner, `upsertMeta:${schema.name}`);
-		const metaKey = `${FORJA_META_KEY_PREFIX}${schema.tableName ?? schema.name}`;
+		const metaKey = `${DATRIX_META_KEY_PREFIX}${schema.tableName ?? schema.name}`;
 		const metaValue = JSON.stringify(schema);
-		const escapedMetaTable = escapeIdentifier(FORJA_META_MODEL);
+		const escapedMetaTable = escapeIdentifier(DATRIX_META_MODEL);
 		await client.execute(
 			`INSERT INTO ${escapedMetaTable} (\`key\`, \`value\`, \`createdAt\`, \`updatedAt\`)
 			 VALUES (?, ?, NOW(), NOW())
@@ -894,8 +894,8 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 		queryRunner: Pool | PoolConnection,
 	): Promise<void> {
 		const client = this.createClient(queryRunner, `alterMeta:${tableName}`);
-		const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
-		const escapedMetaTable = escapeIdentifier(FORJA_META_MODEL);
+		const metaKey = `${DATRIX_META_KEY_PREFIX}${tableName}`;
+		const escapedMetaTable = escapeIdentifier(DATRIX_META_MODEL);
 		const [rows] = await client.execute(
 			`SELECT \`value\` FROM ${escapedMetaTable} WHERE \`key\` = ?`,
 			[metaKey],

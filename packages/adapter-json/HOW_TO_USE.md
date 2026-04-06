@@ -19,7 +19,7 @@ This guide covers using JsonAdapter **without** Datrix framework. For Datrix int
 ### Connection
 
 ```typescript
-import { JsonAdapter } from "datrix-adapter-json";
+import { JsonAdapter } from "@datrix/adapter-json";
 
 const adapter = new JsonAdapter({
   root: "./data",
@@ -737,7 +737,7 @@ await adapter.executeQuery({
 
 ```typescript
 import { describe, it, beforeEach, afterEach } from "vitest";
-import { JsonAdapter } from "datrix-adapter-json";
+import { JsonAdapter } from "@datrix/adapter-json";
 import fs from "node:fs/promises";
 
 describe("My Tests", () => {

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useDatrix } from "../hooks/useDatrix";
 import { faker } from "@faker-js/faker";
-import type { User } from "../schemas";
+import type { User } from "../../types/generated";
 
 export default function UserSection() {
 	const { data: users, isLoading, error, create } = useDatrix<User>("user");

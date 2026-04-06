@@ -2,7 +2,7 @@ import { StarIcon } from "lucide-react";
 import { siGithub } from "simple-icons";
 import { Container } from "./container";
 import { DatrixLogo } from "./logo";
-import { FORJA_VERSION, FORJA_GITHUB_URL } from "@/data/constants";
+import { DATRIX_VERSION, DATRIX_GITHUB_URL } from "@/data/constants";
 
 const NAV_LINKS = [
 	{ label: "Showcase", href: "#showcase" },
@@ -31,7 +31,7 @@ export function Footer({ starCount }: FooterProps) {
 						<DatrixLogo size={22} />
 					</div>
 					<span className="text-sm font-semibold text-foreground">datrix</span>
-					<span className="text-xs text-foreground/50">{FORJA_VERSION}</span>
+					<span className="text-xs text-foreground/50">{DATRIX_VERSION}</span>
 				</div>
 
 				{/* Center — links */}
@@ -46,7 +46,7 @@ export function Footer({ starCount }: FooterProps) {
 						</a>
 					))}
 					<a
-						href={FORJA_GITHUB_URL}
+						href={DATRIX_GITHUB_URL}
 						target="_blank"
 						rel="noopener noreferrer"
 						className="flex items-center gap-1.5 transition-colors hover:text-foreground"

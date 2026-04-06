@@ -1,10 +1,10 @@
 /**
  * Playground Data Generator
  *
- * Generates static playground scenarios for the datrixweb landing page.
+ * Generates static playground scenarios for the datrix-web landing page.
  * Run with: pnpm generate-playground
  *
- * Output: datrixweb/src/data/playground.json
+ * Output: datrix-web/src/data/playground.json
  */
 
 import { describe, it, beforeAll, afterAll } from "vitest";
@@ -100,7 +100,7 @@ beforeAll(async () => {
 afterAll(async () => {
 	const outputPath = path.resolve(
 		process.cwd(),
-		"datrixweb/src/data/playground.json",
+		"datrix-web/src/data/playground.json", 
 	);
 
 	// Serialize schemas — convert RegExp pattern fields to strings

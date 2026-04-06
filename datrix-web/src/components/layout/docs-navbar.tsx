@@ -1,7 +1,7 @@
 import { siGithub } from "simple-icons";
 import { Link } from "react-router";
 import { DatrixLogo } from "./logo";
-import { FORJA_GITHUB_URL, FORJA_VERSION } from "@/data/constants";
+import { DATRIX_GITHUB_URL, DATRIX_VERSION } from "@/data/constants";
 
 export function DocsNavbar() {
 	return (
@@ -33,14 +33,14 @@ export function DocsNavbar() {
 							backgroundColor: "#1e1b2e",
 						}}
 					>
-						{FORJA_VERSION}
+						{DATRIX_VERSION}
 					</span>
 				</div>
 
 				{/* Right — github */}
 				<div className="flex items-center gap-2">
 					<a
-						href={FORJA_GITHUB_URL}
+						href={DATRIX_GITHUB_URL}
 						target="_blank"
 						rel="noopener noreferrer"
 						className="flex items-center gap-1.5 text-sm text-foreground/60 hover:text-foreground transition-colors px-2 py-1"

@@ -1,4 +1,4 @@
-import { defineSchema } from "datrix-types/core/schema";
+import { defineSchema } from "@datrix/core";
 
 /**
  * User Schema

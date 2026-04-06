@@ -15,7 +15,7 @@ import {
 } from "../types/core/migration";
 import { IDatrix } from "../types/core";
 import { DatrixEntry } from "../types/core/schema";
-import { DEFAULT_MIGRATION_MODEL, FORJA_META_MODEL } from "./schema";
+import { DEFAULT_MIGRATION_MODEL, DATRIX_META_MODEL } from "./schema";
 
 /**
  * Migration history entry type (matches the schema)
@@ -66,12 +66,12 @@ export class ForgeMigrationHistory implements MigrationHistory {
 			const adapter = this.datrix.getAdapter();
 
 			// Ensure _datrix metadata table exists before any other table operation
-			const metaExists = await adapter.tableExists(FORJA_META_MODEL);
+			const metaExists = await adapter.tableExists(DATRIX_META_MODEL);
 			if (!metaExists) {
-				const metaSchema = this.datrix.getSchemas().get(FORJA_META_MODEL);
+				const metaSchema = this.datrix.getSchemas().get(DATRIX_META_MODEL);
 				if (!metaSchema) {
 					throw new MigrationSystemError(
-						`Schema '${FORJA_META_MODEL}' not found in registry`,
+						`Schema '${DATRIX_META_MODEL}' not found in registry`,
 						"MIGRATION_ERROR",
 					);
 				}

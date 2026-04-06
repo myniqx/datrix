@@ -40,7 +40,7 @@
 		"test:watch": "pnpm -r run test:watch",
 		"test:coverage": "pnpm -r run test:coverage",
 		"clean": "pnpm -r run clean",
-		"generate-playground": "ADAPTER=json vitest run packages/core/tests/playground/generate.test.ts",
+		"generate-playground": "pnpm ADAPTER=json vitest run packages/core/tests/playground/generate.test.ts",
 		"changeset": "changeset",
 		"version-packages": "changeset version",
 		"release": "pnpm build && changeset publish"

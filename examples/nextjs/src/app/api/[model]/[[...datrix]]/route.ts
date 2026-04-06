@@ -25,9 +25,8 @@
  */
 
 import datrix from "../../../../../datrix.config";
-import { handleRequest } from "datrix-api";
+import { handleRequest } from "@datrix/api";
 
-let schemaCreated = false;
 /**
  * Unified request handler
  *
@@ -41,15 +40,6 @@ let schemaCreated = false;
  */
 async function handler(request: Request): Promise<Response> {
 	const instance = await datrix();
-	if (!schemaCreated) {
-		// Create tables
-		const adapter = instance.getAdapter();
-		for (const schema of instance.getSchemas().getAll()) {
-			try {
-				await adapter.createTable(schema);
-			} catch { }
-		}
-	}
 	return handleRequest(instance, request);
 }
 

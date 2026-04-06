@@ -9,7 +9,7 @@ import {
 	SheetTrigger,
 } from "@/components/ui/sheet";
 import { DatrixLogo } from "./logo";
-import { FORJA_VERSION, FORJA_GITHUB_URL } from "@/data/constants";
+import { DATRIX_VERSION, DATRIX_GITHUB_URL } from "@/data/constants";
 
 interface NavbarMobileProps {
 	starCount: number | null;
@@ -33,7 +33,7 @@ export function NavbarMobile({ starCount }: NavbarMobileProps) {
 							</div>
 							<span className="text-base font-bold">datrix</span>
 							<Badge variant="outline" className="px-1.5 py-0 text-xs">
-								{FORJA_VERSION}
+								{DATRIX_VERSION}
 							</Badge>
 						</div>
 					</SheetTitle>
@@ -59,7 +59,7 @@ export function NavbarMobile({ starCount }: NavbarMobileProps) {
 						Docs
 					</a>
 					<a
-						href={FORJA_GITHUB_URL}
+						href={DATRIX_GITHUB_URL}
 						target="_blank"
 						rel="noopener noreferrer"
 						className="flex items-center gap-2 rounded-md px-2 py-2 text-sm text-foreground/70 transition-colors hover:bg-muted hover:text-foreground"

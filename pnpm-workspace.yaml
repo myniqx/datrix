@@ -1,3 +1,4 @@
 packages:
  - "packages/*"
- - "forjaweb"
+ - "examples/nextjs"
+ - "datrix-web"

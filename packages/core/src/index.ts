@@ -8,6 +8,9 @@
 export { Datrix, defineConfig } from "./datrix";
 export type { DatrixInitOptions, ConfigFactory } from "./datrix";
 
+// Core constants
+export { DATRIX_META_MODEL, DATRIX_META_KEY_PREFIX } from "./types/core/constants";
+
 export * from "./types/core";
 export * from "./types/adapter";
 export * from "./types/api";

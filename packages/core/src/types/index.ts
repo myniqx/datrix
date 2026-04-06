@@ -11,7 +11,7 @@ export * from "./cli";
 export * from "./core/permission";
 
 // Core constants
-export { FORJA_META_MODEL, FORJA_META_KEY_PREFIX } from "./core/constants";
+export { DATRIX_META_MODEL, DATRIX_META_KEY_PREFIX } from "./core/constants";
 
 // Query builder types
 export {
