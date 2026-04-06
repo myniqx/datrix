@@ -1,4 +1,4 @@
-# datrix-adapter-json
+# @datrix/adapter-json
 
 A file-based JSON database adapter for Datrix framework. Perfect for development, testing, static sites, and small-scale applications.
 
@@ -18,13 +18,13 @@ A file-based JSON database adapter for Datrix framework. Perfect for development
 
 ```bash
 # pnpm
-pnpm add datrix-adapter-json
+pnpm add @datrix/adapter-json
 
 # yarn
-yarn add datrix-adapter-json
+yarn add @datrix/adapter-json
 
 # npm
-npm install datrix-adapter-json
+npm install @datrix/adapter-json
 ```
 
 ## Quick Start with Datrix
