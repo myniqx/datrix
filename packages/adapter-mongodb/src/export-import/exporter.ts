@@ -1,5 +1,5 @@
 import type { Db } from "mongodb";
-import type { ExportWriter } from "@forja/core";
+import type { ExportWriter } from "@datrix/core";
 import type { MongoDBAdapter } from "../adapter";
 
 const CHUNK_SIZE = 1000;
@@ -8,7 +8,7 @@ export class MongoDBExporter {
 	constructor(
 		private db: Db,
 		private adapter: MongoDBAdapter,
-	) {}
+	) { }
 
 	async export(writer: ExportWriter): Promise<void> {
 		await writer.writeMeta({

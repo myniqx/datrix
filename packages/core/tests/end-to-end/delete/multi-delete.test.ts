@@ -1,7 +1,7 @@
 /**
  * Multi Delete Tests
  *
- * Tests for forja.deleteMany() with where clause
+ * Tests for datrix.deleteMany() with where clause
  *
  * Covers:
  * - Delete multiple records by where
@@ -14,12 +14,12 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { Forja } from "@forja/core";
+import { Datrix } from "@datrix/core";
 import fs from "node:fs/promises";
 import { createTestConfig, getTmpDir, setupTables } from "../setup";
 
 describe("Multi Delete", () => {
-	let forja: Forja;
+	let datrix: Datrix;
 	const tmpDir = getTmpDir("multi_delete");
 
 	let orgId: number;
@@ -28,13 +28,13 @@ describe("Multi Delete", () => {
 		await fs.rm(tmpDir, { recursive: true, force: true });
 		await fs.mkdir(tmpDir, { recursive: true });
 
-		const getForja = await createTestConfig(tmpDir);
-		forja = await getForja();
+		const getDatrix = await createTestConfig(tmpDir);
+		datrix = await getDatrix();
 
-		await setupTables(forja);
+		await setupTables(datrix);
 
 		// Create organization for relation tests
-		const org = await forja.create("organization", {
+		const org = await datrix.create("organization", {
 			name: "Multi Delete Org",
 			country: "USA",
 		});
@@ -43,10 +43,10 @@ describe("Multi Delete", () => {
 
 	beforeEach(async () => {
 		// Clean up users before each test
-		await forja.deleteMany("user", {});
+		await datrix.deleteMany("user", {});
 
 		// Create fresh test data
-		await forja.createMany("user", [
+		await datrix.createMany("user", [
 			{
 				email: "del1@test.com",
 				name: "User 1",
@@ -83,27 +83,27 @@ describe("Multi Delete", () => {
 
 	describe("Basic Multi Delete", () => {
 		it("should delete multiple records by simple where", async () => {
-			const deleted = await forja.deleteMany("user", { isActive: true });
+			const deleted = await datrix.deleteMany("user", { isActive: true });
 
 			expect(deleted.length).toBe(3);
 
 			// Verify deletion
-			const remaining = await forja.count("user");
+			const remaining = await datrix.count("user");
 			expect(remaining).toBe(2);
 		});
 
 		it("should return empty array when no matches", async () => {
-			const deleted = await forja.deleteMany("user", { age: 999 });
+			const deleted = await datrix.deleteMany("user", { age: 999 });
 
 			expect(deleted).toHaveLength(0);
 
 			// Verify nothing deleted
-			const count = await forja.count("user");
+			const count = await datrix.count("user");
 			expect(count).toBe(5);
 		});
 
 		it("should delete single record when where matches one", async () => {
-			const deleted = await forja.deleteMany("user", {
+			const deleted = await datrix.deleteMany("user", {
 				email: "del5@test.com",
 			});
 
@@ -118,17 +118,17 @@ describe("Multi Delete", () => {
 
 	describe("Delete with Operators", () => {
 		it("should delete with $gt operator", async () => {
-			const deleted = await forja.deleteMany("user", { age: { $gt: 35 } });
+			const deleted = await datrix.deleteMany("user", { age: { $gt: 35 } });
 
 			// age > 35: User 4 (40), User 5 (45) = 2
 			expect(deleted.length).toBe(2);
 
-			const remaining = await forja.count("user");
+			const remaining = await datrix.count("user");
 			expect(remaining).toBe(3);
 		});
 
 		it("should delete with $in operator", async () => {
-			const deleted = await forja.deleteMany("user", {
+			const deleted = await datrix.deleteMany("user", {
 				age: { $in: [25, 45] },
 			});
 
@@ -136,7 +136,7 @@ describe("Multi Delete", () => {
 		});
 
 		it("should delete with $like operator", async () => {
-			const deleted = await forja.deleteMany("user", {
+			const deleted = await datrix.deleteMany("user", {
 				email: { $like: "del%@test.com" },
 			});
 
@@ -144,7 +144,7 @@ describe("Multi Delete", () => {
 		});
 
 		it("should delete with $ne operator", async () => {
-			const deleted = await forja.deleteMany("user", {
+			const deleted = await datrix.deleteMany("user", {
 				isActive: { $ne: true },
 			});
 
@@ -159,7 +159,7 @@ describe("Multi Delete", () => {
 
 	describe("Delete with Complex Where", () => {
 		it("should delete with $and", async () => {
-			const deleted = await forja.deleteMany("user", {
+			const deleted = await datrix.deleteMany("user", {
 				$and: [{ isActive: false }, { age: { $gte: 40 } }],
 			});
 
@@ -168,7 +168,7 @@ describe("Multi Delete", () => {
 		});
 
 		it("should delete with $or", async () => {
-			const deleted = await forja.deleteMany("user", {
+			const deleted = await datrix.deleteMany("user", {
 				$or: [{ age: 25 }, { age: 45 }],
 			});
 
@@ -177,7 +177,7 @@ describe("Multi Delete", () => {
 		});
 
 		it("should delete with implicit AND", async () => {
-			const deleted = await forja.deleteMany("user", {
+			const deleted = await datrix.deleteMany("user", {
 				isActive: true,
 				age: { $lte: 30 },
 			});
@@ -193,7 +193,7 @@ describe("Multi Delete", () => {
 
 	describe("Delete with Relation Where", () => {
 		it("should delete by belongsTo relation id", async () => {
-			const deleted = await forja.deleteMany("user", {
+			const deleted = await datrix.deleteMany("user", {
 				organization: { id: orgId },
 			});
 
@@ -202,7 +202,7 @@ describe("Multi Delete", () => {
 		});
 
 		it("should delete by belongsTo relation field", async () => {
-			const deleted = await forja.deleteMany("user", {
+			const deleted = await datrix.deleteMany("user", {
 				organization: { name: "Multi Delete Org" },
 			});
 
@@ -210,7 +210,7 @@ describe("Multi Delete", () => {
 		});
 
 		it("should combine relation and field filters", async () => {
-			const deleted = await forja.deleteMany("user", {
+			const deleted = await datrix.deleteMany("user", {
 				organization: { id: orgId },
 				isActive: true,
 			});
@@ -226,14 +226,14 @@ describe("Multi Delete", () => {
 
 	describe("Delete All", () => {
 		it("should delete all records with empty where", async () => {
-			const beforeCount = await forja.count("user");
+			const beforeCount = await datrix.count("user");
 			expect(beforeCount).toBe(5);
 
-			const deleted = await forja.deleteMany("user", {});
+			const deleted = await datrix.deleteMany("user", {});
 
 			expect(deleted.length).toBe(5);
 
-			const afterCount = await forja.count("user");
+			const afterCount = await datrix.count("user");
 			expect(afterCount).toBe(0);
 		});
 	});
@@ -244,7 +244,7 @@ describe("Multi Delete", () => {
 
 	describe("Return Values", () => {
 		it("should return deleted records with all fields", async () => {
-			const deleted = await forja.deleteMany("user", { age: 25 });
+			const deleted = await datrix.deleteMany("user", { age: 25 });
 
 			expect(deleted.length).toBe(1);
 			expect(deleted[0]).toHaveProperty("id");
@@ -255,7 +255,7 @@ describe("Multi Delete", () => {
 		});
 
 		it("should return records with populate", async () => {
-			const deleted = await forja.deleteMany(
+			const deleted = await datrix.deleteMany(
 				"user",
 				{ organization: { id: orgId } },
 				{ populate: { organization: { select: "*" } } },
@@ -277,33 +277,33 @@ describe("Multi Delete", () => {
 	describe("ManyToMany Junction Cleanup", () => {
 		it("should clean up junction table when deleting record with manyToMany", async () => {
 			// Create roles
-			const roles = await forja.createMany("role", [
+			const roles = await datrix.createMany("role", [
 				{ name: "Role A", level: 10 },
 				{ name: "Role B", level: 20 },
 			]);
 
 			// Create user with roles
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "m2m-delete@test.com",
 				name: "M2M User",
 				roles: { connect: roles.map((r) => r.id) },
 			});
 
 			// Verify roles are connected
-			const withRoles = await forja.findById("user", user.id, {
+			const withRoles = await datrix.findById("user", user.id, {
 				populate: { roles: { select: "*" } },
 			});
 			expect((withRoles!.roles as unknown[]).length).toBe(2);
 
 			// Delete the user
-			await forja.delete("user", user.id);
+			await datrix.delete("user", user.id);
 
 			// Verify user is deleted
-			const deleted = await forja.findById("user", user.id);
+			const deleted = await datrix.findById("user", user.id);
 			expect(deleted).toBeNull();
 
 			// Roles should still exist
-			const rolesAfter = await forja.count("role");
+			const rolesAfter = await datrix.count("role");
 			expect(rolesAfter).toBe(2);
 		});
 	});
@@ -320,11 +320,11 @@ describe("Multi Delete", () => {
 				name: `Bulk User ${i}`,
 				age: 20 + (i % 30),
 			}));
-			await forja.createMany("user", bulkUsers);
+			await datrix.createMany("user", bulkUsers);
 
 			const start = performance.now();
 
-			const deleted = await forja.deleteMany("user", {
+			const deleted = await datrix.deleteMany("user", {
 				email: { $like: "bulkdel%@test.com" },
 			});
 
@@ -336,22 +336,22 @@ describe("Multi Delete", () => {
 
 		it("should not delete unrelated records", async () => {
 			// Create isolated user
-			const isolated = await forja.create("user", {
+			const isolated = await datrix.create("user", {
 				email: "isolated-del@test.com",
 				name: "Isolated User",
 				age: 100,
 			});
 
 			// Delete users with different criteria
-			await forja.deleteMany("user", { age: { $lt: 50 } });
+			await datrix.deleteMany("user", { age: { $lt: 50 } });
 
 			// Verify isolated user still exists
-			const stillExists = await forja.findById("user", isolated.id);
+			const stillExists = await datrix.findById("user", isolated.id);
 			expect(stillExists).not.toBeNull();
 		});
 
 		it("should handle delete with null relation", async () => {
-			const deleted = await forja.deleteMany("user", {
+			const deleted = await datrix.deleteMany("user", {
 				organization: { $null: true },
 			});
 

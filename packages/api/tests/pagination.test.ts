@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
-import { Forja } from "@forja/core";
+import { Datrix } from "@datrix/core";
 import { handleRequest } from "../src/helper";
 import { createTestConfig, getTmpDir } from "./data";
 import { createRequest } from "./data/helper";
@@ -23,8 +23,8 @@ import {
 import fs from "node:fs/promises";
 
 describe("Pagination Integration Tests", () => {
-	let forja: Forja;
-	let getForja: () => Promise<Forja>;
+	let datrix: Datrix;
+	let getDatrix: () => Promise<Datrix>;
 	const tmpDir = getTmpDir("pagination");
 
 	beforeAll(async () => {
@@ -38,18 +38,18 @@ describe("Pagination Integration Tests", () => {
 		// Create temporary directory
 		await fs.mkdir(tmpDir, { recursive: true });
 
-		// Get Forja factory function
-		getForja = await createTestConfig(tmpDir);
+		// Get Datrix factory function
+		getDatrix = await createTestConfig(tmpDir);
 
-		// Get Forja instance
-		forja = await getForja();
+		// Get Datrix instance
+		datrix = await getDatrix();
 
 		// Create tables for JsonAdapter
-		const adapter = forja.getAdapter();
-		for (const schema of forja.getSchemas().getAll()) {
+		const adapter = datrix.getAdapter();
+		for (const schema of datrix.getSchemas().getAll()) {
 			try {
 				await adapter.dropTable(schema.tableName!);
-			} catch {}
+			} catch { }
 			await adapter.createTable(schema);
 		}
 	});
@@ -69,7 +69,7 @@ describe("Pagination Integration Tests", () => {
 	async function setupUsers(count: number) {
 		const users = [];
 		for (let i = 1; i <= count; i++) {
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				name: `User ${i}`,
 				email: `user${i}@example.com`,
 				age: 20 + i,
@@ -81,7 +81,7 @@ describe("Pagination Integration Tests", () => {
 
 	describe("Basic Pagination", () => {
 		beforeEach(async () => {
-			await forja.deleteMany("user", {});
+			await datrix.deleteMany("user", {});
 		});
 
 		it("should use default pagination when no params provided", async () => {
@@ -90,7 +90,7 @@ describe("Pagination Integration Tests", () => {
 
 			const request = createRequest("/api/users", { method: "GET" });
 
-			const response = await handleRequest(forja, request);
+			const response = await handleRequest(datrix, request);
 			const { data, meta } = await expectApiMulti(response);
 
 			// Default: page=1, pageSize=25
@@ -113,7 +113,7 @@ describe("Pagination Integration Tests", () => {
 				{ pageSize: 3 },
 			);
 
-			const response = await handleRequest(forja, request);
+			const response = await handleRequest(datrix, request);
 			const { data, meta } = await expectApiMulti(response);
 
 			expect(data).toHaveLength(3);
@@ -135,7 +135,7 @@ describe("Pagination Integration Tests", () => {
 				{ method: "GET" },
 				{ page: 1, pageSize: 3 },
 			);
-			const page1Response = await handleRequest(forja, page1Request);
+			const page1Response = await handleRequest(datrix, page1Request);
 			const page1Result = await expectApiMulti(page1Response);
 
 			expect(page1Result.data).toHaveLength(3);
@@ -149,7 +149,7 @@ describe("Pagination Integration Tests", () => {
 				{ method: "GET" },
 				{ page: 2, pageSize: 3 },
 			);
-			const page2Response = await handleRequest(forja, page2Request);
+			const page2Response = await handleRequest(datrix, page2Request);
 			const page2Result = await expectApiMulti(page2Response);
 
 			expect(page2Result.data).toHaveLength(3);
@@ -163,7 +163,7 @@ describe("Pagination Integration Tests", () => {
 				{ method: "GET" },
 				{ page: 3, pageSize: 3 },
 			);
-			const page3Response = await handleRequest(forja, page3Request);
+			const page3Response = await handleRequest(datrix, page3Request);
 			const page3Result = await expectApiMulti(page3Response);
 
 			expect(page3Result.data).toHaveLength(3);
@@ -175,7 +175,7 @@ describe("Pagination Integration Tests", () => {
 
 	describe("Edge Cases", () => {
 		beforeEach(async () => {
-			await forja.deleteMany("user", {});
+			await datrix.deleteMany("user", {});
 		});
 
 		it("should handle last page with remaining items", async () => {
@@ -188,7 +188,7 @@ describe("Pagination Integration Tests", () => {
 				{ page: 4, pageSize: 3 },
 			);
 
-			const response = await handleRequest(forja, request);
+			const response = await handleRequest(datrix, request);
 			const { data, meta } = await expectApiMulti(response);
 
 			// Last page: only 1 item (items 10)
@@ -213,7 +213,7 @@ describe("Pagination Integration Tests", () => {
 				{ page: 10, pageSize: 3 },
 			);
 
-			const response = await handleRequest(forja, request);
+			const response = await handleRequest(datrix, request);
 			const { data, meta } = await expectApiMulti(response);
 
 			// Page 10 doesn't exist → empty array
@@ -238,7 +238,7 @@ describe("Pagination Integration Tests", () => {
 				{ page: 2, pageSize: 1 },
 			);
 
-			const response = await handleRequest(forja, request);
+			const response = await handleRequest(datrix, request);
 			const { data, meta } = await expectApiMulti(response);
 
 			expect(data).toHaveLength(1);
@@ -261,7 +261,7 @@ describe("Pagination Integration Tests", () => {
 				{ page: 1, pageSize: 10 },
 			);
 
-			const response = await handleRequest(forja, request);
+			const response = await handleRequest(datrix, request);
 			const { data, meta } = await expectApiMulti(response);
 
 			expect(data).toHaveLength(0);
@@ -284,7 +284,7 @@ describe("Pagination Integration Tests", () => {
 				{ page: 3, pageSize: 3 },
 			);
 
-			const response = await handleRequest(forja, request);
+			const response = await handleRequest(datrix, request);
 			const { data, meta } = await expectApiMulti(response);
 
 			// Last page: exactly 3 items
@@ -304,7 +304,7 @@ describe("Pagination Integration Tests", () => {
 
 	describe("Meta Validation", () => {
 		beforeEach(async () => {
-			await forja.deleteMany("user", {});
+			await datrix.deleteMany("user", {});
 		});
 
 		it("should calculate totalPages correctly for various scenarios", async () => {
@@ -316,7 +316,7 @@ describe("Pagination Integration Tests", () => {
 				{ method: "GET" },
 				{ pageSize: 3 },
 			);
-			const res1 = await handleRequest(forja, req1);
+			const res1 = await handleRequest(datrix, req1);
 			const result1 = await expectApiMulti(res1);
 			expect(result1.meta.totalPages).toBe(4);
 
@@ -326,7 +326,7 @@ describe("Pagination Integration Tests", () => {
 				{ method: "GET" },
 				{ pageSize: 5 },
 			);
-			const res2 = await handleRequest(forja, req2);
+			const res2 = await handleRequest(datrix, req2);
 			const result2 = await expectApiMulti(res2);
 			expect(result2.meta.totalPages).toBe(2);
 
@@ -336,7 +336,7 @@ describe("Pagination Integration Tests", () => {
 				{ method: "GET" },
 				{ pageSize: 10 },
 			);
-			const res3 = await handleRequest(forja, req3);
+			const res3 = await handleRequest(datrix, req3);
 			const result3 = await expectApiMulti(res3);
 			expect(result3.meta.totalPages).toBe(1);
 
@@ -346,7 +346,7 @@ describe("Pagination Integration Tests", () => {
 				{ method: "GET" },
 				{ pageSize: 20 },
 			);
-			const res4 = await handleRequest(forja, req4);
+			const res4 = await handleRequest(datrix, req4);
 			const result4 = await expectApiMulti(res4);
 			expect(result4.meta.totalPages).toBe(1);
 		});
@@ -361,7 +361,7 @@ describe("Pagination Integration Tests", () => {
 					{ method: "GET" },
 					{ page, pageSize: 3 },
 				);
-				const response = await handleRequest(forja, request);
+				const response = await handleRequest(datrix, request);
 				const { meta } = await expectApiMulti(response);
 
 				expect(meta.page).toBe(page);
@@ -374,7 +374,7 @@ describe("Pagination Integration Tests", () => {
 
 	describe("Pagination with Filtering", () => {
 		beforeEach(async () => {
-			await forja.deleteMany("user", {});
+			await datrix.deleteMany("user", {});
 		});
 
 		it("should paginate filtered results correctly", async () => {
@@ -392,7 +392,7 @@ describe("Pagination Integration Tests", () => {
 				},
 			);
 
-			const response = await handleRequest(forja, request);
+			const response = await handleRequest(datrix, request);
 			const { data, meta } = await expectApiMulti(response);
 
 			// Should return first 3 of filtered results
@@ -423,7 +423,7 @@ describe("Pagination Integration Tests", () => {
 				},
 			);
 
-			const response = await handleRequest(forja, request);
+			const response = await handleRequest(datrix, request);
 			const { data, meta } = await expectApiMulti(response);
 
 			expect(data).toHaveLength(3);
@@ -442,27 +442,27 @@ describe("Pagination Integration Tests", () => {
 
 	describe("Pagination with Sorting", () => {
 		beforeEach(async () => {
-			await forja.deleteMany("user", {});
+			await datrix.deleteMany("user", {});
 		});
 
 		it("should paginate sorted results correctly", async () => {
 			// Create users in random order
-			await forja.create("user", {
+			await datrix.create("user", {
 				name: "Charlie",
 				email: "c@example.com",
 				age: 30,
 			});
-			await forja.create("user", {
+			await datrix.create("user", {
 				name: "Alice",
 				email: "a@example.com",
 				age: 25,
 			});
-			await forja.create("user", {
+			await datrix.create("user", {
 				name: "Bob",
 				email: "b@example.com",
 				age: 20,
 			});
-			await forja.create("user", {
+			await datrix.create("user", {
 				name: "David",
 				email: "d@example.com",
 				age: 35,
@@ -479,7 +479,7 @@ describe("Pagination Integration Tests", () => {
 				},
 			);
 
-			const response = await handleRequest(forja, request);
+			const response = await handleRequest(datrix, request);
 			const { data, meta } = await expectApiMulti(response);
 
 			// Should be sorted: Alice, Bob, Charlie, David
@@ -496,22 +496,22 @@ describe("Pagination Integration Tests", () => {
 		});
 
 		it("should maintain sort order across pages", async () => {
-			await forja.create("user", {
+			await datrix.create("user", {
 				name: "Charlie",
 				email: "c@example.com",
 				age: 30,
 			});
-			await forja.create("user", {
+			await datrix.create("user", {
 				name: "Alice",
 				email: "a@example.com",
 				age: 25,
 			});
-			await forja.create("user", {
+			await datrix.create("user", {
 				name: "Bob",
 				email: "b@example.com",
 				age: 20,
 			});
-			await forja.create("user", {
+			await datrix.create("user", {
 				name: "David",
 				email: "d@example.com",
 				age: 35,
@@ -528,7 +528,7 @@ describe("Pagination Integration Tests", () => {
 				},
 			);
 
-			const response = await handleRequest(forja, request);
+			const response = await handleRequest(datrix, request);
 			const { data } = await expectApiMulti(response);
 
 			// Should continue sorted order: Charlie, David
@@ -551,7 +551,7 @@ describe("Pagination Integration Tests", () => {
 				},
 			);
 
-			const response = await handleRequest(forja, request);
+			const response = await handleRequest(datrix, request);
 			const { data } = await expectApiMulti(response);
 
 			// Should be: User 5 (age 25), User 4 (age 24)
@@ -565,37 +565,37 @@ describe("Pagination Integration Tests", () => {
 
 	describe("Combined Scenarios", () => {
 		beforeEach(async () => {
-			await forja.deleteMany("user", {});
+			await datrix.deleteMany("user", {});
 		});
 
 		it("should handle pagination + filtering + sorting together", async () => {
 			// Create mixed data
-			await forja.create("user", {
+			await datrix.create("user", {
 				name: "Alice",
 				email: "a@example.com",
 				age: 30,
 			});
-			await forja.create("user", {
+			await datrix.create("user", {
 				name: "Bob",
 				email: "b@example.com",
 				age: 20,
 			});
-			await forja.create("user", {
+			await datrix.create("user", {
 				name: "Charlie",
 				email: "c@example.com",
 				age: 35,
 			});
-			await forja.create("user", {
+			await datrix.create("user", {
 				name: "David",
 				email: "d@example.com",
 				age: 25,
 			});
-			await forja.create("user", {
+			await datrix.create("user", {
 				name: "Eve",
 				email: "e@example.com",
 				age: 40,
 			});
-			await forja.create("user", {
+			await datrix.create("user", {
 				name: "Frank",
 				email: "f@example.com",
 				age: 28,
@@ -617,7 +617,7 @@ describe("Pagination Integration Tests", () => {
 				},
 			);
 
-			const response = await handleRequest(forja, request);
+			const response = await handleRequest(datrix, request);
 			const { data, meta } = await expectApiMulti(response);
 
 			expect(data).toHaveLength(2);

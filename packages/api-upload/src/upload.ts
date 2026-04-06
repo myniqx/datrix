@@ -5,9 +5,9 @@
  * @template TResolutions - Union of resolution names (e.g. "thumbnail" | "small" | "medium")
  */
 
-import type { Forja } from "@forja/core";
-import type { IUpload } from "@forja/core";
-import type { SchemaDefinition } from "@forja/core";
+import type { Datrix } from "@datrix/core";
+import type { IUpload } from "@datrix/core";
+import type { SchemaDefinition } from "@datrix/core";
 import { createMediaSchema } from "./schema";
 import { handleUploadRequest } from "./handler";
 import type { UploadOptions } from "./types";
@@ -34,9 +34,9 @@ export class Upload<TResolutions extends string = string> implements IUpload {
 		return [mediaSchema];
 	}
 
-	async handleRequest(request: Request, forja: Forja): Promise<Response> {
+	async handleRequest(request: Request, datrix: Datrix): Promise<Response> {
 		return handleUploadRequest(request, {
-			forja,
+			datrix,
 			uploadOptions: this.options,
 			injectUrls: (data) => this.injectUrls(data),
 		});

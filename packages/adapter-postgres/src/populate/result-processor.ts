@@ -5,9 +5,9 @@
  * Handles JSON parsing and nested structure creation.
  */
 
-import type { QueryPopulate } from "@forja/core";
-import type { ForjaEntry, ISchemaRegistry, RelationField } from "@forja/core";
-import { throwResultProcessingError } from "@forja/core";
+import type { QueryPopulate } from "@datrix/core";
+import type { DatrixEntry, ISchemaRegistry, RelationField } from "@datrix/core";
+import { throwResultProcessingError } from "@datrix/core";
 
 /**
  * Result Processor Class
@@ -15,7 +15,7 @@ import { throwResultProcessingError } from "@forja/core";
  * Processes flat SQL results into nested structures with populated relations.
  */
 export class ResultProcessor {
-	constructor(private schemaRegistry: ISchemaRegistry) {}
+	constructor(private schemaRegistry: ISchemaRegistry) { }
 
 	/**
 	 * Process JSON aggregation results
@@ -27,7 +27,7 @@ export class ResultProcessor {
 	 * @param populate - Populate clause
 	 * @returns Processed rows with parsed JSON relations
 	 */
-	processJsonAggregation<T extends ForjaEntry>(
+	processJsonAggregation<T extends DatrixEntry>(
 		rows: T[],
 		populate: QueryPopulate<T>,
 	): readonly T[] {
@@ -49,7 +49,7 @@ export class ResultProcessor {
 	/**
 	 * Process a single row
 	 */
-	private processRow<T extends ForjaEntry>(
+	private processRow<T extends DatrixEntry>(
 		row: T,
 		populate: QueryPopulate<T>,
 	): T {
@@ -152,7 +152,7 @@ export class ResultProcessor {
 	 * ]
 	 * ```
 	 */
-	processFlatJoinResults<T extends ForjaEntry>(
+	processFlatJoinResults<T extends DatrixEntry>(
 		rows: T[],
 		tableName: string,
 		populate: QueryPopulate<T>,
@@ -193,7 +193,7 @@ export class ResultProcessor {
 	/**
 	 * Extract main record fields from flat row
 	 */
-	private extractMainRecord<T extends ForjaEntry>(
+	private extractMainRecord<T extends DatrixEntry>(
 		row: T,
 		tableName: string,
 	): T {
@@ -229,7 +229,7 @@ export class ResultProcessor {
 	/**
 	 * Attach relation data from flat row to main record
 	 */
-	private attachRelations<T extends ForjaEntry>(
+	private attachRelations<T extends DatrixEntry>(
 		record: Partial<T>,
 		row: T,
 		tableName: string,
@@ -290,7 +290,7 @@ export class ResultProcessor {
 	 *
 	 * Assumes relation fields are prefixed with `relationName_`
 	 */
-	private extractRelationData<T extends ForjaEntry>(
+	private extractRelationData<T extends DatrixEntry>(
 		row: T,
 		relationName: string,
 	): Partial<T> | null {
@@ -315,7 +315,7 @@ export class ResultProcessor {
 	/**
 	 * Check if relation is array type (hasMany or manyToMany)
 	 */
-	private isArrayRelation<T extends ForjaEntry>(
+	private isArrayRelation<T extends DatrixEntry>(
 		relationName: string | keyof T,
 		row: T,
 	): boolean {
@@ -333,7 +333,7 @@ export class ResultProcessor {
 	 *
 	 * LATERAL joins return JSON in a specific column (e.g., `relation_data.data`)
 	 */
-	processLateralResults<T extends ForjaEntry>(
+	processLateralResults<T extends DatrixEntry>(
 		rows: T[],
 		populate: QueryPopulate<T>,
 	): readonly T[] {

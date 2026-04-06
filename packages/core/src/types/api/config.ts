@@ -29,7 +29,7 @@ export const DEFAULT_API_AUTH_CONFIG = {
 		store: "memory" as const,
 		maxAge: 86400,
 		checkPeriod: 3600,
-		prefix: "forja:session:",
+		prefix: "datrix:session:",
 	},
 	password: {
 		iterations: 100000,

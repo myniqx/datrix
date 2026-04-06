@@ -1,22 +1,22 @@
 /**
  * Upload Test Configuration
  *
- * Wires up Forja with ApiPlugin (upload enabled) backed by LocalStorageProvider.
+ * Wires up Datrix with ApiPlugin (upload enabled) backed by LocalStorageProvider.
  * Uses adapter-json for fast, dependency-free test runs.
  */
 
 import path from "node:path";
-import { defineConfig } from "@forja/core";
-import { ApiPlugin } from "@forja/api";
-import { Upload, LocalStorageProvider } from "@forja/api-upload";
+import { defineConfig } from "@datrix/core";
+import { ApiPlugin } from "@datrix/api";
+import { Upload, LocalStorageProvider } from "@datrix/api-upload";
 import { JsonAdapter } from "../../../adapter-json/src/index";
-import type { ForjaConfig } from "@forja/core";
+import type { DatrixConfig } from "@datrix/core";
 
 /** Resolution names used across upload tests */
 export type TestResolutions = "thumbnail" | "small" | "medium";
 
 /**
- * Build a test Forja instance with upload configured.
+ * Build a test Datrix instance with upload configured.
  *
  * @param tmpDir   - Base directory for both DB files and uploaded files
  * @param options  - Override defaults for specific test scenarios
@@ -40,13 +40,13 @@ export async function createUploadTestConfig(
 
 	const resolutions = options.withResolutions
 		? ({
-				thumbnail: { width: 150, height: 150, fit: "cover" as const },
-				small: { width: 320 },
-				medium: { width: 640 },
-			} satisfies Record<
-				TestResolutions,
-				{ width: number; height?: number; fit?: "cover" }
-			>)
+			thumbnail: { width: 150, height: 150, fit: "cover" as const },
+			small: { width: 320 },
+			medium: { width: 640 },
+		} satisfies Record<
+			TestResolutions,
+			{ width: number; height?: number; fit?: "cover" }
+		>)
 		: undefined;
 
 	const upload = new Upload({
@@ -67,8 +67,8 @@ export async function createUploadTestConfig(
 	});
 
 	return defineConfig(() => {
-		const config: ForjaConfig = {
-			adapter: adapter as unknown as ForjaConfig["adapter"],
+		const config: DatrixConfig = {
+			adapter: adapter as unknown as DatrixConfig["adapter"],
 			schemas: [],
 			plugins: [
 				new ApiPlugin({

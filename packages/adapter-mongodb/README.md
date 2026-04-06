@@ -1,11 +1,11 @@
-# Forja MongoDB Adapter
+# Datrix MongoDB Adapter
 
-MongoDB adapter for the Forja framework. Provides full CRUD, relation population, migration support, and manual referential integrity enforcement since MongoDB lacks native FK constraints and JOINs.
+MongoDB adapter for the Datrix framework. Provides full CRUD, relation population, migration support, and manual referential integrity enforcement since MongoDB lacks native FK constraints and JOINs.
 
 ## Installation
 
 ```bash
-pnpm add forja-adapter-mongodb
+pnpm add datrix-adapter-mongodb
 ```
 
 Requires `mongodb` driver as a peer dependency.
@@ -13,7 +13,7 @@ Requires `mongodb` driver as a peer dependency.
 ## Configuration
 
 ```typescript
-import { createMongoDBAdapter } from "forja-adapter-mongodb";
+import { createMongoDBAdapter } from "datrix-adapter-mongodb";
 
 const adapter = createMongoDBAdapter({
   uri: "mongodb://localhost:27017",

@@ -7,13 +7,13 @@
 
 import { randomBytes } from "node:crypto";
 import type { SessionConfig, SessionData, SessionStore } from "./types";
-import { DEFAULT_API_AUTH_CONFIG } from "@forja/core";
+import { DEFAULT_API_AUTH_CONFIG } from "@datrix/core";
 import {
 	throwSessionCreateError,
 	throwSessionNotFound,
 	throwSessionExpired,
 } from "./error-helper";
-import { ForjaAuthError } from "@forja/core";
+import { DatrixAuthError } from "@datrix/core";
 
 /**
  * Session Strategy
@@ -64,7 +64,7 @@ export class SessionStrategy {
 
 			return sessionData;
 		} catch (error) {
-			if (error instanceof Error && error.name === "ForjaAuthError") {
+			if (error instanceof Error && error.name === "DatrixAuthError") {
 				throw error;
 			}
 			throwSessionCreateError(error instanceof Error ? error : undefined);
@@ -212,7 +212,7 @@ export class MemorySessionStore implements SessionStore {
 
 			return session;
 		} catch (error) {
-			throw new ForjaAuthError("Failed to get session from store", {
+			throw new DatrixAuthError("Failed to get session from store", {
 				code: "SESSION_CREATE_ERROR",
 				strategy: "session",
 				cause: error instanceof Error ? error : undefined,

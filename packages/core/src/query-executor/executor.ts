@@ -12,7 +12,7 @@
 import {
 	ISchemaRegistry,
 	SchemaDefinition,
-	ForjaEntry,
+	DatrixEntry,
 } from "../types/core/schema";
 import {
 	QueryObject,
@@ -56,7 +56,7 @@ export class QueryExecutor {
 		private readonly schemas: ISchemaRegistry,
 		private readonly getAdapter: () => DatabaseAdapter,
 		private readonly getDispatcher: () => Dispatcher,
-	) {}
+	) { }
 
 	/**
 	 * Execute a query
@@ -77,7 +77,7 @@ export class QueryExecutor {
 	 * const id = await executor.execute<User, number>(query, { noReturning: true });
 	 * ```
 	 */
-	async execute<T extends ForjaEntry, R>(
+	async execute<T extends DatrixEntry, R>(
 		query: QueryObject<T>,
 		options: ExecutorOptions = {},
 	): Promise<R> {
@@ -117,7 +117,7 @@ export class QueryExecutor {
 	 * Always returns array (caller decides single vs multiple).
 	 * Can be reused for fetching after INSERT/UPDATE/DELETE.
 	 */
-	async executeSelect<T extends ForjaEntry>(
+	async executeSelect<T extends DatrixEntry>(
 		query: QuerySelectObject<T>,
 		schema: SchemaDefinition,
 		options: ExecutorOptions,
@@ -137,7 +137,7 @@ export class QueryExecutor {
 	/**
 	 * Execute COUNT query
 	 */
-	async executeCount<T extends ForjaEntry>(
+	async executeCount<T extends DatrixEntry>(
 		query: QueryCountObject<T>,
 		schema: SchemaDefinition,
 		options: ExecutorOptions,
@@ -159,7 +159,7 @@ export class QueryExecutor {
 	 *
 	 * Transaction flow: onBefore → BEGIN → SELECT (fetch) + junction cascade + DELETE → COMMIT → onAfter
 	 */
-	async executeDelete<T extends ForjaEntry>(
+	async executeDelete<T extends DatrixEntry>(
 		query: QueryDeleteObject<T>,
 		schema: SchemaDefinition,
 		options: ExecutorOptions,
@@ -219,7 +219,7 @@ export class QueryExecutor {
 	 *
 	 * Transaction flow: onBefore → validate → BEGIN → INSERT + relations → COMMIT → SELECT → onAfter
 	 */
-	async executeInsert<T extends ForjaEntry>(
+	async executeInsert<T extends DatrixEntry>(
 		query: QueryInsertObject<T>,
 		schema: SchemaDefinition,
 		options: ExecutorOptions,
@@ -319,7 +319,7 @@ export class QueryExecutor {
 	 *
 	 * Transaction flow: onBefore → validate → BEGIN → UPDATE + relations → COMMIT → SELECT → onAfter
 	 */
-	async executeUpdate<T extends ForjaEntry>(
+	async executeUpdate<T extends DatrixEntry>(
 		query: QueryUpdateObject<T>,
 		schema: SchemaDefinition,
 		options: ExecutorOptions,
@@ -450,7 +450,7 @@ export class QueryExecutor {
 		const result = await handler(modifiedQuery);
 
 		return dispatcher.dispatchAfterQuery(
-			result as ForjaEntry,
+			result as DatrixEntry,
 			schema,
 			context,
 		) as Promise<TResult>;

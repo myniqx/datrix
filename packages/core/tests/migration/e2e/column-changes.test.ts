@@ -5,7 +5,7 @@
  */
 
 import { describe, it, beforeAll, afterAll, expect } from "vitest";
-import { createForjaWithSchemas, getTmpDir } from "./setup/config";
+import { createDatrixWithSchemas, getTmpDir } from "./setup/config";
 import { getAdapter, getAdapterType } from "./setup/adapter";
 import { baseUserSchema, cloneSchema, TABLE_NAMES } from "./setup/schemas-base";
 import {
@@ -16,7 +16,7 @@ import {
 	assertHasChanges,
 	applyMigration,
 } from "./setup/helpers";
-import type { DatabaseAdapter } from "@forja/core";
+import type { DatabaseAdapter } from "@datrix/core";
 
 describe("Migration E2E - Column Changes", () => {
 	const tmpDir = getTmpDir("column-changes");
@@ -38,10 +38,10 @@ describe("Migration E2E - Column Changes", () => {
 		it("should add single column to existing table", async () => {
 			// Start with base user schema
 			await dropAllTables(adapter);
-			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
-			const s1 = await forja1.beginMigrate();
+			const datrix1 = await createDatrixWithSchemas(tmpDir, [baseUserSchema]);
+			const s1 = await datrix1.beginMigrate();
 			await applyMigration(s1);
-			await forja1.shutdown();
+			await datrix1.shutdown();
 
 			// Add 'phone' field
 			const userWithPhone = cloneSchema(baseUserSchema, {
@@ -50,8 +50,8 @@ describe("Migration E2E - Column Changes", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userWithPhone], true);
-			const session = await forja.beginMigrate();
+			const datrix = await createDatrixWithSchemas(tmpDir, [userWithPhone], true);
+			const session = await datrix.beginMigrate();
 
 			// Should detect column addition
 			assertHasChanges(session);
@@ -61,20 +61,20 @@ describe("Migration E2E - Column Changes", () => {
 			await applyMigration(session);
 
 			// Verify
-			await assertColumnExists(forja, "user", "phone");
-			await assertColumnExists(forja, "user", "email");
-			await assertColumnExists(forja, "user", "name");
+			await assertColumnExists(datrix, "user", "phone");
+			await assertColumnExists(datrix, "user", "email");
+			await assertColumnExists(datrix, "user", "name");
 
-			await forja.shutdown();
+			await datrix.shutdown();
 		});
 
 		it("should add multiple columns at once", async () => {
 			// Start fresh with base user
 			await dropAllTables(adapter);
-			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
-			const s1 = await forja1.beginMigrate();
+			const datrix1 = await createDatrixWithSchemas(tmpDir, [baseUserSchema]);
+			const s1 = await datrix1.beginMigrate();
 			await applyMigration(s1);
-			await forja1.shutdown();
+			await datrix1.shutdown();
 
 			// Add phone, address, country
 			const userWithExtras = cloneSchema(baseUserSchema, {
@@ -85,12 +85,12 @@ describe("Migration E2E - Column Changes", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(
+			const datrix = await createDatrixWithSchemas(
 				tmpDir,
 				[userWithExtras],
 				true,
 			);
-			const session = await forja.beginMigrate();
+			const session = await datrix.beginMigrate();
 
 			// Should detect alterations
 			assertHasChanges(session);
@@ -100,19 +100,19 @@ describe("Migration E2E - Column Changes", () => {
 			await applyMigration(session);
 
 			// Verify all columns exist
-			await assertColumnExists(forja, "user", "phone");
-			await assertColumnExists(forja, "user", "address");
-			await assertColumnExists(forja, "user", "country");
+			await assertColumnExists(datrix, "user", "phone");
+			await assertColumnExists(datrix, "user", "address");
+			await assertColumnExists(datrix, "user", "country");
 
-			await forja.shutdown();
+			await datrix.shutdown();
 		});
 
 		it("should add column with constraints", async () => {
 			await dropAllTables(adapter);
-			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
-			const s1 = await forja1.beginMigrate();
+			const datrix1 = await createDatrixWithSchemas(tmpDir, [baseUserSchema]);
+			const s1 = await datrix1.beginMigrate();
 			await applyMigration(s1);
-			await forja1.shutdown();
+			await datrix1.shutdown();
 
 			// Add required, unique field
 			const userWithUsername = cloneSchema(baseUserSchema, {
@@ -121,21 +121,21 @@ describe("Migration E2E - Column Changes", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(
+			const datrix = await createDatrixWithSchemas(
 				tmpDir,
 				[userWithUsername],
 				true,
 			);
-			const session = await forja.beginMigrate();
+			const session = await datrix.beginMigrate();
 			assertHasChanges(session);
 
 			// Apply
 			await applyMigration(session);
 
 			// Verify
-			await assertColumnExists(forja, "user", "username");
+			await assertColumnExists(datrix, "user", "username");
 
-			await forja.shutdown();
+			await datrix.shutdown();
 		});
 	});
 
@@ -143,25 +143,25 @@ describe("Migration E2E - Column Changes", () => {
 		it("should drop single column", async () => {
 			// Start with user that has age
 			await dropAllTables(adapter);
-			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
-			const s1 = await forja1.beginMigrate();
+			const datrix1 = await createDatrixWithSchemas(tmpDir, [baseUserSchema]);
+			const s1 = await datrix1.beginMigrate();
 			await applyMigration(s1);
 
 			// Verify age exists
-			await assertColumnExists(forja1, "user", "age");
-			await forja1.shutdown();
+			await assertColumnExists(datrix1, "user", "age");
+			await datrix1.shutdown();
 
 			// Remove 'age' field
 			const userWithoutAge = cloneSchema(baseUserSchema, {
 				removeFields: ["age"],
 			});
 
-			const forja = await createForjaWithSchemas(
+			const datrix = await createDatrixWithSchemas(
 				tmpDir,
 				[userWithoutAge],
 				true,
 			);
-			const session = await forja.beginMigrate();
+			const session = await datrix.beginMigrate();
 
 			// Should detect column removal
 			assertHasChanges(session);
@@ -171,11 +171,11 @@ describe("Migration E2E - Column Changes", () => {
 			await applyMigration(session);
 
 			// Verify age is gone
-			await assertColumnNotExists(forja, "user", "age");
-			await assertColumnExists(forja, "user", "email");
-			await assertColumnExists(forja, "user", "name");
+			await assertColumnNotExists(datrix, "user", "age");
+			await assertColumnExists(datrix, "user", "email");
+			await assertColumnExists(datrix, "user", "name");
 
-			await forja.shutdown();
+			await datrix.shutdown();
 		});
 
 		it("should drop multiple columns at once", async () => {
@@ -187,36 +187,36 @@ describe("Migration E2E - Column Changes", () => {
 					address: { type: "string" },
 				},
 			});
-			const forja1 = await createForjaWithSchemas(tmpDir, [userWithExtras]);
-			const s1 = await forja1.beginMigrate();
+			const datrix1 = await createDatrixWithSchemas(tmpDir, [userWithExtras]);
+			const s1 = await datrix1.beginMigrate();
 			await applyMigration(s1);
 
 			// Verify extras exist
-			await assertColumnExists(forja1, "user", "phone");
-			await assertColumnExists(forja1, "user", "address");
-			await forja1.shutdown();
+			await assertColumnExists(datrix1, "user", "phone");
+			await assertColumnExists(datrix1, "user", "address");
+			await datrix1.shutdown();
 
 			// Remove age, phone, address (keep only email, name)
 			const userMinimal = cloneSchema(baseUserSchema, {
 				removeFields: ["age"],
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userMinimal], true);
-			const session = await forja.beginMigrate();
+			const datrix = await createDatrixWithSchemas(tmpDir, [userMinimal], true);
+			const session = await datrix.beginMigrate();
 			assertHasChanges(session);
 
 			// Apply
 			await applyMigration(session);
 
 			// Verify removals
-			await assertColumnNotExists(forja, "user", "age");
-			await assertColumnNotExists(forja, "user", "phone");
-			await assertColumnNotExists(forja, "user", "address");
+			await assertColumnNotExists(datrix, "user", "age");
+			await assertColumnNotExists(datrix, "user", "phone");
+			await assertColumnNotExists(datrix, "user", "address");
 			// Core fields still there
-			await assertColumnExists(forja, "user", "email");
-			await assertColumnExists(forja, "user", "name");
+			await assertColumnExists(datrix, "user", "email");
+			await assertColumnExists(datrix, "user", "name");
 
-			await forja.shutdown();
+			await datrix.shutdown();
 		});
 	});
 
@@ -224,10 +224,10 @@ describe("Migration E2E - Column Changes", () => {
 		it("should add and drop columns in same migration", async () => {
 			// Start with base user
 			await dropAllTables(adapter);
-			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
-			const s1 = await forja1.beginMigrate();
+			const datrix1 = await createDatrixWithSchemas(tmpDir, [baseUserSchema]);
+			const s1 = await datrix1.beginMigrate();
 			await applyMigration(s1);
-			await forja1.shutdown();
+			await datrix1.shutdown();
 
 			// Remove age, add phone and bio
 			const userModified = cloneSchema(baseUserSchema, {
@@ -238,21 +238,21 @@ describe("Migration E2E - Column Changes", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userModified], true);
-			const session = await forja.beginMigrate();
+			const datrix = await createDatrixWithSchemas(tmpDir, [userModified], true);
+			const session = await datrix.beginMigrate();
 			assertHasChanges(session);
 
 			// Apply
 			await applyMigration(session);
 
 			// Verify
-			await assertColumnNotExists(forja, "user", "age");
-			await assertColumnExists(forja, "user", "phone");
-			await assertColumnExists(forja, "user", "bio");
-			await assertColumnExists(forja, "user", "email");
-			await assertColumnExists(forja, "user", "name");
+			await assertColumnNotExists(datrix, "user", "age");
+			await assertColumnExists(datrix, "user", "phone");
+			await assertColumnExists(datrix, "user", "bio");
+			await assertColumnExists(datrix, "user", "email");
+			await assertColumnExists(datrix, "user", "name");
 
-			await forja.shutdown();
+			await datrix.shutdown();
 		});
 	});
 
@@ -260,10 +260,10 @@ describe("Migration E2E - Column Changes", () => {
 		it("should detect column type modification", async () => {
 			// Start with age as number
 			await dropAllTables(adapter);
-			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
-			const s1 = await forja1.beginMigrate();
+			const datrix1 = await createDatrixWithSchemas(tmpDir, [baseUserSchema]);
+			const s1 = await datrix1.beginMigrate();
 			await applyMigration(s1);
-			await forja1.shutdown();
+			await datrix1.shutdown();
 
 			// Change age from number to string
 			const userAgeString = cloneSchema(baseUserSchema, {
@@ -272,8 +272,8 @@ describe("Migration E2E - Column Changes", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userAgeString], true);
-			const session = await forja.beginMigrate();
+			const datrix = await createDatrixWithSchemas(tmpDir, [userAgeString], true);
+			const session = await datrix.beginMigrate();
 
 			// Should detect modification
 			assertHasChanges(session);
@@ -291,16 +291,16 @@ describe("Migration E2E - Column Changes", () => {
 				expect(fieldMod).toBeDefined();
 			}
 
-			await forja.shutdown();
+			await datrix.shutdown();
 		});
 
 		it("should detect constraint changes", async () => {
 			// Start with name as required
 			await dropAllTables(adapter);
-			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
-			const s1 = await forja1.beginMigrate();
+			const datrix1 = await createDatrixWithSchemas(tmpDir, [baseUserSchema]);
+			const s1 = await datrix1.beginMigrate();
 			await applyMigration(s1);
-			await forja1.shutdown();
+			await datrix1.shutdown();
 
 			// Make name optional
 			const userNameOptional = cloneSchema(baseUserSchema, {
@@ -309,17 +309,17 @@ describe("Migration E2E - Column Changes", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(
+			const datrix = await createDatrixWithSchemas(
 				tmpDir,
 				[userNameOptional],
 				true,
 			);
-			const session = await forja.beginMigrate();
+			const session = await datrix.beginMigrate();
 
 			// Should detect modification
 			assertHasChanges(session);
 
-			await forja.shutdown();
+			await datrix.shutdown();
 		});
 	});
 });

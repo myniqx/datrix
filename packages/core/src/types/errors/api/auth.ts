@@ -2,10 +2,10 @@
  * Authentication Error
  *
  * Specialized error for authentication and authorization failures.
- * Extends ForjaError with auth-specific fields.
+ * Extends DatrixError with auth-specific fields.
  */
 
-import { ForjaError, type SerializedForjaError } from "../forja-error";
+import { DatrixError, type SerializedDatrixError } from "../datrix-error";
 
 /**
  * Auth strategy types
@@ -70,9 +70,9 @@ export interface AuthErrorContext {
 }
 
 /**
- * Options for creating ForjaAuthError
+ * Options for creating DatrixAuthError
  */
-export interface ForjaAuthErrorOptions {
+export interface DatrixAuthErrorOptions {
 	readonly code: AuthErrorCode;
 	readonly strategy?: AuthStrategy;
 	readonly context?: AuthErrorContext | undefined;
@@ -85,19 +85,19 @@ export interface ForjaAuthErrorOptions {
 /**
  * Serialized auth error for API responses
  */
-export interface SerializedForjaAuthError extends SerializedForjaError {
+export interface SerializedDatrixAuthError extends SerializedDatrixError {
 	readonly strategy?: AuthStrategy;
 }
 
 /**
- * Forja Auth Error Class
+ * Datrix Auth Error Class
  *
- * Specialized ForjaError for authentication and authorization failures.
+ * Specialized DatrixError for authentication and authorization failures.
  * Includes strategy type for better debugging.
  *
  * @example
  * ```ts
- * throw new ForjaAuthError('JWT token expired', {
+ * throw new DatrixAuthError('JWT token expired', {
  *   code: 'JWT_EXPIRED',
  *   strategy: 'jwt',
  *   context: { exp: 1234567890, now: 1234567900 },
@@ -105,10 +105,10 @@ export interface SerializedForjaAuthError extends SerializedForjaError {
  * });
  * ```
  */
-export class ForjaAuthError extends ForjaError<AuthErrorContext> {
+export class DatrixAuthError extends DatrixError<AuthErrorContext> {
 	readonly strategy?: AuthStrategy | undefined;
 
-	constructor(message: string, options: ForjaAuthErrorOptions) {
+	constructor(message: string, options: DatrixAuthErrorOptions) {
 		super(message, {
 			code: options.code,
 			operation: options.strategy ? `auth:${options.strategy}` : "auth",
@@ -125,7 +125,7 @@ export class ForjaAuthError extends ForjaError<AuthErrorContext> {
 	/**
 	 * Override toJSON to include auth-specific fields
 	 */
-	override toJSON(): SerializedForjaAuthError {
+	override toJSON(): SerializedDatrixAuthError {
 		const json = super.toJSON();
 
 		if (this.strategy) {

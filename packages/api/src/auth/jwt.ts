@@ -14,7 +14,7 @@ import type {
 	TimeUnit,
 	ExpiryString,
 } from "./types";
-import { DEFAULT_API_AUTH_CONFIG } from "@forja/core";
+import { DEFAULT_API_AUTH_CONFIG } from "@datrix/core";
 import { isJwtPayload } from "./types";
 import {
 	throwJwtSignError,
@@ -143,7 +143,7 @@ export class JwtStrategy {
 
 			return payload;
 		} catch (error) {
-			if (error instanceof Error && error.name === "ForjaAuthError") {
+			if (error instanceof Error && error.name === "DatrixAuthError") {
 				throw error;
 			}
 			throwJwtVerifyError(error instanceof Error ? error : undefined);
@@ -188,7 +188,7 @@ export class JwtStrategy {
 
 			return payload;
 		} catch (error) {
-			if (error instanceof Error && error.name === "ForjaAuthError") {
+			if (error instanceof Error && error.name === "DatrixAuthError") {
 				throw error;
 			}
 			throwJwtDecodeError(error instanceof Error ? error : undefined);

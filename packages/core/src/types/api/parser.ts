@@ -5,7 +5,7 @@
  * Supports: populate, fields, where, pagination, sorting
  */
 
-import { ForjaEntry, ForjaRecord } from "../core/schema";
+import { DatrixEntry, DatrixRecord } from "../core/schema";
 import {
 	OrderByClause,
 	OrderByItem,
@@ -27,7 +27,7 @@ export type RawQueryParams = Record<
  * Parsed query result
  */
 
-export interface ParsedQuery<T extends ForjaEntry = ForjaEntry> {
+export interface ParsedQuery<T extends DatrixEntry = DatrixEntry> {
 	readonly select?: SelectClause<T>;
 	readonly where?: WhereClause<T>;
 	readonly populate?: PopulateClause<T>;
@@ -126,5 +126,5 @@ export type SortParam = string | readonly string[];
 /**
  * Parse sort result
  */
-export type ParsedSort<T extends ForjaEntry = ForjaRecord> =
+export type ParsedSort<T extends DatrixEntry = DatrixRecord> =
 	readonly OrderByItem<T>[];

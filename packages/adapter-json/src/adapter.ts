@@ -6,10 +6,10 @@ import {
 	DatabaseAdapter,
 	QueryResult,
 	Transaction,
-} from "@forja/core";
-import { QueryObject } from "@forja/core";
-import { ForjaEntry, IndexDefinition, SchemaDefinition } from "@forja/core";
-import { validateQueryObject } from "@forja/core";
+} from "@datrix/core";
+import { QueryObject } from "@datrix/core";
+import { DatrixEntry, IndexDefinition, SchemaDefinition } from "@datrix/core";
+import { validateQueryObject } from "@datrix/core";
 import {
 	CacheEntry,
 	ExecuteQueryOptions,
@@ -20,7 +20,7 @@ import {
 import { JsonQueryRunner } from "./runner";
 import { SimpleLock } from "./lock";
 import {
-	ForjaAdapterError,
+	DatrixAdapterError,
 	throwNotConnected,
 	throwConnectionError,
 	throwMigrationError,
@@ -28,13 +28,13 @@ import {
 	throwQueryError,
 	throwMetaFieldAlreadyExists,
 	throwMetaFieldNotFound,
-} from "@forja/core";
+} from "@datrix/core";
 import { JsonTransaction } from "./transaction";
-import { FORJA_META_MODEL, FORJA_META_KEY_PREFIX } from "@forja/core";
+import { FORJA_META_MODEL, FORJA_META_KEY_PREFIX } from "@datrix/core";
 import { createMetaTable, validateTableName } from "./table-utils";
 import { JsonExporter } from "./export-import/exporter";
 import { JsonImporter } from "./export-import/importer";
-import type { ExportWriter, ImportReader } from "@forja/core";
+import type { ExportWriter, ImportReader } from "@datrix/core";
 import {
 	handleCount,
 	handleDelete,
@@ -98,7 +98,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 			await fs.mkdir(this.config.root, { recursive: true });
 			this.state = "connected";
 
-			// Standalone mode: bootstrap _forja metadata table automatically
+			// Standalone mode: bootstrap _datrix metadata table automatically
 			if (this.config.standalone) {
 				try {
 					await createMetaTable(this);
@@ -214,7 +214,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 
 	/**
 	 * Get schema directly from table file (cache-aware)
-	 * This is faster than going through Forja registry and ensures consistency
+	 * This is faster than going through Datrix registry and ensures consistency
 	 *
 	 * @param tableName - Table name (e.g., "users")
 	 * @returns Schema definition or null if not found
@@ -267,7 +267,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 	}
 
 	/**
-	 * Read schema for a table from _forja metadata table.
+	 * Read schema for a table from _datrix metadata table.
 	 * Transaction-aware: reads from tx cache when inside a transaction.
 	 *
 	 * @param tableName - Physical table name (e.g. "users")
@@ -279,7 +279,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 			(r) => (r as Record<string, unknown>)["key"] === metaKey,
 		);
 		if (!row) {
-			throw new Error(`Schema for '${tableName}' not found in _forja`);
+			throw new Error(`Schema for '${tableName}' not found in _datrix`);
 		}
 		return JSON.parse(
 			(row as Record<string, unknown>)["value"] as string,
@@ -287,7 +287,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 	}
 
 	/**
-	 * Upsert schema into _forja metadata table
+	 * Upsert schema into _datrix metadata table
 	 */
 	private async upsertSchemaMeta(
 		schema: SchemaDefinition,
@@ -330,7 +330,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 	}
 
 	/**
-	 * Apply AlterOperations to schema in _forja and write back
+	 * Apply AlterOperations to schema in _datrix and write back
 	 */
 	private async applyOperationsToMetaSchema(
 		tableName: string,
@@ -440,7 +440,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		options?: {
 			/**
 			 * Set to true when called from the importer.
-			 * Skips upsertSchemaMeta so the importer can restore _forja data as-is.
+			 * Skips upsertSchemaMeta so the importer can restore _datrix data as-is.
 			 */
 			isImport?: boolean;
 		},
@@ -503,7 +503,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 					message: `Table '${schema.name}' already exists`,
 				});
 			} catch (err) {
-				if (err instanceof ForjaAdapterError) throw err;
+				if (err instanceof DatrixAdapterError) throw err;
 				// File does not exist, proceed
 			}
 		}
@@ -535,7 +535,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 			await this.updateCache(tableName, initialContent);
 		}
 
-		// Track schema in _forja (skip during import — _forja data will be restored as-is)
+		// Track schema in _datrix (skip during import — _datrix data will be restored as-is)
 		if (!isImport) {
 			if (schema.name !== FORJA_META_MODEL) {
 				const metaExists = await this.tableExists(FORJA_META_MODEL);
@@ -609,9 +609,9 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 			this.invalidateCache(tableName);
 		}
 
-		// Remove schema from _forja (skip during import — _forja data will be restored as-is)
+		// Remove schema from _datrix (skip during import — _datrix data will be restored as-is)
 		if (!isImport && tableName !== FORJA_META_MODEL) {
-			// TODO: _forja table diger tablelar gibi bir table. burada kod tekrari yapmak yerine executeQuery({delete from _forja where key = metaKey}) gibi bir sey yapilabilir. eger lock problem cikarmiyorsa
+			// TODO: _datrix table diger tablelar gibi bir table. burada kod tekrari yapmak yerine executeQuery({delete from _datrix where key = metaKey}) gibi bir sey yapilabilir. eger lock problem cikarmiyorsa
 			const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
 			const metaFile = await this.readTable(FORJA_META_MODEL);
 			metaFile.data = metaFile.data.filter(
@@ -643,7 +643,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 	 * This is the standard DatabaseAdapter interface method.
 	 * Internally calls executeQueryWithOptions with default options.
 	 */
-	async executeQuery<TResult extends ForjaEntry>(
+	async executeQuery<TResult extends DatrixEntry>(
 		query: QueryObject<TResult>,
 	): Promise<QueryResult<TResult>> {
 		return this.executeQueryWithOptions(query);
@@ -657,7 +657,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 	 * @param options.skipLock - Skip lock acquisition (transaction already holds lock)
 	 * @param options.skipWrite - Skip writing to disk (transaction will write on commit)
 	 */
-	async executeQueryWithOptions<TResult extends ForjaEntry>(
+	async executeQueryWithOptions<TResult extends DatrixEntry>(
 		query: QueryObject<TResult>,
 		options?: ExecuteQueryOptions,
 	): Promise<QueryResult<TResult>> {
@@ -708,12 +708,12 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 				tableData!.data = [];
 			}
 
-			// Load schema from _forja for this table (transaction-aware)
+			// Load schema from _datrix for this table (transaction-aware)
 			let tableSchema: SchemaDefinition | undefined;
 			try {
 				tableSchema = await this.readTableSchema(query.table);
 			} catch {
-				// Schema not found in _forja — proceed without it
+				// Schema not found in _datrix — proceed without it
 			}
 
 			const runner = new JsonQueryRunner(tableData!, this, tableSchema);
@@ -788,7 +788,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		}
 	}
 
-	async executeRawQuery<TResult extends ForjaEntry>(
+	async executeRawQuery<TResult extends DatrixEntry>(
 		_sql: string,
 		_params: readonly unknown[],
 	): Promise<QueryResult<TResult>> {
@@ -995,7 +995,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 			await this.updateCache(tableName, json);
 		}
 
-		// Update schema in _forja
+		// Update schema in _datrix
 		if (tableName !== FORJA_META_MODEL) {
 			await this.applyOperationsToMetaSchema(tableName, operations, skipWrite);
 		}
@@ -1083,7 +1083,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 			await this.updateCache(to, json);
 		}
 
-		// Update key in _forja
+		// Update key in _datrix
 		if (from !== FORJA_META_MODEL && to !== FORJA_META_MODEL) {
 			const oldKey = `${FORJA_META_KEY_PREFIX}${from}`;
 			const newKey = `${FORJA_META_KEY_PREFIX}${to}`;
@@ -1126,7 +1126,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		_tableName: string,
 		_index: IndexDefinition,
 		_options?: SchemaOperationOptions,
-	): Promise<void> {}
+	): Promise<void> { }
 
 	async dropIndex(tableName: string, indexName: string): Promise<void> {
 		return this.dropIndexWithOptions(tableName, indexName);
@@ -1140,7 +1140,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		_tableName: string,
 		_indexName: string,
 		_options?: SchemaOperationOptions,
-	): Promise<void> {}
+	): Promise<void> { }
 
 	async getTables(): Promise<readonly string[]> {
 		if (!this.isConnected()) {

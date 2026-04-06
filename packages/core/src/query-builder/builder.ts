@@ -29,7 +29,7 @@ import {
 	throwDeleteWithoutWhere,
 } from "./error-helper";
 import type {
-	ForjaEntry,
+	DatrixEntry,
 	ISchemaRegistry as ISchemaRegistry,
 	SchemaDefinition,
 } from "../types/core/schema";
@@ -67,7 +67,7 @@ function deepClone<T>(obj: T): T {
 /**
  * Mutable query state for building
  */
-interface MutableQueryState<T extends ForjaEntry> {
+interface MutableQueryState<T extends DatrixEntry> {
 	type?: QueryType;
 	table?: string;
 	select?: SelectClause<T>[];
@@ -86,8 +86,8 @@ interface MutableQueryState<T extends ForjaEntry> {
 /**
  * Query builder implementation
  */
-export class ForjaQueryBuilder<
-	TSchema extends ForjaEntry,
+export class DatrixQueryBuilder<
+	TSchema extends DatrixEntry,
 	TType extends QueryType = QueryType,
 > {
 	private query: MutableQueryState<TSchema>;
@@ -110,7 +110,7 @@ export class ForjaQueryBuilder<
 	 *
 	 * @example
 	 * ```ts
-	 * const builder = new ForjaQueryBuilder('User', schemaRegistry);
+	 * const builder = new DatrixQueryBuilder('User', schemaRegistry);
 	 * builder.select('*').where({ role: 'admin' });
 	 * ```
 	 */
@@ -320,7 +320,7 @@ export class ForjaQueryBuilder<
 
 	/**
 	 * Build final QueryObject
-	 * @throws {ForjaQueryBuilderError} If query is invalid
+	 * @throws {DatrixQueryBuilderError} If query is invalid
 	 */
 	build(): QueryObjectForType<TSchema, TType> {
 		// Validate required fields
@@ -467,8 +467,8 @@ export class ForjaQueryBuilder<
 	/**
 	 * Clone builder (for reusability)
 	 */
-	clone(): ForjaQueryBuilder<TSchema, TType> {
-		const cloned = new ForjaQueryBuilder<TSchema, TType>(
+	clone(): DatrixQueryBuilder<TSchema, TType> {
+		const cloned = new DatrixQueryBuilder<TSchema, TType>(
 			this._modelName,
 			this._registry,
 			this.query.type as TType,
@@ -525,25 +525,25 @@ export class ForjaQueryBuilder<
  * ```
  */
 export function createQueryBuilder<
-	TSchema extends ForjaEntry,
+	TSchema extends DatrixEntry,
 	TType extends QueryType = "select",
 >(
 	modelName: string,
 	schemaRegistry: ISchemaRegistry,
 	type?: TType,
-): ForjaQueryBuilder<TSchema, TType> {
-	return new ForjaQueryBuilder<TSchema, TType>(
+): DatrixQueryBuilder<TSchema, TType> {
+	return new DatrixQueryBuilder<TSchema, TType>(
 		modelName,
 		schemaRegistry,
 		(type ?? "select") as TType,
 	);
 }
 
-export function selectFrom<TSchema extends ForjaEntry>(
+export function selectFrom<TSchema extends DatrixEntry>(
 	modelName: string,
 	schemaRegistry: ISchemaRegistry,
-): ForjaQueryBuilder<TSchema, "select"> {
-	return new ForjaQueryBuilder<TSchema, "select">(
+): DatrixQueryBuilder<TSchema, "select"> {
+	return new DatrixQueryBuilder<TSchema, "select">(
 		modelName,
 		schemaRegistry,
 		"select",
@@ -555,12 +555,12 @@ export function selectFrom<TSchema extends ForjaEntry>(
  *
  * @param data - Single item or array of items to insert
  */
-export function insertInto<TSchema extends ForjaEntry>(
+export function insertInto<TSchema extends DatrixEntry>(
 	modelName: string,
 	data: Partial<TSchema> | readonly Partial<TSchema>[],
 	schemaRegistry: ISchemaRegistry,
-): ForjaQueryBuilder<TSchema, "insert"> {
-	const builder = new ForjaQueryBuilder<TSchema, "insert">(
+): DatrixQueryBuilder<TSchema, "insert"> {
+	const builder = new DatrixQueryBuilder<TSchema, "insert">(
 		modelName,
 		schemaRegistry,
 		"insert",
@@ -572,34 +572,34 @@ export function insertInto<TSchema extends ForjaEntry>(
 	return builder;
 }
 
-export function updateTable<TSchema extends ForjaEntry>(
+export function updateTable<TSchema extends DatrixEntry>(
 	modelName: string,
 	data: Partial<TSchema>,
 	schemaRegistry: ISchemaRegistry,
-): ForjaQueryBuilder<TSchema, "update"> {
-	return new ForjaQueryBuilder<TSchema, "update">(
+): DatrixQueryBuilder<TSchema, "update"> {
+	return new DatrixQueryBuilder<TSchema, "update">(
 		modelName,
 		schemaRegistry,
 		"update",
 	).data(data);
 }
 
-export function deleteFrom<TSchema extends ForjaEntry>(
+export function deleteFrom<TSchema extends DatrixEntry>(
 	modelName: string,
 	schemaRegistry: ISchemaRegistry,
-): ForjaQueryBuilder<TSchema, "delete"> {
-	return new ForjaQueryBuilder<TSchema, "delete">(
+): DatrixQueryBuilder<TSchema, "delete"> {
+	return new DatrixQueryBuilder<TSchema, "delete">(
 		modelName,
 		schemaRegistry,
 		"delete",
 	);
 }
 
-export function countFrom<TSchema extends ForjaEntry>(
+export function countFrom<TSchema extends DatrixEntry>(
 	modelName: string,
 	schemaRegistry: ISchemaRegistry,
-): ForjaQueryBuilder<TSchema, "count"> {
-	return new ForjaQueryBuilder<TSchema, "count">(
+): DatrixQueryBuilder<TSchema, "count"> {
+	return new DatrixQueryBuilder<TSchema, "count">(
 		modelName,
 		schemaRegistry,
 		"count",

@@ -18,7 +18,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import fsSync from "node:fs";
 import archiver from "archiver";
-import type { IUpload } from "@forja/core";
+import type { IUpload } from "@datrix/core";
 import { logger, spinner } from "../utils/logger";
 
 export interface LedgerEntry {
@@ -317,7 +317,7 @@ interface EscListener {
 }
 
 function setupEscListener(onEsc: () => void): EscListener {
-	if (!process.stdin.isTTY) return { stop: () => {} };
+	if (!process.stdin.isTTY) return { stop: () => { } };
 
 	process.stdin.setRawMode(true);
 	process.stdin.resume();

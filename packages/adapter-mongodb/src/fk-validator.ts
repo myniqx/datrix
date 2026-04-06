@@ -10,17 +10,17 @@
 import type {
 	SchemaDefinition,
 	FieldDefinition,
-	ForjaEntry,
+	DatrixEntry,
 	ISchemaRegistry,
-} from "@forja/core";
+} from "@datrix/core";
 import type { MongoClient } from "./mongo-client";
-import { throwQueryError } from "@forja/core";
+import { throwQueryError } from "@datrix/core";
 
 /**
  * Validate FK references in documents before insert.
  * Throws if any referenced ID does not exist.
  */
-export async function validateFkReferences<T extends ForjaEntry>(
+export async function validateFkReferences<T extends DatrixEntry>(
 	collection: string,
 	documents: readonly Record<string, unknown>[],
 	client: MongoClient<T>,
@@ -39,7 +39,7 @@ export async function validateFkReferences<T extends ForjaEntry>(
  * Validate FK references in update data.
  * Only checks fields present in the update $set.
  */
-export async function validateFkReferencesForUpdate<T extends ForjaEntry>(
+export async function validateFkReferencesForUpdate<T extends DatrixEntry>(
 	collection: string,
 	updateData: Record<string, unknown>,
 	client: MongoClient<T>,
@@ -96,7 +96,7 @@ function collectFkChecks(
 /**
  * Run FK checks: verify all referenced IDs exist
  */
-async function runFkChecks<T extends ForjaEntry>(
+async function runFkChecks<T extends DatrixEntry>(
 	checks: readonly FkCheck[],
 	client: MongoClient<T>,
 ): Promise<void> {

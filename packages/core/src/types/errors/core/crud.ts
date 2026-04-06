@@ -2,10 +2,10 @@
  * CRUD Operation Error
  *
  * Specialized error for database CRUD operation failures.
- * Extends ForjaError with CRUD-specific fields.
+ * Extends DatrixError with CRUD-specific fields.
  */
 
-import { ForjaError, type SerializedForjaError } from "../forja-error";
+import { DatrixError, type SerializedDatrixError } from "../datrix-error";
 
 /**
  * CRUD operation types
@@ -46,9 +46,9 @@ export interface CrudErrorContext {
 }
 
 /**
- * Options for creating ForjaCrudError
+ * Options for creating DatrixCrudError
  */
-export interface ForjaCrudErrorOptions {
+export interface DatrixCrudErrorOptions {
 	readonly code: CrudErrorCode;
 	readonly operation: CrudOperation;
 	readonly model: string;
@@ -62,22 +62,22 @@ export interface ForjaCrudErrorOptions {
 /**
  * Serialized CRUD error for API responses
  */
-export interface SerializedForjaCrudError extends SerializedForjaError {
+export interface SerializedDatrixCrudError extends SerializedDatrixError {
 	readonly operation: CrudOperation;
 	readonly model: string;
 }
 
 /**
- * Forja CRUD Error Class
+ * Datrix CRUD Error Class
  *
- * Specialized ForjaError for CRUD operation failures.
+ * Specialized DatrixError for CRUD operation failures.
  * Includes operation type and model name for better debugging.
  */
-export class ForjaCrudError extends ForjaError<CrudErrorContext> {
+export class DatrixCrudError extends DatrixError<CrudErrorContext> {
 	override readonly operation: CrudOperation;
 	readonly model: string;
 
-	constructor(message: string, options: ForjaCrudErrorOptions) {
+	constructor(message: string, options: DatrixCrudErrorOptions) {
 		super(message, {
 			code: options.code,
 			operation: `crud:${options.operation}`,
@@ -95,7 +95,7 @@ export class ForjaCrudError extends ForjaError<CrudErrorContext> {
 	/**
 	 * Override toJSON to include CRUD-specific fields
 	 */
-	override toJSON(): SerializedForjaCrudError {
+	override toJSON(): SerializedDatrixCrudError {
 		return {
 			...super.toJSON(),
 			operation: this.operation,

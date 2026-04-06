@@ -35,15 +35,15 @@ pnpm clean
 
 ## Architecture
 
-Forja is a TypeScript-first database management framework designed as a plugin for existing projects. It is a **pnpm workspace monorepo**.
+datrix is a TypeScript-first database management framework designed as a plugin for existing projects. It is a **pnpm workspace monorepo**.
 
 ### Package Dependency Flow
 
 ```
-@forja/core  ←  @forja/adapter-*
-             ←  @forja/api
-             ←  @forja/api-upload
-             ←  @forja/cli
+@datrix/core  ←  @datrix/adapter-*
+             ←  @datrix/api
+             ←  @datrix/api-upload
+             ←  @datrix/cli
 ```
 
 No circular dependencies. Adapters and plugins depend on core and types, never the reverse.
@@ -60,14 +60,14 @@ Three layers with strict separation of responsibilities:
 
 ### Key Packages
 
-- **`@forja/core`** — Schema registry, query builder, executor, validator, migration engine, plugin base class.
-- **`@forja/adapter-*`** — Database-specific SQL generation. Postgres supports three populate strategies: JSON aggregation, LATERAL joins, batched IN queries.
-- **`@forja/api`** — Auto-generated REST CRUD routes. JWT/session auth, RBAC, adapters for Next.js/Express/Fastify/Koa.
-- **`@forja/cli`** — `forja migrate`, `forja generate types`, `forja dev` commands. Export/import via zip-based data transfer.
+- **`@datrix/core`** — Schema registry, query builder, executor, validator, migration engine, plugin base class.
+- **`@datrix/adapter-*`** — Database-specific SQL generation. Postgres supports three populate strategies: JSON aggregation, LATERAL joins, batched IN queries.
+- **`@datrix/api`** — Auto-generated REST CRUD routes. JWT/session auth, RBAC, adapters for Next.js/Express/Fastify/Koa.
+- **`@datrix/cli`** — `datrix migrate`, `datrix generate types`, `datrix dev` commands. Export/import via zip-based data transfer.
 
 ### Schema System
 
-- `defineSchema()` and `defineConfig()` are the public API entry points in `@forja/core`.
+- `defineSchema()` and `defineConfig()` are the public API entry points in `@datrix/core`.
 - Reserved auto-managed fields: `id` (auto-increment PK), `createdAt`, `updatedAt` — cannot be set manually.
 - Relations: `belongsTo`, `hasOne`, `hasMany`, `manyToMany` — FK and junction tables are handled automatically.
 

@@ -10,8 +10,8 @@ import type {
 	QueryPopulateOptions,
 	QuerySelect,
 	QuerySelectObject,
-} from "@forja/core";
-import type { ForjaEntry, ISchemaRegistry, RelationField } from "@forja/core";
+} from "@datrix/core";
+import type { DatrixEntry, ISchemaRegistry, RelationField } from "@datrix/core";
 import type { PostgresQueryTranslator } from "../query-translator";
 import type { AggregationClause, PopulateFieldSelection } from "./types";
 import {
@@ -21,7 +21,7 @@ import {
 	throwInvalidRelationType,
 	throwTargetModelNotFound,
 	throwJsonAggregationError,
-} from "@forja/core";
+} from "@datrix/core";
 
 /**
  * Aggregation Builder Class
@@ -32,7 +32,7 @@ export class AggregationBuilder {
 	constructor(
 		private translator: PostgresQueryTranslator,
 		private schemaRegistry: ISchemaRegistry,
-	) {}
+	) { }
 
 	/**
 	 * Build all aggregation clauses for a query
@@ -45,7 +45,7 @@ export class AggregationBuilder {
 	 * @param populate - Populate clause
 	 * @returns Array of aggregation SQL strings
 	 */
-	buildAggregations<T extends ForjaEntry>(
+	buildAggregations<T extends DatrixEntry>(
 		tableName: string,
 		populate: QueryPopulate<T>,
 	): readonly AggregationClause[] {
@@ -108,7 +108,7 @@ export class AggregationBuilder {
 	/**
 	 * Build aggregation for a specific relation
 	 */
-	private buildRelationAggregation<T extends ForjaEntry>(
+	private buildRelationAggregation<T extends DatrixEntry>(
 		sourceTable: string,
 		relationName: string,
 		relation: RelationField,
@@ -313,7 +313,7 @@ export class AggregationBuilder {
 	 * ) relation_data ON true
 	 * ```
 	 */
-	buildLateralSubquery<T extends ForjaEntry>(
+	buildLateralSubquery<T extends DatrixEntry>(
 		sourceTable: string,
 		relationName: string,
 		relation: RelationField,
@@ -417,7 +417,7 @@ export class AggregationBuilder {
 	/**
 	 * Build LATERAL subquery for manyToMany with options
 	 */
-	buildManyToManyLateralSubquery<T extends ForjaEntry>(
+	buildManyToManyLateralSubquery<T extends DatrixEntry>(
 		sourceTable: string,
 		relationName: string,
 		relation: RelationField,
@@ -519,7 +519,7 @@ export class AggregationBuilder {
 	/**
 	 * Build field selection for relation
 	 */
-	private buildFieldSelection<T extends ForjaEntry>(
+	private buildFieldSelection<T extends DatrixEntry>(
 		relationName: string,
 		relation: RelationField,
 		options: QueryPopulateOptions<T>,
@@ -557,7 +557,7 @@ export class AggregationBuilder {
 	/**
 	 * Build ORDER BY clause
 	 */
-	private buildOrderBy<T extends ForjaEntry>(
+	private buildOrderBy<T extends DatrixEntry>(
 		orderBy: QuerySelectObject<T>["orderBy"],
 	): string {
 		return orderBy!

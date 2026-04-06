@@ -1,4 +1,4 @@
-import { throwLockTimeout } from "@forja/core";
+import { throwLockTimeout } from "@datrix/core";
 import fs from "node:fs/promises";
 import path from "node:path";
 

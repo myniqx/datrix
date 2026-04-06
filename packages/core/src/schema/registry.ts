@@ -9,7 +9,7 @@ import type {
 	FieldDefinition,
 	FileField,
 	FileFieldOptions,
-	ForjaEntry,
+	DatrixEntry,
 	ISchemaRegistry,
 	RelationField,
 	SchemaDefinition,
@@ -222,7 +222,7 @@ export class SchemaRegistry implements ISchemaRegistry {
 		const allSchemas = Array.from(this.schemas.values());
 		const sorted = sortSchemasByDependency(allSchemas);
 
-		// Rebuild Map in sorted order, _forja always first
+		// Rebuild Map in sorted order, _datrix always first
 		const entries = new Map<string, SchemaDefinition>();
 
 		const metaSchema = this.schemas.get(FORJA_META_MODEL);
@@ -395,7 +395,7 @@ export class SchemaRegistry implements ISchemaRegistry {
 	 * - Hidden fields (e.g., foreign keys)
 	 * - Relation fields (use populate for these)
 	 */
-	getCachedSelectFields<T extends ForjaEntry>(
+	getCachedSelectFields<T extends DatrixEntry>(
 		modelName: string,
 	): QuerySelect<T> {
 		const schema = this.get(modelName);

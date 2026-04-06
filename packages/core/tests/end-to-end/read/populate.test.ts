@@ -15,12 +15,12 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { Forja } from "@forja/core";
+import { Datrix } from "@datrix/core";
 import fs from "node:fs/promises";
 import { createTestConfig, getTmpDir, setupTables } from "../setup";
 
 describe("Populate", () => {
-	let forja: Forja;
+	let datrix: Datrix;
 	const tmpDir = getTmpDir("populate");
 
 	// Store IDs
@@ -34,19 +34,19 @@ describe("Populate", () => {
 		await fs.rm(tmpDir, { recursive: true, force: true });
 		await fs.mkdir(tmpDir, { recursive: true });
 
-		const getForja = await createTestConfig(tmpDir);
-		forja = await getForja();
+		const getDatrix = await createTestConfig(tmpDir);
+		datrix = await getDatrix();
 
-		await setupTables(forja);
+		await setupTables(datrix);
 
 		// Create test data
-		const org = await forja.create("organization", {
+		const org = await datrix.create("organization", {
 			name: "Populate Test Org",
 			country: "USA",
 		});
 		orgId = org.id;
 
-		const dept = await forja.create("department", {
+		const dept = await datrix.create("department", {
 			name: "Populate Test Dept",
 			code: "POP",
 			budget: 50000,
@@ -54,10 +54,10 @@ describe("Populate", () => {
 		});
 		deptId = dept.id;
 
-		const role1 = await forja.create("role", { name: "Role A", level: 50 });
-		const role2 = await forja.create("role", { name: "Role B", level: 75 });
+		const role1 = await datrix.create("role", { name: "Role A", level: 50 });
+		const role2 = await datrix.create("role", { name: "Role B", level: 75 });
 
-		const user = await forja.create("user", {
+		const user = await datrix.create("user", {
 			email: "populate@test.com",
 			name: "Populate User",
 			age: 30,
@@ -67,19 +67,19 @@ describe("Populate", () => {
 		});
 		userId = user.id;
 
-		const category = await forja.create("category", {
+		const category = await datrix.create("category", {
 			name: "Populate Category",
 			slug: "populate-category",
 		});
 
-		const tags = await forja.createMany("tag", [
+		const tags = await datrix.createMany("tag", [
 			{ name: "PopTag1", color: "#111111" },
 			{ name: "PopTag2", color: "#222222" },
 			{ name: "PopTag3", color: "#333333" },
 		]);
 		tagIds = tags.map((t) => t.id);
 
-		const post = await forja.create("post", {
+		const post = await datrix.create("post", {
 			title: "Populate Test Post",
 			content: "Testing populate functionality",
 			slug: "populate-test-post",
@@ -101,7 +101,7 @@ describe("Populate", () => {
 
 	describe("Simple Populate", () => {
 		it("should populate single belongsTo relation", async () => {
-			const user = await forja.findById("user", userId, {
+			const user = await datrix.findById("user", userId, {
 				populate: { organization: true },
 			});
 
@@ -115,14 +115,14 @@ describe("Populate", () => {
 		});
 
 		it("should not populate when not requested", async () => {
-			const user = await forja.findById("user", userId);
+			const user = await datrix.findById("user", userId);
 
 			// Relation should be undefined
 			expect(user!.organization).toBeUndefined();
 		});
 
 		it("should populate with true shorthand", async () => {
-			const dept = await forja.findById("department", deptId, {
+			const dept = await datrix.findById("department", deptId, {
 				populate: { organization: true },
 			});
 
@@ -139,7 +139,7 @@ describe("Populate", () => {
 
 	describe("Multiple Relations", () => {
 		it("should populate multiple belongsTo relations", async () => {
-			const user = await forja.findById("user", userId, {
+			const user = await datrix.findById("user", userId, {
 				populate: {
 					organization: true,
 					department: true,
@@ -157,7 +157,7 @@ describe("Populate", () => {
 		});
 
 		it("should populate belongsTo and manyToMany together", async () => {
-			const post = await forja.findById("post", postId, {
+			const post = await datrix.findById("post", postId, {
 				populate: {
 					author: true,
 					category: true,
@@ -179,7 +179,7 @@ describe("Populate", () => {
 
 	describe("Nested Populate", () => {
 		it("should populate 2-level deep", async () => {
-			const user = await forja.findById("user", userId, {
+			const user = await datrix.findById("user", userId, {
 				populate: {
 					department: {
 						populate: { organization: true },
@@ -194,7 +194,7 @@ describe("Populate", () => {
 		});
 
 		it("should populate 3-level deep", async () => {
-			const post = await forja.findById("post", postId, {
+			const post = await datrix.findById("post", postId, {
 				populate: {
 					author: {
 						populate: {
@@ -224,7 +224,7 @@ describe("Populate", () => {
 
 	describe("ManyToMany Populate", () => {
 		it("should populate manyToMany relation", async () => {
-			const user = await forja.findById("user", userId, {
+			const user = await datrix.findById("user", userId, {
 				populate: { roles: true },
 			});
 
@@ -238,7 +238,7 @@ describe("Populate", () => {
 		});
 
 		it("should populate manyToMany with full objects", async () => {
-			const post = await forja.findById("post", postId, {
+			const post = await datrix.findById("post", postId, {
 				populate: { tags: true },
 			});
 
@@ -253,12 +253,12 @@ describe("Populate", () => {
 		});
 
 		it("should return empty array for manyToMany with no relations", async () => {
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "no-roles@test.com",
 				name: "No Roles User",
 			});
 
-			const result = await forja.findById("user", user.id, {
+			const result = await datrix.findById("user", user.id, {
 				populate: { roles: true },
 			});
 
@@ -274,7 +274,7 @@ describe("Populate", () => {
 
 	describe("Populate with Select", () => {
 		it("should populate relation with selected fields only", async () => {
-			const user = await forja.findById("user", userId, {
+			const user = await datrix.findById("user", userId, {
 				populate: {
 					organization: {
 						select: ["id", "name"],
@@ -302,20 +302,20 @@ describe("Populate", () => {
 		let grandchildId: number;
 
 		beforeAll(async () => {
-			const parent = await forja.create("category", {
+			const parent = await datrix.create("category", {
 				name: "Self Ref Parent",
 				slug: "self-ref-parent",
 			});
 			parentId = parent.id;
 
-			const child = await forja.create("category", {
+			const child = await datrix.create("category", {
 				name: "Self Ref Child",
 				slug: "self-ref-child",
 				parent: parent.id,
 			});
 			childId = child.id;
 
-			const grandchild = await forja.create("category", {
+			const grandchild = await datrix.create("category", {
 				name: "Self Ref Grandchild",
 				slug: "self-ref-grandchild",
 				parent: child.id,
@@ -324,7 +324,7 @@ describe("Populate", () => {
 		});
 
 		it("should populate self-referencing relation", async () => {
-			const child = await forja.findById("category", childId, {
+			const child = await datrix.findById("category", childId, {
 				populate: { parent: true },
 			});
 
@@ -333,7 +333,7 @@ describe("Populate", () => {
 		});
 
 		it("should populate nested self-reference", async () => {
-			const grandchild = await forja.findById("category", grandchildId, {
+			const grandchild = await datrix.findById("category", grandchildId, {
 				populate: {
 					parent: {
 						populate: { parent: true },
@@ -354,18 +354,18 @@ describe("Populate", () => {
 	describe("Populate in findMany", () => {
 		it("should populate relations for all results", async () => {
 			// Create additional users
-			await forja.create("user", {
+			await datrix.create("user", {
 				email: "findmany-pop1@test.com",
 				name: "FindMany Pop 1",
 				organization: orgId,
 			});
-			await forja.create("user", {
+			await datrix.create("user", {
 				email: "findmany-pop2@test.com",
 				name: "FindMany Pop 2",
 				organization: orgId,
 			});
 
-			const users = await forja.findMany("user", {
+			const users = await datrix.findMany("user", {
 				where: { organization: { id: orgId } },
 				populate: { organization: true },
 			});
@@ -384,13 +384,13 @@ describe("Populate", () => {
 
 	describe("Populate with Null Relations", () => {
 		it("should return null for unpopulated optional relation", async () => {
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "null-org@test.com",
 				name: "Null Org User",
 				// No organization
 			});
 
-			const result = await forja.findById("user", user.id, {
+			const result = await datrix.findById("user", user.id, {
 				populate: { organization: true },
 			});
 
@@ -398,13 +398,13 @@ describe("Populate", () => {
 		});
 
 		it("should handle mixed null and non-null in findMany", async () => {
-			await forja.create("user", {
+			await datrix.create("user", {
 				email: "mixed-null@test.com",
 				name: "Mixed Null User",
 				// No organization
 			});
 
-			const users = await forja.findMany("user", {
+			const users = await datrix.findMany("user", {
 				populate: { organization: true },
 			});
 
@@ -423,7 +423,7 @@ describe("Populate", () => {
 	describe("Error Cases", () => {
 		it("should throw for invalid relation name", async () => {
 			await expect(
-				forja.findById("user", userId, {
+				datrix.findById("user", userId, {
 					populate: { nonExistentRelation: true },
 				}),
 			).rejects.toThrow();
@@ -431,7 +431,7 @@ describe("Populate", () => {
 
 		it("should throw for non-relation field in populate", async () => {
 			await expect(
-				forja.findById("user", userId, {
+				datrix.findById("user", userId, {
 					populate: { name: true } as Record<string, unknown>,
 				}),
 			).rejects.toThrow();
@@ -448,14 +448,14 @@ describe("Populate", () => {
 
 		beforeAll(async () => {
 			// Create a category for hasOne relation
-			const favCategory = await forja.create("category", {
+			const favCategory = await datrix.create("category", {
 				name: "Favorite Category",
 				slug: "favorite-category",
 			});
 			favCategoryId = favCategory.id;
 
 			// Create user with favoriteCategory (hasOne relation)
-			const userWithFavCat = await forja.create("user", {
+			const userWithFavCat = await datrix.create("user", {
 				email: "hasone-test@test.com",
 				name: "HasOne Test User",
 				favoriteCategory: favCategoryId,
@@ -464,7 +464,7 @@ describe("Populate", () => {
 		});
 
 		it("should populate hasOne relation", async () => {
-			const user = await forja.findById("user", userWithFavCatId, {
+			const user = await datrix.findById("user", userWithFavCatId, {
 				populate: { favoriteCategory: true },
 			});
 
@@ -483,7 +483,7 @@ describe("Populate", () => {
 		});
 
 		it("should populate hasOne with select", async () => {
-			const user = await forja.findById("user", userWithFavCatId, {
+			const user = await datrix.findById("user", userWithFavCatId, {
 				populate: {
 					favoriteCategory: {
 						select: ["id", "name"],
@@ -500,12 +500,12 @@ describe("Populate", () => {
 
 		it("should return null for hasOne when not set", async () => {
 			// Create user without favoriteCategory
-			const userWithoutFav = await forja.create("user", {
+			const userWithoutFav = await datrix.create("user", {
 				email: "no-fav-cat@test.com",
 				name: "No Favorite User",
 			});
 
-			const user = await forja.findById("user", userWithoutFav.id, {
+			const user = await datrix.findById("user", userWithoutFav.id, {
 				populate: { favoriteCategory: true },
 			});
 
@@ -513,7 +513,7 @@ describe("Populate", () => {
 		});
 
 		it("should populate hasOne in findMany", async () => {
-			const users = await forja.findMany("user", {
+			const users = await datrix.findMany("user", {
 				where: {
 					email: { $in: ["hasone-test@test.com", "no-fav-cat@test.com"] },
 				},
@@ -531,17 +531,17 @@ describe("Populate", () => {
 
 		it("should populate hasOne with nested relation", async () => {
 			// Category has parent (self-referencing belongsTo)
-			const parentCat = await forja.create("category", {
+			const parentCat = await datrix.create("category", {
 				name: "Parent of Favorite",
 				slug: "parent-of-favorite",
 			});
 
 			// Update favorite category to have parent
-			await forja.update("category", favCategoryId, {
+			await datrix.update("category", favCategoryId, {
 				parent: parentCat.id,
 			});
 
-			const user = await forja.findById("user", userWithFavCatId, {
+			const user = await datrix.findById("user", userWithFavCatId, {
 				populate: {
 					favoriteCategory: {
 						populate: {

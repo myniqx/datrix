@@ -63,8 +63,8 @@ Dinamik ve karmaşık schemalar oluşturmak için bir generator:
 ```typescript
 // setup/schemas.ts
 
-import { defineSchema } from "@forja/core"; >> bu definition yanlis. boyle bir paket yok.
-import type { SchemaDefinition } from "@forja/core";
+import { defineSchema } from "@datrix/core"; >> bu definition yanlis. boyle bir paket yok.
+import type { SchemaDefinition } from "@datrix/core";
 
 // Field type factories
 const stringField = (opts?: Partial<StringFieldDef>) => ({ >> bunlari yazmadan once hangi tipler kullanilmis kontrol etmelisin
@@ -194,16 +194,16 @@ Organization -> Departments -> Users -> Posts -> Comments -> User
 // setup/helpers.ts
 
 // Test verisi oluşturma
-export async function seedTestData(forja: Forja): Promise<SeedResult> {
+export async function seedTestData(datrix: Datrix): Promise<SeedResult> {
   // Categories
-  const categories = await forja.createMany("category", [
+  const categories = await datrix.createMany("category", [
     { name: "Tech", slug: "tech" },
     { name: "Science", slug: "science", parentId: null },
     { name: "AI", slug: "ai", parentId: 1 }, // Tech altında  >> packages\api\tests\data\schemas.ts bu dosyadan schema tanimlarina bakabilirsin api icindeki tum testler geciyor. foreignId kullanmiyoruz. packages\api\tests\populate-many-to-many.test.ts
   ]);
 
   // Users
-  const users = await forja.createMany("user", [
+  const users = await datrix.createMany("user", [
     { email: "admin@test.com", name: "Admin", roleId: 1 },
     { email: "user1@test.com", name: "User One" },
     // ... daha fazla
@@ -213,7 +213,7 @@ export async function seedTestData(forja: Forja): Promise<SeedResult> {
 }
 
 // Assertion helpers
-export function expectToHaveFields<T>( >> T extends ForjaEntry
+export function expectToHaveFields<T>( >> T extends DatrixEntry
   obj: T,
   fields: (keyof T)[],
 ): void {

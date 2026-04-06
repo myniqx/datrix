@@ -4,10 +4,10 @@
  * Tests the full export → import cycle using the CLI commands.
  *
  * Flow:
- * 1. forja1 (fromAdapter) — create tables, seed data (1500+ rows in some tables)
+ * 1. datrix1 (fromAdapter) — create tables, seed data (1500+ rows in some tables)
  * 2. exportCommand — write zip file
- * 3. forja1.shutdown()
- * 4. forja2 (toAdapter) — fresh instance, different dir/db
+ * 3. datrix1.shutdown()
+ * 4. datrix2 (toAdapter) — fresh instance, different dir/db
  * 5. importCommand --agree — restore from zip
  * 6. Assert all data is identical to original
  *
@@ -17,9 +17,9 @@ const FROM_ADAPTER: AdapterType = "json";
 const TO_ADAPTER: AdapterType = "json";
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { defineConfig, Forja } from "@forja/core";
-import type { ForjaConfig, ForjaEntry } from "@forja/core";
-import { defineSchema } from "@forja/core";
+import { defineConfig, Datrix } from "@datrix/core";
+import type { DatrixConfig, DatrixEntry } from "@datrix/core";
+import { defineSchema } from "@datrix/core";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { getAdapter, type AdapterType } from "../../api/tests/data/adapter";
@@ -155,18 +155,18 @@ function getTmpDir(name: string): string {
 	return path.join(TEST_ROOT, name);
 }
 
-async function initForja(
+async function initDatrix(
 	adapterType: AdapterType,
 	dirName: string,
-): Promise<Forja> {
+): Promise<Datrix> {
 	const dir = getTmpDir(dirName);
 	await fs.rm(dir, { recursive: true, force: true });
 	await fs.mkdir(dir, { recursive: true });
 
 	const adapter = await getAdapter(adapterType, dir);
 
-	const getForja = defineConfig(() => {
-		const config: ForjaConfig = {
+	const getDatrix = defineConfig(() => {
+		const config: DatrixConfig = {
 			adapter,
 			schemas: exportImportSchemas,
 			plugins: [],
@@ -174,12 +174,12 @@ async function initForja(
 		return config;
 	});
 
-	return getForja();
+	return getDatrix();
 }
 
-async function setupTables(forja: Forja): Promise<void> {
-	const adapter = forja.getAdapter();
-	for (const schema of forja.getSchemas().getAll()) {
+async function setupTables(datrix: Datrix): Promise<void> {
+	const adapter = datrix.getAdapter();
+	for (const schema of datrix.getSchemas().getAll()) {
 		try {
 			await adapter.dropTable(schema.tableName!);
 		} catch {
@@ -235,8 +235,8 @@ function makeTagRows(count: number) {
 // ============================================================================
 
 describe(`Export/Import (${FROM_ADAPTER} → ${TO_ADAPTER})`, () => {
-	let forja1: Forja;
-	let forja2: Forja;
+	let datrix1: Datrix;
+	let datrix2: Datrix;
 	let zipPath: string;
 
 	// Seeded data refs — used for assertion after import
@@ -264,9 +264,9 @@ describe(`Export/Import (${FROM_ADAPTER} → ${TO_ADAPTER})`, () => {
 
 		zipPath = path.join(TEST_ROOT, "export.zip");
 
-		// ---- Phase 1: Seed data with forja1 ----
-		forja1 = await initForja(FROM_ADAPTER, "source");
-		await setupTables(forja1);
+		// ---- Phase 1: Seed data with datrix1 ----
+		datrix1 = await initDatrix(FROM_ADAPTER, "source");
+		await setupTables(datrix1);
 
 		// allFields — 1501 rows, 1 will be deleted before export → net 1500
 		const allFieldsBatch1 = makeAllFieldsRows(1000);
@@ -274,8 +274,8 @@ describe(`Export/Import (${FROM_ADAPTER} → ${TO_ADAPTER})`, () => {
 			...r,
 			title: `AllFields Record B${i}`,
 		}));
-		const allFields1 = await forja1.createMany("allFields", allFieldsBatch1);
-		const allFields2 = await forja1.createMany("allFields", allFieldsBatch2);
+		const allFields1 = await datrix1.createMany("allFields", allFieldsBatch1);
+		const allFields2 = await datrix1.createMany("allFields", allFieldsBatch2);
 		const allFieldIds = [...allFields1, ...allFields2].map(
 			(r) => r.id as number,
 		);
@@ -287,13 +287,13 @@ describe(`Export/Import (${FROM_ADAPTER} → ${TO_ADAPTER})`, () => {
 			email: `authorb${i}@test.com`,
 			name: `Author B${i}`,
 		}));
-		const authors1 = await forja1.createMany("author", authorBatch1);
-		const authors2 = await forja1.createMany("author", authorBatch2);
+		const authors1 = await datrix1.createMany("author", authorBatch1);
+		const authors2 = await datrix1.createMany("author", authorBatch2);
 		authorIds = [...authors1, ...authors2].map((a) => a.id as number);
 
 		// tags — 50 tags
 		const tagRows = makeTagRows(50);
-		const tags = await forja1.createMany("tag", tagRows);
+		const tags = await datrix1.createMany("tag", tagRows);
 		tagIds = tags.map((t) => t.id as number);
 
 		// posts — 301 posts, 1 will be deleted before export → net 300
@@ -330,14 +330,14 @@ describe(`Export/Import (${FROM_ADAPTER} → ${TO_ADAPTER})`, () => {
 				entry.relatedPost = createdPostIds[i - 5]!;
 			}
 
-			const post = await forja1.create("post", entry);
+			const post = await datrix1.create("post", entry);
 			createdPostIds.push(post.id as number);
 		}
 		postIds = createdPostIds;
 
 		// comments — 600 comments (> CHUNK_SIZE when combined)
 		// Top-level comments on posts, then some replies (parent ref)
-		const topLevelComments = await forja1.createMany(
+		const topLevelComments = await datrix1.createMany(
 			"comment",
 			Array.from({ length: 300 }, (_, i) => ({
 				content: `Top-level comment ${i}`,
@@ -349,7 +349,7 @@ describe(`Export/Import (${FROM_ADAPTER} → ${TO_ADAPTER})`, () => {
 
 		const topLevelIds = topLevelComments.map((c) => c.id as number);
 
-		await forja1.createMany(
+		await datrix1.createMany(
 			"comment",
 			Array.from({ length: 300 }, (_, i) => ({
 				content: `Reply comment ${i}`,
@@ -364,16 +364,16 @@ describe(`Export/Import (${FROM_ADAPTER} → ${TO_ADAPTER})`, () => {
 
 		// Delete one allFields row from the middle → net 1500
 		const deletedAllFieldsId = allFieldIds[500]!;
-		await forja1.delete("allFields", deletedAllFieldsId);
+		await datrix1.delete("allFields", deletedAllFieldsId);
 
 		// Delete an author from the middle of the batch → net 1500
 		deletedAuthorId = authorIds[500]!;
-		await forja1.delete("author", deletedAuthorId);
+		await datrix1.delete("author", deletedAuthorId);
 		authorIds = authorIds.filter((id) => id !== deletedAuthorId);
 
 		// Delete a post from the middle of the batch → net 300
 		deletedPostId = postIds[150]!;
-		await forja1.delete("post", deletedPostId);
+		await datrix1.delete("post", deletedPostId);
 		postIds = postIds.filter((id) => id !== deletedPostId);
 
 		// Record the max IDs before export so we can verify auto-increment continues after import
@@ -385,20 +385,20 @@ describe(`Export/Import (${FROM_ADAPTER} → ${TO_ADAPTER})`, () => {
 		knownAuthorId = authorIds[0]!;
 
 		// Snapshot actual comment count after cascaded deletes — used in count assertion
-		expectedCommentCount = (await forja1.findMany("comment", {})).length;
+		expectedCommentCount = (await datrix1.findMany("comment", {})).length;
 
 		// ---- Phase 2: Export ----
-		await exportCommand(forja1.getAdapter(), { output: zipPath });
-		await forja1.shutdown();
+		await exportCommand(datrix1.getAdapter(), { output: zipPath });
+		await datrix1.shutdown();
 
-		// ---- Phase 3: Import into forja2 ----
-		forja2 = await initForja(TO_ADAPTER, "destination");
+		// ---- Phase 3: Import into datrix2 ----
+		datrix2 = await initDatrix(TO_ADAPTER, "destination");
 		// importCommand creates tables itself — no setupTables needed
-		await importCommand(forja2.getAdapter(), zipPath, { agree: true });
+		await importCommand(datrix2.getAdapter(), zipPath, { agree: true });
 	}, 120_000);
 
 	afterAll(async () => {
-		await forja2?.shutdown();
+		await datrix2?.shutdown();
 		await fs.rm(TEST_ROOT, { recursive: true, force: true });
 	});
 
@@ -407,27 +407,27 @@ describe(`Export/Import (${FROM_ADAPTER} → ${TO_ADAPTER})`, () => {
 	// ==========================================================================
 
 	it("should import correct number of allFields rows", async () => {
-		const result = await forja2.findMany("allFields", {});
+		const result = await datrix2.findMany("allFields", {});
 		expect(result.length).toBe(1500);
 	});
 
 	it("should import correct number of authors", async () => {
-		const result = await forja2.findMany("author", {});
+		const result = await datrix2.findMany("author", {});
 		expect(result.length).toBe(1500);
 	});
 
 	it("should import correct number of tags", async () => {
-		const result = await forja2.findMany("tag", {});
+		const result = await datrix2.findMany("tag", {});
 		expect(result.length).toBe(50);
 	});
 
 	it("should import correct number of posts", async () => {
-		const result = await forja2.findMany("post", {});
+		const result = await datrix2.findMany("post", {});
 		expect(result.length).toBe(300);
 	});
 
 	it("should import correct number of comments", async () => {
-		const result = await forja2.findMany("comment", {});
+		const result = await datrix2.findMany("comment", {});
 		expect(result.length).toBe(expectedCommentCount);
 	});
 
@@ -436,7 +436,7 @@ describe(`Export/Import (${FROM_ADAPTER} → ${TO_ADAPTER})`, () => {
 	// ==========================================================================
 
 	it("should preserve all field types in allFields schema", async () => {
-		const result = await forja2.findMany<
+		const result = await datrix2.findMany<
 			{
 				title: string;
 				score: number;
@@ -444,7 +444,7 @@ describe(`Export/Import (${FROM_ADAPTER} → ${TO_ADAPTER})`, () => {
 				status: string;
 				metadata: unknown;
 				tags: unknown[];
-			} & ForjaEntry
+			} & DatrixEntry
 		>("allFields", {
 			where: { title: { $eq: "AllFields Record 0" } },
 		});
@@ -463,12 +463,12 @@ describe(`Export/Import (${FROM_ADAPTER} → ${TO_ADAPTER})`, () => {
 
 	it("should preserve null values in optional fields", async () => {
 		// Record at index 0: description is null (0 % 3 === 0), metadata is null (0 % 4 === 0)
-		const result = await forja2.findMany<
+		const result = await datrix2.findMany<
 			{
 				description: string | null;
 				metadata: unknown | null;
 				title: string;
-			} & ForjaEntry
+			} & DatrixEntry
 		>("allFields", {
 			where: { title: { $eq: "AllFields Record 0" } },
 		});
@@ -480,8 +480,8 @@ describe(`Export/Import (${FROM_ADAPTER} → ${TO_ADAPTER})`, () => {
 
 	it("should preserve boolean false correctly", async () => {
 		// Record at index 1: isActive = false (1 % 2 !== 0)
-		const result = await forja2.findMany<
-			{ isActive: boolean; title: string } & ForjaEntry
+		const result = await datrix2.findMany<
+			{ isActive: boolean; title: string } & DatrixEntry
 		>("allFields", {
 			where: { title: { $eq: "AllFields Record 1" } },
 		});
@@ -491,8 +491,8 @@ describe(`Export/Import (${FROM_ADAPTER} → ${TO_ADAPTER})`, () => {
 
 	it("should preserve empty array correctly", async () => {
 		// Record at index 0: tags = [] (0 % 5 === 0)
-		const result = await forja2.findMany<
-			{ tags: unknown[]; title: string } & ForjaEntry
+		const result = await datrix2.findMany<
+			{ tags: unknown[]; title: string } & DatrixEntry
 		>("allFields", {
 			where: { title: { $eq: "AllFields Record 0" } },
 		});
@@ -505,7 +505,7 @@ describe(`Export/Import (${FROM_ADAPTER} → ${TO_ADAPTER})`, () => {
 	// ==========================================================================
 
 	it("should preserve post → author FK", async () => {
-		const result = await forja2.findMany("post", {
+		const result = await datrix2.findMany("post", {
 			where: { slug: { $eq: "post-slug-0" } },
 			populate: ["author"],
 		});
@@ -518,7 +518,7 @@ describe(`Export/Import (${FROM_ADAPTER} → ${TO_ADAPTER})`, () => {
 
 	it("should preserve post → relatedPost self-reference FK", async () => {
 		// Verify the FK value is restored correctly via populate
-		const result = await forja2.findMany("post", {
+		const result = await datrix2.findMany("post", {
 			where: { slug: { $eq: "post-slug-5" } },
 			populate: ["relatedPost"],
 		});
@@ -533,7 +533,7 @@ describe(`Export/Import (${FROM_ADAPTER} → ${TO_ADAPTER})`, () => {
 	});
 
 	it("should preserve comment → parent self-reference", async () => {
-		const replies = await forja2.findMany("comment", {
+		const replies = await datrix2.findMany("comment", {
 			where: { content: { $eq: "Reply comment 0" } },
 			populate: ["parent"],
 		});
@@ -545,7 +545,7 @@ describe(`Export/Import (${FROM_ADAPTER} → ${TO_ADAPTER})`, () => {
 	});
 
 	it("should preserve manyToMany post ↔ tag relations", async () => {
-		const post = await forja2.findMany("post", {
+		const post = await datrix2.findMany("post", {
 			where: { slug: { $eq: "post-slug-0" } },
 			populate: ["tags"],
 		});
@@ -561,14 +561,14 @@ describe(`Export/Import (${FROM_ADAPTER} → ${TO_ADAPTER})`, () => {
 	// ==========================================================================
 
 	it("should not contain deleted author after import", async () => {
-		const result = await forja2.findMany("author", {
+		const result = await datrix2.findMany("author", {
 			where: { id: { $eq: deletedAuthorId } },
 		});
 		expect(result).toHaveLength(0);
 	});
 
 	it("should not contain deleted post after import", async () => {
-		const result = await forja2.findMany("post", {
+		const result = await datrix2.findMany("post", {
 			where: { id: { $eq: deletedPostId } },
 		});
 		expect(result).toHaveLength(0);
@@ -579,7 +579,7 @@ describe(`Export/Import (${FROM_ADAPTER} → ${TO_ADAPTER})`, () => {
 	// ==========================================================================
 
 	it("should continue auto-increment from last author ID after import", async () => {
-		const newAuthor = await forja2.create("author", {
+		const newAuthor = await datrix2.create("author", {
 			name: "New Author After Import",
 			email: "new-after-import@test.com",
 		});
@@ -587,7 +587,7 @@ describe(`Export/Import (${FROM_ADAPTER} → ${TO_ADAPTER})`, () => {
 	});
 
 	it("should continue auto-increment from last post ID after import", async () => {
-		const newPost = await forja2.create("post", {
+		const newPost = await datrix2.create("post", {
 			title: "Post After Import",
 			slug: "post-after-import",
 			content: "Written after import.",
@@ -601,7 +601,7 @@ describe(`Export/Import (${FROM_ADAPTER} → ${TO_ADAPTER})`, () => {
 	// ==========================================================================
 
 	it("should resolve FK relation correctly via populate after import", async () => {
-		const result = await forja2.findMany("post", {
+		const result = await datrix2.findMany("post", {
 			where: { id: { $eq: knownPostId } },
 			populate: ["author"],
 			select: ["id", "title"],
@@ -617,7 +617,7 @@ describe(`Export/Import (${FROM_ADAPTER} → ${TO_ADAPTER})`, () => {
 	it("should reject insert with non-existent FK after import", async () => {
 		// Use an ID that was deleted before export — FK must reject it
 		await expect(
-			forja2.create("post", {
+			datrix2.create("post", {
 				title: "Invalid FK Post",
 				slug: "invalid-fk-post",
 				content: "This post references a deleted author.",

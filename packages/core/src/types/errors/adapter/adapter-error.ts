@@ -1,11 +1,11 @@
 /**
- * Forja Adapter Error
+ * Datrix Adapter Error
  *
  * Single unified error class for all database adapters.
- * Replaces ForjaPostgresAdapterError, ForjaMySQLAdapterError, ForjaJsonAdapterError.
+ * Replaces DatrixPostgresAdapterError, DatrixMySQLAdapterError, DatrixJsonAdapterError.
  */
 
-import { ForjaError, type SerializedForjaError } from "../forja-error";
+import { DatrixError, type SerializedDatrixError } from "../datrix-error";
 
 // ============================================================================
 // Adapter Name
@@ -101,7 +101,7 @@ export interface AdapterErrorContext {
 // Error Options
 // ============================================================================
 
-export interface ForjaAdapterErrorOptions {
+export interface DatrixAdapterErrorOptions {
 	readonly adapter: AdapterName;
 	readonly code: AdapterErrorCode;
 	readonly operation?: AdapterOperation | undefined;
@@ -116,7 +116,7 @@ export interface ForjaAdapterErrorOptions {
 // Serialized Error
 // ============================================================================
 
-export interface SerializedForjaAdapterError extends SerializedForjaError {
+export interface SerializedDatrixAdapterError extends SerializedDatrixError {
 	readonly adapter: AdapterName;
 	readonly adapterOperation?: AdapterOperation;
 }
@@ -126,14 +126,14 @@ export interface SerializedForjaAdapterError extends SerializedForjaError {
 // ============================================================================
 
 /**
- * Forja Adapter Error Class
+ * Datrix Adapter Error Class
  *
  * Unified error class for all database adapters (postgres, mysql, json).
  * Use helper functions from adapter-helpers.ts instead of instantiating directly.
  *
  * @example
  * ```ts
- * throw new ForjaAdapterError('Model not found', {
+ * throw new DatrixAdapterError('Model not found', {
  *   adapter: 'postgres',
  *   code: 'ADAPTER_MODEL_NOT_FOUND',
  *   operation: 'populate',
@@ -142,11 +142,11 @@ export interface SerializedForjaAdapterError extends SerializedForjaError {
  * });
  * ```
  */
-export class ForjaAdapterError extends ForjaError<AdapterErrorContext> {
+export class DatrixAdapterError extends DatrixError<AdapterErrorContext> {
 	readonly adapter: AdapterName;
 	readonly adapterOperation?: AdapterOperation | undefined;
 
-	constructor(message: string, options: ForjaAdapterErrorOptions) {
+	constructor(message: string, options: DatrixAdapterErrorOptions) {
 		const operationString = options.operation
 			? `adapter:${options.adapter}:${options.operation}`
 			: `adapter:${options.adapter}`;
@@ -165,7 +165,7 @@ export class ForjaAdapterError extends ForjaError<AdapterErrorContext> {
 		this.adapterOperation = options.operation;
 	}
 
-	override toJSON(): SerializedForjaAdapterError {
+	override toJSON(): SerializedDatrixAdapterError {
 		const json = super.toJSON();
 
 		if (this.adapterOperation) {

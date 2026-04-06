@@ -1,8 +1,8 @@
-import { defineConfig } from "@forja/core";
+import { defineConfig } from "@datrix/core";
 import { ApiPlugin } from "../../src/api";
 import { testSchemas } from "./schemas";
 import path from "node:path";
-import { ForjaConfig } from "@forja/core";
+import { DatrixConfig } from "@datrix/core";
 import { getAdapter, getAdapterType } from "./adapter";
 
 /**
@@ -21,7 +21,7 @@ export async function createTestConfig(tmpDir: string) {
 	const adapter = await getAdapter(adapterType, tmpDir);
 
 	return defineConfig(() => {
-		const config: ForjaConfig = {
+		const config: DatrixConfig = {
 			adapter,
 
 			schemas: testSchemas,
@@ -40,7 +40,7 @@ export async function createTestConfig(tmpDir: string) {
 			],
 		};
 
-		return config as ForjaConfig;
+		return config as DatrixConfig;
 	});
 }
 

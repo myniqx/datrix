@@ -1,23 +1,23 @@
 /**
  * Core Configuration Types
  *
- * Forja framework configuration types used in forja.config.ts files.
+ * Datrix framework configuration types used in datrix.config.ts files.
  */
 
 import type { DatabaseAdapter } from "../adapter";
-import type { ForjaPlugin } from "./plugin";
+import type { DatrixPlugin } from "./plugin";
 import type { SchemaDefinition } from "./schema";
 
 /**
- * Main Forja Configuration
+ * Main Datrix Configuration
  *
- * Users export this from their forja.config.ts file
+ * Users export this from their datrix.config.ts file
  *
  * @example
  * ```ts
- * // forja.config.ts
- * import { PostgresAdapter } from 'forja/adapters';
- * import { AuthPlugin } from 'forja/plugins';
+ * // datrix.config.ts
+ * import { PostgresAdapter } from 'datrix/adapters';
+ * import { AuthPlugin } from 'datrix/plugins';
  *
  * export default {
  *   adapter: new PostgresAdapter({ connectionString: process.env.DATABASE_URL! }),
@@ -26,7 +26,7 @@ import type { SchemaDefinition } from "./schema";
  * } as const;
  * ```
  */
-export interface ForjaConfig<
+export interface DatrixConfig<
 	TAdapter extends DatabaseAdapter = DatabaseAdapter,
 > {
 	/**
@@ -55,7 +55,7 @@ export interface ForjaConfig<
 	 * Plugin instances (optional)
 	 * Order matters - plugins are initialized in the order they appear
 	 */
-	readonly plugins?: readonly ForjaPlugin[];
+	readonly plugins?: readonly DatrixPlugin[];
 
 	/**
 	 * Migration configuration (optional)
@@ -88,7 +88,7 @@ export interface MigrationConfig {
 
 	/**
 	 * Table name for storing migration history
-	 * @default '_forja_migrations'
+	 * @default '_datrix_migrations'
 	 */
 	readonly modelName?: string;
 }
@@ -121,7 +121,7 @@ export interface DevConfig {
  *
  * Supports both ESM default export and direct export
  */
-export type ConfigFileExport<T extends ForjaConfig = ForjaConfig> =
+export type ConfigFileExport<T extends DatrixConfig = DatrixConfig> =
 	| T
 	| { default: T };
 
@@ -131,7 +131,7 @@ export type ConfigFileExport<T extends ForjaConfig = ForjaConfig> =
 export interface LoadConfigOptions {
 	/**
 	 * Path to config file
-	 * @default './forja.config.ts' (with fallback to .js)
+	 * @default './datrix.config.ts' (with fallback to .js)
 	 */
 	readonly configPath?: string;
 
@@ -150,9 +150,9 @@ export interface LoadConfigOptions {
 }
 
 /**
- * Type guard for ForjaConfig
+ * Type guard for DatrixConfig
  */
-export function isForjaConfig(value: unknown): value is ForjaConfig {
+export function isDatrixConfig(value: unknown): value is DatrixConfig {
 	if (typeof value !== "object" || value === null) {
 		return false;
 	}
@@ -180,7 +180,7 @@ export function hasDefaultExport<T>(value: unknown): value is { default: T } {
 export const DEFAULT_MIGRATION_CONFIG: Required<MigrationConfig> = {
 	auto: false,
 	directory: "./migrations",
-	modelName: "_forja_migration",
+	modelName: "_datrix_migration",
 } as const;
 
 /**

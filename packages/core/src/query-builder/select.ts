@@ -6,7 +6,7 @@
 
 import type { QuerySelect, SelectClause } from "../types/core/query-builder";
 import type {
-	ForjaEntry,
+	DatrixEntry,
 	SchemaDefinition,
 	ISchemaRegistry,
 } from "../types/core/schema";
@@ -41,13 +41,13 @@ import { throwInvalidFields, throwRelationInSelect } from "./error-helper";
  *
  * // Validation errors
  * normalizeSelect([['invalidField']], schema, 'Product', registry)
- * // → throws ForjaQueryBuilderError
+ * // → throws DatrixQueryBuilderError
  *
  * normalizeSelect([['category']], schema, 'Product', registry)
- * // → throws ForjaQueryBuilderError (relation field)
+ * // → throws DatrixQueryBuilderError (relation field)
  * ```
  */
-export function normalizeSelect<T extends ForjaEntry>(
+export function normalizeSelect<T extends DatrixEntry>(
 	selects: SelectClause<T>[] | undefined,
 	schema: SchemaDefinition,
 	registry: ISchemaRegistry,

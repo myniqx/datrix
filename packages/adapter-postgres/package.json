@@ -1,17 +1,17 @@
 {
-	"name": "@forja/adapter-postgres",
+	"name": "@datrix/adapter-postgres",
 	"version": "0.1.0",
-	"description": "PostgreSQL adapter for Forja framework",
-	"author": "Forja Contributors",
+	"description": "PostgreSQL adapter for Datrix framework",
+	"author": "Datrix Contributors",
 	"license": "MIT",
-	"homepage": "https://tryforja.com",
+	"homepage": "https://datrix.dev",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/myniqx/forja.git",
+		"url": "https://github.com/myniqx/datrix.git",
 		"directory": "packages/adapter-postgres"
 	},
 	"bugs": {
-		"url": "https://github.com/myniqx/forja/issues"
+		"url": "https://github.com/myniqx/datrix/issues"
 	},
 	"keywords": [
 		"database",
@@ -20,7 +20,7 @@
 		"postgresql",
 		"postgres",
 		"adapter",
-		"forja"
+		"datrix"
 	],
 	"engines": {
 		"node": ">=18.0.0"
@@ -49,13 +49,13 @@
 		"clean": "rm -rf dist"
 	},
 	"peerDependencies": {
-		"@forja/core": "^0.1.0"
+		"@datrix/core": "^0.1.0"
 	},
 	"dependencies": {
 		"pg": "^8.11.3"
 	},
 	"devDependencies": {
-		"@forja/core": "workspace:*",
+		"@datrix/core": "workspace:*",
 		"tsup": "^8.0.2",
 		"typescript": "^5.3.3",
 		"@types/pg": "^8.11.0"

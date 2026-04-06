@@ -22,4 +22,4 @@ export type {
 } from "./types";
 
 // Re-export permission types
-export type { PermissionAction } from "@forja/core";
+export type { PermissionAction } from "@datrix/core";

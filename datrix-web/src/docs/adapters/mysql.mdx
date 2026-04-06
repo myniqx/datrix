@@ -1,0 +1,99 @@
+---
+title: MySQL
+description: MySQL and MariaDB adapter configuration and usage.
+order: 2
+---
+
+# MySQL Adapter
+
+```bash
+pnpm add @datrix/adapter-mysql
+```
+
+Requires `mysql2` as a peer dependency.
+
+---
+
+## Requirements
+
+- **MySQL 8.0.14+** or **MariaDB 10.5+** — the adapter relies on `LATERAL` joins and `JSON_ARRAYAGG` / `JSON_OBJECT` for relation population.
+- Native foreign key constraints are fully supported and automatically managed by migrations.
+
+---
+
+## Configuration
+
+```typescript
+import { MySQLAdapter } from "@datrix/adapter-mysql"
+
+new MySQLAdapter({
+  host:     "localhost",  // database server hostname (default: "localhost")
+  port:     3306,         // database server port (default: 3306)
+  database: "mydb",       // database name
+  user:     "root",       // login user
+  password: "secret",     // login password
+
+  // Alternative: provide a full connection string instead of individual fields
+  // connectionString: "mysql://root:secret@localhost:3306/mydb"
+
+  // SSL
+  ssl: {
+    rejectUnauthorized: true,
+    ca:   "...",  // CA certificate (PEM)
+    cert: "...",  // client certificate (PEM)
+    key:  "...",  // client private key (PEM)
+  },
+
+  // Connection pool
+  connectionLimit:    10,   // maximum number of connections (default: 10)
+  queueLimit:         0,    // max queued requests when pool is full — 0 = unlimited
+  waitForConnections: true, // wait when pool is exhausted instead of erroring
+
+  // Timeouts (milliseconds)
+  connectTimeout: 10000,  // time to wait when establishing a connection
+
+  charset:  "utf8mb4",  // character set for the connection (default: "utf8mb4")
+  timezone: "local",    // timezone for date/time columns (default: "local")
+})
+```
+
+---
+
+## Populate strategies
+
+Three strategies are selected automatically based on query depth and complexity:
+
+- **JSON Aggregation** — default for single-level relations. Uses `JSON_ARRAYAGG` and `JSON_OBJECT` in subqueries — offloads mapping to the database.
+- **LATERAL Joins** — used when populate options include `limit`, `offset`, `where`, or `orderBy`. Requires MySQL 8.0.14+ / MariaDB 10.3+.
+- **Batched IN Queries** — fallback for deep nesting (depth > 1) or high cardinality. Collects parent IDs and issues targeted `WHERE id IN (...)` queries, stitching results in Node.js memory.
+
+---
+
+## Migration
+
+Migration operations map to native SQL DDL (`CREATE TABLE`, `ALTER TABLE`, `CREATE INDEX`, etc.).
+
+**DDL rollback warning:** DDL statements trigger implicit commits in both MySQL and MariaDB. If a migration contains DDL operations and fails partway, the structural changes already executed cannot be rolled back. This is a MySQL/MariaDB limitation, not a Datrix limitation.
+
+---
+
+## Known limitations
+
+- DDL operations in migrations cannot be rolled back on failure (see above).
+- It is strongly recommended to run the server with strict mode enabled (`STRICT_ALL_TABLES` or `STRICT_TRANS_TABLES`). Without it, MySQL/MariaDB silently truncates data or coerces types instead of raising errors.
+
+---
+
+## Field type mapping
+
+| Datrix type | MySQL column |
+| --- | --- |
+| `string` | `TEXT` (or `VARCHAR(n)` when `maxLength` is set) |
+| `number` | `DOUBLE` (or `INT` for foreign keys) |
+| `boolean` | `TINYINT(1)` |
+| `date` | `DATETIME(3)` |
+| `json` | `JSON` |
+| `array` | `JSON` |
+| `enum` | `VARCHAR(255)` |
+| `file` | `TEXT` |
+| `relation` | `INT` (foreign key) |

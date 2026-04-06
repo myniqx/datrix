@@ -1,10 +1,10 @@
 /**
  * MySQL Adapter Helper Functions
  *
- * Standalone utilities that don't depend on Forja singleton or class state.
+ * Standalone utilities that don't depend on Datrix singleton or class state.
  */
 
-import { throwQueryError } from "@forja/core";
+import { throwQueryError } from "@datrix/core";
 
 const VALID_IDENTIFIER_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 const MAX_IDENTIFIER_LENGTH = 64;

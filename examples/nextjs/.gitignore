@@ -40,5 +40,5 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# forja generated types
+# datrix generated types
 /types/generated.ts

@@ -1,0 +1,341 @@
+---
+title: Interfaces
+description: Full method signatures and option types for the Datrix instance.
+order: 5
+---
+
+# Interfaces
+
+All methods are available directly on the `datrix` instance and identically on
+`datrix.crud`. Use `datrix.raw` to bypass plugin hooks — signatures are the same.
+
+---
+
+## CRUD Methods
+
+### findOne
+
+```typescript
+findOne<T extends DatrixEntry = DatrixRecord>(
+  model: string,           // registered schema name
+  where: WhereClause<T>,   // filter criteria — must match exactly one record
+  options?: RawCrudOptions<T>, // select, populate
+): Promise<T | null>
+```
+
+Returns the first record matching `where`, or `null` if none found.
+
+**Options:** `select` and `populate` are supported. `noReturning` has no effect on any find operations.
+
+---
+
+### findById
+
+```typescript
+findById<T extends DatrixEntry = DatrixRecord>(
+  model: string,           // registered schema name
+  id: number,              // record ID
+  options?: RawCrudOptions<T>, // select, populate
+): Promise<T | null>
+```
+
+Shorthand for `findOne` with `where: { id }`. Returns `null` if not found.
+
+---
+
+### findMany
+
+```typescript
+findMany<T extends DatrixEntry = DatrixRecord>(
+  model: string,                // registered schema name
+  options?: RawFindManyOptions<T>, // where, select, populate, orderBy, limit, offset
+): Promise<T[]>
+```
+
+Returns all records matching the given options. Returns an empty array if none found.
+
+---
+
+### count
+
+```typescript
+count<T extends DatrixEntry = DatrixRecord>(
+  model: string,          // registered schema name
+  where?: WhereClause<T>, // filter criteria — omit to count all records
+): Promise<number>
+```
+
+Returns the number of records matching `where`.
+
+---
+
+### create
+
+```typescript
+create<T extends DatrixEntry = DatrixRecord, TInput extends FallbackInput = FallbackInput>(
+  model: string,           // registered schema name
+  data: TInput,            // field values to insert
+  options?: RawCrudOptions<T>, // select, populate on returned record
+): Promise<T>
+```
+
+Inserts a single record and returns it. Runs full field validation and injects
+`createdAt` / `updatedAt` automatically. See [Relations](/docs/core/relations)
+for all accepted formats in the `data` argument.
+
+**Options:**
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `select` | `SelectClause<T>` | `"*"` | Fields to return. Omit to return all fields. |
+| `populate` | `PopulateClause<T>` | — | Relations to populate on the returned record. |
+| `noReturning` | `boolean` | `false` | Skip the post-insert SELECT. Returns only the inserted IDs instead of the full record. Use when you don't need the created record and want to avoid the extra query. |
+
+---
+
+### createMany
+
+```typescript
+createMany<T extends DatrixEntry = DatrixRecord, TInput extends FallbackInput = FallbackInput>(
+  model: string,           // registered schema name
+  data: TInput[],          // array of field values
+  options?: RawCrudOptions<T>, // select, populate on returned records
+): Promise<T[]>
+```
+
+Inserts multiple records in a single transaction and returns them all.
+
+See [create](#create) for a full description of available options.
+
+---
+
+### update
+
+```typescript
+update<T extends DatrixEntry = DatrixRecord, TInput extends FallbackInput = FallbackInput>(
+  model: string,           // registered schema name
+  id: number,              // record ID to update
+  data: TInput,            // fields to update (partial)
+  options?: RawCrudOptions<T>, // select, populate on returned record
+): Promise<T>
+```
+
+Updates a single record by ID and returns it. Throws `RECORD_NOT_FOUND` if the ID does not exist.
+See [Relations](/docs/core/relations) for all accepted formats in the `data` argument.
+
+**Options:**
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `select` | `SelectClause<T>` | `"*"` | Fields to return on the updated record. |
+| `populate` | `PopulateClause<T>` | — | Relations to populate on the returned record. |
+| `noReturning` | `boolean` | `false` | Skip the post-update SELECT. Returns only the updated record's ID instead of the full record. |
+
+---
+
+### updateMany
+
+```typescript
+updateMany<T extends DatrixEntry = DatrixRecord, TInput extends FallbackInput = FallbackInput>(
+  model: string,           // registered schema name
+  where: WhereClause<T>,   // filter criteria
+  data: TInput,            // fields to update (partial)
+  options?: RawCrudOptions<T>, // select, populate on returned records
+): Promise<T[]>
+```
+
+Updates all records matching `where` and returns them. Returns an empty array if no records matched.
+
+See [update](#update) for a full description of available options.
+
+---
+
+### delete
+
+```typescript
+delete<T extends DatrixEntry = DatrixRecord>(
+  model: string,           // registered schema name
+  id: number,              // record ID to delete
+  options?: RawCrudOptions<T>, // select, populate on returned record
+): Promise<T>
+```
+
+Deletes a single record by ID and returns it. Throws `RECORD_NOT_FOUND` if the ID does not exist.
+
+**Options:**
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `select` | `SelectClause<T>` | — | Fields to return. Triggers a pre-fetch SELECT before the delete. |
+| `populate` | `PopulateClause<T>` | — | Relations to populate. Triggers a pre-fetch SELECT before the delete. |
+| `noReturning` | `boolean` | `true` (when no `select`/`populate`) | By default, delete only returns the deleted record's ID — no extra query is made. Pass `select` or `populate` to fetch the full record before deletion. Set `noReturning: false` explicitly to force a pre-fetch with all fields. |
+
+---
+
+### deleteMany
+
+```typescript
+deleteMany<T extends DatrixEntry = DatrixRecord>(
+  model: string,           // registered schema name
+  where: WhereClause<T>,   // filter criteria
+  options?: RawCrudOptions<T>, // select, populate on returned records
+): Promise<T[]>
+```
+
+Deletes all records matching `where` and returns them.
+
+See [delete](#delete) for a full description of available options.
+
+---
+
+## Schema Access
+
+### getSchemas
+
+```typescript
+getSchemas(): SchemaRegistry
+```
+
+Returns the full schema registry. Useful for inspecting registered schemas at runtime.
+
+---
+
+### getSchema
+
+```typescript
+getSchema(
+  name: string, // registered schema name
+): SchemaDefinition | undefined
+```
+
+Returns a single schema by name, or `undefined` if not registered.
+
+---
+
+### hasSchema
+
+```typescript
+hasSchema(
+  name: string, // registered schema name
+): boolean
+```
+
+Returns `true` if a schema with the given name is registered.
+
+---
+
+### getAllSchemas
+
+```typescript
+getAllSchemas(): readonly SchemaDefinition[]
+```
+
+Returns all registered schemas as a readonly array.
+
+---
+
+## Plugin System
+
+### getPlugin
+
+```typescript
+getPlugin<T extends DatrixPlugin = DatrixPlugin>(
+  name: string, // plugin name as registered
+): T | null
+```
+
+Returns the plugin instance by name, or `null` if not found. Use the generic
+to get a typed reference to a specific plugin.
+
+---
+
+### getPlugins
+
+```typescript
+getPlugins(): readonly DatrixPlugin[]
+```
+
+Returns all registered plugin instances.
+
+---
+
+### hasPlugin
+
+```typescript
+hasPlugin(
+  name: string, // plugin name as registered
+): boolean
+```
+
+Returns `true` if a plugin with the given name is registered.
+
+---
+
+## Lifecycle
+
+### isInitialized
+
+```typescript
+isInitialized(): boolean
+```
+
+Returns `true` if `datrix` has been initialized. Safe to call before initialization.
+
+---
+
+### getConfig
+
+```typescript
+getConfig(): DatrixConfig
+```
+
+Returns the active configuration object. Throws if called before initialization.
+
+---
+
+### getAdapter
+
+```typescript
+getAdapter<T extends DatabaseAdapter = DatabaseAdapter>(): T
+```
+
+Returns the active adapter instance. Use the generic to get a typed reference
+to a specific adapter implementation.
+
+---
+
+### shutdown
+
+```typescript
+shutdown(): Promise<void>
+```
+
+Destroys all plugins, closes the database connection, and resets the instance.
+After shutdown, `datrix` must be re-initialized before use.
+
+---
+
+## CLI Internals
+
+### beginMigrate
+
+```typescript
+beginMigrate(): Promise<MigrationSession>
+```
+
+Compares current schemas against the live database and returns a
+`MigrationSession` for reviewing and applying changes.
+
+This method is used internally by the Datrix CLI (`datrix migrate`). Direct use
+is possible but not the intended workflow — prefer the CLI for migrations.
+
+```typescript
+const session = await datrix.beginMigrate()
+
+if (session.hasAmbiguous) {
+  session.resolveAmbiguous("user.name->lastname", "rename")
+}
+
+const plan = session.getPlan()
+await session.apply()
+```

@@ -4,10 +4,10 @@
  * Type definitions specific to PostgreSQL adapter.
  */
 
-import { QuerySelectObject } from "@forja/core";
-import { FieldDefinition, FieldType, ForjaEntry } from "@forja/core";
+import { QuerySelectObject } from "@datrix/core";
+import { FieldDefinition, FieldType, DatrixEntry } from "@datrix/core";
 import { PopulateStrategy } from "./populate";
-import { QueryPopulate } from "@forja/core";
+import { QueryPopulate } from "@datrix/core";
 
 export interface TranslateResult {
 	readonly sql: string;
@@ -25,13 +25,13 @@ export interface PostgresConfig {
 	readonly user: string;
 	readonly password: string;
 	readonly ssl?:
-		| boolean
-		| {
-				readonly rejectUnauthorized?: boolean;
-				readonly ca?: string;
-				readonly cert?: string;
-				readonly key?: string;
-		  };
+	| boolean
+	| {
+		readonly rejectUnauthorized?: boolean;
+		readonly ca?: string;
+		readonly cert?: string;
+		readonly key?: string;
+	};
 	readonly connectionTimeoutMillis?: number;
 	readonly idleTimeoutMillis?: number;
 	readonly max?: number; // Maximum pool size
@@ -301,7 +301,7 @@ export function fromPostgresValue(
 }
 
 export interface PostgresQueryObject<
-	T extends ForjaEntry,
+	T extends DatrixEntry,
 > extends QuerySelectObject<T> {
 	_metadata?: {
 		populateAggregations?: string | undefined;

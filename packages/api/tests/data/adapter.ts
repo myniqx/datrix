@@ -13,7 +13,7 @@ import { createTestDatabase as createPostgresTestDatabase } from "../../../adapt
 import { createTestDatabase as createMySQLTestDatabase } from "../../../adapter-mysql/src/test-utils";
 import { createTestDatabase as createMongoDBTestDatabase } from "../../../adapter-mongodb/src/test-utils";
 import { createHash } from "node:crypto";
-import { DatabaseAdapter } from "@forja/core";
+import { DatabaseAdapter } from "@datrix/core";
 
 /**
  * Supported adapter types for testing
@@ -25,7 +25,7 @@ export type AdapterType = "json" | "postgres" | "mysql" | "mariadb" | "mongodb";
  */
 function generateDbName(root: string): string {
 	const hash = createHash("md5").update(root).digest("hex").slice(0, 8);
-	return `forja_test_${hash}`;
+	return `datrix_test_${hash}`;
 }
 
 /**
@@ -72,8 +72,8 @@ export async function getAdapter(
 			// Parse connection config from env
 			const host = process.env["POSTGRES_HOST"] ?? "localhost";
 			const port = parseInt(process.env["POSTGRES_PORT"] ?? "5432", 10);
-			const user = process.env["POSTGRES_USER"] ?? "forja_test";
-			const password = process.env["POSTGRES_PASSWORD"] ?? "forja_test";
+			const user = process.env["POSTGRES_USER"] ?? "datrix_test";
+			const password = process.env["POSTGRES_PASSWORD"] ?? "datrix_test";
 
 			// Create fresh database (skip if reusing existing)
 			if (!options?.skipCreate) {
@@ -96,7 +96,7 @@ export async function getAdapter(
 				min: 2,
 				connectionTimeoutMillis: 5000,
 				idleTimeoutMillis: 10000,
-				applicationName: "forja-test",
+				applicationName: "datrix-test",
 			}) as DatabaseAdapter;
 		}
 
@@ -112,8 +112,8 @@ export async function getAdapter(
 				process.env[`${prefix}_PORT`] ?? (isMariaDB ? "3307" : "3306"),
 				10,
 			);
-			const user = process.env[`${prefix}_USER`] ?? "forja";
-			const password = process.env[`${prefix}_PASSWORD`] ?? "forja";
+			const user = process.env[`${prefix}_USER`] ?? "datrix";
+			const password = process.env[`${prefix}_PASSWORD`] ?? "datrix";
 
 			// Create fresh database (skip if reusing existing)
 			if (!options?.skipCreate) {
@@ -149,7 +149,7 @@ export async function getAdapter(
 				minPoolSize: 2,
 				connectTimeoutMS: 5000,
 				serverSelectionTimeoutMS: 5000,
-				appName: "forja-test",
+				appName: "datrix-test",
 			}) as DatabaseAdapter;
 		}
 
@@ -171,9 +171,9 @@ export async function getAdapter(
  * // ADAPTER=mongodb npm test   → mongodb
  *
  * // Docker commands for test databases:
- * // docker run -d --name mysql-test -e MYSQL_ROOT_PASSWORD=forja -e MYSQL_USER=forja -e MYSQL_PASSWORD=forja -e MYSQL_DATABASE=forja -p 3306:3306 mysql:8.0
- * // docker run -d --name mariadb-test -e MYSQL_ROOT_PASSWORD=forja -e MYSQL_USER=forja -e MYSQL_PASSWORD=forja -e MYSQL_DATABASE=forja -p 3307:3306 mariadb:10.5
- * // docker run -d --name postgres-test -e POSTGRES_USER=forja_test -e POSTGRES_PASSWORD=forja_test -e POSTGRES_DB=forja_test -p 5432:5432 postgres:16
+ * // docker run -d --name mysql-test -e MYSQL_ROOT_PASSWORD=datrix -e MYSQL_USER=datrix -e MYSQL_PASSWORD=datrix -e MYSQL_DATABASE=datrix -p 3306:3306 mysql:8.0
+ * // docker run -d --name mariadb-test -e MYSQL_ROOT_PASSWORD=datrix -e MYSQL_USER=datrix -e MYSQL_PASSWORD=datrix -e MYSQL_DATABASE=datrix -p 3307:3306 mariadb:10.5
+ * // docker run -d --name postgres-test -e POSTGRES_USER=datrix_test -e POSTGRES_PASSWORD=datrix_test -e POSTGRES_DB=datrix_test -p 5432:5432 postgres:16
  * // docker run -d --name mongodb-test -p 27017:27017 mongo:7
  */
 export function getAdapterType(): AdapterType {

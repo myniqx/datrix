@@ -14,22 +14,22 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { Forja } from "@forja/core";
+import { Datrix } from "@datrix/core";
 import fs from "node:fs/promises";
 import { createTestConfig, getTmpDir, setupTables } from "../setup";
 
 describe("Large Data Performance", () => {
-	let forja: Forja;
+	let datrix: Datrix;
 	const tmpDir = getTmpDir("large_data");
 
 	beforeAll(async () => {
 		await fs.rm(tmpDir, { recursive: true, force: true });
 		await fs.mkdir(tmpDir, { recursive: true });
 
-		const getForja = await createTestConfig(tmpDir);
-		forja = await getForja();
+		const getDatrix = await createTestConfig(tmpDir);
+		datrix = await getDatrix();
 
-		await setupTables(forja);
+		await setupTables(datrix);
 	});
 
 	afterAll(async () => {
@@ -50,7 +50,7 @@ describe("Large Data Performance", () => {
 			}));
 
 			const start = performance.now();
-			const created = await forja.createMany("user", users);
+			const created = await datrix.createMany("user", users);
 			const duration = performance.now() - start;
 
 			expect(created).toHaveLength(100);
@@ -68,7 +68,7 @@ describe("Large Data Performance", () => {
 			}));
 
 			const start = performance.now();
-			const created = await forja.createMany("user", users);
+			const created = await datrix.createMany("user", users);
 			const duration = performance.now() - start;
 
 			expect(created).toHaveLength(500);
@@ -84,7 +84,7 @@ describe("Large Data Performance", () => {
 			}));
 
 			const start = performance.now();
-			const created = await forja.createMany("tag", tags);
+			const created = await datrix.createMany("tag", tags);
 			const duration = performance.now() - start;
 
 			expect(created).toHaveLength(1000);
@@ -101,7 +101,7 @@ describe("Large Data Performance", () => {
 	describe("Bulk Read Performance", () => {
 		it("should read 500 records efficiently", async () => {
 			const start = performance.now();
-			const users = await forja.findMany("user", {
+			const users = await datrix.findMany("user", {
 				where: { email: { $like: "perf500-%@test.com" } },
 			});
 			const duration = performance.now() - start;
@@ -114,7 +114,7 @@ describe("Large Data Performance", () => {
 
 		it("should read with orderBy efficiently", async () => {
 			const start = performance.now();
-			const users = await forja.findMany("user", {
+			const users = await datrix.findMany("user", {
 				where: { email: { $like: "perf500-%@test.com" } },
 				orderBy: [{ field: "age", direction: "asc" }],
 			});
@@ -128,7 +128,7 @@ describe("Large Data Performance", () => {
 
 		it("should read with complex where efficiently", async () => {
 			const start = performance.now();
-			const users = await forja.findMany("user", {
+			const users = await datrix.findMany("user", {
 				where: {
 					$and: [
 						{ email: { $like: "perf500-%@test.com" } },
@@ -163,7 +163,7 @@ describe("Large Data Performance", () => {
 
 			while (true) {
 				const start = performance.now();
-				const users = await forja.findMany("user", {
+				const users = await datrix.findMany("user", {
 					where: { email: { $like: "perf500-%@test.com" } },
 					orderBy: [{ field: "id", direction: "asc" }],
 					limit: pageSize,
@@ -193,7 +193,7 @@ describe("Large Data Performance", () => {
 
 		it("should handle large offset efficiently", async () => {
 			const start = performance.now();
-			const users = await forja.findMany("user", {
+			const users = await datrix.findMany("user", {
 				where: { email: { $like: "perf500-%@test.com" } },
 				orderBy: [{ field: "id", direction: "asc" }],
 				limit: 10,
@@ -215,7 +215,7 @@ describe("Large Data Performance", () => {
 	describe("Bulk Update Performance", () => {
 		it("should update 100 records efficiently", async () => {
 			const start = performance.now();
-			const updated = await forja.updateMany(
+			const updated = await datrix.updateMany(
 				"user",
 				{ email: { $like: "perf100-%@test.com" } },
 				{ isActive: false },
@@ -230,7 +230,7 @@ describe("Large Data Performance", () => {
 
 		it("should update with complex where efficiently", async () => {
 			const start = performance.now();
-			const updated = await forja.updateMany(
+			const updated = await datrix.updateMany(
 				"user",
 				{
 					$and: [
@@ -257,7 +257,7 @@ describe("Large Data Performance", () => {
 	describe("Bulk Delete Performance", () => {
 		it("should delete 100 records efficiently", async () => {
 			const start = performance.now();
-			const deleted = await forja.deleteMany("user", {
+			const deleted = await datrix.deleteMany("user", {
 				email: { $like: "perf100-%@test.com" },
 			});
 			const duration = performance.now() - start;
@@ -270,7 +270,7 @@ describe("Large Data Performance", () => {
 
 		it("should delete 1000 records efficiently", async () => {
 			const start = performance.now();
-			const deleted = await forja.deleteMany("tag", {
+			const deleted = await datrix.deleteMany("tag", {
 				name: { $like: "PerfTag%" },
 			});
 			const duration = performance.now() - start;
@@ -289,7 +289,7 @@ describe("Large Data Performance", () => {
 	describe("Count Performance", () => {
 		it("should count large dataset efficiently", async () => {
 			const start = performance.now();
-			const count = await forja.count("user", {
+			const count = await datrix.count("user", {
 				email: { $like: "perf500-%@test.com" },
 			});
 			const duration = performance.now() - start;
@@ -302,7 +302,7 @@ describe("Large Data Performance", () => {
 
 		it("should count with complex where efficiently", async () => {
 			const start = performance.now();
-			const count = await forja.count("user", {
+			const count = await datrix.count("user", {
 				$and: [
 					{ email: { $like: "perf500-%@test.com" } },
 					{ isActive: true },
@@ -326,7 +326,7 @@ describe("Large Data Performance", () => {
 	describe("Large $in Array", () => {
 		it("should handle $in with 100 values", async () => {
 			// Get first 100 user IDs
-			const users = await forja.findMany("user", {
+			const users = await datrix.findMany("user", {
 				where: { email: { $like: "perf500-%@test.com" } },
 				select: ["id"],
 				limit: 100,
@@ -334,7 +334,7 @@ describe("Large Data Performance", () => {
 			const ids = users.map((u) => u.id);
 
 			const start = performance.now();
-			const found = await forja.findMany("user", {
+			const found = await datrix.findMany("user", {
 				where: { id: { $in: ids } },
 			});
 			const duration = performance.now() - start;
@@ -346,14 +346,14 @@ describe("Large Data Performance", () => {
 		});
 
 		it("should handle $in with 500 values", async () => {
-			const users = await forja.findMany("user", {
+			const users = await datrix.findMany("user", {
 				where: { email: { $like: "perf500-%@test.com" } },
 				select: ["id"],
 			});
 			const ids = users.map((u) => u.id);
 
 			const start = performance.now();
-			const found = await forja.findMany("user", {
+			const found = await datrix.findMany("user", {
 				where: { id: { $in: ids } },
 			});
 			const duration = performance.now() - start;
@@ -372,7 +372,7 @@ describe("Large Data Performance", () => {
 	describe("Populate Performance", () => {
 		beforeAll(async () => {
 			// Create organization for populate tests
-			const org = await forja.create("organization", {
+			const org = await datrix.create("organization", {
 				name: "Perf Org",
 				country: "USA",
 			});
@@ -383,12 +383,12 @@ describe("Large Data Performance", () => {
 				name: `Populate User ${i}`,
 				organization: org.id,
 			}));
-			await forja.createMany("user", users);
+			await datrix.createMany("user", users);
 		});
 
 		it("should populate 50 records efficiently", async () => {
 			const start = performance.now();
-			const users = await forja.findMany("user", {
+			const users = await datrix.findMany("user", {
 				where: { email: { $like: "perf-pop-%@test.com" } },
 				populate: { organization: { select: "*" } },
 			});

@@ -2,21 +2,21 @@ import {
 	QuerySelect,
 	QuerySelectObject,
 	QueryPopulateOptions,
-} from "@forja/core";
+} from "@datrix/core";
 import type { JsonAdapter } from "./adapter";
-import type { ForjaEntry, RelationField } from "@forja/core";
+import type { DatrixEntry, RelationField } from "@datrix/core";
 import {
 	throwSchemaNotFound,
 	throwRelationNotFound,
 	throwInvalidRelationType,
 	throwTargetModelNotFound,
-} from "@forja/core";
+} from "@datrix/core";
 import { JsonQueryRunner } from "./runner";
 
 export class JsonPopulator {
-	constructor(private adapter: JsonAdapter) {}
+	constructor(private adapter: JsonAdapter) { }
 
-	async populate<T extends ForjaEntry>(
+	async populate<T extends DatrixEntry>(
 		rows: T[],
 		query: QuerySelectObject<T>,
 	): Promise<T[]> {
@@ -85,9 +85,9 @@ export class JsonPopulator {
 
 			const options =
 				typeof _options === "object" &&
-				_options !== null &&
-				!Array.isArray(_options)
-					? (_options as QueryPopulateOptions<ForjaEntry>)
+					_options !== null &&
+					!Array.isArray(_options)
+					? (_options as QueryPopulateOptions<DatrixEntry>)
 					: undefined;
 
 			// Map data based on relation type

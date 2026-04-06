@@ -1,5 +1,5 @@
 import type { AuthConfig } from "./auth/types";
-import type { IUpload } from "@forja/core";
+import type { IUpload } from "@datrix/core";
 
 /**
  * API Configuration
@@ -75,7 +75,7 @@ export interface ApiConfig<TRole extends string = string> extends Record<
 	readonly auth?: AuthConfig<TRole>;
 
 	/**
-	 * Upload instance (from @forja/api-upload)
+	 * Upload instance (from @datrix/api-upload)
 	 *
 	 * When defined, file upload is enabled.
 	 * Injects media schema and exposes /upload endpoints.
@@ -84,7 +84,7 @@ export interface ApiConfig<TRole extends string = string> extends Record<
 
 	/**
 	 * Exclude schemas from auto-generated routes
-	 * '_forja' and '_forja_migrations' are always excluded
+	 * '_datrix' and '_datrix_migrations' are always excluded
 	 * @default []
 	 */
 	readonly excludeSchemas?: readonly string[];

@@ -1,24 +1,24 @@
 {
-	"name": "@forja/cli",
+	"name": "@datrix/cli",
 	"version": "0.1.0",
-	"description": "Command-line tools for Forja framework",
-	"author": "Forja Contributors",
+	"description": "Command-line tools for Datrix framework",
+	"author": "Datrix Contributors",
 	"license": "MIT",
-	"homepage": "https://tryforja.com",
+	"homepage": "https://datrix.dev",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/myniqx/forja.git",
+		"url": "https://github.com/myniqx/datrix.git",
 		"directory": "packages/cli"
 	},
 	"bugs": {
-		"url": "https://github.com/myniqx/forja/issues"
+		"url": "https://github.com/myniqx/datrix/issues"
 	},
 	"keywords": [
 		"cli",
 		"typescript",
 		"migrate",
 		"codegen",
-		"forja"
+		"datrix"
 	],
 	"engines": {
 		"node": ">=18.0.0"
@@ -27,7 +27,7 @@
 	"module": "./dist/index.mjs",
 	"types": "./dist/index.d.ts",
 	"bin": {
-		"forja": "./dist/index.js"
+		"datrix": "./dist/index.js"
 	},
 	"exports": {
 		".": {
@@ -50,14 +50,14 @@
 		"clean": "rm -rf dist"
 	},
 	"peerDependencies": {
-		"@forja/core": "^0.1.0"
+		"@datrix/core": "^0.1.0"
 	},
 	"dependencies": {
 		"adm-zip": "^0.5.16",
 		"archiver": "^7.0.1"
 	},
 	"devDependencies": {
-		"@forja/core": "workspace:*",
+		"@datrix/core": "workspace:*",
 		"@types/adm-zip": "^0.5.8",
 		"@types/archiver": "^7.0.0",
 		"@types/node": "^20.11.17",

@@ -1,15 +1,15 @@
-import { ForjaEntry, ForeignKeyReference, SchemaDefinition } from "@forja/core";
-import { QuerySelectObject } from "@forja/core";
+import { DatrixEntry, ForeignKeyReference, SchemaDefinition } from "@datrix/core";
+import { QuerySelectObject } from "@datrix/core";
 import { ExecuteQueryOptions, JsonTableFile } from "./types";
 import type { JsonAdapter } from "./adapter";
 import {
-	ForjaAdapterError,
+	DatrixAdapterError,
 	throwForeignKeyConstraint,
 	throwMigrationError,
 	throwUniqueConstraintField,
 	throwUniqueConstraintIndex,
-} from "@forja/core";
-import { FORJA_META_MODEL } from "@forja/core";
+} from "@datrix/core";
+import { FORJA_META_MODEL } from "@datrix/core";
 
 /**
  * Validate table name for security (no null bytes, path separators, or parent refs)
@@ -41,7 +41,7 @@ export function validateTableName(tableName: string): void {
 }
 
 /**
- * Bootstrap _forja metadata table for standalone mode.
+ * Bootstrap _datrix metadata table for standalone mode.
  * Called during connect() when standalone: true is set in config.
  */
 export async function createMetaTable(adapter: JsonAdapter): Promise<void> {
@@ -266,7 +266,7 @@ export async function applyOnDeleteActions(
 		);
 
 		if (hasReference) {
-			throw new ForjaAdapterError(
+			throw new DatrixAdapterError(
 				`Cannot delete from '${targetTable}': referenced by '${dep.tableName}.${dep.fieldName}' with ON DELETE RESTRICT`,
 				{
 					adapter: "json",
@@ -328,7 +328,7 @@ export async function applyOnDeleteActions(
  * Apply SELECT recursively (preserves populated fields).
  * Ensures nested populate selects are applied to related data.
  */
-export function applySelectRecursive<T extends ForjaEntry>(
+export function applySelectRecursive<T extends DatrixEntry>(
 	rows: T[],
 	select?: QuerySelectObject<T>["select"],
 	populate?: QuerySelectObject<T>["populate"],

@@ -10,8 +10,8 @@ import type {
 	OrderByItem,
 	QueryPopulateOptions,
 	QuerySelect,
-} from "@forja/core";
-import type { ForjaEntry, ISchemaRegistry, RelationField } from "@forja/core";
+} from "@datrix/core";
+import type { DatrixEntry, ISchemaRegistry, RelationField } from "@datrix/core";
 import type { MySQLQueryTranslator } from "../query-translator";
 import { escapeIdentifier } from "../helpers";
 import type { AggregationClause, PopulateFieldSelection } from "./types";
@@ -22,8 +22,8 @@ import {
 	throwInvalidRelationType,
 	throwTargetModelNotFound,
 	throwJsonAggregationError,
-	ForjaAdapterError,
-} from "@forja/core";
+	DatrixAdapterError,
+} from "@datrix/core";
 
 /**
  * Aggregation Builder Class
@@ -34,7 +34,7 @@ export class AggregationBuilder {
 	constructor(
 		private translator: MySQLQueryTranslator,
 		private schemaRegistry: ISchemaRegistry,
-	) {}
+	) { }
 
 	/**
 	 * Build all aggregation clauses for a query
@@ -47,7 +47,7 @@ export class AggregationBuilder {
 	 * @param populate - Populate clause
 	 * @returns Array of aggregation SQL strings
 	 */
-	buildAggregations<T extends ForjaEntry>(
+	buildAggregations<T extends DatrixEntry>(
 		tableName: string,
 		populate: QueryPopulate<T>,
 	): readonly AggregationClause[] {
@@ -93,7 +93,7 @@ export class AggregationBuilder {
 				);
 				aggregations.push(aggregation);
 			} catch (error) {
-				if (error instanceof ForjaAdapterError) {
+				if (error instanceof DatrixAdapterError) {
 					throw error;
 				}
 				throwJsonAggregationError({
@@ -110,7 +110,7 @@ export class AggregationBuilder {
 	/**
 	 * Build aggregation for a specific relation
 	 */
-	private buildRelationAggregation<T extends ForjaEntry>(
+	private buildRelationAggregation<T extends DatrixEntry>(
 		sourceTable: string,
 		relationName: string,
 		relation: RelationField,
@@ -308,7 +308,7 @@ export class AggregationBuilder {
 	/**
 	 * Build LATERAL subquery for complex populate options (MySQL 8.0.14+)
 	 */
-	buildLateralSubquery<T extends ForjaEntry>(
+	buildLateralSubquery<T extends DatrixEntry>(
 		sourceTable: string,
 		relationName: string,
 		relation: RelationField,
@@ -371,7 +371,7 @@ export class AggregationBuilder {
 		// Build ORDER BY
 		let orderByClause = "";
 		if (options.orderBy && options.orderBy.length > 0) {
-			orderByClause = `ORDER BY ${this.buildOrderBy(options.orderBy as unknown as readonly OrderByItem<ForjaEntry>[])}`;
+			orderByClause = `ORDER BY ${this.buildOrderBy(options.orderBy as unknown as readonly OrderByItem<DatrixEntry>[])}`;
 		}
 
 		// Build LIMIT/OFFSET
@@ -404,7 +404,7 @@ export class AggregationBuilder {
 	/**
 	 * Build LATERAL subquery for manyToMany with options
 	 */
-	buildManyToManyLateralSubquery<T extends ForjaEntry>(
+	buildManyToManyLateralSubquery<T extends DatrixEntry>(
 		sourceTable: string,
 		relationName: string,
 		relation: RelationField,
@@ -470,7 +470,7 @@ export class AggregationBuilder {
 		// Build ORDER BY
 		let orderByClause = "";
 		if (options.orderBy && options.orderBy.length > 0) {
-			orderByClause = `ORDER BY ${this.buildOrderBy(options.orderBy as unknown as readonly OrderByItem<ForjaEntry>[])}`;
+			orderByClause = `ORDER BY ${this.buildOrderBy(options.orderBy as unknown as readonly OrderByItem<DatrixEntry>[])}`;
 		}
 
 		// Build LIMIT/OFFSET
@@ -493,7 +493,7 @@ export class AggregationBuilder {
 	/**
 	 * Build field selection for relation
 	 */
-	private buildFieldSelection<T extends ForjaEntry>(
+	private buildFieldSelection<T extends DatrixEntry>(
 		relationName: string,
 		relation: RelationField,
 		options: QueryPopulateOptions<T>,
@@ -532,7 +532,7 @@ export class AggregationBuilder {
 	 * Build ORDER BY clause
 	 * Note: MySQL doesn't support NULLS FIRST/LAST natively
 	 */
-	private buildOrderBy<T extends ForjaEntry>(
+	private buildOrderBy<T extends DatrixEntry>(
 		orderBy: readonly OrderByItem<T>[],
 	): string {
 		return orderBy

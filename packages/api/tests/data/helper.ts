@@ -1,5 +1,5 @@
-import { queryToParams } from "@forja/api";
-import { ForjaEntry, ParsedQuery } from "@forja/core";
+import { queryToParams } from "@datrix/api";
+import { DatrixEntry, ParsedQuery } from "@datrix/core";
 
 export function createRequest(
 	url: string,
@@ -9,7 +9,7 @@ export function createRequest(
 		token?: string;
 		cookie?: string;
 	} = {},
-	params: ParsedQuery<ForjaEntry> = {},
+	params: ParsedQuery<DatrixEntry> = {},
 ): Request {
 	const { method = "GET", body, token, cookie } = options;
 	const headers: Record<string, string> = {

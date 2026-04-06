@@ -1,8 +1,8 @@
 /**
- * Express Server with Forja Integration
+ * Express Server with Datrix Integration
  *
  * Complete Express.js server with:
- * - Forja database management
+ * - Datrix database management
  * - JWT authentication
  * - CORS configuration
  * - Error handling
@@ -16,9 +16,9 @@ import cors from "cors";
 import helmet from "helmet";
 import compression from "compression";
 import morgan from "morgan";
-import { createUnifiedHandler } from "forja/api";
-import { buildContextFromExpress } from "forja/api/context";
-import config from "./forja.config";
+import { createUnifiedHandler } from "datrix/api";
+import { buildContextFromExpress } from "datrix/api/context";
+import config from "./datrix.config";
 
 // Import schemas
 import { userSchema } from "./schemas/user.schema";
@@ -93,7 +93,7 @@ app.get("/health", (req: Request, res: Response) => {
  */
 app.get("/", (req: Request, res: Response) => {
 	res.json({
-		name: "Forja Express API",
+		name: "Datrix Express API",
 		version: "1.0.0",
 		endpoints: {
 			health: "GET /health",
@@ -121,7 +121,7 @@ app.get("/", (req: Request, res: Response) => {
 				delete: "DELETE /api/upload/:key",
 			},
 		},
-		documentation: "https://github.com/yourusername/forja",
+		documentation: "https://github.com/yourusername/datrix",
 	});
 });
 
@@ -216,7 +216,7 @@ app.post("/api/auth/register", async (req: Request, res: Response) => {
 			return;
 		}
 
-		// Create user using Forja
+		// Create user using Datrix
 		const createHandler = createUnifiedHandler({
 			schema: userSchema,
 			adapter: config.adapter,
@@ -364,7 +364,7 @@ app.get("/api/auth/me", authMiddleware, async (req: Request, res: Response) => {
  * User Routes
  */
 
-// Create Forja handler for users
+// Create Datrix handler for users
 const userHandler = createUnifiedHandler({
 	schema: userSchema,
 	adapter: config.adapter,
@@ -571,7 +571,7 @@ async function generateJWT(payload: {
 		...payload,
 		iat: now,
 		exp: now + 7 * 24 * 60 * 60, // 7 days
-		iss: "forja-express-api",
+		iss: "datrix-express-api",
 	};
 
 	const encodedHeader = Buffer.from(JSON.stringify(header)).toString(

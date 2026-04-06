@@ -1,17 +1,17 @@
 {
-	"name": "@forja/core",
+	"name": "@datrix/core",
 	"version": "0.1.0",
-	"description": "Core functionality for Forja framework - schema, validation, query building, migration",
-	"author": "Forja Contributors",
+	"description": "Core functionality for Datrix framework - schema, validation, query building, migration",
+	"author": "Datrix Contributors",
 	"license": "MIT",
-	"homepage": "https://tryforja.com",
+	"homepage": "https://datrix.dev",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/myniqx/forja.git",
+		"url": "https://github.com/myniqx/datrix.git",
 		"directory": "packages/core"
 	},
 	"bugs": {
-		"url": "https://github.com/myniqx/forja/issues"
+		"url": "https://github.com/myniqx/datrix/issues"
 	},
 	"keywords": [
 		"database",

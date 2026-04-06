@@ -2,17 +2,17 @@
  * Abstract Base Plugin
  *
  * Provides a base implementation for plugins with common functionality.
- * Plugins can extend this class instead of implementing ForjaPlugin from scratch.
+ * Plugins can extend this class instead of implementing DatrixPlugin from scratch.
  */
 
 import { QueryObject } from "../types/core/query-builder";
 import {
 	ISchemaRegistry,
 	SchemaDefinition,
-	ForjaEntry,
+	DatrixEntry,
 } from "../types/core/schema";
 import {
-	ForjaPlugin,
+	DatrixPlugin,
 	PluginContext,
 	PluginError,
 	SchemaExtensionContext,
@@ -28,7 +28,7 @@ import { QueryContext } from "../types/core/query-context";
  */
 export abstract class BasePlugin<
 	TOptions = Record<string, unknown>,
-> implements ForjaPlugin<TOptions> {
+> implements DatrixPlugin<TOptions> {
 	abstract readonly name: string;
 	abstract readonly version: string;
 	readonly options: TOptions;
@@ -87,7 +87,7 @@ export abstract class BasePlugin<
 	 *
 	 * Default implementation returns query unchanged
 	 */
-	async onBeforeQuery<T extends ForjaEntry>(
+	async onBeforeQuery<T extends DatrixEntry>(
 		query: QueryObject<T>,
 		_context: QueryContext,
 	): Promise<QueryObject<T>> {
@@ -99,7 +99,7 @@ export abstract class BasePlugin<
 	 *
 	 * Default implementation returns result unchanged
 	 */
-	async onAfterQuery<TResult extends ForjaEntry>(
+	async onAfterQuery<TResult extends DatrixEntry>(
 		result: TResult,
 		_context: QueryContext,
 	): Promise<TResult> {

@@ -25,7 +25,7 @@ export interface TestDatabaseConfig {
  *
  * @example
  * ```ts
- * await createTestDatabase("forja_test_abc123", {
+ * await createTestDatabase("datrix_test_abc123", {
  *   host: "localhost",
  *   user: "postgres",
  *   password: "postgres"

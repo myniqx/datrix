@@ -5,9 +5,9 @@
  */
 
 import { expect } from "vitest";
-import { ForjaError } from "../../src/types/errors";
+import { DatrixError } from "../../src/types/errors";
 import { ResponseMultiData } from "../../../api/src/helper";
-import { ForjaEntry, ForjaRecord } from "../../src/types/core";
+import { DatrixEntry, DatrixRecord } from "../../src/types/core";
 
 /**
  * Assert Result success and return data (RECOMMENDED)
@@ -99,53 +99,53 @@ export function randomEmail(): string {
 }
 
 // ============================================================================
-// ForjaError Test Helpers (for throw pattern)
+// DatrixError Test Helpers (for throw pattern)
 // ============================================================================
 
 /**
- * Expect function to throw a ForjaError with specific code
+ * Expect function to throw a DatrixError with specific code
  *
  * @example
- * expectForjaError(
+ * expectDatrixError(
  *   () => throwInvalidCredentials(),
  *   'AUTH_INVALID_CREDENTIALS'
  * );
  */
-export function expectForjaError(
+export function expectDatrixError(
 	fn: () => void | Promise<void>,
 	expectedCode: string,
-): ForjaError {
+): DatrixError {
 	let caughtError: unknown;
 
 	try {
 		const result = fn();
 		if (result instanceof Promise) {
-			throw new Error("Use expectForjaErrorAsync for async functions");
+			throw new Error("Use expectDatrixErrorAsync for async functions");
 		}
 	} catch (error) {
 		caughtError = error;
 	}
 
-	expect(caughtError).toBeInstanceOf(ForjaError);
-	const forjaError = caughtError as ForjaError;
-	expect(forjaError.code).toBe(expectedCode);
+	expect(caughtError).toBeInstanceOf(DatrixError);
+	const datrixError = caughtError as DatrixError;
+	expect(datrixError.code).toBe(expectedCode);
 
-	return forjaError;
+	return datrixError;
 }
 
 /**
- * Expect async function to throw a ForjaError with specific code
+ * Expect async function to throw a DatrixError with specific code
  *
  * @example
- * await expectForjaErrorAsync(
+ * await expectDatrixErrorAsync(
  *   async () => await someAsyncFunction(),
  *   'ADAPTER_LOCK_TIMEOUT'
  * );
  */
-export async function expectForjaErrorAsync(
+export async function expectDatrixErrorAsync(
 	fn: () => Promise<void>,
 	expectedCode: string,
-): Promise<ForjaError> {
+): Promise<DatrixError> {
 	let caughtError: unknown;
 
 	try {
@@ -155,22 +155,22 @@ export async function expectForjaErrorAsync(
 		console.log("Error", JSON.stringify(caughtError, null, 2));
 	}
 
-	expect(caughtError).toBeInstanceOf(ForjaError);
-	const forjaError = caughtError as ForjaError;
-	expect(forjaError.code).toBe(expectedCode);
+	expect(caughtError).toBeInstanceOf(DatrixError);
+	const datrixError = caughtError as DatrixError;
+	expect(datrixError.code).toBe(expectedCode);
 
-	return forjaError;
+	return datrixError;
 }
 
 /**
- * Expect ForjaError to have specific message pattern
+ * Expect DatrixError to have specific message pattern
  *
  * @example
- * const error = expectForjaError(() => throwError(), 'ERROR_CODE');
+ * const error = expectDatrixError(() => throwError(), 'ERROR_CODE');
  * expectErrorMessage(error, /invalid/i);
  */
 export function expectErrorMessage(
-	error: ForjaError,
+	error: DatrixError,
 	messagePattern: string | RegExp,
 ): void {
 	if (typeof messagePattern === "string") {
@@ -181,14 +181,14 @@ export function expectErrorMessage(
 }
 
 /**
- * Expect ForjaError to have suggestion
+ * Expect DatrixError to have suggestion
  *
  * @example
- * const error = expectForjaError(() => throwError(), 'ERROR_CODE');
+ * const error = expectDatrixError(() => throwError(), 'ERROR_CODE');
  * expectErrorSuggestion(error, 'Check your configuration');
  */
 export function expectErrorSuggestion(
-	error: ForjaError,
+	error: DatrixError,
 	suggestionPattern?: string | RegExp,
 ): void {
 	expect(error.suggestion).toBeDefined();
@@ -203,14 +203,14 @@ export function expectErrorSuggestion(
 }
 
 /**
- * Expect ForjaError to have specific context properties
+ * Expect DatrixError to have specific context properties
  *
  * @example
- * const error = expectForjaError(() => throwError(), 'ERROR_CODE');
+ * const error = expectDatrixError(() => throwError(), 'ERROR_CODE');
  * expectErrorContext(error, { field: 'email', value: 'test@test.com' });
  */
 export function expectErrorContext(
-	error: ForjaError,
+	error: DatrixError,
 	expectedContext: Record<string, unknown>,
 ): void {
 	expect(error.context).toBeDefined();
@@ -222,14 +222,14 @@ export function expectErrorContext(
 }
 
 /**
- * Expect ForjaError to have expected/received values
+ * Expect DatrixError to have expected/received values
  *
  * @example
- * const error = expectForjaError(() => throwError(), 'ERROR_CODE');
+ * const error = expectDatrixError(() => throwError(), 'ERROR_CODE');
  * expectErrorValues(error, 'valid email', 'invalid-email');
  */
 export function expectErrorValues(
-	error: ForjaError,
+	error: DatrixError,
 	expected?: string,
 	received?: unknown,
 ): void {
@@ -243,19 +243,19 @@ export function expectErrorValues(
 }
 
 /**
- * Expect ForjaError to have cause (error chaining)
+ * Expect DatrixError to have cause (error chaining)
  *
  * @example
- * const error = expectForjaError(() => throwError(), 'ERROR_CODE');
+ * const error = expectDatrixError(() => throwError(), 'ERROR_CODE');
  * expectErrorCause(error);
  */
-export function expectErrorCause(error: ForjaError): void {
+export function expectErrorCause(error: DatrixError): void {
 	expect(error.cause).toBeDefined();
 	expect(error.cause).toBeInstanceOf(Error);
 }
 
 /**
- * Complete ForjaError assertion with all checks
+ * Complete DatrixError assertion with all checks
  *
  * @example
  * expectCompleteError({
@@ -275,8 +275,8 @@ export function expectCompleteError(options: {
 	expected?: string;
 	received?: unknown;
 	hasCause?: boolean;
-}): ForjaError {
-	const error = expectForjaError(options.fn, options.code);
+}): DatrixError {
+	const error = expectDatrixError(options.fn, options.code);
 
 	if (options.message) {
 		expectErrorMessage(error, options.message);
@@ -302,7 +302,7 @@ export function expectCompleteError(options: {
 }
 
 /**
- * Complete async ForjaError assertion with all checks
+ * Complete async DatrixError assertion with all checks
  *
  * @example
  * await expectCompleteErrorAsync({
@@ -321,8 +321,8 @@ export async function expectCompleteErrorAsync(options: {
 	expected?: string;
 	received?: unknown;
 	hasCause?: boolean;
-}): Promise<ForjaError> {
-	const error = await expectForjaErrorAsync(options.fn, options.code);
+}): Promise<DatrixError> {
+	const error = await expectDatrixErrorAsync(options.fn, options.code);
 
 	if (options.message) {
 		expectErrorMessage(error, options.message);
@@ -351,21 +351,21 @@ export async function expectCompleteErrorAsync(options: {
 // HTTP API Test Helpers (for Response-based API testing)
 // ============================================================================
 
-import type { SerializedForjaError } from "../errors/forja-error";
+import type { SerializedDatrixError } from "../errors/datrix-error";
 import type { PaginationMeta } from "../api";
 
 /**
  * Single record API response
  */
-export interface ResponseSingleData<T extends ForjaEntry> {
+export interface ResponseSingleData<T extends DatrixEntry> {
 	readonly data: Partial<T>;
 }
 
 /**
- * API error response with full ForjaError serialization
+ * API error response with full DatrixError serialization
  */
 export interface ApiErrorResponse {
-	error: SerializedForjaError;
+	error: SerializedDatrixError;
 }
 
 /**
@@ -378,7 +378,7 @@ export interface ApiErrorResponse {
  * @example
  * const user = await expectApiSingle<User>(response, 201); // For POST
  */
-export async function expectApiSingle<T extends ForjaEntry = ForjaRecord>(
+export async function expectApiSingle<T extends DatrixEntry = DatrixRecord>(
 	response: Response,
 	expectedStatus = 200,
 ): Promise<Partial<T>> {
@@ -411,7 +411,7 @@ export async function expectApiSingle<T extends ForjaEntry = ForjaRecord>(
  * expect(meta.page).toBe(2);
  * expect(meta.totalPages).toBe(7);
  */
-export async function expectApiMulti<T extends ForjaEntry = ForjaRecord>(
+export async function expectApiMulti<T extends DatrixEntry = DatrixRecord>(
 	response: Response,
 	expectedStatus = 200,
 ): Promise<ResponseMultiData<T>> {
@@ -472,12 +472,12 @@ export function expectPaginationMeta(
 }
 
 /**
- * Validate ForjaError structure has all required fields
+ * Validate DatrixError structure has all required fields
  *
  * Required fields: type, message, code, timestamp
  * Optional fields: operation, context, suggestion, expected, received, documentation, cause
  */
-function validateForjaErrorStructure(error: SerializedForjaError): void {
+function validateDatrixErrorStructure(error: SerializedDatrixError): void {
 	// Required fields
 	expect(error.type).toBeDefined();
 	expect(error.type).toBeTypeOf("string");
@@ -526,7 +526,7 @@ function validateForjaErrorStructure(error: SerializedForjaError): void {
 /**
  * Assert API error response and return validated error details
  *
- * Validates ALL required ForjaError fields and returns the error object.
+ * Validates ALL required DatrixError fields and returns the error object.
  *
  * @example
  * const error = await expectApiError(response, 404);
@@ -540,7 +540,7 @@ export async function expectApiError(
 	response: Response,
 	expectedStatus: number,
 	expectedCode?: string,
-): Promise<SerializedForjaError> {
+): Promise<SerializedDatrixError> {
 	// Debug: Log response if status doesn't match
 	if (response.status !== expectedStatus) {
 		const clonedResponse = response.clone();
@@ -556,8 +556,8 @@ export async function expectApiError(
 	const json = (await response.json()) as ApiErrorResponse;
 	expect(json.error).toBeDefined();
 
-	// Validate ForjaError structure
-	validateForjaErrorStructure(json.error);
+	// Validate DatrixError structure
+	validateDatrixErrorStructure(json.error);
 
 	// Check expected code if provided
 	if (expectedCode) {
@@ -576,7 +576,7 @@ export async function expectApiError(
  */
 export async function expectApiUnauthorized(
 	response: Response,
-): Promise<SerializedForjaError> {
+): Promise<SerializedDatrixError> {
 	return expectApiError(response, 401, "UNAUTHORIZED");
 }
 
@@ -590,7 +590,7 @@ export async function expectApiUnauthorized(
 export async function expectApiForbidden(
 	response: Response,
 	expectedCode = "FORBIDDEN",
-): Promise<SerializedForjaError> {
+): Promise<SerializedDatrixError> {
 	return expectApiError(response, 403, expectedCode);
 }
 
@@ -603,7 +603,7 @@ export async function expectApiForbidden(
  */
 export async function expectApiNotFound(
 	response: Response,
-): Promise<SerializedForjaError> {
+): Promise<SerializedDatrixError> {
 	return expectApiError(response, 404);
 }
 
@@ -616,7 +616,7 @@ export async function expectApiNotFound(
  */
 export async function expectApiValidationError(
 	response: Response,
-): Promise<SerializedForjaError> {
+): Promise<SerializedDatrixError> {
 	return expectApiError(response, 400);
 }
 
@@ -640,7 +640,7 @@ export async function expectCompleteApiError(
 		suggestion?: string | RegExp;
 		context?: Record<string, unknown>;
 	},
-): Promise<SerializedForjaError> {
+): Promise<SerializedDatrixError> {
 	const error = await expectApiError(response, options.status, options.code);
 
 	if (options.message) {

@@ -16,7 +16,7 @@ import {
 	WhereClause,
 } from "../types/core/query-builder";
 import { validateData } from "./validation";
-import { ForjaEntry, ForjaRecord } from "../types/core/entry";
+import { DatrixEntry, DatrixRecord } from "../types/core/entry";
 import { SchemaDefinition } from "../types";
 import { QueryRunner } from "../types/adapter";
 import { ISchemaRegistry } from "../types/core/schema";
@@ -48,7 +48,7 @@ interface ResolvedRelationOps {
  * @param executor - Query executor
  * @param schemaRegistry - Schema registry
  */
-export async function processRelations<T extends ForjaEntry>(
+export async function processRelations<T extends DatrixEntry>(
 	resolvedRelations: Record<string, ResolvedRelationOps>,
 	parentId: number,
 	parentModel: string,
@@ -91,7 +91,7 @@ export async function processRelations<T extends ForjaEntry>(
  * //                          ↑ 42 = newly created tag ID
  * ```
  */
-export async function resolveRelationCUD<T extends ForjaEntry>(
+export async function resolveRelationCUD<T extends DatrixEntry>(
 	relations: QueryRelations<T>,
 	schema: SchemaDefinition,
 	runner: QueryRunner,
@@ -100,7 +100,7 @@ export async function resolveRelationCUD<T extends ForjaEntry>(
 	const resolved: Record<string, ResolvedRelationOps> = {};
 
 	for (const [fieldName, relationData] of Object.entries(relations)) {
-		const relData = relationData as NormalizedRelationOperations<ForjaEntry>;
+		const relData = relationData as NormalizedRelationOperations<DatrixEntry>;
 		const field = schema.fields[fieldName];
 		if (!field || field.type !== "relation") {
 			continue;
@@ -142,7 +142,7 @@ export async function resolveRelationCUD<T extends ForjaEntry>(
 			// Bulk insert plain items (no nested relations)
 			if (plainItems.length > 0) {
 				const validatedBulkData = plainItems.map((item) =>
-					validateData<ForjaEntry, false>(
+					validateData<DatrixEntry, false>(
 						item.data,
 						item.relations,
 						relSchema,
@@ -153,7 +153,7 @@ export async function resolveRelationCUD<T extends ForjaEntry>(
 						},
 					),
 				);
-				const bulkResult = await runner.executeQuery<ForjaEntry>({
+				const bulkResult = await runner.executeQuery<DatrixEntry>({
 					type: "insert",
 					table: relSchema.tableName!,
 					data: validatedBulkData,
@@ -170,7 +170,7 @@ export async function resolveRelationCUD<T extends ForjaEntry>(
 
 			// Items with nested relations must be inserted individually
 			for (const createItem of nestedItems) {
-				const validatedData = validateData<ForjaEntry, false>(
+				const validatedData = validateData<DatrixEntry, false>(
 					createItem.data,
 					createItem.relations,
 					relSchema,
@@ -180,7 +180,7 @@ export async function resolveRelationCUD<T extends ForjaEntry>(
 						isRawMode: true,
 					},
 				);
-				const createResult = await runner.executeQuery<ForjaEntry>({
+				const createResult = await runner.executeQuery<DatrixEntry>({
 					type: "insert",
 					table: relSchema.tableName!,
 					data: [validatedData],
@@ -218,7 +218,7 @@ export async function resolveRelationCUD<T extends ForjaEntry>(
 			for (const updateItem of relData.update) {
 				const { where, data, relations: nestedRelations } = updateItem;
 
-				const validatedData = validateData<ForjaEntry, true>(
+				const validatedData = validateData<DatrixEntry, true>(
 					data,
 					nestedRelations,
 					relSchema,
@@ -228,11 +228,11 @@ export async function resolveRelationCUD<T extends ForjaEntry>(
 						isRawMode: true,
 					},
 				);
-				const updateResult = await runner.executeQuery<ForjaEntry>({
+				const updateResult = await runner.executeQuery<DatrixEntry>({
 					type: "update",
 					table: relSchema.tableName!,
 					data: validatedData,
-					where: where as WhereClause<ForjaEntry>,
+					where: where as WhereClause<DatrixEntry>,
 				});
 
 				// Recursively resolve nested relations
@@ -259,7 +259,7 @@ export async function resolveRelationCUD<T extends ForjaEntry>(
 
 		// --- Execute DELETE (once) ---
 		if (ops.deleteIds.length > 0) {
-			await runner.executeQuery<ForjaEntry>({
+			await runner.executeQuery<DatrixEntry>({
 				type: "delete",
 				table: relSchema.tableName!,
 				where: { id: { $in: ops.deleteIds } },
@@ -278,7 +278,7 @@ export async function resolveRelationCUD<T extends ForjaEntry>(
  * At this point, create/update/delete are already resolved.
  * Only connect/disconnect/set remain as ID arrays.
  */
-async function processRelation<T extends ForjaEntry>({
+async function processRelation<T extends DatrixEntry>({
 	parentId,
 	parentModel,
 	fieldName,
@@ -305,7 +305,7 @@ async function processRelation<T extends ForjaEntry>({
 
 	// belongsTo → Update THIS record's foreign key (FK is on owner)
 	if (relation.kind === "belongsTo") {
-		const updateData: Partial<ForjaRecord> = {};
+		const updateData: Partial<DatrixRecord> = {};
 
 		if (ops.connect.length > 0) {
 			updateData[foreignKey] = ops.connect[0];
@@ -449,7 +449,7 @@ async function processRelation<T extends ForjaEntry>({
 				},
 			});
 			const existingIds = new Set(
-				existing.rows.map((r) => r[targetFK as keyof ForjaEntry] as number),
+				existing.rows.map((r) => r[targetFK as keyof DatrixEntry] as number),
 			);
 			const newIds = ops.connect.filter((id) => !existingIds.has(id));
 
@@ -468,7 +468,7 @@ async function processRelation<T extends ForjaEntry>({
 
 		// Disconnect → DELETE FROM junction table
 		if (ops.disconnect.length > 0) {
-			await runner.executeQuery<ForjaEntry>({
+			await runner.executeQuery<DatrixEntry>({
 				table: junctionTable,
 				type: "delete",
 				where: {
@@ -481,7 +481,7 @@ async function processRelation<T extends ForjaEntry>({
 		// Set → DELETE all + INSERT new
 		if (ops.set !== undefined) {
 			// 1. Delete all existing relations for this record
-			await runner.executeQuery<ForjaEntry>({
+			await runner.executeQuery<DatrixEntry>({
 				table: junctionTable,
 				type: "delete",
 				where: {
@@ -495,7 +495,7 @@ async function processRelation<T extends ForjaEntry>({
 					[sourceFK]: parentId,
 					[targetFK]: targetId,
 				}));
-				await runner.executeQuery<ForjaEntry>({
+				await runner.executeQuery<DatrixEntry>({
 					table: junctionTable,
 					type: "insert",
 					data: rows,

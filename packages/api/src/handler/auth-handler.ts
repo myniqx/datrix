@@ -11,25 +11,25 @@
  * separate from user business data in the 'user' table.
  */
 
-import type { Forja } from "@forja/core";
-import { DEFAULT_API_AUTH_CONFIG } from "@forja/core";
+import type { Datrix } from "@datrix/core";
+import { DEFAULT_API_AUTH_CONFIG } from "@datrix/core";
 import { AuthManager } from "../auth/manager";
 import type { AuthConfig } from "../auth/types";
-import { jsonResponse, extractSessionId, forjaErrorResponse } from "./utils";
+import { jsonResponse, extractSessionId, datrixErrorResponse } from "./utils";
 import { authError } from "../errors/auth-error";
 import { handlerError } from "../errors/api-error";
-import { ForjaError } from "@forja/core";
-import { AuthenticatedUser } from "@forja/core";
-import { ForjaEntry } from "@forja/core";
-import { AuthUser } from "@forja/core";
-import { FallbackValue } from "@forja/core";
-import { FallbackInput } from "@forja/core";
+import { DatrixError } from "@datrix/core";
+import { AuthenticatedUser } from "@datrix/core";
+import { DatrixEntry } from "@datrix/core";
+import { AuthUser } from "@datrix/core";
+import { FallbackValue } from "@datrix/core";
+import { FallbackInput } from "@datrix/core";
 
 /**
  * Auth Handler Configuration
  */
 export interface AuthHandlerConfig {
-	readonly forja: Forja;
+	readonly datrix: Datrix;
 	readonly authManager: AuthManager;
 	readonly authConfig: AuthConfig;
 }
@@ -40,7 +40,7 @@ export interface AuthHandlerConfig {
  * Creates authentication endpoint handlers
  */
 export function createAuthHandlers(config: AuthHandlerConfig) {
-	const { forja, authManager, authConfig } = config;
+	const { datrix, authManager, authConfig } = config;
 
 	const userSchemaName = authConfig.userSchema?.name ?? "user";
 	const authSchemaName = authConfig.authSchemaName ?? "authentication";
@@ -67,7 +67,7 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
 				throw handlerError.invalidBody("Password is required");
 			}
 
-			const existingAuth = await forja.raw.findOne<AuthenticatedUser>(
+			const existingAuth = await datrix.raw.findOne<AuthenticatedUser>(
 				authSchemaName,
 				{ email: email },
 			);
@@ -83,16 +83,16 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
 				...extraData,
 			} as FallbackInput;
 
-			let user: ForjaEntry;
+			let user: DatrixEntry;
 			try {
-				const createdUser = await forja.raw.create(userSchemaName, userData);
+				const createdUser = await datrix.raw.create(userSchemaName, userData);
 
 				if (!createdUser) {
 					throw handlerError.internalError("Failed to create user record");
 				}
 				user = createdUser;
 			} catch (error) {
-				if (error instanceof ForjaError) {
+				if (error instanceof DatrixError) {
 					throw error;
 				}
 				const message =
@@ -108,13 +108,13 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
 				role: defaultRole,
 			};
 
-			const authRecord = await forja.raw.create<AuthenticatedUser>(
+			const authRecord = await datrix.raw.create<AuthenticatedUser>(
 				authSchemaName,
 				authData,
 			);
 
 			if (!authRecord) {
-				await forja.raw.delete(userSchemaName, user.id);
+				await datrix.raw.delete(userSchemaName, user.id);
 				throw handlerError.internalError(
 					"Failed to create authentication record",
 				);
@@ -148,12 +148,12 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
 
 			return jsonResponse(responseBody, 201);
 		} catch (error) {
-			if (error instanceof ForjaError) {
-				return forjaErrorResponse(error);
+			if (error instanceof DatrixError) {
+				return datrixErrorResponse(error);
 			}
 			const message =
 				error instanceof Error ? error.message : "Internal server error";
-			return forjaErrorResponse(
+			return datrixErrorResponse(
 				handlerError.internalError(
 					message,
 					error instanceof Error ? error : undefined,
@@ -178,7 +178,7 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
 				throw handlerError.invalidBody("Password is required");
 			}
 
-			const authRecord = await forja.raw.findOne<AuthenticatedUser>(
+			const authRecord = await datrix.raw.findOne<AuthenticatedUser>(
 				authSchemaName,
 				{ email: email },
 			);
@@ -225,12 +225,12 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
 
 			return jsonResponse(responseBody);
 		} catch (error) {
-			if (error instanceof ForjaError) {
-				return forjaErrorResponse(error);
+			if (error instanceof DatrixError) {
+				return datrixErrorResponse(error);
 			}
 			const message =
 				error instanceof Error ? error.message : "Internal server error";
-			return forjaErrorResponse(
+			return datrixErrorResponse(
 				handlerError.internalError(
 					message,
 					error instanceof Error ? error : undefined,
@@ -261,12 +261,12 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
 				},
 			});
 		} catch (error) {
-			if (error instanceof ForjaError) {
-				return forjaErrorResponse(error);
+			if (error instanceof DatrixError) {
+				return datrixErrorResponse(error);
 			}
 			const message =
 				error instanceof Error ? error.message : "Internal server error";
-			return forjaErrorResponse(
+			return datrixErrorResponse(
 				handlerError.internalError(
 					message,
 					error instanceof Error ? error : undefined,
@@ -286,7 +286,7 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
 				throw authError.invalidToken();
 			}
 
-			const authenticatedUser = await forja.raw.findById<AuthenticatedUser>(
+			const authenticatedUser = await datrix.raw.findById<AuthenticatedUser>(
 				authSchemaName,
 				authContext.user.id,
 				{ populate: { user: "*" } },
@@ -301,12 +301,12 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
 
 			return jsonResponse({ data: authenticatedUser });
 		} catch (error) {
-			if (error instanceof ForjaError) {
-				return forjaErrorResponse(error);
+			if (error instanceof DatrixError) {
+				return datrixErrorResponse(error);
 			}
 			const message =
 				error instanceof Error ? error.message : "Internal server error";
-			return forjaErrorResponse(
+			return datrixErrorResponse(
 				handlerError.internalError(
 					message,
 					error instanceof Error ? error : undefined,
@@ -360,7 +360,7 @@ export function createUnifiedAuthHandler(
 			return handlers.me(request);
 		}
 
-		return forjaErrorResponse(
+		return datrixErrorResponse(
 			handlerError.recordNotFound("Auth Route", url.pathname),
 		);
 	};

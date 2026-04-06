@@ -1,6 +1,6 @@
 import type { Pool, RowDataPacket } from "mysql2/promise";
-import type { ExportWriter } from "@forja/core";
-import type { SchemaDefinition } from "@forja/core";
+import type { ExportWriter } from "@datrix/core";
+import type { SchemaDefinition } from "@datrix/core";
 import type { MySQLAdapter } from "../adapter";
 
 const CHUNK_SIZE = 1000;
@@ -9,7 +9,7 @@ export class MySQLExporter {
 	constructor(
 		private pool: Pool,
 		private adapter: MySQLAdapter,
-	) {}
+	) { }
 
 	async export(writer: ExportWriter): Promise<void> {
 		await writer.writeMeta({

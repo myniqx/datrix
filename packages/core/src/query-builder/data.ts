@@ -14,7 +14,7 @@
 import {
 	SchemaDefinition,
 	RelationField,
-	ForjaEntry,
+	DatrixEntry,
 	ISchemaRegistry,
 	AnyRelationInputObject,
 } from "../types/core/schema";
@@ -186,7 +186,7 @@ function extractIds(value: unknown): number[] {
  * // }
  * ```
  */
-export function processData<T extends ForjaEntry>(
+export function processData<T extends DatrixEntry>(
 	data: Partial<T>,
 	schema: SchemaDefinition,
 	registry: ISchemaRegistry,

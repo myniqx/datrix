@@ -2,10 +2,10 @@
  * Parser Error
  *
  * Specialized error for query/URL parsing failures.
- * Extends ForjaError with parser-specific fields.
+ * Extends DatrixError with parser-specific fields.
  */
 
-import { ForjaError, type SerializedForjaError } from "../forja-error";
+import { DatrixError, type SerializedDatrixError } from "../datrix-error";
 
 /**
  * Which parser generated the error
@@ -142,7 +142,7 @@ export interface ParserErrorOptions {
 /**
  * Serialized parser error for API responses
  */
-export interface SerializedParserError extends SerializedForjaError {
+export interface SerializedParserError extends SerializedDatrixError {
 	readonly parser: ParserType;
 	readonly location: ErrorLocation;
 }
@@ -150,10 +150,10 @@ export interface SerializedParserError extends SerializedForjaError {
 /**
  * Parser Error Class
  *
- * Specialized ForjaError for query/URL parsing errors.
+ * Specialized DatrixError for query/URL parsing errors.
  * Includes parser-specific fields: parser type and location tracking.
  */
-export class ParserError extends ForjaError<ParserErrorContext> {
+export class ParserError extends DatrixError<ParserErrorContext> {
 	readonly parser: ParserType;
 	readonly location: ErrorLocation;
 

@@ -5,7 +5,7 @@
  * All internal components (differ, generator, history, runner) are not exported.
  *
  * Usage:
- *   const session = await forja.beginMigrate();
+ *   const session = await datrix.beginMigrate();
  *   // ... review changes, resolve ambiguous ...
  *   await session.apply();
  */
@@ -20,10 +20,10 @@ export type {
 	MigrationPlan,
 } from "./session";
 
-// Internal - used by Forja class only
+// Internal - used by Datrix class only
 export {
 	getMigrationSchema,
 	DEFAULT_MIGRATION_MODEL,
-	getForjaMetaSchema,
+	getDatrixMetaSchema,
 	FORJA_META_MODEL,
 } from "./schema";

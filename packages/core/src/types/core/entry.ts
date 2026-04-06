@@ -1,13 +1,13 @@
 /**
- * Base entry types for all Forja records.
+ * Base entry types for all Datrix records.
  * Kept in a separate file to avoid circular dependencies.
  */
 
 /**
- * Reserved fields automatically managed by Forja.
+ * Reserved fields automatically managed by Datrix.
  * Every schema record has these fields — they cannot be set manually.
  */
-export interface ForjaEntry {
+export interface DatrixEntry {
 	readonly id: number;
 	createdAt: Date;
 	updatedAt: Date;
@@ -18,17 +18,17 @@ export interface ForjaEntry {
  */
 export type FallbackValue = {
 	[key: string]:
-		| string
-		| number
-		| boolean
-		| Date
-		| null
-		| FallbackValue
-		| FallbackValue[];
+	| string
+	| number
+	| boolean
+	| Date
+	| null
+	| FallbackValue
+	| FallbackValue[];
 };
 
 /**
  * Flexible record type for type-safe queries.
- * Combines ForjaEntry with Record<string, unknown>-like flexibility.
+ * Combines DatrixEntry with Record<string, unknown>-like flexibility.
  */
-export type ForjaRecord = ForjaEntry & FallbackValue;
+export type DatrixRecord = DatrixEntry & FallbackValue;

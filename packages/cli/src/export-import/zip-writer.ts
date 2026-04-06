@@ -15,9 +15,9 @@ import fs from "node:fs/promises";
 import fsSync from "node:fs";
 import path from "node:path";
 import archiver from "archiver";
-import type { ExportWriter, ExportMeta } from "@forja/core";
-import type { SchemaDefinition } from "@forja/core";
-import { sortSchemasByDependency } from "@forja/core";
+import type { ExportWriter, ExportMeta } from "@datrix/core";
+import type { SchemaDefinition } from "@datrix/core";
+import { sortSchemasByDependency } from "@datrix/core";
 import { encodeHeader, encodeRow } from "./csv";
 import { logger } from "../utils/logger";
 
@@ -76,8 +76,8 @@ export class ZipExportWriter implements ExportWriter {
 		const schema = this.metadata.schemas.find((s) => s.tableName === tableName);
 		const fields = schema
 			? Object.entries(schema.fields)
-					.filter(([, f]) => f.type !== "relation")
-					.map(([name]) => name)
+				.filter(([, f]) => f.type !== "relation")
+				.map(([name]) => name)
 			: rows.length > 0
 				? Object.keys(rows[0]!)
 				: [];

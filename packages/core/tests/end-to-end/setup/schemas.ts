@@ -9,8 +9,8 @@
  * - Self-referencing (parent-child)
  */
 
-import { defineSchema } from "@forja/core";
-import type { FieldDefinition } from "@forja/core";
+import { defineSchema } from "@datrix/core";
+import type { FieldDefinition } from "@datrix/core";
 
 // ============================================================================
 // Schema Definitions

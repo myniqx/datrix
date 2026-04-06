@@ -1,14 +1,14 @@
 /**
  * Playground Data Generator
  *
- * Generates static playground scenarios for the forjaweb landing page.
+ * Generates static playground scenarios for the datrixweb landing page.
  * Run with: pnpm generate-playground
  *
- * Output: forjaweb/src/data/playground.json
+ * Output: datrixweb/src/data/playground.json
  */
 
 import { describe, it, beforeAll, afterAll } from "vitest";
-import { Forja } from "@forja/core";
+import { Datrix } from "@datrix/core";
 import fs from "node:fs/promises";
 import path from "node:path";
 import {
@@ -25,7 +25,7 @@ import {
 // Output types
 // ============================================================================
 
-type ForjaAction =
+type DatrixAction =
 	| "create"
 	| "createMany"
 	| "findMany"
@@ -38,7 +38,7 @@ type ForjaAction =
 interface PlaygroundScenario {
 	id: string;
 	label: string;
-	action: ForjaAction;
+	action: DatrixAction;
 	model: string;
 	/** findMany options: where, select, populate, limit, offset, orderBy */
 	query?: unknown;
@@ -80,7 +80,7 @@ function collect(
 // Setup
 // ============================================================================
 
-let forja: Forja;
+let datrix: Datrix;
 let seed: SeedResult;
 const tmpDir = getTmpDir("playground");
 
@@ -88,19 +88,19 @@ beforeAll(async () => {
 	await fs.rm(tmpDir, { recursive: true, force: true });
 	await fs.mkdir(tmpDir, { recursive: true });
 
-	const getForja = await createTestConfig(tmpDir);
-	forja = await getForja();
-	await setupTables(forja);
+	const getDatrix = await createTestConfig(tmpDir);
+	datrix = await getDatrix();
+	await setupTables(datrix);
 
-	seed = await seedBasicData(forja);
-	const posts = await seedPosts(forja, seed);
+	seed = await seedBasicData(datrix);
+	const posts = await seedPosts(datrix, seed);
 	seed.posts = posts;
 });
 
 afterAll(async () => {
 	const outputPath = path.resolve(
 		process.cwd(),
-		"forjaweb/src/data/playground.json",
+		"datrixweb/src/data/playground.json",
 	);
 
 	// Serialize schemas — convert RegExp pattern fields to strings
@@ -133,7 +133,7 @@ afterAll(async () => {
 describe("Create", () => {
 	it("create a single record", async () => {
 		const data = { name: "GraphQL", color: "#E10098" };
-		const output = await forja.create("tag", data);
+		const output = await datrix.create("tag", data);
 
 		collect("create", {
 			id: "create-single",
@@ -150,7 +150,7 @@ describe("Create", () => {
 			{ name: "Rust", color: "#CE422B" },
 			{ name: "Go", color: "#00ADD8" },
 		];
-		const output = await forja.createMany("tag", data);
+		const output = await datrix.createMany("tag", data);
 
 		collect("create", {
 			id: "create-many",
@@ -164,15 +164,15 @@ describe("Create", () => {
 
 	it("create with belongsTo relation", async () => {
 		const data = {
-			title: "Intro to Forja",
-			content: "Forja is a type-safe database framework.",
-			slug: "intro-to-forja",
+			title: "Intro to Datrix",
+			content: "Datrix is a type-safe database framework.",
+			slug: "intro-to-datrix",
 			isPublished: true,
 			author: seed.users[0]!.id,
 			category: seed.categories[1]!.id,
 		};
 		const options = { populate: true };
-		const output = await forja.create("post", data, options);
+		const output = await datrix.create("post", data, options);
 
 		collect("create", {
 			id: "create-with-relation",
@@ -196,7 +196,7 @@ describe("Create", () => {
 			tags: { connect: [seed.tags[0]!.id, seed.tags[1]!.id] },
 		};
 		const options = { populate: true };
-		const output = await forja.create("post", data, options);
+		const output = await datrix.create("post", data, options);
 
 		collect("create", {
 			id: "create-many-to-many",
@@ -216,7 +216,7 @@ describe("Create", () => {
 
 describe("Read", () => {
 	it("find all records", async () => {
-		const output = await forja.findMany("user");
+		const output = await datrix.findMany("user");
 
 		collect("read", {
 			id: "read-all",
@@ -229,7 +229,7 @@ describe("Read", () => {
 
 	it("find with simple where", async () => {
 		const query = { where: { isActive: true } };
-		const output = await forja.findMany("user", query);
+		const output = await datrix.findMany("user", query);
 
 		collect("read", {
 			id: "read-where",
@@ -246,7 +246,7 @@ describe("Read", () => {
 			where: { age: { $gte: 30 } },
 			orderBy: [{ field: "age", direction: "asc" as const }],
 		};
-		const output = await forja.findMany("user", query);
+		const output = await datrix.findMany("user", query);
 
 		collect("read", {
 			id: "read-operators",
@@ -264,7 +264,7 @@ describe("Read", () => {
 				$and: [{ isActive: true }, { age: { $gte: 25 } }],
 			},
 		};
-		const output = await forja.findMany("user", query);
+		const output = await datrix.findMany("user", query);
 
 		collect("read", {
 			id: "read-and",
@@ -281,7 +281,7 @@ describe("Read", () => {
 			select: ["id", "name", "email"] as unknown,
 			where: { isActive: true },
 		};
-		const output = await forja.findMany("user", query as never);
+		const output = await datrix.findMany("user", query as never);
 
 		collect("read", {
 			id: "read-select",
@@ -299,7 +299,7 @@ describe("Read", () => {
 			offset: 0,
 			orderBy: [{ field: "id", direction: "asc" as const }],
 		};
-		const output = await forja.findMany("user", query);
+		const output = await datrix.findMany("user", query);
 
 		collect("read", {
 			id: "read-pagination",
@@ -319,7 +319,7 @@ describe("Read", () => {
 				category: { select: "*" as const },
 			},
 		};
-		const output = await forja.findMany("post", query);
+		const output = await datrix.findMany("post", query);
 
 		collect("read", {
 			id: "read-populate",
@@ -343,7 +343,7 @@ describe("Read", () => {
 				},
 			},
 		};
-		const output = await forja.findMany("post", query as never);
+		const output = await datrix.findMany("post", query as never);
 
 		collect("read", {
 			id: "read-nested-populate",
@@ -364,7 +364,7 @@ describe("Read", () => {
 				},
 			},
 		};
-		const output = await forja.findMany("post", query);
+		const output = await datrix.findMany("post", query);
 
 		collect("read", {
 			id: "read-nested-where",
@@ -378,7 +378,7 @@ describe("Read", () => {
 
 	it("count records", async () => {
 		const query = { isActive: true };
-		const output = await forja.count("user", query);
+		const output = await datrix.count("user", query);
 
 		collect("read", {
 			id: "read-count",
@@ -400,7 +400,7 @@ describe("Update", () => {
 		const id = seed.users[2]!.id as number;
 		const data = { age: 26 };
 		const options = { populate: true };
-		const output = await forja.update("user", id, data, options);
+		const output = await datrix.update("user", id, data, options);
 
 		collect("update", {
 			id: "update-single",
@@ -418,7 +418,7 @@ describe("Update", () => {
 		const query = { isPublished: false };
 		const data = { viewCount: 0 };
 		const options = { populate: true };
-		const output = await forja.updateMany("post", query, data, options);
+		const output = await datrix.updateMany("post", query, data, options);
 
 		collect("update", {
 			id: "update-many",
@@ -436,7 +436,7 @@ describe("Update", () => {
 		const id = seed.users[0]!.id as number;
 		const data = { roles: { set: [seed.roles[0]!.id, seed.roles[1]!.id] } };
 		const options = { populate: true };
-		const output = await forja.update("user", id, data, options);
+		const output = await datrix.update("user", id, data, options);
 
 		collect("update", {
 			id: "update-relation-set",
@@ -453,11 +453,11 @@ describe("Update", () => {
 	it("connect and disconnect manyToMany relation", async () => {
 		const id = seed.users[1]!.id as number;
 
-		await forja.update("user", id, { roles: { connect: [seed.roles[2]!.id] } });
+		await datrix.update("user", id, { roles: { connect: [seed.roles[2]!.id] } });
 
 		const data = { roles: { disconnect: [seed.roles[2]!.id] } };
 		const options = { populate: true };
-		const output = await forja.update("user", id, data, options);
+		const output = await datrix.update("user", id, data, options);
 
 		collect("update", {
 			id: "update-relation-connect-disconnect",
@@ -481,13 +481,13 @@ describe("Update", () => {
 
 describe("Delete", () => {
 	it("delete a single record by id", async () => {
-		const temp = await forja.create("tag", {
+		const temp = await datrix.create("tag", {
 			name: "TempTag",
 			color: "#AAAAAA",
 		});
 		const id = temp.id as number;
 		const options = { populate: true };
-		const output = await forja.delete("tag", id, options);
+		const output = await datrix.delete("tag", id, options);
 
 		collect("delete", {
 			id: "delete-single",
@@ -501,13 +501,13 @@ describe("Delete", () => {
 	});
 
 	it("delete many records", async () => {
-		await forja.createMany("tag", [
+		await datrix.createMany("tag", [
 			{ name: "OldTag1", color: "#111111" },
 			{ name: "OldTag2", color: "#222222" },
 		]);
 
 		const query = { name: { $like: "OldTag%" } };
-		const output = await forja.deleteMany("tag", query);
+		const output = await datrix.deleteMany("tag", query);
 
 		collect("delete", {
 			id: "delete-many",

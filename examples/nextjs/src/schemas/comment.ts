@@ -1,9 +1,9 @@
-import { ForjaEntry } from "forja-types";
+import { DatrixEntry } from "datrix-types";
 import type { User } from "./user";
 import type { Topic } from "./topic";
 import type { Like } from "./like";
 
-export interface Comment extends ForjaEntry {
+export interface Comment extends DatrixEntry {
 	content: string;
 
 	author: User;

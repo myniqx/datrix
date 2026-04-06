@@ -1,7 +1,7 @@
 /**
  * Validator Type Definitions
  *
- * This file defines types for Forja's custom validation engine (~300 LOC total).
+ * This file defines types for Datrix's custom validation engine (~300 LOC total).
  * Zero external dependencies - all validation logic is custom-built.
  */
 
@@ -43,13 +43,13 @@ export interface ValidationError {
  */
 export type FieldValidationResult<T = unknown> =
 	| {
-			success: true;
-			data: T;
-	  }
+		success: true;
+		data: T;
+	}
 	| {
-			success: false;
-			error: ValidationError[];
-	  };
+		success: false;
+		error: ValidationError[];
+	};
 
 /**
  * Field validator function type

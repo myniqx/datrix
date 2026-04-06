@@ -11,7 +11,7 @@ import { Pool as PgPool } from "pg";
 import { PostgresQueryTranslator } from "./query-translator";
 import type { PostgresConfig } from "./types";
 import { getPostgresTypeWithModifiers } from "./types";
-import { QueryObject } from "@forja/core";
+import { QueryObject } from "@datrix/core";
 import {
 	AlterOperation,
 	ConnectionState,
@@ -19,9 +19,9 @@ import {
 	QueryMetadata,
 	QueryResult,
 	Transaction,
-} from "@forja/core";
+} from "@datrix/core";
 import {
-	ForjaAdapterError,
+	DatrixAdapterError,
 	throwNotConnected,
 	throwConnectionError,
 	throwMigrationError,
@@ -30,21 +30,21 @@ import {
 	throwQueryError,
 	throwMetaFieldAlreadyExists,
 	throwMetaFieldNotFound,
-} from "@forja/core";
-import { validateQueryObject } from "@forja/core";
+} from "@datrix/core";
+import { validateQueryObject } from "@datrix/core";
 import {
 	FieldDefinition,
-	ForjaEntry,
+	DatrixEntry,
 	IndexDefinition,
 	ISchemaRegistry,
 	SchemaDefinition,
-} from "@forja/core";
-import { FORJA_META_MODEL, FORJA_META_KEY_PREFIX } from "@forja/core";
+} from "@datrix/core";
+import { FORJA_META_MODEL, FORJA_META_KEY_PREFIX } from "@datrix/core";
 import { PostgresPopulator } from "./populate";
 import { PgClient } from "./pg-client";
 import { PostgresExporter } from "./export-import/exporter";
 import { PostgresImporter } from "./export-import/importer";
-import { ExportWriter, ImportReader } from "@forja/core";
+import { ExportWriter, ImportReader } from "@datrix/core";
 
 /**
  * PostgreSQL adapter implementation
@@ -89,7 +89,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 				idleTimeoutMillis: this.config.idleTimeoutMillis ?? 30000,
 				max: this.config.max ?? 10,
 				min: this.config.min ?? 2,
-				application_name: this.config.applicationName ?? "forja",
+				application_name: this.config.applicationName ?? "datrix",
 			});
 
 			const client = await this.pool.connect();
@@ -153,7 +153,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	 * @param query - Query object to execute
 	 * @param client - Optional PoolClient for transaction support. If provided, query runs on this client instead of pool.
 	 */
-	async executeQuery<TResult extends ForjaEntry>(
+	async executeQuery<TResult extends DatrixEntry>(
 		query: QueryObject<TResult>,
 		client?: PoolClient,
 	): Promise<QueryResult<TResult>> {
@@ -236,14 +236,14 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	}
 
 	/**
-	 * Map Postgres errors to standardized ForjaAdapterError
+	 * Map Postgres errors to standardized DatrixAdapterError
 	 */
-	private mapPostgresError<TResult extends ForjaEntry>(
+	private mapPostgresError<TResult extends DatrixEntry>(
 		error: unknown,
 		query?: QueryObject<TResult>,
 		sql?: string,
-	): ForjaAdapterError {
-		if (error instanceof ForjaAdapterError) {
+	): DatrixAdapterError {
+		if (error instanceof DatrixAdapterError) {
 			return error;
 		}
 
@@ -255,7 +255,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 			hint?: string;
 		};
 
-		return new ForjaAdapterError(`Query execution failed: ${message}`, {
+		return new DatrixAdapterError(`Query execution failed: ${message}`, {
 			adapter: "postgres",
 			code: "ADAPTER_QUERY_ERROR",
 			operation: "query",
@@ -274,7 +274,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	/**
 	 * Execute raw SQL query
 	 */
-	async executeRawQuery<TResult extends ForjaEntry>(
+	async executeRawQuery<TResult extends DatrixEntry>(
 		sql: string,
 		params: readonly unknown[],
 	): Promise<QueryResult<TResult>> {
@@ -338,7 +338,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 			/**
 			 * Set to true when called from the importer.
 			 * Skips FK constraint creation (added later via ALTER TABLE) and
-			 * skips upsertSchemaMeta so the importer can restore _forja data as-is.
+			 * skips upsertSchemaMeta so the importer can restore _datrix data as-is.
 			 */
 			isImport?: boolean;
 		},
@@ -391,7 +391,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 				}
 			}
 
-			// Track schema in _forja (skip during import — _forja data will be restored as-is)
+			// Track schema in _datrix (skip during import — _datrix data will be restored as-is)
 			if (!options?.isImport) {
 				if (schema.name !== FORJA_META_MODEL) {
 					const metaExists = await this.tableExists(FORJA_META_MODEL);
@@ -406,7 +406,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 				await this.upsertSchemaMeta(schema, queryRunner!);
 			}
 		} catch (error) {
-			if (error instanceof ForjaAdapterError) throw error;
+			if (error instanceof DatrixAdapterError) throw error;
 			const message = error instanceof Error ? error.message : String(error);
 			throwMigrationError({
 				adapter: "postgres",
@@ -434,7 +434,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 			const escapedTable = this.getTranslator().escapeIdentifier(tableName);
 			await queryRunner!.query(`DROP TABLE IF EXISTS ${escapedTable}`);
 
-			// Remove schema from _forja (skip during import — _forja data will be restored as-is)
+			// Remove schema from _datrix (skip during import — _datrix data will be restored as-is)
 			if (!options?.isImport && tableName !== FORJA_META_MODEL) {
 				const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
 				const escapedMetaTable =
@@ -445,7 +445,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 				);
 			}
 		} catch (error) {
-			if (error instanceof ForjaAdapterError) throw error;
+			if (error instanceof DatrixAdapterError) throw error;
 			const message = error instanceof Error ? error.message : String(error);
 			throwMigrationError({
 				adapter: "postgres",
@@ -487,7 +487,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 				);
 			}
 		} catch (error) {
-			if (error instanceof ForjaAdapterError) throw error;
+			if (error instanceof DatrixAdapterError) throw error;
 			const message = error instanceof Error ? error.message : String(error);
 			throwMigrationError({
 				adapter: "postgres",
@@ -560,7 +560,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 				);
 			}
 		} catch (error) {
-			if (error instanceof ForjaAdapterError) throw error;
+			if (error instanceof DatrixAdapterError) throw error;
 			const message = error instanceof Error ? error.message : String(error);
 			throwMigrationError({
 				adapter: "postgres",
@@ -611,7 +611,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 			const sql = `CREATE ${unique}INDEX ${escapedIndexName} ON ${escapedTable}${using} (${fields})`;
 			await queryRunner!.query(sql);
 		} catch (error) {
-			if (error instanceof ForjaAdapterError) throw error;
+			if (error instanceof DatrixAdapterError) throw error;
 			const message = error instanceof Error ? error.message : String(error);
 			throwMigrationError({
 				adapter: "postgres",
@@ -639,7 +639,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 			const escapedIndexName = this.getTranslator().escapeIdentifier(indexName);
 			await queryRunner!.query(`DROP INDEX IF EXISTS ${escapedIndexName}`);
 		} catch (error) {
-			if (error instanceof ForjaAdapterError) throw error;
+			if (error instanceof DatrixAdapterError) throw error;
 			const message = error instanceof Error ? error.message : String(error);
 			throwMigrationError({
 				adapter: "postgres",
@@ -731,7 +731,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	}
 
 	/**
-	 * Upsert schema into _forja metadata table
+	 * Upsert schema into _datrix metadata table
 	 */
 	private async upsertSchemaMeta(
 		schema: SchemaDefinition,
@@ -750,7 +750,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	}
 
 	/**
-	 * Read schema from _forja, apply AlterOperations, write back
+	 * Read schema from _datrix, apply AlterOperations, write back
 	 */
 	private async applyOperationsToMetaSchema(
 		tableName: string,
@@ -768,7 +768,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 		if (metaResult.rows.length === 0) {
 			throwMigrationError({
 				adapter: "postgres",
-				message: `Schema meta for table '${tableName}' not found in _forja`,
+				message: `Schema meta for table '${tableName}' not found in _datrix`,
 				table: tableName,
 			});
 		}
@@ -901,7 +901,7 @@ class PostgresTransaction implements Transaction {
 	/**
 	 * Execute query within transaction
 	 */
-	async executeQuery<TResult extends ForjaEntry>(
+	async executeQuery<TResult extends DatrixEntry>(
 		query: QueryObject<TResult>,
 	): Promise<QueryResult<TResult>> {
 		if (this.committed || this.rolledBack) {
@@ -932,7 +932,7 @@ class PostgresTransaction implements Transaction {
 	/**
 	 * Execute raw SQL within transaction
 	 */
-	async executeRawQuery<TResult extends ForjaEntry>(
+	async executeRawQuery<TResult extends DatrixEntry>(
 		sql: string,
 		params: readonly unknown[],
 	): Promise<QueryResult<TResult>> {

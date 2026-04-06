@@ -1,23 +1,23 @@
-# @forja/core
+# @datrix/core
 
-The heart of Forja. Handles schema definition, validation, query building, relation processing, and database migrations — without being tied to a specific database engine.
+The heart of Datrix. Handles schema definition, validation, query building, relation processing, and database migrations — without being tied to a specific database engine.
 
 ## Installation
 
 ```bash
-pnpm add @forja/core
+pnpm add @datrix/core
 ```
 
 ## Setup
 
-Two functions are the entry point to every Forja project: `defineSchema` and `defineConfig`.
+Two functions are the entry point to every Datrix project: `defineSchema` and `defineConfig`.
 
 ### defineSchema
 
 Validates your schema object against `SchemaDefinition` at the TypeScript level. At runtime it returns the object as-is — it is a type helper, not a factory.
 
 ```typescript
-import { defineSchema } from "@forja/core"
+import { defineSchema } from "@datrix/core"
 
 export const postSchema = defineSchema({
   name: "post",
@@ -34,14 +34,14 @@ export const postSchema = defineSchema({
 
 ### defineConfig
 
-Creates the Forja instance factory. Calling the returned function initializes the instance once — subsequent calls return the cached instance.
+Creates the Datrix instance factory. Calling the returned function initializes the instance once — subsequent calls return the cached instance.
 
 ```typescript
-import { defineConfig } from "@forja/core"
-import { PostgresAdapter } from "@forja/adapter-postgres"
+import { defineConfig } from "@datrix/core"
+import { PostgresAdapter } from "@datrix/adapter-postgres"
 import { postSchema, userSchema } from "./schemas"
 
-const getForja = defineConfig(() => ({
+const getDatrix = defineConfig(() => ({
   adapter: new PostgresAdapter({
     host:     "localhost",
     port:     5432,
@@ -60,39 +60,39 @@ const getForja = defineConfig(() => ({
   },
 }))
 
-export default getForja
+export default getDatrix
 ```
 
 ## CRUD
 
 ```typescript
-const forja = await getForja()
+const datrix = await getDatrix()
 
 // Read
-const posts    = await forja.findMany("post", { where: { status: "published" }, limit: 10 })
-const post     = await forja.findOne("post", { slug: "hello-world" })
-const byId     = await forja.findById("post", 1)
-const total    = await forja.count("post", { status: "draft" })
+const posts    = await datrix.findMany("post", { where: { status: "published" }, limit: 10 })
+const post     = await datrix.findOne("post", { slug: "hello-world" })
+const byId     = await datrix.findById("post", 1)
+const total    = await datrix.count("post", { status: "draft" })
 
 // Write
-const created  = await forja.create("post", { title: "Hello", status: "draft", author: 1 })
-const updated  = await forja.update("post", created.id, { status: "published" })
-const deleted  = await forja.delete("post", created.id)
+const created  = await datrix.create("post", { title: "Hello", status: "draft", author: 1 })
+const updated  = await datrix.update("post", created.id, { status: "published" })
+const deleted  = await datrix.delete("post", created.id)
 
 // Bulk
-const many     = await forja.createMany("post", [{ title: "A" }, { title: "B" }])
-const updated2 = await forja.updateMany("post", { status: "draft" }, { status: "archived" })
-const deleted2 = await forja.deleteMany("post", { status: "archived" })
+const many     = await datrix.createMany("post", [{ title: "A" }, { title: "B" }])
+const updated2 = await datrix.updateMany("post", { status: "draft" }, { status: "archived" })
+const deleted2 = await datrix.deleteMany("post", { status: "archived" })
 ```
 
 Every record automatically includes `id`, `createdAt`, and `updatedAt` — these cannot be defined manually.
 
 ### raw
 
-Use `forja.raw` to bypass plugin hooks (`onBeforeQuery` / `onAfterQuery`). Method signatures are identical — the only difference is that schema lifecycle hooks and plugin hooks do not fire.
+Use `datrix.raw` to bypass plugin hooks (`onBeforeQuery` / `onAfterQuery`). Method signatures are identical — the only difference is that schema lifecycle hooks and plugin hooks do not fire.
 
 ```typescript
-await forja.raw.create("post", { title: "Silent insert" })
+await datrix.raw.create("post", { title: "Silent insert" })
 ```
 
 ## Field types
@@ -111,7 +111,7 @@ await forja.raw.create("post", { title: "Silent insert" })
 
 ## Relations
 
-Forja manages foreign keys and junction tables automatically — you never define them manually.
+Datrix manages foreign keys and junction tables automatically — you never define them manually.
 
 | Kind          | FK location       | Use when                             |
 | ------------- | ----------------- | ------------------------------------ |
@@ -137,7 +137,7 @@ tags: { type: "relation", kind: "manyToMany", model: "tag" }
 
 ```typescript
 // Comparison operators
-await forja.findMany("user", {
+await datrix.findMany("user", {
   where: {
     age:   { $gte: 18, $lte: 65 },
     email: { $like: "%@example.com" },
@@ -146,12 +146,12 @@ await forja.findMany("user", {
 })
 
 // Logical operators
-await forja.findMany("post", {
+await datrix.findMany("post", {
   where: { $or: [{ status: "published" }, { featured: true }] },
 })
 
 // Nested relation filter
-await forja.findMany("post", {
+await datrix.findMany("post", {
   where: { author: { verified: true } },
 })
 ```
@@ -162,10 +162,10 @@ All comparison operators: `$eq`, `$ne`, `$gt`, `$gte`, `$lt`, `$lte`, `$in`, `$n
 
 ```typescript
 // All relations
-await forja.findMany("post", { populate: "*" })
+await datrix.findMany("post", { populate: "*" })
 
 // Specific relations with options
-await forja.findMany("post", {
+await datrix.findMany("post", {
   populate: {
     author:   { select: ["id", "name"] },
     comments: { where: { approved: true }, limit: 5, orderBy: { createdAt: "desc" } },
@@ -176,7 +176,7 @@ await forja.findMany("post", {
 ### Sorting and pagination
 
 ```typescript
-await forja.findMany("post", {
+await datrix.findMany("post", {
   orderBy: [{ field: "createdAt", direction: "desc", nulls: "last" }],
   limit:   20,
   offset:  40,
@@ -214,7 +214,7 @@ defineSchema({
 
 ## Permissions
 
-Schema and field permissions are defined in the schema and enforced by `@forja/api`. The core package carries the config — enforcement is in the API layer.
+Schema and field permissions are defined in the schema and enforced by `@datrix/api`. The core package carries the config — enforcement is in the API layer.
 
 ```typescript
 defineSchema({
@@ -239,16 +239,16 @@ defineSchema({
 
 ## Migration
 
-Migrations are managed through the Forja CLI. The core package exposes `beginMigrate()` which the CLI uses internally.
+Migrations are managed through the Datrix CLI. The core package exposes `beginMigrate()` which the CLI uses internally.
 
 ```bash
-forja migrate   # diff schemas against DB, prompt for ambiguous changes, apply
+datrix migrate   # diff schemas against DB, prompt for ambiguous changes, apply
 ```
 
 Direct API use is possible but not the intended workflow:
 
 ```typescript
-const session = await forja.beginMigrate()
+const session = await datrix.beginMigrate()
 
 if (session.hasAmbiguous) {
   // Resolve rename vs. drop+add for each ambiguous change
@@ -263,7 +263,7 @@ await session.apply()
 ```text
 src/
 ├── index.ts              # Public exports (defineSchema, defineConfig)
-├── forja.ts              # Forja class — instance factory, CRUD dispatcher
+├── datrix.ts              # Datrix class — instance factory, CRUD dispatcher
 ├── schema-registry.ts    # SchemaRegistry — schema storage and lookup
 ├── initializer.ts        # Startup sequence — schema finalization, plugin init
 ├── mixins/
@@ -277,5 +277,5 @@ src/
 │   ├── migrator.ts       # MigrationSession — diff and apply logic
 │   └── planner.ts        # Change detection and plan generation
 └── plugin/
-    └── plugin.ts         # BasePlugin — base class for all Forja plugins
+    └── plugin.ts         # BasePlugin — base class for all Datrix plugins
 ```

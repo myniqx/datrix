@@ -3,8 +3,8 @@
  *
  * Type definitions specific to MySQL adapter.
  */
-import { FieldDefinition, FieldType, ForjaEntry } from "@forja/core";
-import { QueryPopulate, QuerySelectObject } from "@forja/core";
+import { FieldDefinition, FieldType, DatrixEntry } from "@datrix/core";
+import { QueryPopulate, QuerySelectObject } from "@datrix/core";
 import { PopulateStrategy } from "./populate/types";
 
 /**
@@ -48,13 +48,13 @@ export interface MySQLConfig {
 	 * SSL configuration
 	 */
 	readonly ssl?:
-		| boolean
-		| {
-				readonly rejectUnauthorized?: boolean;
-				readonly ca?: string;
-				readonly cert?: string;
-				readonly key?: string;
-		  };
+	| boolean
+	| {
+		readonly rejectUnauthorized?: boolean;
+		readonly ca?: string;
+		readonly cert?: string;
+		readonly key?: string;
+	};
 
 	/**
 	 * Maximum number of connections in pool
@@ -245,7 +245,7 @@ export interface TranslateResult {
  * MySQL query object with metadata (extends QuerySelectObject since populate is only for SELECT)
  */
 export interface MySQLQueryObject<
-	T extends ForjaEntry,
+	T extends DatrixEntry,
 > extends QuerySelectObject<T> {
 	_metadata?: {
 		populateAggregations?: string | undefined;

@@ -8,14 +8,14 @@
  *   ?where[name][$contains]=john
  */
 
-import type { FallbackWhereClause } from "@forja/core";
-import type { RawQueryParams } from "@forja/core";
+import type { FallbackWhereClause } from "@datrix/core";
+import type { RawQueryParams } from "@datrix/core";
 import {
 	validateFieldName,
 	isValidWhereOperator,
 	isLogicalOperator,
 	getOperatorValueType,
-} from "@forja/core";
+} from "@datrix/core";
 import { whereError } from "./errors";
 
 /**

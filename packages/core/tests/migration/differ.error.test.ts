@@ -5,7 +5,7 @@
  *
  * NOTE: The differ's job is to compare two valid schemas and detect differences.
  * Schema validity (field types, index integrity, circular refs, etc.) is enforced
- * by Forja's type system at definition time — the differ does NOT re-validate schemas.
+ * by Datrix's type system at definition time — the differ does NOT re-validate schemas.
  * These tests only cover genuine runtime risks: null/undefined/non-object inputs.
  */
 

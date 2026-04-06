@@ -305,7 +305,7 @@ describe.skip("JsonAdapter - Performance & Resource Usage", () => {
 			const files = await fs.readdir(root);
 			const jsonFiles = files.filter((f) => f.endsWith(".json"));
 
-			expect(jsonFiles).toHaveLength(2); // users.json + _forja.json
+			expect(jsonFiles).toHaveLength(2); // users.json + _datrix.json
 		}, 15000);
 	});
 

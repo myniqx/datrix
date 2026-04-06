@@ -4,12 +4,12 @@
  * Type definitions for middleware system
  */
 
-import type { ParsedQuery } from "@forja/core";
-import type { SchemaDefinition } from "@forja/core";
-import type { PermissionAction } from "@forja/core";
-import type { Forja } from "@forja/core";
-import { AuthUser, IApiPlugin } from "@forja/core";
-import { FallbackInput } from "@forja/core";
+import type { ParsedQuery } from "@datrix/core";
+import type { SchemaDefinition } from "@datrix/core";
+import type { PermissionAction } from "@datrix/core";
+import type { Datrix } from "@datrix/core";
+import { AuthUser, IApiPlugin } from "@datrix/core";
+import { FallbackInput } from "@datrix/core";
 
 /**
  * HTTP Methods
@@ -75,9 +75,9 @@ export interface RequestContext<TRole extends string = string> {
 	readonly user: AuthUser | null;
 
 	/**
-	 * Forja instance for database operations
+	 * Datrix instance for database operations
 	 */
-	readonly forja: Forja;
+	readonly datrix: Datrix;
 
 	/**
 	 * API plugin instance

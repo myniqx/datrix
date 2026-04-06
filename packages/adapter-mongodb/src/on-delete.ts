@@ -9,11 +9,11 @@
 
 import type {
 	ForeignKeyReference,
-	ForjaEntry,
+	DatrixEntry,
 	ISchemaRegistry,
-} from "@forja/core";
+} from "@datrix/core";
 import type { MongoClient } from "./mongo-client";
-import { ForjaAdapterError } from "@forja/core";
+import { DatrixAdapterError } from "@datrix/core";
 
 interface FkDependency {
 	readonly tableName: string;
@@ -54,7 +54,7 @@ function findFkDependencies(
  *
  * Must be called BEFORE the actual delete.
  */
-export async function applyOnDeleteActions<T extends ForjaEntry>(
+export async function applyOnDeleteActions<T extends DatrixEntry>(
 	targetTable: string,
 	idsToDelete: readonly number[],
 	client: MongoClient<T>,
@@ -82,7 +82,7 @@ export async function applyOnDeleteActions<T extends ForjaEntry>(
 		);
 
 		if (count > 0) {
-			throw new ForjaAdapterError(
+			throw new DatrixAdapterError(
 				`Cannot delete from '${targetTable}': referenced by '${dep.tableName}.${dep.fieldName}' with ON DELETE RESTRICT`,
 				{
 					adapter: "mongodb",

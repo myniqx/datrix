@@ -2,7 +2,7 @@
  * Migration Session
  *
  * Provides a fluent API for managing database migrations.
- * Entry point: forja.beginMigrate()
+ * Entry point: datrix.beginMigrate()
  *
  * Features:
  * - Compares current schemas with database state
@@ -15,7 +15,7 @@ import { DatabaseAdapter, QueryRunner } from "../types/adapter";
 import {
 	SchemaDefinition,
 	FieldDefinition,
-	ForjaRecord,
+	DatrixRecord,
 } from "../types/core/schema";
 import {
 	Migration,
@@ -26,7 +26,7 @@ import {
 	FieldAddedDiff,
 	MigrationExecutionResult,
 } from "../types/core/migration";
-import { IForja } from "../types/core/forja";
+import { IDatrix } from "../types/core";
 import { ForgeSchemaDiffer } from "./differ";
 import { ForgeMigrationGenerator } from "./generator";
 import { ForgeMigrationHistory } from "./history";
@@ -102,10 +102,10 @@ export interface MigrationPlan {
 /**
  * Migration Session class
  *
- * Created by forja.beginMigrate()
+ * Created by datrix.beginMigrate()
  */
 export class MigrationSession {
-	private readonly forja: IForja;
+	private readonly datrix: IDatrix;
 	private readonly adapter: DatabaseAdapter;
 	private readonly differ: ForgeSchemaDiffer;
 	private readonly generator: ForgeMigrationGenerator;
@@ -117,14 +117,14 @@ export class MigrationSession {
 	private _ambiguous: AmbiguousChange[] = [];
 	private initialized = false;
 
-	constructor(forja: IForja) {
-		this.forja = forja;
-		this.adapter = forja.getAdapter();
+	constructor(datrix: IDatrix) {
+		this.datrix = datrix;
+		this.adapter = datrix.getAdapter();
 		this.differ = new ForgeSchemaDiffer();
 		this.generator = new ForgeMigrationGenerator();
 
-		const migrationConfig = forja.getMigrationConfig();
-		this.history = new ForgeMigrationHistory(forja, migrationConfig.modelName);
+		const migrationConfig = datrix.getMigrationConfig();
+		this.history = new ForgeMigrationHistory(datrix, migrationConfig.modelName);
 	}
 
 	/**
@@ -139,11 +139,11 @@ export class MigrationSession {
 			// Initialize history table
 			await this.history.initialize();
 
-			// Load current schemas from Forja
-			const registry = this.forja.getSchemas();
+			// Load current schemas from Datrix
+			const registry = this.datrix.getSchemas();
 			for (const schema of registry.getAll()) {
 				// Skip internal migration schema
-				if (schema.name.startsWith("_forja")) {
+				if (schema.name.startsWith("_datrix")) {
 					continue;
 				}
 				this.currentSchemas.set(schema.name, schema);
@@ -154,7 +154,7 @@ export class MigrationSession {
 
 			for (const tableName of tablesResult) {
 				// Skip internal tables
-				if (tableName.startsWith("_forja")) {
+				if (tableName.startsWith("_datrix")) {
 					continue;
 				}
 
@@ -1322,7 +1322,7 @@ export class MigrationSession {
 					type: "dataTransfer",
 					description: `Migrate '${sourceTable}.${sourceFkCol}' values to junction table '${junctionTable}'`,
 					execute: async (runner: QueryRunner) => {
-						const selectResult = await runner.executeQuery<ForjaRecord>({
+						const selectResult = await runner.executeQuery<DatrixRecord>({
 							type: "select",
 							table: sourceTable,
 							select: ["id", sourceFkCol],
@@ -1385,7 +1385,7 @@ export class MigrationSession {
 					type: "dataTransfer",
 					description: `Migrate first relation from '${junctionTable}' to '${targetTable}.${targetFkCol}'`,
 					execute: async (runner: QueryRunner) => {
-						const selectResult = await runner.executeQuery<ForjaRecord>({
+						const selectResult = await runner.executeQuery<DatrixRecord>({
 							type: "select",
 							table: junctionTable,
 							select: [sourceFkCol, relatedFkCol],
@@ -1446,9 +1446,9 @@ export class MigrationSession {
  * Create migration session
  */
 export async function createMigrationSession(
-	forja: IForja,
+	datrix: IDatrix,
 ): Promise<MigrationSession> {
-	const session = new MigrationSession(forja);
+	const session = new MigrationSession(datrix);
 	await session.initialize();
 	return session;
 }

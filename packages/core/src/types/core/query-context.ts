@@ -1,4 +1,4 @@
-import { IForja } from "./forja";
+import { IDatrix } from "./interfaces";
 import { AuthUser } from "../api";
 
 /**
@@ -20,7 +20,7 @@ export type QueryAction =
  */
 export interface QueryContext {
 	readonly action: QueryAction;
-	readonly forja: IForja;
+	readonly datrix: IDatrix;
 	readonly metadata: Record<string, unknown>;
 	user?: AuthUser | undefined;
 }

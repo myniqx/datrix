@@ -12,7 +12,7 @@ export {
 	updateTable,
 	deleteFrom,
 	countFrom,
-	ForjaQueryBuilder,
+	DatrixQueryBuilder,
 } from "./builder";
 
 // Export normalizers

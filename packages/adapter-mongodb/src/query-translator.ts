@@ -19,10 +19,10 @@ import type {
 	QuerySelect,
 	QuerySelectObject,
 	ISchemaRegistry,
-} from "@forja/core";
-import type { SchemaDefinition, FieldDefinition } from "@forja/core";
-import { ForjaEntry } from "@forja/core";
-import { throwQueryError } from "@forja/core";
+} from "@datrix/core";
+import type { SchemaDefinition, FieldDefinition } from "@datrix/core";
+import { DatrixEntry } from "@datrix/core";
+import { throwQueryError } from "@datrix/core";
 import type {
 	MongoTranslateResult,
 	MongoFindResult,
@@ -42,12 +42,12 @@ const MAX_WHERE_DEPTH = 10;
  * MongoDB query translator implementation
  */
 export class MongoDBQueryTranslator {
-	constructor(private readonly schemaRegistry: ISchemaRegistry) {}
+	constructor(private readonly schemaRegistry: ISchemaRegistry) { }
 
 	/**
 	 * Translate a QueryObject into a MongoDB operation descriptor
 	 */
-	translate<T extends ForjaEntry>(query: QueryObject<T>): MongoTranslateResult {
+	translate<T extends DatrixEntry>(query: QueryObject<T>): MongoTranslateResult {
 		switch (query.type) {
 			case "select":
 				return this.translateSelect(query as QuerySelectObject<T>);
@@ -70,7 +70,7 @@ export class MongoDBQueryTranslator {
 	/**
 	 * Translate SELECT query → MongoDB find operation
 	 */
-	private translateSelect<T extends ForjaEntry>(
+	private translateSelect<T extends DatrixEntry>(
 		query: QuerySelectObject<T>,
 	): MongoFindResult {
 		validateIdentifier(query.table);
@@ -81,7 +81,7 @@ export class MongoDBQueryTranslator {
 
 		const projection = this.translateProjection(query.select);
 		const sort = query.orderBy
-			? this.translateSort(query.orderBy as readonly OrderByItem<ForjaEntry>[])
+			? this.translateSort(query.orderBy as readonly OrderByItem<DatrixEntry>[])
 			: undefined;
 
 		const result: MongoFindResult = {
@@ -100,7 +100,7 @@ export class MongoDBQueryTranslator {
 	/**
 	 * Translate COUNT query → MongoDB countDocuments operation
 	 */
-	private translateCount<T extends ForjaEntry>(
+	private translateCount<T extends DatrixEntry>(
 		query: QueryCountObject<T>,
 	): MongoCountResult {
 		validateIdentifier(query.table);
@@ -122,7 +122,7 @@ export class MongoDBQueryTranslator {
 	 * Note: id assignment is handled by the adapter (not translator).
 	 * Documents arrive here already with their `id` field set.
 	 */
-	private translateInsert<T extends ForjaEntry>(
+	private translateInsert<T extends DatrixEntry>(
 		query: QueryInsertObject<T>,
 	): MongoInsertResult {
 		validateIdentifier(query.table);
@@ -151,7 +151,7 @@ export class MongoDBQueryTranslator {
 	/**
 	 * Translate UPDATE query → MongoDB updateMany operation
 	 */
-	private translateUpdate<T extends ForjaEntry>(
+	private translateUpdate<T extends DatrixEntry>(
 		query: QueryUpdateObject<T>,
 	): MongoUpdateResult {
 		validateIdentifier(query.table);
@@ -187,7 +187,7 @@ export class MongoDBQueryTranslator {
 	/**
 	 * Translate DELETE query → MongoDB deleteMany operation
 	 */
-	private translateDelete<T extends ForjaEntry>(
+	private translateDelete<T extends DatrixEntry>(
 		query: QueryDeleteObject<T>,
 	): MongoDeleteResult {
 		validateIdentifier(query.table);
@@ -206,7 +206,7 @@ export class MongoDBQueryTranslator {
 	/**
 	 * Translate WHERE clause → MongoDB filter
 	 */
-	translateWhere<T extends ForjaEntry>(
+	translateWhere<T extends DatrixEntry>(
 		where: WhereClause<T>,
 		tableName?: string,
 	): Filter<Document> {
@@ -217,7 +217,7 @@ export class MongoDBQueryTranslator {
 	/**
 	 * Translate WHERE conditions recursively
 	 */
-	private translateWhereConditions<T extends ForjaEntry>(
+	private translateWhereConditions<T extends DatrixEntry>(
 		where: WhereClause<T>,
 		depth: number,
 		currentSchema?: SchemaDefinition,
@@ -279,10 +279,10 @@ export class MongoDBQueryTranslator {
 								value === null
 									? null
 									: this.convertValueForField(
-											value,
-											currentSchema,
-											relationField.foreignKey,
-										);
+										value,
+										currentSchema,
+										relationField.foreignKey,
+									);
 						}
 						continue;
 					}
@@ -463,7 +463,7 @@ export class MongoDBQueryTranslator {
 	/**
 	 * Translate SELECT fields → MongoDB projection
 	 */
-	private translateProjection<T extends ForjaEntry>(
+	private translateProjection<T extends DatrixEntry>(
 		select: QuerySelect<T>,
 	): Document | undefined {
 		if (!select || select.length === 0) return undefined;
@@ -487,7 +487,7 @@ export class MongoDBQueryTranslator {
 	/**
 	 * Translate ORDER BY → MongoDB sort
 	 */
-	private translateSort<T extends ForjaEntry>(
+	private translateSort<T extends DatrixEntry>(
 		orderBy: readonly OrderByItem<T>[],
 	): Sort {
 		const sort: Record<string, 1 | -1> = {};

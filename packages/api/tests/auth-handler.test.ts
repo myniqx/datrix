@@ -9,13 +9,13 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { Forja } from "@forja/core";
+import { Datrix } from "@datrix/core";
 import { createTestConfigWithAuth } from "./data/config-auth";
 import { createRequest } from "./data/helper";
 import { expectApiSingle, expectApiError } from "../../core/tests/test/helpers";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { ForjaEntry } from "@forja/core";
+import { DatrixEntry } from "@datrix/core";
 
 /** User response from auth endpoints */
 interface AuthUserResponse {
@@ -29,7 +29,7 @@ interface AuthUserResponse {
 }
 
 describe("Auth Handler Tests", () => {
-	let forja: Forja;
+	let datrix: Datrix;
 	const tmpDir = path.join(
 		process.cwd(),
 		"packages",
@@ -42,15 +42,15 @@ describe("Auth Handler Tests", () => {
 	 * Helper to handle request through API plugin
 	 */
 	async function handleRequest(request: Request): Promise<Response> {
-		const apiPlugin = forja.getPlugin("api");
+		const apiPlugin = datrix.getPlugin("api");
 		if (!apiPlugin || !("handleRequest" in apiPlugin)) {
 			throw new Error("API plugin not found");
 		}
 		const response = await (
 			apiPlugin as {
-				handleRequest: (req: Request, forja: Forja) => Promise<Response>;
+				handleRequest: (req: Request, datrix: Datrix) => Promise<Response>;
 			}
-		).handleRequest(request, forja);
+		).handleRequest(request, datrix);
 		return response;
 	}
 
@@ -63,10 +63,10 @@ describe("Auth Handler Tests", () => {
 		}
 		await fs.mkdir(tmpDir, { recursive: true });
 
-		// Initialize Forja with auth config
-		const getForja = await createTestConfigWithAuth(tmpDir);
-		forja = await getForja();
-		const migrate = await forja.beginMigrate();
+		// Initialize Datrix with auth config
+		const getDatrix = await createTestConfigWithAuth(tmpDir);
+		datrix = await getDatrix();
+		const migrate = await datrix.beginMigrate();
 		await migrate.apply();
 	});
 
@@ -95,7 +95,7 @@ describe("Auth Handler Tests", () => {
 				}),
 			);
 
-			const data = await expectApiSingle<AuthUserResponse & ForjaEntry>(
+			const data = await expectApiSingle<AuthUserResponse & DatrixEntry>(
 				response,
 				201,
 			);
@@ -250,7 +250,7 @@ describe("Auth Handler Tests", () => {
 				}),
 			);
 
-			const data = await expectApiSingle<AuthUserResponse & ForjaEntry>(
+			const data = await expectApiSingle<AuthUserResponse & DatrixEntry>(
 				response,
 				200,
 			);
@@ -384,7 +384,7 @@ describe("Auth Handler Tests", () => {
 				}),
 			);
 
-			const data = await expectApiSingle<{ success: boolean } & ForjaEntry>(
+			const data = await expectApiSingle<{ success: boolean } & DatrixEntry>(
 				logoutResponse,
 				200,
 			);
@@ -438,7 +438,7 @@ describe("Auth Handler Tests", () => {
 				}),
 			);
 
-			const data = await expectApiSingle<AuthUserResponse & ForjaEntry>(
+			const data = await expectApiSingle<AuthUserResponse & DatrixEntry>(
 				loginResponse,
 				200,
 			);
@@ -454,7 +454,7 @@ describe("Auth Handler Tests", () => {
 			);
 
 			const data = await expectApiSingle<
-				{ email: string; role: string } & ForjaEntry
+				{ email: string; role: string } & DatrixEntry
 			>(response, 200);
 			expect(data.email).toBe("metest@test.com");
 			//    expect(data.role).toBe("user");
@@ -483,7 +483,7 @@ describe("Auth Handler Tests", () => {
 				}),
 			);
 
-			const data = await expectApiSingle<{ email: string } & ForjaEntry>(
+			const data = await expectApiSingle<{ email: string } & DatrixEntry>(
 				response,
 				200,
 			);

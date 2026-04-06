@@ -5,8 +5,8 @@
  * Framework-agnostic - works with Next.js, Express, Fastify, etc.
  */
 
-import { ForjaError } from "@forja/core";
-import { ForjaEntry } from "@forja/core";
+import { DatrixError } from "@datrix/core";
+import { DatrixEntry } from "@datrix/core";
 
 /**
  * Next.js App Router request
@@ -87,12 +87,12 @@ export interface RequestContext<TUser = unknown> {
 /**
  * Response data
  */
-export interface ResponseMultiData<T extends ForjaEntry> {
+export interface ResponseMultiData<T extends DatrixEntry> {
 	readonly data: Partial<T>[];
 	readonly meta?: PaginationMeta;
 }
 
-export interface ExportSingleData<T extends ForjaEntry> {
+export interface ExportSingleData<T extends DatrixEntry> {
 	readonly data: Partial<T>;
 }
 
@@ -109,8 +109,8 @@ export interface PaginationMeta {
 /**
  * Handler response (framework-agnostic)
  */
-export interface HandlerResponse<T extends ForjaEntry> {
+export interface HandlerResponse<T extends DatrixEntry> {
 	readonly status: number;
-	readonly body: ResponseMultiData<T> | ForjaError;
+	readonly body: ResponseMultiData<T> | DatrixError;
 	readonly headers?: Record<string, string>;
 }

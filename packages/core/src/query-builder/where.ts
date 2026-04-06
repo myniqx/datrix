@@ -14,7 +14,7 @@ import type {
 	SchemaDefinition,
 	RelationField,
 	ISchemaRegistry,
-	ForjaEntry,
+	DatrixEntry,
 	FieldDefinition,
 } from "../types/core/schema";
 import {
@@ -78,7 +78,7 @@ const STRING_OPERATORS = [
  * @param fieldDef - Field definition from schema
  * @param fieldName - Field name for error messages
  * @returns Coerced value in the correct type
- * @throws {ForjaQueryBuilderError} If coercion fails
+ * @throws {DatrixQueryBuilderError} If coercion fails
  *
  * @example
  * ```ts
@@ -255,7 +255,7 @@ export function isLogicalOperator(key: string): boolean {
  * happens in normalizeWhereClause and will convert strings to proper types.
  * We only validate structural correctness here (e.g., $in must be array).
  *
- * @throws {ForjaQueryBuilderError} If operator or value is invalid
+ * @throws {DatrixQueryBuilderError} If operator or value is invalid
  */
 export function validateComparisonOperator(
 	field: string,
@@ -340,9 +340,9 @@ export function validateComparisonOperator(
  * @param schema - Schema definition
  * @param schemaRegistry - Schema registry for nested relation validation
  * @param depth - Current nesting depth
- * @throws {ForjaQueryBuilderError} If where clause is invalid
+ * @throws {DatrixQueryBuilderError} If where clause is invalid
  */
-export function validateWhereClause<T extends ForjaEntry>(
+export function validateWhereClause<T extends DatrixEntry>(
 	where: WhereClause<T>,
 	schema: SchemaDefinition,
 	schemaRegistry?: ISchemaRegistry,
@@ -484,14 +484,14 @@ export function validateWhereClause<T extends ForjaEntry>(
  *
  * // Nested relation WHERE validation
  * normalizeWhere([{ category: { invalidField: 'value' } }], productSchema, registry)
- * // → throws ForjaQueryBuilderError (invalidField doesn't exist in Category schema)
+ * // → throws DatrixQueryBuilderError (invalidField doesn't exist in Category schema)
  *
  * // Validation errors caught first
  * normalizeWhere([{ invalidField: 'value' }], schema, registry)
- * // → throws ForjaQueryBuilderError (BEFORE normalization)
+ * // → throws DatrixQueryBuilderError (BEFORE normalization)
  * ```
  */
-export function normalizeWhere<T extends ForjaEntry>(
+export function normalizeWhere<T extends DatrixEntry>(
 	wheres: WhereClause<T>[] | undefined,
 	schema: SchemaDefinition,
 	registry: ISchemaRegistry,
@@ -531,7 +531,7 @@ export function normalizeWhere<T extends ForjaEntry>(
  * @param registry - Schema registry for nested relation schemas
  * @returns Normalized WHERE clause with coerced values
  */
-function normalizeWhereClause<T extends ForjaEntry>(
+function normalizeWhereClause<T extends DatrixEntry>(
 	where: WhereClause<T>,
 	schema: SchemaDefinition,
 	registry: ISchemaRegistry,

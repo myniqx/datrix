@@ -4,18 +4,18 @@
  * This file defines the standard interface that ALL database adapters must implement.
  * Adapters provide database-specific implementations for PostgreSQL, MySQL, MongoDB, etc.
  *
- * Error handling: All methods throw ForjaAdapterError on failure instead of returning Result.
+ * Error handling: All methods throw DatrixAdapterError on failure instead of returning Result.
  */
 
 import { QueryObject, WhereClause } from "../core/query-builder";
 import {
 	FieldDefinition,
-	ForjaEntry,
+	DatrixEntry,
 	IndexDefinition,
 	ISchemaRegistry,
 	SchemaDefinition,
 } from "../core/schema";
-import { ForjaAdapterError } from "../errors/adapter";
+import { DatrixAdapterError } from "../errors/adapter";
 
 /**
  * Export data metadata
@@ -51,7 +51,7 @@ export interface ImportReader {
 	readChunks(tableName: string): AsyncIterable<Record<string, unknown>[]>;
 }
 
-export { ForjaAdapterError };
+export { DatrixAdapterError };
 
 /**
  * Query result metadata
@@ -75,11 +75,11 @@ export interface QueryResult<T = unknown> {
  * Common query execution interface shared by DatabaseAdapter and Transaction.
  */
 export interface QueryRunner {
-	executeQuery<TResult extends ForjaEntry>(
+	executeQuery<TResult extends DatrixEntry>(
 		query: QueryObject<TResult>,
 	): Promise<QueryResult<TResult>>;
 
-	executeRawQuery<TResult extends ForjaEntry>(
+	executeRawQuery<TResult extends DatrixEntry>(
 		sql: string,
 		params: readonly unknown[],
 	): Promise<QueryResult<TResult>>;
@@ -125,32 +125,32 @@ export interface Transaction extends QueryRunner, SchemaOperations {
  */
 export type AlterOperation =
 	| {
-			readonly type: "addColumn";
-			readonly column: string;
-			readonly definition: FieldDefinition;
-	  }
+		readonly type: "addColumn";
+		readonly column: string;
+		readonly definition: FieldDefinition;
+	}
 	| { readonly type: "dropColumn"; readonly column: string }
 	| {
-			readonly type: "modifyColumn";
-			readonly column: string;
-			readonly newDefinition: FieldDefinition;
-	  }
+		readonly type: "modifyColumn";
+		readonly column: string;
+		readonly newDefinition: FieldDefinition;
+	}
 	| {
-			readonly type: "renameColumn";
-			readonly from: string;
-			readonly to: string;
-	  }
+		readonly type: "renameColumn";
+		readonly from: string;
+		readonly to: string;
+	}
 	| {
-			readonly type: "addMetaField";
-			readonly field: string;
-			readonly definition: FieldDefinition;
-	  }
+		readonly type: "addMetaField";
+		readonly field: string;
+		readonly definition: FieldDefinition;
+	}
 	| { readonly type: "dropMetaField"; readonly field: string }
 	| {
-			readonly type: "modifyMetaField";
-			readonly field: string;
-			readonly newDefinition: FieldDefinition;
-	  };
+		readonly type: "modifyMetaField";
+		readonly field: string;
+		readonly newDefinition: FieldDefinition;
+	};
 
 /**
  * Connection state
@@ -235,7 +235,7 @@ export type SqlDialect = "postgres" | "mysql" | "sqlite";
 /**
  * Query translator interface
  */
-export interface QueryTranslator<T extends ForjaEntry = ForjaEntry> {
+export interface QueryTranslator<T extends DatrixEntry = DatrixEntry> {
 	translate(query: QueryObject<T>): {
 		readonly sql: string;
 		readonly params: readonly unknown[];

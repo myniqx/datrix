@@ -1,8 +1,8 @@
-# Forja Core - Development Guidelines
+# Datrix Core - Development Guidelines
 
 ## Overview
 
-The core package contains the fundamental building blocks of Forja:
+The core package contains the fundamental building blocks of Datrix:
 - **Schema System** - Type definitions and registry
 - **Query Builder** - Database-agnostic query construction
 - **Executor** - Query execution with validation
@@ -13,7 +13,7 @@ The core package contains the fundamental building blocks of Forja:
 
 ## Validation Layer Model
 
-Forja uses a layered validation architecture. Each layer has specific responsibilities:
+Datrix uses a layered validation architecture. Each layer has specific responsibilities:
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -107,7 +107,7 @@ Forja uses a layered validation architecture. Each layer has specific responsibi
 
 ### Validation Error Codes
 
-Defined in `@forja/core`:
+Defined in `@datrix/core`:
 
 - `REQUIRED` - Required field missing
 - `TYPE_MISMATCH` - Wrong type
@@ -154,7 +154,7 @@ async insert(query: QueryObject): Promise<Result<...>> {
 1. **Translate QueryObject to SQL** - Convert the abstract query to database-specific SQL
 2. **Prevent SQL Injection** - Use parameterized queries
 3. **Type Conversion** - Convert JS types to database types (Date → timestamp)
-4. **Handle Database Errors** - Translate database errors to Forja errors
+4. **Handle Database Errors** - Translate database errors to Datrix errors
 5. **Connection Management** - Pool handling, reconnection, etc.
 
 ### What Adapters SHOULD NOT Do

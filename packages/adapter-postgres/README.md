@@ -1,11 +1,11 @@
-# Forja PostgreSQL Adapter
+# Datrix PostgreSQL Adapter
 
-PostgreSQL adapter for the Forja framework. Provides full CRUD, relation population, migration support, and native referential integrity enforcement.
+PostgreSQL adapter for the Datrix framework. Provides full CRUD, relation population, migration support, and native referential integrity enforcement.
 
 ## Installation
 
 ```bash
-pnpm add forja-adapter-postgres
+pnpm add datrix-adapter-postgres
 ```
 
 Requires `pg` (node-postgres) driver as a peer dependency.
@@ -13,13 +13,13 @@ Requires `pg` (node-postgres) driver as a peer dependency.
 ## Configuration
 
 ```typescript
-import { PostgresAdapter } from "forja-adapter-postgres";
+import { PostgresAdapter } from "datrix-adapter-postgres";
 
 const adapter = new PostgresAdapter({
   host: "localhost",
   port: 5432,
-  user: "forja",
-  password: "forja",
+  user: "datrix",
+  password: "datrix",
   database: "myapp",
   max: 10,
   min: 2,
@@ -41,7 +41,7 @@ const adapter = new PostgresAdapter({
 ```text
 src/
 ├── adapter.ts                  # Main adapter logic & connection pool handling
-├── query-translator.ts         # Translates Forja QueryObjects into raw SQL
+├── query-translator.ts         # Translates Datrix QueryObjects into raw SQL
 ├── pg-client.ts                # Pool/PoolClient wrapper with debug logging and error mapping
 ├── types.ts                    # PostgreSQL-specific type mappings and query types
 ├── test-utils.ts               # Test database setup helpers
@@ -85,9 +85,9 @@ Docker setup for test database:
 
 ```bash
 docker run -d --name postgres-test \
-  -e POSTGRES_USER=forja_test \
-  -e POSTGRES_PASSWORD=forja_test \
-  -e POSTGRES_DB=forja_test \
+  -e POSTGRES_USER=datrix_test \
+  -e POSTGRES_PASSWORD=datrix_test \
+  -e POSTGRES_DB=datrix_test \
   -p 5432:5432 \
   postgres:16
 ```

@@ -1,0 +1,84 @@
+---
+title: MongoDB
+description: MongoDB adapter for Datrix.
+order: 3
+---
+
+# MongoDB Adapter
+
+```bash
+pnpm add @datrix/adapter-mongodb
+```
+
+Requires `mongodb` driver as a peer dependency.
+
+---
+
+## Requirements
+
+- **MongoDB 6.0+**
+- A **replica set is required** for transaction support. Standalone `mongod` instances do not support multi-document transactions, which are needed for migration operations.
+
+---
+
+## Configuration
+
+```typescript
+import { MongoDBAdapter } from "@datrix/adapter-mongodb"
+
+new MongoDBAdapter({
+  uri:      "mongodb://localhost:27017",  // MongoDB connection URI
+  database: "mydb",                       // database name to use
+
+  // Connection pool
+  maxPoolSize: 10,  // maximum number of connections
+  minPoolSize: 2,   // minimum number of idle connections to maintain
+
+  // Timeouts (milliseconds)
+  connectTimeoutMS:         5000,  // time to wait when opening a new connection
+  serverSelectionTimeoutMS: 5000,  // time to wait when selecting a server
+
+  appName: "my-app",  // shown in MongoDB logs and monitoring
+
+  // TLS/SSL
+  tls:       true,   // enable TLS
+  tlsCAFile: "...",  // path to CA certificate file
+
+  replicaSet: "rs0",    // replica set name — required for transactions
+
+  authSource: "admin",  // database used for authentication (default: "admin")
+})
+```
+
+---
+
+## Populate strategies
+
+Two strategies are used depending on relation depth:
+
+- **$lookup aggregation** — used for depth-1 relations. Performs a server-side join via aggregation pipeline. Handles `belongsTo`, `hasOne`, `hasMany`, and `manyToMany` (with double `$lookup` through the junction collection).
+- **Batched $in queries** — used for depth 2+. Collects IDs from parent rows, queries the target collection with `{ id: { $in: [...] } }`, then stitches results in memory. Supports recursive nested populate.
+
+FK columns needed for `belongsTo` relations (e.g. `authorId`) are automatically injected into projections even when not explicitly selected.
+
+---
+
+## Migration
+
+Migration operations are split into three phases because MongoDB does not support DDL inside transactions:
+
+1. **Pre-transaction** — collection creation (`createTable`)
+2. **In transaction** — `alterTable`, `dataTransfer`, `createIndex`, `dropIndex`
+3. **Post-transaction** — `dropTable`, `renameTable`
+
+If a migration fails during phase 2, collections created in phase 1 may remain as empty leftovers. No data loss occurs.
+
+---
+
+## Known limitations
+
+- Transaction rollback does not undo collection creation. If a migration fails after phase 1, the created collection remains.
+- No partial or expression indexes. Only simple field indexes with an optional unique constraint.
+- Auto-increment IDs are not gap-free. Failed inserts do not reclaim IDs.
+- `limit(0)` returns empty. MongoDB treats `cursor.limit(0)` as unlimited — the adapter intercepts this and returns an empty result to match SQL adapter behavior.
+- No native foreign key constraints. Referential integrity is enforced manually by the adapter on insert and update.

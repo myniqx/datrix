@@ -6,7 +6,7 @@
  */
 
 import { SchemaPermission } from "../core/permission";
-import type { ForjaEntry, SchemaDefinition } from "../core/schema";
+import type { DatrixEntry, SchemaDefinition } from "../core/schema";
 
 /**
  * Raw file data received from multipart/form-data parsing
@@ -76,7 +76,7 @@ export type MediaVariants<TResolutions extends string = string> = {
  */
 export interface MediaEntry<
 	TResolutions extends string = string,
-> extends ForjaEntry {
+> extends DatrixEntry {
 	readonly filename: string;
 	readonly originalName: string;
 	readonly mimeType: string;
@@ -178,7 +178,7 @@ export function sanitizeFilename(filename: string): string {
  */
 export interface IUpload {
 	getSchemas(): Promise<SchemaDefinition[]> | SchemaDefinition[];
-	handleRequest(request: Request, forja: unknown): Promise<Response>;
+	handleRequest(request: Request, datrix: unknown): Promise<Response>;
 	getModelName(): string;
 	/**
 	 * Traverse any response data (including populated relations) and inject

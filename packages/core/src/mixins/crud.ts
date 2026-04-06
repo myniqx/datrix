@@ -6,7 +6,7 @@
  */
 
 import { DatabaseAdapter } from "../types/adapter";
-import { ISchemaRegistry, ForjaEntry, ForjaRecord } from "../types/core/schema";
+import { ISchemaRegistry, DatrixEntry, DatrixRecord } from "../types/core/schema";
 import { WhereClause } from "../types/core/query-builder";
 import { Dispatcher } from "../dispatcher";
 import {
@@ -14,7 +14,7 @@ import {
 	RawCrudOptions,
 	RawFindManyOptions,
 	FallbackInput,
-} from "../types/core/forja";
+} from "../types/core";
 import {
 	selectFrom,
 	countFrom,
@@ -81,7 +81,7 @@ export class CrudOperations implements IRawCrud {
 	 * });
 	 * ```
 	 */
-	async findOne<T extends ForjaEntry = ForjaEntry>(
+	async findOne<T extends DatrixEntry = DatrixEntry>(
 		model: string,
 		where: WhereClause<T>,
 		options?: RawCrudOptions<T>,
@@ -118,7 +118,7 @@ export class CrudOperations implements IRawCrud {
 	 * const user = await crud.findById('User', '123');
 	 * ```
 	 */
-	async findById<T extends ForjaEntry = ForjaRecord>(
+	async findById<T extends DatrixEntry = DatrixRecord>(
 		model: string,
 		id: number,
 		options?: RawCrudOptions<T>,
@@ -155,7 +155,7 @@ export class CrudOperations implements IRawCrud {
 	 * });
 	 * ```
 	 */
-	async findMany<T extends ForjaEntry = ForjaRecord>(
+	async findMany<T extends DatrixEntry = DatrixRecord>(
 		model: string,
 		options?: RawFindManyOptions<T>,
 	): Promise<T[]> {
@@ -210,7 +210,7 @@ export class CrudOperations implements IRawCrud {
 	 * });
 	 * ```
 	 */
-	async count<T extends ForjaEntry = ForjaRecord>(
+	async count<T extends DatrixEntry = DatrixRecord>(
 		model: string,
 		where?: WhereClause<T>,
 	): Promise<number> {
@@ -247,7 +247,7 @@ export class CrudOperations implements IRawCrud {
 	 * ```
 	 */
 	async create<
-		T extends ForjaEntry = ForjaRecord,
+		T extends DatrixEntry = DatrixRecord,
 		TInput extends FallbackInput = FallbackInput,
 	>(model: string, data: TInput, options?: RawCrudOptions<T>): Promise<T> {
 		const result = await this.createMany<T, TInput>(model, [data], {
@@ -274,7 +274,7 @@ export class CrudOperations implements IRawCrud {
 	 * ```
 	 */
 	async createMany<
-		T extends ForjaEntry = ForjaRecord,
+		T extends DatrixEntry = DatrixRecord,
 		TInput extends FallbackInput = FallbackInput,
 	>(model: string, data: TInput[], options?: RawCrudOptions<T>): Promise<T[]> {
 		const builder = insertInto<T>(
@@ -316,7 +316,7 @@ export class CrudOperations implements IRawCrud {
 	 * ```
 	 */
 	async update<
-		T extends ForjaEntry = ForjaRecord,
+		T extends DatrixEntry = DatrixRecord,
 		TInput extends FallbackInput = FallbackInput,
 	>(
 		model: string,
@@ -367,7 +367,7 @@ export class CrudOperations implements IRawCrud {
 	 * ```
 	 */
 	async updateMany<
-		T extends ForjaEntry = ForjaRecord,
+		T extends DatrixEntry = DatrixRecord,
 		TInput extends FallbackInput = FallbackInput,
 	>(
 		model: string,
@@ -412,7 +412,7 @@ export class CrudOperations implements IRawCrud {
 	 * const deleted = await crud.delete('User', '123');
 	 * ```
 	 */
-	async delete<T extends ForjaEntry = ForjaRecord>(
+	async delete<T extends DatrixEntry = DatrixRecord>(
 		model: string,
 		id: number,
 		options?: RawCrudOptions<T>,
@@ -450,7 +450,7 @@ export class CrudOperations implements IRawCrud {
 	 * });
 	 * ```
 	 */
-	async deleteMany<T extends ForjaEntry = ForjaRecord>(
+	async deleteMany<T extends DatrixEntry = DatrixRecord>(
 		model: string,
 		where: WhereClause<T>,
 		options?: RawCrudOptions<T>,

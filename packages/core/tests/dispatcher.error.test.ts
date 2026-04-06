@@ -8,7 +8,7 @@
 
 import { Dispatcher } from "../src/dispatcher";
 import { QueryObject } from "../src/types";
-import { ForjaPlugin, PluginRegistry } from "../src/types";
+import { DatrixPlugin, PluginRegistry } from "../src/types";
 import { describe, it, expect } from "vitest";
 
 describe("Core - Dispatcher - Error Path", () => {
@@ -31,12 +31,12 @@ describe("Core - Dispatcher - Error Path", () => {
 		"should throw if plugin returns an invalid query (now strict)",
 		async () => {
 			const pluginRegistry = new PluginRegistry();
-			const invalidQueryReturningPlugin: ForjaPlugin = {
+			const invalidQueryReturningPlugin: DatrixPlugin = {
 				name: "bad-plugin",
 				version: "1",
 				options: {},
-				init: async () => {},
-				destroy: async () => {},
+				init: async () => { },
+				destroy: async () => { },
 				onBeforeQuery: async (q) =>
 					({ ...q, ghostKey: "I should not be here" }) as any,
 			};

@@ -11,22 +11,22 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { Forja } from "@forja/core";
+import { Datrix } from "@datrix/core";
 import fs from "node:fs/promises";
 import { createTestConfig, getTmpDir, setupTables } from "../setup";
 
 describe("Update Relations", () => {
-	let forja: Forja;
+	let datrix: Datrix;
 	const tmpDir = getTmpDir("update_relations");
 
 	beforeAll(async () => {
 		await fs.rm(tmpDir, { recursive: true, force: true });
 		await fs.mkdir(tmpDir, { recursive: true });
 
-		const getForja = await createTestConfig(tmpDir);
-		forja = await getForja();
+		const getDatrix = await createTestConfig(tmpDir);
+		datrix = await getDatrix();
 
-		await setupTables(forja);
+		await setupTables(datrix);
 	});
 
 	afterAll(async () => {
@@ -39,23 +39,23 @@ describe("Update Relations", () => {
 
 	describe("BelongsTo - Change Relation", () => {
 		it("should change belongsTo to different record", async () => {
-			const org1 = await forja.create("organization", {
+			const org1 = await datrix.create("organization", {
 				name: "BT Change Org 1",
 				country: "USA",
 			});
-			const org2 = await forja.create("organization", {
+			const org2 = await datrix.create("organization", {
 				name: "BT Change Org 2",
 				country: "UK",
 			});
 
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "bt-change@test.com",
 				name: "BT Change User",
 				organization: org1.id,
 			});
 
 			// Change organization
-			const updated = await forja.update(
+			const updated = await datrix.update(
 				"user",
 				user.id,
 				{ organization: org2.id },
@@ -69,19 +69,19 @@ describe("Update Relations", () => {
 		});
 
 		it("should set belongsTo to null", async () => {
-			const org = await forja.create("organization", {
+			const org = await datrix.create("organization", {
 				name: "BT Null Org",
 				country: "Germany",
 			});
 
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "bt-null@test.com",
 				name: "BT Null User",
 				organization: org.id,
 			});
 
 			// Set to null
-			const updated = await forja.update(
+			const updated = await datrix.update(
 				"user",
 				user.id,
 				{ organization: null },
@@ -92,22 +92,22 @@ describe("Update Relations", () => {
 		});
 
 		it("should change self-referencing belongsTo", async () => {
-			const parent1 = await forja.create("category", {
+			const parent1 = await datrix.create("category", {
 				name: "SR Parent 1",
 				slug: "sr-parent-1",
 			});
-			const parent2 = await forja.create("category", {
+			const parent2 = await datrix.create("category", {
 				name: "SR Parent 2",
 				slug: "sr-parent-2",
 			});
-			const child = await forja.create("category", {
+			const child = await datrix.create("category", {
 				name: "SR Child",
 				slug: "sr-child",
 				parent: parent1.id,
 			});
 
 			// Move to different parent
-			const updated = await forja.update(
+			const updated = await datrix.update(
 				"category",
 				child.id,
 				{ parent: parent2.id },
@@ -124,27 +124,27 @@ describe("Update Relations", () => {
 
 	describe("ManyToMany - Connect", () => {
 		it("should connect additional records", async () => {
-			const role1 = await forja.create("role", {
+			const role1 = await datrix.create("role", {
 				name: "M2M Conn Role 1",
 				level: 10,
 			});
-			const role2 = await forja.create("role", {
+			const role2 = await datrix.create("role", {
 				name: "M2M Conn Role 2",
 				level: 20,
 			});
-			const role3 = await forja.create("role", {
+			const role3 = await datrix.create("role", {
 				name: "M2M Conn Role 3",
 				level: 30,
 			});
 
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "m2m-connect@test.com",
 				name: "M2M Connect User",
 				roles: { connect: [role1.id] },
 			});
 
 			// Connect additional roles
-			const updated = await forja.update(
+			const updated = await datrix.update(
 				"user",
 				user.id,
 				{
@@ -161,19 +161,19 @@ describe("Update Relations", () => {
 		});
 
 		it("should not duplicate when connecting existing", async () => {
-			const role = await forja.create("role", {
+			const role = await datrix.create("role", {
 				name: "M2M Dup Role",
 				level: 40,
 			});
 
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "m2m-dup@test.com",
 				name: "M2M Dup User",
 				roles: { connect: [role.id] },
 			});
 
 			// Try to connect same role again
-			const updated = await forja.update(
+			const updated = await datrix.update(
 				"user",
 				user.id,
 				{
@@ -193,22 +193,22 @@ describe("Update Relations", () => {
 
 	describe("ManyToMany - Disconnect", () => {
 		it("should disconnect specific records", async () => {
-			const tags = await forja.createMany("tag", [
+			const tags = await datrix.createMany("tag", [
 				{ name: "Disc Tag 1", color: "#111111" },
 				{ name: "Disc Tag 2", color: "#222222" },
 				{ name: "Disc Tag 3", color: "#333333" },
 			]);
 
-			const category = await forja.create("category", {
+			const category = await datrix.create("category", {
 				name: "Disc Category",
 				slug: "disc-category",
 			});
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "disc-author@test.com",
 				name: "Disc Author",
 			});
 
-			const post = await forja.create("post", {
+			const post = await datrix.create("post", {
 				title: "Disconnect Post",
 				content: "Testing disconnect",
 				slug: "disconnect-post",
@@ -218,7 +218,7 @@ describe("Update Relations", () => {
 			});
 
 			// Disconnect one tag
-			const updated = await forja.update(
+			const updated = await datrix.update(
 				"post",
 				post.id,
 				{
@@ -235,19 +235,19 @@ describe("Update Relations", () => {
 		});
 
 		it("should disconnect all with empty set", async () => {
-			const roles = await forja.createMany("role", [
+			const roles = await datrix.createMany("role", [
 				{ name: "Set Empty Role 1", level: 50 },
 				{ name: "Set Empty Role 2", level: 60 },
 			]);
 
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "set-empty@test.com",
 				name: "Set Empty User",
 				roles: { connect: roles.map((r) => r.id) },
 			});
 
 			// Set to empty array (disconnect all)
-			const updated = await forja.update(
+			const updated = await datrix.update(
 				"user",
 				user.id,
 				{
@@ -266,27 +266,27 @@ describe("Update Relations", () => {
 
 	describe("ManyToMany - Set", () => {
 		it("should replace all relations with set", async () => {
-			const role1 = await forja.create("role", {
+			const role1 = await datrix.create("role", {
 				name: "Set Role 1",
 				level: 70,
 			});
-			const role2 = await forja.create("role", {
+			const role2 = await datrix.create("role", {
 				name: "Set Role 2",
 				level: 80,
 			});
-			const role3 = await forja.create("role", {
+			const role3 = await datrix.create("role", {
 				name: "Set Role 3",
 				level: 90,
 			});
 
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "m2m-set@test.com",
 				name: "M2M Set User",
 				roles: { connect: [role1.id, role2.id] },
 			});
 
 			// Replace with different roles
-			const updated = await forja.update(
+			const updated = await datrix.update(
 				"user",
 				user.id,
 				{
@@ -306,13 +306,13 @@ describe("Update Relations", () => {
 
 	describe("ManyToMany - Create on Update", () => {
 		it("should create new related records while updating", async () => {
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "m2m-create-update@test.com",
 				name: "M2M Create Update User",
 			});
 
 			// Add new roles via create
-			const updated = await forja.update(
+			const updated = await datrix.update(
 				"user",
 				user.id,
 				{
@@ -334,7 +334,7 @@ describe("Update Relations", () => {
 			expect(roleNames).toContain("Created Role B");
 
 			// Verify roles were actually created in DB
-			const createdRoleA = await forja.findOne("role", {
+			const createdRoleA = await datrix.findOne("role", {
 				name: "Created Role A",
 			});
 			expect(createdRoleA).not.toBeNull();
@@ -347,17 +347,17 @@ describe("Update Relations", () => {
 
 	describe("Mixed Operations", () => {
 		it("should connect and create in same update", async () => {
-			const existingRole = await forja.create("role", {
+			const existingRole = await datrix.create("role", {
 				name: "Existing Mixed Role",
 				level: 35,
 			});
 
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "mixed-update@test.com",
 				name: "Mixed Update User",
 			});
 
-			const updated = await forja.update(
+			const updated = await datrix.update(
 				"user",
 				user.id,
 				{
@@ -378,27 +378,27 @@ describe("Update Relations", () => {
 		});
 
 		it("should disconnect and connect in same update", async () => {
-			const role1 = await forja.create("role", {
+			const role1 = await datrix.create("role", {
 				name: "DC Role 1",
 				level: 55,
 			});
-			const role2 = await forja.create("role", {
+			const role2 = await datrix.create("role", {
 				name: "DC Role 2",
 				level: 65,
 			});
-			const role3 = await forja.create("role", {
+			const role3 = await datrix.create("role", {
 				name: "DC Role 3",
 				level: 75,
 			});
 
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "dc-update@test.com",
 				name: "DC Update User",
 				roles: { connect: [role1.id, role2.id] },
 			});
 
 			// Disconnect role1, connect role3
-			const updated = await forja.update(
+			const updated = await datrix.update(
 				"user",
 				user.id,
 				{
@@ -424,23 +424,23 @@ describe("Update Relations", () => {
 	describe("Complex: Move Records Between Categories", () => {
 		it("should move all posts from multiple categories to new category", async () => {
 			// Setup: Create categories
-			const cat1 = await forja.create("category", {
+			const cat1 = await datrix.create("category", {
 				name: "Source Cat 1",
 				slug: "source-cat-1",
 			});
-			const cat2 = await forja.create("category", {
+			const cat2 = await datrix.create("category", {
 				name: "Source Cat 2",
 				slug: "source-cat-2",
 			});
 
 			// Create author
-			const author = await forja.create("user", {
+			const author = await datrix.create("user", {
 				email: "move-author@test.com",
 				name: "Move Author",
 			});
 
 			// Create posts in different categories
-			await forja.createMany("post", [
+			await datrix.createMany("post", [
 				{
 					title: "Post in Cat 1",
 					content: "Content 1",
@@ -465,13 +465,13 @@ describe("Update Relations", () => {
 			]);
 
 			// Create new target category
-			const newCat = await forja.create("category", {
+			const newCat = await datrix.create("category", {
 				name: "Target Category",
 				slug: "target-category",
 			});
 
 			// Move all posts from cat1 and cat2 to newCat using updateMany
-			const movedPosts = await forja.updateMany(
+			const movedPosts = await datrix.updateMany(
 				"post",
 				{
 					category: { id: { $in: [cat1.id, cat2.id] } },
@@ -488,10 +488,10 @@ describe("Update Relations", () => {
 			}
 
 			// Verify old categories have no posts
-			const cat1Posts = await forja.findMany("post", {
+			const cat1Posts = await datrix.findMany("post", {
 				where: { category: { id: cat1.id } },
 			});
-			const cat2Posts = await forja.findMany("post", {
+			const cat2Posts = await datrix.findMany("post", {
 				where: { category: { id: cat2.id } },
 			});
 
@@ -506,26 +506,26 @@ describe("Update Relations", () => {
 
 	describe("Error Cases", () => {
 		it("should fail when connecting to non-existent id", async () => {
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "err-connect@test.com",
 				name: "Err Connect User",
 			});
 
 			await expect(
-				forja.update("user", user.id, {
+				datrix.update("user", user.id, {
 					roles: { connect: [99999] },
 				}),
 			).rejects.toThrow();
 		});
 
 		it("should fail when setting to non-existent belongsTo", async () => {
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "err-belongsto@test.com",
 				name: "Err BelongsTo User",
 			});
 
 			await expect(
-				forja.update("user", user.id, {
+				datrix.update("user", user.id, {
 					organization: 99999,
 				}),
 			).rejects.toThrow();

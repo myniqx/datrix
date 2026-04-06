@@ -1,0 +1,103 @@
+---
+title: Configuration
+description: How to configure Datrix with defineConfig.
+order: 2
+---
+
+# Configuration
+
+Datrix uses a `defineConfig` function to declare your configuration and returns a factory function
+that lazily initializes the singleton instance on first call.
+
+## datrix.config.ts
+
+```typescript
+import { defineConfig } from '@datrix/core'
+import { PostgresAdapter } from '@datrix/adapter-postgres'
+import { userSchema } from './schemas/user.schema'
+import { postSchema } from './schemas/post.schema'
+
+export default defineConfig(() => ({
+  adapter: new PostgresAdapter({
+    connectionString: process.env.DATABASE_URL!,
+  }),
+  schemas: [userSchema, postSchema],
+}))
+```
+
+## Using the instance
+
+Import the factory and call it to get the initialized `Datrix` instance.
+Subsequent calls return the same singleton — initialization only runs once.
+
+```typescript
+import getDatrix from './datrix.config'
+
+const datrix = await getDatrix()
+
+const users = await datrix.findMany('user')
+```
+
+## Configuration options
+
+### `adapter` (required)
+
+The database adapter instance. See [Adapters](/docs/adapters/index) for available options.
+
+```typescript
+import { PostgresAdapter } from '@datrix/adapter-postgres'
+
+adapter: new PostgresAdapter({ connectionString: process.env.DATABASE_URL! })
+```
+
+### `schemas` (required)
+
+Array of schema definitions. Order does not matter — Datrix resolves relations automatically.
+
+```typescript
+schemas: [userSchema, postSchema, commentSchema]
+```
+
+### `plugins` (optional)
+
+Plugin instances to register. Plugins are initialized in the order they appear.
+
+```typescript
+import { SoftDeletePlugin } from '@datrix/plugin-soft-delete'
+
+plugins: [new SoftDeletePlugin()]
+```
+
+### `migration` (optional)
+
+Controls migration behavior.
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `auto` | `boolean` | `false` | Run migrations automatically on startup |
+| `directory` | `string` | `'./migrations'` | Directory to store migration files |
+| `modelName` | `string` | `'_datrix_migration'` | Table name for migration history |
+
+```typescript
+migration: {
+  auto: false,
+  directory: './migrations',
+}
+```
+
+### `dev` (optional)
+
+Development mode options for debugging.
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `logging` | `boolean` | `false` | Log all executed queries |
+| `validateQueries` | `boolean` | `false` | Validate queries before execution |
+| `prettyErrors` | `boolean` | `false` | Pretty-print errors with stack traces |
+
+```typescript
+dev: {
+  logging: process.env.NODE_ENV === 'development',
+  prettyErrors: true,
+}
+```

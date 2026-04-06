@@ -1,19 +1,19 @@
-# Forja
+# Datrix
 
 TypeScript-first database management framework. Provides flexible REST API query capabilities without being a standalone application — integrate it into your existing project, keep your own server and framework.
 
-**Documentation:** [tryforja.com](https://tryforja.com)
+**Documentation:** [datrix.dev](https://datrix.dev)
 
 ---
 
 ## What it is
 
-Forja gives you:
+Datrix gives you:
 
 - **Schema-driven data layer** — define your models once, get validation, migrations, and type-safe queries for free
 - **Database-agnostic CRUD** — same query API across PostgreSQL, MySQL, MongoDB, and a JSON adapter for local dev
-- **Optional REST API** — add `@forja/api` as a plugin to auto-generate CRUD routes, JWT/session auth, and RBAC permissions
-- **File uploads** — add `@forja/api-upload` for storage-agnostic file handling with image conversion and variants
+- **Optional REST API** — add `@datrix/api` as a plugin to auto-generate CRUD routes, JWT/session auth, and RBAC permissions
+- **File uploads** — add `@datrix/api-upload` for storage-agnostic file handling with image conversion and variants
 - **Migrations** — schema diff engine that detects changes and generates DDL — run via CLI or programmatically
 
 ---
@@ -24,42 +24,42 @@ Forja gives you:
 
 | Package | Description |
 | ------- | ----------- |
-| [`@forja/core`](./packages/core/README.md) | Schema definition, validation, query building, CRUD dispatcher, migration engine, plugin system |
+| [`@datrix/core`](./packages/core/README.md) | Schema definition, validation, query building, CRUD dispatcher, migration engine, plugin system |
 
 ### Adapters
 
 | Package | Description |
 | ------- | ----------- |
-| [`@forja/adapter-postgres`](./packages/adapter-postgres/README.md) | PostgreSQL adapter — full CRUD, native FK constraints, three populate strategies, transactional migrations |
-| [`@forja/adapter-mysql`](./packages/adapter-mysql/README.md) | MySQL / MariaDB adapter — full CRUD, native FK constraints, relation population, migration support |
-| [`@forja/adapter-mongodb`](./packages/adapter-mongodb/README.md) | MongoDB adapter — full CRUD, manual referential integrity, migration support |
-| [`@forja/adapter-json`](./packages/adapter-json/README.md) | File-based JSON adapter — for development, testing, and small-scale use. No database required |
+| [`@datrix/adapter-postgres`](./packages/adapter-postgres/README.md) | PostgreSQL adapter — full CRUD, native FK constraints, three populate strategies, transactional migrations |
+| [`@datrix/adapter-mysql`](./packages/adapter-mysql/README.md) | MySQL / MariaDB adapter — full CRUD, native FK constraints, relation population, migration support |
+| [`@datrix/adapter-mongodb`](./packages/adapter-mongodb/README.md) | MongoDB adapter — full CRUD, manual referential integrity, migration support |
+| [`@datrix/adapter-json`](./packages/adapter-json/README.md) | File-based JSON adapter — for development, testing, and small-scale use. No database required |
 
 ### API & Upload
 
 | Package | Description |
 | ------- | ----------- |
-| [`@forja/api`](./packages/api/README.md) | HTTP REST API plugin — auto-generated CRUD routes, JWT/session auth, RBAC permissions, Node.js adapter helpers |
-| [`@forja/api-upload`](./packages/api-upload/README.md) | File upload extension — Local and S3 storage, image format conversion, resolution variants, URL injection |
+| [`@datrix/api`](./packages/api/README.md) | HTTP REST API plugin — auto-generated CRUD routes, JWT/session auth, RBAC permissions, Node.js adapter helpers |
+| [`@datrix/api-upload`](./packages/api-upload/README.md) | File upload extension — Local and S3 storage, image format conversion, resolution variants, URL injection |
 
 ### Tooling
 
 | Package | Description |
 | ------- | ----------- |
-| [`@forja/cli`](./packages/cli/) | CLI tools — `forja migrate`, `forja generate types`, `forja dev` |
+| [`@datrix/cli`](./packages/cli/) | CLI tools — `datrix migrate`, `datrix generate types`, `datrix dev` |
 
 ---
 
 ## Quick start
 
 ```bash
-pnpm add @forja/core @forja/adapter-postgres
+pnpm add @datrix/core @datrix/adapter-postgres
 ```
 
 ```typescript
-// forja.config.ts
-import { defineConfig, defineSchema } from "@forja/core"
-import { PostgresAdapter } from "@forja/adapter-postgres"
+// datrix.config.ts
+import { defineConfig, defineSchema } from "@datrix/core"
+import { PostgresAdapter } from "@datrix/adapter-postgres"
 
 const userSchema = defineSchema({
   name: "user",
@@ -81,17 +81,17 @@ export default defineConfig(() => ({
 
 ```typescript
 // anywhere in your app
-import getForja from "./forja.config"
+import getDatrix from "./datrix.config"
 
-const forja = await getForja()
+const datrix = await getDatrix()
 
-const users = await forja.findMany("user", {
+const users = await datrix.findMany("user", {
   where:   { role: "admin" },
   orderBy: { createdAt: "desc" },
   limit:   10,
 })
 
-const user = await forja.create("user", {
+const user = await datrix.create("user", {
   name: "Alice", email: "alice@example.com",
 })
 ```
@@ -99,12 +99,12 @@ const user = await forja.create("user", {
 ## Adding the REST API
 
 ```bash
-pnpm add @forja/api
+pnpm add @datrix/api
 ```
 
 ```typescript
-import { ApiPlugin } from "@forja/api"
-import { handleRequest } from "@forja/api"
+import { ApiPlugin } from "@datrix/api"
+import { handleRequest } from "@datrix/api"
 
 export default defineConfig(() => ({
   adapter,
@@ -122,20 +122,20 @@ export default defineConfig(() => ({
 
 // Next.js App Router — catch-all route
 export async function GET(request: Request) {
-  return handleRequest(await getForja(), request)
+  return handleRequest(await getDatrix(), request)
 }
 ```
 
-See [`@forja/api`](./packages/api/README.md) for full setup, auth, and permission docs.
+See [`@datrix/api`](./packages/api/README.md) for full setup, auth, and permission docs.
 
 ## Adding file uploads
 
 ```bash
-pnpm add @forja/api-upload
+pnpm add @datrix/api-upload
 ```
 
 ```typescript
-import { Upload, LocalStorageProvider } from "@forja/api-upload"
+import { Upload, LocalStorageProvider } from "@datrix/api-upload"
 
 new ApiPlugin({
   upload: new Upload({
@@ -152,7 +152,7 @@ new ApiPlugin({
 })
 ```
 
-See [`@forja/api-upload`](./packages/api-upload/README.md) for storage providers, format conversion, and variant docs.
+See [`@datrix/api-upload`](./packages/api-upload/README.md) for storage providers, format conversion, and variant docs.
 
 ---
 

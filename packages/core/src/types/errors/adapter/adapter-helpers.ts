@@ -1,13 +1,13 @@
 /**
- * Forja Adapter Error Helpers
+ * Datrix Adapter Error Helpers
  *
  * Shared throw helpers for all database adapters.
  * Every helper accepts an object with at minimum { adapter }.
  */
 
 import type { QueryObject } from "../../core/query-builder";
-import type { ForjaEntry } from "../../core/schema";
-import { ForjaAdapterError, type AdapterName } from "./adapter-error";
+import type { DatrixEntry } from "../../core/schema";
+import { DatrixAdapterError, type AdapterName } from "./adapter-error";
 
 // ============================================================================
 // SQL Truncation Utility
@@ -25,7 +25,7 @@ export function truncateSqlForError(sql: string): string {
 // ============================================================================
 
 export function throwNotConnected(params: { adapter: AdapterName }): never {
-	throw new ForjaAdapterError("Not connected to database", {
+	throw new DatrixAdapterError("Not connected to database", {
 		adapter: params.adapter,
 		code: "ADAPTER_CONNECTION_ERROR",
 		operation: "connect",
@@ -39,7 +39,7 @@ export function throwConnectionError(params: {
 	operation?: "connect" | "disconnect";
 	cause?: Error | undefined;
 }): never {
-	throw new ForjaAdapterError(params.message, {
+	throw new DatrixAdapterError(params.message, {
 		adapter: params.adapter,
 		code: "ADAPTER_CONNECTION_ERROR",
 		operation: params.operation ?? "connect",
@@ -58,7 +58,7 @@ export function throwMigrationError(params: {
 	cause?: Error | undefined;
 	suggestion?: string | undefined;
 }): never {
-	throw new ForjaAdapterError(params.message, {
+	throw new DatrixAdapterError(params.message, {
 		adapter: params.adapter,
 		code: "ADAPTER_MIGRATION_ERROR",
 		operation: "migration",
@@ -78,7 +78,7 @@ export function throwIntrospectionError(params: {
 	table?: string | undefined;
 	cause?: Error | undefined;
 }): never {
-	throw new ForjaAdapterError(params.message, {
+	throw new DatrixAdapterError(params.message, {
 		adapter: params.adapter,
 		code: "ADAPTER_INTROSPECTION_ERROR",
 		operation: "introspection",
@@ -101,7 +101,7 @@ export function throwQueryError(params: {
 	expected?: string | undefined;
 	received?: unknown;
 }): never {
-	throw new ForjaAdapterError(params.message, {
+	throw new DatrixAdapterError(params.message, {
 		adapter: params.adapter,
 		code: "ADAPTER_QUERY_ERROR",
 		operation: "query",
@@ -123,7 +123,7 @@ export function throwQueryMissingData(params: {
 	queryType: string;
 	table: string;
 }): never {
-	throw new ForjaAdapterError(
+	throw new DatrixAdapterError(
 		`${params.queryType} query missing data for table: ${params.table}`,
 		{
 			adapter: params.adapter,
@@ -145,7 +145,7 @@ export function throwTransactionError(params: {
 	message: string;
 	cause?: Error | undefined;
 }): never {
-	throw new ForjaAdapterError(params.message, {
+	throw new DatrixAdapterError(params.message, {
 		adapter: params.adapter,
 		code: "ADAPTER_TRANSACTION_ERROR",
 		operation: "transaction",
@@ -156,7 +156,7 @@ export function throwTransactionError(params: {
 export function throwTransactionAlreadyCommitted(params: {
 	adapter: AdapterName;
 }): never {
-	throw new ForjaAdapterError("Transaction already committed", {
+	throw new DatrixAdapterError("Transaction already committed", {
 		adapter: params.adapter,
 		code: "ADAPTER_TRANSACTION_ERROR",
 		operation: "transaction",
@@ -167,7 +167,7 @@ export function throwTransactionAlreadyCommitted(params: {
 export function throwTransactionAlreadyRolledBack(params: {
 	adapter: AdapterName;
 }): never {
-	throw new ForjaAdapterError("Transaction already rolled back", {
+	throw new DatrixAdapterError("Transaction already rolled back", {
 		adapter: params.adapter,
 		code: "ADAPTER_TRANSACTION_ERROR",
 		operation: "transaction",
@@ -178,7 +178,7 @@ export function throwTransactionAlreadyRolledBack(params: {
 export function throwTransactionSavepointNotSupported(params: {
 	adapter: AdapterName;
 }): never {
-	throw new ForjaAdapterError(
+	throw new DatrixAdapterError(
 		`Savepoints are not supported by the ${params.adapter} adapter`,
 		{
 			adapter: params.adapter,
@@ -192,7 +192,7 @@ export function throwTransactionSavepointNotSupported(params: {
 export function throwRawQueryNotSupported(params: {
 	adapter: AdapterName;
 }): never {
-	throw new ForjaAdapterError(
+	throw new DatrixAdapterError(
 		`Raw SQL queries are not supported by the ${params.adapter} adapter`,
 		{
 			adapter: params.adapter,
@@ -211,7 +211,7 @@ export function throwModelNotFound(params: {
 	adapter: AdapterName;
 	table: string;
 }): never {
-	throw new ForjaAdapterError(`Model not found for table: ${params.table}`, {
+	throw new DatrixAdapterError(`Model not found for table: ${params.table}`, {
 		adapter: params.adapter,
 		code: "ADAPTER_MODEL_NOT_FOUND",
 		operation: "populate",
@@ -225,7 +225,7 @@ export function throwSchemaNotFound(params: {
 	adapter: AdapterName;
 	modelName: string;
 }): never {
-	throw new ForjaAdapterError(
+	throw new DatrixAdapterError(
 		`Schema not found for model: ${params.modelName}`,
 		{
 			adapter: params.adapter,
@@ -243,7 +243,7 @@ export function throwRelationNotFound(params: {
 	relationName: string;
 	schemaName: string;
 }): never {
-	throw new ForjaAdapterError(
+	throw new DatrixAdapterError(
 		`Relation field '${params.relationName}' not found in schema '${params.schemaName}'`,
 		{
 			adapter: params.adapter,
@@ -262,7 +262,7 @@ export function throwInvalidRelationType(params: {
 	fieldType: string;
 	schemaName: string;
 }): never {
-	throw new ForjaAdapterError(
+	throw new DatrixAdapterError(
 		`Field '${params.relationName}' (type: ${params.fieldType}) is not a relation field in schema '${params.schemaName}'`,
 		{
 			adapter: params.adapter,
@@ -286,7 +286,7 @@ export function throwTargetModelNotFound(params: {
 	relationName: string;
 	schemaName: string;
 }): never {
-	throw new ForjaAdapterError(
+	throw new DatrixAdapterError(
 		`Target model '${params.targetModel}' not found for relation '${params.relationName}' in schema '${params.schemaName}'`,
 		{
 			adapter: params.adapter,
@@ -309,7 +309,7 @@ export function throwJunctionTableNotFound(params: {
 	relationName: string;
 	schemaName: string;
 }): never {
-	throw new ForjaAdapterError(
+	throw new DatrixAdapterError(
 		`Junction table '${params.junctionTable}' not found for manyToMany relation '${params.relationName}' in schema '${params.schemaName}'`,
 		{
 			adapter: params.adapter,
@@ -332,7 +332,7 @@ export function throwMaxDepthExceeded(params: {
 	maxDepth: number;
 	relationPath: string;
 }): never {
-	throw new ForjaAdapterError(
+	throw new DatrixAdapterError(
 		`Populate depth exceeds maximum of ${params.maxDepth} at path: ${params.relationPath}`,
 		{
 			adapter: params.adapter,
@@ -350,7 +350,7 @@ export function throwMaxDepthExceeded(params: {
 	);
 }
 
-export function throwPopulateQueryError<T extends ForjaEntry>(params: {
+export function throwPopulateQueryError<T extends DatrixEntry>(params: {
 	adapter: AdapterName;
 	query: QueryObject<T>;
 	sql: string;
@@ -361,7 +361,7 @@ export function throwPopulateQueryError<T extends ForjaEntry>(params: {
 	const strategyLabel = params.strategy
 		? ` using ${params.strategy} strategy`
 		: "";
-	throw new ForjaAdapterError(
+	throw new DatrixAdapterError(
 		`Populate query execution failed for table '${params.query.table}'${strategyLabel}`,
 		{
 			adapter: params.adapter,
@@ -388,7 +388,7 @@ export function throwInvalidPopulateOptions(params: {
 	optionName: string;
 	optionValue: unknown;
 }): never {
-	throw new ForjaAdapterError(
+	throw new DatrixAdapterError(
 		`Invalid populate option '${params.optionName}' for relation '${params.relationName}'`,
 		{
 			adapter: params.adapter,
@@ -417,7 +417,7 @@ export function throwJoinBuildError(params: {
 	relationKind: string;
 	cause?: Error | undefined;
 }): never {
-	throw new ForjaAdapterError(
+	throw new DatrixAdapterError(
 		`Failed to generate JOIN for relation '${params.relationName}' (kind: ${params.relationKind})`,
 		{
 			adapter: params.adapter,
@@ -439,7 +439,7 @@ export function throwLateralJoinError(params: {
 	relationName: string;
 	cause?: Error | undefined;
 }): never {
-	throw new ForjaAdapterError(
+	throw new DatrixAdapterError(
 		`Failed to generate LATERAL JOIN for relation '${params.relationName}'`,
 		{
 			adapter: params.adapter,
@@ -463,7 +463,7 @@ export function throwJsonAggregationError(params: {
 	relationName: string;
 	cause?: Error | undefined;
 }): never {
-	throw new ForjaAdapterError(
+	throw new DatrixAdapterError(
 		`Failed to generate JSON aggregation for relation '${params.relationName}'`,
 		{
 			adapter: params.adapter,
@@ -482,7 +482,7 @@ export function throwResultProcessingError(params: {
 	operation: string;
 	cause?: Error | undefined;
 }): never {
-	throw new ForjaAdapterError(
+	throw new DatrixAdapterError(
 		`Failed to process query results: ${params.operation}`,
 		{
 			adapter: params.adapter,
@@ -505,7 +505,7 @@ export function throwMetaFieldAlreadyExists(params: {
 	field: string;
 	table: string;
 }): never {
-	throw new ForjaAdapterError(
+	throw new DatrixAdapterError(
 		`Meta field '${params.field}' already exists in schema for table '${params.table}'`,
 		{
 			adapter: params.adapter,
@@ -522,7 +522,7 @@ export function throwMetaFieldNotFound(params: {
 	field: string;
 	table: string;
 }): never {
-	throw new ForjaAdapterError(
+	throw new DatrixAdapterError(
 		`Meta field '${params.field}' not found in schema for table '${params.table}'`,
 		{
 			adapter: params.adapter,
@@ -542,7 +542,7 @@ export function throwLockTimeout(params: {
 	adapter: AdapterName;
 	lockTimeout: number;
 }): never {
-	throw new ForjaAdapterError(
+	throw new DatrixAdapterError(
 		`Could not acquire lock within ${params.lockTimeout}ms`,
 		{
 			adapter: params.adapter,
@@ -560,7 +560,7 @@ export function throwLockError(params: {
 	adapter: AdapterName;
 	cause?: Error | undefined;
 }): never {
-	throw new ForjaAdapterError("Failed to acquire lock", {
+	throw new DatrixAdapterError("Failed to acquire lock", {
 		adapter: params.adapter,
 		code: "ADAPTER_LOCK_ERROR",
 		operation: "lock",
@@ -578,7 +578,7 @@ export function throwFileReadError(params: {
 	file: string;
 	cause?: Error | undefined;
 }): never {
-	throw new ForjaAdapterError(`Failed to read file: ${params.file}`, {
+	throw new DatrixAdapterError(`Failed to read file: ${params.file}`, {
 		adapter: params.adapter,
 		code: "ADAPTER_FILE_READ_ERROR",
 		operation: "read",
@@ -593,7 +593,7 @@ export function throwFileWriteError(params: {
 	file: string;
 	cause?: Error | undefined;
 }): never {
-	throw new ForjaAdapterError(`Failed to write file: ${params.file}`, {
+	throw new DatrixAdapterError(`Failed to write file: ${params.file}`, {
 		adapter: params.adapter,
 		code: "ADAPTER_FILE_WRITE_ERROR",
 		operation: "write",
@@ -607,7 +607,7 @@ export function throwFileNotFound(params: {
 	adapter: AdapterName;
 	file: string;
 }): never {
-	throw new ForjaAdapterError(`File not found: ${params.file}`, {
+	throw new DatrixAdapterError(`File not found: ${params.file}`, {
 		adapter: params.adapter,
 		code: "ADAPTER_FILE_NOT_FOUND",
 		operation: "read",
@@ -626,7 +626,7 @@ export function throwUniqueConstraintField(params: {
 	value: unknown;
 	table: string;
 }): never {
-	throw new ForjaAdapterError(
+	throw new DatrixAdapterError(
 		`Duplicate value '${params.value}' for unique field '${params.field}'`,
 		{
 			adapter: params.adapter,
@@ -649,7 +649,7 @@ export function throwUniqueConstraintIndex(params: {
 	fields: readonly string[];
 	table: string;
 }): never {
-	throw new ForjaAdapterError(
+	throw new DatrixAdapterError(
 		`Duplicate value for unique index [${params.fields.join(", ")}]`,
 		{
 			adapter: params.adapter,
@@ -669,7 +669,7 @@ export function throwForeignKeyConstraint(params: {
 	targetModel: string;
 	table: string;
 }): never {
-	throw new ForjaAdapterError(
+	throw new DatrixAdapterError(
 		`Foreign key constraint failed: ${params.targetModel} with id '${params.value}' does not exist`,
 		{
 			adapter: params.adapter,
@@ -698,7 +698,7 @@ export function throwInvalidWhereField(params: {
 	schemaName: string;
 	availableFields: readonly string[];
 }): never {
-	throw new ForjaAdapterError(
+	throw new DatrixAdapterError(
 		`Invalid WHERE clause: Field '${params.field}' does not exist in schema '${params.schemaName}'`,
 		{
 			adapter: params.adapter,
@@ -722,7 +722,7 @@ export function throwInvalidRelationWhereSyntax(params: {
 	schemaName: string;
 	foreignKey: string;
 }): never {
-	throw new ForjaAdapterError(
+	throw new DatrixAdapterError(
 		`Invalid WHERE clause: Cannot use comparison operators directly on relation field '${params.relationName}'`,
 		{
 			adapter: params.adapter,

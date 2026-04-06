@@ -1,5 +1,5 @@
 import type { Pool } from "pg";
-import type { ExportWriter } from "@forja/core";
+import type { ExportWriter } from "@datrix/core";
 import type { PostgresAdapter } from "../adapter";
 
 const CHUNK_SIZE = 1000;
@@ -8,7 +8,7 @@ export class PostgresExporter {
 	constructor(
 		private pool: Pool,
 		private adapter: PostgresAdapter,
-	) {}
+	) { }
 
 	async export(writer: ExportWriter): Promise<void> {
 		await writer.writeMeta({

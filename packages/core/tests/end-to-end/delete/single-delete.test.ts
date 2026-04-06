@@ -1,7 +1,7 @@
 /**
  * Single Delete Tests
  *
- * Tests for forja.delete() and forja.deleteMany()
+ * Tests for datrix.delete() and datrix.deleteMany()
  *
  * Covers:
  * - Delete by id
@@ -13,23 +13,23 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { Forja } from "@forja/core";
+import { Datrix } from "@datrix/core";
 import fs from "node:fs/promises";
 import { createTestConfig, getTmpDir, setupTables } from "../setup";
-import { expectForjaErrorAsync } from "../../test/helpers";
+import { expectDatrixErrorAsync } from "../../test/helpers";
 
 describe("Delete Operations", () => {
-	let forja: Forja;
+	let datrix: Datrix;
 	const tmpDir = getTmpDir("single_delete");
 
 	beforeAll(async () => {
 		await fs.rm(tmpDir, { recursive: true, force: true });
 		await fs.mkdir(tmpDir, { recursive: true });
 
-		const getForja = await createTestConfig(tmpDir);
-		forja = await getForja();
+		const getDatrix = await createTestConfig(tmpDir);
+		datrix = await getDatrix();
 
-		await setupTables(forja);
+		await setupTables(datrix);
 	});
 
 	afterAll(async () => {
@@ -42,28 +42,28 @@ describe("Delete Operations", () => {
 
 	describe("delete (by id)", () => {
 		it("should delete record by id", async () => {
-			const org = await forja.create("organization", {
+			const org = await datrix.create("organization", {
 				name: "Delete Test Org",
 				country: "USA",
 			});
 
-			const result = await forja.delete("organization", org.id);
+			const result = await datrix.delete("organization", org.id);
 
 			expect(result.id).toBe(org.id);
 
 			// Verify deleted
-			const found = await forja.findById("organization", org.id);
+			const found = await datrix.findById("organization", org.id);
 			expect(found).toBeNull();
 		});
 
 		it("should return deleted record", async () => {
-			const org = await forja.create("organization", {
+			const org = await datrix.create("organization", {
 				name: "Return Delete Org",
 				country: "UK",
 				isActive: true,
 			});
 
-			const result = await forja.delete("organization", org.id);
+			const result = await datrix.delete("organization", org.id);
 
 			expect(result).toHaveProperty("id");
 			expect(result).toHaveProperty("name");
@@ -74,8 +74,8 @@ describe("Delete Operations", () => {
 		});
 
 		it("should throw error for non-existent id", async () => {
-			await expectForjaErrorAsync(async () => {
-				await forja.delete("organization", 99999);
+			await expectDatrixErrorAsync(async () => {
+				await datrix.delete("organization", 99999);
 			}, "RECORD_NOT_FOUND");
 		});
 	});
@@ -87,35 +87,35 @@ describe("Delete Operations", () => {
 	describe("deleteMany", () => {
 		it("should delete multiple records by where clause", async () => {
 			// Create test data
-			await forja.createMany("category", [
+			await datrix.createMany("category", [
 				{ name: "Delete Cat 1", slug: "del-cat-1", isActive: false },
 				{ name: "Delete Cat 2", slug: "del-cat-2", isActive: false },
 				{ name: "Keep Cat", slug: "keep-cat", isActive: true },
 			]);
 
 			// Delete inactive categories
-			const results = await forja.deleteMany("category", { isActive: false });
+			const results = await datrix.deleteMany("category", { isActive: false });
 
 			expect(results.length).toBeGreaterThanOrEqual(2);
 
 			// Verify deleted
-			const remaining = await forja.findMany("category", {
+			const remaining = await datrix.findMany("category", {
 				where: { slug: { $in: ["del-cat-1", "del-cat-2"] } },
 			});
 			expect(remaining).toHaveLength(0);
 
 			// Verify kept
-			const kept = await forja.findOne("category", { slug: "keep-cat" });
+			const kept = await datrix.findOne("category", { slug: "keep-cat" });
 			expect(kept).not.toBeNull();
 		});
 
 		it("should return all deleted records", async () => {
-			await forja.createMany("role", [
+			await datrix.createMany("role", [
 				{ name: "Del Role 1", level: 5 },
 				{ name: "Del Role 2", level: 5 },
 			]);
 
-			const results = await forja.deleteMany("role", { level: 5 });
+			const results = await datrix.deleteMany("role", { level: 5 });
 
 			expect(results.length).toBeGreaterThanOrEqual(2);
 			for (const role of results) {
@@ -126,7 +126,7 @@ describe("Delete Operations", () => {
 		});
 
 		it("should return empty array when no matches", async () => {
-			const results = await forja.deleteMany("organization", {
+			const results = await datrix.deleteMany("organization", {
 				name: "Non Existent For Delete",
 			});
 
@@ -136,20 +136,20 @@ describe("Delete Operations", () => {
 
 		it("should delete all matching records", async () => {
 			// Create test orgs
-			await forja.createMany("organization", [
+			await datrix.createMany("organization", [
 				{ name: "Bulk Del Org 1", country: "TestCountry" },
 				{ name: "Bulk Del Org 2", country: "TestCountry" },
 				{ name: "Bulk Del Org 3", country: "TestCountry" },
 			]);
 
-			const beforeCount = await forja.count("organization", {
+			const beforeCount = await datrix.count("organization", {
 				country: "TestCountry",
 			});
 			expect(beforeCount).toBe(3);
 
-			await forja.deleteMany("organization", { country: "TestCountry" });
+			await datrix.deleteMany("organization", { country: "TestCountry" });
 
-			const afterCount = await forja.count("organization", {
+			const afterCount = await datrix.count("organization", {
 				country: "TestCountry",
 			});
 			expect(afterCount).toBe(0);
@@ -163,32 +163,32 @@ describe("Delete Operations", () => {
 	describe("ManyToMany Junction Cleanup", () => {
 		it("should clean junction table when record with manyToMany is deleted", async () => {
 			// Create tags
-			const tags = await forja.createMany("tag", [
+			const tags = await datrix.createMany("tag", [
 				{ name: "JunctionTag1", color: "#FF0000" },
 				{ name: "JunctionTag2", color: "#00FF00" },
 			]);
 
 			// Create user with roles (manyToMany)
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "junction-test@test.com",
 				name: "Junction Test User",
 				roles: {
 					connect: [
-						(await forja.create("role", { name: "JunctionRole1", level: 10 }))
+						(await datrix.create("role", { name: "JunctionRole1", level: 10 }))
 							.id,
-						(await forja.create("role", { name: "JunctionRole2", level: 20 }))
+						(await datrix.create("role", { name: "JunctionRole2", level: 20 }))
 							.id,
 					],
 				},
 			});
 
 			// Create category and post with tags (manyToMany)
-			const category = await forja.create("category", {
+			const category = await datrix.create("category", {
 				name: "Junction Category",
 				slug: "junction-category",
 			});
 
-			const post = await forja.create("post", {
+			const post = await datrix.create("post", {
 				title: "Junction Test Post",
 				content: "Testing junction cleanup",
 				slug: "junction-test-post",
@@ -200,20 +200,20 @@ describe("Delete Operations", () => {
 			});
 
 			// Verify post has tags
-			const postWithTags = await forja.findById("post", post.id, {
+			const postWithTags = await datrix.findById("post", post.id, {
 				populate: { tags: true },
 			});
 			expect((postWithTags!["tags"] as unknown[]).length).toBe(2);
 
 			// Delete post
-			await forja.delete("post", post.id);
+			await datrix.delete("post", post.id);
 
 			// Verify post is deleted
-			const deletedPost = await forja.findById("post", post.id);
+			const deletedPost = await datrix.findById("post", post.id);
 			expect(deletedPost).toBeNull();
 
 			// Tags should still exist (not cascade deleted)
-			const remainingTags = await forja.findMany("tag", {
+			const remainingTags = await datrix.findMany("tag", {
 				where: { name: { $in: ["JunctionTag1", "JunctionTag2"] } },
 			});
 			expect(remainingTags).toHaveLength(2);
@@ -221,25 +221,25 @@ describe("Delete Operations", () => {
 
 		it("should clean junction table when deleting from other side", async () => {
 			// Create a tag
-			const tag = await forja.create("tag", {
+			const tag = await datrix.create("tag", {
 				name: "DeleteSideTag",
 				color: "#0000FF",
 			});
 
 			// Create user for author
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "tag-delete@test.com",
 				name: "Tag Delete User",
 			});
 
 			// Create category
-			const category = await forja.create("category", {
+			const category = await datrix.create("category", {
 				name: "Tag Delete Category",
 				slug: "tag-delete-category",
 			});
 
 			// Create posts with this tag
-			await forja.createMany("post", [
+			await datrix.createMany("post", [
 				{
 					title: "Post with tag 1",
 					content: "Content 1",
@@ -259,21 +259,21 @@ describe("Delete Operations", () => {
 			]);
 
 			// Delete the tag
-			await forja.delete("tag", tag.id);
+			await datrix.delete("tag", tag.id);
 
 			// Verify tag is deleted
-			const deletedTag = await forja.findById("tag", tag.id);
+			const deletedTag = await datrix.findById("tag", tag.id);
 			expect(deletedTag).toBeNull();
 
 			// Posts should still exist
-			const remainingPosts = await forja.findMany("post", {
+			const remainingPosts = await datrix.findMany("post", {
 				where: { slug: { $in: ["post-with-tag-1", "post-with-tag-2"] } },
 			});
 			expect(remainingPosts).toHaveLength(2);
 
 			// Posts should have no tags now (junction cleaned)
 			for (const post of remainingPosts) {
-				const postWithTags = await forja.findById("post", post.id, {
+				const postWithTags = await datrix.findById("post", post.id, {
 					populate: { tags: true },
 				});
 				expect((postWithTags!["tags"] as unknown[]).length).toBe(0);
@@ -287,12 +287,12 @@ describe("Delete Operations", () => {
 
 	describe("BelongsTo Relation Behavior", () => {
 		it("should allow deleting parent when children exist (no cascade)", async () => {
-			const org = await forja.create("organization", {
+			const org = await datrix.create("organization", {
 				name: "Parent Org",
 				country: "USA",
 			});
 
-			await forja.create("department", {
+			await datrix.create("department", {
 				name: "Child Dept",
 				code: "CHLD",
 				organization: org.id,
@@ -301,7 +301,7 @@ describe("Delete Operations", () => {
 			// This behavior depends on your implementation
 			// Some systems cascade, some set null, some restrict
 			// Testing current behavior: should succeed (no FK constraint in JSON adapter)
-			const result = await forja.delete("organization", org.id);
+			const result = await datrix.delete("organization", org.id);
 			expect(result.id).toBe(org.id);
 		});
 	});
@@ -312,13 +312,13 @@ describe("Delete Operations", () => {
 
 	describe("Select Option", () => {
 		it("should return only selected fields from deleted record", async () => {
-			const org = await forja.create("organization", {
+			const org = await datrix.create("organization", {
 				name: "Select Delete Org",
 				country: "USA",
 				isActive: true,
 			});
 
-			const result = await forja.delete("organization", org.id, {
+			const result = await datrix.delete("organization", org.id, {
 				select: ["id", "name"],
 			});
 
@@ -337,29 +337,29 @@ describe("Delete Operations", () => {
 
 	describe("Edge Cases", () => {
 		it("should handle deleting record with null relations", async () => {
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "null-rel-delete@test.com",
 				name: "Null Relation User",
 				// No organization or department
 			});
 
-			const result = await forja.delete("user", user.id);
+			const result = await datrix.delete("user", user.id);
 			expect(result.id).toBe(user.id);
 		});
 
 		it("should handle deleting record with JSON field", async () => {
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "json-delete@test.com",
 				name: "JSON Delete User",
 				metadata: { complex: { nested: { data: true } } },
 			});
 
-			const result = await forja.delete("user", user.id);
+			const result = await datrix.delete("user", user.id);
 			expect(result.metadata).toEqual({ complex: { nested: { data: true } } });
 		});
 
 		it("should handle deleteMany with complex where", async () => {
-			await forja.createMany("user", [
+			await datrix.createMany("user", [
 				{
 					email: "complex-del-1@test.com",
 					name: "Complex Del 1",
@@ -381,7 +381,7 @@ describe("Delete Operations", () => {
 			]);
 
 			// Delete active users over 25
-			const results = await forja.deleteMany("user", {
+			const results = await datrix.deleteMany("user", {
 				$and: [{ isActive: true }, { age: { $gt: 25 } }],
 			});
 

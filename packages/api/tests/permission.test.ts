@@ -14,7 +14,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { Forja } from "@forja/core";
+import { Datrix } from "@datrix/core";
 import { handleRequest } from "../src/helper";
 import {
 	createTestConfigWithAuth,
@@ -31,11 +31,11 @@ import {
 	expectApiMulti,
 } from "../../core/tests/test/helpers";
 import { createRequest } from "./data/helper";
-import { ForjaEntry } from "@forja/core";
+import { DatrixEntry } from "@datrix/core";
 import { getTmpDir } from "./data";
 
 describe("Schema-Level Permission Tests", () => {
-	let forja: Forja;
+	let datrix: Datrix;
 	let jwtStrategy: JwtStrategy;
 	const tmpDir = getTmpDir("permission");
 
@@ -60,16 +60,16 @@ describe("Schema-Level Permission Tests", () => {
 		}
 		await fs.mkdir(tmpDir, { recursive: true });
 
-		// Initialize Forja with auth config
-		const getForja = await createTestConfigWithAuth(tmpDir);
-		forja = await getForja();
+		// Initialize Datrix with auth config
+		const getDatrix = await createTestConfigWithAuth(tmpDir);
+		datrix = await getDatrix();
 
 		// Create tables
-		const adapter = forja.getAdapter();
-		for (const schema of forja.getSchemas().getAll()) {
+		const adapter = datrix.getAdapter();
+		for (const schema of datrix.getSchemas().getAll()) {
 			try {
 				await adapter.dropTable(schema.tableName!);
-			} catch {}
+			} catch { }
 			await adapter.createTable(schema);
 		}
 
@@ -106,7 +106,7 @@ describe("Schema-Level Permission Tests", () => {
 
 	describe("Authentication System Setup", () => {
 		it("should create authentication table when auth is enabled", async () => {
-			const schemas = forja.getSchemas().getAll();
+			const schemas = datrix.getSchemas().getAll();
 			const authSchema = schemas.find((s) => s.name === "authentication");
 
 			expect(authSchema).toBeDefined();
@@ -119,7 +119,7 @@ describe("Schema-Level Permission Tests", () => {
 
 		it("should create auth record when user is created", async () => {
 			const createResponse = await handleRequest(
-				forja,
+				datrix,
 				createRequest("/api/users", {
 					method: "POST",
 					token: tokens.admin,
@@ -130,11 +130,11 @@ describe("Schema-Level Permission Tests", () => {
 				}),
 			);
 
-			const user = await expectApiSingle<ForjaEntry>(createResponse, 201);
+			const user = await expectApiSingle<DatrixEntry>(createResponse, 201);
 			const userId = user.id!;
 
-			// Verify auth record was created via forja raw query
-			const authData = await forja.raw.findOne(
+			// Verify auth record was created via datrix raw query
+			const authData = await datrix.raw.findOne(
 				"authentication",
 				{
 					user: { id: { $eq: userId } },
@@ -151,7 +151,7 @@ describe("Schema-Level Permission Tests", () => {
 
 		it("should sync auth email when user email is updated", async () => {
 			const createResponse = await handleRequest(
-				forja,
+				datrix,
 				createRequest("/api/users", {
 					method: "POST",
 					token: tokens.admin,
@@ -162,12 +162,12 @@ describe("Schema-Level Permission Tests", () => {
 				}),
 			);
 
-			const user = await expectApiSingle<ForjaEntry>(createResponse, 201);
+			const user = await expectApiSingle<DatrixEntry>(createResponse, 201);
 			const userId = user.id!;
 
 			// Update user email
 			const updateResponse = await handleRequest(
-				forja,
+				datrix,
 				createRequest(`/api/users/${userId}`, {
 					method: "PATCH",
 					token: tokens.admin,
@@ -178,7 +178,7 @@ describe("Schema-Level Permission Tests", () => {
 			await expectApiSingle(updateResponse, 200);
 
 			// Verify auth record was also updated
-			const authRecord = await forja.raw.findOne("authentication", {
+			const authRecord = await datrix.raw.findOne("authentication", {
 				user: { id: { $eq: userId } },
 			});
 
@@ -188,7 +188,7 @@ describe("Schema-Level Permission Tests", () => {
 
 		it("should delete auth record when user is deleted", async () => {
 			const createResponse = await handleRequest(
-				forja,
+				datrix,
 				createRequest("/api/users", {
 					method: "POST",
 					token: tokens.admin,
@@ -199,12 +199,12 @@ describe("Schema-Level Permission Tests", () => {
 				}),
 			);
 
-			const user = await expectApiSingle<ForjaEntry>(createResponse, 201);
+			const user = await expectApiSingle<DatrixEntry>(createResponse, 201);
 			const userId = user.id!;
 
 			// Delete user
 			const deleteResponse = await handleRequest(
-				forja,
+				datrix,
 				createRequest(`/api/users/${userId}`, {
 					method: "DELETE",
 					token: tokens.admin,
@@ -214,7 +214,7 @@ describe("Schema-Level Permission Tests", () => {
 			await expectApiSingle(deleteResponse, 200);
 
 			// Verify auth record was also deleted
-			const authRecords = await forja.raw.findMany("authentication", {
+			const authRecords = await datrix.raw.findMany("authentication", {
 				where: { user: { id: { $eq: userId } } },
 			});
 
@@ -233,7 +233,7 @@ describe("Schema-Level Permission Tests", () => {
 		describe("CREATE permission", () => {
 			it("should allow admin to create", async () => {
 				const response = await handleRequest(
-					forja,
+					datrix,
 					createRequest("/api/categories", {
 						method: "POST",
 						token: tokens.admin,
@@ -241,13 +241,13 @@ describe("Schema-Level Permission Tests", () => {
 					}),
 				);
 
-				const category = await expectApiSingle<ForjaEntry>(response, 201);
+				const category = await expectApiSingle<DatrixEntry>(response, 201);
 				categoryId = category.id!;
 			});
 
 			it("should deny editor from creating (403)", async () => {
 				const response = await handleRequest(
-					forja,
+					datrix,
 					createRequest("/api/categories", {
 						method: "POST",
 						token: tokens.editor,
@@ -260,7 +260,7 @@ describe("Schema-Level Permission Tests", () => {
 
 			it("should deny user from creating (403)", async () => {
 				const response = await handleRequest(
-					forja,
+					datrix,
 					createRequest("/api/categories", {
 						method: "POST",
 						token: tokens.user,
@@ -273,7 +273,7 @@ describe("Schema-Level Permission Tests", () => {
 
 			it("should deny unauthenticated from creating (401)", async () => {
 				const response = await handleRequest(
-					forja,
+					datrix,
 					createRequest("/api/categories", {
 						method: "POST",
 						body: { name: "Anonymous Category", description: "Should fail" },
@@ -287,11 +287,11 @@ describe("Schema-Level Permission Tests", () => {
 		describe("READ permission (public)", () => {
 			it("should allow unauthenticated to read", async () => {
 				const response = await handleRequest(
-					forja,
+					datrix,
 					createRequest(`/api/categories/${categoryId}`),
 				);
 
-				const category = await expectApiSingle<{ name: string } & ForjaEntry>(
+				const category = await expectApiSingle<{ name: string } & DatrixEntry>(
 					response,
 					200,
 				);
@@ -300,7 +300,7 @@ describe("Schema-Level Permission Tests", () => {
 
 			it("should allow any role to read list", async () => {
 				const response = await handleRequest(
-					forja,
+					datrix,
 					createRequest("/api/categories", { token: tokens.guest }),
 				);
 
@@ -312,7 +312,7 @@ describe("Schema-Level Permission Tests", () => {
 		describe("UPDATE permission", () => {
 			it("should allow admin to update", async () => {
 				const response = await handleRequest(
-					forja,
+					datrix,
 					createRequest(`/api/categories/${categoryId}`, {
 						method: "PATCH",
 						token: tokens.admin,
@@ -325,7 +325,7 @@ describe("Schema-Level Permission Tests", () => {
 
 			it("should allow editor to update", async () => {
 				const response = await handleRequest(
-					forja,
+					datrix,
 					createRequest(`/api/categories/${categoryId}`, {
 						method: "PATCH",
 						token: tokens.editor,
@@ -338,7 +338,7 @@ describe("Schema-Level Permission Tests", () => {
 
 			it("should deny user from updating (403)", async () => {
 				const response = await handleRequest(
-					forja,
+					datrix,
 					createRequest(`/api/categories/${categoryId}`, {
 						method: "PATCH",
 						token: tokens.user,
@@ -351,7 +351,7 @@ describe("Schema-Level Permission Tests", () => {
 
 			it("should deny unauthenticated from updating (401)", async () => {
 				const response = await handleRequest(
-					forja,
+					datrix,
 					createRequest(`/api/categories/${categoryId}`, {
 						method: "PATCH",
 						body: { description: "Should fail" },
@@ -365,7 +365,7 @@ describe("Schema-Level Permission Tests", () => {
 		describe("DELETE permission", () => {
 			it("should deny editor from deleting (403)", async () => {
 				const response = await handleRequest(
-					forja,
+					datrix,
 					createRequest(`/api/categories/${categoryId}`, {
 						method: "DELETE",
 						token: tokens.editor,
@@ -377,7 +377,7 @@ describe("Schema-Level Permission Tests", () => {
 
 			it("should deny user from deleting (403)", async () => {
 				const response = await handleRequest(
-					forja,
+					datrix,
 					createRequest(`/api/categories/${categoryId}`, {
 						method: "DELETE",
 						token: tokens.user,
@@ -389,7 +389,7 @@ describe("Schema-Level Permission Tests", () => {
 
 			it("should allow admin to delete", async () => {
 				const response = await handleRequest(
-					forja,
+					datrix,
 					createRequest(`/api/categories/${categoryId}`, {
 						method: "DELETE",
 						token: tokens.admin,
@@ -412,7 +412,7 @@ describe("Schema-Level Permission Tests", () => {
 		beforeAll(async () => {
 			// Create a supplier for tests
 			const response = await handleRequest(
-				forja,
+				datrix,
 				createRequest("/api/suppliers", {
 					method: "POST",
 					token: tokens.admin,
@@ -425,14 +425,14 @@ describe("Schema-Level Permission Tests", () => {
 				}),
 			);
 
-			const supplier = await expectApiSingle<ForjaEntry>(response, 201);
+			const supplier = await expectApiSingle<DatrixEntry>(response, 201);
 			supplierId = supplier.id!;
 		});
 
 		describe("READ permission (function: authenticated only)", () => {
 			it("should deny unauthenticated from reading (401)", async () => {
 				const response = await handleRequest(
-					forja,
+					datrix,
 					createRequest(`/api/suppliers/${supplierId}`),
 				);
 
@@ -441,7 +441,7 @@ describe("Schema-Level Permission Tests", () => {
 
 			it("should allow any authenticated user to read", async () => {
 				const response = await handleRequest(
-					forja,
+					datrix,
 					createRequest(`/api/suppliers/${supplierId}`, { token: tokens.user }),
 				);
 
@@ -450,7 +450,7 @@ describe("Schema-Level Permission Tests", () => {
 
 			it("should allow guest (authenticated) to read", async () => {
 				const response = await handleRequest(
-					forja,
+					datrix,
 					createRequest(`/api/suppliers/${supplierId}`, {
 						token: tokens.guest,
 					}),
@@ -463,7 +463,7 @@ describe("Schema-Level Permission Tests", () => {
 		describe("CREATE permission (admin/editor)", () => {
 			it("should allow editor to create", async () => {
 				const response = await handleRequest(
-					forja,
+					datrix,
 					createRequest("/api/suppliers", {
 						method: "POST",
 						token: tokens.editor,
@@ -480,7 +480,7 @@ describe("Schema-Level Permission Tests", () => {
 
 			it("should deny user from creating (403)", async () => {
 				const response = await handleRequest(
-					forja,
+					datrix,
 					createRequest("/api/suppliers", {
 						method: "POST",
 						token: tokens.user,
@@ -507,20 +507,20 @@ describe("Schema-Level Permission Tests", () => {
 
 		it("should allow unauthenticated to create", async () => {
 			const response = await handleRequest(
-				forja,
+				datrix,
 				createRequest("/api/publics", {
 					method: "POST",
 					body: { title: "Public Post", content: "Anyone can create" },
 				}),
 			);
 
-			const publicItem = await expectApiSingle<ForjaEntry>(response, 201);
+			const publicItem = await expectApiSingle<DatrixEntry>(response, 201);
 			publicId = publicItem.id!;
 		});
 
 		it("should allow unauthenticated to read", async () => {
 			const response = await handleRequest(
-				forja,
+				datrix,
 				createRequest(`/api/publics/${publicId}`),
 			);
 
@@ -529,7 +529,7 @@ describe("Schema-Level Permission Tests", () => {
 
 		it("should allow unauthenticated to update", async () => {
 			const response = await handleRequest(
-				forja,
+				datrix,
 				createRequest(`/api/publics/${publicId}`, {
 					method: "PATCH",
 					body: { content: "Updated anonymously" },
@@ -541,7 +541,7 @@ describe("Schema-Level Permission Tests", () => {
 
 		it("should allow unauthenticated to delete", async () => {
 			const response = await handleRequest(
-				forja,
+				datrix,
 				createRequest(`/api/publics/${publicId}`, {
 					method: "DELETE",
 				}),
@@ -562,7 +562,7 @@ describe("Schema-Level Permission Tests", () => {
 		describe("Admin access", () => {
 			it("should allow admin to create", async () => {
 				const response = await handleRequest(
-					forja,
+					datrix,
 					createRequest("/api/restricteds", {
 						method: "POST",
 						token: tokens.admin,
@@ -570,13 +570,13 @@ describe("Schema-Level Permission Tests", () => {
 					}),
 				);
 
-				const restricted = await expectApiSingle<ForjaEntry>(response, 201);
+				const restricted = await expectApiSingle<DatrixEntry>(response, 201);
 				restrictedId = restricted.id!;
 			});
 
 			it("should allow admin to read", async () => {
 				const response = await handleRequest(
-					forja,
+					datrix,
 					createRequest(`/api/restricteds/${restrictedId}`, {
 						token: tokens.admin,
 					}),
@@ -587,7 +587,7 @@ describe("Schema-Level Permission Tests", () => {
 
 			it("should allow admin to update", async () => {
 				const response = await handleRequest(
-					forja,
+					datrix,
 					createRequest(`/api/restricteds/${restrictedId}`, {
 						method: "PATCH",
 						token: tokens.admin,
@@ -602,7 +602,7 @@ describe("Schema-Level Permission Tests", () => {
 		describe("Non-admin denied", () => {
 			it("should deny editor from reading (403)", async () => {
 				const response = await handleRequest(
-					forja,
+					datrix,
 					createRequest(`/api/restricteds/${restrictedId}`, {
 						token: tokens.editor,
 					}),
@@ -613,7 +613,7 @@ describe("Schema-Level Permission Tests", () => {
 
 			it("should deny user from creating (403)", async () => {
 				const response = await handleRequest(
-					forja,
+					datrix,
 					createRequest("/api/restricteds", {
 						method: "POST",
 						token: tokens.user,
@@ -626,7 +626,7 @@ describe("Schema-Level Permission Tests", () => {
 
 			it("should deny unauthenticated from reading (401)", async () => {
 				const response = await handleRequest(
-					forja,
+					datrix,
 					createRequest(`/api/restricteds/${restrictedId}`),
 				);
 
@@ -637,7 +637,7 @@ describe("Schema-Level Permission Tests", () => {
 		describe("Admin can delete", () => {
 			it("should allow admin to delete", async () => {
 				const response = await handleRequest(
-					forja,
+					datrix,
 					createRequest(`/api/restricteds/${restrictedId}`, {
 						method: "DELETE",
 						token: tokens.admin,
@@ -659,7 +659,7 @@ describe("Schema-Level Permission Tests", () => {
 
 		it("should allow admin to create (from defaultPermission)", async () => {
 			const response = await handleRequest(
-				forja,
+				datrix,
 				createRequest("/api/secrets", {
 					method: "POST",
 					token: tokens.admin,
@@ -667,13 +667,13 @@ describe("Schema-Level Permission Tests", () => {
 				}),
 			);
 
-			const secret = await expectApiSingle<ForjaEntry>(response, 201);
+			const secret = await expectApiSingle<DatrixEntry>(response, 201);
 			secretId = secret.id!;
 		});
 
 		it("should deny editor from creating (from defaultPermission)", async () => {
 			const response = await handleRequest(
-				forja,
+				datrix,
 				createRequest("/api/secrets", {
 					method: "POST",
 					token: tokens.editor,
@@ -686,7 +686,7 @@ describe("Schema-Level Permission Tests", () => {
 
 		it("should allow unauthenticated to read (defaultPermission read=true)", async () => {
 			const response = await handleRequest(
-				forja,
+				datrix,
 				createRequest(`/api/secrets/${secretId}`),
 			);
 
@@ -695,7 +695,7 @@ describe("Schema-Level Permission Tests", () => {
 
 		it("should deny user from updating (from defaultPermission)", async () => {
 			const response = await handleRequest(
-				forja,
+				datrix,
 				createRequest(`/api/secrets/${secretId}`, {
 					method: "PATCH",
 					token: tokens.user,
@@ -719,7 +719,7 @@ describe("Schema-Level Permission Tests", () => {
 		beforeAll(async () => {
 			// Create category and supplier first
 			await handleRequest(
-				forja,
+				datrix,
 				createRequest("/api/categories", {
 					method: "POST",
 					token: tokens.admin,
@@ -728,7 +728,7 @@ describe("Schema-Level Permission Tests", () => {
 			);
 
 			await handleRequest(
-				forja,
+				datrix,
 				createRequest("/api/suppliers", {
 					method: "POST",
 					token: tokens.admin,
@@ -741,7 +741,7 @@ describe("Schema-Level Permission Tests", () => {
 			);
 
 			const response = await handleRequest(
-				forja,
+				datrix,
 				createRequest("/api/products", {
 					method: "POST",
 					token: tokens.admin,
@@ -757,13 +757,13 @@ describe("Schema-Level Permission Tests", () => {
 				}),
 			);
 
-			const product = await expectApiSingle<ForjaEntry>(response, 201);
+			const product = await expectApiSingle<DatrixEntry>(response, 201);
 			productId = product.id!;
 		});
 
 		it("should allow editor to create product", async () => {
 			const response = await handleRequest(
-				forja,
+				datrix,
 				createRequest("/api/products", {
 					method: "POST",
 					token: tokens.editor,
@@ -779,14 +779,14 @@ describe("Schema-Level Permission Tests", () => {
 				}),
 			);
 
-			const product = await expectApiSingle<ForjaEntry>(response, 201);
+			const product = await expectApiSingle<DatrixEntry>(response, 201);
 			productId = product.id!;
 		});
 
 		describe("UPDATE with mixed permission (role OR owner)", () => {
 			it("should allow admin to update any product", async () => {
 				const response = await handleRequest(
-					forja,
+					datrix,
 					createRequest(`/api/products/${productId}`, {
 						method: "PATCH",
 						token: tokens.admin,
@@ -799,7 +799,7 @@ describe("Schema-Level Permission Tests", () => {
 
 			it("should allow editor to update any product", async () => {
 				const response = await handleRequest(
-					forja,
+					datrix,
 					createRequest(`/api/products/${productId}`, {
 						method: "PATCH",
 						token: tokens.editor,
@@ -812,7 +812,7 @@ describe("Schema-Level Permission Tests", () => {
 
 			it("should allow owner (user) to update their own product", async () => {
 				const response = await handleRequest(
-					forja,
+					datrix,
 					createRequest(`/api/products/${productId}`, {
 						method: "PATCH",
 						token: tokens.user,
@@ -825,7 +825,7 @@ describe("Schema-Level Permission Tests", () => {
 
 			it("should deny guest from updating (not admin/editor/owner)", async () => {
 				const response = await handleRequest(
-					forja,
+					datrix,
 					createRequest(`/api/products/${productId}`, {
 						method: "PATCH",
 						token: tokens.guest,
@@ -840,7 +840,7 @@ describe("Schema-Level Permission Tests", () => {
 		describe("DELETE (admin only)", () => {
 			it("should deny owner from deleting their product", async () => {
 				const response = await handleRequest(
-					forja,
+					datrix,
 					createRequest(`/api/products/${productId}`, {
 						method: "DELETE",
 						token: tokens.user,
@@ -852,7 +852,7 @@ describe("Schema-Level Permission Tests", () => {
 
 			it("should allow admin to delete", async () => {
 				const response = await handleRequest(
-					forja,
+					datrix,
 					createRequest(`/api/products/${productId}`, {
 						method: "DELETE",
 						token: tokens.admin,

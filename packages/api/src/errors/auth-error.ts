@@ -2,22 +2,22 @@
  * Auth Specific Errors
  */
 
-import { ForjaApiError } from "./api-error";
+import { DatrixApiError } from "./api-error";
 
 /**
  * Auth Error Helper
  */
 export const authError = {
-	invalidCredentials(): ForjaApiError {
-		return new ForjaApiError("Invalid email or password", {
+	invalidCredentials(): DatrixApiError {
+		return new DatrixApiError("Invalid email or password", {
 			code: "INVALID_CREDENTIALS",
 			status: 401,
 			suggestion: "Please check your email and password and try again.",
 		});
 	},
 
-	invalidToken(reason?: string): ForjaApiError {
-		return new ForjaApiError("Invalid or expired authentication token", {
+	invalidToken(reason?: string): DatrixApiError {
+		return new DatrixApiError("Invalid or expired authentication token", {
 			code: "INVALID_TOKEN",
 			status: 401,
 			context: { reason },
@@ -25,8 +25,8 @@ export const authError = {
 		});
 	},
 
-	missingToken(): ForjaApiError {
-		return new ForjaApiError("Authentication token is missing", {
+	missingToken(): DatrixApiError {
+		return new DatrixApiError("Authentication token is missing", {
 			code: "MISSING_TOKEN",
 			status: 401,
 			suggestion:
@@ -34,16 +34,16 @@ export const authError = {
 		});
 	},
 
-	sessionExpired(): ForjaApiError {
-		return new ForjaApiError("Your session has expired", {
+	sessionExpired(): DatrixApiError {
+		return new DatrixApiError("Your session has expired", {
 			code: "SESSION_EXPIRED",
 			status: 401,
 			suggestion: "Log in again to continue using the application.",
 		});
 	},
 
-	accountLocked(reason?: string): ForjaApiError {
-		return new ForjaApiError("This account has been locked", {
+	accountLocked(reason?: string): DatrixApiError {
+		return new DatrixApiError("This account has been locked", {
 			code: "ACCOUNT_LOCKED",
 			status: 403,
 			context: { reason },

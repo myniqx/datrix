@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { Forja } from "@forja/core";
+import { Datrix } from "@datrix/core";
 import { handleRequest } from "../src/helper";
 import { createTestConfig, getTmpDir } from "./data";
 import { serializeQuery } from "../src/serializer/query";
@@ -20,8 +20,8 @@ import fs from "node:fs/promises";
 import { expectApiSingle } from "../../core/tests/test/helpers";
 
 describe("Populate Integration Tests", () => {
-	let forja: Forja;
-	let getForja: () => Promise<Forja>;
+	let datrix: Datrix;
+	let getDatrix: () => Promise<Datrix>;
 	const tmpDir = getTmpDir("populate");
 	let testProductId: number;
 
@@ -35,29 +35,29 @@ describe("Populate Integration Tests", () => {
 		// Create temporary directory
 		await fs.mkdir(tmpDir, { recursive: true });
 
-		// Get Forja factory function
-		getForja = await createTestConfig(tmpDir);
+		// Get Datrix factory function
+		getDatrix = await createTestConfig(tmpDir);
 
-		// Get Forja instance (this will initialize everything)
-		forja = await getForja();
+		// Get Datrix instance (this will initialize everything)
+		datrix = await getDatrix();
 
 		// Create tables manually for JsonAdapter
-		const adapter = forja.getAdapter();
-		for (const schema of forja.getSchemas().getAll()) {
+		const adapter = datrix.getAdapter();
+		for (const schema of datrix.getSchemas().getAll()) {
 			try {
 				await adapter.dropTable(schema.tableName!);
-			} catch {}
+			} catch { }
 			await adapter.createTable(schema);
 		}
 
 		// Create fixture data for tests
-		await forja.create("category", {
+		await datrix.create("category", {
 			name: "Electronics",
 			description: "Electronic devices and gadgets",
 			isActive: true,
 		});
 
-		await forja.create("supplier", {
+		await datrix.create("supplier", {
 			name: "TechCorp Inc.",
 			email: "contact@techcorp.com",
 			country: "USA",
@@ -66,7 +66,7 @@ describe("Populate Integration Tests", () => {
 		});
 
 		// Create test product
-		const product = await forja.create("product", {
+		const product = await datrix.create("product", {
 			name: "Gaming Headset",
 			description: "7.1 Surround Sound Gaming Headset",
 			price: 89.99,
@@ -102,7 +102,7 @@ describe("Populate Integration Tests", () => {
 				},
 			);
 
-			const response = await handleRequest(forja, request);
+			const response = await handleRequest(datrix, request);
 			const data = await expectApiSingle(response);
 
 			expect(data).toHaveProperty("category");
@@ -139,7 +139,7 @@ describe("Populate Integration Tests", () => {
 				},
 			);
 
-			const response = await handleRequest(forja, request);
+			const response = await handleRequest(datrix, request);
 			const data = await expectApiSingle(response, 201);
 
 			expect(data).toHaveProperty("category");
@@ -167,7 +167,7 @@ describe("Populate Integration Tests", () => {
 				},
 			);
 
-			const response = await handleRequest(forja, request);
+			const response = await handleRequest(datrix, request);
 			const data = await expectApiSingle(response);
 
 			// Foreign keys should NOT be in response
@@ -191,7 +191,7 @@ describe("Populate Integration Tests", () => {
 				},
 			);
 
-			const response = await handleRequest(forja, request);
+			const response = await handleRequest(datrix, request);
 			const data = await expectApiSingle(response);
 
 			// Foreign key should NOT be visible
@@ -215,7 +215,7 @@ describe("Populate Integration Tests", () => {
 				},
 			);
 
-			const response = await handleRequest(forja, request);
+			const response = await handleRequest(datrix, request);
 			const data = await expectApiSingle(response);
 
 			// Only selected fields + reserved fields
@@ -261,7 +261,7 @@ describe("Populate Integration Tests", () => {
 				},
 			);
 
-			const response = await handleRequest(forja, request);
+			const response = await handleRequest(datrix, request);
 			const data = await expectApiSingle(response, 201);
 
 			// Should only have selected fields + reserved fields
@@ -298,7 +298,7 @@ describe("Populate Integration Tests", () => {
 				},
 			);
 
-			const response = await handleRequest(forja, request);
+			const response = await handleRequest(datrix, request);
 			const data = await expectApiSingle(response);
 
 			expect(data).toHaveProperty("category");
@@ -332,7 +332,7 @@ describe("Populate Integration Tests", () => {
 				},
 			);
 
-			const response = await handleRequest(forja, request);
+			const response = await handleRequest(datrix, request);
 			const data = await expectApiSingle(response);
 
 			// Category - reserved fields + selected fields
@@ -368,7 +368,7 @@ describe("Populate Integration Tests", () => {
 				},
 			);
 
-			const response = await handleRequest(forja, request);
+			const response = await handleRequest(datrix, request);
 			const data = await expectApiSingle(response);
 
 			expect(data).toHaveProperty("category");
@@ -396,7 +396,7 @@ describe("Populate Integration Tests", () => {
 				},
 			);
 
-			const response = await handleRequest(forja, request);
+			const response = await handleRequest(datrix, request);
 			const data = await expectApiSingle(response);
 
 			expect(data).toHaveProperty("category");
@@ -431,7 +431,7 @@ describe("Populate Integration Tests", () => {
 				},
 			);
 
-			const response = await handleRequest(forja, request);
+			const response = await handleRequest(datrix, request);
 			const data = await expectApiSingle(response);
 
 			// Main entity - only selected fields + reserved
@@ -476,7 +476,7 @@ describe("Populate Integration Tests", () => {
 				},
 			);
 
-			const response = await handleRequest(forja, request);
+			const response = await handleRequest(datrix, request);
 			const data = await expectApiSingle(response, 201);
 
 			expect(data).toHaveProperty("category");
@@ -499,7 +499,7 @@ describe("Populate Integration Tests", () => {
 				},
 			});
 
-			const createRes = await handleRequest(forja, createReq);
+			const createRes = await handleRequest(datrix, createReq);
 			const createData = await expectApiSingle(createRes, 201);
 			const productId = createData.id;
 
@@ -519,7 +519,7 @@ describe("Populate Integration Tests", () => {
 				},
 			);
 
-			const updateRes = await handleRequest(forja, updateReq);
+			const updateRes = await handleRequest(datrix, updateReq);
 			const updateData = await expectApiSingle(updateRes);
 
 			expect(updateData).toHaveProperty("category");
@@ -541,7 +541,7 @@ describe("Populate Integration Tests", () => {
 				},
 			});
 
-			const createRes = await handleRequest(forja, createReq);
+			const createRes = await handleRequest(datrix, createReq);
 			const createData = await expectApiSingle(createRes, 201);
 			const productId = createData.id;
 
@@ -561,7 +561,7 @@ describe("Populate Integration Tests", () => {
 				},
 			);
 
-			const updateRes = await handleRequest(forja, updateReq);
+			const updateRes = await handleRequest(datrix, updateReq);
 			const updateData = await expectApiSingle(updateRes);
 
 			expect(updateData.category).toBeNull();
@@ -582,7 +582,7 @@ describe("Populate Integration Tests", () => {
 				},
 			});
 
-			const createRes = await handleRequest(forja, createReq);
+			const createRes = await handleRequest(datrix, createReq);
 			const createData = await expectApiSingle(createRes, 201);
 			const productId = createData.id;
 
@@ -595,7 +595,7 @@ describe("Populate Integration Tests", () => {
 					isActive: true,
 				},
 			});
-			const catRes = await handleRequest(forja, catReq);
+			const catRes = await handleRequest(datrix, catReq);
 			const catData = await expectApiSingle(catRes, 201);
 			const newCategoryId = catData.id;
 
@@ -615,7 +615,7 @@ describe("Populate Integration Tests", () => {
 				},
 			);
 
-			const updateRes = await handleRequest(forja, updateReq);
+			const updateRes = await handleRequest(datrix, updateReq);
 			const updateData = await expectApiSingle(updateRes);
 
 			expect(updateData).toHaveProperty("category");

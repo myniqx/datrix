@@ -15,7 +15,7 @@ import type {
 	OrderByItem,
 	OrderDirection,
 } from "../types/core/query-builder";
-import type { ForjaEntry } from "../types/core/schema";
+import type { DatrixEntry } from "../types/core/schema";
 
 /**
  * Check if input is already normalized (array of OrderByItem)
@@ -77,7 +77,7 @@ function isStringArray(input: unknown): boolean {
  * // → [{ field: "age", direction: "asc" }, { field: "name", direction: "desc" }]
  * ```
  */
-export function normalizeOrderBy<T extends ForjaEntry>(
+export function normalizeOrderBy<T extends DatrixEntry>(
 	input: OrderByClause<T> | undefined,
 ): QueryOrderBy<T> | undefined {
 	if (input === undefined || input === null) {

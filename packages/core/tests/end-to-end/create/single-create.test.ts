@@ -1,7 +1,7 @@
 /**
  * Single Create Tests
  *
- * Tests for forja.create() - single record creation
+ * Tests for datrix.create() - single record creation
  *
  * Covers:
  * - Basic record creation
@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { Forja } from "@forja/core";
+import { Datrix } from "@datrix/core";
 import fs from "node:fs/promises";
 import {
 	createTestConfig,
@@ -22,10 +22,10 @@ import {
 	expectAutoFields,
 	expectValidTimestamps,
 } from "../setup";
-import { expectForjaErrorAsync } from "../../test/helpers";
+import { expectDatrixErrorAsync } from "../../test/helpers";
 
 describe("Single Create", () => {
-	let forja: Forja;
+	let datrix: Datrix;
 	const tmpDir = getTmpDir("single_create");
 
 	beforeAll(async () => {
@@ -33,12 +33,12 @@ describe("Single Create", () => {
 		await fs.rm(tmpDir, { recursive: true, force: true });
 		await fs.mkdir(tmpDir, { recursive: true });
 
-		// Initialize Forja
-		const getForja = await createTestConfig(tmpDir);
-		forja = await getForja();
+		// Initialize Datrix
+		const getDatrix = await createTestConfig(tmpDir);
+		datrix = await getDatrix();
 
 		// Setup tables
-		await setupTables(forja);
+		await setupTables(datrix);
 	});
 
 	afterAll(async () => {
@@ -51,7 +51,7 @@ describe("Single Create", () => {
 
 	describe("Basic Creation", () => {
 		it("should create a simple record with required fields only", async () => {
-			const result = await forja.create("organization", {
+			const result = await datrix.create("organization", {
 				name: "Test Org",
 				country: "USA",
 			});
@@ -62,7 +62,7 @@ describe("Single Create", () => {
 		});
 
 		it("should create a record with all fields", async () => {
-			const result = await forja.create("organization", {
+			const result = await datrix.create("organization", {
 				name: "Full Org",
 				country: "UK",
 				isActive: false,
@@ -74,7 +74,7 @@ describe("Single Create", () => {
 		});
 
 		it("should auto-generate id, createdAt, updatedAt", async () => {
-			const result = await forja.create("organization", {
+			const result = await datrix.create("organization", {
 				name: "Auto Fields Org",
 				country: "Germany",
 			});
@@ -84,7 +84,7 @@ describe("Single Create", () => {
 		});
 
 		it("should set default values when not provided", async () => {
-			const result = await forja.create("organization", {
+			const result = await datrix.create("organization", {
 				name: "Default Org",
 				country: "France",
 			});
@@ -94,7 +94,7 @@ describe("Single Create", () => {
 		});
 
 		it("should override default values when provided", async () => {
-			const result = await forja.create("organization", {
+			const result = await datrix.create("organization", {
 				name: "Override Org",
 				country: "Spain",
 				isActive: false,
@@ -110,17 +110,17 @@ describe("Single Create", () => {
 
 	describe("Validation Errors", () => {
 		it("should throw error when required field is missing", async () => {
-			await expectForjaErrorAsync(async () => {
-				await forja.create("organization", {
+			await expectDatrixErrorAsync(async () => {
+				await datrix.create("organization", {
 					country: "USA",
 					// name is required but missing
-				} as Parameters<typeof forja.create>[1]);
+				} as Parameters<typeof datrix.create>[1]);
 			}, "VALIDATION_FAILED");
 		});
 
 		it("should throw error when string is too short (minLength)", async () => {
-			await expectForjaErrorAsync(async () => {
-				await forja.create("organization", {
+			await expectDatrixErrorAsync(async () => {
+				await datrix.create("organization", {
 					name: "A", // minLength is 2
 					country: "USA",
 				});
@@ -130,8 +130,8 @@ describe("Single Create", () => {
 		it("should throw error when string is too long (maxLength)", async () => {
 			const longName = "A".repeat(201); // maxLength is 200
 
-			await expectForjaErrorAsync(async () => {
-				await forja.create("organization", {
+			await expectDatrixErrorAsync(async () => {
+				await datrix.create("organization", {
 					name: longName,
 					country: "USA",
 				});
@@ -140,13 +140,13 @@ describe("Single Create", () => {
 
 		it("should throw error when number is below min", async () => {
 			// First create an organization for the department
-			const org = await forja.create("organization", {
+			const org = await datrix.create("organization", {
 				name: "Budget Test Org",
 				country: "USA",
 			});
 
-			await expectForjaErrorAsync(async () => {
-				await forja.create("department", {
+			await expectDatrixErrorAsync(async () => {
+				await datrix.create("department", {
 					name: "Test Dept",
 					code: "TEST",
 					budget: -100, // min is 0
@@ -156,8 +156,8 @@ describe("Single Create", () => {
 		});
 
 		it("should throw error when number is above max", async () => {
-			await expectForjaErrorAsync(async () => {
-				await forja.create("role", {
+			await expectDatrixErrorAsync(async () => {
+				await datrix.create("role", {
 					name: "High Level Role",
 					level: 150, // max is 100
 				});
@@ -165,13 +165,13 @@ describe("Single Create", () => {
 		});
 
 		it("should throw error when pattern does not match", async () => {
-			const org = await forja.create("organization", {
+			const org = await datrix.create("organization", {
 				name: "Pattern Test Org",
 				country: "USA",
 			});
 
-			await expectForjaErrorAsync(async () => {
-				await forja.create("department", {
+			await expectDatrixErrorAsync(async () => {
+				await datrix.create("department", {
 					name: "Test Dept",
 					code: "lowercase", // pattern requires ^[A-Z]{2,10}$
 					organization: org.id,
@@ -180,8 +180,8 @@ describe("Single Create", () => {
 		});
 
 		it("should throw error when email pattern is invalid", async () => {
-			await expectForjaErrorAsync(async () => {
-				await forja.create("user", {
+			await expectDatrixErrorAsync(async () => {
+				await datrix.create("user", {
 					email: "invalid-email", // must match email pattern
 					name: "Test User",
 				});
@@ -196,14 +196,14 @@ describe("Single Create", () => {
 	describe("Unique Constraints", () => {
 		it("should throw error when unique field value already exists", async () => {
 			// First create
-			await forja.create("organization", {
+			await datrix.create("organization", {
 				name: "Unique Org",
 				country: "USA",
 			});
 
 			// Try to create duplicate - adapter throws ADAPTER_UNIQUE_CONSTRAINT
-			await expectForjaErrorAsync(async () => {
-				await forja.create("organization", {
+			await expectDatrixErrorAsync(async () => {
+				await datrix.create("organization", {
 					name: "Unique Org", // name is unique
 					country: "UK",
 				});
@@ -211,13 +211,13 @@ describe("Single Create", () => {
 		});
 
 		it("should throw error when unique email already exists", async () => {
-			await forja.create("user", {
+			await datrix.create("user", {
 				email: "unique@test.com",
 				name: "First User",
 			});
 
-			await expectForjaErrorAsync(async () => {
-				await forja.create("user", {
+			await expectDatrixErrorAsync(async () => {
+				await datrix.create("user", {
 					email: "unique@test.com", // email is unique
 					name: "Second User",
 				});
@@ -231,12 +231,12 @@ describe("Single Create", () => {
 
 	describe("BelongsTo Relations", () => {
 		it("should create record with belongsTo relation using existing ID", async () => {
-			const org = await forja.create("organization", {
+			const org = await datrix.create("organization", {
 				name: "Relation Test Org",
 				country: "USA",
 			});
 
-			const dept = await forja.create(
+			const dept = await datrix.create(
 				"department",
 				{
 					name: "Engineering",
@@ -254,18 +254,18 @@ describe("Single Create", () => {
 		});
 
 		it("should create record with multiple belongsTo relations", async () => {
-			const org = await forja.create("organization", {
+			const org = await datrix.create("organization", {
 				name: "Multi Relation Org",
 				country: "USA",
 			});
 
-			const dept = await forja.create("department", {
+			const dept = await datrix.create("department", {
 				name: "Multi Dept",
 				code: "MULTI",
 				organization: org.id,
 			});
 
-			const user = await forja.create(
+			const user = await datrix.create(
 				"user",
 				{
 					email: "multi@test.com",
@@ -285,13 +285,13 @@ describe("Single Create", () => {
 
 		it("should create record with self-referencing relation", async () => {
 			// Parent category
-			const parent = await forja.create("category", {
+			const parent = await datrix.create("category", {
 				name: "Parent Category",
 				slug: "parent-cat",
 			});
 
 			// Child category
-			const child = await forja.create(
+			const child = await datrix.create(
 				"category",
 				{
 					name: "Child Category",
@@ -307,7 +307,7 @@ describe("Single Create", () => {
 		});
 
 		it("should allow null for optional belongsTo relation", async () => {
-			const user = await forja.create(
+			const user = await datrix.create(
 				"user",
 				{
 					email: "no-org@test.com",
@@ -329,7 +329,7 @@ describe("Single Create", () => {
 
 	describe("Select Option", () => {
 		it("should return only selected fields", async () => {
-			const result = await forja.create(
+			const result = await datrix.create(
 				"organization",
 				{
 					name: "Select Test Org",
@@ -358,7 +358,7 @@ describe("Single Create", () => {
 
 	describe("Edge Cases", () => {
 		it("should handle empty string for optional field", async () => {
-			const result = await forja.create("category", {
+			const result = await datrix.create("category", {
 				name: "Empty Desc",
 				slug: "empty-desc",
 				description: "",
@@ -368,7 +368,7 @@ describe("Single Create", () => {
 		});
 
 		it("should handle null for optional field", async () => {
-			const result = await forja.create("category", {
+			const result = await datrix.create("category", {
 				name: "Null Desc",
 				slug: "null-desc",
 				description: null,
@@ -378,12 +378,12 @@ describe("Single Create", () => {
 		});
 
 		it("should handle zero for numeric field", async () => {
-			const org = await forja.create("organization", {
+			const org = await datrix.create("organization", {
 				name: "Zero Budget Org",
 				country: "USA",
 			});
 
-			const dept = await forja.create("department", {
+			const dept = await datrix.create("department", {
 				name: "Zero Budget Dept",
 				code: "ZERO",
 				budget: 0,
@@ -394,7 +394,7 @@ describe("Single Create", () => {
 		});
 
 		it("should handle boolean false correctly", async () => {
-			const result = await forja.create("organization", {
+			const result = await datrix.create("organization", {
 				name: "False Active Org",
 				country: "USA",
 				isActive: false,
@@ -406,7 +406,7 @@ describe("Single Create", () => {
 		it("should handle JSON field", async () => {
 			const metadata = { key: "value", nested: { a: 1 } };
 
-			const result = await forja.create("user", {
+			const result = await datrix.create("user", {
 				email: "json@test.com",
 				name: "JSON User",
 				metadata,

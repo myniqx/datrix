@@ -12,15 +12,15 @@
  * The transaction object is a thin wrapper that delegates to adapter.
  */
 
-import { Transaction, QueryResult, AlterOperation } from "@forja/core";
+import { Transaction, QueryResult, AlterOperation } from "@datrix/core";
 import {
 	throwTransactionAlreadyCommitted,
 	throwTransactionAlreadyRolledBack,
 	throwTransactionSavepointNotSupported,
 	throwRawQueryNotSupported,
-} from "@forja/core";
-import { QueryObject } from "@forja/core";
-import { ForjaEntry, IndexDefinition, SchemaDefinition } from "@forja/core";
+} from "@datrix/core";
+import { QueryObject } from "@datrix/core";
+import { DatrixEntry, IndexDefinition, SchemaDefinition } from "@datrix/core";
 import type { JsonAdapter } from "./adapter";
 
 /**
@@ -61,7 +61,7 @@ export class JsonTransaction implements Transaction {
 	 * Uses adapter's executeQueryWithOptions with skipLock and skipWrite.
 	 * Adapter automatically uses transaction cache.
 	 */
-	async executeQuery<TResult extends ForjaEntry>(
+	async executeQuery<TResult extends DatrixEntry>(
 		query: QueryObject<TResult>,
 	): Promise<QueryResult<TResult>> {
 		this.assertActive();
@@ -75,7 +75,7 @@ export class JsonTransaction implements Transaction {
 	/**
 	 * Execute raw SQL query (not supported for JSON adapter)
 	 */
-	async executeRawQuery<TResult extends ForjaEntry>(
+	async executeRawQuery<TResult extends DatrixEntry>(
 		_sql: string,
 		_params: readonly unknown[],
 	): Promise<QueryResult<TResult>> {

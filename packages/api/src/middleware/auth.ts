@@ -4,7 +4,7 @@
  * Handles authentication from JWT token or session cookie
  */
 
-import { AuthUser } from "@forja/core";
+import { AuthUser } from "@datrix/core";
 import type { AuthManager } from "../auth/manager";
 
 /**

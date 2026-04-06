@@ -1,11 +1,11 @@
 /**
- * Forja API Module - Plugin Edition
+ * Datrix API Module - Plugin Edition
  *
- * Provides REST API functionality as a Forja plugin with integrated authentication system.
+ * Provides REST API functionality as a Datrix plugin with integrated authentication system.
  *
  * @example
  * ```ts
- * import { createApiPlugin } from '@forja/api';
+ * import { createApiPlugin } from '@datrix/api';
  *
  * const apiPlugin = createApiPlugin({
  *   enabled: true,

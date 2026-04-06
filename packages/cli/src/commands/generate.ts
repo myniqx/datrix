@@ -12,7 +12,7 @@ import type { GenerateCommandOptions } from "../types";
 import { CLIError } from "../types";
 import { logger, formatError } from "../utils/logger";
 import { schemaTemplate, toPascalCase, toKebabCase } from "../utils/templates";
-import type { Forja } from "@forja/core";
+import type { Datrix } from "@datrix/core";
 import { generateTypesFile } from "../type-generator/schema-types";
 
 /**
@@ -106,7 +106,7 @@ async function generateSchema(
 	logger.log("");
 	logger.info("Next steps:");
 	logger.info("1. Edit the schema file to add your fields");
-	logger.info("2. Run: forja migrate");
+	logger.info("2. Run: datrix migrate");
 	logger.log("");
 }
 
@@ -114,10 +114,10 @@ async function generateSchema(
  * Generate TypeScript types from registered schemas
  */
 async function generateTypes(
-	forja: Forja,
+	datrix: Datrix,
 	options: GenerateCommandOptions,
 ): Promise<void> {
-	const schemas = forja.getAllSchemas();
+	const schemas = datrix.getAllSchemas();
 	const outputPath =
 		options.output ?? join(process.cwd(), "types", "generated.ts");
 
@@ -140,7 +140,7 @@ export async function generateCommand(
 	type: GenerateType,
 	name: string,
 	options: GenerateCommandOptions,
-	forja?: Forja,
+	datrix?: Datrix,
 ): Promise<void> {
 	switch (type) {
 		case "schema":
@@ -148,13 +148,13 @@ export async function generateCommand(
 			break;
 
 		case "types": {
-			if (!forja) {
+			if (!datrix) {
 				throw new CLIError(
-					"Forja instance is required for generate types",
+					"Datrix instance is required for generate types",
 					"CONFIG_ERROR",
 				);
 			}
-			await generateTypes(forja, options);
+			await generateTypes(datrix, options);
 			break;
 		}
 

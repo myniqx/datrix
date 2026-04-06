@@ -1,12 +1,12 @@
 /**
  * Config Validator
  *
- * Validates ForjaConfig structure and values
+ * Validates DatrixConfig structure and values
  */
 
-import { ForjaConfig, MigrationConfig, DevConfig } from "../types/core/config";
+import { DatrixConfig, MigrationConfig, DevConfig } from "../types/core/config";
 import { isDatabaseAdapter } from "../types/adapter";
-import { isForjaPlugin } from "../types/core/plugin";
+import { isDatrixPlugin } from "../types/core/plugin";
 import {
 	throwConfigInvalidType,
 	throwConfigEmpty,
@@ -21,9 +21,9 @@ const isObject = (obj: unknown): boolean =>
 	typeof obj === "object" && obj !== null;
 
 /**
- * Validate ForjaConfig structure
+ * Validate DatrixConfig structure
  */
-export function validateConfig(config: unknown): ForjaConfig {
+export function validateConfig(config: unknown): DatrixConfig {
 	const errors: string[] = [];
 
 	// 1. Check if object
@@ -83,7 +83,7 @@ export function validateConfig(config: unknown): ForjaConfig {
 		throwConfigMultiple(errors);
 	}
 
-	return config as ForjaConfig;
+	return config as DatrixConfig;
 }
 
 /**
@@ -136,11 +136,11 @@ function validatePlugins(plugins: unknown): void {
 	for (let i = 0; i < plugins.length; i++) {
 		const plugin = plugins[i];
 
-		if (!isForjaPlugin(plugin)) {
+		if (!isDatrixPlugin(plugin)) {
 			throwConfigArrayItem(
 				"plugins",
 				i,
-				"must be a valid ForjaPlugin instance",
+				"must be a valid DatrixPlugin instance",
 				plugin,
 			);
 		}

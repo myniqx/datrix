@@ -11,7 +11,7 @@ import { JwtStrategy } from "./jwt";
 import { SessionStrategy } from "./session";
 import { AuthConfig } from "./types";
 import { throwSessionNotConfigured } from "./error-helper";
-import { AuthContext, AuthUser, IAuthManager, LoginResult } from "@forja/core";
+import { AuthContext, AuthUser, IAuthManager, LoginResult } from "@datrix/core";
 
 /**
  * Auth Manager

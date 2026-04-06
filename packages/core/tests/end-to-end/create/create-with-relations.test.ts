@@ -13,22 +13,22 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { Forja } from "@forja/core";
+import { Datrix } from "@datrix/core";
 import fs from "node:fs/promises";
 import { createTestConfig, getTmpDir, setupTables } from "../setup";
 
 describe("Create with Relations", () => {
-	let forja: Forja;
+	let datrix: Datrix;
 	const tmpDir = getTmpDir("create_with_relations");
 
 	beforeAll(async () => {
 		await fs.rm(tmpDir, { recursive: true, force: true });
 		await fs.mkdir(tmpDir, { recursive: true });
 
-		const getForja = await createTestConfig(tmpDir);
-		forja = await getForja();
+		const getDatrix = await createTestConfig(tmpDir);
+		datrix = await getDatrix();
 
-		await setupTables(forja);
+		await setupTables(datrix);
 	});
 
 	afterAll(async () => {
@@ -41,12 +41,12 @@ describe("Create with Relations", () => {
 
 	describe("BelongsTo - Connect by ID", () => {
 		it("should create with single belongsTo relation", async () => {
-			const org = await forja.create("organization", {
+			const org = await datrix.create("organization", {
 				name: "BelongsTo Org",
 				country: "USA",
 			});
 
-			const user = await forja.create(
+			const user = await datrix.create(
 				"user",
 				{
 					email: "belongsto@test.com",
@@ -64,18 +64,18 @@ describe("Create with Relations", () => {
 		});
 
 		it("should create with multiple belongsTo relations", async () => {
-			const org = await forja.create("organization", {
+			const org = await datrix.create("organization", {
 				name: "Multi BelongsTo Org",
 				country: "UK",
 			});
 
-			const dept = await forja.create("department", {
+			const dept = await datrix.create("department", {
 				name: "Multi BelongsTo Dept",
 				code: "MBD",
 				organization: org.id,
 			});
 
-			const user = await forja.create(
+			const user = await datrix.create(
 				"user",
 				{
 					email: "multi-belongsto@test.com",
@@ -91,12 +91,12 @@ describe("Create with Relations", () => {
 		});
 
 		it("should create with self-referencing belongsTo", async () => {
-			const parent = await forja.create("category", {
+			const parent = await datrix.create("category", {
 				name: "Parent Cat",
 				slug: "parent-cat",
 			});
 
-			const child = await forja.create(
+			const child = await datrix.create(
 				"category",
 				{
 					name: "Child Cat",
@@ -111,18 +111,18 @@ describe("Create with Relations", () => {
 		});
 
 		it("should create with deep self-referencing chain", async () => {
-			const level1 = await forja.create("category", {
+			const level1 = await datrix.create("category", {
 				name: "Level 1",
 				slug: "level-1",
 			});
 
-			const level2 = await forja.create("category", {
+			const level2 = await datrix.create("category", {
 				name: "Level 2",
 				slug: "level-2",
 				parent: level1.id,
 			});
 
-			const level3 = await forja.create(
+			const level3 = await datrix.create(
 				"category",
 				{
 					name: "Level 3",
@@ -145,7 +145,7 @@ describe("Create with Relations", () => {
 
 	describe("BelongsTo - Nested Create", () => {
 		it("should create with inline nested belongsTo", async () => {
-			const dept = await forja.create(
+			const dept = await datrix.create(
 				"department",
 				{
 					name: "Nested Create Dept",
@@ -169,14 +169,14 @@ describe("Create with Relations", () => {
 			);
 
 			// Verify org was actually created
-			const org = await forja.findOne("organization", {
+			const org = await datrix.findOne("organization", {
 				name: "Inline Created Org",
 			});
 			expect(org).not.toBeNull();
 		});
 
 		it("should create with deep nested belongsTo chain", async () => {
-			const user = await forja.create(
+			const user = await datrix.create(
 				"user",
 				{
 					email: "deep-nested@test.com",
@@ -220,12 +220,12 @@ describe("Create with Relations", () => {
 
 	describe("ManyToMany - Connect", () => {
 		it("should create with manyToMany connect single", async () => {
-			const role = await forja.create("role", {
+			const role = await datrix.create("role", {
 				name: "M2M Connect Role",
 				level: 50,
 			});
 
-			const user = await forja.create(
+			const user = await datrix.create(
 				"user",
 				{
 					email: "m2m-connect@test.com",
@@ -244,23 +244,23 @@ describe("Create with Relations", () => {
 		});
 
 		it("should create with manyToMany connect multiple", async () => {
-			const tags = await forja.createMany("tag", [
+			const tags = await datrix.createMany("tag", [
 				{ name: "M2M Tag 1", color: "#FF0000" },
 				{ name: "M2M Tag 2", color: "#00FF00" },
 				{ name: "M2M Tag 3", color: "#0000FF" },
 			]);
 
-			const category = await forja.create("category", {
+			const category = await datrix.create("category", {
 				name: "M2M Post Category",
 				slug: "m2m-post-category",
 			});
 
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "m2m-post-author@test.com",
 				name: "M2M Post Author",
 			});
 
-			const post = await forja.create(
+			const post = await datrix.create(
 				"post",
 				{
 					title: "M2M Connect Post",
@@ -283,7 +283,7 @@ describe("Create with Relations", () => {
 		});
 
 		it("should create with empty manyToMany connect", async () => {
-			const user = await forja.create(
+			const user = await datrix.create(
 				"user",
 				{
 					email: "empty-m2m@test.com",
@@ -306,7 +306,7 @@ describe("Create with Relations", () => {
 
 	describe("ManyToMany - Create", () => {
 		it("should create with manyToMany inline create single", async () => {
-			const user = await forja.create(
+			const user = await datrix.create(
 				"user",
 				{
 					email: "m2m-create@test.com",
@@ -322,22 +322,22 @@ describe("Create with Relations", () => {
 			expect((user.roles as { name: string }[])[0].name).toBe("Inline Role");
 
 			// Verify role was actually created
-			const role = await forja.findOne("role", { name: "Inline Role" });
+			const role = await datrix.findOne("role", { name: "Inline Role" });
 			expect(role).not.toBeNull();
 		});
 
 		it("should create with manyToMany inline create multiple", async () => {
-			const category = await forja.create("category", {
+			const category = await datrix.create("category", {
 				name: "Inline Tags Category",
 				slug: "inline-tags-category",
 			});
 
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "inline-tags-author@test.com",
 				name: "Inline Tags Author",
 			});
 
-			const post = await forja.create(
+			const post = await datrix.create(
 				"post",
 				{
 					title: "Inline Tags Post",
@@ -368,12 +368,12 @@ describe("Create with Relations", () => {
 
 	describe("ManyToMany - Mixed", () => {
 		it("should create with both connect and create", async () => {
-			const existingRole = await forja.create("role", {
+			const existingRole = await datrix.create("role", {
 				name: "Existing Mixed Role",
 				level: 30,
 			});
 
-			const user = await forja.create(
+			const user = await datrix.create(
 				"user",
 				{
 					email: "mixed-m2m@test.com",
@@ -400,12 +400,12 @@ describe("Create with Relations", () => {
 	describe("Complex Scenarios", () => {
 		it("should create post with all relation types", async () => {
 			// Setup
-			const org = await forja.create("organization", {
+			const org = await datrix.create("organization", {
 				name: "Complex Org",
 				country: "Japan",
 			});
 
-			const existingTag = await forja.create("tag", {
+			const existingTag = await datrix.create("tag", {
 				name: "ExistingComplexTag",
 				color: "#AABBCC",
 			});
@@ -414,7 +414,7 @@ describe("Create with Relations", () => {
 			// - belongsTo author (nested create user with nested create dept/org)
 			// - belongsTo category (nested create)
 			// - manyToMany tags (mixed connect + create)
-			const post = await forja.create(
+			const post = await datrix.create(
 				"post",
 				{
 					title: "Complex Relations Post",
@@ -478,7 +478,7 @@ describe("Create with Relations", () => {
 	describe("Error Cases", () => {
 		it("should fail when connecting to non-existent id", async () => {
 			await expect(
-				forja.create("user", {
+				datrix.create("user", {
 					email: "bad-connect@test.com",
 					name: "Bad Connect User",
 					organization: 99999, // doesn't exist
@@ -488,7 +488,7 @@ describe("Create with Relations", () => {
 
 		it("should fail when manyToMany connect has non-existent id", async () => {
 			await expect(
-				forja.create("user", {
+				datrix.create("user", {
 					email: "bad-m2m@test.com",
 					name: "Bad M2M User",
 					roles: {
@@ -500,7 +500,7 @@ describe("Create with Relations", () => {
 
 		it("should fail when nested create has invalid data", async () => {
 			await expect(
-				forja.create("department", {
+				datrix.create("department", {
 					name: "Bad Nested Dept",
 					code: "BND",
 					organization: {
@@ -520,12 +520,12 @@ describe("Create with Relations", () => {
 
 	describe("HasOne - Connect by ID", () => {
 		it("should create user with hasOne relation (favoriteCategory)", async () => {
-			const category = await forja.create("category", {
+			const category = await datrix.create("category", {
 				name: "HasOne Category",
 				slug: "hasone-category",
 			});
 
-			const user = await forja.create(
+			const user = await datrix.create(
 				"user",
 				{
 					email: "hasone-create@test.com",
@@ -543,7 +543,7 @@ describe("Create with Relations", () => {
 		});
 
 		it("should create user without hasOne relation (null)", async () => {
-			const user = await forja.create(
+			const user = await datrix.create(
 				"user",
 				{
 					email: "hasone-null@test.com",
@@ -556,25 +556,25 @@ describe("Create with Relations", () => {
 		});
 
 		it("should update hasOne relation", async () => {
-			const cat1 = await forja.create("category", {
+			const cat1 = await datrix.create("category", {
 				name: "HasOne Cat1",
 				slug: "hasone-cat1",
 			});
 
-			const cat2 = await forja.create("category", {
+			const cat2 = await datrix.create("category", {
 				name: "HasOne Cat2",
 				slug: "hasone-cat2",
 			});
 
 			// Create with cat1
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "hasone-update@test.com",
 				name: "HasOne Update User",
 				favoriteCategory: cat1.id,
 			});
 
 			// Update to cat2
-			const updated = await forja.update(
+			const updated = await datrix.update(
 				"user",
 				user.id,
 				{ favoriteCategory: cat2.id },
@@ -588,19 +588,19 @@ describe("Create with Relations", () => {
 		});
 
 		it("should clear hasOne relation by setting to null", async () => {
-			const cat = await forja.create("category", {
+			const cat = await datrix.create("category", {
 				name: "HasOne Clear Cat",
 				slug: "hasone-clear-cat",
 			});
 
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "hasone-clear@test.com",
 				name: "HasOne Clear User",
 				favoriteCategory: cat.id,
 			});
 
 			// Clear the relation
-			const updated = await forja.update(
+			const updated = await datrix.update(
 				"user",
 				user.id,
 				{ favoriteCategory: null },
@@ -613,7 +613,7 @@ describe("Create with Relations", () => {
 
 	describe("HasOne - Nested Create", () => {
 		it("should create user with nested hasOne create", async () => {
-			const user = await forja.create(
+			const user = await datrix.create(
 				"user",
 				{
 					email: "hasone-nested@test.com",

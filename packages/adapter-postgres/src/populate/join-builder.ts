@@ -5,7 +5,7 @@
  * Supports all relation types: belongsTo, hasOne, hasMany, manyToMany.
  */
 
-import type { ForjaEntry, ISchemaRegistry, RelationField } from "@forja/core";
+import type { DatrixEntry, ISchemaRegistry, RelationField } from "@datrix/core";
 import type { PostgresQueryTranslator } from "../query-translator";
 import type { JoinClause, PopulateStrategy } from "./types";
 import {
@@ -16,7 +16,7 @@ import {
 	throwTargetModelNotFound,
 	throwJoinBuildError,
 	throwJunctionTableNotFound,
-} from "@forja/core";
+} from "@datrix/core";
 import { PostgresQueryObject } from "../types";
 
 /**
@@ -28,7 +28,7 @@ export class JoinBuilder {
 	constructor(
 		private schemaRegistry: ISchemaRegistry,
 		private translator: PostgresQueryTranslator,
-	) {}
+	) { }
 
 	/**
 	 * Build all JOINs for a query
@@ -44,7 +44,7 @@ export class JoinBuilder {
 	 * @param strategy - Populate strategy
 	 * @returns Array of JOIN clauses
 	 */
-	buildJoins<T extends ForjaEntry>(
+	buildJoins<T extends DatrixEntry>(
 		query: PostgresQueryObject<T>,
 		strategy: PopulateStrategy,
 	): readonly JoinClause[] {

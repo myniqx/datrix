@@ -4,9 +4,9 @@
  * Provides runtime validation for QueryObject structure.
  */
 
-import { ForjaEntry } from "../core/schema";
+import { DatrixEntry } from "../core/schema";
 import { QueryObject } from "../core/query-builder";
-import { ForjaError } from "../errors";
+import { DatrixError } from "../errors";
 
 /**
  * Valid keys for a QueryObject
@@ -42,11 +42,11 @@ const FORBIDDEN_KEYS_MAPPING: Record<string, string> = {
  * Validates that a QueryObject contains only allowed keys.
  * This is a runtime check to catch errors from plugins or dynamic query construction.
  */
-export function validateQueryObject<T extends ForjaEntry>(
+export function validateQueryObject<T extends DatrixEntry>(
 	query: unknown,
 ): void {
 	if (typeof query !== "object" || query === null) {
-		throw new ForjaError("Query must be an object", {
+		throw new DatrixError("Query must be an object", {
 			code: "INVALID_QUERY_TYPE",
 			operation: "query:validate",
 			context: { receivedType: typeof query },
@@ -80,7 +80,7 @@ export function validateQueryObject<T extends ForjaEntry>(
 			})
 			.join(", ");
 
-		throw new ForjaError(`Invalid keys found in QueryObject: ${keyList}`, {
+		throw new DatrixError(`Invalid keys found in QueryObject: ${keyList}`, {
 			code: "INVALID_QUERY_KEYS",
 			operation: "query:validate",
 			context: {
@@ -99,7 +99,7 @@ export function validateQueryObject<T extends ForjaEntry>(
 	// Basic structure check for required fields
 	const q = query as Partial<QueryObject<T>>;
 	if (!q.type) {
-		throw new ForjaError("QueryObject is missing required field: type", {
+		throw new DatrixError("QueryObject is missing required field: type", {
 			code: "MISSING_QUERY_FIELD",
 			operation: "query:validate",
 			context: { query },
@@ -109,7 +109,7 @@ export function validateQueryObject<T extends ForjaEntry>(
 		});
 	}
 	if (!q.table) {
-		throw new ForjaError("QueryObject is missing required field: table", {
+		throw new DatrixError("QueryObject is missing required field: table", {
 			code: "MISSING_QUERY_FIELD",
 			operation: "query:validate",
 			context: { query },

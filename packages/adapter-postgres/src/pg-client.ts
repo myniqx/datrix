@@ -3,12 +3,12 @@
  *
  * Wraps Pool or PoolClient to provide:
  * - Automatic SQL debug logging (non-production)
- * - Consistent error handling with ForjaAdapterError
+ * - Consistent error handling with DatrixAdapterError
  */
 
 import type { Pool, PoolClient, QueryResult, QueryResultRow } from "pg";
-import { AdapterErrorCode, ForjaAdapterError } from "@forja/core";
-import { QueryObject } from "@forja/core";
+import { AdapterErrorCode, DatrixAdapterError } from "@datrix/core";
+import { QueryObject } from "@datrix/core";
 
 const IS_DEBUG = process.env["NODE_ENV"] !== "production";
 
@@ -28,13 +28,13 @@ function pgCodeToAdapterCode(pgCode: string | undefined): AdapterErrorCode {
  * Lightweight wrapper around pg Pool/PoolClient.
  *
  * Every query passes through a single point that logs SQL
- * in development and wraps pg errors into ForjaAdapterError.
+ * in development and wraps pg errors into DatrixAdapterError.
  */
 export class PgClient {
 	constructor(
 		private readonly runner: Pool | PoolClient,
 		private readonly queryObject: QueryObject,
-	) {}
+	) { }
 
 	/**
 	 * Execute a SQL query with optional parameters.
@@ -62,7 +62,7 @@ export class PgClient {
 
 			const adapterCode = pgCodeToAdapterCode(details.code);
 
-			throw new ForjaAdapterError(`Query failed: ${message}`, {
+			throw new DatrixAdapterError(`Query failed: ${message}`, {
 				adapter: "postgres",
 				code: adapterCode,
 				operation: "query",

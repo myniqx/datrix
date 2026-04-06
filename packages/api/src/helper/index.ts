@@ -1,5 +1,5 @@
 /**
- * Forja API Helper
+ * Datrix API Helper
  *
  * Provides helper functions for handling API requests in user code.
  * Works with any framework that uses the Web Request/Response API natively
@@ -8,10 +8,10 @@
  */
 
 import { ApiPlugin } from "../api";
-import { Forja } from "@forja/core";
-import { forjaErrorResponse } from "../handler/utils";
+import { Datrix } from "@datrix/core";
+import { datrixErrorResponse } from "../handler/utils";
 import { handlerError } from "../errors/api-error";
-import { ForjaError } from "@forja/core";
+import { DatrixError } from "@datrix/core";
 
 // ─── Node.js bridge types ─────────────────────────────────────────────────────
 // Duck-typed — no express/fastify dependency required.
@@ -42,7 +42,7 @@ interface NodeOutgoingResponse {
  * ```ts
  * app.all("*", async (req, res) => {
  *   const request  = toWebRequest(req)
- *   const response = await handleRequest(await forja(), request)
+ *   const response = await handleRequest(await datrix(), request)
  *   await sendWebResponse(res, response)
  * })
  * ```
@@ -91,7 +91,7 @@ export function toWebRequest(req: NodeIncomingRequest): Request {
  * ```ts
  * app.all("*", async (req, res) => {
  *   const request  = toWebRequest(req)
- *   const response = await handleRequest(await forja(), request)
+ *   const response = await handleRequest(await datrix(), request)
  *   await sendWebResponse(res, response)
  * })
  * ```
@@ -109,7 +109,7 @@ export async function sendWebResponse(
 }
 
 /**
- * Handle Forja API Request
+ * Handle Datrix API Request
  *
  * This is the ONLY function users need to call in their route handlers.
  *
@@ -119,18 +119,18 @@ export async function sendWebResponse(
  * - Error handling (unexpected errors)
  * - Request routing (auth/crud)
  *
- * @param forja - Forja instance (must have getConfig() method)
+ * @param datrix - Datrix instance (must have getConfig() method)
  * @param request - Web API Request
  * @returns Web API Response
  *
  * @example
  * ```ts
  * // Next.js App Router — Web Request/Response native, no bridge needed
- * import forja from "@/forja.config"
- * import { handleRequest } from "@forja/api"
+ * import datrix from "@/datrix.config"
+ * import { handleRequest } from "@datrix/api"
  *
  * async function handler(request: Request): Promise<Response> {
- *   return handleRequest(await forja(), request)
+ *   return handleRequest(await datrix(), request)
  * }
  *
  * export const GET = handler
@@ -144,32 +144,32 @@ export async function sendWebResponse(
  * ```ts
  * // Express — use toWebRequest / sendWebResponse bridge
  * import express from "express"
- * import forja from "./forja.config"
- * import { handleRequest, toWebRequest, sendWebResponse } from "@forja/api"
+ * import datrix from "./datrix.config"
+ * import { handleRequest, toWebRequest, sendWebResponse } from "@datrix/api"
  *
  * const app = express()
  * app.use(express.raw({ type: "*\/*" }))
  *
  * app.all("*", async (req, res) => {
  *   const request  = toWebRequest(req)
- *   const response = await handleRequest(await forja(), request)
+ *   const response = await handleRequest(await datrix(), request)
  *   await sendWebResponse(res, response)
  * })
  * ```
  */
 export async function handleRequest(
-	forja: Forja,
+	datrix: Datrix,
 	request: Request,
 ): Promise<Response> {
 	try {
 		// 1. Check if API is configured
-		const api = forja.getPlugin("api");
+		const api = datrix.getPlugin("api");
 
 		if (!api || !(api instanceof ApiPlugin)) {
 			const errRes = handlerError.internalError(
-				'API is not configured in forja.config.ts. Add "api: new ForjaApi({ ... })" to your configuration.',
+				'API is not configured in datrix.config.ts. Add "api: new DatrixApi({ ... })" to your configuration.',
 			);
-			return forjaErrorResponse(errRes);
+			return datrixErrorResponse(errRes);
 		}
 
 		// 2. Check if API is disabled
@@ -177,24 +177,24 @@ export async function handleRequest(
 			const errRes = handlerError.internalError(
 				'API is disabled. Remove "disabled: true" from ApiPlugin configuration.',
 			);
-			return forjaErrorResponse(errRes);
+			return datrixErrorResponse(errRes);
 		}
 
-		// 3. Handle request (all logic inside ForjaApi)
-		return await api.handleRequest(request, forja);
+		// 3. Handle request (all logic inside DatrixApi)
+		return await api.handleRequest(request, datrix);
 	} catch (error) {
-		if (error instanceof ForjaError) {
-			return forjaErrorResponse(error);
+		if (error instanceof DatrixError) {
+			return datrixErrorResponse(error);
 		}
 
 		// 4. Catch unexpected errors (should rarely happen)
-		console.error("[Forja API] Unexpected error:", error);
+		console.error("[Datrix API] Unexpected error:", error);
 		const message =
 			error instanceof Error ? error.message : "Internal server error";
 		const errRes = handlerError.internalError(
 			message,
 			error instanceof Error ? error : undefined,
 		);
-		return forjaErrorResponse(errRes);
+		return datrixErrorResponse(errRes);
 	}
 }

@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
 /**
- * Forja CLI Entry Point
+ * Datrix CLI Entry Point
  *
- * Command-line interface for Forja database management framework.
+ * Command-line interface for Datrix database management framework.
  * Provides commands for migrations and schema generation.
  */
 
@@ -68,10 +68,10 @@ function parseArgs(args: readonly string[]): ParsedArgs {
  */
 function printHelp(): void {
 	const help = `
-${bold(cyan("Forja CLI"))} - Database Management Framework
+${bold(cyan("Datrix CLI"))} - Database Management Framework
 
 ${bold("USAGE")}
-  forja <command> [options]
+  datrix <command> [options]
 
 ${bold("COMMANDS")}
   ${cyan("migrate")}                       Run database migrations
@@ -85,7 +85,7 @@ ${bold("COMMANDS")}
 
   ${cyan("generate types")}                Generate TypeScript types from schemas
     ${bold("Options:")}
-      --output <path>             Output file path (default: ./types/forja.ts)
+      --output <path>             Output file path (default: ./types/datrix.ts)
 
   ${cyan("export")}                        Export all data to a zip file
     ${bold("Options:")}
@@ -101,20 +101,20 @@ ${bold("COMMANDS")}
   ${cyan("help")}                           Show this help message
 
 ${bold("GLOBAL OPTIONS")}
-  --config <path>                 Config file path (default: ./forja.config.ts)
+  --config <path>                 Config file path (default: ./datrix.config.ts)
   --verbose                       Verbose output
   --help                          Show help for command
 
 ${bold("EXAMPLES")}
-  forja migrate                   # Run pending migrations
-  forja migrate --dry-run         # Preview without applying
-  forja migrate --status          # Show migration status
-  forja generate schema User      # Generate User schema template
-  forja generate types            # Generate TypeScript types from schemas
+  datrix migrate                   # Run pending migrations
+  datrix migrate --dry-run         # Preview without applying
+  datrix migrate --status          # Show migration status
+  datrix generate schema User      # Generate User schema template
+  datrix generate types            # Generate TypeScript types from schemas
 
 ${bold("MORE INFO")}
-  Documentation: https://github.com/forja/forja
-  Issues: https://github.com/forja/forja/issues
+  Documentation: https://github.com/datrix/datrix
+  Issues: https://github.com/datrix/datrix/issues
 `;
 
 	console.log(help);
@@ -145,7 +145,7 @@ async function main(): Promise<void> {
 	try {
 		switch (args.command) {
 			case "migrate": {
-				const forja = await loadConfig(getConfigPath(args.options));
+				const datrix = await loadConfig(getConfigPath(args.options));
 
 				const migrateOptions: MigrateCommandOptions = {
 					config: getConfigPath(args.options),
@@ -153,7 +153,7 @@ async function main(): Promise<void> {
 					dryRun: Boolean(args.options["dry-run"]),
 				};
 
-				const session = await forja.beginMigrate();
+				const session = await datrix.beginMigrate();
 
 				if (args.options["status"]) {
 					await displayMigrationStatus(session);
@@ -167,7 +167,7 @@ async function main(): Promise<void> {
 			case "generate": {
 				if (!args.subcommand) {
 					logger.error("Missing subcommand for generate");
-					logger.info("Usage: forja generate <schema|types> <name>");
+					logger.info("Usage: datrix generate <schema|types> <name>");
 					process.exit(1);
 				}
 
@@ -187,8 +187,8 @@ async function main(): Promise<void> {
 				};
 
 				if (args.subcommand === "types") {
-					const forja = await loadConfig(getConfigPath(args.options));
-					await generateCommand("types", "", generateOptions, forja);
+					const datrix = await loadConfig(getConfigPath(args.options));
+					await generateCommand("types", "", generateOptions, datrix);
 					break;
 				}
 
@@ -196,7 +196,7 @@ async function main(): Promise<void> {
 
 				if (!name) {
 					logger.error("Name is required");
-					logger.info(`Usage: forja generate ${args.subcommand} <name>`);
+					logger.info(`Usage: datrix generate ${args.subcommand} <name>`);
 					process.exit(1);
 				}
 
@@ -205,14 +205,14 @@ async function main(): Promise<void> {
 			}
 
 			case "export": {
-				const forja = await loadConfig(getConfigPath(args.options));
+				const datrix = await loadConfig(getConfigPath(args.options));
 				const includeFiles = Boolean(args.options["include-files"]);
 				const resume =
 					typeof args.options["resume"] === "string"
 						? args.options["resume"]
 						: undefined!;
 
-				await exportCommand(forja.getAdapter(), {
+				await exportCommand(datrix.getAdapter(), {
 					verbose: Boolean(args.options["verbose"]),
 					output:
 						typeof args.options["output"] === "string"
@@ -222,11 +222,11 @@ async function main(): Promise<void> {
 					packFiles: args.options["pack-files"] !== undefined,
 					packFilesChunkSize:
 						typeof args.options["pack-files"] === "string" &&
-						args.options["pack-files"] !== ""
+							args.options["pack-files"] !== ""
 							? parseInt(args.options["pack-files"], 10)
 							: undefined!,
 					resume,
-					forja,
+					datrix,
 				});
 				break;
 			}
@@ -235,30 +235,30 @@ async function main(): Promise<void> {
 				const filePath = args.args[0];
 				if (!filePath) {
 					logger.error("Import file path is required");
-					logger.info("Usage: forja import <path> [--agree]");
+					logger.info("Usage: datrix import <path> [--agree]");
 					process.exit(1);
 				}
-				const forja = await loadConfig(getConfigPath(args.options));
+				const datrix = await loadConfig(getConfigPath(args.options));
 				const withFiles = args.options["with-files"] !== undefined;
 				const onlyFiles = args.options["only-files"] !== undefined;
 				const importResume =
 					typeof args.options["resume"] === "string"
 						? args.options["resume"]
 						: undefined;
-				await importCommand(forja.getAdapter(), filePath, {
+				await importCommand(datrix.getAdapter(), filePath, {
 					agree: Boolean(args.options["agree"]),
 					verbose: Boolean(args.options["verbose"]),
 					withFiles,
 					onlyFiles,
 					resume: importResume,
-					forja,
+					datrix,
 				});
 				break;
 			}
 
 			default: {
 				logger.error(`Unknown command: ${args.command}`);
-				logger.info('Run "forja help" for usage information');
+				logger.info('Run "datrix help" for usage information');
 				process.exit(1);
 			}
 		}

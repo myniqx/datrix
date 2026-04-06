@@ -15,12 +15,12 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { Forja } from "@forja/core";
+import { Datrix } from "@datrix/core";
 import fs from "node:fs/promises";
 import { createTestConfig, getTmpDir, setupTables } from "../setup";
 
 describe("Pagination & Sort", () => {
-	let forja: Forja;
+	let datrix: Datrix;
 	const tmpDir = getTmpDir("pagination_sort");
 
 	// Store created user IDs for verification
@@ -30,13 +30,13 @@ describe("Pagination & Sort", () => {
 		await fs.rm(tmpDir, { recursive: true, force: true });
 		await fs.mkdir(tmpDir, { recursive: true });
 
-		const getForja = await createTestConfig(tmpDir);
-		forja = await getForja();
+		const getDatrix = await createTestConfig(tmpDir);
+		datrix = await getDatrix();
 
-		await setupTables(forja);
+		await setupTables(datrix);
 
 		// Create test users with predictable data for sorting tests
-		const users = await forja.createMany("user", [
+		const users = await datrix.createMany("user", [
 			{ email: "alice@test.com", name: "Alice", age: 30, isActive: true },
 			{ email: "bob@test.com", name: "Bob", age: 25, isActive: false },
 			{ email: "charlie@test.com", name: "Charlie", age: 35, isActive: true },
@@ -61,25 +61,25 @@ describe("Pagination & Sort", () => {
 
 	describe("Limit", () => {
 		it("should limit results to specified count", async () => {
-			const users = await forja.findMany("user", { limit: 3 });
+			const users = await datrix.findMany("user", { limit: 3 });
 
 			expect(users).toHaveLength(3);
 		});
 
 		it("should return all results when limit exceeds total", async () => {
-			const users = await forja.findMany("user", { limit: 100 });
+			const users = await datrix.findMany("user", { limit: 100 });
 
 			expect(users).toHaveLength(10);
 		});
 
 		it("should return empty array when limit is 0", async () => {
-			const users = await forja.findMany("user", { limit: 0 });
+			const users = await datrix.findMany("user", { limit: 0 });
 
 			expect(users).toHaveLength(0);
 		});
 
 		it("should work with where clause", async () => {
-			const users = await forja.findMany("user", {
+			const users = await datrix.findMany("user", {
 				where: { isActive: true },
 				limit: 2,
 			});
@@ -97,10 +97,10 @@ describe("Pagination & Sort", () => {
 
 	describe("Offset", () => {
 		it("should skip specified number of records", async () => {
-			const allUsers = await forja.findMany("user", {
+			const allUsers = await datrix.findMany("user", {
 				orderBy: [{ field: "id", direction: "asc" }],
 			});
-			const offsetUsers = await forja.findMany("user", {
+			const offsetUsers = await datrix.findMany("user", {
 				orderBy: [{ field: "id", direction: "asc" }],
 				offset: 3,
 			});
@@ -110,13 +110,13 @@ describe("Pagination & Sort", () => {
 		});
 
 		it("should return empty array when offset exceeds total", async () => {
-			const users = await forja.findMany("user", { offset: 100 });
+			const users = await datrix.findMany("user", { offset: 100 });
 
 			expect(users).toHaveLength(0);
 		});
 
 		it("should return all when offset is 0", async () => {
-			const users = await forja.findMany("user", { offset: 0 });
+			const users = await datrix.findMany("user", { offset: 0 });
 
 			expect(users).toHaveLength(10);
 		});
@@ -128,7 +128,7 @@ describe("Pagination & Sort", () => {
 
 	describe("Pagination", () => {
 		it("should paginate correctly - page 1", async () => {
-			const page1 = await forja.findMany("user", {
+			const page1 = await datrix.findMany("user", {
 				orderBy: [{ field: "id", direction: "asc" }],
 				limit: 3,
 				offset: 0,
@@ -140,7 +140,7 @@ describe("Pagination & Sort", () => {
 		});
 
 		it("should paginate correctly - page 2", async () => {
-			const page2 = await forja.findMany("user", {
+			const page2 = await datrix.findMany("user", {
 				orderBy: [{ field: "id", direction: "asc" }],
 				limit: 3,
 				offset: 3,
@@ -152,7 +152,7 @@ describe("Pagination & Sort", () => {
 		});
 
 		it("should paginate correctly - last partial page", async () => {
-			const lastPage = await forja.findMany("user", {
+			const lastPage = await datrix.findMany("user", {
 				orderBy: [{ field: "id", direction: "asc" }],
 				limit: 3,
 				offset: 9,
@@ -164,14 +164,14 @@ describe("Pagination & Sort", () => {
 
 		it("should work with where clause", async () => {
 			// 7 active users total
-			const page1 = await forja.findMany("user", {
+			const page1 = await datrix.findMany("user", {
 				where: { isActive: true },
 				orderBy: [{ field: "id", direction: "asc" }],
 				limit: 3,
 				offset: 0,
 			});
 
-			const page2 = await forja.findMany("user", {
+			const page2 = await datrix.findMany("user", {
 				where: { isActive: true },
 				orderBy: [{ field: "id", direction: "asc" }],
 				limit: 3,
@@ -195,7 +195,7 @@ describe("Pagination & Sort", () => {
 
 	describe("OrderBy Single Field", () => {
 		it("should order by field ascending", async () => {
-			const users = await forja.findMany("user", {
+			const users = await datrix.findMany("user", {
 				orderBy: [{ field: "age", direction: "asc" }],
 			});
 
@@ -209,7 +209,7 @@ describe("Pagination & Sort", () => {
 		});
 
 		it("should order by field descending", async () => {
-			const users = await forja.findMany("user", {
+			const users = await datrix.findMany("user", {
 				orderBy: [{ field: "age", direction: "desc" }],
 			});
 
@@ -223,7 +223,7 @@ describe("Pagination & Sort", () => {
 		});
 
 		it("should order by string field alphabetically", async () => {
-			const users = await forja.findMany("user", {
+			const users = await datrix.findMany("user", {
 				orderBy: [{ field: "name", direction: "asc" }],
 			});
 
@@ -232,7 +232,7 @@ describe("Pagination & Sort", () => {
 		});
 
 		it("should order by id (default primary key)", async () => {
-			const users = await forja.findMany("user", {
+			const users = await datrix.findMany("user", {
 				orderBy: [{ field: "id", direction: "desc" }],
 			});
 
@@ -249,7 +249,7 @@ describe("Pagination & Sort", () => {
 		it("should order by multiple fields", async () => {
 			// Order by age asc, then name asc
 			// Users with same age (25: Bob, Diana), (30: Alice, Frank), (35: Charlie, Henry)
-			const users = await forja.findMany("user", {
+			const users = await datrix.findMany("user", {
 				orderBy: [
 					{ field: "age", direction: "asc" },
 					{ field: "name", direction: "asc" },
@@ -274,7 +274,7 @@ describe("Pagination & Sort", () => {
 
 		it("should handle mixed directions", async () => {
 			// Order by isActive desc (true first), then age asc
-			const users = await forja.findMany("user", {
+			const users = await datrix.findMany("user", {
 				orderBy: [
 					{ field: "isActive", direction: "desc" },
 					{ field: "age", direction: "asc" },
@@ -303,13 +303,13 @@ describe("Pagination & Sort", () => {
 
 	describe("OrderBy with Pagination", () => {
 		it("should maintain order across pages", async () => {
-			const page1 = await forja.findMany("user", {
+			const page1 = await datrix.findMany("user", {
 				orderBy: [{ field: "age", direction: "asc" }],
 				limit: 5,
 				offset: 0,
 			});
 
-			const page2 = await forja.findMany("user", {
+			const page2 = await datrix.findMany("user", {
 				orderBy: [{ field: "age", direction: "asc" }],
 				limit: 5,
 				offset: 5,
@@ -322,7 +322,7 @@ describe("Pagination & Sort", () => {
 		});
 
 		it("should work with where, orderBy, limit, offset combined", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: { isActive: true },
 				orderBy: [{ field: "age", direction: "desc" }],
 				limit: 3,
@@ -351,7 +351,7 @@ describe("Pagination & Sort", () => {
 
 	describe("OrderBy Shortcut Formats", () => {
 		it("should support object shortcut format", async () => {
-			const users = await forja.findMany("user", {
+			const users = await datrix.findMany("user", {
 				orderBy: { age: "asc" },
 			});
 
@@ -360,7 +360,7 @@ describe("Pagination & Sort", () => {
 		});
 
 		it("should support string array format with - prefix for desc", async () => {
-			const users = await forja.findMany("user", {
+			const users = await datrix.findMany("user", {
 				orderBy: ["-age"],
 			});
 
@@ -369,7 +369,7 @@ describe("Pagination & Sort", () => {
 		});
 
 		it("should support string array format without prefix for asc", async () => {
-			const users = await forja.findMany("user", {
+			const users = await datrix.findMany("user", {
 				orderBy: ["age"],
 			});
 
@@ -379,7 +379,7 @@ describe("Pagination & Sort", () => {
 
 		it("should support mixed string array format", async () => {
 			// Sort by age asc, then name desc
-			const users = await forja.findMany("user", {
+			const users = await datrix.findMany("user", {
 				orderBy: ["age", "-name"],
 			});
 
@@ -396,7 +396,7 @@ describe("Pagination & Sort", () => {
 
 	describe("Edge Cases", () => {
 		it("should handle empty result set with pagination", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: { age: 999 },
 				limit: 10,
 				offset: 0,
@@ -407,7 +407,7 @@ describe("Pagination & Sort", () => {
 
 		it("should handle orderBy on field with same values", async () => {
 			// Multiple users have same age
-			const users = await forja.findMany("user", {
+			const users = await datrix.findMany("user", {
 				where: { age: 25 },
 				orderBy: [{ field: "age", direction: "asc" }],
 			});
@@ -417,7 +417,7 @@ describe("Pagination & Sort", () => {
 		});
 
 		it("should handle large offset gracefully", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				offset: 1000000,
 			});
 
@@ -425,7 +425,7 @@ describe("Pagination & Sort", () => {
 		});
 
 		it("should work with select and orderBy", async () => {
-			const users = await forja.findMany("user", {
+			const users = await datrix.findMany("user", {
 				select: ["id", "name"],
 				orderBy: [{ field: "name", direction: "asc" }],
 				limit: 3,
@@ -438,7 +438,7 @@ describe("Pagination & Sort", () => {
 		});
 
 		it("should handle boolean field ordering", async () => {
-			const users = await forja.findMany("user", {
+			const users = await datrix.findMany("user", {
 				orderBy: [{ field: "isActive", direction: "asc" }],
 			});
 
@@ -459,19 +459,19 @@ describe("Pagination & Sort", () => {
 
 	describe("Count", () => {
 		it("should count all records", async () => {
-			const count = await forja.count("user");
+			const count = await datrix.count("user");
 
 			expect(count).toBe(10);
 		});
 
 		it("should count with where clause", async () => {
-			const count = await forja.count("user", { isActive: true });
+			const count = await datrix.count("user", { isActive: true });
 
 			expect(count).toBe(7);
 		});
 
 		it("should count with complex where", async () => {
-			const count = await forja.count("user", {
+			const count = await datrix.count("user", {
 				$and: [{ isActive: true }, { age: { $gte: 30 } }],
 			});
 
@@ -480,7 +480,7 @@ describe("Pagination & Sort", () => {
 		});
 
 		it("should return 0 for no matches", async () => {
-			const count = await forja.count("user", { age: 999 });
+			const count = await datrix.count("user", { age: 999 });
 
 			expect(count).toBe(0);
 		});

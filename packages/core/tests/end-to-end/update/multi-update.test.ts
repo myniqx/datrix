@@ -1,7 +1,7 @@
 /**
  * Multi Update Tests
  *
- * Tests for forja.updateMany() with where clause
+ * Tests for datrix.updateMany() with where clause
  *
  * Covers:
  * - Update multiple records by where
@@ -13,12 +13,12 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { Forja } from "@forja/core";
+import { Datrix } from "@datrix/core";
 import fs from "node:fs/promises";
 import { createTestConfig, getTmpDir, setupTables } from "../setup";
 
 describe("Multi Update", () => {
-	let forja: Forja;
+	let datrix: Datrix;
 	const tmpDir = getTmpDir("multi_update");
 
 	let orgId: number;
@@ -27,19 +27,19 @@ describe("Multi Update", () => {
 		await fs.rm(tmpDir, { recursive: true, force: true });
 		await fs.mkdir(tmpDir, { recursive: true });
 
-		const getForja = await createTestConfig(tmpDir);
-		forja = await getForja();
+		const getDatrix = await createTestConfig(tmpDir);
+		datrix = await getDatrix();
 
-		await setupTables(forja);
+		await setupTables(datrix);
 
 		// Create test data
-		const org = await forja.create("organization", {
+		const org = await datrix.create("organization", {
 			name: "Multi Update Org",
 			country: "USA",
 		});
 		orgId = org.id;
 
-		await forja.createMany("user", [
+		await datrix.createMany("user", [
 			{
 				email: "multi1@test.com",
 				name: "User 1",
@@ -76,7 +76,7 @@ describe("Multi Update", () => {
 
 	describe("Basic Multi Update", () => {
 		it("should update multiple records by simple where", async () => {
-			const updated = await forja.updateMany(
+			const updated = await datrix.updateMany(
 				"user",
 				{ isActive: true },
 				{ name: "Active User" },
@@ -89,7 +89,7 @@ describe("Multi Update", () => {
 		});
 
 		it("should return empty array when no matches", async () => {
-			const updated = await forja.updateMany(
+			const updated = await datrix.updateMany(
 				"user",
 				{ age: 999 },
 				{ name: "No One" },
@@ -99,7 +99,7 @@ describe("Multi Update", () => {
 		});
 
 		it("should update single record when where matches one", async () => {
-			const updated = await forja.updateMany(
+			const updated = await datrix.updateMany(
 				"user",
 				{ email: "multi5@test.com" },
 				{ name: "Updated User 5" },
@@ -116,7 +116,7 @@ describe("Multi Update", () => {
 
 	describe("Update with Operators", () => {
 		it("should update with $gt operator", async () => {
-			const updated = await forja.updateMany(
+			const updated = await datrix.updateMany(
 				"user",
 				{ age: { $gt: 35 } },
 				{ isActive: false },
@@ -130,7 +130,7 @@ describe("Multi Update", () => {
 		});
 
 		it("should update with $in operator", async () => {
-			const updated = await forja.updateMany(
+			const updated = await datrix.updateMany(
 				"user",
 				{ age: { $in: [25, 30] } },
 				{ isActive: true },
@@ -140,7 +140,7 @@ describe("Multi Update", () => {
 		});
 
 		it("should update with $like operator", async () => {
-			const updated = await forja.updateMany(
+			const updated = await datrix.updateMany(
 				"user",
 				{ email: { $like: "multi%@test.com" } },
 				{ metadata: { source: "bulk-update" } },
@@ -156,7 +156,7 @@ describe("Multi Update", () => {
 
 	describe("Update with Complex Where", () => {
 		it("should update with $and", async () => {
-			const updated = await forja.updateMany(
+			const updated = await datrix.updateMany(
 				"user",
 				{
 					$and: [{ isActive: false }, { age: { $gte: 40 } }],
@@ -172,7 +172,7 @@ describe("Multi Update", () => {
 		});
 
 		it("should update with $or", async () => {
-			const updated = await forja.updateMany(
+			const updated = await datrix.updateMany(
 				"user",
 				{
 					$or: [{ age: 25 }, { age: 45 }],
@@ -185,9 +185,9 @@ describe("Multi Update", () => {
 
 		it("should update with implicit AND", async () => {
 			// Reset first
-			await forja.updateMany("user", {}, { isActive: true });
+			await datrix.updateMany("user", {}, { isActive: true });
 
-			const updated = await forja.updateMany(
+			const updated = await datrix.updateMany(
 				"user",
 				{
 					isActive: true,
@@ -206,7 +206,7 @@ describe("Multi Update", () => {
 
 	describe("Update with Relation Where", () => {
 		it("should update by belongsTo relation id", async () => {
-			const updated = await forja.updateMany(
+			const updated = await datrix.updateMany(
 				"user",
 				{ organization: { id: orgId } },
 				{ name: "Org Member" },
@@ -217,7 +217,7 @@ describe("Multi Update", () => {
 		});
 
 		it("should update by belongsTo relation field", async () => {
-			const updated = await forja.updateMany(
+			const updated = await datrix.updateMany(
 				"user",
 				{ organization: { name: "Multi Update Org" } },
 				{ metadata: { fromOrg: true } },
@@ -227,7 +227,7 @@ describe("Multi Update", () => {
 		});
 
 		it("should combine relation and field filters", async () => {
-			const updated = await forja.updateMany(
+			const updated = await datrix.updateMany(
 				"user",
 				{
 					organization: { id: orgId },
@@ -247,9 +247,9 @@ describe("Multi Update", () => {
 
 	describe("Update All", () => {
 		it("should update all records with empty where", async () => {
-			const beforeCount = await forja.count("user");
+			const beforeCount = await datrix.count("user");
 
-			const updated = await forja.updateMany("user", {}, { isActive: true });
+			const updated = await datrix.updateMany("user", {}, { isActive: true });
 
 			expect(updated.length).toBe(beforeCount);
 		});
@@ -261,7 +261,7 @@ describe("Multi Update", () => {
 
 	describe("Return Values", () => {
 		it("should return updated records with new values", async () => {
-			const updated = await forja.updateMany("user", { age: 25 }, { age: 26 });
+			const updated = await datrix.updateMany("user", { age: 25 }, { age: 26 });
 
 			for (const user of updated) {
 				expect(user.age).toBe(26);
@@ -274,7 +274,7 @@ describe("Multi Update", () => {
 			// Small delay to ensure timestamp difference
 			await new Promise((r) => setTimeout(r, 10));
 
-			const updated = await forja.updateMany(
+			const updated = await datrix.updateMany(
 				"user",
 				{ age: 26 },
 				{ name: "Timestamp Test" },
@@ -288,7 +288,7 @@ describe("Multi Update", () => {
 		});
 
 		it("should return records with populate", async () => {
-			const updated = await forja.updateMany(
+			const updated = await datrix.updateMany(
 				"user",
 				{ organization: { id: orgId } },
 				{ name: "Populated Update" },
@@ -316,11 +316,11 @@ describe("Multi Update", () => {
 				name: `Bulk User ${i}`,
 				age: 20 + (i % 30),
 			}));
-			await forja.createMany("user", bulkUsers);
+			await datrix.createMany("user", bulkUsers);
 
 			const start = performance.now();
 
-			const updated = await forja.updateMany(
+			const updated = await datrix.updateMany(
 				"user",
 				{ email: { $like: "bulkupdate%@test.com" } },
 				{ isActive: false },
@@ -334,21 +334,21 @@ describe("Multi Update", () => {
 
 		it("should not update unrelated records", async () => {
 			// Create isolated user
-			const isolated = await forja.create("user", {
+			const isolated = await datrix.create("user", {
 				email: "isolated@test.com",
 				name: "Isolated User",
 				age: 100,
 			});
 
 			// Update users with different criteria
-			await forja.updateMany(
+			await datrix.updateMany(
 				"user",
 				{ age: { $lt: 50 } },
 				{ name: "Not Isolated" },
 			);
 
 			// Verify isolated user unchanged
-			const unchanged = await forja.findById("user", isolated.id);
+			const unchanged = await datrix.findById("user", isolated.id);
 			expect(unchanged!.name).toBe("Isolated User");
 		});
 	});

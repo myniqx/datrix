@@ -6,11 +6,11 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { Forja } from "@forja/core";
+import { Datrix } from "@datrix/core";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { expectApiSingle, expectApiError } from "../../core/tests/test/helpers";
-import type { MediaEntry } from "@forja/core";
+import type { MediaEntry } from "@datrix/core";
 import { createUploadTestConfig } from "./data/config";
 import {
 	createCheckerboardPng,
@@ -19,7 +19,7 @@ import {
 } from "./data/image-helper";
 
 describe("Upload Basic Tests", () => {
-	let forja: Forja;
+	let datrix: Datrix;
 	const tmpDir = path.join(
 		process.cwd(),
 		"packages",
@@ -29,15 +29,15 @@ describe("Upload Basic Tests", () => {
 	);
 
 	async function handleRequest(request: Request): Promise<Response> {
-		const apiPlugin = forja.getPlugin("api");
+		const apiPlugin = datrix.getPlugin("api");
 		if (!apiPlugin || !("handleRequest" in apiPlugin)) {
 			throw new Error("API plugin not found");
 		}
 		const response = await (
 			apiPlugin as {
-				handleRequest: (req: Request, forja: Forja) => Promise<Response>;
+				handleRequest: (req: Request, datrix: Datrix) => Promise<Response>;
 			}
-		).handleRequest(request, forja);
+		).handleRequest(request, datrix);
 		return response;
 	}
 
@@ -49,11 +49,11 @@ describe("Upload Basic Tests", () => {
 		}
 		await fs.mkdir(tmpDir, { recursive: true });
 
-		const getForja = await createUploadTestConfig(tmpDir, { format: "webp" });
-		forja = await getForja();
+		const getDatrix = await createUploadTestConfig(tmpDir, { format: "webp" });
+		datrix = await getDatrix();
 
-		const adapter = forja.getAdapter();
-		for (const schema of forja.getSchemas().getAll()) {
+		const adapter = datrix.getAdapter();
+		for (const schema of datrix.getSchemas().getAll()) {
 			try {
 				await adapter.dropTable(schema.tableName!);
 			} catch {

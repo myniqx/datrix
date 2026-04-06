@@ -17,10 +17,10 @@
 
 import type { Document, Filter } from "mongodb";
 import type {
-	ForjaEntry,
+	DatrixEntry,
 	ISchemaRegistry,
 	SchemaDefinition,
-} from "@forja/core";
+} from "@datrix/core";
 import type { MongoClient } from "./mongo-client";
 
 /**
@@ -43,7 +43,7 @@ export interface RelationFilter {
  *
  * @returns Cleaned filter with relation conditions resolved to ID filters
  */
-export async function resolveNestedWhere<TResult extends ForjaEntry>(
+export async function resolveNestedWhere<TResult extends DatrixEntry>(
 	filter: Filter<Document>,
 	tableName: string,
 	client: MongoClient<TResult>,
@@ -110,7 +110,7 @@ export async function resolveNestedWhere<TResult extends ForjaEntry>(
 /**
  * Helper to resolve conditions arrays for logical operators like $and, $or, $nor
  */
-async function resolveLogicalOperators<TResult extends ForjaEntry>(
+async function resolveLogicalOperators<TResult extends DatrixEntry>(
 	conditions: Filter<Document>[],
 	tableName: string,
 	client: MongoClient<TResult>,
@@ -132,7 +132,7 @@ async function resolveLogicalOperators<TResult extends ForjaEntry>(
 /**
  * Resolve relation conditions to matching parent IDs.
  */
-async function resolveRelationIds<TResult extends ForjaEntry>(
+async function resolveRelationIds<TResult extends DatrixEntry>(
 	relation: {
 		readonly kind: string;
 		readonly model: string;
@@ -190,7 +190,7 @@ async function resolveRelationIds<TResult extends ForjaEntry>(
 /**
  * Fetches matching documents and extracts unique IDs based on a specific field key.
  */
-async function fetchUniqueIds<TResult extends ForjaEntry>(
+async function fetchUniqueIds<TResult extends DatrixEntry>(
 	collection: string,
 	fieldKey: string,
 	conditions: Filter<Document>,
@@ -220,7 +220,7 @@ async function fetchUniqueIds<TResult extends ForjaEntry>(
  * ManyToMany: find target IDs matching conditions,
  * then look up junction table to get source IDs.
  */
-async function resolveManyToMany<TResult extends ForjaEntry>(
+async function resolveManyToMany<TResult extends DatrixEntry>(
 	targetCollection: string,
 	junctionCollection: string,
 	sourceModelName: string,

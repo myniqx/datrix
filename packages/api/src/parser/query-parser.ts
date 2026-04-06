@@ -5,7 +5,7 @@
  * Combines fields, where, populate, pagination, and sorting.
  */
 
-import type { OrderByItem, OrderDirection } from "@forja/core";
+import type { OrderByItem, OrderDirection } from "@datrix/core";
 import {
 	ParserError,
 	buildErrorLocation,
@@ -14,13 +14,13 @@ import {
 	type ParsedPagination,
 	type ParsedSort,
 	type ParsedQuery,
-} from "@forja/core";
-import { validateFieldName } from "@forja/core";
+} from "@datrix/core";
+import { validateFieldName } from "@datrix/core";
 import { parseFields } from "./fields-parser";
 import { parseWhere } from "./where-parser";
 import { parsePopulate } from "./populate-parser";
 import { paginationError, sortError } from "./errors";
-import { ForjaEntry, ForjaRecord } from "@forja/core";
+import { DatrixEntry, DatrixRecord } from "@datrix/core";
 
 /**
  * Default parser options
@@ -43,7 +43,7 @@ const DEFAULT_OPTIONS: Required<ParserOptions> = {
 export function parseQuery(
 	params: RawQueryParams,
 	options?: Partial<ParserOptions>,
-): ParsedQuery<ForjaEntry> {
+): ParsedQuery<DatrixEntry> {
 	const opts: Required<ParserOptions> = {
 		...DEFAULT_OPTIONS,
 		...options,
@@ -83,7 +83,7 @@ export function parseQuery(
 		...(sort !== undefined &&
 			Array.isArray(sort) &&
 			sort.length > 0 && { orderBy: sort }),
-	} as ParsedQuery<ForjaEntry>;
+	} as ParsedQuery<DatrixEntry>;
 
 	return result;
 }
@@ -157,7 +157,7 @@ function parseSort(params: RawQueryParams): ParsedSort | undefined {
 		sortError.emptyValue([]);
 	}
 
-	const sorts: OrderByItem<ForjaRecord>[] = [];
+	const sorts: OrderByItem<DatrixRecord>[] = [];
 
 	// Handle comma-separated sorts
 	const sortStrings =

@@ -5,7 +5,7 @@
  */
 
 import { describe, it, beforeAll, afterAll } from "vitest";
-import { createForjaWithSchemas, getTmpDir } from "./setup/config";
+import { createDatrixWithSchemas, getTmpDir } from "./setup/config";
 import { getAdapter, getAdapterType } from "./setup/adapter";
 import {
 	baseUserSchema,
@@ -25,7 +25,7 @@ import {
 	assertHasChanges,
 	applyMigration,
 } from "./setup/helpers";
-import type { DatabaseAdapter } from "@forja/core";
+import type { DatabaseAdapter } from "@datrix/core";
 
 describe("Migration E2E - Fresh Start", () => {
 	const tmpDir = getTmpDir("fresh-start");
@@ -48,11 +48,11 @@ describe("Migration E2E - Fresh Start", () => {
 			// Clean slate
 			await dropAllTables(adapter);
 
-			// Create Forja with all base schemas
-			const forja = await createForjaWithSchemas(tmpDir, [...allBaseSchemas]);
+			// Create Datrix with all base schemas
+			const datrix = await createDatrixWithSchemas(tmpDir, [...allBaseSchemas]);
 
 			// Begin migration
-			const session = await forja.beginMigrate();
+			const session = await datrix.beginMigrate();
 
 			// Should detect 3 tables to create
 			assertHasChanges(session);
@@ -63,29 +63,29 @@ describe("Migration E2E - Fresh Start", () => {
 			await applyMigration(session);
 
 			// Verify tables exist (before shutdown)
-			await assertTableExists(forja, "user");
-			await assertTableExists(forja, "post");
-			await assertTableExists(forja, "category");
+			await assertTableExists(datrix, "user");
+			await assertTableExists(datrix, "post");
+			await assertTableExists(datrix, "category");
 
-			await forja.shutdown();
+			await datrix.shutdown();
 		});
 
 		it("should detect no changes when schemas match DB", async () => {
 			// DB already has tables from previous test
-			// Create Forja with same schemas
-			const forja = await createForjaWithSchemas(
+			// Create Datrix with same schemas
+			const datrix = await createDatrixWithSchemas(
 				tmpDir,
 				[...allBaseSchemas],
 				true,
 			);
 
 			// Begin migration
-			const session = await forja.beginMigrate();
+			const session = await datrix.beginMigrate();
 
 			// Should detect no changes
 			assertNoChanges(session);
 
-			await forja.shutdown();
+			await datrix.shutdown();
 		});
 	});
 
@@ -93,19 +93,19 @@ describe("Migration E2E - Fresh Start", () => {
 		it("should add new table when schema added", async () => {
 			// Start fresh with user, post, category
 			await dropAllTables(adapter);
-			const forja1 = await createForjaWithSchemas(tmpDir, [...allBaseSchemas]);
-			const s1 = await forja1.beginMigrate();
+			const datrix1 = await createDatrixWithSchemas(tmpDir, [...allBaseSchemas]);
+			const s1 = await datrix1.beginMigrate();
 			await applyMigration(s1);
-			await forja1.shutdown();
+			await datrix1.shutdown();
 
 			// Now add 'tag' schema
-			const forja = await createForjaWithSchemas(
+			const datrix = await createDatrixWithSchemas(
 				tmpDir,
 				[...allBaseSchemas, baseTagSchema],
 				true,
 			);
 
-			const session = await forja.beginMigrate();
+			const session = await datrix.beginMigrate();
 
 			// Should detect 1 new table
 			assertHasChanges(session);
@@ -117,30 +117,30 @@ describe("Migration E2E - Fresh Start", () => {
 			await applyMigration(session);
 
 			// Verify
-			await assertTableExists(forja, "tag");
-			await assertTableExists(forja, "user");
-			await assertTableExists(forja, "post");
-			await assertTableExists(forja, "category");
+			await assertTableExists(datrix, "tag");
+			await assertTableExists(datrix, "user");
+			await assertTableExists(datrix, "post");
+			await assertTableExists(datrix, "category");
 
-			await forja.shutdown();
+			await datrix.shutdown();
 		});
 
 		it("should add multiple new tables at once", async () => {
 			// Start fresh with only user
 			await dropAllTables(adapter);
-			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
-			const s1 = await forja1.beginMigrate();
+			const datrix1 = await createDatrixWithSchemas(tmpDir, [baseUserSchema]);
+			const s1 = await datrix1.beginMigrate();
 			await applyMigration(s1);
-			await forja1.shutdown();
+			await datrix1.shutdown();
 
 			// Now add post, category, tag
-			const forja = await createForjaWithSchemas(
+			const datrix = await createDatrixWithSchemas(
 				tmpDir,
 				[baseUserSchema, basePostSchema, baseCategorySchema, baseTagSchema],
 				true,
 			);
 
-			const session = await forja.beginMigrate();
+			const session = await datrix.beginMigrate();
 
 			// Should detect 3 new tables
 			assertHasChanges(session);
@@ -151,12 +151,12 @@ describe("Migration E2E - Fresh Start", () => {
 			await applyMigration(session);
 
 			// Verify all exist
-			await assertTableExists(forja, "user");
-			await assertTableExists(forja, "post");
-			await assertTableExists(forja, "category");
-			await assertTableExists(forja, "tag");
+			await assertTableExists(datrix, "user");
+			await assertTableExists(datrix, "post");
+			await assertTableExists(datrix, "category");
+			await assertTableExists(datrix, "tag");
 
-			await forja.shutdown();
+			await datrix.shutdown();
 		});
 	});
 
@@ -164,19 +164,19 @@ describe("Migration E2E - Fresh Start", () => {
 		it("should drop table when schema removed", async () => {
 			// Start with user, post, category
 			await dropAllTables(adapter);
-			const forja1 = await createForjaWithSchemas(tmpDir, [...allBaseSchemas]);
-			const s1 = await forja1.beginMigrate();
+			const datrix1 = await createDatrixWithSchemas(tmpDir, [...allBaseSchemas]);
+			const s1 = await datrix1.beginMigrate();
 			await applyMigration(s1);
-			await forja1.shutdown();
+			await datrix1.shutdown();
 
 			// Remove category
-			const forja = await createForjaWithSchemas(
+			const datrix = await createDatrixWithSchemas(
 				tmpDir,
 				[baseUserSchema, basePostSchema],
 				true,
 			);
 
-			const session = await forja.beginMigrate();
+			const session = await datrix.beginMigrate();
 
 			// Should detect 1 table to drop
 			assertHasChanges(session);
@@ -189,31 +189,31 @@ describe("Migration E2E - Fresh Start", () => {
 
 			// Verify (use adapter + TABLE_NAMES for dropped table)
 			await assertTableNotExists(adapter, TABLE_NAMES.category);
-			await assertTableExists(forja, "user");
-			await assertTableExists(forja, "post");
+			await assertTableExists(datrix, "user");
+			await assertTableExists(datrix, "post");
 
-			await forja.shutdown();
+			await datrix.shutdown();
 		});
 
 		it("should drop multiple tables at once", async () => {
 			// Start with all 4 tables
 			await dropAllTables(adapter);
-			const forja1 = await createForjaWithSchemas(tmpDir, [
+			const datrix1 = await createDatrixWithSchemas(tmpDir, [
 				...allBaseSchemas,
 				baseTagSchema,
 			]);
-			const s1 = await forja1.beginMigrate();
+			const s1 = await datrix1.beginMigrate();
 			await applyMigration(s1);
-			await forja1.shutdown();
+			await datrix1.shutdown();
 
 			// Keep only user
-			const forja = await createForjaWithSchemas(
+			const datrix = await createDatrixWithSchemas(
 				tmpDir,
 				[baseUserSchema],
 				true,
 			);
 
-			const session = await forja.beginMigrate();
+			const session = await datrix.beginMigrate();
 
 			// Should detect 3 tables to drop
 			assertHasChanges(session);
@@ -224,12 +224,12 @@ describe("Migration E2E - Fresh Start", () => {
 			await applyMigration(session);
 
 			// Verify (use adapter + TABLE_NAMES for dropped tables)
-			await assertTableExists(forja, "user");
+			await assertTableExists(datrix, "user");
 			await assertTableNotExists(adapter, TABLE_NAMES.post);
 			await assertTableNotExists(adapter, TABLE_NAMES.category);
 			await assertTableNotExists(adapter, TABLE_NAMES.tag);
 
-			await forja.shutdown();
+			await datrix.shutdown();
 		});
 	});
 
@@ -237,22 +237,22 @@ describe("Migration E2E - Fresh Start", () => {
 		it("should add and drop tables in same migration", async () => {
 			// Start with user, post
 			await dropAllTables(adapter);
-			const forja1 = await createForjaWithSchemas(tmpDir, [
+			const datrix1 = await createDatrixWithSchemas(tmpDir, [
 				baseUserSchema,
 				basePostSchema,
 			]);
-			const s1 = await forja1.beginMigrate();
+			const s1 = await datrix1.beginMigrate();
 			await applyMigration(s1);
-			await forja1.shutdown();
+			await datrix1.shutdown();
 
 			// Remove post, add category and tag
-			const forja = await createForjaWithSchemas(
+			const datrix = await createDatrixWithSchemas(
 				tmpDir,
 				[baseUserSchema, baseCategorySchema, baseTagSchema],
 				true,
 			);
 
-			const session = await forja.beginMigrate();
+			const session = await datrix.beginMigrate();
 
 			// Should detect changes
 			assertHasChanges(session);
@@ -263,12 +263,12 @@ describe("Migration E2E - Fresh Start", () => {
 			await applyMigration(session);
 
 			// Verify (use adapter + TABLE_NAMES for dropped table)
-			await assertTableExists(forja, "user");
+			await assertTableExists(datrix, "user");
 			await assertTableNotExists(adapter, TABLE_NAMES.post);
-			await assertTableExists(forja, "category");
-			await assertTableExists(forja, "tag");
+			await assertTableExists(datrix, "category");
+			await assertTableExists(datrix, "tag");
 
-			await forja.shutdown();
+			await datrix.shutdown();
 		});
 	});
 });

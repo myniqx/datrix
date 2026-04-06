@@ -6,7 +6,7 @@
  */
 
 import type { Collection, Document } from "mongodb";
-import { throwQueryError } from "@forja/core";
+import { throwQueryError } from "@datrix/core";
 import { COUNTER_KEY_PREFIX } from "./types";
 
 const VALID_IDENTIFIER_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
@@ -28,7 +28,7 @@ export function validateIdentifier(identifier: string): void {
 }
 
 /**
- * MongoDB error code to Forja adapter error code mapping.
+ * MongoDB error code to Datrix adapter error code mapping.
  *
  * Common MongoDB server error codes:
  * - 11000: Duplicate key (unique index violation)
@@ -40,7 +40,7 @@ const MONGO_ERROR_CODE_MAP: Record<number, string> = {
 };
 
 /**
- * Map MongoDB error code to Forja adapter error code
+ * Map MongoDB error code to Datrix adapter error code
  */
 export function mongoCodeToAdapterCode(mongoCode: number | undefined): string {
 	if (mongoCode !== undefined && mongoCode in MONGO_ERROR_CODE_MAP) {
@@ -52,10 +52,10 @@ export function mongoCodeToAdapterCode(mongoCode: number | undefined): string {
 /**
  * Get the next auto-increment ID for a collection.
  *
- * Uses atomic findOneAndUpdate with $inc on the _forja meta collection.
+ * Uses atomic findOneAndUpdate with $inc on the _datrix meta collection.
  * Key format: _counter_<collectionName>
  *
- * @param metaCollection - The _forja collection
+ * @param metaCollection - The _datrix collection
  * @param collectionName - Target collection name
  * @param count - How many IDs to reserve (for bulk insert)
  * @returns The first reserved ID (caller uses firstId..firstId+count-1)

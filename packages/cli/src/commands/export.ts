@@ -1,10 +1,10 @@
 import path from "node:path";
-import type { DatabaseAdapter } from "@forja/core";
+import type { DatabaseAdapter } from "@datrix/core";
 import { logger, spinner } from "../utils/logger";
 import { ZipExportWriter } from "../export-import/zip-writer";
 import { FileExporter } from "../export-import/file-exporter";
-import { IForja } from "@forja/core";
-import { IApiPlugin } from "@forja/core";
+import { IDatrix } from "@datrix/core";
+import { IApiPlugin } from "@datrix/core";
 
 export interface ExportCommandOptions {
 	readonly output?: string;
@@ -13,7 +13,7 @@ export interface ExportCommandOptions {
 	readonly packFiles?: boolean;
 	readonly packFilesChunkSize?: number;
 	readonly resume?: string;
-	readonly forja?: IForja;
+	readonly datrix?: IDatrix;
 }
 
 export async function exportCommand(
@@ -23,7 +23,7 @@ export async function exportCommand(
 	const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
 
 	if (options.includeFiles) {
-		if (!options.forja?.getPlugin<IApiPlugin>("api")?.upload) {
+		if (!options.datrix?.getPlugin<IApiPlugin>("api")?.upload) {
 			throw new Error(
 				"--include-files requires an active api-upload plugin. None was found.",
 			);
@@ -62,8 +62,8 @@ async function exportWithFiles(
 	options: ExportCommandOptions,
 	timestamp: string,
 ): Promise<void> {
-	const forja = options.forja!;
-	const api = options.forja?.getPlugin<IApiPlugin>("api");
+	const datrix = options.datrix!;
+	const api = options.datrix?.getPlugin<IApiPlugin>("api");
 	const upload = api?.upload!;
 
 	// Determine output directory
@@ -81,7 +81,7 @@ async function exportWithFiles(
 		options.packFilesChunkSize,
 	);
 	const mediaModel = upload.getModelName();
-	const mediaTableName = forja.getSchema(mediaModel)!.tableName!;
+	const mediaTableName = datrix.getSchema(mediaModel)!.tableName!;
 
 	if (isResume) {
 		const exists = await fileExporter.ledgerExists();

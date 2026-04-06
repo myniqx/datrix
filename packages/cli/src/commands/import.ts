@@ -1,9 +1,9 @@
 import path from "node:path";
 import fsSync from "node:fs";
 import * as readline from "readline";
-import type { DatabaseAdapter } from "@forja/core";
-import type { IApiPlugin } from "@forja/core";
-import type { IForja } from "@forja/core";
+import type { DatabaseAdapter } from "@datrix/core";
+import type { IApiPlugin } from "@datrix/core";
+import type { IDatrix } from "@datrix/core";
 import { logger, spinner, red, yellow } from "../utils/logger";
 import { ZipImportReader } from "../export-import/zip-reader";
 import { FileImporter } from "../export-import/file-importer";
@@ -17,7 +17,7 @@ export interface ImportCommandOptions {
 	readonly withFiles?: boolean | undefined;
 	readonly onlyFiles?: boolean | undefined;
 	readonly resume?: string | undefined;
-	readonly forja?: IForja;
+	readonly datrix?: IDatrix;
 }
 
 function hasAgreed(
@@ -103,8 +103,8 @@ async function importWithFiles(
 	resolvedPath: string,
 	options: ImportCommandOptions,
 ): Promise<void> {
-	const forja = options.forja;
-	const upload = forja?.getPlugin<IApiPlugin>("api")?.upload;
+	const datrix = options.datrix;
+	const upload = datrix?.getPlugin<IApiPlugin>("api")?.upload;
 
 	if (!upload) {
 		throw new Error(
@@ -118,7 +118,7 @@ async function importWithFiles(
 	const resumeDir = options.resume ? path.resolve(options.resume) : null;
 	const activeDir = resumeDir ?? importDir;
 
-	const fileImporter = new FileImporter(activeDir, upload, forja);
+	const fileImporter = new FileImporter(activeDir, upload, datrix);
 
 	if (isResume) {
 		const exists = await fileImporter.ledgerExists();

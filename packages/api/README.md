@@ -1,18 +1,18 @@
-# @forja/api
+# @datrix/api
 
-HTTP REST API plugin for Forja. Turns any Forja instance into a fully-featured REST API — auto-generates CRUD routes for every schema, handles JWT and session authentication, RBAC permissions, and optionally manages file uploads via [`@forja/api-upload`](../api-upload/README.md).
+HTTP REST API plugin for Datrix. Turns any Datrix instance into a fully-featured REST API — auto-generates CRUD routes for every schema, handles JWT and session authentication, RBAC permissions, and optionally manages file uploads via [`@datrix/api-upload`](../api-upload/README.md).
 
 ## Installation
 
 ```bash
-pnpm add @forja/api
+pnpm add @datrix/api
 ```
 
 ## Setup
 
 ```typescript
-import { defineConfig } from "forja-core"
-import { ApiPlugin } from "@forja/api"
+import { defineConfig } from "datrix-core"
+import { ApiPlugin } from "@datrix/api"
 
 export default defineConfig(() => ({
   adapter,
@@ -23,7 +23,7 @@ export default defineConfig(() => ({
       defaultPageSize:  25,      // default: 25
       maxPageSize:      100,     // default: 100
       maxPopulateDepth: 5,       // default: 5
-      excludeSchemas:   [],      // always excludes _forja and _forja_migrations
+      excludeSchemas:   [],      // always excludes _datrix and _datrix_migrations
     }),
   ],
 }))
@@ -34,9 +34,9 @@ export default defineConfig(() => ({
 ### `handleRequest`
 
 ```typescript
-import { handleRequest } from "@forja/api"
+import { handleRequest } from "@datrix/api"
 
-handleRequest(forja: IForja, request: Request): Promise<Response>
+handleRequest(datrix: IDatrix, request: Request): Promise<Response>
 ```
 
 Main entry point. Routes to the appropriate handler (auth, CRUD, or upload). Always returns a `Response`, never throws.
@@ -44,11 +44,11 @@ Main entry point. Routes to the appropriate handler (auth, CRUD, or upload). Alw
 #### Next.js App Router
 
 ```typescript
-import forja from "@/forja.config"
-import { handleRequest } from "@forja/api"
+import datrix from "@/datrix.config"
+import { handleRequest } from "@datrix/api"
 
 async function handler(request: Request): Promise<Response> {
-  return handleRequest(await forja(), request)
+  return handleRequest(await datrix(), request)
 }
 
 export const GET = handler
@@ -62,14 +62,14 @@ export const DELETE = handler
 
 ```typescript
 import express from "express"
-import { handleRequest, toWebRequest, sendWebResponse } from "@forja/api"
+import { handleRequest, toWebRequest, sendWebResponse } from "@datrix/api"
 
 const app = express()
 app.use(express.raw({ type: "*/*" }))
 
 app.all("*", async (req, res) => {
   const request  = toWebRequest(req)
-  const response = await handleRequest(await forja(), request)
+  const response = await handleRequest(await datrix(), request)
   await sendWebResponse(res, response)
 })
 ```
@@ -95,7 +95,7 @@ The `:schema` segment matches the schema's table name (e.g. schema `"product"` �
 Pass query parameters as a serialized `ParsedQuery` object. Use `queryToParams` to build them:
 
 ```typescript
-import { queryToParams } from "@forja/api"
+import { queryToParams } from "@datrix/api"
 
 const qs = queryToParams({
   where:   { status: "active" },
@@ -182,10 +182,10 @@ Permission values: `true` (public), `false` (blocked), role array, async functio
 
 ## File uploads
 
-File upload support is in a separate package to keep `sharp` out of the core dependency tree. See [`@forja/api-upload`](../api-upload/README.md) for the full setup, storage provider docs, format conversion, and resolution variants.
+File upload support is in a separate package to keep `sharp` out of the core dependency tree. See [`@datrix/api-upload`](../api-upload/README.md) for the full setup, storage provider docs, format conversion, and resolution variants.
 
 ```typescript
-import { Upload, LocalStorageProvider } from "@forja/api-upload"
+import { Upload, LocalStorageProvider } from "@datrix/api-upload"
 
 new ApiPlugin({
   upload: new Upload({
@@ -216,7 +216,7 @@ src/
 ├── handler/
 │   ├── unified.ts           # CRUD request handler (GET / POST / PATCH / DELETE)
 │   ├── auth-handler.ts      # Auth endpoint handlers (register, login, logout, me)
-│   └── utils.ts             # jsonResponse, forjaErrorResponse helpers
+│   └── utils.ts             # jsonResponse, datrixErrorResponse helpers
 ├── auth/
 │   ├── manager.ts           # AuthManager — coordinates JWT, session, and password
 │   ├── jwt.ts               # JwtStrategy — signing/verification (no external deps)
@@ -228,6 +228,6 @@ src/
 │   ├── permission.ts        # Schema and field permission evaluation
 │   └── types.ts             # RequestContext type
 └── errors/
-    ├── api-error.ts         # ForjaApiError and handlerError factory
-    └── auth-error.ts        # ForjaAuthError and authError factory
+    ├── api-error.ts         # DatrixApiError and handlerError factory
+    └── auth-error.ts        # DatrixAuthError and authError factory
 ```

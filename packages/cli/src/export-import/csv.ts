@@ -11,7 +11,7 @@
  * - JSON/array: stringified, wrapped in quotes
  */
 
-import type { SchemaDefinition } from "@forja/core";
+import type { SchemaDefinition } from "@datrix/core";
 
 const NULL_TOKEN = "\\N";
 

@@ -5,7 +5,7 @@
  * Provides consistent error messages and suggestions.
  */
 
-import { ForjaAuthError } from "@forja/core";
+import { DatrixAuthError } from "@datrix/core";
 
 // ============================================================================
 // JWT Errors
@@ -17,7 +17,7 @@ import { ForjaAuthError } from "@forja/core";
  * @param cause - Original error
  */
 export function throwJwtSignError(cause?: Error): never {
-	throw new ForjaAuthError("Failed to sign JWT token", {
+	throw new DatrixAuthError("Failed to sign JWT token", {
 		code: "JWT_SIGN_ERROR",
 		strategy: "jwt",
 		cause,
@@ -31,7 +31,7 @@ export function throwJwtSignError(cause?: Error): never {
  * @param cause - Original error
  */
 export function throwJwtVerifyError(cause?: Error): never {
-	throw new ForjaAuthError("Failed to verify JWT token", {
+	throw new DatrixAuthError("Failed to verify JWT token", {
 		code: "JWT_VERIFY_ERROR",
 		strategy: "jwt",
 		cause,
@@ -45,7 +45,7 @@ export function throwJwtVerifyError(cause?: Error): never {
  * @param cause - Original error
  */
 export function throwJwtDecodeError(cause?: Error): never {
-	throw new ForjaAuthError("Failed to decode JWT token", {
+	throw new DatrixAuthError("Failed to decode JWT token", {
 		code: "JWT_DECODE_ERROR",
 		strategy: "jwt",
 		cause,
@@ -57,7 +57,7 @@ export function throwJwtDecodeError(cause?: Error): never {
  * Throw JWT invalid format error
  */
 export function throwJwtInvalidFormat(): never {
-	throw new ForjaAuthError("Invalid JWT format", {
+	throw new DatrixAuthError("Invalid JWT format", {
 		code: "JWT_INVALID_FORMAT",
 		strategy: "jwt",
 		suggestion: "JWT must be in format: header.payload.signature",
@@ -69,7 +69,7 @@ export function throwJwtInvalidFormat(): never {
  * Throw JWT invalid header error
  */
 export function throwJwtInvalidHeader(): never {
-	throw new ForjaAuthError("Invalid JWT header", {
+	throw new DatrixAuthError("Invalid JWT header", {
 		code: "JWT_INVALID_HEADER",
 		strategy: "jwt",
 		suggestion: "Ensure the JWT header has correct algorithm and type",
@@ -81,7 +81,7 @@ export function throwJwtInvalidHeader(): never {
  * Throw JWT invalid payload error
  */
 export function throwJwtInvalidPayload(): never {
-	throw new ForjaAuthError("Invalid JWT payload", {
+	throw new DatrixAuthError("Invalid JWT payload", {
 		code: "JWT_INVALID_PAYLOAD",
 		strategy: "jwt",
 		suggestion: "JWT payload must contain userId, role, iat, and exp fields",
@@ -93,7 +93,7 @@ export function throwJwtInvalidPayload(): never {
  * Throw JWT invalid signature error
  */
 export function throwJwtInvalidSignature(): never {
-	throw new ForjaAuthError("Invalid JWT signature", {
+	throw new DatrixAuthError("Invalid JWT signature", {
 		code: "JWT_INVALID_SIGNATURE",
 		strategy: "jwt",
 		suggestion: "Token may have been tampered with or signed with wrong secret",
@@ -108,7 +108,7 @@ export function throwJwtInvalidSignature(): never {
  * @param now - Current timestamp
  */
 export function throwJwtExpired(exp: number, now: number): never {
-	throw new ForjaAuthError("JWT token expired", {
+	throw new DatrixAuthError("JWT token expired", {
 		code: "JWT_EXPIRED",
 		strategy: "jwt",
 		context: { exp, now },
@@ -121,7 +121,7 @@ export function throwJwtExpired(exp: number, now: number): never {
  * Throw JWT invalid issued at time error
  */
 export function throwJwtInvalidIat(): never {
-	throw new ForjaAuthError("JWT token issued in the future", {
+	throw new DatrixAuthError("JWT token issued in the future", {
 		code: "JWT_INVALID_IAT",
 		strategy: "jwt",
 		suggestion: "Check your server time synchronization",
@@ -139,7 +139,7 @@ export function throwJwtInvalidIssuer(
 	expected: string,
 	received: string | undefined,
 ): never {
-	throw new ForjaAuthError("JWT issuer mismatch", {
+	throw new DatrixAuthError("JWT issuer mismatch", {
 		code: "JWT_INVALID_ISSUER",
 		strategy: "jwt",
 		expected,
@@ -158,7 +158,7 @@ export function throwJwtInvalidAudience(
 	expected: string,
 	received: string | undefined,
 ): never {
-	throw new ForjaAuthError("JWT audience mismatch", {
+	throw new DatrixAuthError("JWT audience mismatch", {
 		code: "JWT_INVALID_AUDIENCE",
 		strategy: "jwt",
 		expected,
@@ -177,7 +177,7 @@ export function throwJwtInvalidAudience(
  * @param cause - Original error
  */
 export function throwSessionCreateError(cause?: Error): never {
-	throw new ForjaAuthError("Failed to create session", {
+	throw new DatrixAuthError("Failed to create session", {
 		code: "SESSION_CREATE_ERROR",
 		strategy: "session",
 		cause,
@@ -191,7 +191,7 @@ export function throwSessionCreateError(cause?: Error): never {
  * @param sessionId - Session ID
  */
 export function throwSessionNotFound(sessionId?: string): never {
-	throw new ForjaAuthError("Session not found", {
+	throw new DatrixAuthError("Session not found", {
 		code: "AUTH_SESSION_NOT_FOUND",
 		strategy: "session",
 		context: { sessionId },
@@ -205,7 +205,7 @@ export function throwSessionNotFound(sessionId?: string): never {
  * @param sessionId - Session ID
  */
 export function throwSessionExpired(sessionId?: string): never {
-	throw new ForjaAuthError("Session expired", {
+	throw new DatrixAuthError("Session expired", {
 		code: "AUTH_SESSION_EXPIRED",
 		strategy: "session",
 		context: { sessionId },
@@ -219,7 +219,7 @@ export function throwSessionExpired(sessionId?: string): never {
  * @param cause - Original error
  */
 export function throwSessionDeleteError(cause?: Error): never {
-	throw new ForjaAuthError("Failed to delete session", {
+	throw new DatrixAuthError("Failed to delete session", {
 		code: "SESSION_DELETE_ERROR",
 		strategy: "session",
 		cause,
@@ -231,7 +231,7 @@ export function throwSessionDeleteError(cause?: Error): never {
  * Throw session not configured error
  */
 export function throwSessionNotConfigured(): never {
-	throw new ForjaAuthError("Session strategy not configured", {
+	throw new DatrixAuthError("Session strategy not configured", {
 		code: "SESSION_NOT_CONFIGURED",
 		strategy: "session",
 		suggestion: "Add session configuration to your auth config",
@@ -253,7 +253,7 @@ export function throwPasswordTooShort(
 	minLength: number,
 	actualLength: number,
 ): never {
-	throw new ForjaAuthError(
+	throw new DatrixAuthError(
 		`Password must be at least ${minLength} characters`,
 		{
 			code: "PASSWORD_TOO_SHORT",
@@ -272,7 +272,7 @@ export function throwPasswordTooShort(
  * @param cause - Original error
  */
 export function throwPasswordHashError(cause?: Error): never {
-	throw new ForjaAuthError("Failed to hash password", {
+	throw new DatrixAuthError("Failed to hash password", {
 		code: "PASSWORD_HASH_ERROR",
 		strategy: "password",
 		cause,
@@ -286,7 +286,7 @@ export function throwPasswordHashError(cause?: Error): never {
  * @param cause - Original error
  */
 export function throwPasswordVerifyError(cause?: Error): never {
-	throw new ForjaAuthError("Failed to verify password", {
+	throw new DatrixAuthError("Failed to verify password", {
 		code: "PASSWORD_VERIFY_ERROR",
 		strategy: "password",
 		cause,
@@ -302,7 +302,7 @@ export function throwPasswordVerifyError(cause?: Error): never {
  * Throw invalid credentials error
  */
 export function throwInvalidCredentials(): never {
-	throw new ForjaAuthError("Invalid email or password", {
+	throw new DatrixAuthError("Invalid email or password", {
 		code: "AUTH_INVALID_CREDENTIALS",
 		suggestion: "Check your email and password and try again",
 	});
@@ -314,7 +314,7 @@ export function throwInvalidCredentials(): never {
  * @param email - User email
  */
 export function throwUserNotFound(email?: string): never {
-	throw new ForjaAuthError("User not found", {
+	throw new DatrixAuthError("User not found", {
 		code: "AUTH_USER_NOT_FOUND",
 		context: { email },
 		suggestion: email
@@ -329,7 +329,7 @@ export function throwUserNotFound(email?: string): never {
  * @param email - User email
  */
 export function throwUserExists(email: string): never {
-	throw new ForjaAuthError(`User with email ${email} already exists`, {
+	throw new DatrixAuthError(`User with email ${email} already exists`, {
 		code: "AUTH_USER_EXISTS",
 		context: { email },
 		suggestion: "Use a different email or try logging in",
@@ -342,7 +342,7 @@ export function throwUserExists(email: string): never {
  * @param message - Custom message
  */
 export function throwUnauthorized(message = "Authentication required"): never {
-	throw new ForjaAuthError(message, {
+	throw new DatrixAuthError(message, {
 		code: "AUTH_UNAUTHORIZED",
 		suggestion: "Provide valid authentication credentials",
 	});
@@ -365,7 +365,7 @@ export function throwForbidden(
 			? `You don't have permission to ${action} ${resource}`
 			: "Access forbidden";
 
-	throw new ForjaAuthError(message, {
+	throw new DatrixAuthError(message, {
 		code: "AUTH_FORBIDDEN",
 		strategy: "permission",
 		context: { action, resource, role },
@@ -389,7 +389,7 @@ export function throwPermissionDenied(
 		? `Permission denied: Cannot ${action} field "${field}" on ${resource}`
 		: `Permission denied: Cannot ${action} ${resource}`;
 
-	throw new ForjaAuthError(message, {
+	throw new DatrixAuthError(message, {
 		code: "PERMISSION_DENIED",
 		strategy: "permission",
 		context: { action, resource, field },
@@ -404,7 +404,7 @@ export function throwPermissionDenied(
  * @param field - Config field name
  */
 export function throwAuthConfigInvalid(message: string, field?: string): never {
-	throw new ForjaAuthError(message, {
+	throw new DatrixAuthError(message, {
 		code: "AUTH_CONFIG_INVALID",
 		context: { field },
 		suggestion: "Check your authentication configuration",

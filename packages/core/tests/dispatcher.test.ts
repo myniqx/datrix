@@ -10,26 +10,26 @@
 
 import { Dispatcher } from "../src/dispatcher";
 import { QueryObject } from "../src/types/core/query-builder";
-import { ForjaPlugin, PluginRegistry } from "../src/types/core";
+import { DatrixPlugin, PluginRegistry } from "../src/types/core";
 import { describe, it, expect, vi } from "vitest";
 
 describe("Core - Dispatcher - Happy Path", () => {
 	it("should call onSchemaLoad on all plugins", async () => {
 		const pluginRegistry = new PluginRegistry();
-		const firstPlugin: ForjaPlugin = {
+		const firstPlugin: DatrixPlugin = {
 			name: "p1",
 			version: "1",
 			options: {},
-			init: async () => {},
-			destroy: async () => {},
+			init: async () => { },
+			destroy: async () => { },
 			onSchemaLoad: vi.fn(),
 		};
-		const secondPlugin: ForjaPlugin = {
+		const secondPlugin: DatrixPlugin = {
 			name: "p2",
 			version: "1",
 			options: {},
-			init: async () => {},
-			destroy: async () => {},
+			init: async () => { },
+			destroy: async () => { },
 			onSchemaLoad: vi.fn(),
 		};
 
@@ -47,20 +47,20 @@ describe("Core - Dispatcher - Happy Path", () => {
 
 	it("should allow plugins to modify query in sequence", async () => {
 		const pluginRegistry = new PluginRegistry();
-		const tableAppendingPlugin1: ForjaPlugin = {
+		const tableAppendingPlugin1: DatrixPlugin = {
 			name: "p1",
 			version: "1",
 			options: {},
-			init: async () => {},
-			destroy: async () => {},
+			init: async () => { },
+			destroy: async () => { },
 			onBeforeQuery: async (q) => ({ ...q, table: q.table + "_p1" }),
 		};
-		const tableAppendingPlugin2: ForjaPlugin = {
+		const tableAppendingPlugin2: DatrixPlugin = {
 			name: "p2",
 			version: "1",
 			options: {},
-			init: async () => {},
-			destroy: async () => {},
+			init: async () => { },
+			destroy: async () => { },
 			onBeforeQuery: async (q) => ({ ...q, table: q.table + "_p2" }),
 		};
 
@@ -81,12 +81,12 @@ describe("Core - Dispatcher - Happy Path", () => {
 
 	it("should allow modifying results in sequence", async () => {
 		const pluginRegistry = new PluginRegistry();
-		const countIncrementingPlugin: ForjaPlugin = {
+		const countIncrementingPlugin: DatrixPlugin = {
 			name: "p1",
 			version: "1",
 			options: {},
-			init: async () => {},
-			destroy: async () => {},
+			init: async () => { },
+			destroy: async () => { },
 			onAfterQuery: async (r: any) => ({ ...r, count: (r.count || 0) + 1 }),
 		};
 
@@ -105,23 +105,23 @@ describe("Core - Dispatcher - Happy Path", () => {
 
 	it("should allow plugins to communicate via meta field", async () => {
 		const pluginRegistry = new PluginRegistry();
-		const metaSettingPlugin: ForjaPlugin = {
+		const metaSettingPlugin: DatrixPlugin = {
 			name: "p1",
 			version: "1",
 			options: {},
-			init: async () => {},
-			destroy: async () => {},
+			init: async () => { },
+			destroy: async () => { },
 			onBeforeQuery: async (q) => ({
 				...q,
 				meta: { ...q.meta, p1_data: "hello" },
 			}),
 		};
-		const metaReadingPlugin: ForjaPlugin = {
+		const metaReadingPlugin: DatrixPlugin = {
 			name: "p2",
 			version: "1",
 			options: {},
-			init: async () => {},
-			destroy: async () => {},
+			init: async () => { },
+			destroy: async () => { },
 			onBeforeQuery: async (q) => {
 				const p1Data = q.meta?.["p1_data"];
 				return { ...q, table: q.table + "_" + p1Data };

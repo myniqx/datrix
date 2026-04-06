@@ -13,7 +13,7 @@
 import type {
 	SchemaDefinition,
 	FieldDefinition,
-	ForjaEntry,
+	DatrixEntry,
 	RelationField,
 } from "../types/core/schema";
 import type { ValidatorOptions } from "../types/core/validator";
@@ -161,7 +161,7 @@ function assertValidObject(
  * Iterates ALL schema fields and validates each one.
  * Required fields that are missing will fail validation.
  */
-export function validateSchema<T extends ForjaEntry>(
+export function validateSchema<T extends DatrixEntry>(
 	data: unknown,
 	schema: SchemaDefinition,
 	options?: ValidatorOptions,
@@ -233,7 +233,7 @@ export function validateSchema<T extends ForjaEntry>(
  * - validatePartial: Missing required field = OK (field not in data, not being updated)
  * - validatePartial: Required field set to null = ERROR (explicitly setting to null)
  */
-export function validatePartial<T extends ForjaEntry>(
+export function validatePartial<T extends DatrixEntry>(
 	data: unknown,
 	schema: SchemaDefinition,
 	options?: ValidatorOptions,
@@ -302,7 +302,7 @@ export function validatePartial<T extends ForjaEntry>(
 /**
  * Validate array of data (for bulk CREATE)
  */
-export function validateMany<T extends ForjaEntry>(
+export function validateMany<T extends DatrixEntry>(
 	dataArray: unknown,
 	schema: SchemaDefinition,
 	options?: ValidatorOptions,

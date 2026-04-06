@@ -4,8 +4,8 @@
  * Common utilities for seeding data, assertions, and performance measurement.
  */
 
-import type { Forja } from "@forja/core";
-import type { ForjaEntry } from "@forja/core";
+import type { Datrix } from "@datrix/core";
+import type { DatrixEntry } from "@datrix/core";
 import { expect } from "vitest";
 
 // ============================================================================
@@ -13,13 +13,13 @@ import { expect } from "vitest";
 // ============================================================================
 
 export interface SeedResult {
-	organizations: ForjaEntry[];
-	departments: ForjaEntry[];
-	roles: ForjaEntry[];
-	users: ForjaEntry[];
-	categories: ForjaEntry[];
-	tags: ForjaEntry[];
-	posts: ForjaEntry[];
+	organizations: DatrixEntry[];
+	departments: DatrixEntry[];
+	roles: DatrixEntry[];
+	users: DatrixEntry[];
+	categories: DatrixEntry[];
+	tags: DatrixEntry[];
+	posts: DatrixEntry[];
 }
 
 export interface TimedResult<T> {
@@ -42,15 +42,15 @@ export interface TimedResult<T> {
  * - 3 categories (1 parent, 2 children)
  * - 5 tags
  */
-export async function seedBasicData(forja: Forja): Promise<SeedResult> {
+export async function seedBasicData(datrix: Datrix): Promise<SeedResult> {
 	// Organizations
-	const organizations = await forja.createMany("organization", [
+	const organizations = await datrix.createMany("organization", [
 		{ name: "Acme Corp", country: "USA", isActive: true },
 		{ name: "Tech Ltd", country: "UK", isActive: true },
 	]);
 
 	// Departments
-	const departments = await forja.createMany("department", [
+	const departments = await datrix.createMany("department", [
 		{
 			name: "Engineering",
 			code: "ENG",
@@ -72,14 +72,14 @@ export async function seedBasicData(forja: Forja): Promise<SeedResult> {
 	]);
 
 	// Roles
-	const roles = await forja.createMany("role", [
+	const roles = await datrix.createMany("role", [
 		{ name: "Admin", description: "Full access", level: 100 },
 		{ name: "Editor", description: "Can edit content", level: 50 },
 		{ name: "Viewer", description: "Read only", level: 10 },
 	]);
 
 	// Users
-	const users = await forja.createMany("user", [
+	const users = await datrix.createMany("user", [
 		{
 			email: "admin@acme.com",
 			name: "Admin User",
@@ -121,14 +121,14 @@ export async function seedBasicData(forja: Forja): Promise<SeedResult> {
 	]);
 
 	// Categories (with self-reference)
-	const parentCategory = await forja.create("category", {
+	const parentCategory = await datrix.create("category", {
 		name: "Technology",
 		slug: "technology",
 		description: "Tech related posts",
 		isActive: true,
 	});
 
-	const childCategories = await forja.createMany("category", [
+	const childCategories = await datrix.createMany("category", [
 		{
 			name: "Programming",
 			slug: "programming",
@@ -148,7 +148,7 @@ export async function seedBasicData(forja: Forja): Promise<SeedResult> {
 	const categories = [parentCategory, ...childCategories];
 
 	// Tags
-	const tags = await forja.createMany("tag", [
+	const tags = await datrix.createMany("tag", [
 		{ name: "JavaScript", color: "#F7DF1E" },
 		{ name: "TypeScript", color: "#3178C6" },
 		{ name: "Node.js", color: "#339933" },
@@ -157,7 +157,7 @@ export async function seedBasicData(forja: Forja): Promise<SeedResult> {
 	]);
 
 	// Posts (created separately, will be added in post-specific tests)
-	const posts: ForjaEntry[] = [];
+	const posts: DatrixEntry[] = [];
 
 	return {
 		organizations,
@@ -174,10 +174,10 @@ export async function seedBasicData(forja: Forja): Promise<SeedResult> {
  * Seed posts with relations
  */
 export async function seedPosts(
-	forja: Forja,
+	datrix: Datrix,
 	seed: SeedResult,
-): Promise<ForjaEntry[]> {
-	const posts = await forja.createMany("post", [
+): Promise<DatrixEntry[]> {
+	const posts = await datrix.createMany("post", [
 		{
 			title: "Getting Started with TypeScript",
 			content: "TypeScript is a typed superset of JavaScript...",
@@ -273,7 +273,7 @@ export function generateTags(count: number): Array<{
 /**
  * Assert that object has all specified fields
  */
-export function expectToHaveFields<T extends ForjaEntry>(
+export function expectToHaveFields<T extends DatrixEntry>(
 	obj: T,
 	fields: (keyof T)[],
 ): void {
@@ -285,7 +285,7 @@ export function expectToHaveFields<T extends ForjaEntry>(
 /**
  * Assert that a relation is populated (not just an ID)
  */
-export function expectRelationPopulated<T extends ForjaEntry>(
+export function expectRelationPopulated<T extends DatrixEntry>(
 	obj: T,
 	relationField: keyof T,
 ): void {
@@ -298,7 +298,7 @@ export function expectRelationPopulated<T extends ForjaEntry>(
 /**
  * Assert that a relation is NOT populated (just an ID or null)
  */
-export function expectRelationNotPopulated<T extends ForjaEntry>(
+export function expectRelationNotPopulated<T extends DatrixEntry>(
 	obj: T,
 	relationField: keyof T,
 ): void {
@@ -311,7 +311,7 @@ export function expectRelationNotPopulated<T extends ForjaEntry>(
 /**
  * Assert that record has auto-generated fields
  */
-export function expectAutoFields<T extends ForjaEntry>(obj: T): void {
+export function expectAutoFields<T extends DatrixEntry>(obj: T): void {
 	expect(obj).toHaveProperty("id");
 	expect(obj).toHaveProperty("createdAt");
 	expect(obj).toHaveProperty("updatedAt");
@@ -321,7 +321,7 @@ export function expectAutoFields<T extends ForjaEntry>(obj: T): void {
 /**
  * Assert that timestamps are valid dates
  */
-export function expectValidTimestamps<T extends ForjaEntry>(obj: T): void {
+export function expectValidTimestamps<T extends DatrixEntry>(obj: T): void {
 	const createdAt = new Date(obj.createdAt as string);
 	const updatedAt = new Date(obj.updatedAt as string);
 

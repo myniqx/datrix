@@ -15,15 +15,15 @@ import type {
 	QueryDeleteObject,
 	QuerySelect,
 	QueryCountObject,
-} from "@forja/core";
-import type { QueryTranslator } from "@forja/core";
-import { ForjaAdapterError, throwQueryError } from "@forja/core";
+} from "@datrix/core";
+import type { QueryTranslator } from "@datrix/core";
+import { DatrixAdapterError, throwQueryError } from "@datrix/core";
 import type {
 	SchemaDefinition,
 	FieldDefinition,
 	ISchemaRegistry,
-} from "@forja/core";
-import { ForjaEntry } from "@forja/core";
+} from "@datrix/core";
+import { DatrixEntry } from "@datrix/core";
 import { MySQLQueryObject, TranslateResult } from "./types";
 import { escapeIdentifier, escapeValue } from "./helpers";
 
@@ -199,7 +199,7 @@ export class MySQLQueryTranslator implements QueryTranslator {
 	/**
 	 * Translate main query
 	 */
-	translate<T extends ForjaEntry>(query: QueryObject<T>): TranslateResult {
+	translate<T extends DatrixEntry>(query: QueryObject<T>): TranslateResult {
 		this.reset();
 
 		try {
@@ -232,7 +232,7 @@ export class MySQLQueryTranslator implements QueryTranslator {
 				needAggregation: false,
 			};
 		} catch (error) {
-			if (error instanceof ForjaAdapterError) {
+			if (error instanceof DatrixAdapterError) {
 				throw error;
 			}
 			throwQueryError({
@@ -246,7 +246,7 @@ export class MySQLQueryTranslator implements QueryTranslator {
 	/**
 	 * Translate SELECT query
 	 */
-	private translateSelect<T extends ForjaEntry>(
+	private translateSelect<T extends DatrixEntry>(
 		query: MySQLQueryObject<T> | QueryCountObject<T>,
 	): string {
 		const parts: string[] = [];
@@ -404,7 +404,7 @@ export class MySQLQueryTranslator implements QueryTranslator {
 		// ORDER BY
 		if (query.orderBy && query.orderBy.length > 0) {
 			parts.push(
-				`ORDER BY ${this.translateOrderBy(query.orderBy as unknown as readonly OrderByItem<ForjaEntry>[])}`,
+				`ORDER BY ${this.translateOrderBy(query.orderBy as unknown as readonly OrderByItem<DatrixEntry>[])}`,
 			);
 		}
 
@@ -427,7 +427,7 @@ export class MySQLQueryTranslator implements QueryTranslator {
 	/**
 	 * Translate SELECT fields with aliases
 	 */
-	private translateSelectClause<T extends ForjaEntry>(
+	private translateSelectClause<T extends DatrixEntry>(
 		select: QuerySelect<T> | undefined,
 		tableAlias?: string,
 	): string {
@@ -448,7 +448,7 @@ export class MySQLQueryTranslator implements QueryTranslator {
 	/**
 	 * Translate INSERT query with bulk support
 	 */
-	private translateInsert<T extends ForjaEntry>(
+	private translateInsert<T extends DatrixEntry>(
 		query: QueryInsertObject<T>,
 	): string {
 		const dataArray = Array.isArray(query.data) ? query.data : [query.data];
@@ -501,7 +501,7 @@ export class MySQLQueryTranslator implements QueryTranslator {
 	/**
 	 * Translate UPDATE query
 	 */
-	private translateUpdate<T extends ForjaEntry>(
+	private translateUpdate<T extends DatrixEntry>(
 		query: QueryUpdateObject<T>,
 	): string {
 		if (!query.data || Object.keys(query.data).length === 0) {
@@ -571,7 +571,7 @@ export class MySQLQueryTranslator implements QueryTranslator {
 	/**
 	 * Translate DELETE query
 	 */
-	private translateDelete<T extends ForjaEntry>(
+	private translateDelete<T extends DatrixEntry>(
 		query: QueryDeleteObject<T>,
 	): string {
 		const parts: string[] = [];
@@ -607,7 +607,7 @@ export class MySQLQueryTranslator implements QueryTranslator {
 	 * Translate ORDER BY clause
 	 * Note: MySQL doesn't support NULLS FIRST/LAST natively, use workaround
 	 */
-	private translateOrderBy<T extends ForjaEntry>(
+	private translateOrderBy<T extends DatrixEntry>(
 		orderBy: readonly OrderByItem<T>[],
 	): string {
 		return orderBy
@@ -628,7 +628,7 @@ export class MySQLQueryTranslator implements QueryTranslator {
 	/**
 	 * Translate WHERE clause
 	 */
-	translateWhere<T extends ForjaEntry>(
+	translateWhere<T extends DatrixEntry>(
 		where: WhereClause<T>,
 		startIndex: number,
 		tableName?: string,
@@ -688,7 +688,7 @@ export class MySQLQueryTranslator implements QueryTranslator {
 	 * @param joins - Array to collect JOIN clauses
 	 * @param currentSchema - Current schema context (passed down, avoids repeated lookups)
 	 */
-	private translateWhereConditions<T extends ForjaEntry>(
+	private translateWhereConditions<T extends DatrixEntry>(
 		where: WhereClause<T>,
 		depth = 0,
 		tableName?: string,

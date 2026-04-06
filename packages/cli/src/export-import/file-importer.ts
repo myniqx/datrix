@@ -22,8 +22,8 @@ import fs from "node:fs/promises";
 import fsSync from "node:fs";
 import path from "node:path";
 import AdmZip from "adm-zip";
-import type { IUpload } from "@forja/core";
-import type { IForja } from "@forja/core";
+import type { IUpload } from "@datrix/core";
+import type { IDatrix } from "@datrix/core";
 import { logger } from "../utils/logger";
 import type { LedgerEntry } from "./file-exporter";
 
@@ -44,13 +44,13 @@ export class FileImporter {
 	private readonly filesDir: string;
 	private readonly ledgerPath: string;
 	private readonly upload: IUpload;
-	private readonly forja: IForja;
+	private readonly datrix: IDatrix;
 
-	constructor(importDir: string, upload: IUpload, forja: IForja) {
+	constructor(importDir: string, upload: IUpload, datrix: IDatrix) {
 		this.filesDir = path.join(importDir, "files");
 		this.ledgerPath = path.join(importDir, IMPORT_LEDGER_FILENAME);
 		this.upload = upload;
-		this.forja = forja;
+		this.datrix = datrix;
 	}
 
 	/**
@@ -200,7 +200,7 @@ export class FileImporter {
 		if (entryId.includes("__")) {
 			const [rawId, variantName] = entryId.split("__") as [string, string];
 			const id = Number(rawId);
-			const record = await this.forja.raw.findById(modelName, id);
+			const record = await this.datrix.raw.findById(modelName, id);
 			if (!record) return;
 
 			const variants = (record["variants"] ?? {}) as Record<
@@ -210,10 +210,10 @@ export class FileImporter {
 			if (variants[variantName]) {
 				variants[variantName] = { ...variants[variantName], key: newKey };
 			}
-			await this.forja.raw.update(modelName, id, { variants });
+			await this.datrix.raw.update(modelName, id, { variants });
 		} else {
 			const id = Number(entryId);
-			await this.forja.raw.update(modelName, id, { key: newKey });
+			await this.datrix.raw.update(modelName, id, { key: newKey });
 		}
 
 		void oldKey;

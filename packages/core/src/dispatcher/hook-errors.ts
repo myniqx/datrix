@@ -1,4 +1,4 @@
-import { ForjaError } from "../types/errors";
+import { DatrixError } from "../types/errors";
 
 type BeforeHookName =
 	| "beforeCreate"
@@ -17,7 +17,7 @@ type AfterHookName =
  * This is a programmer error — the hook must always return the (possibly modified) data.
  */
 export function throwHookInvalidReturn(hookName: BeforeHookName): never {
-	throw new ForjaError(
+	throw new DatrixError(
 		`${hookName} hook must return data. Did you forget to return?`,
 		{
 			code: "HOOK_INVALID_RETURN",
@@ -29,15 +29,15 @@ export function throwHookInvalidReturn(hookName: BeforeHookName): never {
 
 /**
  * Thrown when a plugin's before hook throws an error.
- * Re-throws ForjaErrors as-is; wraps unknown errors.
+ * Re-throws DatrixErrors as-is; wraps unknown errors.
  */
 export function throwHookPluginError(
 	pluginName: string,
 	hookName: string,
 	cause: unknown,
 ): never {
-	if (cause instanceof ForjaError) throw cause;
-	throw new ForjaError(
+	if (cause instanceof DatrixError) throw cause;
+	throw new DatrixError(
 		`Plugin '${pluginName}' threw an error in ${hookName} hook.`,
 		{
 			code: "HOOK_PLUGIN_ERROR",
@@ -57,7 +57,7 @@ export function warnAfterHookError(
 	error: unknown,
 ): void {
 	console.warn(
-		`[Forja] ${hookName} hook threw an error. The operation completed successfully but the hook failed.`,
+		`[Datrix] ${hookName} hook threw an error. The operation completed successfully but the hook failed.`,
 		error,
 	);
 }

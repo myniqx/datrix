@@ -9,11 +9,11 @@ import type {
 	UploadFile,
 	UploadResult,
 	S3ProviderOptions,
-} from "@forja/core";
-import { generateUniqueFilename, sanitizeFilename } from "@forja/core";
-import { ForjaError } from "@forja/core";
+} from "@datrix/core";
+import { generateUniqueFilename, sanitizeFilename } from "@datrix/core";
+import { DatrixError } from "@datrix/core";
 
-class UploadError extends ForjaError {
+class UploadError extends DatrixError {
 	constructor(message: string, cause?: Error) {
 		super(message, {
 			code: "UPLOAD_ERROR",

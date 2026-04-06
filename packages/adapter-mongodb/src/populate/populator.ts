@@ -11,11 +11,11 @@ import type {
 	QueryPopulate,
 	QueryPopulateOptions,
 	QuerySelectObject,
-} from "@forja/core";
-import type { ForjaEntry, ISchemaRegistry } from "@forja/core";
+} from "@datrix/core";
+import type { DatrixEntry, ISchemaRegistry } from "@datrix/core";
 import type { MongoClient } from "../mongo-client";
 import type { MongoDBQueryTranslator } from "../query-translator";
-import { throwMaxDepthExceeded } from "@forja/core";
+import { throwMaxDepthExceeded } from "@datrix/core";
 
 /**
  * Maximum populate nesting depth
@@ -29,12 +29,12 @@ const MAX_POPULATE_DEPTH = 5;
  * - Depth 1: $lookup aggregation pipeline (single query)
  * - Depth 2+: Batched queries with $in (level-per-query)
  */
-export class MongoDBPopulator<T extends ForjaEntry> {
+export class MongoDBPopulator<T extends DatrixEntry> {
 	constructor(
 		private readonly client: MongoClient<T>,
 		private readonly schemaRegistry: ISchemaRegistry,
 		private readonly translator: MongoDBQueryTranslator,
-	) {}
+	) { }
 
 	/**
 	 * Main entry point for populate
@@ -303,10 +303,10 @@ export class MongoDBPopulator<T extends ForjaEntry> {
 			const targetProjection =
 				options.populate && baseTargetProjection
 					? this.injectFkColumns(
-							baseTargetProjection,
-							targetSchema,
-							options.populate,
-						)
+						baseTargetProjection,
+						targetSchema,
+						options.populate,
+					)
 					: baseTargetProjection;
 
 			if (relation.kind === "belongsTo") {
@@ -370,7 +370,7 @@ export class MongoDBPopulator<T extends ForjaEntry> {
 					options,
 				);
 
-				const groupMap = new Map<number, ForjaEntry[]>();
+				const groupMap = new Map<number, DatrixEntry[]>();
 				for (const r of relatedRows) {
 					const fk = (r as T & { [key: string]: unknown })[fkColumn] as number;
 					if (!groupMap.has(fk)) groupMap.set(fk, []);
@@ -416,7 +416,7 @@ export class MongoDBPopulator<T extends ForjaEntry> {
 				const targetMap = new Map(relatedRows.map((r) => [r.id, r]));
 
 				// Build parent → related mapping via junction
-				const groupMap = new Map<number, ForjaEntry[]>();
+				const groupMap = new Map<number, DatrixEntry[]>();
 				for (const j of junctionDocs) {
 					const sFK = j[sourceFK] as number;
 					const tFK = j[targetFK] as number;

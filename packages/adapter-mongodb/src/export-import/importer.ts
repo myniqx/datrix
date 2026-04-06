@@ -1,9 +1,9 @@
 import type { Db, Document } from "mongodb";
-import type { ImportReader } from "@forja/core";
-import type { SchemaDefinition } from "@forja/core";
+import type { ImportReader } from "@datrix/core";
+import type { SchemaDefinition } from "@datrix/core";
 import type { MongoDBAdapter } from "../adapter";
 import { COUNTER_KEY_PREFIX } from "../types";
-import { FORJA_META_MODEL } from "@forja/core";
+import { FORJA_META_MODEL } from "@datrix/core";
 
 const CHUNK_SIZE = 1000;
 
@@ -11,7 +11,7 @@ export class MongoDBImporter {
 	constructor(
 		private db: Db,
 		private adapter: MongoDBAdapter,
-	) {}
+	) { }
 
 	async import(reader: ImportReader): Promise<void> {
 		const schemas = await this.collectSchemas(reader);
@@ -23,7 +23,7 @@ export class MongoDBImporter {
 		}
 
 		// 2. Create collections — isImport skips upsertSchemaMeta so the importer
-		//    can restore _forja data as-is.
+		//    can restore _datrix data as-is.
 		for (const schema of schemas.values()) {
 			await this.adapter.createTable(schema, undefined, { isImport: true });
 		}

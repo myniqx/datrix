@@ -1,11 +1,11 @@
 /**
  * Query Builder Type Definitions
  *
- * This file defines types for Forja's database-agnostic query builder.
+ * This file defines types for Datrix's database-agnostic query builder.
  * Query builder produces QueryObject instances that adapters translate to SQL/NoSQL.
  */
 
-import { ForjaEntry, ForjaRecord, RelationInput } from "./schema";
+import { DatrixEntry, DatrixRecord, RelationInput } from "./schema";
 
 /**
  * Primitive values that can be used in queries
@@ -72,7 +72,7 @@ export type ComparisonOperators<T = QueryPrimitive> = {
  * Logical operators ($and, $or, $not) are now type-aware and preserve
  * the type information through nested conditions.
  *
- * @template T - The entity type (extends ForjaEntry)
+ * @template T - The entity type (extends DatrixEntry)
  *
  * @example
  * ```ts
@@ -84,7 +84,7 @@ export type ComparisonOperators<T = QueryPrimitive> = {
  * };
  * ```
  */
-export type LogicalOperators<T extends ForjaEntry = ForjaRecord> = {
+export type LogicalOperators<T extends DatrixEntry = DatrixRecord> = {
 	readonly $and?: WhereClause<T>[];
 	readonly $or?: WhereClause<T>[];
 	readonly $not?: WhereClause<T>;
@@ -94,7 +94,7 @@ export type LogicalOperators<T extends ForjaEntry = ForjaRecord> = {
  * Type-safe WHERE clause with nested relation support
  *
  * **Design Philosophy:**
- * - Default type: `ForjaEntry & Record<string, unknown>` (flexible but safe)
+ * - Default type: `DatrixEntry & Record<string, unknown>` (flexible but safe)
  * - Custom type: Full type safety with autocomplete
  * - Relation fields: Automatically supports nested WHERE conditions
  * - Foreign keys: Not exposed (internal implementation detail)
@@ -104,7 +104,7 @@ export type LogicalOperators<T extends ForjaEntry = ForjaRecord> = {
  * - Relation fields (branded as Relation<T>) → Nested WhereClause<T>
  * - Unknown fields → Fallback to `unknown` for flexibility
  *
- * @template T - The entity type (default: ForjaRecord)
+ * @template T - The entity type (default: DatrixRecord)
  *
  * @example
  * ```ts
@@ -163,11 +163,11 @@ type Writable<T> = { -readonly [K in keyof T]: T[K] };
  */
 export type FallbackWhereClause = {
 	[key: string]:
-		| QueryPrimitive
-		| ComparisonOperators
-		| FallbackWhereClause
-		| FallbackWhereClause[]
-		| undefined;
+	| QueryPrimitive
+	| ComparisonOperators
+	| FallbackWhereClause
+	| FallbackWhereClause[]
+	| undefined;
 	$and?: FallbackWhereClause[];
 	$or?: FallbackWhereClause[];
 	$not?: FallbackWhereClause;
@@ -176,17 +176,17 @@ export type FallbackWhereClause = {
 /**
  * Typed WHERE clause for specific model types.
  */
-type TypedWhereClause<T extends ForjaEntry> = Writable<{
-	[K in keyof T]?: T[K] extends RelationInput<infer R extends ForjaEntry>
-		? WhereClause<R>
-		: T[K] extends ScalarValue
-			? T[K] | ComparisonOperators<T[K]>
-			: never;
+type TypedWhereClause<T extends DatrixEntry> = Writable<{
+	[K in keyof T]?: T[K] extends RelationInput<infer R extends DatrixEntry>
+	? WhereClause<R>
+	: T[K] extends ScalarValue
+	? T[K] | ComparisonOperators<T[K]>
+	: never;
 }> &
 	LogicalOperators<T>;
 
-export type WhereClause<T extends ForjaEntry = ForjaRecord> =
-	ForjaRecord extends T ? FallbackWhereClause : TypedWhereClause<T>;
+export type WhereClause<T extends DatrixEntry = DatrixRecord> =
+	DatrixRecord extends T ? FallbackWhereClause : TypedWhereClause<T>;
 
 /**
  * SELECT clause (fields to select) - Input format from user
@@ -196,15 +196,15 @@ export type WhereClause<T extends ForjaEntry = ForjaRecord> =
  * - Single field name: 'name'
  * - Wildcard: '*' (all fields)
  */
-export type SelectClause<T extends ForjaEntry = ForjaRecord> =
-	| (ForjaRecord extends T ? readonly string[] : readonly (keyof T)[])
+export type SelectClause<T extends DatrixEntry = DatrixRecord> =
+	| (DatrixRecord extends T ? readonly string[] : readonly (keyof T)[])
 	| "*"
-	| (ForjaRecord extends T ? string : keyof T);
+	| (DatrixRecord extends T ? string : keyof T);
 
 /**
  * Populate clause (relations to include)
  */
-export type PopulateOptions<T extends ForjaEntry> = {
+export type PopulateOptions<T extends DatrixEntry> = {
 	readonly select?: SelectClause<T> | undefined;
 	readonly where?: WhereClause<T> | undefined;
 	readonly populate?: PopulateClause<T> | undefined; // Nested populate
@@ -222,17 +222,17 @@ export type PopulateOptions<T extends ForjaEntry> = {
  * - Object notation: { relation1: true, relation2: { select: [...] } }
  * - false: No populate (explicit opt-out)
  */
-export type PopulateClause<T extends ForjaEntry = ForjaRecord> =
+export type PopulateClause<T extends DatrixEntry = DatrixRecord> =
 	| boolean
 	| "*"
 	| "true"
-	| (ForjaRecord extends T ? readonly string[] : readonly (keyof T)[])
+	| (DatrixRecord extends T ? readonly string[] : readonly (keyof T)[])
 	| {
-			readonly [K in ForjaRecord extends T ? string : keyof T]?:
-				| PopulateOptions<T>
-				| "*"
-				| boolean;
-	  };
+		readonly [K in DatrixRecord extends T ? string : keyof T]?:
+		| PopulateOptions<T>
+		| "*"
+		| boolean;
+	};
 
 /**
  * Order direction
@@ -242,7 +242,7 @@ export type OrderDirection = "asc" | "desc";
 /**
  * Order by item (typed — field constrained to model keys)
  */
-export type OrderByItem<T extends ForjaEntry> = {
+export type OrderByItem<T extends DatrixEntry> = {
 	readonly field: keyof T;
 	readonly direction: OrderDirection;
 	readonly nulls?: "first" | "last";
@@ -257,10 +257,10 @@ export type FallbackOrderByItem = {
 	readonly nulls?: "first" | "last";
 };
 
-export type QueryOrderBy<T extends ForjaEntry = ForjaRecord> =
-	ForjaRecord extends T
-		? readonly FallbackOrderByItem[]
-		: readonly OrderByItem<T>[];
+export type QueryOrderBy<T extends DatrixEntry = DatrixRecord> =
+	DatrixRecord extends T
+	? readonly FallbackOrderByItem[]
+	: readonly OrderByItem<T>[];
 
 /**
  * OrderByClause - Input format for orderBy (before normalization)
@@ -282,30 +282,30 @@ export type QueryOrderBy<T extends ForjaEntry = ForjaRecord> =
  * orderBy: ["age", "-createdAt"]  // age ASC, createdAt DESC
  * ```
  */
-export type OrderByClause<T extends ForjaEntry = ForjaRecord> =
-	ForjaRecord extends T
-		?
-				| readonly FallbackOrderByItem[]
-				| Record<string, OrderDirection>
-				| readonly string[]
-		:
-				| QueryOrderBy<T>
-				| Partial<Record<keyof T, OrderDirection>>
-				| readonly (keyof T | `-${string & keyof T}`)[];
+export type OrderByClause<T extends DatrixEntry = DatrixRecord> =
+	DatrixRecord extends T
+	?
+	| readonly FallbackOrderByItem[]
+	| Record<string, OrderDirection>
+	| readonly string[]
+	:
+	| QueryOrderBy<T>
+	| Partial<Record<keyof T, OrderDirection>>
+	| readonly (keyof T | `-${string & keyof T}`)[];
 
 /**
  * QuerySelect - Normalized form of SelectClause (always array, never '*')
  *
- * - Default (ForjaRecord): readonly string[] — flexible, accepts any field name
+ * - Default (DatrixRecord): readonly string[] — flexible, accepts any field name
  * - Specific type:          readonly (keyof T)[] — type-safe, only valid fields
  */
-export type QuerySelect<T extends ForjaEntry = ForjaRecord> =
-	ForjaRecord extends T ? readonly string[] : readonly (keyof T)[];
+export type QuerySelect<T extends DatrixEntry = DatrixRecord> =
+	DatrixRecord extends T ? readonly string[] : readonly (keyof T)[];
 
 /**
  * QueryPopulateOptions - Normalized options for a single relation
  */
-export type QueryPopulateOptions<T extends ForjaEntry> = {
+export type QueryPopulateOptions<T extends DatrixEntry> = {
 	readonly select: QuerySelect<T>;
 	readonly where?: WhereClause<T> | undefined;
 	readonly populate?: QueryPopulate<T> | undefined;
@@ -320,12 +320,12 @@ export type QueryPopulateOptions<T extends ForjaEntry> = {
  * Type-safe: Only relation fields of T can be keys, and each maps to
  * QueryPopulateOptions of the related entity type.
  */
-export type QueryPopulate<T extends ForjaEntry = ForjaRecord> = {
+export type QueryPopulate<T extends DatrixEntry = DatrixRecord> = {
 	readonly [K in keyof T]?: T[K] extends RelationInput<
-		infer R extends ForjaEntry
+		infer R extends DatrixEntry
 	>
-		? QueryPopulateOptions<R>
-		: never;
+	? QueryPopulateOptions<R>
+	: never;
 };
 
 /**
@@ -337,7 +337,7 @@ export type QueryPopulate<T extends ForjaEntry = ForjaRecord> = {
  *
  * @template T - The entity type
  */
-export type NormalizedNestedData<T extends ForjaEntry> = {
+export type NormalizedNestedData<T extends DatrixEntry> = {
 	readonly data: Partial<T>;
 	readonly relations?: QueryRelations<T> | undefined;
 };
@@ -376,7 +376,7 @@ export type NormalizedNestedData<T extends ForjaEntry> = {
  * }
  * ```
  */
-export type NormalizedRelationOperations<R extends ForjaEntry> = {
+export type NormalizedRelationOperations<R extends DatrixEntry> = {
 	readonly connect?: readonly number[];
 	readonly disconnect?: readonly number[];
 	readonly set?: readonly number[];
@@ -386,7 +386,7 @@ export type NormalizedRelationOperations<R extends ForjaEntry> = {
 };
 
 export interface NormalizedRelationUpdate<
-	T extends ForjaEntry,
+	T extends DatrixEntry,
 > extends NormalizedNestedData<T> {
 	readonly where: { readonly id: number };
 }
@@ -420,12 +420,12 @@ export interface NormalizedRelationUpdate<
  * };
  * ```
  */
-export type QueryRelations<T extends ForjaEntry> = {
+export type QueryRelations<T extends DatrixEntry> = {
 	readonly [K in keyof T]?: T[K] extends RelationInput<
-		infer R extends ForjaEntry
+		infer R extends DatrixEntry
 	>
-		? NormalizedRelationOperations<R>
-		: never;
+	? NormalizedRelationOperations<R>
+	: never;
 };
 
 /**
@@ -438,7 +438,7 @@ interface QueryBase {
 /**
  * SELECT query - read rows with filtering, sorting, pagination, population
  */
-export interface QuerySelectObject<T extends ForjaEntry> extends QueryBase {
+export interface QuerySelectObject<T extends DatrixEntry> extends QueryBase {
 	readonly type: "select";
 	readonly select: QuerySelect<T>;
 	where?: WhereClause<T>;
@@ -454,7 +454,7 @@ export interface QuerySelectObject<T extends ForjaEntry> extends QueryBase {
 /**
  * COUNT query - count rows matching conditions
  */
-export interface QueryCountObject<T extends ForjaEntry> extends QueryBase {
+export interface QueryCountObject<T extends DatrixEntry> extends QueryBase {
 	readonly type: "count";
 	where?: WhereClause<T>;
 	readonly groupBy?: readonly string[];
@@ -465,7 +465,7 @@ export interface QueryCountObject<T extends ForjaEntry> extends QueryBase {
  * INSERT query - bulk insert with data array
  * select/populate are used by executor to fetch inserted records after insert
  */
-export interface QueryInsertObject<T extends ForjaEntry> extends QueryBase {
+export interface QueryInsertObject<T extends DatrixEntry> extends QueryBase {
 	readonly type: "insert";
 	readonly data: readonly Partial<T>[];
 	readonly relations?: QueryRelations<T> | undefined;
@@ -477,7 +477,7 @@ export interface QueryInsertObject<T extends ForjaEntry> extends QueryBase {
  * UPDATE query - update rows matching conditions
  * select/populate are used by executor to fetch updated records after update
  */
-export interface QueryUpdateObject<T extends ForjaEntry> extends QueryBase {
+export interface QueryUpdateObject<T extends DatrixEntry> extends QueryBase {
 	readonly type: "update";
 	readonly data: Partial<T>;
 	where?: WhereClause<T>;
@@ -491,7 +491,7 @@ export interface QueryUpdateObject<T extends ForjaEntry> extends QueryBase {
  * select/populate are used by executor to fetch records before deletion
  * where is required — use deleteAll() explicitly if you want to delete everything
  */
-export interface QueryDeleteObject<T extends ForjaEntry> extends QueryBase {
+export interface QueryDeleteObject<T extends DatrixEntry> extends QueryBase {
 	readonly type: "delete";
 	where: WhereClause<T>;
 	readonly select?: QuerySelect<T>;
@@ -508,7 +508,7 @@ export interface QueryDeleteObject<T extends ForjaEntry> extends QueryBase {
  * - UPDATE: data (single), where, relations
  * - DELETE: where
  */
-export type QueryObject<T extends ForjaEntry = ForjaRecord> =
+export type QueryObject<T extends DatrixEntry = DatrixRecord> =
 	| QuerySelectObject<T>
 	| QueryCountObject<T>
 	| QueryInsertObject<T>
@@ -519,16 +519,16 @@ export type QueryObject<T extends ForjaEntry = ForjaRecord> =
  * Map QueryType to its corresponding QueryObject variant
  */
 export type QueryObjectForType<
-	T extends ForjaEntry,
+	T extends DatrixEntry,
 	TType extends QueryType,
 > = TType extends "select"
 	? QuerySelectObject<T>
 	: TType extends "count"
-		? QueryCountObject<T>
-		: TType extends "insert"
-			? QueryInsertObject<T>
-			: TType extends "update"
-				? QueryUpdateObject<T>
-				: TType extends "delete"
-					? QueryDeleteObject<T>
-					: QueryObject<T>;
+	? QueryCountObject<T>
+	: TType extends "insert"
+	? QueryInsertObject<T>
+	: TType extends "update"
+	? QueryUpdateObject<T>
+	: TType extends "delete"
+	? QueryDeleteObject<T>
+	: QueryObject<T>;

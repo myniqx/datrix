@@ -18,11 +18,11 @@ import { MySQLPopulator } from "./populate";
 import { MySQLClient } from "./mysql-client";
 import { MySQLExporter } from "./export-import/exporter";
 import { MySQLImporter } from "./export-import/importer";
-import { ExportWriter, ImportReader } from "@forja/core";
+import { ExportWriter, ImportReader } from "@datrix/core";
 import type { MySQLConfig, MySQLQueryObject } from "./types";
 import { getMySQLTypeWithModifiers, parseConnectionString } from "./types";
-import { QueryObject, QuerySelectObject } from "@forja/core";
-import { ForjaEntry } from "@forja/core";
+import { QueryObject, QuerySelectObject } from "@datrix/core";
+import { DatrixEntry } from "@datrix/core";
 import {
 	AlterOperation,
 	ConnectionState,
@@ -30,9 +30,9 @@ import {
 	QueryMetadata,
 	QueryResult,
 	Transaction,
-} from "@forja/core";
+} from "@datrix/core";
 import {
-	ForjaAdapterError,
+	DatrixAdapterError,
 	throwNotConnected,
 	throwConnectionError,
 	throwMigrationError,
@@ -42,15 +42,15 @@ import {
 	throwMetaFieldAlreadyExists,
 	throwMetaFieldNotFound,
 	AdapterErrorCode,
-} from "@forja/core";
-import { validateQueryObject } from "@forja/core";
+} from "@datrix/core";
+import { validateQueryObject } from "@datrix/core";
 import {
 	FieldDefinition,
 	IndexDefinition,
 	ISchemaRegistry,
 	SchemaDefinition,
-} from "@forja/core";
-import { FORJA_META_MODEL, FORJA_META_KEY_PREFIX } from "@forja/core";
+} from "@datrix/core";
+import { FORJA_META_MODEL, FORJA_META_KEY_PREFIX } from "@datrix/core";
 import { escapeIdentifier, escapeValue } from "./helpers";
 
 /**
@@ -176,7 +176,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 	 * @param query - Query object to execute
 	 * @param connection - Optional PoolConnection for transaction support. If provided, query runs on this connection instead of pool.
 	 */
-	async executeQuery<TResult extends ForjaEntry>(
+	async executeQuery<TResult extends DatrixEntry>(
 		query: QueryObject<TResult>,
 		connection?: PoolConnection,
 	): Promise<QueryResult<TResult>> {
@@ -220,7 +220,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 				prefetchedIds = idRows as unknown as readonly TResult[];
 			}
 
-			const mysqlQuery = query as MySQLQueryObject<ForjaEntry>;
+			const mysqlQuery = query as MySQLQueryObject<DatrixEntry>;
 			const { sql, params } = this.getTranslator().translate(mysqlQuery);
 
 			const [result] = await client.execute(sql, params as unknown[]);
@@ -278,7 +278,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 
 			return { rows, metadata };
 		} catch (error) {
-			if (error instanceof ForjaAdapterError) {
+			if (error instanceof DatrixAdapterError) {
 				throw error;
 			}
 			throw this.mapMySQLError(error, query);
@@ -288,7 +288,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 	/**
 	 * Execute query with populate
 	 */
-	private async executeWithPopulate<TResult extends ForjaEntry>(
+	private async executeWithPopulate<TResult extends DatrixEntry>(
 		query: QuerySelectObject<TResult>,
 		queryRunner: Pool | PoolConnection,
 	): Promise<QueryResult<TResult>> {
@@ -314,7 +314,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 
 			return { rows: rows as readonly TResult[], metadata };
 		} catch (error) {
-			if (error instanceof ForjaAdapterError) {
+			if (error instanceof DatrixAdapterError) {
 				throw error;
 			}
 			throw this.mapMySQLError(error, query);
@@ -322,14 +322,14 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 	}
 
 	/**
-	 * Map MySQL errors to standardized ForjaAdapterError
+	 * Map MySQL errors to standardized DatrixAdapterError
 	 */
-	private mapMySQLError<TResult extends ForjaEntry = ForjaEntry>(
+	private mapMySQLError<TResult extends DatrixEntry = DatrixEntry>(
 		error: unknown,
 		query?: QueryObject<TResult>,
 		sql?: string,
-	): ForjaAdapterError {
-		if (error instanceof ForjaAdapterError) {
+	): DatrixAdapterError {
+		if (error instanceof DatrixAdapterError) {
 			return error;
 		}
 
@@ -340,15 +340,15 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			sqlState?: string;
 		};
 
-		// Map specific MySQL error codes to Forja error codes
-		let forjaCode = "ADAPTER_QUERY_ERROR";
+		// Map specific MySQL error codes to Datrix error codes
+		let datrixCode = "ADAPTER_QUERY_ERROR";
 		if (mysqlError.errno === 1062 || mysqlError.code === "ER_DUP_ENTRY") {
-			forjaCode = "ADAPTER_UNIQUE_CONSTRAINT";
+			datrixCode = "ADAPTER_UNIQUE_CONSTRAINT";
 		}
 
-		return new ForjaAdapterError(`Query execution failed: ${message}`, {
+		return new DatrixAdapterError(`Query execution failed: ${message}`, {
 			adapter: "mysql",
-			code: forjaCode as AdapterErrorCode,
+			code: datrixCode as AdapterErrorCode,
 			operation: "query",
 			context: {
 				...(query && { query: { type: query.type, table: query.table } }),
@@ -364,7 +364,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 	/**
 	 * Execute raw SQL query
 	 */
-	async executeRawQuery<TResult extends ForjaEntry>(
+	async executeRawQuery<TResult extends DatrixEntry>(
 		sql: string,
 		params: readonly unknown[],
 		connection?: PoolConnection,
@@ -397,7 +397,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 
 			return { rows, metadata };
 		} catch (error) {
-			if (error instanceof ForjaAdapterError) {
+			if (error instanceof DatrixAdapterError) {
 				throw error;
 			}
 			throw this.mapMySQLError(error, undefined, sql);
@@ -443,7 +443,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			/**
 			 * Set to true when called from the importer.
 			 * Skips FK constraint creation (added later via ALTER TABLE) and
-			 * skips upsertSchemaMeta so the importer can restore _forja data as-is.
+			 * skips upsertSchemaMeta so the importer can restore _datrix data as-is.
 			 */
 			isImport?: boolean;
 		},
@@ -496,7 +496,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 				}
 			}
 
-			// Track schema in _forja (skip during import — _forja data will be restored as-is)
+			// Track schema in _datrix (skip during import — _datrix data will be restored as-is)
 			if (!options?.isImport) {
 				if (schema.name !== FORJA_META_MODEL) {
 					const metaExists = await this.tableExists(FORJA_META_MODEL);
@@ -511,7 +511,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 				await this.upsertSchemaMeta(schema, queryRunner!);
 			}
 		} catch (error) {
-			if (error instanceof ForjaAdapterError) throw error;
+			if (error instanceof DatrixAdapterError) throw error;
 			const message = error instanceof Error ? error.message : String(error);
 			throwMigrationError({
 				adapter: "mysql",
@@ -541,7 +541,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			const escapedTable = escapeIdentifier(tableName);
 			await client.execute(`DROP TABLE IF EXISTS ${escapedTable}`);
 
-			// Remove schema from _forja (skip during import — _forja data will be restored as-is)
+			// Remove schema from _datrix (skip during import — _datrix data will be restored as-is)
 			if (!options?.isImport && tableName !== FORJA_META_MODEL) {
 				const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
 				const escapedMetaTable = escapeIdentifier(FORJA_META_MODEL);
@@ -551,7 +551,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 				);
 			}
 		} catch (error) {
-			if (error instanceof ForjaAdapterError) throw error;
+			if (error instanceof DatrixAdapterError) throw error;
 			const message = error instanceof Error ? error.message : String(error);
 			throwMigrationError({
 				adapter: "mysql",
@@ -585,7 +585,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			const escapedTo = escapeIdentifier(to);
 			await client.execute(`RENAME TABLE ${escapedFrom} TO ${escapedTo}`);
 
-			// Update key in _forja
+			// Update key in _datrix
 			if (from !== FORJA_META_MODEL && to !== FORJA_META_MODEL) {
 				const oldKey = `${FORJA_META_KEY_PREFIX}${from}`;
 				const newKey = `${FORJA_META_KEY_PREFIX}${to}`;
@@ -596,7 +596,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 				);
 			}
 		} catch (error) {
-			if (error instanceof ForjaAdapterError) throw error;
+			if (error instanceof DatrixAdapterError) throw error;
 			const message = error instanceof Error ? error.message : String(error);
 			throwMigrationError({
 				adapter: "mysql",
@@ -677,7 +677,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 				}
 			}
 
-			// Update schema in _forja
+			// Update schema in _datrix
 			if (tableName !== FORJA_META_MODEL) {
 				await this.applyOperationsToMetaSchema(
 					tableName,
@@ -686,7 +686,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 				);
 			}
 		} catch (error) {
-			if (error instanceof ForjaAdapterError) throw error;
+			if (error instanceof DatrixAdapterError) throw error;
 			const message = error instanceof Error ? error.message : String(error);
 			throwMigrationError({
 				adapter: "mysql",
@@ -740,7 +740,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			const sql = `CREATE ${unique}INDEX ${escapedIndexName} ON ${escapedTable} (${fields})${using}`;
 			await client.execute(sql);
 		} catch (error) {
-			if (error instanceof ForjaAdapterError) throw error;
+			if (error instanceof DatrixAdapterError) throw error;
 			const message = error instanceof Error ? error.message : String(error);
 			throwMigrationError({
 				adapter: "mysql",
@@ -771,7 +771,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			const escapedIndexName = escapeIdentifier(indexName);
 			await client.execute(`DROP INDEX ${escapedIndexName} ON ${escapedTable}`);
 		} catch (error) {
-			if (error instanceof ForjaAdapterError) throw error;
+			if (error instanceof DatrixAdapterError) throw error;
 			const message = error instanceof Error ? error.message : String(error);
 			throwMigrationError({
 				adapter: "mysql",
@@ -867,7 +867,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 	}
 
 	/**
-	 * Upsert schema into _forja metadata table
+	 * Upsert schema into _datrix metadata table
 	 */
 	private async upsertSchemaMeta(
 		schema: SchemaDefinition,
@@ -886,7 +886,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 	}
 
 	/**
-	 * Read schema from _forja, apply AlterOperations, write back
+	 * Read schema from _datrix, apply AlterOperations, write back
 	 */
 	private async applyOperationsToMetaSchema(
 		tableName: string,
@@ -904,7 +904,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 		if ((rows as RowDataPacket[]).length === 0) {
 			throwMigrationError({
 				adapter: "mysql",
-				message: `Schema meta for table '${tableName}' not found in _forja`,
+				message: `Schema meta for table '${tableName}' not found in _datrix`,
 				table: tableName,
 			});
 		}
@@ -999,7 +999,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 	 * Convert MySQL result types to JS types based on schema.
 	 * MySQL returns TINYINT(1) as 1/0 instead of true/false.
 	 */
-	private convertMySQLTypes<TResult extends ForjaEntry>(
+	private convertMySQLTypes<TResult extends DatrixEntry>(
 		rows: readonly TResult[],
 		tableName: string,
 	): readonly TResult[] {
@@ -1051,9 +1051,9 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 				if (!targetSchema) continue;
 				const targetTable = targetSchema.tableName ?? rel.model.toLowerCase();
 				if (Array.isArray(value)) {
-					this.convertMySQLTypes(value as ForjaEntry[], targetTable);
+					this.convertMySQLTypes(value as DatrixEntry[], targetTable);
 				} else if (typeof value === "object") {
-					this.convertMySQLTypes([value as ForjaEntry], targetTable);
+					this.convertMySQLTypes([value as DatrixEntry], targetTable);
 				}
 			}
 		}
@@ -1122,7 +1122,7 @@ class MySQLTransaction implements Transaction {
 	 * Delegates to adapter.executeQuery with this transaction's connection,
 	 * reusing all query logic (validation, populate, result parsing, error mapping).
 	 */
-	async executeQuery<TResult extends ForjaEntry>(
+	async executeQuery<TResult extends DatrixEntry>(
 		query: QueryObject<TResult>,
 	): Promise<QueryResult<TResult>> {
 		if (this.committed || this.rolledBack) {
@@ -1153,7 +1153,7 @@ class MySQLTransaction implements Transaction {
 	/**
 	 * Execute raw SQL within transaction
 	 */
-	async executeRawQuery<TResult extends ForjaEntry>(
+	async executeRawQuery<TResult extends DatrixEntry>(
 		sql: string,
 		params: readonly unknown[],
 	): Promise<QueryResult<TResult>> {

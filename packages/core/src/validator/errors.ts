@@ -6,7 +6,7 @@
  */
 
 import { ValidationError, ValidationErrorCode } from "../types/core/validator";
-import { ForjaValidationError } from "../types/errors/core/validation";
+import { DatrixValidationError } from "../types/errors/core/validation";
 
 /**
  * Create a validation error
@@ -69,9 +69,8 @@ export function formatErrorMessage(
 			return `Field '${field}' must have at most ${options?.max} items`;
 
 		case "PATTERN":
-			return `Field '${field}' does not match required pattern${
-				options?.pattern ? `: ${options.pattern}` : ""
-			}`;
+			return `Field '${field}' does not match required pattern${options?.pattern ? `: ${options.pattern}` : ""
+				}`;
 
 		case "UNIQUE":
 			return `Field '${field}' must be unique`;
@@ -316,7 +315,7 @@ export class ValidationErrorCollection {
 /**
  * Centralized Validation Error Helpers
  *
- * Provides a clean API for throwing ForjaValidationError.
+ * Provides a clean API for throwing DatrixValidationError.
  * Similar pattern to CRUD error helpers for consistency.
  */
 
@@ -344,7 +343,7 @@ export function throwValidationMultiple(
 		.map((e) => `${e.field}: ${e.message}`)
 		.join(", ");
 
-	throw new ForjaValidationError(
+	throw new DatrixValidationError(
 		`Validation failed for ${model}: ${errorMessages}`,
 		{
 			model,
@@ -385,7 +384,7 @@ export function throwValidationSingle(
 		expected: options?.expected,
 	});
 
-	throw new ForjaValidationError(`Validation failed for ${model}: ${message}`, {
+	throw new DatrixValidationError(`Validation failed for ${model}: ${message}`, {
 		model,
 		errors: [error],
 		operation: "validation:field",

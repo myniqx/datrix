@@ -5,7 +5,7 @@
  * Handles authentication, permission checking, and routing
  */
 
-import type { Forja } from "@forja/core";
+import type { Datrix } from "@datrix/core";
 import type {
 	RequestContext,
 	ContextBuilderOptions,
@@ -17,18 +17,18 @@ import {
 	filterFieldsForRead,
 	filterRecordsForRead,
 } from "../middleware/permission";
-import { jsonResponse, forjaErrorResponse } from "./utils";
+import { jsonResponse, datrixErrorResponse } from "./utils";
 import { handlerError } from "../errors/api-error";
-import { ForjaError, ForjaValidationError } from "@forja/core";
-import type { ForjaEntry } from "@forja/core";
-import { ResponseData } from "@forja/core";
-import { IApiPlugin } from "@forja/core";
+import { DatrixError, DatrixValidationError } from "@datrix/core";
+import type { DatrixEntry } from "@datrix/core";
+import { ResponseData } from "@datrix/core";
+import { IApiPlugin } from "@datrix/core";
 
 /**
  * Handle GET request
  */
 async function handleGet(ctx: RequestContext): Promise<Response> {
-	const { forja, schema, authEnabled } = ctx;
+	const { datrix, schema, authEnabled } = ctx;
 
 	if (!schema) {
 		throw handlerError.schemaNotFound(ctx.url.pathname);
@@ -37,7 +37,7 @@ async function handleGet(ctx: RequestContext): Promise<Response> {
 	const { upload } = ctx.api;
 
 	if (ctx.id) {
-		const result = await forja.findById(schema.name, ctx.id, {
+		const result = await datrix.findById(schema.name, ctx.id, {
 			select: ctx.query?.select,
 			populate: ctx.query?.populate,
 		});
@@ -66,7 +66,7 @@ async function handleGet(ctx: RequestContext): Promise<Response> {
 		const limit = pageSize;
 		const offset = (page - 1) * pageSize;
 
-		const result = await forja.findMany(schema.name, {
+		const result = await datrix.findMany(schema.name, {
 			where: ctx.query?.where,
 			select: ctx.query?.select,
 			populate: ctx.query?.populate,
@@ -75,7 +75,7 @@ async function handleGet(ctx: RequestContext): Promise<Response> {
 			offset,
 		});
 
-		const total = await forja.count(schema.name, ctx.query?.where);
+		const total = await datrix.count(schema.name, ctx.query?.where);
 		const totalPages = Math.ceil(total / pageSize);
 
 		if (authEnabled) {
@@ -106,7 +106,7 @@ async function handleGet(ctx: RequestContext): Promise<Response> {
  * Handle POST request
  */
 async function handlePost(ctx: RequestContext): Promise<Response> {
-	const { forja, schema, authEnabled, body, query } = ctx;
+	const { datrix, schema, authEnabled, body, query } = ctx;
 
 	if (!schema) {
 		throw handlerError.schemaNotFound(ctx.url.pathname);
@@ -129,7 +129,7 @@ async function handlePost(ctx: RequestContext): Promise<Response> {
 
 	const { upload } = ctx.api;
 
-	const result = await forja.create(schema.name, body, {
+	const result = await datrix.create(schema.name, body, {
 		select: query?.select,
 		populate: query?.populate,
 	});
@@ -137,7 +137,7 @@ async function handlePost(ctx: RequestContext): Promise<Response> {
 	if (authEnabled) {
 		const { data: filteredResult } = await filterFieldsForRead(
 			schema,
-			result as unknown as ForjaEntry,
+			result as unknown as DatrixEntry,
 			ctx,
 		);
 		const data = upload
@@ -154,7 +154,7 @@ async function handlePost(ctx: RequestContext): Promise<Response> {
  * Handle PATCH/PUT request (update)
  */
 async function handleUpdate(ctx: RequestContext): Promise<Response> {
-	const { forja, schema, authEnabled, body, id } = ctx;
+	const { datrix, schema, authEnabled, body, id } = ctx;
 
 	if (!schema) {
 		throw handlerError.schemaNotFound(ctx.url.pathname);
@@ -168,7 +168,7 @@ async function handleUpdate(ctx: RequestContext): Promise<Response> {
 		throw handlerError.invalidBody();
 	}
 
-	const existingRecord = await forja.findById(schema.name, id);
+	const existingRecord = await datrix.findById(schema.name, id);
 
 	if (!existingRecord) {
 		throw handlerError.recordNotFound(schema.name, id);
@@ -185,7 +185,7 @@ async function handleUpdate(ctx: RequestContext): Promise<Response> {
 		}
 	}
 
-	const result = await forja.update(schema.name, id, body, {
+	const result = await datrix.update(schema.name, id, body, {
 		select: ctx.query?.select,
 		populate: ctx.query?.populate,
 	});
@@ -199,7 +199,7 @@ async function handleUpdate(ctx: RequestContext): Promise<Response> {
 	if (authEnabled) {
 		const { data: filteredResult } = await filterFieldsForRead(
 			schema,
-			result as unknown as ForjaEntry,
+			result as unknown as DatrixEntry,
 			ctx,
 		);
 		const data = upload
@@ -216,7 +216,7 @@ async function handleUpdate(ctx: RequestContext): Promise<Response> {
  * Handle DELETE request
  */
 async function handleDelete(ctx: RequestContext): Promise<Response> {
-	const { forja, schema, id } = ctx;
+	const { datrix, schema, id } = ctx;
 
 	if (!schema) {
 		throw handlerError.schemaNotFound(ctx.url.pathname);
@@ -226,7 +226,7 @@ async function handleDelete(ctx: RequestContext): Promise<Response> {
 		throw handlerError.missingId("delete");
 	}
 
-	const deleted = await forja.delete(schema.name, id);
+	const deleted = await datrix.delete(schema.name, id);
 
 	if (!deleted) {
 		throw handlerError.recordNotFound(schema.name, id);
@@ -247,12 +247,12 @@ async function handleDelete(ctx: RequestContext): Promise<Response> {
  */
 export async function handleCrudRequest<TRole extends string = string>(
 	request: Request,
-	forja: Forja,
+	datrix: Datrix,
 	api: IApiPlugin<TRole>,
 	options?: ContextBuilderOptions,
 ): Promise<Response> {
 	try {
-		const ctx = await buildRequestContext(request, forja, api, options);
+		const ctx = await buildRequestContext(request, datrix, api, options);
 
 		if (!ctx.schema) {
 			throw handlerError.modelNotSpecified();
@@ -293,14 +293,14 @@ export async function handleCrudRequest<TRole extends string = string>(
 			}
 		}
 	} catch (error) {
-		if (error instanceof ForjaValidationError || error instanceof ForjaError) {
-			return forjaErrorResponse(error);
+		if (error instanceof DatrixValidationError || error instanceof DatrixError) {
+			return datrixErrorResponse(error);
 		}
 
 		console.error("Unified Handler Error:", error);
 		const message =
 			error instanceof Error ? error.message : "Internal server error";
-		return forjaErrorResponse(
+		return datrixErrorResponse(
 			handlerError.internalError(
 				message,
 				error instanceof Error ? error : undefined,

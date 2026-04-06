@@ -3,8 +3,8 @@
  *
  * Wraps Pool or PoolConnection to provide:
  * - Automatic SQL debug logging (non-production)
- * - Consistent error handling with ForjaAdapterError
- * - MySQL error code to Forja error code mapping
+ * - Consistent error handling with DatrixAdapterError
+ * - MySQL error code to Datrix error code mapping
  */
 
 import type {
@@ -13,8 +13,8 @@ import type {
 	ResultSetHeader,
 	RowDataPacket,
 } from "mysql2/promise";
-import { AdapterErrorCode, ForjaAdapterError } from "@forja/core";
-import { QueryObject } from "@forja/core";
+import { AdapterErrorCode, DatrixAdapterError } from "@datrix/core";
+import { QueryObject } from "@datrix/core";
 
 const IS_DEBUG = process.env["NODE_ENV"] !== "production" && false;
 
@@ -37,13 +37,13 @@ export type MySQLExecuteResult = [ResultSetHeader | RowDataPacket[], unknown];
  * Lightweight wrapper around mysql2 Pool/PoolConnection.
  *
  * Every query passes through a single point that logs SQL
- * in development and wraps MySQL errors into ForjaAdapterError.
+ * in development and wraps MySQL errors into DatrixAdapterError.
  */
 export class MySQLClient {
 	constructor(
 		private readonly runner: Pool | PoolConnection,
 		private readonly queryObject: QueryObject,
-	) {}
+	) { }
 
 	/**
 	 * Execute a SQL query with optional parameters (prepared statement).
@@ -71,7 +71,7 @@ export class MySQLClient {
 		sql: string,
 		params?: readonly unknown[],
 	): Promise<MySQLExecuteResult> {
-		if (IS_DEBUG && this.queryObject.table !== "_forja_migrations") {
+		if (IS_DEBUG && this.queryObject.table !== "_datrix_migrations") {
 			console.log("[MySQL]", sql, params ?? [], {
 				queryObject: JSON.stringify(this.queryObject),
 			});
@@ -90,7 +90,7 @@ export class MySQLClient {
 
 			const adapterCode = mysqlCodeToAdapterCode(details.code);
 
-			throw new ForjaAdapterError(`Query failed: ${message}`, {
+			throw new DatrixAdapterError(`Query failed: ${message}`, {
 				adapter: "mysql",
 				code: adapterCode as AdapterErrorCode,
 				operation: "query",

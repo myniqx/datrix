@@ -1,5 +1,5 @@
-import type { ImportReader } from "@forja/core";
-import type { SchemaDefinition } from "@forja/core";
+import type { ImportReader } from "@datrix/core";
+import type { SchemaDefinition } from "@datrix/core";
 import type { JsonAdapter } from "../adapter";
 import type { JsonTableFile } from "../types";
 
@@ -7,7 +7,7 @@ export class JsonImporter {
 	constructor(
 		private root: string,
 		private adapter: JsonAdapter,
-	) {}
+	) { }
 
 	async import(reader: ImportReader): Promise<void> {
 		const schemas = await this.collectSchemas(reader);
@@ -19,7 +19,7 @@ export class JsonImporter {
 		}
 
 		// 2. Create tables — isImport skips upsertSchemaMeta so the importer
-		//    can restore _forja data as-is.
+		//    can restore _datrix data as-is.
 		for (const schema of schemas.values()) {
 			await this.adapter.createTable(schema, { isImport: true });
 		}

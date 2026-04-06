@@ -1,7 +1,7 @@
 /**
- * Forja Types
+ * Datrix Types
  *
- * Shared TypeScript types for the Forja framework.
+ * Shared TypeScript types for the Datrix framework.
  */
 
 export * from "./core/plugin";

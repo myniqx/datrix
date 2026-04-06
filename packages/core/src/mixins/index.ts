@@ -1,7 +1,7 @@
 /**
  * Mixins Module
  *
- * Exports all composition classes for Forja.
+ * Exports all composition classes for Datrix.
  * These classes encapsulate specific functionality domains.
  */
 

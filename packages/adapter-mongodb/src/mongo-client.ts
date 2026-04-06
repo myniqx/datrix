@@ -3,14 +3,14 @@
  *
  * Wraps MongoDB Db to provide:
  * - Automatic debug logging (non-production)
- * - Consistent error handling with ForjaAdapterError
+ * - Consistent error handling with DatrixAdapterError
  * - Unified interface for both normal and transaction (session) operations
  */
 
 import type { ClientSession, Collection, Db, Document } from "mongodb";
-import { ForjaAdapterError } from "@forja/core";
+import { DatrixAdapterError } from "@datrix/core";
 import { mongoCodeToAdapterCode } from "./helpers";
-import { ForjaEntry, QueryObject } from "@forja/core";
+import { DatrixEntry, QueryObject } from "@datrix/core";
 
 const IS_DEBUG = process.env["NODE_ENV"] !== "production";
 
@@ -18,14 +18,14 @@ const IS_DEBUG = process.env["NODE_ENV"] !== "production";
  * Lightweight wrapper around MongoDB Db.
  *
  * Every operation passes through a single point that logs
- * in development and wraps MongoDB errors into ForjaAdapterError.
+ * in development and wraps MongoDB errors into DatrixAdapterError.
  */
-export class MongoClient<T extends ForjaEntry> {
+export class MongoClient<T extends DatrixEntry> {
 	constructor(
 		private readonly db: Db,
 		private readonly session: ClientSession | undefined,
 		private readonly query: QueryObject<T>,
-	) {}
+	) { }
 
 	/**
 	 * Get a collection handle with optional session
@@ -88,7 +88,7 @@ export class MongoClient<T extends ForjaEntry> {
 				| "ADAPTER_QUERY_ERROR"
 				| "ADAPTER_UNIQUE_CONSTRAINT";
 
-			throw new ForjaAdapterError(`Query failed: ${message}`, {
+			throw new DatrixAdapterError(`Query failed: ${message}`, {
 				adapter: "mongodb",
 				code: adapterCode,
 				operation: "query",

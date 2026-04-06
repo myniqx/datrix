@@ -1,7 +1,7 @@
 /**
  * Single Update Tests
  *
- * Tests for forja.update() and forja.updateMany()
+ * Tests for datrix.update() and datrix.updateMany()
  *
  * Covers:
  * - Update by id
@@ -15,7 +15,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { Forja } from "@forja/core";
+import { Datrix } from "@datrix/core";
 import fs from "node:fs/promises";
 import {
 	createTestConfig,
@@ -24,10 +24,10 @@ import {
 	seedBasicData,
 	type SeedResult,
 } from "../setup";
-import { expectForjaErrorAsync } from "../../test/helpers";
+import { expectDatrixErrorAsync } from "../../test/helpers";
 
 describe("Update Operations", () => {
-	let forja: Forja;
+	let datrix: Datrix;
 	let seed: SeedResult;
 	const tmpDir = getTmpDir("single_update");
 
@@ -35,12 +35,12 @@ describe("Update Operations", () => {
 		await fs.rm(tmpDir, { recursive: true, force: true });
 		await fs.mkdir(tmpDir, { recursive: true });
 
-		const getForja = await createTestConfig(tmpDir);
-		forja = await getForja();
+		const getDatrix = await createTestConfig(tmpDir);
+		datrix = await getDatrix();
 
-		await setupTables(forja);
+		await setupTables(datrix);
 
-		seed = await seedBasicData(forja);
+		seed = await seedBasicData(datrix);
 	});
 
 	afterAll(async () => {
@@ -54,7 +54,7 @@ describe("Update Operations", () => {
 	describe("update (by id)", () => {
 		it("should update record by id", async () => {
 			const org = seed.organizations[0];
-			const result = await forja.update("organization", org.id, {
+			const result = await datrix.update("organization", org.id, {
 				name: "Updated Acme Corp",
 			});
 
@@ -64,7 +64,7 @@ describe("Update Operations", () => {
 
 		it("should return updated record", async () => {
 			const org = seed.organizations[1];
-			const result = await forja.update("organization", org.id, {
+			const result = await datrix.update("organization", org.id, {
 				country: "Canada",
 			});
 
@@ -77,13 +77,13 @@ describe("Update Operations", () => {
 
 		it("should only update specified fields (partial update)", async () => {
 			// Create a fresh record for this test
-			const org = await forja.create("organization", {
+			const org = await datrix.create("organization", {
 				name: "Partial Update Org",
 				country: "Germany",
 				isActive: true,
 			});
 
-			const result = await forja.update("organization", org.id, {
+			const result = await datrix.update("organization", org.id, {
 				name: "New Name Only",
 			});
 
@@ -93,7 +93,7 @@ describe("Update Operations", () => {
 		});
 
 		it("should update updatedAt timestamp", async () => {
-			const org = await forja.create("organization", {
+			const org = await datrix.create("organization", {
 				name: "Timestamp Test Org",
 				country: "France",
 			});
@@ -103,7 +103,7 @@ describe("Update Operations", () => {
 			// Small delay to ensure timestamp difference
 			await new Promise((resolve) => setTimeout(resolve, 10));
 
-			const result = await forja.update("organization", org.id, {
+			const result = await datrix.update("organization", org.id, {
 				name: "Timestamp Updated",
 			});
 
@@ -113,8 +113,8 @@ describe("Update Operations", () => {
 		});
 
 		it("should throw error for non-existent id", async () => {
-			await expectForjaErrorAsync(async () => {
-				await forja.update("organization", 99999, {
+			await expectDatrixErrorAsync(async () => {
+				await datrix.update("organization", 99999, {
 					name: "Should Fail",
 				});
 			}, "RECORD_NOT_FOUND");
@@ -127,45 +127,45 @@ describe("Update Operations", () => {
 
 	describe("Validation Errors", () => {
 		it("should throw error when updated value violates minLength", async () => {
-			const org = await forja.create("organization", {
+			const org = await datrix.create("organization", {
 				name: "Valid Name",
 				country: "USA",
 			});
 
-			await expectForjaErrorAsync(async () => {
-				await forja.update("organization", org.id, {
+			await expectDatrixErrorAsync(async () => {
+				await datrix.update("organization", org.id, {
 					name: "A", // minLength is 2
 				});
 			}, "VALIDATION_FAILED");
 		});
 
 		it("should throw error when updated value violates max", async () => {
-			const role = await forja.create("role", {
+			const role = await datrix.create("role", {
 				name: "Test Role",
 				level: 50,
 			});
 
-			await expectForjaErrorAsync(async () => {
-				await forja.update("role", role.id, {
+			await expectDatrixErrorAsync(async () => {
+				await datrix.update("role", role.id, {
 					level: 150, // max is 100
 				});
 			}, "VALIDATION_FAILED");
 		});
 
 		it("should throw error when updated value violates pattern", async () => {
-			const org = await forja.create("organization", {
+			const org = await datrix.create("organization", {
 				name: "Pattern Update Org",
 				country: "USA",
 			});
 
-			const dept = await forja.create("department", {
+			const dept = await datrix.create("department", {
 				name: "Test Dept",
 				code: "TEST",
 				organization: org.id,
 			});
 
-			await expectForjaErrorAsync(async () => {
-				await forja.update("department", dept.id, {
+			await expectDatrixErrorAsync(async () => {
+				await datrix.update("department", dept.id, {
 					code: "lowercase", // pattern requires uppercase
 				});
 			}, "VALIDATION_FAILED");
@@ -179,32 +179,32 @@ describe("Update Operations", () => {
 	describe("Unique Constraints", () => {
 		it("should throw error when update causes duplicate", async () => {
 			// Create two orgs
-			await forja.create("organization", {
+			await datrix.create("organization", {
 				name: "Unique Org A",
 				country: "USA",
 			});
 
-			const orgB = await forja.create("organization", {
+			const orgB = await datrix.create("organization", {
 				name: "Unique Org B",
 				country: "UK",
 			});
 
 			// Try to update B to have same name as A
-			await expectForjaErrorAsync(async () => {
-				await forja.update("organization", orgB.id, {
+			await expectDatrixErrorAsync(async () => {
+				await datrix.update("organization", orgB.id, {
 					name: "Unique Org A",
 				});
 			}, "ADAPTER_UNIQUE_CONSTRAINT");
 		});
 
 		it("should allow updating to same value (no change)", async () => {
-			const org = await forja.create("organization", {
+			const org = await datrix.create("organization", {
 				name: "Same Value Org",
 				country: "USA",
 			});
 
 			// Update to same name should work
-			const result = await forja.update("organization", org.id, {
+			const result = await datrix.update("organization", org.id, {
 				name: "Same Value Org",
 			});
 
@@ -218,24 +218,24 @@ describe("Update Operations", () => {
 
 	describe("BelongsTo Relation Updates", () => {
 		it("should update belongsTo relation", async () => {
-			const org1 = await forja.create("organization", {
+			const org1 = await datrix.create("organization", {
 				name: "Dept Move Org 1",
 				country: "USA",
 			});
 
-			const org2 = await forja.create("organization", {
+			const org2 = await datrix.create("organization", {
 				name: "Dept Move Org 2",
 				country: "UK",
 			});
 
-			const dept = await forja.create("department", {
+			const dept = await datrix.create("department", {
 				name: "Mobile Dept",
 				code: "MOBL",
 				organization: org1.id,
 			});
 
 			// Move department to different org
-			const result = await forja.update(
+			const result = await datrix.update(
 				"department",
 				dept.id,
 				{
@@ -248,19 +248,19 @@ describe("Update Operations", () => {
 		});
 
 		it("should set belongsTo relation to null", async () => {
-			const org = await forja.create("organization", {
+			const org = await datrix.create("organization", {
 				name: "User Org",
 				country: "USA",
 			});
 
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "relation-test@test.com",
 				name: "Relation User",
 				organization: org.id,
 			});
 
 			// Remove organization relation
-			const result = await forja.update(
+			const result = await datrix.update(
 				"user",
 				user.id,
 				{
@@ -280,14 +280,14 @@ describe("Update Operations", () => {
 	describe("updateMany", () => {
 		it("should update multiple records by where clause", async () => {
 			// Create test data
-			await forja.createMany("category", [
+			await datrix.createMany("category", [
 				{ name: "Batch Cat 1", slug: "batch-cat-1", isActive: true },
 				{ name: "Batch Cat 2", slug: "batch-cat-2", isActive: true },
 				{ name: "Batch Cat 3", slug: "batch-cat-3", isActive: false },
 			]);
 
 			// Update all active categories
-			const results = await forja.updateMany(
+			const results = await datrix.updateMany(
 				"category",
 				{ isActive: true },
 				{ description: "Updated by batch" },
@@ -300,12 +300,12 @@ describe("Update Operations", () => {
 		});
 
 		it("should return all updated records", async () => {
-			await forja.createMany("role", [
+			await datrix.createMany("role", [
 				{ name: "Batch Role 1", level: 10 },
 				{ name: "Batch Role 2", level: 10 },
 			]);
 
-			const results = await forja.updateMany(
+			const results = await datrix.updateMany(
 				"role",
 				{ level: 10 },
 				{ level: 15 },
@@ -318,7 +318,7 @@ describe("Update Operations", () => {
 		});
 
 		it("should return empty array when no matches", async () => {
-			const results = await forja.updateMany(
+			const results = await datrix.updateMany(
 				"organization",
 				{ name: "Non Existent For Update" },
 				{ country: "Nowhere" },
@@ -334,13 +334,13 @@ describe("Update Operations", () => {
 
 	describe("Select Option", () => {
 		it("should return only selected fields after update", async () => {
-			const org = await forja.create("organization", {
+			const org = await datrix.create("organization", {
 				name: "Select Update Org",
 				country: "USA",
 				isActive: true,
 			});
 
-			const result = await forja.update(
+			const result = await datrix.update(
 				"organization",
 				org.id,
 				{ name: "Selected Updated" },
@@ -362,13 +362,13 @@ describe("Update Operations", () => {
 
 	describe("Edge Cases", () => {
 		it("should handle setting field to empty string", async () => {
-			const cat = await forja.create("category", {
+			const cat = await datrix.create("category", {
 				name: "Empty Desc Cat",
 				slug: "empty-desc-cat",
 				description: "Has description",
 			});
 
-			const result = await forja.update("category", cat.id, {
+			const result = await datrix.update("category", cat.id, {
 				description: "",
 			});
 
@@ -376,13 +376,13 @@ describe("Update Operations", () => {
 		});
 
 		it("should handle setting field to null", async () => {
-			const cat = await forja.create("category", {
+			const cat = await datrix.create("category", {
 				name: "Null Desc Cat",
 				slug: "null-desc-cat",
 				description: "Has description",
 			});
 
-			const result = await forja.update("category", cat.id, {
+			const result = await datrix.update("category", cat.id, {
 				description: null,
 			});
 
@@ -390,27 +390,27 @@ describe("Update Operations", () => {
 		});
 
 		it("should handle setting numeric field to 0", async () => {
-			const role = await forja.create("role", {
+			const role = await datrix.create("role", {
 				name: "Zero Level Role",
 				level: 50,
 			});
 
 			// level min is 1, so 0 should fail validation
-			await expectForjaErrorAsync(async () => {
-				await forja.update("role", role.id, {
+			await expectDatrixErrorAsync(async () => {
+				await datrix.update("role", role.id, {
 					level: 0,
 				});
 			}, "VALIDATION_FAILED");
 		});
 
 		it("should handle setting boolean to false", async () => {
-			const org = await forja.create("organization", {
+			const org = await datrix.create("organization", {
 				name: "Bool Update Org",
 				country: "USA",
 				isActive: true,
 			});
 
-			const result = await forja.update("organization", org.id, {
+			const result = await datrix.update("organization", org.id, {
 				isActive: false,
 			});
 
@@ -418,13 +418,13 @@ describe("Update Operations", () => {
 		});
 
 		it("should handle JSON field update", async () => {
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "json-update@test.com",
 				name: "JSON Update User",
 				metadata: { original: true },
 			});
 
-			const result = await forja.update("user", user.id, {
+			const result = await datrix.update("user", user.id, {
 				metadata: { updated: true, nested: { value: 1 } },
 			});
 

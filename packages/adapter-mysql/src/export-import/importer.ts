@@ -1,8 +1,8 @@
 import type { Pool } from "mysql2/promise";
-import type { ImportReader } from "@forja/core";
-import type { SchemaDefinition } from "@forja/core";
+import type { ImportReader } from "@datrix/core";
+import type { SchemaDefinition } from "@datrix/core";
 import type { MySQLAdapter } from "../adapter";
-import { FORJA_META_MODEL } from "@forja/core";
+import { FORJA_META_MODEL } from "@datrix/core";
 
 const CHUNK_SIZE = 1000;
 
@@ -10,7 +10,7 @@ export class MySQLImporter {
 	constructor(
 		private pool: Pool,
 		private adapter: MySQLAdapter,
-	) {}
+	) { }
 
 	async import(reader: ImportReader): Promise<void> {
 		const schemas = await this.collectSchemas(reader);
@@ -25,8 +25,8 @@ export class MySQLImporter {
 				await this.adapter.dropTable(tableName, undefined, { isImport: true });
 			}
 
-			// 3. Create tables — isImport skips FK constraints and _forja meta writes.
-			//    _forja data will be restored as plain rows in step 4.
+			// 3. Create tables — isImport skips FK constraints and _datrix meta writes.
+			//    _datrix data will be restored as plain rows in step 4.
 			for (const schema of schemas.values()) {
 				await this.adapter.createTable(schema, undefined, { isImport: true });
 			}
@@ -39,7 +39,7 @@ export class MySQLImporter {
 				}
 			}
 
-			// 5. Add FK constraints (skip _forja)
+			// 5. Add FK constraints (skip _datrix)
 			for (const schema of schemas.values()) {
 				if (schema.name === FORJA_META_MODEL) continue;
 				await this.addForeignKeys(schema);

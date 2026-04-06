@@ -8,8 +8,8 @@ import {
 	CrudErrorCode,
 	CrudErrorContext,
 	CrudOperation,
-	ForjaCrudError,
-	ForjaError,
+	DatrixCrudError,
+	DatrixError,
 } from "../types/errors";
 
 /**
@@ -31,7 +31,7 @@ export interface ThrowCrudErrorOptions {
  * Throws a standardized CRUD error
  *
  * @param options - Error options
- * @throws ForjaCrudError
+ * @throws DatrixCrudError
  *
  * @example
  * ```ts
@@ -59,7 +59,7 @@ export function throwCrudError(options: ThrowCrudErrorOptions): never {
 
 	const defaultMessage = generateDefaultMessage(operation, model, code);
 
-	throw new ForjaCrudError(message ?? defaultMessage, {
+	throw new DatrixCrudError(message ?? defaultMessage, {
 		code,
 		operation,
 		model,
@@ -128,7 +128,7 @@ function generateDefaultMessage(
  * ```
  */
 export function throwUnsupportedQueryType(queryType: unknown): never {
-	throw new ForjaError(`Unsupported query type: ${queryType}`, {
+	throw new DatrixError(`Unsupported query type: ${queryType}`, {
 		code: "UNSUPPORTED_QUERY_TYPE",
 		context: { queryType },
 		suggestion: "Use one of: select, insert, update, delete, count",
@@ -145,7 +145,7 @@ export function throwSchemaNotFoundError(model: string): never {
 		operation: "findOne",
 		model,
 		code: "SCHEMA_NOT_FOUND",
-		suggestion: `Make sure the schema '${model}' is registered in your Forja instance`,
+		suggestion: `Make sure the schema '${model}' is registered in your Datrix instance`,
 	});
 }
 
@@ -158,7 +158,7 @@ export function throwReservedFieldError(field: string, model: string): never {
 		model,
 		code: "RESERVED_FIELD_WRITE",
 		message: `Cannot set reserved field '${field}'`,
-		suggestion: `Use forja.raw.create() or forja.raw.update() for manual control of '${field}'`,
+		suggestion: `Use datrix.raw.create() or datrix.raw.update() for manual control of '${field}'`,
 	});
 }
 

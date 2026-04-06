@@ -12,25 +12,25 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { Forja } from "@forja/core";
+import { Datrix } from "@datrix/core";
 import fs from "node:fs/promises";
 import { createTestConfig, getTmpDir, setupTables } from "../setup";
 
 describe("Where Operators", () => {
-	let forja: Forja;
+	let datrix: Datrix;
 	const tmpDir = getTmpDir("where_operators");
 
 	beforeAll(async () => {
 		await fs.rm(tmpDir, { recursive: true, force: true });
 		await fs.mkdir(tmpDir, { recursive: true });
 
-		const getForja = await createTestConfig(tmpDir);
-		forja = await getForja();
+		const getDatrix = await createTestConfig(tmpDir);
+		datrix = await getDatrix();
 
-		await setupTables(forja);
+		await setupTables(datrix);
 
 		// Seed test data
-		await forja.createMany("user", [
+		await datrix.createMany("user", [
 			{ email: "alice@test.com", name: "Alice Smith", age: 25, isActive: true },
 			{ email: "bob@test.com", name: "Bob Johnson", age: 30, isActive: true },
 			{
@@ -48,7 +48,7 @@ describe("Where Operators", () => {
 			{ email: "eve@test.com", name: "Eve Wilson", age: null, isActive: false },
 		]);
 
-		await forja.createMany("category", [
+		await datrix.createMany("category", [
 			{ name: "Technology", slug: "technology", description: "Tech stuff" },
 			{ name: "Science", slug: "science", description: "Scientific topics" },
 			{ name: "Art", slug: "art", description: null },
@@ -66,7 +66,7 @@ describe("Where Operators", () => {
 
 	describe("$eq (equals)", () => {
 		it("should find exact string match", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: { name: { $eq: "Alice Smith" } },
 			});
 
@@ -75,7 +75,7 @@ describe("Where Operators", () => {
 		});
 
 		it("should find exact number match", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: { age: { $eq: 30 } },
 			});
 
@@ -84,7 +84,7 @@ describe("Where Operators", () => {
 		});
 
 		it("should find exact boolean match", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: { isActive: { $eq: false } },
 			});
 
@@ -95,7 +95,7 @@ describe("Where Operators", () => {
 		});
 
 		it("should support shorthand (implicit $eq)", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: { name: "Alice Smith" },
 			});
 
@@ -106,7 +106,7 @@ describe("Where Operators", () => {
 
 	describe("$ne (not equals)", () => {
 		it("should exclude exact match", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: { name: { $ne: "Alice Smith" } },
 			});
 
@@ -117,7 +117,7 @@ describe("Where Operators", () => {
 		});
 
 		it("should work with boolean", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: { isActive: { $ne: true } },
 			});
 
@@ -129,7 +129,7 @@ describe("Where Operators", () => {
 
 	describe("$gt (greater than)", () => {
 		it("should find values greater than", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: { age: { $gt: 28 } },
 			});
 
@@ -141,7 +141,7 @@ describe("Where Operators", () => {
 
 	describe("$gte (greater than or equal)", () => {
 		it("should find values greater than or equal", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: { age: { $gte: 30 } },
 			});
 
@@ -153,7 +153,7 @@ describe("Where Operators", () => {
 
 	describe("$lt (less than)", () => {
 		it("should find values less than", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: { age: { $lt: 30 } },
 			});
 
@@ -165,7 +165,7 @@ describe("Where Operators", () => {
 
 	describe("$lte (less than or equal)", () => {
 		it("should find values less than or equal", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: { age: { $lte: 28 } },
 			});
 
@@ -181,7 +181,7 @@ describe("Where Operators", () => {
 
 	describe("$in (in array)", () => {
 		it("should find values in array", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: { age: { $in: [25, 30, 35] } },
 			});
 
@@ -192,7 +192,7 @@ describe("Where Operators", () => {
 		});
 
 		it("should work with strings", async () => {
-			const results = await forja.findMany("category", {
+			const results = await datrix.findMany("category", {
 				where: { slug: { $in: ["technology", "science"] } },
 			});
 
@@ -203,7 +203,7 @@ describe("Where Operators", () => {
 		});
 
 		it("should return empty for non-matching values", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: { age: { $in: [100, 200] } },
 			});
 
@@ -213,7 +213,7 @@ describe("Where Operators", () => {
 
 	describe("$nin (not in array)", () => {
 		it("should exclude values in array", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: { age: { $nin: [25, 30] } },
 			});
 
@@ -231,7 +231,7 @@ describe("Where Operators", () => {
 
 	describe("$contains", () => {
 		it("should find strings containing substring", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: { name: { $contains: "Smith" } },
 			});
 
@@ -240,7 +240,7 @@ describe("Where Operators", () => {
 		});
 
 		it("should be case-sensitive", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: { name: { $contains: "smith" } },
 			});
 
@@ -251,7 +251,7 @@ describe("Where Operators", () => {
 
 	describe("$notContains", () => {
 		it("should exclude strings containing substring", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: { name: { $notContains: "Smith" } },
 			});
 
@@ -263,7 +263,7 @@ describe("Where Operators", () => {
 
 	describe("$startsWith", () => {
 		it("should find strings starting with prefix", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: { name: { $startsWith: "Alice" } },
 			});
 
@@ -274,7 +274,7 @@ describe("Where Operators", () => {
 
 	describe("$endsWith", () => {
 		it("should find strings ending with suffix", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: { name: { $endsWith: "Johnson" } },
 			});
 
@@ -285,7 +285,7 @@ describe("Where Operators", () => {
 
 	describe("$like (pattern match)", () => {
 		it("should support % wildcard", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: { name: { $like: "%Brown" } },
 			});
 
@@ -294,7 +294,7 @@ describe("Where Operators", () => {
 		});
 
 		it("should support _ single char wildcard", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: { email: { $like: "e__@test.com" } },
 			});
 
@@ -305,7 +305,7 @@ describe("Where Operators", () => {
 
 	describe("$ilike (case-insensitive pattern)", () => {
 		it("should match case-insensitively", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: { name: { $ilike: "%SMITH%" } },
 			});
 
@@ -320,7 +320,7 @@ describe("Where Operators", () => {
 
 	describe("$null", () => {
 		it("should find null values", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: { age: { $null: true } },
 			});
 
@@ -330,7 +330,7 @@ describe("Where Operators", () => {
 		});
 
 		it("should find non-null values with $null: false", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: { age: { $null: false } },
 			});
 
@@ -342,7 +342,7 @@ describe("Where Operators", () => {
 
 	describe("$notNull", () => {
 		it("should find non-null values", async () => {
-			const results = await forja.findMany("category", {
+			const results = await datrix.findMany("category", {
 				where: { description: { $notNull: true } },
 			});
 
@@ -358,7 +358,7 @@ describe("Where Operators", () => {
 
 	describe("$and", () => {
 		it("should require all conditions", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: {
 					$and: [{ age: { $gte: 25 } }, { age: { $lte: 30 } }],
 				},
@@ -371,7 +371,7 @@ describe("Where Operators", () => {
 		});
 
 		it("should work with multiple field conditions", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: {
 					$and: [{ isActive: true }, { age: { $lt: 30 } }],
 				},
@@ -384,7 +384,7 @@ describe("Where Operators", () => {
 		});
 
 		it("should support implicit $and (multiple fields)", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: {
 					isActive: true,
 					age: { $gte: 28 },
@@ -400,7 +400,7 @@ describe("Where Operators", () => {
 
 	describe("$or", () => {
 		it("should match any condition", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: {
 					$or: [{ age: 25 }, { age: 35 }],
 				},
@@ -413,7 +413,7 @@ describe("Where Operators", () => {
 		});
 
 		it("should work with different fields", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: {
 					$or: [
 						{ name: { $startsWith: "Alice" } },
@@ -428,7 +428,7 @@ describe("Where Operators", () => {
 
 	describe("$not", () => {
 		it("should negate condition", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: {
 					$not: { isActive: true },
 				},
@@ -440,7 +440,7 @@ describe("Where Operators", () => {
 		});
 
 		it("should negate complex condition", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: {
 					$not: { age: { $in: [25, 30] } },
 				},
@@ -460,7 +460,7 @@ describe("Where Operators", () => {
 
 	describe("Complex Combinations", () => {
 		it("should handle nested $and/$or", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: {
 					$or: [
 						{
@@ -483,7 +483,7 @@ describe("Where Operators", () => {
 		});
 
 		it("should combine operators on same field", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: {
 					age: { $gte: 25, $lte: 30 },
 				},
@@ -503,7 +503,7 @@ describe("Where Operators", () => {
 	describe("Error Cases", () => {
 		it("should throw error for invalid operator", async () => {
 			await expect(
-				forja.findMany("user", {
+				datrix.findMany("user", {
 					where: { name: { $invalid: "test" } } as Record<string, unknown>,
 				}),
 			).rejects.toThrow();
@@ -511,7 +511,7 @@ describe("Where Operators", () => {
 
 		it("should throw error for invalid field", async () => {
 			await expect(
-				forja.findMany("user", {
+				datrix.findMany("user", {
 					where: { nonExistent: "value" },
 				}),
 			).rejects.toThrow();

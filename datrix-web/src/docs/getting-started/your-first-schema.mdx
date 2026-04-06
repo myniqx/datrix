@@ -1,0 +1,61 @@
+---
+title: Your First Schema
+description: Define your first Datrix schema.
+order: 3
+---
+
+# Your First Schema
+
+Schemas are plain TypeScript objects that describe your data model.
+Datrix automatically adds `id`, `createdAt`, and `updatedAt` fields to every schema.
+
+## Defining a schema
+
+```typescript
+// schemas/user.schema.ts
+import type { SchemaDefinition } from '@datrix/core'
+
+export const userSchema = {
+  name: 'user',
+  fields: {
+    name:  { type: 'string', required: true },
+    email: { type: 'string', required: true, unique: true },
+    age:   { type: 'number' },
+    role:  { type: 'enum', values: ['admin', 'editor', 'user'], default: 'user' },
+  },
+} satisfies SchemaDefinition
+```
+
+The `satisfies` keyword gives you full type checking without losing the literal type information.
+
+## Available field types
+
+| Type | Description |
+|------|-------------|
+| `string` | Text values — supports `minLength`, `maxLength`, `pattern`, `unique` |
+| `number` | Numeric values — supports `min`, `max`, `integer`, `unique` |
+| `boolean` | True/false values |
+| `date` | Date objects — supports `min`, `max` |
+| `enum` | One of a fixed set of string values |
+| `array` | List of values — supports `minItems`, `maxItems` |
+| `json` | Arbitrary JSON object |
+| `relation` | Reference to another schema |
+
+For full field options see [Core: Schema](/docs/core/schema).
+
+## Register schemas in config
+
+Add your schemas to `datrix.config.ts`:
+
+```typescript
+import { defineConfig } from '@datrix/core'
+import { PostgresAdapter } from '@datrix/adapter-postgres'
+import { userSchema } from './schemas/user.schema'
+
+export default defineConfig(() => ({
+  adapter: new PostgresAdapter({
+    connectionString: process.env.DATABASE_URL!,
+  }),
+  schemas: [userSchema],
+} satisfies DatrixConfig))
+```

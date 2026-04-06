@@ -5,7 +5,7 @@
  * Covers all query builder components: builder, where, select, populate, pagination.
  */
 
-import { ForjaError, type SerializedForjaError } from "../forja-error";
+import { DatrixError, type SerializedDatrixError } from "../datrix-error";
 
 /**
  * Query builder component types
@@ -52,9 +52,9 @@ export interface QueryBuilderErrorContext {
 }
 
 /**
- * Options for creating ForjaQueryBuilderError
+ * Options for creating DatrixQueryBuilderError
  */
-export interface ForjaQueryBuilderErrorOptions {
+export interface DatrixQueryBuilderErrorOptions {
 	readonly code: QueryBuilderErrorCode;
 	readonly component: QueryBuilderComponent;
 	readonly field?: string | undefined;
@@ -68,32 +68,32 @@ export interface ForjaQueryBuilderErrorOptions {
 /**
  * Serialized query builder error
  */
-export interface SerializedForjaQueryBuilderError extends SerializedForjaError {
+export interface SerializedDatrixQueryBuilderError extends SerializedDatrixError {
 	readonly component: QueryBuilderComponent;
 	readonly field?: string;
 }
 
 /**
- * Forja Query Builder Error Class
+ * Datrix Query Builder Error Class
  *
- * Specialized ForjaError for query builder failures.
+ * Specialized DatrixError for query builder failures.
  * Includes component type to identify which part of query building failed.
  */
-export class ForjaQueryBuilderError extends ForjaError<QueryBuilderErrorContext> {
+export class DatrixQueryBuilderError extends DatrixError<QueryBuilderErrorContext> {
 	readonly component: QueryBuilderComponent;
 	readonly field?: string | undefined;
 
 	constructor(
 		message: string,
-		options?: ForjaQueryBuilderErrorOptions | string,
+		options?: DatrixQueryBuilderErrorOptions | string,
 	) {
 		// Backward compatibility: if options is string, it's the old 'code' parameter
-		const normalizedOptions: ForjaQueryBuilderErrorOptions =
+		const normalizedOptions: DatrixQueryBuilderErrorOptions =
 			typeof options === "string" || options === undefined
 				? {
-						code: (options as QueryBuilderErrorCode) || "INVALID_VALUE",
-						component: "builder",
-					}
+					code: (options as QueryBuilderErrorCode) || "INVALID_VALUE",
+					component: "builder",
+				}
 				: options;
 
 		super(message, {
@@ -113,7 +113,7 @@ export class ForjaQueryBuilderError extends ForjaError<QueryBuilderErrorContext>
 	/**
 	 * Override toJSON to include query builder-specific fields
 	 */
-	override toJSON(): SerializedForjaQueryBuilderError {
+	override toJSON(): SerializedDatrixQueryBuilderError {
 		return {
 			...super.toJSON(),
 			component: this.component,

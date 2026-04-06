@@ -4,16 +4,16 @@
  * Converts ParsedQuery objects into RawQueryParams query strings.
  */
 
-import { ForjaEntry, ForjaRecord } from "@forja/core";
-import { ParsedQuery, RawQueryParams } from "@forja/core";
+import { DatrixEntry, DatrixRecord } from "@datrix/core";
+import { ParsedQuery, RawQueryParams } from "@datrix/core";
 import {
 	WhereClause,
 	PopulateClause,
 	PopulateOptions,
 	QueryPrimitive,
-} from "@forja/core";
+} from "@datrix/core";
 
-export function queryToParams<T extends ForjaEntry = ForjaRecord>(
+export function queryToParams<T extends DatrixEntry = DatrixRecord>(
 	query: ParsedQuery<T> | undefined,
 ): string {
 	if (!query) return "";
@@ -42,7 +42,7 @@ export function queryToParams<T extends ForjaEntry = ForjaRecord>(
  * @param query - The parsed query object to serialize
  * @returns Records of query parameters
  */
-export function serializeQuery<T extends ForjaEntry = ForjaEntry>(
+export function serializeQuery<T extends DatrixEntry = DatrixEntry>(
 	query: ParsedQuery<T>,
 ): RawQueryParams {
 	const params: Record<string, string | string[]> = {};
@@ -115,7 +115,7 @@ export function serializeQuery<T extends ForjaEntry = ForjaEntry>(
 /**
  * Recursive helper to serialize where clause
  */
-function serializeWhere<T extends ForjaEntry>(
+function serializeWhere<T extends DatrixEntry>(
 	where: WhereClause<T> | QueryPrimitive | readonly WhereClause<T>[],
 	prefix: string,
 	params: Record<string, string | string[]>,
@@ -151,7 +151,7 @@ function serializeWhere<T extends ForjaEntry>(
 /**
  * Recursive helper to serialize populate clause
  */
-function serializePopulate<T extends ForjaEntry>(
+function serializePopulate<T extends DatrixEntry>(
 	populate: PopulateClause<T> | "*",
 	prefix: string,
 	params: Record<string, string | string[] | true>,

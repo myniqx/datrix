@@ -1,11 +1,11 @@
-# Forja MySQL Adapter
+# Datrix MySQL Adapter
 
-MySQL adapter for the Forja framework. Provides full CRUD, relation population, migration support, and native referential integrity enforcement.
+MySQL adapter for the Datrix framework. Provides full CRUD, relation population, migration support, and native referential integrity enforcement.
 
 ## Installation
 
 ```bash
-pnpm add forja-adapter-mysql
+pnpm add datrix-adapter-mysql
 ```
 
 Requires `mysql2` driver as a peer dependency.
@@ -13,7 +13,7 @@ Requires `mysql2` driver as a peer dependency.
 ## Configuration
 
 ```typescript
-import { MySQLAdapter } from "forja-adapter-mysql";
+import { MySQLAdapter } from "datrix-adapter-mysql";
 
 const adapter = new MySQLAdapter({
   host: "localhost",
@@ -42,7 +42,7 @@ const adapter = new MySQLAdapter({
 ```text
 src/
 ├── adapter.ts                 # Main adapter logic & database connection handling
-├── query-translator.ts        # Translates Forja QueryObjects into raw SQL statements
+├── query-translator.ts        # Translates Datrix QueryObjects into raw SQL statements
 ├── helpers.ts                 # SQL identifier escaping, syntax builders
 ├── types.ts                   # Type mappings between TypeScript and MySQL
 ├── index.ts                   # Public package exports
@@ -89,9 +89,9 @@ Docker setup for test databases:
 
 ```bash
 # MySQL 8.0
-docker run -d --name mysql-test -e MYSQL_ROOT_PASSWORD=forja -e MYSQL_USER=forja -e MYSQL_PASSWORD=forja -e MYSQL_DATABASE=forja -p 3306:3306 mysql:8.0
+docker run -d --name mysql-test -e MYSQL_ROOT_PASSWORD=datrix -e MYSQL_USER=datrix -e MYSQL_PASSWORD=datrix -e MYSQL_DATABASE=datrix -p 3306:3306 mysql:8.0
 
 # MariaDB 10.5
-docker run -d --name mariadb-test -e MYSQL_ROOT_PASSWORD=forja -e MYSQL_USER=forja -e MYSQL_PASSWORD=forja -e MYSQL_DATABASE=forja -p 3307:3306 mariadb:10.5
-docker exec -it mariadb-test mariadb -uroot -pforja -e "GRANT ALL PRIVILEGES ON *.* TO 'forja'@'%'; FLUSH PRIVILEGES;"
+docker run -d --name mariadb-test -e MYSQL_ROOT_PASSWORD=datrix -e MYSQL_USER=datrix -e MYSQL_PASSWORD=datrix -e MYSQL_DATABASE=datrix -p 3307:3306 mariadb:10.5
+docker exec -it mariadb-test mariadb -uroot -pdatrix -e "GRANT ALL PRIVILEGES ON *.* TO 'datrix'@'%'; FLUSH PRIVILEGES;"
 ```

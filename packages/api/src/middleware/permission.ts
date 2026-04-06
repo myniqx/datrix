@@ -8,7 +8,7 @@
  * - Mixed arrays with OR logic (['admin', (ctx) => ctx.user?.id === ctx.record?.authorId])
  */
 
-import type { ForjaEntry, SchemaDefinition } from "@forja/core";
+import type { DatrixEntry, SchemaDefinition } from "@datrix/core";
 import type {
 	PermissionAction,
 	PermissionValue,
@@ -19,22 +19,22 @@ import type {
 	PermissionCheckResult,
 	FieldPermission,
 	FieldPermissionCheckResult,
-} from "@forja/core";
-import { isPermissionFn } from "@forja/core";
+} from "@datrix/core";
+import { isPermissionFn } from "@datrix/core";
 import type { RequestContext } from "./types";
 
 /**
  * Build PermissionContext from RequestContext
  * Internal helper to satisfy PermissionFn signature
  */
-function buildPermCtx<T extends ForjaEntry>(
+function buildPermCtx<T extends DatrixEntry>(
 	ctx: RequestContext,
 ): PermissionContext<T> {
 	const permCtx: PermissionContext<T> = {
 		user: ctx.user ?? undefined,
 		id: ctx.id,
 		action: ctx.action,
-		forja: ctx.forja,
+		datrix: ctx.datrix,
 	};
 
 	// Only add input if body exists (for exactOptionalPropertyTypes)
@@ -156,7 +156,7 @@ export async function checkSchemaPermission<TRoles extends string>(
  */
 export async function filterFieldsForRead<
 	TRoles extends string,
-	TRecord extends ForjaEntry,
+	TRecord extends DatrixEntry,
 >(
 	schema: SchemaDefinition<TRoles>,
 	record: TRecord,
@@ -264,7 +264,7 @@ export function methodToAction(method: string): PermissionAction {
  */
 export async function filterRecordsForRead<
 	TRoles extends string,
-	TRecord extends ForjaEntry,
+	TRecord extends DatrixEntry,
 >(
 	schema: SchemaDefinition<TRoles>,
 	records: readonly TRecord[],

@@ -9,10 +9,10 @@
  *   ?populate[posts][populate][comments]=*         -> nested populate
  */
 
-import type { RawQueryParams } from "@forja/core";
-import { ForjaRecord } from "@forja/core";
-import { PopulateClause, PopulateOptions } from "@forja/core";
-import { validateFieldName } from "@forja/core";
+import type { RawQueryParams } from "@datrix/core";
+import { DatrixRecord } from "@datrix/core";
+import { PopulateClause, PopulateOptions } from "@datrix/core";
+import { validateFieldName } from "@datrix/core";
 import { populateError } from "./errors";
 
 /**
@@ -32,7 +32,7 @@ const DEFAULT_MAX_DEPTH = 5;
 export function parsePopulate(
 	params: RawQueryParams,
 	maxDepth: number = DEFAULT_MAX_DEPTH,
-): PopulateClause<ForjaRecord> | undefined {
+): PopulateClause<DatrixRecord> | undefined {
 	// Validate maxDepth
 	if (maxDepth <= 0) {
 		populateError.maxDepthExceeded(maxDepth, maxDepth, ["config"], {
@@ -42,7 +42,7 @@ export function parsePopulate(
 
 	// Build populate clause
 	const populateClause:
-		| Record<string, PopulateOptions<ForjaRecord> | "*">
+		| Record<string, PopulateOptions<DatrixRecord> | "*">
 		| true = {};
 
 	// Check for simple populate parameter (string)
@@ -119,7 +119,7 @@ export function parsePopulate(
 	if (indexedArrayRelations.length > 0) {
 		return indexedArrayRelations.filter(
 			Boolean,
-		) as unknown as PopulateClause<ForjaRecord>; // Remove empty slots
+		) as unknown as PopulateClause<DatrixRecord>; // Remove empty slots
 	}
 
 	// Parse each relation (object format)
@@ -265,7 +265,7 @@ function parseRelationPath(
 
 		const populateObj =
 			typeof relationData["populate"] === "object" &&
-			!Array.isArray(relationData["populate"])
+				!Array.isArray(relationData["populate"])
 				? (relationData["populate"] as Record<string, Record<string, unknown>>)
 				: {};
 
@@ -322,7 +322,7 @@ function parseRelation(
 	currentDepth: number,
 	maxDepth: number,
 	path: string[] = [],
-): PopulateOptions<ForjaRecord> | "*" {
+): PopulateOptions<DatrixRecord> | "*" {
 	// Validate relation name
 	const validation = validateFieldName(relation);
 	if (!validation.valid) {
@@ -365,7 +365,7 @@ function parseRelation(
 
 	// Add nested populates
 	if (params.populate !== undefined) {
-		const nestedPopulate: Record<string, PopulateOptions<ForjaRecord> | "*"> =
+		const nestedPopulate: Record<string, PopulateOptions<DatrixRecord> | "*"> =
 			{};
 
 		for (const [nestedRelation, nestedParams] of Object.entries(
@@ -390,5 +390,5 @@ function parseRelation(
 		return "*";
 	}
 
-	return options as PopulateOptions<ForjaRecord>;
+	return options as PopulateOptions<DatrixRecord>;
 }

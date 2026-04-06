@@ -6,7 +6,7 @@
  */
 
 import { describe, it, beforeAll, afterAll, expect } from "vitest";
-import { createForjaWithSchemas, getTmpDir } from "./setup/config";
+import { createDatrixWithSchemas, getTmpDir } from "./setup/config";
 import { getAdapter, getAdapterType } from "./setup/adapter";
 import { baseUserSchema, cloneSchema, TABLE_NAMES } from "./setup/schemas-base";
 import {
@@ -21,7 +21,7 @@ import {
 	resolveAmbiguousById,
 	autoResolveAmbiguous,
 } from "./setup/helpers";
-import type { DatabaseAdapter } from "@forja/core";
+import type { DatabaseAdapter } from "@datrix/core";
 
 describe("Migration E2E - Ambiguous Detection", () => {
 	const tmpDir = getTmpDir("ambiguous");
@@ -43,10 +43,10 @@ describe("Migration E2E - Ambiguous Detection", () => {
 		it("should detect ambiguous: remove 'name' + add 'fullName'", async () => {
 			// Setup: user with name
 			await dropAllTables(adapter);
-			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
-			const s1 = await forja1.beginMigrate();
+			const datrix1 = await createDatrixWithSchemas(tmpDir, [baseUserSchema]);
+			const s1 = await datrix1.beginMigrate();
 			await applyMigration(s1);
-			await forja1.shutdown();
+			await datrix1.shutdown();
 
 			// Change: remove name, add fullName
 			const userRenamed = cloneSchema(baseUserSchema, {
@@ -56,23 +56,23 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userRenamed], true);
-			const session = await forja.beginMigrate();
+			const datrix = await createDatrixWithSchemas(tmpDir, [userRenamed], true);
+			const session = await datrix.beginMigrate();
 
 			// Should detect ambiguous
 			assertHasChanges(session);
 			assertAmbiguousCount(session, 1);
 			assertHasAmbiguous(session, TABLE_NAMES.user, "name", "fullName");
 
-			await forja.shutdown();
+			await datrix.shutdown();
 		});
 
 		it("should apply as RENAME when resolved", async () => {
 			await dropAllTables(adapter);
-			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
-			const s1 = await forja1.beginMigrate();
+			const datrix1 = await createDatrixWithSchemas(tmpDir, [baseUserSchema]);
+			const s1 = await datrix1.beginMigrate();
 			await applyMigration(s1);
-			await forja1.shutdown();
+			await datrix1.shutdown();
 
 			const userRenamed = cloneSchema(baseUserSchema, {
 				removeFields: ["name"],
@@ -81,24 +81,24 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userRenamed], true);
-			const session = await forja.beginMigrate();
+			const datrix = await createDatrixWithSchemas(tmpDir, [userRenamed], true);
+			const session = await datrix.beginMigrate();
 
 			autoResolveAmbiguous(session, "rename");
 			await applyMigration(session);
 
-			await assertColumnExists(forja, "user", "fullName");
-			await assertColumnNotExists(forja, "user", "name");
+			await assertColumnExists(datrix, "user", "fullName");
+			await assertColumnNotExists(datrix, "user", "name");
 
-			await forja.shutdown();
+			await datrix.shutdown();
 		});
 
 		it("should resolve specific ambiguous by ID", async () => {
 			await dropAllTables(adapter);
-			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
-			const s1 = await forja1.beginMigrate();
+			const datrix1 = await createDatrixWithSchemas(tmpDir, [baseUserSchema]);
+			const s1 = await datrix1.beginMigrate();
 			await applyMigration(s1);
-			await forja1.shutdown();
+			await datrix1.shutdown();
 
 			const userRenamed = cloneSchema(baseUserSchema, {
 				removeFields: ["name"],
@@ -107,8 +107,8 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userRenamed], true);
-			const session = await forja.beginMigrate();
+			const datrix = await createDatrixWithSchemas(tmpDir, [userRenamed], true);
+			const session = await datrix.beginMigrate();
 
 			expect(session.ambiguous.length).toBe(1);
 			const ambiguousId = session.ambiguous[0]!.id;
@@ -118,18 +118,18 @@ describe("Migration E2E - Ambiguous Detection", () => {
 
 			await applyMigration(session);
 
-			await assertColumnExists(forja, "user", "fullName");
-			await assertColumnNotExists(forja, "user", "name");
+			await assertColumnExists(datrix, "user", "fullName");
+			await assertColumnNotExists(datrix, "user", "name");
 
-			await forja.shutdown();
+			await datrix.shutdown();
 		});
 
 		it("should fail to resolve with invalid action", async () => {
 			await dropAllTables(adapter);
-			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
-			const s1 = await forja1.beginMigrate();
+			const datrix1 = await createDatrixWithSchemas(tmpDir, [baseUserSchema]);
+			const s1 = await datrix1.beginMigrate();
 			await applyMigration(s1);
-			await forja1.shutdown();
+			await datrix1.shutdown();
 
 			const userRenamed = cloneSchema(baseUserSchema, {
 				removeFields: ["name"],
@@ -138,8 +138,8 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userRenamed], true);
-			const session = await forja.beginMigrate();
+			const datrix = await createDatrixWithSchemas(tmpDir, [userRenamed], true);
+			const session = await datrix.beginMigrate();
 			const ambiguousId = session.ambiguous[0]!.id;
 
 			// Invalid action for column_rename_or_replace
@@ -150,15 +150,15 @@ describe("Migration E2E - Ambiguous Detection", () => {
 			// Still unresolved
 			expect(session.hasUnresolvedAmbiguous()).toBe(true);
 
-			await forja.shutdown();
+			await datrix.shutdown();
 		});
 
 		it("should fail to resolve non-existent ambiguous ID", async () => {
 			await dropAllTables(adapter);
-			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
-			const s1 = await forja1.beginMigrate();
+			const datrix1 = await createDatrixWithSchemas(tmpDir, [baseUserSchema]);
+			const s1 = await datrix1.beginMigrate();
 			await applyMigration(s1);
-			await forja1.shutdown();
+			await datrix1.shutdown();
 
 			const userRenamed = cloneSchema(baseUserSchema, {
 				removeFields: ["name"],
@@ -167,22 +167,22 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userRenamed], true);
-			const session = await forja.beginMigrate();
+			const datrix = await createDatrixWithSchemas(tmpDir, [userRenamed], true);
+			const session = await datrix.beginMigrate();
 
 			expect(() =>
 				resolveAmbiguousById(session, "nonexistent-id", "rename"),
 			).toThrow(/not found/);
 
-			await forja.shutdown();
+			await datrix.shutdown();
 		});
 
 		it("should block apply when ambiguous not resolved", async () => {
 			await dropAllTables(adapter);
-			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
-			const s1 = await forja1.beginMigrate();
+			const datrix1 = await createDatrixWithSchemas(tmpDir, [baseUserSchema]);
+			const s1 = await datrix1.beginMigrate();
 			await applyMigration(s1);
-			await forja1.shutdown();
+			await datrix1.shutdown();
 
 			const userRenamed = cloneSchema(baseUserSchema, {
 				removeFields: ["name"],
@@ -191,8 +191,8 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userRenamed], true);
-			const session = await forja.beginMigrate();
+			const datrix = await createDatrixWithSchemas(tmpDir, [userRenamed], true);
+			const session = await datrix.beginMigrate();
 
 			expect(session.hasUnresolvedAmbiguous()).toBe(true);
 
@@ -207,15 +207,15 @@ describe("Migration E2E - Ambiguous Detection", () => {
 			}
 			expect(failed).toBe(true);
 
-			await forja.shutdown();
+			await datrix.shutdown();
 		});
 
 		it("should apply as DROP+ADD when resolved", async () => {
 			await dropAllTables(adapter);
-			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
-			const s1 = await forja1.beginMigrate();
+			const datrix1 = await createDatrixWithSchemas(tmpDir, [baseUserSchema]);
+			const s1 = await datrix1.beginMigrate();
 			await applyMigration(s1);
-			await forja1.shutdown();
+			await datrix1.shutdown();
 
 			const userRenamed = cloneSchema(baseUserSchema, {
 				removeFields: ["name"],
@@ -224,16 +224,16 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userRenamed], true);
-			const session = await forja.beginMigrate();
+			const datrix = await createDatrixWithSchemas(tmpDir, [userRenamed], true);
+			const session = await datrix.beginMigrate();
 
 			autoResolveAmbiguous(session, "drop_and_add");
 			await applyMigration(session);
 
-			await assertColumnExists(forja, "user", "fullName");
-			await assertColumnNotExists(forja, "user", "name");
+			await assertColumnExists(datrix, "user", "fullName");
+			await assertColumnNotExists(datrix, "user", "name");
 
-			await forja.shutdown();
+			await datrix.shutdown();
 		});
 	});
 
@@ -248,10 +248,10 @@ describe("Migration E2E - Ambiguous Detection", () => {
 					lastName: { type: "string", required: true },
 				},
 			});
-			const forja1 = await createForjaWithSchemas(tmpDir, [userWithNames]);
-			const s1 = await forja1.beginMigrate();
+			const datrix1 = await createDatrixWithSchemas(tmpDir, [userWithNames]);
+			const s1 = await datrix1.beginMigrate();
 			await applyMigration(s1);
-			await forja1.shutdown();
+			await datrix1.shutdown();
 
 			// Remove firstName + lastName, add fullName
 			// Algorithm matches first pair (firstName->fullName), lastName is plain drop
@@ -262,8 +262,8 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userFullName], true);
-			const session = await forja.beginMigrate();
+			const datrix = await createDatrixWithSchemas(tmpDir, [userFullName], true);
+			const session = await datrix.beginMigrate();
 
 			assertHasChanges(session);
 			// 1 ambiguous pair (one removed matched with the added)
@@ -272,20 +272,20 @@ describe("Migration E2E - Ambiguous Detection", () => {
 			autoResolveAmbiguous(session, "drop_and_add");
 			await applyMigration(session);
 
-			await assertColumnExists(forja, "user", "fullName");
-			await assertColumnNotExists(forja, "user", "firstName");
-			await assertColumnNotExists(forja, "user", "lastName");
+			await assertColumnExists(datrix, "user", "fullName");
+			await assertColumnNotExists(datrix, "user", "firstName");
+			await assertColumnNotExists(datrix, "user", "lastName");
 
-			await forja.shutdown();
+			await datrix.shutdown();
 		});
 
 		it("should handle 1 removed + 2 added: one ambiguous pair, one plain add", async () => {
 			// Setup: user with name
 			await dropAllTables(adapter);
-			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
-			const s1 = await forja1.beginMigrate();
+			const datrix1 = await createDatrixWithSchemas(tmpDir, [baseUserSchema]);
+			const s1 = await datrix1.beginMigrate();
 			await applyMigration(s1);
-			await forja1.shutdown();
+			await datrix1.shutdown();
 
 			// Remove name, add firstName + lastName
 			// Algorithm matches first pair (name->firstName), lastName is plain add
@@ -297,8 +297,8 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userSplitName], true);
-			const session = await forja.beginMigrate();
+			const datrix = await createDatrixWithSchemas(tmpDir, [userSplitName], true);
+			const session = await datrix.beginMigrate();
 
 			assertHasChanges(session);
 			// 1 ambiguous pair (removed matched with one added)
@@ -307,11 +307,11 @@ describe("Migration E2E - Ambiguous Detection", () => {
 			autoResolveAmbiguous(session, "drop_and_add");
 			await applyMigration(session);
 
-			await assertColumnExists(forja, "user", "firstName");
-			await assertColumnExists(forja, "user", "lastName");
-			await assertColumnNotExists(forja, "user", "name");
+			await assertColumnExists(datrix, "user", "firstName");
+			await assertColumnExists(datrix, "user", "lastName");
+			await assertColumnNotExists(datrix, "user", "name");
 
-			await forja.shutdown();
+			await datrix.shutdown();
 		});
 
 		it("should handle 2 removed + 2 added: two ambiguous pairs", async () => {
@@ -324,10 +324,10 @@ describe("Migration E2E - Ambiguous Detection", () => {
 					lastName: { type: "string", required: true },
 				},
 			});
-			const forja1 = await createForjaWithSchemas(tmpDir, [userWithNames]);
-			const s1 = await forja1.beginMigrate();
+			const datrix1 = await createDatrixWithSchemas(tmpDir, [userWithNames]);
+			const s1 = await datrix1.beginMigrate();
 			await applyMigration(s1);
-			await forja1.shutdown();
+			await datrix1.shutdown();
 
 			// Remove firstName + lastName, add givenName + familyName
 			const userRenamedBoth = cloneSchema(baseUserSchema, {
@@ -338,12 +338,12 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(
+			const datrix = await createDatrixWithSchemas(
 				tmpDir,
 				[userRenamedBoth],
 				true,
 			);
-			const session = await forja.beginMigrate();
+			const session = await datrix.beginMigrate();
 
 			assertHasChanges(session);
 			// Each removed field is paired with one added field
@@ -352,12 +352,12 @@ describe("Migration E2E - Ambiguous Detection", () => {
 			autoResolveAmbiguous(session, "drop_and_add");
 			await applyMigration(session);
 
-			await assertColumnExists(forja, "user", "givenName");
-			await assertColumnExists(forja, "user", "familyName");
-			await assertColumnNotExists(forja, "user", "firstName");
-			await assertColumnNotExists(forja, "user", "lastName");
+			await assertColumnExists(datrix, "user", "givenName");
+			await assertColumnExists(datrix, "user", "familyName");
+			await assertColumnNotExists(datrix, "user", "firstName");
+			await assertColumnNotExists(datrix, "user", "lastName");
 
-			await forja.shutdown();
+			await datrix.shutdown();
 		});
 
 		it("should handle 3 removed + 3 added (chaos)", async () => {
@@ -370,10 +370,10 @@ describe("Migration E2E - Ambiguous Detection", () => {
 					c: { type: "string" },
 				},
 			});
-			const forja1 = await createForjaWithSchemas(tmpDir, [userABC]);
-			const s1 = await forja1.beginMigrate();
+			const datrix1 = await createDatrixWithSchemas(tmpDir, [userABC]);
+			const s1 = await datrix1.beginMigrate();
 			await applyMigration(s1);
-			await forja1.shutdown();
+			await datrix1.shutdown();
 
 			// Change: remove a, b, c; add x, y, z
 			const userXYZ = cloneSchema(baseUserSchema, {
@@ -384,8 +384,8 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userXYZ], true);
-			const session = await forja.beginMigrate();
+			const datrix = await createDatrixWithSchemas(tmpDir, [userXYZ], true);
+			const session = await datrix.beginMigrate();
 
 			// Should detect ambiguous (9 possible pairs: 3x3)
 			assertHasChanges(session);
@@ -397,14 +397,14 @@ describe("Migration E2E - Ambiguous Detection", () => {
 			await applyMigration(session);
 
 			// Verify final state
-			await assertColumnNotExists(forja, "user", "a");
-			await assertColumnNotExists(forja, "user", "b");
-			await assertColumnNotExists(forja, "user", "c");
-			await assertColumnExists(forja, "user", "x");
-			await assertColumnExists(forja, "user", "y");
-			await assertColumnExists(forja, "user", "z");
+			await assertColumnNotExists(datrix, "user", "a");
+			await assertColumnNotExists(datrix, "user", "b");
+			await assertColumnNotExists(datrix, "user", "c");
+			await assertColumnExists(datrix, "user", "x");
+			await assertColumnExists(datrix, "user", "y");
+			await assertColumnExists(datrix, "user", "z");
 
-			await forja.shutdown();
+			await datrix.shutdown();
 		});
 	});
 
@@ -412,10 +412,10 @@ describe("Migration E2E - Ambiguous Detection", () => {
 		it("same name, different type - should be fieldModified, not ambiguous", async () => {
 			// Setup: user with age (number)
 			await dropAllTables(adapter);
-			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
-			const s1 = await forja1.beginMigrate();
+			const datrix1 = await createDatrixWithSchemas(tmpDir, [baseUserSchema]);
+			const s1 = await datrix1.beginMigrate();
 			await applyMigration(s1);
-			await forja1.shutdown();
+			await datrix1.shutdown();
 
 			// Change: age from number to string
 			const userAgeString = cloneSchema(baseUserSchema, {
@@ -424,14 +424,14 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userAgeString], true);
-			const session = await forja.beginMigrate();
+			const datrix = await createDatrixWithSchemas(tmpDir, [userAgeString], true);
+			const session = await datrix.beginMigrate();
 
 			// Should NOT be ambiguous - it's a modification of existing field
 			assertNoAmbiguous(session);
 			assertHasChanges(session);
 
-			await forja.shutdown();
+			await datrix.shutdown();
 		});
 
 		it("similar name, different type - birthCity(string)->birthDate(date)", async () => {
@@ -442,10 +442,10 @@ describe("Migration E2E - Ambiguous Detection", () => {
 					birthCity: { type: "string" },
 				},
 			});
-			const forja1 = await createForjaWithSchemas(tmpDir, [userWithBirthCity]);
-			const s1 = await forja1.beginMigrate();
+			const datrix1 = await createDatrixWithSchemas(tmpDir, [userWithBirthCity]);
+			const s1 = await datrix1.beginMigrate();
 			await applyMigration(s1);
-			await forja1.shutdown();
+			await datrix1.shutdown();
 
 			// Change: remove birthCity, add birthDate (different type)
 			const userWithBirthDate = cloneSchema(baseUserSchema, {
@@ -454,12 +454,12 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(
+			const datrix = await createDatrixWithSchemas(
 				tmpDir,
 				[userWithBirthDate],
 				true,
 			);
-			const session = await forja.beginMigrate();
+			const session = await datrix.beginMigrate();
 
 			// Design decision: Should this be ambiguous?
 			// Names are similar (birth prefix), but types differ
@@ -470,10 +470,10 @@ describe("Migration E2E - Ambiguous Detection", () => {
 			autoResolveAmbiguous(session, "drop_and_add");
 			await applyMigration(session);
 
-			await assertColumnNotExists(forja, "user", "birthCity");
-			await assertColumnExists(forja, "user", "birthDate");
+			await assertColumnNotExists(datrix, "user", "birthCity");
+			await assertColumnExists(datrix, "user", "birthDate");
 
-			await forja.shutdown();
+			await datrix.shutdown();
 		});
 	});
 
@@ -487,10 +487,10 @@ describe("Migration E2E - Ambiguous Detection", () => {
 					userName: { type: "string", required: true },
 				},
 			});
-			const forja1 = await createForjaWithSchemas(tmpDir, [userWithUserName]);
-			const s1 = await forja1.beginMigrate();
+			const datrix1 = await createDatrixWithSchemas(tmpDir, [userWithUserName]);
+			const s1 = await datrix1.beginMigrate();
 			await applyMigration(s1);
-			await forja1.shutdown();
+			await datrix1.shutdown();
 
 			// Change
 			const userWithUserFullName = cloneSchema(baseUserSchema, {
@@ -500,18 +500,18 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(
+			const datrix = await createDatrixWithSchemas(
 				tmpDir,
 				[userWithUserFullName],
 				true,
 			);
-			const session = await forja.beginMigrate();
+			const session = await datrix.beginMigrate();
 
 			// Strong rename candidate - should be ambiguous
 			assertHasChanges(session);
 			assertAmbiguousCount(session, 1);
 
-			await forja.shutdown();
+			await datrix.shutdown();
 		});
 
 		it("camelCase variation - userId->user_id", async () => {
@@ -522,10 +522,10 @@ describe("Migration E2E - Ambiguous Detection", () => {
 					externalUserId: { type: "string" },
 				},
 			});
-			const forja1 = await createForjaWithSchemas(tmpDir, [userWithUserId]);
-			const s1 = await forja1.beginMigrate();
+			const datrix1 = await createDatrixWithSchemas(tmpDir, [userWithUserId]);
+			const s1 = await datrix1.beginMigrate();
 			await applyMigration(s1);
-			await forja1.shutdown();
+			await datrix1.shutdown();
 
 			// Change: externalUserId -> external_user_id
 			const userWithSnakeCase = cloneSchema(baseUserSchema, {
@@ -534,19 +534,19 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(
+			const datrix = await createDatrixWithSchemas(
 				tmpDir,
 				[userWithSnakeCase],
 				true,
 			);
-			const session = await forja.beginMigrate();
+			const session = await datrix.beginMigrate();
 
 			// Convention change - should be ambiguous
 			assertHasChanges(session);
 			// Depending on algorithm, might detect this as rename candidate
 			expect(session.ambiguous.length).toBeGreaterThanOrEqual(0);
 
-			await forja.shutdown();
+			await datrix.shutdown();
 		});
 
 		it("typo fix - adress->address", async () => {
@@ -557,10 +557,10 @@ describe("Migration E2E - Ambiguous Detection", () => {
 					adress: { type: "string" }, // typo
 				},
 			});
-			const forja1 = await createForjaWithSchemas(tmpDir, [userWithTypo]);
-			const s1 = await forja1.beginMigrate();
+			const datrix1 = await createDatrixWithSchemas(tmpDir, [userWithTypo]);
+			const s1 = await datrix1.beginMigrate();
 			await applyMigration(s1);
-			await forja1.shutdown();
+			await datrix1.shutdown();
 
 			// Fix typo
 			const userFixed = cloneSchema(baseUserSchema, {
@@ -569,14 +569,14 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userFixed], true);
-			const session = await forja.beginMigrate();
+			const datrix = await createDatrixWithSchemas(tmpDir, [userFixed], true);
+			const session = await datrix.beginMigrate();
 
 			// Likely rename - should be ambiguous
 			assertHasChanges(session);
 			assertAmbiguousCount(session, 1);
 
-			await forja.shutdown();
+			await datrix.shutdown();
 		});
 
 		it("completely different names, same type - foo->bar", async () => {
@@ -587,10 +587,10 @@ describe("Migration E2E - Ambiguous Detection", () => {
 					foo: { type: "string" },
 				},
 			});
-			const forja1 = await createForjaWithSchemas(tmpDir, [userWithFoo]);
-			const s1 = await forja1.beginMigrate();
+			const datrix1 = await createDatrixWithSchemas(tmpDir, [userWithFoo]);
+			const s1 = await datrix1.beginMigrate();
 			await applyMigration(s1);
-			await forja1.shutdown();
+			await datrix1.shutdown();
 
 			// Change
 			const userWithBar = cloneSchema(baseUserSchema, {
@@ -599,15 +599,15 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userWithBar], true);
-			const session = await forja.beginMigrate();
+			const datrix = await createDatrixWithSchemas(tmpDir, [userWithBar], true);
+			const session = await datrix.beginMigrate();
 
 			// Even completely different names - should still ask
 			// User might be renaming with new semantics
 			assertHasChanges(session);
 			assertAmbiguousCount(session, 1);
 
-			await forja.shutdown();
+			await datrix.shutdown();
 		});
 	});
 
@@ -615,10 +615,10 @@ describe("Migration E2E - Ambiguous Detection", () => {
 		it("should NOT flag as ambiguous when only adding", async () => {
 			// Setup
 			await dropAllTables(adapter);
-			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
-			const s1 = await forja1.beginMigrate();
+			const datrix1 = await createDatrixWithSchemas(tmpDir, [baseUserSchema]);
+			const s1 = await datrix1.beginMigrate();
 			await applyMigration(s1);
-			await forja1.shutdown();
+			await datrix1.shutdown();
 
 			// Only add, no remove
 			const userWithPhone = cloneSchema(baseUserSchema, {
@@ -627,14 +627,14 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			});
 
-			const forja = await createForjaWithSchemas(tmpDir, [userWithPhone], true);
-			const session = await forja.beginMigrate();
+			const datrix = await createDatrixWithSchemas(tmpDir, [userWithPhone], true);
+			const session = await datrix.beginMigrate();
 
 			// No ambiguous - nothing removed
 			assertNoAmbiguous(session);
 			assertHasChanges(session);
 
-			await forja.shutdown();
+			await datrix.shutdown();
 		});
 
 		it("should NOT flag as ambiguous when only removing", async () => {
@@ -645,24 +645,24 @@ describe("Migration E2E - Ambiguous Detection", () => {
 					phone: { type: "string" },
 				},
 			});
-			const forja1 = await createForjaWithSchemas(tmpDir, [userWithPhone]);
-			const s1 = await forja1.beginMigrate();
+			const datrix1 = await createDatrixWithSchemas(tmpDir, [userWithPhone]);
+			const s1 = await datrix1.beginMigrate();
 			await applyMigration(s1);
-			await forja1.shutdown();
+			await datrix1.shutdown();
 
 			// Only remove, no add
-			const forja = await createForjaWithSchemas(
+			const datrix = await createDatrixWithSchemas(
 				tmpDir,
 				[baseUserSchema],
 				true,
 			);
-			const session = await forja.beginMigrate();
+			const session = await datrix.beginMigrate();
 
 			// No ambiguous - nothing added
 			assertNoAmbiguous(session);
 			assertHasChanges(session);
 
-			await forja.shutdown();
+			await datrix.shutdown();
 		});
 	});
 
@@ -670,10 +670,10 @@ describe("Migration E2E - Ambiguous Detection", () => {
 		it("should detect table rename candidate when similar structure", async () => {
 			// Setup: user table
 			await dropAllTables(adapter);
-			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
-			const s1 = await forja1.beginMigrate();
+			const datrix1 = await createDatrixWithSchemas(tmpDir, [baseUserSchema]);
+			const s1 = await datrix1.beginMigrate();
 			await applyMigration(s1);
-			await forja1.shutdown();
+			await datrix1.shutdown();
 
 			// Change: remove user, add account (similar structure)
 			const accountSchema = cloneSchema(baseUserSchema, {
@@ -682,8 +682,8 @@ describe("Migration E2E - Ambiguous Detection", () => {
 			// Update tableName for account
 			(accountSchema as { tableName: string }).tableName = "accounts";
 
-			const forja = await createForjaWithSchemas(tmpDir, [accountSchema], true);
-			const session = await forja.beginMigrate();
+			const datrix = await createDatrixWithSchemas(tmpDir, [accountSchema], true);
+			const session = await datrix.beginMigrate();
 
 			// Should detect table rename candidate
 			assertHasChanges(session);
@@ -693,16 +693,16 @@ describe("Migration E2E - Ambiguous Detection", () => {
 			);
 			expect(tableAmbiguous).toBeDefined();
 
-			await forja.shutdown();
+			await datrix.shutdown();
 		});
 
 		it("should NOT flag dissimilar tables as rename", async () => {
 			// Setup: user table
 			await dropAllTables(adapter);
-			const forja1 = await createForjaWithSchemas(tmpDir, [baseUserSchema]);
-			const s1 = await forja1.beginMigrate();
+			const datrix1 = await createDatrixWithSchemas(tmpDir, [baseUserSchema]);
+			const s1 = await datrix1.beginMigrate();
 			await applyMigration(s1);
-			await forja1.shutdown();
+			await datrix1.shutdown();
 
 			// Change: remove user, add product (completely different)
 			const productSchema = {
@@ -716,8 +716,8 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			};
 
-			const forja = await createForjaWithSchemas(tmpDir, [productSchema], true);
-			const session = await forja.beginMigrate();
+			const datrix = await createDatrixWithSchemas(tmpDir, [productSchema], true);
+			const session = await datrix.beginMigrate();
 
 			// Should NOT have table rename ambiguous (too different)
 			assertHasChanges(session);
@@ -728,7 +728,7 @@ describe("Migration E2E - Ambiguous Detection", () => {
 			// This is a design decision test
 			expect(tableAmbiguous).toBeUndefined();
 
-			await forja.shutdown();
+			await datrix.shutdown();
 		});
 	});
 });

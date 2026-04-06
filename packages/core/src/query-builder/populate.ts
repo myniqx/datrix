@@ -11,7 +11,7 @@ import type {
 	QueryPopulate,
 } from "../types/core/query-builder";
 import type {
-	ForjaEntry,
+	DatrixEntry,
 	RelationField,
 	SchemaDefinition,
 	ISchemaRegistry,
@@ -68,7 +68,7 @@ const MAX_POPULATE_DEPTH = 5;
  * // → throws Error: Cannot populate non-relation field 'title'
  * ```
  */
-export function normalizePopulate<T extends ForjaEntry>(
+export function normalizePopulate<T extends DatrixEntry>(
 	populate: PopulateClause<T> | undefined,
 	modelName: string,
 	registry: ISchemaRegistry,
@@ -179,7 +179,7 @@ export function normalizePopulate<T extends ForjaEntry>(
  * @param registry - Schema registry
  * @returns Normalized populate object
  */
-function normalizePopulateDotNotation<T extends ForjaEntry>(
+function normalizePopulateDotNotation<T extends DatrixEntry>(
 	paths: readonly string[],
 	schema: SchemaDefinition,
 	_modelName: string,
@@ -273,7 +273,7 @@ function normalizePopulateDotNotation<T extends ForjaEntry>(
  * // → { author: { select: [...] }, category: { select: ['name'] } }
  * ```
  */
-export function normalizePopulateArray<T extends ForjaEntry>(
+export function normalizePopulateArray<T extends DatrixEntry>(
 	populates: PopulateClause<T>[] | undefined,
 	modelName: string,
 	registry: ISchemaRegistry,
@@ -304,7 +304,7 @@ export function normalizePopulateArray<T extends ForjaEntry>(
  *
  * Used internally by normalizePopulateArray when merging multiple .populate() calls.
  */
-export function mergePopulateClauses<T extends ForjaEntry>(
+export function mergePopulateClauses<T extends DatrixEntry>(
 	...clauses: readonly (PopulateClause<T> | undefined)[]
 ): QueryPopulate<T> {
 	const merged: Record<string, PopulateOptions<T> | "*" | true> = {};
@@ -333,12 +333,12 @@ export function mergePopulateClauses<T extends ForjaEntry>(
 						? { where: newOptions.where || existing.where }
 						: {}),
 					...(newOptions.populate !== undefined ||
-					existing.populate !== undefined
+						existing.populate !== undefined
 						? {
-								populate: newOptions.populate
-									? mergePopulateClauses(existing.populate, newOptions.populate)
-									: existing.populate,
-							}
+							populate: newOptions.populate
+								? mergePopulateClauses(existing.populate, newOptions.populate)
+								: existing.populate,
+						}
 						: {}),
 					...(newOptions.limit !== undefined || existing.limit !== undefined
 						? { limit: newOptions.limit ?? existing.limit }

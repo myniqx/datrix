@@ -5,7 +5,7 @@
  * Tests will clone and modify these as needed.
  */
 
-import { defineSchema } from "@forja/core";
+import { defineSchema } from "@datrix/core";
 
 /**
  * Table name constants for easy reference

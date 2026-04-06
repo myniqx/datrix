@@ -2,8 +2,8 @@
  * api-upload types
  */
 
-import type { StorageProvider } from "@forja/core";
-import type { SchemaPermission } from "@forja/core";
+import type { StorageProvider } from "@datrix/core";
+import type { SchemaPermission } from "@datrix/core";
 
 /**
  * Output format for image conversion.

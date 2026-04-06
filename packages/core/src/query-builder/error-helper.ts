@@ -6,7 +6,7 @@
  */
 
 import {
-	ForjaQueryBuilderError,
+	DatrixQueryBuilderError,
 	type QueryBuilderComponent,
 } from "../types/errors";
 
@@ -27,7 +27,7 @@ export function throwInvalidField(
 	field: string,
 	availableFields?: readonly string[],
 ): never {
-	throw new ForjaQueryBuilderError(
+	throw new DatrixQueryBuilderError(
 		`Invalid field '${field}' in ${component} clause`,
 		{
 			code: "INVALID_FIELD",
@@ -60,7 +60,7 @@ export function throwInvalidOperator(
 	operator: string,
 	validOperators: readonly string[],
 ): never {
-	throw new ForjaQueryBuilderError(
+	throw new DatrixQueryBuilderError(
 		`Invalid operator '${operator}' for field '${field}'`,
 		{
 			code: "INVALID_OPERATOR",
@@ -99,7 +99,7 @@ export function throwInvalidValue(
 			? "null"
 			: typeof value;
 
-	throw new ForjaQueryBuilderError(
+	throw new DatrixQueryBuilderError(
 		`Invalid value for field '${field}'. Expected ${expectedType}, got ${receivedType}`,
 		{
 			code: "INVALID_VALUE",
@@ -130,7 +130,7 @@ export function throwMaxDepthExceeded(
 	currentDepth: number,
 	maxDepth: number,
 ): never {
-	throw new ForjaQueryBuilderError(
+	throw new DatrixQueryBuilderError(
 		`Maximum nesting depth exceeded in ${component} clause. Depth: ${currentDepth}, Max: ${maxDepth}`,
 		{
 			code: "MAX_DEPTH_EXCEEDED",
@@ -154,7 +154,7 @@ export function throwMaxDepthExceeded(
  * ```
  */
 export function throwEmptyClause(component: QueryBuilderComponent): never {
-	throw new ForjaQueryBuilderError(`Empty ${component} clause`, {
+	throw new DatrixQueryBuilderError(`Empty ${component} clause`, {
 		code: "EMPTY_CLAUSE",
 		component,
 		suggestion: `Provide at least one item in ${component} clause`,
@@ -176,7 +176,7 @@ export function throwDuplicateField(
 	component: QueryBuilderComponent,
 	field: string,
 ): never {
-	throw new ForjaQueryBuilderError(
+	throw new DatrixQueryBuilderError(
 		`Duplicate field '${field}' in ${component} clause`,
 		{
 			code: "DUPLICATE_FIELD",
@@ -196,7 +196,7 @@ export function throwDuplicateField(
  * ```
  */
 export function throwMissingTable(): never {
-	throw new ForjaQueryBuilderError("Query must have a table name", {
+	throw new DatrixQueryBuilderError("Query must have a table name", {
 		code: "MISSING_TABLE",
 		component: "builder",
 		suggestion:
@@ -208,7 +208,7 @@ export function throwMissingTable(): never {
  * Throw missing WHERE clause error for DELETE queries
  */
 export function throwDeleteWithoutWhere(): never {
-	throw new ForjaQueryBuilderError(
+	throw new DatrixQueryBuilderError(
 		"DELETE query requires a WHERE clause. Use deleteAll() to delete all records explicitly.",
 		{
 			code: "DELETE_WITHOUT_WHERE",
@@ -223,7 +223,7 @@ export function throwDeleteWithoutWhere(): never {
  * Throw missing data error for INSERT/UPDATE queries
  */
 export function throwMissingData(queryType: "insert" | "update"): never {
-	throw new ForjaQueryBuilderError(
+	throw new DatrixQueryBuilderError(
 		`${queryType.toUpperCase()} query requires data`,
 		{
 			code: "MISSING_DATA",
@@ -247,7 +247,7 @@ export function throwMissingData(queryType: "insert" | "update"): never {
  * ```
  */
 export function throwInvalidQueryType(receivedType: unknown): never {
-	throw new ForjaQueryBuilderError(`Invalid query type: ${receivedType}`, {
+	throw new DatrixQueryBuilderError(`Invalid query type: ${receivedType}`, {
 		code: "INVALID_QUERY_TYPE",
 		component: "builder",
 		suggestion: "Use one of: select, insert, update, delete, count",
@@ -267,7 +267,7 @@ export function throwInvalidQueryType(receivedType: unknown): never {
  * ```
  */
 export function throwSchemaNotFound(modelName: string): never {
-	throw new ForjaQueryBuilderError(`Schema not found for model: ${modelName}`, {
+	throw new DatrixQueryBuilderError(`Schema not found for model: ${modelName}`, {
 		code: "SCHEMA_NOT_FOUND",
 		component: "builder",
 		context: { modelName },
@@ -294,7 +294,7 @@ export function throwInvalidFields(
 	availableFields?: readonly string[],
 ): never {
 	const fieldList = invalidFields.join(", ");
-	throw new ForjaQueryBuilderError(
+	throw new DatrixQueryBuilderError(
 		`Invalid field(s) in ${component} clause: ${fieldList}`,
 		{
 			code: "INVALID_FIELD",
@@ -326,7 +326,7 @@ export function throwRelationInSelect(
 	modelName: string,
 ): never {
 	const fieldList = relationFields.join(", ");
-	throw new ForjaQueryBuilderError(
+	throw new DatrixQueryBuilderError(
 		`Cannot select relation field(s) in model '${modelName}': ${fieldList}. Use populate() to include relations.`,
 		{
 			code: "RELATION_IN_SELECT",
@@ -357,7 +357,7 @@ export function throwCoercionFailed(
 	expectedType: string,
 ): never {
 	const displayValue = typeof value === "string" ? `'${value}'` : String(value);
-	throw new ForjaQueryBuilderError(
+	throw new DatrixQueryBuilderError(
 		`Cannot convert value ${displayValue} to ${expectedType} for field '${field}'`,
 		{
 			code: "COERCION_FAILED",

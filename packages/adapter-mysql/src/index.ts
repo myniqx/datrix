@@ -1,12 +1,12 @@
 /**
- * Forja MySQL Adapter
+ * Datrix MySQL Adapter
  *
- * MySQL/MariaDB adapter for Forja framework.
+ * MySQL/MariaDB adapter for Datrix framework.
  * Supports MySQL 5.7+ and MariaDB 10.2+.
  *
  * @example
  * ```typescript
- * import { createMySQLAdapter } from '@forja/adapter-mysql';
+ * import { createMySQLAdapter } from '@datrix/adapter-mysql';
  *
  * // Using connection string
  * const adapter = createMySQLAdapter({

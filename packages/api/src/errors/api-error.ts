@@ -2,10 +2,10 @@
  * API Error System
  *
  * Provides a unified error structure for the API package,
- * extending ForjaError with HTTP status handling and helpful context.
+ * extending DatrixError with HTTP status handling and helpful context.
  */
 
-import { ForjaError } from "@forja/core";
+import { DatrixError } from "@datrix/core";
 
 /**
  * Base API Error Class
@@ -13,7 +13,7 @@ import { ForjaError } from "@forja/core";
  * All API-specific errors should inherit from this class
  * or be created via its static helpers.
  */
-export class ForjaApiError extends ForjaError {
+export class DatrixApiError extends DatrixError {
 	/** HTTP status code associated with this error */
 	status: number;
 
@@ -59,8 +59,8 @@ export interface ApiErrorOptions {
  * Centralized error creation for routine API handlers.
  */
 export const handlerError = {
-	schemaNotFound(tableName: string, availableModels?: string[]): ForjaApiError {
-		return new ForjaApiError(`Model not found for table: ${tableName}`, {
+	schemaNotFound(tableName: string, availableModels?: string[]): DatrixApiError {
+		return new DatrixApiError(`Model not found for table: ${tableName}`, {
 			code: "SCHEMA_NOT_FOUND",
 			status: 404,
 			context: { tableName, availableModels },
@@ -69,16 +69,16 @@ export const handlerError = {
 		});
 	},
 
-	modelNotSpecified(): ForjaApiError {
-		return new ForjaApiError("Model not specified in the request URL", {
+	modelNotSpecified(): DatrixApiError {
+		return new DatrixApiError("Model not specified in the request URL", {
 			code: "MODEL_NOT_SPECIFIED",
 			status: 400,
 			suggestion: "Ensure the URL includes the model name (e.g., /api/users).",
 		});
 	},
 
-	recordNotFound(modelName: string, id: number | string): ForjaApiError {
-		return new ForjaApiError(`${modelName} record not found with ID: ${id}`, {
+	recordNotFound(modelName: string, id: number | string): DatrixApiError {
+		return new DatrixApiError(`${modelName} record not found with ID: ${id}`, {
 			code: "NOT_FOUND",
 			status: 404,
 			context: { modelName, id },
@@ -86,8 +86,8 @@ export const handlerError = {
 		});
 	},
 
-	invalidBody(reason?: string): ForjaApiError {
-		return new ForjaApiError(
+	invalidBody(reason?: string): DatrixApiError {
+		return new DatrixApiError(
 			reason ? `Invalid request body: ${reason}` : "Invalid request body",
 			{
 				code: "INVALID_BODY",
@@ -99,16 +99,16 @@ export const handlerError = {
 		);
 	},
 
-	missingId(operation: string): ForjaApiError {
-		return new ForjaApiError(`ID is required for ${operation}`, {
+	missingId(operation: string): DatrixApiError {
+		return new DatrixApiError(`ID is required for ${operation}`, {
 			code: "MISSING_ID",
 			status: 400,
 			suggestion: `Provide a valid ID in the URL for the ${operation} operation.`,
 		});
 	},
 
-	methodNotAllowed(method: string): ForjaApiError {
-		return new ForjaApiError(
+	methodNotAllowed(method: string): DatrixApiError {
+		return new DatrixApiError(
 			`HTTP Method ${method} is not allowed for this route`,
 			{
 				code: "METHOD_NOT_ALLOWED",
@@ -123,8 +123,8 @@ export const handlerError = {
 	permissionDenied(
 		reason: string,
 		context?: Record<string, unknown>,
-	): ForjaApiError {
-		return new ForjaApiError("Permission denied", {
+	): DatrixApiError {
+		return new DatrixApiError("Permission denied", {
 			code: "FORBIDDEN",
 			status: 403,
 			context: { reason, ...context },
@@ -132,8 +132,8 @@ export const handlerError = {
 		});
 	},
 
-	unauthorized(reason?: string): ForjaApiError {
-		return new ForjaApiError("Unauthorized access", {
+	unauthorized(reason?: string): DatrixApiError {
+		return new DatrixApiError("Unauthorized access", {
 			code: "UNAUTHORIZED",
 			status: 401,
 			context: { reason },
@@ -141,16 +141,16 @@ export const handlerError = {
 		});
 	},
 
-	internalError(message: string, cause?: Error): ForjaApiError {
-		return new ForjaApiError(message, {
+	internalError(message: string, cause?: Error): DatrixApiError {
+		return new DatrixApiError(message, {
 			code: "INTERNAL_ERROR",
 			status: 500,
 			...(cause && { cause }),
 		});
 	},
 
-	conflict(reason: string, context?: Record<string, unknown>): ForjaApiError {
-		return new ForjaApiError(reason, {
+	conflict(reason: string, context?: Record<string, unknown>): DatrixApiError {
+		return new DatrixApiError(reason, {
 			code: "CONFLICT",
 			status: 409,
 			...(context && { context }),

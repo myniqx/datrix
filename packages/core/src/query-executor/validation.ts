@@ -8,7 +8,7 @@
  */
 
 import {
-	ForjaEntry,
+	DatrixEntry,
 	SchemaDefinition,
 	RESERVED_FIELDS,
 } from "../types/core/schema";
@@ -36,7 +36,7 @@ export interface ValidationOptions {
  *
  * @param data - Data to check
  * @param isRawMode - If true, skip the check
- * @throws {ForjaError} If reserved field is found in normal mode
+ * @throws {DatrixError} If reserved field is found in normal mode
  *
  * @example
  * ```ts
@@ -49,7 +49,7 @@ export interface ValidationOptions {
  * // OK (raw mode allows override)
  * ```
  */
-function checkReservedFields<T extends ForjaEntry>(
+function checkReservedFields<T extends DatrixEntry>(
 	data: Partial<T> | undefined,
 	isRawMode: boolean,
 ): void {
@@ -99,7 +99,7 @@ function checkReservedFields<T extends ForjaEntry>(
  * // { name: 'Jane', updatedAt: Date }
  * ```
  */
-function addTimestamps<T extends ForjaEntry>(
+function addTimestamps<T extends DatrixEntry>(
 	data: Partial<T> | undefined,
 	options: Pick<ValidationOptions, "isCreate" | "isRawMode">,
 ): Partial<T> {
@@ -149,7 +149,7 @@ function addTimestamps<T extends ForjaEntry>(
  * @param schema - Schema definition
  * @param options - Validation options
  * @returns Validated data with timestamps
- * @throws {ForjaError} If validation fails or reserved field found
+ * @throws {DatrixError} If validation fails or reserved field found
  *
  * @example
  * ```ts
@@ -171,7 +171,7 @@ function addTimestamps<T extends ForjaEntry>(
  * ```
  */
 export function validateData<
-	T extends ForjaEntry = ForjaEntry,
+	T extends DatrixEntry = DatrixEntry,
 	P extends boolean = false,
 >(
 	data: Partial<T> | undefined,

@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { Forja } from "@forja/core";
+import { Datrix } from "@datrix/core";
 import { handleRequest } from "../src/helper";
 import { createTestConfig, getTmpDir } from "./data";
 import { createRequest } from "./data/helper";
@@ -19,8 +19,8 @@ import {
 import fs from "node:fs/promises";
 
 describe("API CRUD Integration Tests", () => {
-	let forja: Forja;
-	let getForja: () => Promise<Forja>;
+	let datrix: Datrix;
+	let getDatrix: () => Promise<Datrix>;
 	const tmpDir = getTmpDir("crud_basic");
 
 	beforeAll(async () => {
@@ -33,29 +33,29 @@ describe("API CRUD Integration Tests", () => {
 		// Create temporary directory
 		await fs.mkdir(tmpDir, { recursive: true });
 
-		// Get Forja factory function
-		getForja = await createTestConfig(tmpDir);
+		// Get Datrix factory function
+		getDatrix = await createTestConfig(tmpDir);
 
-		// Get Forja instance (this will initialize everything)
-		forja = await getForja();
+		// Get Datrix instance (this will initialize everything)
+		datrix = await getDatrix();
 
 		// Create tables manually for JsonAdapter
-		const adapter = forja.getAdapter();
-		for (const schema of forja.getSchemas().getAll()) {
+		const adapter = datrix.getAdapter();
+		for (const schema of datrix.getSchemas().getAll()) {
 			try {
 				await adapter.dropTable(schema.tableName!);
-			} catch {}
+			} catch { }
 			await adapter.createTable(schema);
 		}
 
 		// Create fixture data for tests
-		await forja.create("category", {
+		await datrix.create("category", {
 			name: "Electronics",
 			description: "Electronic devices and gadgets",
 			isActive: true,
 		});
 
-		await forja.create("supplier", {
+		await datrix.create("supplier", {
 			name: "TechCorp Inc.",
 			email: "contact@techcorp.com",
 			country: "USA",
@@ -66,8 +66,8 @@ describe("API CRUD Integration Tests", () => {
 
 	afterAll(async () => {
 		// Disconnect
-		if (forja) {
-			//     await forja.disconnect();
+		if (datrix) {
+			//     await datrix.disconnect();
 		}
 
 		// Clean up temporary directory
@@ -89,7 +89,7 @@ describe("API CRUD Integration Tests", () => {
 				},
 			});
 
-			const response = await handleRequest(forja, request);
+			const response = await handleRequest(datrix, request);
 			const data = await expectApiSingle(response, 201);
 
 			expect(data).toHaveProperty("id");
@@ -110,7 +110,7 @@ describe("API CRUD Integration Tests", () => {
 				},
 			});
 
-			const response = await handleRequest(forja, request);
+			const response = await handleRequest(datrix, request);
 			const data = await expectApiSingle(response, 201);
 
 			expect(data).toHaveProperty("id");
@@ -137,7 +137,7 @@ describe("API CRUD Integration Tests", () => {
 				},
 			});
 
-			const response = await handleRequest(forja, request);
+			const response = await handleRequest(datrix, request);
 			const data = await expectApiSingle(response, 201);
 
 			expect(data).toHaveProperty("id");
@@ -158,7 +158,7 @@ describe("API CRUD Integration Tests", () => {
 				},
 			});
 
-			const response = await handleRequest(forja, request);
+			const response = await handleRequest(datrix, request);
 			await expectApiError(response, 400);
 		});
 
@@ -172,7 +172,7 @@ describe("API CRUD Integration Tests", () => {
 				},
 			});
 
-			const response1 = await handleRequest(forja, request1);
+			const response1 = await handleRequest(datrix, request1);
 			await expectApiSingle(response1, 201);
 
 			// Try duplicate
@@ -184,7 +184,7 @@ describe("API CRUD Integration Tests", () => {
 				},
 			});
 
-			const response2 = await handleRequest(forja, request2);
+			const response2 = await handleRequest(datrix, request2);
 			await expectApiError(response2, 400);
 		});
 
@@ -209,7 +209,7 @@ describe("API CRUD Integration Tests", () => {
 				},
 			);
 
-			const response = await handleRequest(forja, request);
+			const response = await handleRequest(datrix, request);
 			const data = await expectApiSingle(response, 201);
 
 			// Should only have selected fields (plus reserved fields)
@@ -233,7 +233,7 @@ describe("API CRUD Integration Tests", () => {
 	describe("COMPLEX QUERY Operations", () => {
 		beforeAll(async () => {
 			await handleRequest(
-				forja,
+				datrix,
 				createRequest("/api/categories", {
 					method: "POST",
 					body: {
@@ -245,7 +245,7 @@ describe("API CRUD Integration Tests", () => {
 			);
 
 			await handleRequest(
-				forja,
+				datrix,
 				createRequest("/api/suppliers", {
 					method: "POST",
 					body: {
@@ -307,7 +307,7 @@ describe("API CRUD Integration Tests", () => {
 
 			for (const product of products) {
 				await handleRequest(
-					forja,
+					datrix,
 					createRequest("/api/products", {
 						method: "POST",
 						body: product,
@@ -334,7 +334,7 @@ describe("API CRUD Integration Tests", () => {
 				},
 			);
 
-			const response = await handleRequest(forja, request);
+			const response = await handleRequest(datrix, request);
 			const { data } = await expectApiMulti(response);
 
 			expect(Array.isArray(data)).toBe(true);

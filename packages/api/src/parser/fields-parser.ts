@@ -7,8 +7,8 @@
  *   ?fields=name,email
  */
 
-import type { RawQueryParams } from "@forja/core";
-import { MAX_ARRAY_INDEX, validateFieldName } from "@forja/core";
+import type { RawQueryParams } from "@datrix/core";
+import { MAX_ARRAY_INDEX, validateFieldName } from "@datrix/core";
 import { fieldsError } from "./errors";
 
 /**

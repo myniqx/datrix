@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
-import { Forja } from "@forja/core";
+import { Datrix } from "@datrix/core";
 import { handleRequest } from "../src/helper";
 import { createTestConfig, getTmpDir } from "./data";
 import { createRequest } from "./data/helper";
@@ -20,8 +20,8 @@ import { expectApiSingle, expectApiMulti } from "../../core/tests/test/helpers";
 import fs from "node:fs/promises";
 
 describe("ManyToMany Populate Integration Tests", () => {
-	let forja: Forja;
-	let getForja: () => Promise<Forja>;
+	let datrix: Datrix;
+	let getDatrix: () => Promise<Datrix>;
 	const tmpDir = getTmpDir("many_to_many");
 
 	beforeAll(async () => {
@@ -34,18 +34,18 @@ describe("ManyToMany Populate Integration Tests", () => {
 		// Create temporary directory
 		await fs.mkdir(tmpDir, { recursive: true });
 
-		// Get Forja factory function
-		getForja = await createTestConfig(tmpDir);
+		// Get Datrix factory function
+		getDatrix = await createTestConfig(tmpDir);
 
-		// Get Forja instance (this will initialize everything)
-		forja = await getForja();
+		// Get Datrix instance (this will initialize everything)
+		datrix = await getDatrix();
 
 		// Create tables manually for JsonAdapter
-		const adapter = forja.getAdapter();
-		for (const schema of forja.getSchemas().getAll()) {
+		const adapter = datrix.getAdapter();
+		for (const schema of datrix.getSchemas().getAll()) {
 			try {
 				await adapter.dropTable(schema.tableName!);
-			} catch {}
+			} catch { }
 			await adapter.createTable(schema);
 		}
 	});
@@ -65,17 +65,17 @@ describe("ManyToMany Populate Integration Tests", () => {
 	 */
 	async function setupFixture() {
 		// Create Tags
-		const jsTag = await forja.create("tag", { name: "JavaScript" });
-		const tsTag = await forja.create("tag", { name: "TypeScript" });
-		const reactTag = await forja.create("tag", { name: "React" });
-		const nodeTag = await forja.create("tag", { name: "Node.js" });
+		const jsTag = await datrix.create("tag", { name: "JavaScript" });
+		const tsTag = await datrix.create("tag", { name: "TypeScript" });
+		const reactTag = await datrix.create("tag", { name: "React" });
+		const nodeTag = await datrix.create("tag", { name: "Node.js" });
 
 		// Create Authors
-		const johnAuthor = await forja.create("author", {
+		const johnAuthor = await datrix.create("author", {
 			name: "John Doe",
 			email: "john@example.com",
 		});
-		const janeAuthor = await forja.create("author", {
+		const janeAuthor = await datrix.create("author", {
 			name: "Jane Smith",
 			email: "jane@example.com",
 		});
@@ -89,9 +89,9 @@ describe("ManyToMany Populate Integration Tests", () => {
 	describe("Connect Operation", () => {
 		beforeEach(async () => {
 			// Clear all data before each test
-			await forja.deleteMany("post", {});
-			await forja.deleteMany("tag", {});
-			await forja.deleteMany("author", {});
+			await datrix.deleteMany("post", {});
+			await datrix.deleteMany("tag", {});
+			await datrix.deleteMany("author", {});
 		});
 
 		it("should create post with connected tags (shortcut syntax)", async () => {
@@ -113,7 +113,7 @@ describe("ManyToMany Populate Integration Tests", () => {
 				},
 			);
 
-			const response = await handleRequest(forja, request);
+			const response = await handleRequest(datrix, request);
 			const post = await expectApiSingle(response, 201);
 
 			expect(post).toHaveProperty("tags");
@@ -142,7 +142,7 @@ describe("ManyToMany Populate Integration Tests", () => {
 				},
 			);
 
-			const response = await handleRequest(forja, request);
+			const response = await handleRequest(datrix, request);
 			const post = await expectApiSingle(response, 201);
 
 			expect(post.tags).toHaveLength(2);
@@ -164,7 +164,7 @@ describe("ManyToMany Populate Integration Tests", () => {
 					tags: [tags.node.id],
 				},
 			});
-			const createRes = await handleRequest(forja, createReq);
+			const createRes = await handleRequest(datrix, createReq);
 			const createdPost = await expectApiSingle(createRes, 201);
 
 			// Update: add TS and JS tags
@@ -181,7 +181,7 @@ describe("ManyToMany Populate Integration Tests", () => {
 				},
 			);
 
-			const updateRes = await handleRequest(forja, updateReq);
+			const updateRes = await handleRequest(datrix, updateReq);
 			const updatedPost = await expectApiSingle(updateRes);
 
 			expect(updatedPost.tags).toHaveLength(3); // node + js + ts
@@ -193,9 +193,9 @@ describe("ManyToMany Populate Integration Tests", () => {
 
 	describe("Disconnect Operation", () => {
 		beforeEach(async () => {
-			await forja.deleteMany("post", {});
-			await forja.deleteMany("tag", {});
-			await forja.deleteMany("author", {});
+			await datrix.deleteMany("post", {});
+			await datrix.deleteMany("tag", {});
+			await datrix.deleteMany("author", {});
 		});
 
 		it("should remove specific tags from post", async () => {
@@ -211,7 +211,7 @@ describe("ManyToMany Populate Integration Tests", () => {
 					tags: [tags.js.id, tags.ts.id, tags.react.id],
 				},
 			});
-			const createRes = await handleRequest(forja, createReq);
+			const createRes = await handleRequest(datrix, createReq);
 			const createdPost = await expectApiSingle(createRes, 201);
 
 			// Disconnect JS and React tags
@@ -228,7 +228,7 @@ describe("ManyToMany Populate Integration Tests", () => {
 				},
 			);
 
-			const updateRes = await handleRequest(forja, updateReq);
+			const updateRes = await handleRequest(datrix, updateReq);
 			const updatedPost = await expectApiSingle(updateRes);
 
 			expect(updatedPost.tags).toHaveLength(1);
@@ -248,7 +248,7 @@ describe("ManyToMany Populate Integration Tests", () => {
 					tags: [tags.js.id, tags.ts.id],
 				},
 			});
-			const createRes = await handleRequest(forja, createReq);
+			const createRes = await handleRequest(datrix, createReq);
 			const createdPost = await expectApiSingle(createRes, 201);
 
 			// Disconnect all tags
@@ -265,7 +265,7 @@ describe("ManyToMany Populate Integration Tests", () => {
 				},
 			);
 
-			const updateRes = await handleRequest(forja, updateReq);
+			const updateRes = await handleRequest(datrix, updateReq);
 			const updatedPost = await expectApiSingle(updateRes);
 
 			expect(updatedPost.tags).toHaveLength(0);
@@ -274,9 +274,9 @@ describe("ManyToMany Populate Integration Tests", () => {
 
 	describe("Set Operation", () => {
 		beforeEach(async () => {
-			await forja.deleteMany("post", {});
-			await forja.deleteMany("tag", {});
-			await forja.deleteMany("author", {});
+			await datrix.deleteMany("post", {});
+			await datrix.deleteMany("tag", {});
+			await datrix.deleteMany("author", {});
 		});
 
 		it("should replace all tags with new set", async () => {
@@ -292,7 +292,7 @@ describe("ManyToMany Populate Integration Tests", () => {
 					tags: [tags.js.id, tags.ts.id],
 				},
 			});
-			const createRes = await handleRequest(forja, createReq);
+			const createRes = await handleRequest(datrix, createReq);
 			const createdPost = await expectApiSingle(createRes, 201);
 
 			// Set to React and Node tags (replace all)
@@ -309,7 +309,7 @@ describe("ManyToMany Populate Integration Tests", () => {
 				},
 			);
 
-			const updateRes = await handleRequest(forja, updateReq);
+			const updateRes = await handleRequest(datrix, updateReq);
 			const updatedPost = await expectApiSingle(updateRes);
 
 			expect(updatedPost.tags).toHaveLength(2);
@@ -333,7 +333,7 @@ describe("ManyToMany Populate Integration Tests", () => {
 					tags: [tags.js.id, tags.react.id],
 				},
 			});
-			const createRes = await handleRequest(forja, createReq);
+			const createRes = await handleRequest(datrix, createReq);
 			const createdPost = await expectApiSingle(createRes, 201);
 
 			// Set to empty array
@@ -350,7 +350,7 @@ describe("ManyToMany Populate Integration Tests", () => {
 				},
 			);
 
-			const updateRes = await handleRequest(forja, updateReq);
+			const updateRes = await handleRequest(datrix, updateReq);
 			const updatedPost = await expectApiSingle(updateRes);
 
 			expect(updatedPost.tags).toHaveLength(0);
@@ -359,16 +359,16 @@ describe("ManyToMany Populate Integration Tests", () => {
 
 	describe("Populate Operation", () => {
 		beforeEach(async () => {
-			await forja.deleteMany("post", {});
-			await forja.deleteMany("tag", {});
-			await forja.deleteMany("author", {});
+			await datrix.deleteMany("post", {});
+			await datrix.deleteMany("tag", {});
+			await datrix.deleteMany("author", {});
 		});
 
 		it("should populate tags on post", async () => {
 			const { tags, authors } = await setupFixture();
 
 			// Create post with tags
-			await forja.create("post", {
+			await datrix.create("post", {
 				title: "React Tutorial",
 				content: "Learn React",
 				author: authors.john.id,
@@ -383,7 +383,7 @@ describe("ManyToMany Populate Integration Tests", () => {
 				},
 			);
 
-			const response = await handleRequest(forja, request);
+			const response = await handleRequest(datrix, request);
 			const { data } = await expectApiMulti(response);
 
 			expect(data).toHaveLength(1);
@@ -396,7 +396,7 @@ describe("ManyToMany Populate Integration Tests", () => {
 		it("should populate tags with select fields", async () => {
 			const { tags, authors } = await setupFixture();
 
-			await forja.create("post", {
+			await datrix.create("post", {
 				title: "Node.js Guide",
 				content: "Backend development",
 				author: authors.jane.id,
@@ -415,7 +415,7 @@ describe("ManyToMany Populate Integration Tests", () => {
 				},
 			);
 
-			const response = await handleRequest(forja, request);
+			const response = await handleRequest(datrix, request);
 			const { data } = await expectApiMulti(response);
 
 			const post = data[0];
@@ -433,7 +433,7 @@ describe("ManyToMany Populate Integration Tests", () => {
 		it("should populate posts without tags as empty array", async () => {
 			const { authors } = await setupFixture();
 
-			await forja.create("post", {
+			await datrix.create("post", {
 				title: "Untagged Post",
 				content: "No tags",
 				author: authors.john.id,
@@ -447,7 +447,7 @@ describe("ManyToMany Populate Integration Tests", () => {
 				},
 			);
 
-			const response = await handleRequest(forja, request);
+			const response = await handleRequest(datrix, request);
 			const { data } = await expectApiMulti(response);
 
 			expect(data[0].tags).toEqual([]);
@@ -456,9 +456,9 @@ describe("ManyToMany Populate Integration Tests", () => {
 
 	describe("Cascade Delete", () => {
 		beforeEach(async () => {
-			await forja.deleteMany("post", {});
-			await forja.deleteMany("tag", {});
-			await forja.deleteMany("author", {});
+			await datrix.deleteMany("post", {});
+			await datrix.deleteMany("tag", {});
+			await datrix.deleteMany("author", {});
 		});
 
 		it("should delete junction records when post is deleted", async () => {
@@ -474,12 +474,12 @@ describe("ManyToMany Populate Integration Tests", () => {
 					tags: [tags.js.id, tags.ts.id],
 				},
 			});
-			const createRes = await handleRequest(forja, createReq);
+			const createRes = await handleRequest(datrix, createReq);
 			const createdPost = await expectApiSingle(createRes, 201);
 
 			// Verify junction table has records
 			const countQueryBefore = { type: "count" as const, table: "post_tag" };
-			const resultBefore = await forja
+			const resultBefore = await datrix
 				.getAdapter()
 				.executeQuery(countQueryBefore);
 			expect(resultBefore.metadata?.count).toBe(2);
@@ -488,17 +488,17 @@ describe("ManyToMany Populate Integration Tests", () => {
 			const deleteReq = createRequest(`/api/posts/${createdPost.id}`, {
 				method: "DELETE",
 			});
-			await handleRequest(forja, deleteReq);
+			await handleRequest(datrix, deleteReq);
 
 			// Verify junction records are deleted
 			const countQueryAfter = { type: "count" as const, table: "post_tag" };
-			const resultAfter = await forja
+			const resultAfter = await datrix
 				.getAdapter()
 				.executeQuery(countQueryAfter);
 			expect(resultAfter.metadata.count).toBe(0);
 
 			// Tags should still exist
-			const tagsAfter = await forja.findMany("tag", {});
+			const tagsAfter = await datrix.findMany("tag", {});
 			expect(tagsAfter).toHaveLength(4);
 		});
 
@@ -506,13 +506,13 @@ describe("ManyToMany Populate Integration Tests", () => {
 			const { tags, authors } = await setupFixture();
 
 			// Create 2 posts with tags
-			await forja.create("post", {
+			await datrix.create("post", {
 				title: "Post 1",
 				content: "Content 1",
 				author: authors.john.id,
 				tags: [tags.js.id, tags.react.id],
 			});
-			await forja.create("post", {
+			await datrix.create("post", {
 				title: "Post 2",
 				content: "Content 2",
 				author: authors.john.id,
@@ -521,17 +521,17 @@ describe("ManyToMany Populate Integration Tests", () => {
 
 			// Verify junction table
 			const countQueryBefore = { type: "count" as const, table: "post_tag" };
-			const resultBefore = await forja
+			const resultBefore = await datrix
 				.getAdapter()
 				.executeQuery(countQueryBefore);
 			expect(resultBefore.metadata.count).toBe(4); // 2 posts × 2 tags
 
 			// Delete all posts by author
-			await forja.deleteMany("post", { author: authors.john.id });
+			await datrix.deleteMany("post", { author: authors.john.id });
 
 			// Verify junction records are deleted
 			const countQueryAfter = { type: "count" as const, table: "post_tag" };
-			const resultAfter = await forja
+			const resultAfter = await datrix
 				.getAdapter()
 				.executeQuery(countQueryAfter);
 			expect(resultAfter.metadata.count).toBe(0);
@@ -540,9 +540,9 @@ describe("ManyToMany Populate Integration Tests", () => {
 
 	describe("Create/Delete Operations (Not Implemented)", () => {
 		beforeEach(async () => {
-			await forja.deleteMany("post", {});
-			await forja.deleteMany("tag", {});
-			await forja.deleteMany("author", {});
+			await datrix.deleteMany("post", {});
+			await datrix.deleteMany("tag", {});
+			await datrix.deleteMany("author", {});
 		});
 
 		it("should create new tags and connect them to post", async () => {
@@ -566,7 +566,7 @@ describe("ManyToMany Populate Integration Tests", () => {
 				},
 			);
 
-			const response = await handleRequest(forja, request);
+			const response = await handleRequest(datrix, request);
 			const post = await expectApiSingle(response, 201);
 
 			expect(post.tags).toHaveLength(2);
@@ -588,7 +588,7 @@ describe("ManyToMany Populate Integration Tests", () => {
 					tags: [tags.js.id, tags.ts.id],
 				},
 			});
-			const createRes = await handleRequest(forja, createReq);
+			const createRes = await handleRequest(datrix, createReq);
 			const createdPost = await expectApiSingle(createRes, 201);
 
 			// Delete tags (removes from junction AND deletes the tag record)
@@ -605,14 +605,14 @@ describe("ManyToMany Populate Integration Tests", () => {
 				},
 			);
 
-			const updateRes = await handleRequest(forja, updateReq);
+			const updateRes = await handleRequest(datrix, updateReq);
 			const updatedPost = await expectApiSingle(updateRes);
 
 			expect(updatedPost.tags).toHaveLength(1);
 			expect(updatedPost.tags[0].name).toBe("TypeScript");
 
 			// Verify tag is deleted from database
-			const allTags = await forja.findMany("tag", {});
+			const allTags = await datrix.findMany("tag", {});
 			expect(allTags).toHaveLength(3); // 4 - 1 deleted
 			expect(allTags.map((t) => t.name)).not.toContain("JavaScript");
 		});
@@ -620,9 +620,9 @@ describe("ManyToMany Populate Integration Tests", () => {
 
 	describe("Edge Cases", () => {
 		beforeEach(async () => {
-			await forja.deleteMany("post", {});
-			await forja.deleteMany("tag", {});
-			await forja.deleteMany("author", {});
+			await datrix.deleteMany("post", {});
+			await datrix.deleteMany("tag", {});
+			await datrix.deleteMany("author", {});
 		});
 
 		it("should handle multiple operations in single update", async () => {
@@ -638,7 +638,7 @@ describe("ManyToMany Populate Integration Tests", () => {
 					tags: [tags.js.id, tags.ts.id],
 				},
 			});
-			const createRes = await handleRequest(forja, createReq);
+			const createRes = await handleRequest(datrix, createReq);
 			const createdPost = await expectApiSingle(createRes, 201);
 
 			// Connect React, disconnect JS (should have: TS, React)
@@ -658,7 +658,7 @@ describe("ManyToMany Populate Integration Tests", () => {
 				},
 			);
 
-			const updateRes = await handleRequest(forja, updateReq);
+			const updateRes = await handleRequest(datrix, updateReq);
 			const updatedPost = await expectApiSingle(updateRes);
 
 			expect(updatedPost.tags).toHaveLength(2);
@@ -687,7 +687,7 @@ describe("ManyToMany Populate Integration Tests", () => {
 				},
 			);
 
-			const response = await handleRequest(forja, request);
+			const response = await handleRequest(datrix, request);
 			const post = await expectApiSingle(response, 201);
 
 			// Post should not have tagId field (junction FK)

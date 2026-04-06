@@ -15,12 +15,12 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { Forja } from "@forja/core";
+import { Datrix } from "@datrix/core";
 import fs from "node:fs/promises";
 import { createTestConfig, getTmpDir, setupTables } from "../setup";
 
 describe("Complex Populate", () => {
-	let forja: Forja;
+	let datrix: Datrix;
 	const tmpDir = getTmpDir("complex_populate");
 
 	// Store IDs for reference
@@ -39,21 +39,21 @@ describe("Complex Populate", () => {
 		await fs.rm(tmpDir, { recursive: true, force: true });
 		await fs.mkdir(tmpDir, { recursive: true });
 
-		const getForja = await createTestConfig(tmpDir);
-		forja = await getForja();
+		const getDatrix = await createTestConfig(tmpDir);
+		datrix = await getDatrix();
 
-		await setupTables(forja);
+		await setupTables(datrix);
 
 		// Create hierarchical test data
 		// Organization → Department → User → Post → Comment
 
-		const org = await forja.create("organization", {
+		const org = await datrix.create("organization", {
 			name: "Deep Test Org",
 			country: "USA",
 		});
 		orgId = org.id;
 
-		const dept = await forja.create("department", {
+		const dept = await datrix.create("department", {
 			name: "Deep Test Dept",
 			code: "DTD",
 			budget: 100000,
@@ -62,14 +62,14 @@ describe("Complex Populate", () => {
 		deptId = dept.id;
 
 		// Create roles
-		const roles = await forja.createMany("role", [
+		const roles = await datrix.createMany("role", [
 			{ name: "Admin", level: 100 },
 			{ name: "Editor", level: 50 },
 			{ name: "Viewer", level: 10 },
 		]);
 		roleIds = roles.map((r) => r.id);
 
-		const user = await forja.create("user", {
+		const user = await datrix.create("user", {
 			email: "deep@test.com",
 			name: "Deep User",
 			age: 30,
@@ -80,20 +80,20 @@ describe("Complex Populate", () => {
 		userId = user.id;
 
 		// Create self-referencing categories
-		const parentCat = await forja.create("category", {
+		const parentCat = await datrix.create("category", {
 			name: "Parent Category",
 			slug: "parent-cat",
 		});
 		parentCatId = parentCat.id;
 
-		const childCat = await forja.create("category", {
+		const childCat = await datrix.create("category", {
 			name: "Child Category",
 			slug: "child-cat",
 			parent: parentCatId,
 		});
 		childCatId = childCat.id;
 
-		const grandchildCat = await forja.create("category", {
+		const grandchildCat = await datrix.create("category", {
 			name: "Grandchild Category",
 			slug: "grandchild-cat",
 			parent: childCatId,
@@ -101,7 +101,7 @@ describe("Complex Populate", () => {
 		grandchildCatId = grandchildCat.id;
 
 		// Create tags
-		const tags = await forja.createMany("tag", [
+		const tags = await datrix.createMany("tag", [
 			{ name: "Tag1", color: "#111111" },
 			{ name: "Tag2", color: "#222222" },
 			{ name: "Tag3", color: "#333333" },
@@ -109,7 +109,7 @@ describe("Complex Populate", () => {
 		tagIds = tags.map((t) => t.id);
 
 		// Create post
-		const post = await forja.create("post", {
+		const post = await datrix.create("post", {
 			title: "Deep Test Post",
 			content: "Content for deep populate test",
 			slug: "deep-test-post",
@@ -121,7 +121,7 @@ describe("Complex Populate", () => {
 		postId = post.id;
 
 		// Create comment (circular: comment.author → user → posts → comments)
-		const comment = await forja.create("comment", {
+		const comment = await datrix.create("comment", {
 			content: "Deep test comment",
 			post: postId,
 			author: userId,
@@ -140,7 +140,7 @@ describe("Complex Populate", () => {
 	describe("Deep Nested Populate", () => {
 		it("should populate 2 levels deep with select *", async () => {
 			// post → author → organization (using select: "*")
-			const post = await forja.findById("post", postId, {
+			const post = await datrix.findById("post", postId, {
 				populate: {
 					author: {
 						select: "*",
@@ -166,7 +166,7 @@ describe("Complex Populate", () => {
 
 		it("should populate 2 levels deep with dot notation shortcut", async () => {
 			// post → author → organization (using "author.organization" in populate)
-			const post = await forja.findById("post", postId, {
+			const post = await datrix.findById("post", postId, {
 				select: ["id", "title"],
 				populate: ["author.organization"],
 			});
@@ -185,7 +185,7 @@ describe("Complex Populate", () => {
 
 		it("should populate 3 levels deep with explicit select", async () => {
 			// post → author → department → organization
-			const post = await forja.findById("post", postId, {
+			const post = await datrix.findById("post", postId, {
 				populate: {
 					author: {
 						select: ["id", "name"],
@@ -218,7 +218,7 @@ describe("Complex Populate", () => {
 
 		it("should populate 4 levels deep with mixed approaches", async () => {
 			// comment → post → author → department → organization
-			const comment = await forja.findById("comment", commentId, {
+			const comment = await datrix.findById("comment", commentId, {
 				populate: {
 					post: {
 						select: "*",
@@ -257,7 +257,7 @@ describe("Complex Populate", () => {
 
 	describe("Multiple Relations", () => {
 		it("should populate multiple relations in single query", async () => {
-			const post = await forja.findById("post", postId, {
+			const post = await datrix.findById("post", postId, {
 				populate: {
 					author: { select: "*" },
 					category: { select: "*" },
@@ -282,7 +282,7 @@ describe("Complex Populate", () => {
 		});
 
 		it("should populate multiple relations with mixed depths", async () => {
-			const post = await forja.findById("post", postId, {
+			const post = await datrix.findById("post", postId, {
 				populate: {
 					author: {
 						select: "*",
@@ -321,7 +321,7 @@ describe("Complex Populate", () => {
 
 	describe("Nested Options", () => {
 		it("should apply select within populate", async () => {
-			const post = await forja.findById("post", postId, {
+			const post = await datrix.findById("post", postId, {
 				populate: {
 					author: {
 						select: ["id", "name"],
@@ -339,7 +339,7 @@ describe("Complex Populate", () => {
 		});
 
 		it("should apply select at multiple levels", async () => {
-			const post = await forja.findById("post", postId, {
+			const post = await datrix.findById("post", postId, {
 				select: ["id", "title"],
 				populate: {
 					author: {
@@ -380,7 +380,7 @@ describe("Complex Populate", () => {
 
 	describe("Self-Referencing Relations", () => {
 		it("should populate self-referencing parent", async () => {
-			const category = await forja.findById("category", childCatId, {
+			const category = await datrix.findById("category", childCatId, {
 				populate: { parent: { select: "*" } },
 			});
 
@@ -392,7 +392,7 @@ describe("Complex Populate", () => {
 		});
 
 		it("should populate 2 levels of self-reference", async () => {
-			const category = await forja.findById("category", grandchildCatId, {
+			const category = await datrix.findById("category", grandchildCatId, {
 				populate: {
 					parent: {
 						select: "*",
@@ -411,7 +411,7 @@ describe("Complex Populate", () => {
 		});
 
 		it("should handle null parent (root category)", async () => {
-			const category = await forja.findById("category", parentCatId, {
+			const category = await datrix.findById("category", parentCatId, {
 				populate: { parent: { select: "*" } },
 			});
 
@@ -428,7 +428,7 @@ describe("Complex Populate", () => {
 		it("should handle circular populate without infinite loop", async () => {
 			// comment → author → (user has posts, posts have comments)
 			// Should not infinitely recurse
-			const comment = await forja.findById("comment", commentId, {
+			const comment = await datrix.findById("comment", commentId, {
 				populate: {
 					author: { select: "*" },
 					post: {
@@ -453,19 +453,19 @@ describe("Complex Populate", () => {
 
 		it("should populate same relation at different paths", async () => {
 			// Create another user who commented
-			const anotherUser = await forja.create("user", {
+			const anotherUser = await datrix.create("user", {
 				email: "another@test.com",
 				name: "Another User",
 			});
 
-			const anotherComment = await forja.create("comment", {
+			const anotherComment = await datrix.create("comment", {
 				content: "Another comment",
 				post: postId,
 				author: anotherUser.id,
 			});
 
 			// Populate both comment author and post author
-			const comment = await forja.findById("comment", anotherComment.id, {
+			const comment = await datrix.findById("comment", anotherComment.id, {
 				populate: {
 					author: { select: "*" },
 					post: {
@@ -489,7 +489,7 @@ describe("Complex Populate", () => {
 
 	describe("ManyToMany Populate", () => {
 		it("should populate manyToMany relation", async () => {
-			const post = await forja.findById("post", postId, {
+			const post = await datrix.findById("post", postId, {
 				populate: { tags: { select: "*" } },
 			});
 
@@ -506,7 +506,7 @@ describe("Complex Populate", () => {
 		});
 
 		it("should populate manyToMany with select", async () => {
-			const post = await forja.findById("post", postId, {
+			const post = await datrix.findById("post", postId, {
 				populate: {
 					tags: {
 						select: ["id", "name"],
@@ -525,7 +525,7 @@ describe("Complex Populate", () => {
 		});
 
 		it("should populate nested manyToMany (user → roles)", async () => {
-			const user = await forja.findById("user", userId, {
+			const user = await datrix.findById("user", userId, {
 				populate: { roles: { select: "*" } },
 			});
 
@@ -543,7 +543,7 @@ describe("Complex Populate", () => {
 
 		it("should populate manyToMany through nested path", async () => {
 			// post → author → roles
-			const post = await forja.findById("post", postId, {
+			const post = await datrix.findById("post", postId, {
 				populate: {
 					author: {
 						select: "*",
@@ -566,12 +566,12 @@ describe("Complex Populate", () => {
 	describe("Null/Empty Handling", () => {
 		it("should return null for unpopulated optional belongsTo", async () => {
 			// Create user without organization
-			const userWithoutOrg = await forja.create("user", {
+			const userWithoutOrg = await datrix.create("user", {
 				email: "no-org@test.com",
 				name: "No Org User",
 			});
 
-			const user = await forja.findById("user", userWithoutOrg.id, {
+			const user = await datrix.findById("user", userWithoutOrg.id, {
 				populate: { organization: { select: "*" } },
 			});
 
@@ -581,14 +581,14 @@ describe("Complex Populate", () => {
 
 		it("should return empty array for manyToMany with no relations", async () => {
 			// Create post without tags
-			const postWithoutTags = await forja.create("post", {
+			const postWithoutTags = await datrix.create("post", {
 				title: "No Tags Post",
 				content: "Content",
 				slug: "no-tags-post",
 				author: userId,
 			});
 
-			const post = await forja.findById("post", postWithoutTags.id, {
+			const post = await datrix.findById("post", postWithoutTags.id, {
 				populate: { tags: { select: "*" } },
 			});
 
@@ -598,7 +598,7 @@ describe("Complex Populate", () => {
 		});
 
 		it("should handle mixed null and populated in findMany", async () => {
-			const users = await forja.findMany("user", {
+			const users = await datrix.findMany("user", {
 				populate: { organization: { select: "*" } },
 			});
 
@@ -611,13 +611,13 @@ describe("Complex Populate", () => {
 
 		it("should handle null in nested populate", async () => {
 			// User without department
-			const userNoDept = await forja.create("user", {
+			const userNoDept = await datrix.create("user", {
 				email: "no-dept@test.com",
 				name: "No Dept User",
 				organization: orgId,
 			});
 
-			const user = await forja.findById("user", userNoDept.id, {
+			const user = await datrix.findById("user", userNoDept.id, {
 				populate: {
 					organization: { select: "*" },
 					department: {
@@ -648,11 +648,11 @@ describe("Complex Populate", () => {
 				tags: { connect: tagIds },
 			}));
 
-			await forja.createMany("post", bulkPosts);
+			await datrix.createMany("post", bulkPosts);
 
 			const start = performance.now();
 
-			const posts = await forja.findMany("post", {
+			const posts = await datrix.findMany("post", {
 				where: { title: { $like: "Bulk Post%" } },
 				populate: {
 					author: { select: "*" },
@@ -677,7 +677,7 @@ describe("Complex Populate", () => {
 		it("should handle deep populate on multiple records", async () => {
 			const start = performance.now();
 
-			const posts = await forja.findMany("post", {
+			const posts = await datrix.findMany("post", {
 				where: { title: { $like: "Bulk Post%" } },
 				limit: 20,
 				populate: {
@@ -710,7 +710,7 @@ describe("Complex Populate", () => {
 		let postWithMixedComments: number;
 
 		beforeAll(async () => {
-			const post = await forja.create("post", {
+			const post = await datrix.create("post", {
 				title: "Filtered Comments Post",
 				content: "Content",
 				slug: "filtered-comments-post",
@@ -718,7 +718,7 @@ describe("Complex Populate", () => {
 			});
 			postWithMixedComments = post.id;
 
-			await forja.createMany("comment", [
+			await datrix.createMany("comment", [
 				{
 					content: "Approved comment 1",
 					post: postWithMixedComments,
@@ -741,7 +741,7 @@ describe("Complex Populate", () => {
 		});
 
 		it("should filter hasMany results with where", async () => {
-			const post = await forja.findById("post", postWithMixedComments, {
+			const post = await datrix.findById("post", postWithMixedComments, {
 				populate: {
 					comments: {
 						where: { isApproved: true },
@@ -762,7 +762,7 @@ describe("Complex Populate", () => {
 		});
 
 		it("should return empty array when where matches nothing", async () => {
-			const post = await forja.findById("post", postWithMixedComments, {
+			const post = await datrix.findById("post", postWithMixedComments, {
 				populate: {
 					comments: {
 						where: { content: "nonexistent" },
@@ -776,7 +776,7 @@ describe("Complex Populate", () => {
 		});
 
 		it("should filter manyToMany results with where", async () => {
-			const user = await forja.findById("user", userId, {
+			const user = await datrix.findById("user", userId, {
 				populate: {
 					roles: {
 						where: { level: { $gte: 50 } },
@@ -802,7 +802,7 @@ describe("Complex Populate", () => {
 		let orderedPostId: number;
 
 		beforeAll(async () => {
-			const post = await forja.create("post", {
+			const post = await datrix.create("post", {
 				title: "Ordered Comments Post",
 				content: "Content",
 				slug: "ordered-comments-post",
@@ -810,7 +810,7 @@ describe("Complex Populate", () => {
 			});
 			orderedPostId = post.id;
 
-			await forja.createMany("comment", [
+			await datrix.createMany("comment", [
 				{ content: "Comment C", post: orderedPostId, author: userId },
 				{ content: "Comment A", post: orderedPostId, author: userId },
 				{ content: "Comment B", post: orderedPostId, author: userId },
@@ -818,7 +818,7 @@ describe("Complex Populate", () => {
 		});
 
 		it("should order hasMany results ascending", async () => {
-			const post = await forja.findById("post", orderedPostId, {
+			const post = await datrix.findById("post", orderedPostId, {
 				populate: {
 					comments: {
 						orderBy: [{ field: "content", direction: "asc" }],
@@ -835,7 +835,7 @@ describe("Complex Populate", () => {
 		});
 
 		it("should order hasMany results descending", async () => {
-			const post = await forja.findById("post", orderedPostId, {
+			const post = await datrix.findById("post", orderedPostId, {
 				populate: {
 					comments: {
 						orderBy: [{ field: "content", direction: "desc" }],
@@ -850,7 +850,7 @@ describe("Complex Populate", () => {
 		});
 
 		it("should order manyToMany results by field", async () => {
-			const user = await forja.findById("user", userId, {
+			const user = await datrix.findById("user", userId, {
 				populate: {
 					roles: {
 						orderBy: [{ field: "level", direction: "asc" }],
@@ -875,7 +875,7 @@ describe("Complex Populate", () => {
 		let paginatedPostId: number;
 
 		beforeAll(async () => {
-			const post = await forja.create("post", {
+			const post = await datrix.create("post", {
 				title: "Paginated Comments Post",
 				content: "Content",
 				slug: "paginated-comments-post",
@@ -883,7 +883,7 @@ describe("Complex Populate", () => {
 			});
 			paginatedPostId = post.id;
 
-			await forja.createMany("comment", [
+			await datrix.createMany("comment", [
 				{ content: "Page Comment 1", post: paginatedPostId, author: userId },
 				{ content: "Page Comment 2", post: paginatedPostId, author: userId },
 				{ content: "Page Comment 3", post: paginatedPostId, author: userId },
@@ -893,7 +893,7 @@ describe("Complex Populate", () => {
 		});
 
 		it("should limit hasMany results", async () => {
-			const post = await forja.findById("post", paginatedPostId, {
+			const post = await datrix.findById("post", paginatedPostId, {
 				populate: {
 					comments: {
 						limit: 3,
@@ -907,7 +907,7 @@ describe("Complex Populate", () => {
 		});
 
 		it("should apply offset to hasMany results", async () => {
-			const post = await forja.findById("post", paginatedPostId, {
+			const post = await datrix.findById("post", paginatedPostId, {
 				populate: {
 					comments: {
 						orderBy: [{ field: "content", direction: "asc" }],
@@ -923,7 +923,7 @@ describe("Complex Populate", () => {
 		});
 
 		it("should apply limit and offset together (pagination)", async () => {
-			const page1 = await forja.findById("post", paginatedPostId, {
+			const page1 = await datrix.findById("post", paginatedPostId, {
 				populate: {
 					comments: {
 						orderBy: [{ field: "content", direction: "asc" }],
@@ -933,7 +933,7 @@ describe("Complex Populate", () => {
 				},
 			});
 
-			const page2 = await forja.findById("post", paginatedPostId, {
+			const page2 = await datrix.findById("post", paginatedPostId, {
 				populate: {
 					comments: {
 						orderBy: [{ field: "content", direction: "asc" }],
@@ -958,7 +958,7 @@ describe("Complex Populate", () => {
 		});
 
 		it("should limit manyToMany results", async () => {
-			const post = await forja.findById("post", postId, {
+			const post = await datrix.findById("post", postId, {
 				populate: {
 					tags: {
 						limit: 2,
@@ -979,7 +979,7 @@ describe("Complex Populate", () => {
 	describe("Error Cases", () => {
 		it("should throw for invalid relation name", async () => {
 			await expect(
-				forja.findById("post", postId, {
+				datrix.findById("post", postId, {
 					populate: { nonExistentRelation: true },
 				}),
 			).rejects.toThrow();
@@ -987,7 +987,7 @@ describe("Complex Populate", () => {
 
 		it("should throw for non-relation field in populate", async () => {
 			await expect(
-				forja.findById("post", postId, {
+				datrix.findById("post", postId, {
 					populate: { title: true } as Record<string, unknown>,
 				}),
 			).rejects.toThrow();
@@ -1011,7 +1011,7 @@ describe("Complex Populate", () => {
 		it("should filter nested hasMany with where (depth>1)", async () => {
 			// post → author (depth 1) → posts (depth 2) with where filter on nested hasMany
 			// In postgres/mysql this forces batched-queries path with where clause
-			const post = await forja.findById("post", postId, {
+			const post = await datrix.findById("post", postId, {
 				populate: {
 					author: {
 						populate: {
@@ -1037,7 +1037,7 @@ describe("Complex Populate", () => {
 
 		it("should order nested hasMany with orderBy (depth>1)", async () => {
 			// post → author (depth 1) → posts (depth 2) with orderBy
-			const post = await forja.findById("post", postId, {
+			const post = await datrix.findById("post", postId, {
 				populate: {
 					author: {
 						populate: {
@@ -1063,7 +1063,7 @@ describe("Complex Populate", () => {
 
 		it("should filter nested manyToMany with where (depth>1)", async () => {
 			// post → author (depth 1) → roles (depth 2, manyToMany) with where filter
-			const post = await forja.findById("post", postId, {
+			const post = await datrix.findById("post", postId, {
 				populate: {
 					author: {
 						populate: {
@@ -1089,7 +1089,7 @@ describe("Complex Populate", () => {
 
 		it("should apply limit on nested hasMany (depth>1)", async () => {
 			// post → author (depth 1) → posts (depth 2) with limit
-			const post = await forja.findById("post", postId, {
+			const post = await datrix.findById("post", postId, {
 				populate: {
 					author: {
 						populate: {
@@ -1112,7 +1112,7 @@ describe("Complex Populate", () => {
 
 		it("should combine where + orderBy + limit on nested hasMany (depth>1)", async () => {
 			// post → author (depth 1) → posts (depth 2) combining all complex options
-			const post = await forja.findById("post", postId, {
+			const post = await datrix.findById("post", postId, {
 				populate: {
 					author: {
 						populate: {

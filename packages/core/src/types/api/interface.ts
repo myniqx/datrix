@@ -1,8 +1,8 @@
 import { DefaultPermission } from "../core/permission";
 import { AuthUser, IAuthManager } from "./auth";
 import { IUpload } from "./upload";
-import { IForja } from "../core/forja";
-import { ForjaPlugin } from "../core/plugin";
+import { IDatrix } from "../core";
+import { DatrixPlugin } from "../core/plugin";
 
 /**
  * API Plugin Interface
@@ -10,7 +10,7 @@ import { ForjaPlugin } from "../core/plugin";
  * Defines the public contract for the API plugin.
  * All modules should depend on this interface, not the concrete class.
  */
-export interface IApiPlugin<TRole extends string = string> extends ForjaPlugin {
+export interface IApiPlugin<TRole extends string = string> extends DatrixPlugin {
 	/**
 	 * Plugin name
 	 */
@@ -37,9 +37,9 @@ export interface IApiPlugin<TRole extends string = string> extends ForjaPlugin {
 	readonly user: AuthUser | null;
 
 	/**
-	 * Forja instance
+	 * Datrix instance
 	 */
-	readonly forja: IForja;
+	readonly datrix: IDatrix;
 
 	/**
 	 * Default permission for schemas without explicit permissions
@@ -52,7 +52,7 @@ export interface IApiPlugin<TRole extends string = string> extends ForjaPlugin {
 	readonly authDefaultRole: TRole | undefined;
 
 	/**
-	 * Schemas excluded from auto-generated routes (always includes internal Forja tables)
+	 * Schemas excluded from auto-generated routes (always includes internal Datrix tables)
 	 */
 	readonly excludeSchemas: readonly string[];
 
@@ -79,5 +79,5 @@ export interface IApiPlugin<TRole extends string = string> extends ForjaPlugin {
 	/**
 	 * Handle an HTTP request
 	 */
-	handleRequest(request: Request, forja: IForja): Promise<Response>;
+	handleRequest(request: Request, datrix: IDatrix): Promise<Response>;
 }

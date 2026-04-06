@@ -6,7 +6,7 @@
  */
 
 import { AuthUser } from "../api";
-import { ForjaEntry } from "./schema";
+import { DatrixEntry } from "./schema";
 
 /**
  * Permission actions for schema-level access
@@ -23,7 +23,7 @@ export type FieldPermissionAction = "read" | "write";
  *
  * @template TRecord - The record type for the schema
  */
-export interface PermissionContext<TRecord extends ForjaEntry = ForjaEntry> {
+export interface PermissionContext<TRecord extends DatrixEntry = DatrixEntry> {
 	/** Current authenticated user (undefined if not authenticated) */
 	readonly user: AuthUser | undefined;
 	/** Current record (for update/delete operations) */
@@ -35,10 +35,10 @@ export interface PermissionContext<TRecord extends ForjaEntry = ForjaEntry> {
 
 	readonly id?: number | string | null;
 	/**
-	 * Forja instance for custom queries
+	 * Datrix instance for custom queries
 	 * User can perform additional checks if needed
 	 */
-	readonly forja: unknown; // Avoid circular dependency
+	readonly datrix: unknown; // Avoid circular dependency
 }
 
 /**
@@ -47,7 +47,7 @@ export interface PermissionContext<TRecord extends ForjaEntry = ForjaEntry> {
  *
  * @template TRecord - The record type for the schema
  */
-export type PermissionFn<TRecord extends ForjaEntry = ForjaEntry> = (
+export type PermissionFn<TRecord extends DatrixEntry = DatrixEntry> = (
 	ctx: PermissionContext<TRecord>,
 ) => boolean | Promise<boolean>;
 
@@ -64,7 +64,7 @@ export type PermissionFn<TRecord extends ForjaEntry = ForjaEntry> = (
  */
 export type PermissionValue<
 	TRoles extends string = string,
-	TRecord extends ForjaEntry = ForjaEntry,
+	TRecord extends DatrixEntry = DatrixEntry,
 > =
 	| boolean
 	| readonly TRoles[]
@@ -89,7 +89,7 @@ export type PermissionValue<
  */
 export interface SchemaPermission<
 	TRoles extends string = string,
-	TRecord extends ForjaEntry = ForjaEntry,
+	TRecord extends DatrixEntry = DatrixEntry,
 > {
 	readonly create?: PermissionValue<TRoles, TRecord>;
 	readonly read?: PermissionValue<TRoles, TRecord>;
@@ -119,7 +119,7 @@ export interface SchemaPermission<
  */
 export interface FieldPermission<
 	TRoles extends string = string,
-	TRecord extends ForjaEntry = ForjaEntry,
+	TRecord extends DatrixEntry = DatrixEntry,
 > {
 	readonly read?: PermissionValue<TRoles, TRecord>;
 	readonly write?: PermissionValue<TRoles, TRecord>;
@@ -158,7 +158,7 @@ export interface FieldPermissionCheckResult {
 /**
  * Type guard for PermissionFn
  */
-export function isPermissionFn<TRecord extends ForjaEntry = ForjaEntry>(
+export function isPermissionFn<TRecord extends DatrixEntry = DatrixEntry>(
 	value: unknown,
 ): value is PermissionFn<TRecord> {
 	return typeof value === "function";

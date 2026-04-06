@@ -1,12 +1,12 @@
 /**
- * MongoDB Adapter for Forja
+ * MongoDB Adapter for Datrix
  *
  * Provides MongoDB database support with:
  * - Connection pooling (via MongoClient built-in pool)
  * - Transaction support (requires replica set)
- * - Auto-increment IDs via _forja counters
+ * - Auto-increment IDs via _datrix counters
  * - Relation population ($lookup + batched queries)
- * - Schema metadata tracking in _forja collection
+ * - Schema metadata tracking in _datrix collection
  */
 
 export { MongoDBAdapter, createMongoDBAdapter } from "./adapter";

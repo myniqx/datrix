@@ -1,17 +1,17 @@
 {
-	"name": "@forja/api-upload",
+	"name": "@datrix/api-upload",
 	"version": "0.1.0",
-	"description": "File upload extension for Forja API plugin",
-	"author": "Forja Contributors",
+	"description": "File upload extension for Datrix API plugin",
+	"author": "Datrix Contributors",
 	"license": "MIT",
-	"homepage": "https://tryforja.com",
+	"homepage": "https://datrix.dev",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/myniqx/forja.git",
+		"url": "https://github.com/myniqx/datrix.git",
 		"directory": "packages/api-upload"
 	},
 	"bugs": {
-		"url": "https://github.com/myniqx/forja/issues"
+		"url": "https://github.com/myniqx/datrix/issues"
 	},
 	"keywords": [
 		"upload",
@@ -19,7 +19,7 @@
 		"typescript",
 		"s3",
 		"image",
-		"forja"
+		"datrix"
 	],
 	"engines": {
 		"node": ">=18.0.0"
@@ -48,15 +48,15 @@
 		"clean": "rm -rf dist"
 	},
 	"peerDependencies": {
-		"@forja/core": "^0.1.0",
-		"@forja/api": "^0.1.0"
+		"@datrix/core": "^0.1.0",
+		"@datrix/api": "^0.1.0"
 	},
 	"dependencies": {
 		"sharp": "^0.34.5"
 	},
 	"devDependencies": {
-		"@forja/core": "workspace:*",
-		"@forja/api": "workspace:*",
+		"@datrix/core": "workspace:*",
+		"@datrix/api": "workspace:*",
 		"@types/sharp": "^0.32.0",
 		"tsup": "^8.5.1",
 		"typescript": "^5.3.3"

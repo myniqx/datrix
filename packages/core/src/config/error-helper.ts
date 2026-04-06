@@ -5,7 +5,7 @@
  * Provides consistent error formatting across all config validators.
  */
 
-import { ForjaConfigError, ForjaConfigValidationError } from "../types/errors";
+import { DatrixConfigError, DatrixConfigValidationError } from "../types/errors";
 
 /**
  * Throw config not found error
@@ -14,11 +14,11 @@ import { ForjaConfigError, ForjaConfigValidationError } from "../types/errors";
  *
  * @example
  * ```ts
- * throwConfigNotFound('./forja.config.ts');
+ * throwConfigNotFound('./datrix.config.ts');
  * ```
  */
 export function throwConfigNotFound(configPath: string): never {
-	throw new ForjaConfigError(`Config file not found: ${configPath}`, {
+	throw new DatrixConfigError(`Config file not found: ${configPath}`, {
 		code: "CONFIG_NOT_FOUND",
 		context: { configPath },
 		suggestion: `Create a config file at ${configPath} or specify a different path`,
@@ -44,7 +44,7 @@ export function throwConfigInvalidType(
 ): never {
 	const receivedType = received === null ? "null" : typeof received;
 
-	throw new ForjaConfigError(
+	throw new DatrixConfigError(
 		`Config.${field} has incorrect type. Expected ${expected}, got ${receivedType}`,
 		{
 			code: "CONFIG_INVALID_TYPE",
@@ -68,7 +68,7 @@ export function throwConfigInvalidType(
  * ```
  */
 export function throwConfigRequired(field: string): never {
-	throw new ForjaConfigError(`Config must have "${field}" property`, {
+	throw new DatrixConfigError(`Config must have "${field}" property`, {
 		code: "CONFIG_REQUIRED_FIELD",
 		field,
 		suggestion: `Add the "${field}" property to your config`,
@@ -86,7 +86,7 @@ export function throwConfigRequired(field: string): never {
  *
  * @example
  * ```ts
- * throwConfigInvalidValue('plugins[0]', 'must be a ForjaPlugin instance', obj);
+ * throwConfigInvalidValue('plugins[0]', 'must be a DatrixPlugin instance', obj);
  * ```
  */
 export function throwConfigInvalidValue(
@@ -95,7 +95,7 @@ export function throwConfigInvalidValue(
 	received: unknown,
 	validOptions?: readonly string[],
 ): never {
-	throw new ForjaConfigError(`Config.${field} ${message}`, {
+	throw new DatrixConfigError(`Config.${field} ${message}`, {
 		code: "CONFIG_INVALID_VALUE",
 		field,
 		context: validOptions ? { validOptions } : undefined,
@@ -117,7 +117,7 @@ export function throwConfigInvalidValue(
  * ```
  */
 export function throwConfigEmpty(field: string): never {
-	throw new ForjaConfigError(`Config.${field} cannot be empty`, {
+	throw new DatrixConfigError(`Config.${field} cannot be empty`, {
 		code: "CONFIG_EMPTY_VALUE",
 		field,
 		suggestion: `Provide at least one item in Config.${field}`,
@@ -145,7 +145,7 @@ export function throwConfigArrayItem(
 ): never {
 	const fullField = `${field}[${index}]`;
 
-	throw new ForjaConfigError(`Config.${fullField} ${message}`, {
+	throw new DatrixConfigError(`Config.${fullField} ${message}`, {
 		code: "CONFIG_INVALID_VALUE",
 		field: fullField,
 		context: { index },
@@ -172,7 +172,7 @@ export function throwConfigMultiple(
 	errors: readonly string[],
 	suggestion?: string,
 ): never {
-	throw new ForjaConfigValidationError(errors, suggestion);
+	throw new DatrixConfigValidationError(errors, suggestion);
 }
 
 /**
@@ -198,7 +198,7 @@ export function throwConfigFieldType(
 			? "null"
 			: typeof received;
 
-	throw new ForjaConfigError(`Config.${field} must be ${expectedType}`, {
+	throw new DatrixConfigError(`Config.${field} must be ${expectedType}`, {
 		code: "CONFIG_INVALID_TYPE",
 		field,
 		context: { receivedType, expectedType },

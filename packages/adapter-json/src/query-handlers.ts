@@ -1,11 +1,11 @@
-import { ForjaEntry } from "@forja/core";
+import { DatrixEntry } from "@datrix/core";
 import {
 	QueryCountObject,
 	QueryInsertObject,
 	QueryObject,
 	QuerySelectObject,
 	QueryUpdateObject,
-} from "@forja/core";
+} from "@datrix/core";
 import { JsonQueryRunner } from "./runner";
 import { JsonPopulator } from "./populate";
 import {
@@ -17,9 +17,9 @@ import {
 } from "./table-utils";
 import type { JsonAdapter } from "./adapter";
 import type { ExecuteQueryOptions } from "./types";
-import { throwQueryMissingData } from "@forja/core";
+import { throwQueryMissingData } from "@datrix/core";
 
-export type QueryHandlerResult<T extends ForjaEntry> = {
+export type QueryHandlerResult<T extends DatrixEntry> = {
 	rows: T[];
 	metadata: {
 		rowCount: number;
@@ -31,7 +31,7 @@ export type QueryHandlerResult<T extends ForjaEntry> = {
 	earlyReturn?: boolean;
 };
 
-export async function handleSelect<T extends ForjaEntry>(ctx: {
+export async function handleSelect<T extends DatrixEntry>(ctx: {
 	runner: JsonQueryRunner;
 	query: QuerySelectObject<T>;
 	adapter: JsonAdapter;
@@ -56,7 +56,7 @@ export async function handleSelect<T extends ForjaEntry>(ctx: {
 	};
 }
 
-export async function handleCount<T extends ForjaEntry>(ctx: {
+export async function handleCount<T extends DatrixEntry>(ctx: {
 	runner: JsonQueryRunner;
 	query: QueryCountObject<T>;
 }): Promise<QueryHandlerResult<T>> {
@@ -71,7 +71,7 @@ export async function handleCount<T extends ForjaEntry>(ctx: {
 	};
 }
 
-export async function handleInsert<T extends ForjaEntry>(ctx: {
+export async function handleInsert<T extends DatrixEntry>(ctx: {
 	runner: JsonQueryRunner;
 	query: QueryInsertObject<T>;
 }): Promise<QueryHandlerResult<T>> {
@@ -135,7 +135,7 @@ export async function handleInsert<T extends ForjaEntry>(ctx: {
 	};
 }
 
-export async function handleUpdate<T extends ForjaEntry>(ctx: {
+export async function handleUpdate<T extends DatrixEntry>(ctx: {
 	runner: JsonQueryRunner;
 	query: QueryUpdateObject<T>;
 }): Promise<QueryHandlerResult<T>> {
@@ -185,7 +185,7 @@ export async function handleUpdate<T extends ForjaEntry>(ctx: {
 	};
 }
 
-export async function handleDelete<T extends ForjaEntry>(ctx: {
+export async function handleDelete<T extends DatrixEntry>(ctx: {
 	runner: JsonQueryRunner;
 	query: QueryObject<T>;
 	adapter: JsonAdapter;

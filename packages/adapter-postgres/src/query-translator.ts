@@ -15,15 +15,15 @@ import type {
 	QueryDeleteObject,
 	QuerySelect,
 	QuerySelectObject,
-} from "@forja/core";
-import type { QueryTranslator } from "@forja/core";
-import { ForjaAdapterError, throwQueryError } from "@forja/core";
+} from "@datrix/core";
+import type { QueryTranslator } from "@datrix/core";
+import { DatrixAdapterError, throwQueryError } from "@datrix/core";
 import type {
 	SchemaDefinition,
 	FieldDefinition,
 	ISchemaRegistry,
-} from "@forja/core";
-import { ForjaEntry } from "@forja/core";
+} from "@datrix/core";
+import { DatrixEntry } from "@datrix/core";
 import { PostgresQueryObject, TranslateResult } from "./types";
 
 /**
@@ -253,7 +253,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
 	/**
 	 * Translate main query
 	 */
-	translate<T extends ForjaEntry>(query: QueryObject<T>): TranslateResult {
+	translate<T extends DatrixEntry>(query: QueryObject<T>): TranslateResult {
 		this.reset();
 
 		try {
@@ -286,7 +286,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
 				needAggregation: false,
 			};
 		} catch (error) {
-			if (error instanceof ForjaAdapterError) {
+			if (error instanceof DatrixAdapterError) {
 				throw error;
 			}
 			throwQueryError({
@@ -300,7 +300,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
 	/**
 	 * Translate SELECT query
 	 */
-	private translateSelect<T extends ForjaEntry>(
+	private translateSelect<T extends DatrixEntry>(
 		query: PostgresQueryObject<T> | QueryCountObject<T>,
 	): string {
 		const parts: string[] = [];
@@ -480,7 +480,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
 	/**
 	 * Translate SELECT fields with aliases
 	 */
-	private translateSelectClause<T extends ForjaEntry>(
+	private translateSelectClause<T extends DatrixEntry>(
 		select: QuerySelect<T>,
 		tableAlias?: string,
 	): string {
@@ -497,7 +497,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
 	/**
 	 * Translate INSERT query
 	 */
-	private translateInsert<T extends ForjaEntry>(
+	private translateInsert<T extends DatrixEntry>(
 		query: QueryInsertObject<T>,
 	): string {
 		const dataArray = Array.isArray(query.data) ? query.data : [query.data];
@@ -551,7 +551,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
 	/**
 	 * Translate UPDATE query
 	 */
-	private translateUpdate<T extends ForjaEntry>(
+	private translateUpdate<T extends DatrixEntry>(
 		query: QueryUpdateObject<T>,
 	): string {
 		if (!query.data || Object.keys(query.data).length === 0) {
@@ -628,7 +628,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
 	/**
 	 * Translate DELETE query
 	 */
-	private translateDelete<T extends ForjaEntry>(
+	private translateDelete<T extends DatrixEntry>(
 		query: QueryDeleteObject<T>,
 	): string {
 		const parts: string[] = [];
@@ -685,7 +685,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
 	/**
 	 * Translate ORDER BY clause
 	 */
-	private translateOrderBy<T extends ForjaEntry>(
+	private translateOrderBy<T extends DatrixEntry>(
 		orderBy: QuerySelectObject<T>["orderBy"],
 	): string {
 		return orderBy!
@@ -703,7 +703,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
 	/**
 	 * Translate WHERE clause
 	 */
-	translateWhere<T extends ForjaEntry>(
+	translateWhere<T extends DatrixEntry>(
 		where: WhereClause<T>,
 		startIndex: number,
 		tableName?: string,
@@ -763,7 +763,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
 	 * @param joins - Array to collect JOIN clauses
 	 * @param currentSchema - Current schema context (passed down, avoids repeated lookups)
 	 */
-	private translateWhereConditions<T extends ForjaEntry>(
+	private translateWhereConditions<T extends DatrixEntry>(
 		where: WhereClause<T>,
 		depth = 0,
 		tableName?: string,
@@ -1033,7 +1033,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
 	/**
 	 * Resolve $and / $or logical operators into a joined SQL condition group.
 	 */
-	private resolveLogicalOperator<T extends ForjaEntry>(
+	private resolveLogicalOperator<T extends DatrixEntry>(
 		operator: "$and" | "$or",
 		conditions: readonly WhereClause<T>[],
 		depth: number,

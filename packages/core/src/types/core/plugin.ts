@@ -2,7 +2,7 @@
  * Plugin Interface
  *
  * This file defines the standard interface that ALL plugins must implement.
- * Plugins extend Forja's core functionality with features like auth, upload, hooks, etc.
+ * Plugins extend Datrix's core functionality with features like auth, upload, hooks, etc.
  */
 
 import type {
@@ -10,12 +10,12 @@ import type {
 	SchemaDefinition,
 	FieldDefinition,
 	IndexDefinition,
-	ForjaEntry,
+	DatrixEntry,
 } from "./schema";
 import type { DatabaseAdapter } from "../adapter";
 import { QueryObject } from "./query-builder";
 import { QueryContext } from "./query-context";
-import { ForjaConfig } from "./config";
+import { DatrixConfig } from "./config";
 
 export type { SchemaDefinition } from "./schema";
 
@@ -25,7 +25,7 @@ export type { SchemaDefinition } from "./schema";
 export interface PluginContext {
 	readonly adapter: DatabaseAdapter;
 	readonly schemas: ISchemaRegistry;
-	readonly config: ForjaConfig;
+	readonly config: DatrixConfig;
 }
 
 /**
@@ -33,7 +33,7 @@ export interface PluginContext {
  *
  * ALL plugins MUST implement this interface
  */
-export interface ForjaPlugin<TOptions = Record<string, unknown>> {
+export interface DatrixPlugin<TOptions = Record<string, unknown>> {
 	// Metadata
 	readonly name: string;
 	readonly version: string;
@@ -50,11 +50,11 @@ export interface ForjaPlugin<TOptions = Record<string, unknown>> {
 	// Query hooks
 	onSchemaLoad?(schemas: ISchemaRegistry): Promise<void>;
 	onCreateQueryContext?(context: QueryContext): Promise<QueryContext>;
-	onBeforeQuery?<T extends ForjaEntry>(
+	onBeforeQuery?<T extends DatrixEntry>(
 		query: QueryObject<T>,
 		context: QueryContext,
 	): Promise<QueryObject<T>>;
-	onAfterQuery?<TResult extends ForjaEntry>(
+	onAfterQuery?<TResult extends DatrixEntry>(
 		result: TResult,
 		context: QueryContext,
 	): Promise<TResult>;
@@ -81,9 +81,9 @@ export class PluginError extends Error {
 }
 
 /**
- * Type guard for ForjaPlugin
+ * Type guard for DatrixPlugin
  */
-export function isForjaPlugin(value: unknown): value is ForjaPlugin {
+export function isDatrixPlugin(value: unknown): value is DatrixPlugin {
 	if (typeof value !== "object" || value === null) {
 		return false;
 	}
@@ -107,7 +107,7 @@ export function isForjaPlugin(value: unknown): value is ForjaPlugin {
  */
 export type PluginFactory<TOptions = Record<string, unknown>> = (
 	options: TOptions,
-) => ForjaPlugin<TOptions>;
+) => DatrixPlugin<TOptions>;
 
 /**
  * Upload error
@@ -123,9 +123,9 @@ export class UploadError extends PluginError {
  * Plugin registry
  */
 export class PluginRegistry {
-	private readonly plugins: Map<string, ForjaPlugin> = new Map();
+	private readonly plugins: Map<string, DatrixPlugin> = new Map();
 
-	register(plugin: ForjaPlugin): void {
+	register(plugin: DatrixPlugin): void {
 		if (this.plugins.has(plugin.name)) {
 			throw new PluginError(`Plugin already registered: ${plugin.name}`, {
 				code: "DUPLICATE_PLUGIN",
@@ -134,7 +134,7 @@ export class PluginRegistry {
 		this.plugins.set(plugin.name, plugin);
 	}
 
-	get(name: string): ForjaPlugin | undefined {
+	get(name: string): DatrixPlugin | undefined {
 		return this.plugins.get(name);
 	}
 
@@ -142,7 +142,7 @@ export class PluginRegistry {
 		return this.plugins.has(name);
 	}
 
-	getAll(): readonly ForjaPlugin[] {
+	getAll(): readonly DatrixPlugin[] {
 		return Array.from(this.plugins.values());
 	}
 

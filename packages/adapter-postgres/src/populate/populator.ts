@@ -9,17 +9,17 @@ import type {
 	QueryPopulate,
 	QueryPopulateOptions,
 	QuerySelectObject,
-} from "@forja/core";
+} from "@datrix/core";
 import type { PgClient } from "../pg-client";
 import type { PostgresQueryTranslator } from "../query-translator";
 import type { PopulateStrategy, PopulateOptionsAnalysis } from "./types";
 import { JoinBuilder } from "./join-builder";
 import { AggregationBuilder } from "./aggregation-builder";
 import { ResultProcessor } from "./result-processor";
-import { throwMaxDepthExceeded } from "@forja/core";
-import { ForjaEntry } from "@forja/core";
+import { throwMaxDepthExceeded } from "@datrix/core";
+import { DatrixEntry } from "@datrix/core";
 import { PostgresQueryObject } from "../types";
-import { ISchemaRegistry } from "@forja/core";
+import { ISchemaRegistry } from "@datrix/core";
 
 /**
  * Maximum populate nesting depth
@@ -66,7 +66,7 @@ export class PostgresPopulator {
 	 * @param query - Query object with populate
 	 * @returns Rows with populated relations
 	 */
-	async populate<T extends ForjaEntry>(
+	async populate<T extends DatrixEntry>(
 		query: QuerySelectObject<T>,
 	): Promise<readonly T[]> {
 		if (!query.populate) {
@@ -118,7 +118,7 @@ export class PostgresPopulator {
 	 * GROUP BY posts.id, users.id
 	 * ```
 	 */
-	private async executeJsonAggregation<T extends ForjaEntry>(
+	private async executeJsonAggregation<T extends DatrixEntry>(
 		query: QuerySelectObject<T>,
 	): Promise<readonly T[]> {
 		const modifiedQuery = this.buildJsonAggregationQuery(query);
@@ -155,7 +155,7 @@ export class PostgresPopulator {
 	 * ) related_comments ON true
 	 * ```
 	 */
-	private async executeLateralJoins<T extends ForjaEntry>(
+	private async executeLateralJoins<T extends DatrixEntry>(
 		query: QuerySelectObject<T>,
 	): Promise<readonly T[]> {
 		const modelName = this.schemaRegistry.findModelByTableName(query.table);
@@ -179,13 +179,13 @@ export class PostgresPopulator {
 		const mainQuery: QuerySelectObject<T> =
 			fkColumnsNeeded.length > 0
 				? {
-						...query,
-						populate: undefined,
-						select: [
-							...(query.select as string[]),
-							...fkColumnsNeeded,
-						] as unknown as QuerySelectObject<T>["select"],
-					}
+					...query,
+					populate: undefined,
+					select: [
+						...(query.select as string[]),
+						...fkColumnsNeeded,
+					] as unknown as QuerySelectObject<T>["select"],
+				}
 				: { ...query, populate: undefined };
 
 		const { sql: mainSql, params: mainParams } =
@@ -430,7 +430,7 @@ export class PostgresPopulator {
 	 * 2. Batch populate tags: SELECT post_id, jsonb_agg(tags.*) FROM tags ... WHERE post_id = ANY($1) GROUP BY post_id
 	 * 3. Map in memory: posts[i].tags = tagsMap.get(posts[i].id)
 	 */
-	private async executeBatchedQueries<T extends ForjaEntry>(
+	private async executeBatchedQueries<T extends DatrixEntry>(
 		query: QuerySelectObject<T>,
 	): Promise<readonly T[]> {
 		const modelName = this.schemaRegistry.findModelByTableName(query.table);
@@ -456,12 +456,12 @@ export class PostgresPopulator {
 		const queryWithFks: QuerySelectObject<T> =
 			fkColumnsNeeded.length > 0
 				? {
-						...query,
-						select: [
-							...(query.select as string[]),
-							...fkColumnsNeeded,
-						] as unknown as QuerySelectObject<T>["select"],
-					}
+					...query,
+					select: [
+						...(query.select as string[]),
+						...fkColumnsNeeded,
+					] as unknown as QuerySelectObject<T>["select"],
+				}
 				: query;
 
 		const { sql, params } = this.translator.translate(queryWithFks);
@@ -668,7 +668,7 @@ export class PostgresPopulator {
 	/**
 	 * Recursively populate nested relations on already-fetched rows
 	 */
-	private async populateBatchedRows<T extends ForjaEntry>(
+	private async populateBatchedRows<T extends DatrixEntry>(
 		rows: T[],
 		tableName: string,
 		populate: QueryPopulate<T>,
@@ -851,7 +851,7 @@ export class PostgresPopulator {
 	/**
 	 * Build query with JSON aggregation
 	 */
-	private buildJsonAggregationQuery<T extends ForjaEntry>(
+	private buildJsonAggregationQuery<T extends DatrixEntry>(
 		query: QuerySelectObject<T>,
 	): PostgresQueryObject<T> {
 		const pgQuery = query as PostgresQueryObject<T>;
@@ -886,7 +886,7 @@ export class PostgresPopulator {
 	 * - Constrained relation count (limit/orderBy)
 	 * - Estimated cost for strategy selection
 	 */
-	private analyzePopulate<T extends ForjaEntry>(
+	private analyzePopulate<T extends DatrixEntry>(
 		populate: QueryPopulate<T>,
 		tableName: string,
 	): PopulateOptionsAnalysis {
@@ -990,7 +990,7 @@ export class PostgresPopulator {
 	 * Collect FK columns needed by nested populate (belongsTo/hasOne).
 	 * These must be included in the row_to_json so recursive populate can use them.
 	 */
-	private collectNestedFkColumns<T extends ForjaEntry>(
+	private collectNestedFkColumns<T extends DatrixEntry>(
 		targetModel: string,
 		opts: QueryPopulateOptions<T>,
 	): readonly string[] {
@@ -1016,7 +1016,7 @@ export class PostgresPopulator {
 	 * Automatically injects FK columns needed by nested populate.
 	 * Returns: row_to_json((SELECT r FROM (SELECT t."id", t."name") r))
 	 */
-	private buildSelectiveRowToJson<T extends ForjaEntry>(
+	private buildSelectiveRowToJson<T extends DatrixEntry>(
 		select: readonly string[],
 		targetModel?: string,
 		opts?: QueryPopulateOptions<T>,
@@ -1043,7 +1043,7 @@ export class PostgresPopulator {
 	 * Build extra SQL clauses (WHERE/ORDER BY) for batch queries from populate options.
 	 * Returns the SQL fragment to append and the extra params (starting at startParamIndex).
 	 */
-	private buildBatchOptionsClause<T extends ForjaEntry>(
+	private buildBatchOptionsClause<T extends DatrixEntry>(
 		options: QueryPopulateOptions<T>,
 		targetTable: string,
 		startParamIndex: number,
@@ -1093,7 +1093,7 @@ export class PostgresPopulator {
 	/**
 	 * Build relation path string for error messages
 	 */
-	private buildRelationPath<T extends ForjaEntry>(
+	private buildRelationPath<T extends DatrixEntry>(
 		populate: QueryPopulate<T>,
 		prefix = "",
 	): string {
@@ -1115,9 +1115,9 @@ export class PostgresPopulator {
 
 	/**
 	 * Execute a batched SQL query and cast the result rows.
-	 * Error handling is delegated to PgClient (already wraps errors in ForjaAdapterError).
+	 * Error handling is delegated to PgClient (already wraps errors in DatrixAdapterError).
 	 */
-	private async fetchBatchQueryResults<T extends ForjaEntry>(
+	private async fetchBatchQueryResults<T extends DatrixEntry>(
 		sql: string,
 		params: unknown[],
 	): Promise<(T & { _fk: number; data: T })[]> {

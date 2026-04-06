@@ -14,22 +14,22 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { Forja } from "@forja/core";
+import { Datrix } from "@datrix/core";
 import fs from "node:fs/promises";
 import { createTestConfig, getTmpDir, setupTables } from "../setup";
 
 describe("Edge Cases", () => {
-	let forja: Forja;
+	let datrix: Datrix;
 	const tmpDir = getTmpDir("edge_cases");
 
 	beforeAll(async () => {
 		await fs.rm(tmpDir, { recursive: true, force: true });
 		await fs.mkdir(tmpDir, { recursive: true });
 
-		const getForja = await createTestConfig(tmpDir);
-		forja = await getForja();
+		const getDatrix = await createTestConfig(tmpDir);
+		datrix = await getDatrix();
 
-		await setupTables(forja);
+		await setupTables(datrix);
 	});
 
 	afterAll(async () => {
@@ -42,7 +42,7 @@ describe("Edge Cases", () => {
 
 	describe("Empty Values", () => {
 		it("should handle empty string in string field", async () => {
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "empty-name@test.com",
 				name: "Empty Name",
 				lastName: "",
@@ -52,7 +52,7 @@ describe("Edge Cases", () => {
 		});
 
 		it("should handle null in optional field", async () => {
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "null-age@test.com",
 				name: "Null Age",
 				age: null,
@@ -62,7 +62,7 @@ describe("Edge Cases", () => {
 		});
 
 		it("should handle empty object in JSON field", async () => {
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "empty-meta@test.com",
 				name: "Empty Meta",
 				metadata: {},
@@ -72,7 +72,7 @@ describe("Edge Cases", () => {
 		});
 
 		it("should handle empty array in JSON field", async () => {
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "array-meta@test.com",
 				name: "Array Meta",
 				metadata: [],
@@ -82,7 +82,7 @@ describe("Edge Cases", () => {
 		});
 
 		it("should handle null in JSON field", async () => {
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "null-meta@test.com",
 				name: "Null Meta",
 				metadata: null,
@@ -98,7 +98,7 @@ describe("Edge Cases", () => {
 
 	describe("Boundary Values", () => {
 		it("should handle age at minimum (0)", async () => {
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "min-age@test.com",
 				name: "Min Age",
 				age: 0,
@@ -108,7 +108,7 @@ describe("Edge Cases", () => {
 		});
 
 		it("should handle age at maximum (150)", async () => {
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "max-age@test.com",
 				name: "Max Age",
 				age: 150,
@@ -119,7 +119,7 @@ describe("Edge Cases", () => {
 
 		it("should handle very long valid string", async () => {
 			const longName = "A".repeat(200); // Within maxLength
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "long-name@test.com",
 				name: "Long Name",
 				lastName: longName,
@@ -129,12 +129,12 @@ describe("Edge Cases", () => {
 		});
 
 		it("should handle large budget number", async () => {
-			const org = await forja.create("organization", {
+			const org = await datrix.create("organization", {
 				name: "Big Budget Org",
 				country: "USA",
 			});
 
-			const dept = await forja.create("department", {
+			const dept = await datrix.create("department", {
 				name: "Big Budget Dept",
 				code: "BBD",
 				budget: 999999999,
@@ -145,12 +145,12 @@ describe("Edge Cases", () => {
 		});
 
 		it("should handle decimal numbers", async () => {
-			const org = await forja.create("organization", {
+			const org = await datrix.create("organization", {
 				name: "Decimal Org",
 				country: "USA",
 			});
 
-			const dept = await forja.create("department", {
+			const dept = await datrix.create("department", {
 				name: "Decimal Dept",
 				code: "DEC",
 				budget: 12345.67,
@@ -167,7 +167,7 @@ describe("Edge Cases", () => {
 
 	describe("Special Characters", () => {
 		it("should handle quotes in string fields", async () => {
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "quotes@test.com",
 				name: 'User "with" quotes',
 			});
@@ -176,7 +176,7 @@ describe("Edge Cases", () => {
 		});
 
 		it("should handle single quotes", async () => {
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "single-quotes@test.com",
 				name: "User's name",
 			});
@@ -185,7 +185,7 @@ describe("Edge Cases", () => {
 		});
 
 		it("should handle backslashes", async () => {
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "backslash@test.com",
 				name: "User\\with\\backslash",
 			});
@@ -194,12 +194,12 @@ describe("Edge Cases", () => {
 		});
 
 		it("should handle newlines in string", async () => {
-			const post = await forja.create("post", {
+			const post = await datrix.create("post", {
 				title: "Post with newlines",
 				content: "Line 1\nLine 2\nLine 3",
 				slug: "post-newlines",
 				author: (
-					await forja.create("user", { email: "newline@test.com", name: "NL" })
+					await datrix.create("user", { email: "newline@test.com", name: "NL" })
 				).id,
 			});
 
@@ -207,7 +207,7 @@ describe("Edge Cases", () => {
 		});
 
 		it("should handle SQL injection attempt in data", async () => {
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "injection@test.com",
 				name: "'; DROP TABLE users; --",
 			});
@@ -216,7 +216,7 @@ describe("Edge Cases", () => {
 			expect(user["name"]).toBe("'; DROP TABLE users; --");
 
 			// Table should still exist
-			const count = await forja.count("user");
+			const count = await datrix.count("user");
 			expect(count).toBeGreaterThan(0);
 		});
 	});
@@ -227,7 +227,7 @@ describe("Edge Cases", () => {
 
 	describe("Unicode and Emoji", () => {
 		it("should handle unicode characters", async () => {
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "unicode@test.com",
 				name: "用户名称", // Chinese characters
 			});
@@ -236,7 +236,7 @@ describe("Edge Cases", () => {
 		});
 
 		it("should handle mixed unicode", async () => {
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "mixed-unicode@test.com",
 				name: "Пользователь User ユーザー",
 			});
@@ -245,7 +245,7 @@ describe("Edge Cases", () => {
 		});
 
 		it("should handle emoji in string field", async () => {
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "emoji@test.com",
 				name: "User 👋 Hello 🌍",
 			});
@@ -255,12 +255,12 @@ describe("Edge Cases", () => {
 		});
 
 		it("should handle emoji in search", async () => {
-			await forja.create("user", {
+			await datrix.create("user", {
 				email: "emoji-search@test.com",
 				name: "Emoji 🔥 User",
 			});
 
-			const found = await forja.findOne("user", {
+			const found = await datrix.findOne("user", {
 				name: { $like: "%🔥%" },
 			});
 
@@ -274,7 +274,7 @@ describe("Edge Cases", () => {
 
 	describe("JSON Field Edge Cases", () => {
 		it("should handle nested JSON object", async () => {
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "nested-json@test.com",
 				name: "Nested JSON",
 				metadata: {
@@ -292,7 +292,7 @@ describe("Edge Cases", () => {
 		});
 
 		it("should handle JSON with array of objects", async () => {
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "json-array@test.com",
 				name: "JSON Array",
 				metadata: {
@@ -308,7 +308,7 @@ describe("Edge Cases", () => {
 		});
 
 		it("should handle JSON with special values", async () => {
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "json-special@test.com",
 				name: "JSON Special",
 				metadata: {
@@ -334,7 +334,7 @@ describe("Edge Cases", () => {
 
 	describe("Date Edge Cases", () => {
 		it("should handle createdAt/updatedAt automatically", async () => {
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "dates@test.com",
 				name: "Date User",
 			});
@@ -345,7 +345,7 @@ describe("Edge Cases", () => {
 		});
 
 		it("should update updatedAt on modification", async () => {
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "update-date@test.com",
 				name: "Update Date User",
 			});
@@ -355,7 +355,7 @@ describe("Edge Cases", () => {
 			// Wait a bit
 			await new Promise((r) => setTimeout(r, 50));
 
-			const updated = await forja.update("user", user.id, {
+			const updated = await datrix.update("user", user.id, {
 				name: "Updated Name",
 			});
 
@@ -371,7 +371,7 @@ describe("Edge Cases", () => {
 	describe("Concurrent Operations", () => {
 		it("should handle concurrent creates", async () => {
 			const promises = Array.from({ length: 10 }, (_, i) =>
-				forja.create("user", {
+				datrix.create("user", {
 					email: `concurrent-create-${i}@test.com`,
 					name: `Concurrent User ${i}`,
 				}),
@@ -385,13 +385,13 @@ describe("Edge Cases", () => {
 		});
 
 		it("should handle concurrent reads", async () => {
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "concurrent-read@test.com",
 				name: "Concurrent Read User",
 			});
 
 			const promises = Array.from({ length: 10 }, () =>
-				forja.findById("user", user.id),
+				datrix.findById("user", user.id),
 			);
 
 			const results = await Promise.all(promises);
@@ -403,14 +403,14 @@ describe("Edge Cases", () => {
 		});
 
 		it("should handle concurrent updates to different records", async () => {
-			const users = await forja.createMany("user", [
+			const users = await datrix.createMany("user", [
 				{ email: "concurrent-update-1@test.com", name: "CU 1" },
 				{ email: "concurrent-update-2@test.com", name: "CU 2" },
 				{ email: "concurrent-update-3@test.com", name: "CU 3" },
 			]);
 
 			const promises = users.map((u, i) =>
-				forja.update("user", u.id, { name: `Updated CU ${i}` }),
+				datrix.update("user", u.id, { name: `Updated CU ${i}` }),
 			);
 
 			const results = await Promise.all(promises);
@@ -425,7 +425,7 @@ describe("Edge Cases", () => {
 
 	describe("Query Edge Cases", () => {
 		it("should handle query with many conditions", async () => {
-			const users = await forja.findMany("user", {
+			const users = await datrix.findMany("user", {
 				where: {
 					$and: [
 						{ isActive: true },
@@ -441,7 +441,7 @@ describe("Edge Cases", () => {
 		});
 
 		it("should handle deeply nested $or/$and", async () => {
-			const users = await forja.findMany("user", {
+			const users = await datrix.findMany("user", {
 				where: {
 					$or: [
 						{
@@ -458,7 +458,7 @@ describe("Edge Cases", () => {
 		});
 
 		it("should handle empty $in array", async () => {
-			const users = await forja.findMany("user", {
+			const users = await datrix.findMany("user", {
 				where: { id: { $in: [] } },
 			});
 
@@ -466,12 +466,12 @@ describe("Edge Cases", () => {
 		});
 
 		it("should handle $in with single value", async () => {
-			const user = await forja.create("user", {
+			const user = await datrix.create("user", {
 				email: "single-in@test.com",
 				name: "Single In",
 			});
 
-			const found = await forja.findMany("user", {
+			const found = await datrix.findMany("user", {
 				where: { id: { $in: [user.id] } },
 			});
 

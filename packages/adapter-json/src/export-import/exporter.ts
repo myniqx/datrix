@@ -1,4 +1,4 @@
-import type { ExportWriter } from "@forja/core";
+import type { ExportWriter } from "@datrix/core";
 import type { JsonAdapter } from "../adapter";
 
 const CHUNK_SIZE = 1000;
@@ -7,7 +7,7 @@ export class JsonExporter {
 	constructor(
 		private root: string,
 		private adapter: JsonAdapter,
-	) {}
+	) { }
 
 	async export(writer: ExportWriter): Promise<void> {
 		await writer.writeMeta({

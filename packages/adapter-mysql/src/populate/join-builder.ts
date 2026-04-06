@@ -5,7 +5,7 @@
  * Supports all relation types: belongsTo, hasOne, hasMany, manyToMany.
  */
 
-import type { ForjaEntry, ISchemaRegistry, RelationField } from "@forja/core";
+import type { DatrixEntry, ISchemaRegistry, RelationField } from "@datrix/core";
 import { escapeIdentifier } from "../helpers";
 import type { JoinClause, PopulateStrategy } from "./types";
 import {
@@ -16,8 +16,8 @@ import {
 	throwTargetModelNotFound,
 	throwJoinBuildError,
 	throwJunctionTableNotFound,
-	ForjaAdapterError,
-} from "@forja/core";
+	DatrixAdapterError,
+} from "@datrix/core";
 import { MySQLQueryObject } from "../types";
 
 /**
@@ -26,7 +26,7 @@ import { MySQLQueryObject } from "../types";
  * Generates optimized JOIN clauses for different populate strategies.
  */
 export class JoinBuilder {
-	constructor(private schemaRegistry: ISchemaRegistry) {}
+	constructor(private schemaRegistry: ISchemaRegistry) { }
 
 	/**
 	 * Build all JOINs for a query
@@ -42,7 +42,7 @@ export class JoinBuilder {
 	 * @param strategy - Populate strategy
 	 * @returns Array of JOIN clauses
 	 */
-	buildJoins<T extends ForjaEntry>(
+	buildJoins<T extends DatrixEntry>(
 		query: MySQLQueryObject<T>,
 		strategy: PopulateStrategy,
 	): readonly JoinClause[] {
@@ -168,7 +168,7 @@ export class JoinBuilder {
 					});
 			}
 		} catch (error) {
-			if (error instanceof ForjaAdapterError) {
+			if (error instanceof DatrixAdapterError) {
 				throw error;
 			}
 			throwJoinBuildError({

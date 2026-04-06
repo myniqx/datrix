@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useForja } from "../hooks/useForja";
+import { useDatrix } from "../hooks/useDatrix";
 import { faker } from "@faker-js/faker";
 import { generateBulkFakeComments } from "../utils/faker";
 import CommentTree from "./CommentTree";
@@ -46,10 +46,10 @@ export default function TopicSection({ globalSearch }: TopicSectionProps) {
 		create: createTopic,
 		update: updateTopic,
 		refetch: refetchTopics,
-	} = useForja<Topic>("topic", topicQuery);
-	const { data: users } = useForja<User>("user");
-	const { create: createComment } = useForja<Comment>("comment");
-	const { create: createLike, remove: removeLike } = useForja<Like>("like");
+	} = useDatrix<Topic>("topic", topicQuery);
+	const { data: users } = useDatrix<User>("user");
+	const { create: createComment } = useDatrix<Comment>("comment");
+	const { create: createLike, remove: removeLike } = useDatrix<Like>("like");
 
 	const [isCreating, setIsCreating] = useState(false);
 	const [expandedTopic, setExpandedTopic] = useState<number | null>(null);
@@ -215,11 +215,10 @@ export default function TopicSection({ globalSearch }: TopicSectionProps) {
 										<div className="relative group/likes">
 											<button
 												onClick={() => handleToggleTopicLike(topic)}
-												className={`flex items-center gap-1.5 text-xs font-bold transition-colors ${
-													topic.likes?.some((l) => l.user?.id === users[0]?.id)
+												className={`flex items-center gap-1.5 text-xs font-bold transition-colors ${topic.likes?.some((l) => l.user?.id === users[0]?.id)
 														? "text-rose-600"
 														: "text-slate-500 hover:text-rose-600"
-												}`}
+													}`}
 											>
 												<svg
 													className={`w-4 h-4 ${topic.likes?.some((l) => l.user?.id === users[0]?.id) ? "fill-rose-600" : ""}`}
@@ -344,7 +343,7 @@ export default function TopicSection({ globalSearch }: TopicSectionProps) {
 									Silence is golden?
 								</h4>
 								<p className="text-slate-500 max-w-xs mx-auto mt-2">
-									No topics found. Start a new discussion to see Forja's
+									No topics found. Start a new discussion to see Datrix's
 									relations in action.
 								</p>
 							</div>

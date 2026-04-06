@@ -1,11 +1,11 @@
-# @forja/api-upload
+# @datrix/api-upload
 
-File upload extension for `@forja/api`. Provides storage-agnostic file handling, image format conversion, resolution variants, and automatic media schema injection. `sharp` is only loaded when this package is installed — the core API package stays dependency-free.
+File upload extension for `@datrix/api`. Provides storage-agnostic file handling, image format conversion, resolution variants, and automatic media schema injection. `sharp` is only loaded when this package is installed — the core API package stays dependency-free.
 
 ## Installation
 
 ```bash
-pnpm add @forja/api-upload
+pnpm add @datrix/api-upload
 ```
 
 Requires `sharp` for image processing (format conversion and resolution variants).
@@ -15,8 +15,8 @@ Requires `sharp` for image processing (format conversion and resolution variants
 Pass an `Upload` instance to `ApiPlugin` via the `upload` option:
 
 ```typescript
-import { Upload, LocalStorageProvider } from "@forja/api-upload"
-import { ApiPlugin } from "@forja/api"
+import { Upload, LocalStorageProvider } from "@datrix/api-upload"
+import { ApiPlugin } from "@datrix/api"
 
 new ApiPlugin({
   upload: new Upload({
@@ -60,7 +60,7 @@ new LocalStorageProvider({
 Stores files in any S3-compatible object storage (AWS S3, Cloudflare R2, MinIO, etc.). No AWS SDK — uses native HTTPS with AWS Signature V4.
 
 ```typescript
-import { S3StorageProvider } from "@forja/api-upload"
+import { S3StorageProvider } from "@datrix/api-upload"
 
 new S3StorageProvider({
   bucket:          "my-bucket",
@@ -77,7 +77,7 @@ new S3StorageProvider({
 Implement the `StorageProvider` interface to add any backend (GCS, Azure Blob, etc.):
 
 ```typescript
-import type { StorageProvider, UploadFile, UploadResult } from "@forja/api"
+import type { StorageProvider, UploadFile, UploadResult } from "@datrix/api"
 
 class GCSProvider implements StorageProvider {
   readonly name = "gcs"

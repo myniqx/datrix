@@ -1,6 +1,6 @@
-import { defineSchema, ForjaEntry } from "@forja/core";
-import type { PermissionContext } from "@forja/core";
-import { Forja } from "@forja/core";
+import { defineSchema, DatrixEntry } from "@datrix/core";
+import type { PermissionContext } from "@datrix/core";
+import { Datrix } from "@datrix/core";
 
 /**
  * Test Roles Type
@@ -191,8 +191,8 @@ export const productSchema = defineSchema({
 			"admin" as TestRoles,
 			"editor" as TestRoles,
 			async (ctx: PermissionContext) => {
-				const record = await (ctx.forja as Forja).findById<
-					{ createdBy: string } & ForjaEntry
+				const record = await (ctx.datrix as Datrix).findById<
+					{ createdBy: string } & DatrixEntry
 				>("product", ctx.id!);
 
 				console.log(record);

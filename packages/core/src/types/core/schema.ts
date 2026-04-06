@@ -1,13 +1,13 @@
 /**
  * Schema Type Definitions
  *
- * This file defines the core schema types used throughout Forja.
+ * This file defines the core schema types used throughout Datrix.
  * Schemas are defined as plain TypeScript objects with full type inference.
  */
 
 import type { SchemaPermission, FieldPermission } from "./permission";
 import { QuerySelect } from "./query-builder";
-import type { ForjaEntry } from "./entry";
+import type { DatrixEntry } from "./entry";
 import type { LifecycleHooks } from "./hooks";
 
 /**
@@ -21,7 +21,7 @@ export const RESERVED_FIELDS = ["id", "createdAt", "updatedAt"] as const;
  */
 export type ReservedFieldName = (typeof RESERVED_FIELDS)[number];
 
-export type { ForjaEntry, ForjaRecord, FallbackValue } from "./entry";
+export type { DatrixEntry, DatrixRecord, FallbackValue } from "./entry";
 
 /**
  * Primitive field types
@@ -244,23 +244,23 @@ export type RelationIdRefs = RelationIdRef | RelationIdRef[];
  * author: { update: { where: { id: 5 }, data: { name: 'John' } } }
  * ```
  */
-export type RelationBelongsTo<T extends ForjaEntry> =
+export type RelationBelongsTo<T extends DatrixEntry> =
 	| RelationIdRef
 	| null
 	| {
-			connect?: RelationIdRef;
-			set?: RelationIdRef;
-			disconnect?: true;
-			create?: Partial<T>;
-			update?: { where: { id: number }; data: Partial<T> };
-			delete?: RelationIdRef;
-	  };
+		connect?: RelationIdRef;
+		set?: RelationIdRef;
+		disconnect?: true;
+		create?: Partial<T>;
+		update?: { where: { id: number }; data: Partial<T> };
+		delete?: RelationIdRef;
+	};
 
 /**
  * hasOne (1:1) relation input - write operations
  * Same constraints as belongsTo (singular).
  */
-export type RelationHasOne<T extends ForjaEntry> = RelationBelongsTo<T>;
+export type RelationHasOne<T extends DatrixEntry> = RelationBelongsTo<T>;
 
 /**
  * hasMany (1:N) relation input - write operations
@@ -284,30 +284,30 @@ export type RelationHasOne<T extends ForjaEntry> = RelationBelongsTo<T>;
  * tags: { delete: [4, 5] }
  * ```
  */
-export type RelationHasMany<T extends ForjaEntry> =
+export type RelationHasMany<T extends DatrixEntry> =
 	| RelationIdRefs
 	| {
-			connect?: RelationIdRefs;
-			disconnect?: RelationIdRefs;
-			set?: RelationIdRefs;
-			create?: Partial<T> | Partial<T>[];
-			update?:
-				| { where: { id: number }; data: Partial<T> }
-				| { where: { id: number }; data: Partial<T> }[];
-			delete?: RelationIdRefs;
-	  };
+		connect?: RelationIdRefs;
+		disconnect?: RelationIdRefs;
+		set?: RelationIdRefs;
+		create?: Partial<T> | Partial<T>[];
+		update?:
+		| { where: { id: number }; data: Partial<T> }
+		| { where: { id: number }; data: Partial<T> }[];
+		delete?: RelationIdRefs;
+	};
 
 /**
  * manyToMany (N:N) relation input - write operations
  * Same constraints as hasMany (plural).
  */
-export type RelationManyToMany<T extends ForjaEntry> = RelationHasMany<T>;
+export type RelationManyToMany<T extends DatrixEntry> = RelationHasMany<T>;
 
 /**
  * Union of all relation input types.
  * Used internally by the query builder and validator.
  */
-export type RelationInput<T extends ForjaEntry> =
+export type RelationInput<T extends DatrixEntry> =
 	| RelationBelongsTo<T>
 	| RelationHasMany<T>;
 
@@ -337,8 +337,8 @@ export type AnyRelationInputObject = {
 	delete?: RelationIdRefs;
 	create?: Record<string, unknown> | Record<string, unknown>[];
 	update?:
-		| { where: { id: number }; data: Record<string, unknown> }
-		| { where: { id: number }; data: Record<string, unknown> }[];
+	| { where: { id: number }; data: Record<string, unknown> }
+	| { where: { id: number }; data: Record<string, unknown> }[];
 };
 
 /**
@@ -571,7 +571,7 @@ export interface ISchemaRegistry {
 	/** Check if registry is locked */
 	isLocked(): boolean;
 	/** Get select fields for a model  */
-	getCachedSelectFields<T extends ForjaEntry>(
+	getCachedSelectFields<T extends DatrixEntry>(
 		modelName: string,
 	): QuerySelect<T>;
 }

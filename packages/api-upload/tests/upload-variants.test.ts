@@ -9,11 +9,11 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { Forja } from "@forja/core";
+import { Datrix } from "@datrix/core";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { expectApiSingle } from "../../core/tests/test/helpers";
-import type { MediaEntry, MediaVariant } from "@forja/core";
+import type { MediaEntry, MediaVariant } from "@datrix/core";
 import { createUploadTestConfig, type TestResolutions } from "./data/config";
 import {
 	createCheckerboardPng,
@@ -22,7 +22,7 @@ import {
 } from "./data/image-helper";
 
 describe("Upload Variants Tests", () => {
-	let forja: Forja;
+	let datrix: Datrix;
 	const tmpDir = path.join(
 		process.cwd(),
 		"packages",
@@ -32,15 +32,15 @@ describe("Upload Variants Tests", () => {
 	);
 
 	async function handleRequest(request: Request): Promise<Response> {
-		const apiPlugin = forja.getPlugin("api");
+		const apiPlugin = datrix.getPlugin("api");
 		if (!apiPlugin || !("handleRequest" in apiPlugin)) {
 			throw new Error("API plugin not found");
 		}
 		const response = await (
 			apiPlugin as {
-				handleRequest: (req: Request, forja: Forja) => Promise<Response>;
+				handleRequest: (req: Request, datrix: Datrix) => Promise<Response>;
 			}
-		).handleRequest(request, forja);
+		).handleRequest(request, datrix);
 		return response;
 	}
 
@@ -53,14 +53,14 @@ describe("Upload Variants Tests", () => {
 		await fs.mkdir(tmpDir, { recursive: true });
 
 		// Configure with format conversion AND all three resolutions
-		const getForja = await createUploadTestConfig(tmpDir, {
+		const getDatrix = await createUploadTestConfig(tmpDir, {
 			format: "webp",
 			withResolutions: true,
 		});
-		forja = await getForja();
+		datrix = await getDatrix();
 
-		const adapter = forja.getAdapter();
-		for (const schema of forja.getSchemas().getAll()) {
+		const adapter = datrix.getAdapter();
+		for (const schema of datrix.getSchemas().getAll()) {
 			try {
 				await adapter.dropTable(schema.tableName!);
 			} catch {

@@ -15,7 +15,7 @@ import { describe, it, expect } from "vitest";
 const TEST_CONFIG: MySQLConfig = {
 	host: "localhost",
 	port: 3306,
-	database: "forja_test",
+	database: "datrix_test",
 	user: "root",
 	password: "password",
 };

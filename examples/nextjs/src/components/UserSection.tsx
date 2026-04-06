@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useForja } from "../hooks/useForja";
+import { useDatrix } from "../hooks/useDatrix";
 import { faker } from "@faker-js/faker";
 import type { User } from "../schemas";
 
 export default function UserSection() {
-	const { data: users, isLoading, error, create } = useForja<User>("user");
+	const { data: users, isLoading, error, create } = useDatrix<User>("user");
 	const [isCreating, setIsCreating] = useState(false);
 
 	const handleAddUser = async () => {

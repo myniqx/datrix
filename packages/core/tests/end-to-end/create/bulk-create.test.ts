@@ -1,7 +1,7 @@
 /**
  * Bulk Create Tests
  *
- * Tests for forja.createMany() - multiple record creation
+ * Tests for datrix.createMany() - multiple record creation
  *
  * Covers:
  * - Basic bulk insert
@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { Forja } from "@forja/core";
+import { Datrix } from "@datrix/core";
 import fs from "node:fs/promises";
 import {
 	createTestConfig,
@@ -25,20 +25,20 @@ import {
 	expectAutoFields,
 	measureTime,
 } from "../setup";
-import { expectForjaErrorAsync } from "../../test/helpers";
+import { expectDatrixErrorAsync } from "../../test/helpers";
 
 describe("Bulk Create", () => {
-	let forja: Forja;
+	let datrix: Datrix;
 	const tmpDir = getTmpDir("bulk_create");
 
 	beforeAll(async () => {
 		await fs.rm(tmpDir, { recursive: true, force: true });
 		await fs.mkdir(tmpDir, { recursive: true });
 
-		const getForja = await createTestConfig(tmpDir);
-		forja = await getForja();
+		const getDatrix = await createTestConfig(tmpDir);
+		datrix = await getDatrix();
 
-		await setupTables(forja);
+		await setupTables(datrix);
 	});
 
 	afterAll(async () => {
@@ -57,7 +57,7 @@ describe("Bulk Create", () => {
 				{ name: "Org 3", country: "Germany" },
 			];
 
-			const results = await forja.createMany("organization", data);
+			const results = await datrix.createMany("organization", data);
 
 			expect(results).toHaveLength(3);
 			expect(results[0].name).toBe("Org 1");
@@ -71,7 +71,7 @@ describe("Bulk Create", () => {
 				{ name: "Auto Org 2", country: "Spain" },
 			];
 
-			const results = await forja.createMany("organization", data);
+			const results = await datrix.createMany("organization", data);
 
 			for (const record of results) {
 				expectAutoFields(record);
@@ -87,21 +87,21 @@ describe("Bulk Create", () => {
 				{ name: "Default Org 2", country: "Portugal", isActive: false },
 			];
 
-			const results = await forja.createMany("organization", data);
+			const results = await datrix.createMany("organization", data);
 
 			expect(results[0].isActive).toBe(true); // default
 			expect(results[1].isActive).toBe(false); // overridden
 		});
 
 		it("should throw error for empty array", async () => {
-			await expectForjaErrorAsync(
-				async () => forja.createMany("organization", []),
+			await expectDatrixErrorAsync(
+				async () => datrix.createMany("organization", []),
 				"MISSING_DATA",
 			);
 		});
 
 		it("should handle single item array", async () => {
-			const results = await forja.createMany("organization", [
+			const results = await datrix.createMany("organization", [
 				{ name: "Single Org", country: "Netherlands" },
 			]);
 
@@ -122,10 +122,10 @@ describe("Bulk Create", () => {
 				{ name: "Valid Org 3", country: "Germany" },
 			];
 
-			await expectForjaErrorAsync(async () => {
-				await forja.createMany(
+			await expectDatrixErrorAsync(async () => {
+				await datrix.createMany(
 					"organization",
-					data as Parameters<typeof forja.createMany>[1],
+					data as Parameters<typeof datrix.createMany>[1],
 				);
 			}, "VALIDATION_FAILED");
 		});
@@ -137,14 +137,14 @@ describe("Bulk Create", () => {
 				{ name: "Valid Role 2", level: 30 },
 			];
 
-			await expectForjaErrorAsync(async () => {
-				await forja.createMany("role", data);
+			await expectDatrixErrorAsync(async () => {
+				await datrix.createMany("role", data);
 			}, "VALIDATION_FAILED");
 		});
 
 		it("should fail entire batch if pattern does not match", async () => {
 			// Create org first
-			const org = await forja.create("organization", {
+			const org = await datrix.create("organization", {
 				name: "Bulk Dept Org",
 				country: "USA",
 			});
@@ -155,8 +155,8 @@ describe("Bulk Create", () => {
 				{ name: "Dept 3", code: "TEST", organization: org.id },
 			];
 
-			await expectForjaErrorAsync(async () => {
-				await forja.createMany("department", data);
+			await expectDatrixErrorAsync(async () => {
+				await datrix.createMany("department", data);
 			}, "VALIDATION_FAILED");
 		});
 	});
@@ -172,14 +172,14 @@ describe("Bulk Create", () => {
 				{ name: "Dup Org", country: "UK" }, // duplicate name in same batch
 			];
 
-			await expectForjaErrorAsync(async () => {
-				await forja.createMany("organization", data);
+			await expectDatrixErrorAsync(async () => {
+				await datrix.createMany("organization", data);
 			}, "ADAPTER_UNIQUE_CONSTRAINT");
 		});
 
 		it("should fail if value already exists in database", async () => {
 			// Create first
-			await forja.create("organization", {
+			await datrix.create("organization", {
 				name: "Existing Org",
 				country: "USA",
 			});
@@ -190,8 +190,8 @@ describe("Bulk Create", () => {
 				{ name: "Existing Org", country: "Germany" }, // already exists
 			];
 
-			await expectForjaErrorAsync(async () => {
-				await forja.createMany("organization", data);
+			await expectDatrixErrorAsync(async () => {
+				await datrix.createMany("organization", data);
 			}, "ADAPTER_UNIQUE_CONSTRAINT");
 		});
 	});
@@ -202,7 +202,7 @@ describe("Bulk Create", () => {
 
 	describe("BelongsTo Relations", () => {
 		it("should create multiple records with belongsTo relation", async () => {
-			const org = await forja.create("organization", {
+			const org = await datrix.create("organization", {
 				name: "Bulk Relation Org",
 				country: "USA",
 			});
@@ -213,7 +213,7 @@ describe("Bulk Create", () => {
 				{ name: "Bulk Dept 3", code: "BLKC", organization: org.id },
 			];
 
-			const results = await forja.createMany("department", data, {
+			const results = await datrix.createMany("department", data, {
 				populate: { organization: true },
 			});
 
@@ -225,11 +225,11 @@ describe("Bulk Create", () => {
 		});
 
 		it("should create records with different relation targets", async () => {
-			const org1 = await forja.create("organization", {
+			const org1 = await datrix.create("organization", {
 				name: "Multi Org 1",
 				country: "USA",
 			});
-			const org2 = await forja.create("organization", {
+			const org2 = await datrix.create("organization", {
 				name: "Multi Org 2",
 				country: "UK",
 			});
@@ -239,7 +239,7 @@ describe("Bulk Create", () => {
 				{ name: "Dept for Org2", code: "DOB", organization: org2.id },
 			];
 
-			const results = await forja.createMany("department", data, {
+			const results = await datrix.createMany("department", data, {
 				populate: { organization: true },
 			});
 
@@ -248,7 +248,7 @@ describe("Bulk Create", () => {
 		});
 
 		it("should allow mixed null and non-null relations", async () => {
-			const org = await forja.create("organization", {
+			const org = await datrix.create("organization", {
 				name: "Mixed Relation Org",
 				country: "USA",
 			});
@@ -258,7 +258,7 @@ describe("Bulk Create", () => {
 				{ email: "no-org@test.com", name: "No Org" }, // no organization
 			];
 
-			const results = await forja.createMany("user", data, {
+			const results = await datrix.createMany("user", data, {
 				populate: { organization: true },
 			});
 
@@ -277,7 +277,7 @@ describe("Bulk Create", () => {
 			const users = generateUsers(100);
 
 			const { result, ms } = await measureTime(async () => {
-				return forja.createMany("user", users);
+				return datrix.createMany("user", users);
 			});
 
 			expect(result).toHaveLength(100);
@@ -290,7 +290,7 @@ describe("Bulk Create", () => {
 			const categories = generateCategories(500);
 
 			const { result, ms } = await measureTime(async () => {
-				return forja.createMany("category", categories);
+				return datrix.createMany("category", categories);
 			});
 
 			expect(result).toHaveLength(500);
@@ -302,7 +302,7 @@ describe("Bulk Create", () => {
 			const tags = generateTags(200);
 
 			const { result, ms } = await measureTime(async () => {
-				return forja.createMany("tag", tags);
+				return datrix.createMany("tag", tags);
 			});
 
 			expect(result).toHaveLength(200);
@@ -322,7 +322,7 @@ describe("Bulk Create", () => {
 				{ name: "Select Org 2", country: "UK", isActive: false },
 			];
 
-			const results = await forja.createMany("organization", data, {
+			const results = await datrix.createMany("organization", data, {
 				select: ["id", "name"],
 			});
 
@@ -349,7 +349,7 @@ describe("Bulk Create", () => {
 				{ name: "Cat 3", slug: "cat-3", isActive: false },
 			];
 
-			const results = await forja.createMany("category", data);
+			const results = await datrix.createMany("category", data);
 
 			expect(results).toHaveLength(3);
 			expect(results[0].description).toBeNull();
@@ -364,7 +364,7 @@ describe("Bulk Create", () => {
 				{ email: "json3@test.com", name: "JSON 3" }, // no metadata
 			];
 
-			const results = await forja.createMany("user", data);
+			const results = await datrix.createMany("user", data);
 
 			expect(results[0].metadata).toEqual({ a: 1 });
 			expect(results[1].metadata).toEqual({ b: 2 });

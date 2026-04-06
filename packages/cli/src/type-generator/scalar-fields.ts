@@ -4,7 +4,7 @@
  * Generates TypeScript type strings for non-relation fields.
  */
 
-import type { ArrayField, EnumField, FieldDefinition } from "@forja/core";
+import type { ArrayField, EnumField, FieldDefinition } from "@datrix/core";
 
 /**
  * Generate TypeScript type string for a scalar field
@@ -51,7 +51,7 @@ export function isScalarField(field: FieldDefinition): boolean {
 /**
  * Check if field should be excluded from Base interface:
  * - hidden fields (auto-generated FK columns)
- * - reserved fields (id, createdAt, updatedAt) - already in ForjaEntry
+ * - reserved fields (id, createdAt, updatedAt) - already in DatrixEntry
  */
 export function isExcludedFromBase(
 	fieldName: string,

@@ -1,19 +1,19 @@
 /**
  * Config Loader
  *
- * Loads forja.config.ts using jiti for TypeScript support.
- * Returns a Forja instance ready to use.
+ * Loads datrix.config.ts using jiti for TypeScript support.
+ * Returns a Datrix instance ready to use.
  */
 
 import { resolve } from "path";
 import { access } from "fs/promises";
 import { CLIError } from "../types";
-import { Forja } from "@forja/core";
+import { Datrix } from "@datrix/core";
 
 /**
  * Default config file name
  */
-const DEFAULT_CONFIG_FILE = "forja.config.ts";
+const DEFAULT_CONFIG_FILE = "datrix.config.ts";
 
 /**
  * Supported config file extensions (checked in order)
@@ -24,7 +24,7 @@ const CONFIG_EXTENSIONS = [".ts", ".js", ".mjs", ".cjs"] as const;
  * Resolve config file path
  *
  * If explicit path given, use it directly.
- * Otherwise search for forja.config.{ts,js,mjs,cjs} in cwd.
+ * Otherwise search for datrix.config.{ts,js,mjs,cjs} in cwd.
  */
 async function resolveConfigPath(configPath?: string): Promise<string> {
 	if (configPath) {
@@ -38,7 +38,7 @@ async function resolveConfigPath(configPath?: string): Promise<string> {
 	}
 
 	for (const ext of CONFIG_EXTENSIONS) {
-		const candidate = resolve(process.cwd(), `forja.config${ext}`);
+		const candidate = resolve(process.cwd(), `datrix.config${ext}`);
 		try {
 			await access(candidate);
 			return candidate;
@@ -54,12 +54,12 @@ async function resolveConfigPath(configPath?: string): Promise<string> {
 }
 
 /**
- * Load config file and return initialized Forja instance
+ * Load config file and return initialized Datrix instance
  *
- * The config file should use defineConfig() which returns () => Promise<Forja>.
+ * The config file should use defineConfig() which returns () => Promise<Datrix>.
  * We import the module, get the default export (the factory), and call it.
  */
-export async function loadConfig(configPath?: string): Promise<Forja> {
+export async function loadConfig(configPath?: string): Promise<Datrix> {
 	const resolvedPath = await resolveConfigPath(configPath);
 
 	try {
@@ -83,8 +83,8 @@ export async function loadConfig(configPath?: string): Promise<Forja> {
 			);
 		}
 
-		const forja = await factory();
-		return forja;
+		const datrix = await factory();
+		return datrix;
 	} catch (error) {
 		if (error instanceof CLIError) {
 			throw error;
@@ -105,9 +105,9 @@ export async function loadConfig(configPath?: string): Promise<Forja> {
  * - export default defineConfig(...)  → module is the factory itself
  * - module.default = defineConfig(...) → module.default is the factory
  */
-function extractFactory(configModule: unknown): (() => Promise<Forja>) | null {
+function extractFactory(configModule: unknown): (() => Promise<Datrix>) | null {
 	if (typeof configModule === "function") {
-		return configModule as () => Promise<Forja>;
+		return configModule as () => Promise<Datrix>;
 	}
 
 	if (
@@ -118,7 +118,7 @@ function extractFactory(configModule: unknown): (() => Promise<Forja>) | null {
 	) {
 		return (configModule as Record<string, unknown>)[
 			"default"
-		] as () => Promise<Forja>;
+		] as () => Promise<Datrix>;
 	}
 
 	return null;

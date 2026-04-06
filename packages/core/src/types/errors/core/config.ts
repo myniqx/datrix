@@ -2,10 +2,10 @@
  * Config Error
  *
  * Specialized error for configuration validation failures.
- * Extends ForjaError with config-specific fields.
+ * Extends DatrixError with config-specific fields.
  */
 
-import { ForjaError, type SerializedForjaError } from "../forja-error";
+import { DatrixError, type SerializedDatrixError } from "../datrix-error";
 
 /**
  * Config error codes
@@ -33,9 +33,9 @@ export interface ConfigErrorContext {
 }
 
 /**
- * Options for creating ForjaConfigError
+ * Options for creating DatrixConfigError
  */
-export interface ForjaConfigErrorOptions {
+export interface DatrixConfigErrorOptions {
 	readonly code: ConfigErrorCode;
 	readonly field?: string | undefined;
 	readonly context?: ConfigErrorContext | undefined;
@@ -48,20 +48,20 @@ export interface ForjaConfigErrorOptions {
 /**
  * Serialized config error for API responses
  */
-export interface SerializedForjaConfigError extends SerializedForjaError {
+export interface SerializedDatrixConfigError extends SerializedDatrixError {
 	readonly field?: string;
 }
 
 /**
- * Forja Config Error Class
+ * Datrix Config Error Class
  *
- * Specialized ForjaError for configuration validation failures.
+ * Specialized DatrixError for configuration validation failures.
  * Includes field name for identifying which config property failed.
  */
-export class ForjaConfigError extends ForjaError<ConfigErrorContext> {
+export class DatrixConfigError extends DatrixError<ConfigErrorContext> {
 	readonly field?: string | undefined;
 
-	constructor(message: string, options: ForjaConfigErrorOptions) {
+	constructor(message: string, options: DatrixConfigErrorOptions) {
 		super(message, {
 			code: options.code,
 			operation: "config:validate",
@@ -78,7 +78,7 @@ export class ForjaConfigError extends ForjaError<ConfigErrorContext> {
 	/**
 	 * Override toJSON to include config-specific fields
 	 */
-	override toJSON(): SerializedForjaConfigError {
+	override toJSON(): SerializedDatrixConfigError {
 		return {
 			...super.toJSON(),
 			...(this.field && { field: this.field }),
@@ -105,7 +105,7 @@ export class ForjaConfigError extends ForjaError<ConfigErrorContext> {
 /**
  * Multiple config validation errors
  */
-export class ForjaConfigValidationError extends ForjaConfigError {
+export class DatrixConfigValidationError extends DatrixConfigError {
 	readonly errors: readonly string[];
 
 	constructor(errors: readonly string[], suggestion?: string) {

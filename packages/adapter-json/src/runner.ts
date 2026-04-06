@@ -5,19 +5,19 @@ import {
 	QuerySelectObject,
 	QuerySelect,
 	QueryCountObject,
-} from "@forja/core";
+} from "@datrix/core";
 import {
-	ForjaEntry,
-	ForjaRecord,
+	DatrixEntry,
+	DatrixRecord,
 	RelationField,
 	SchemaDefinition,
-} from "@forja/core";
+} from "@datrix/core";
 import { JsonTableFile } from "./types";
 import type { JsonAdapter } from "./adapter";
 import {
 	throwInvalidRelationWhereSyntax,
 	throwInvalidWhereField,
-} from "@forja/core";
+} from "@datrix/core";
 
 export class JsonQueryRunner {
 	private schema: SchemaDefinition | undefined;
@@ -42,7 +42,7 @@ export class JsonQueryRunner {
 		return this.adapter;
 	}
 
-	async run<T extends ForjaEntry = ForjaRecord>(
+	async run<T extends DatrixEntry = DatrixRecord>(
 		query: QuerySelectObject<T> | QueryCountObject<T>,
 	): Promise<Partial<T>[]> {
 		let result = this.table.data as T[];
@@ -98,7 +98,7 @@ export class JsonQueryRunner {
 	 * Run query without projection (for populate workflow)
 	 * Applies WHERE, ORDER BY, OFFSET, LIMIT but keeps all fields
 	 */
-	async filterAndSort<T extends ForjaEntry>(
+	async filterAndSort<T extends DatrixEntry>(
 		query: QuerySelectObject<T>,
 	): Promise<T[]> {
 		let result = this.table.data as T[];
@@ -138,7 +138,7 @@ export class JsonQueryRunner {
 	}
 
 	// Exposed for Adapter's RETURNING clause usage
-	public projectData<T extends ForjaEntry>(
+	public projectData<T extends DatrixEntry>(
 		data: T[],
 		select?: QuerySelect<T>,
 		distinct?: boolean,
@@ -146,7 +146,7 @@ export class JsonQueryRunner {
 		return this.project(data, select, distinct);
 	}
 
-	private project<T extends ForjaEntry>(
+	private project<T extends DatrixEntry>(
 		data: T[],
 		select?: QuerySelect<T>,
 		distinct?: boolean,
@@ -204,7 +204,7 @@ export class JsonQueryRunner {
 	 * })
 	 * ```
 	 */
-	private async match<T extends ForjaEntry>(
+	private async match<T extends DatrixEntry>(
 		item: any,
 		where: WhereClause<T>,
 		overrideSchema?: SchemaDefinition,
@@ -305,7 +305,7 @@ export class JsonQueryRunner {
 	 * @param relationField - Relation field definition
 	 * @returns True if relation matches
 	 */
-	private async matchRelation<T extends ForjaEntry>(
+	private async matchRelation<T extends DatrixEntry>(
 		item: any,
 		relationName: string,
 		relationWhere: WhereClause<T>,
@@ -483,7 +483,7 @@ export class JsonQueryRunner {
 		id: string | number,
 	): Promise<Record<string, unknown> | null> {
 		try {
-			// Get target schema from adapter (cache-aware, no Forja dependency)
+			// Get target schema from adapter (cache-aware, no Datrix dependency)
 			const targetSchema = await this.adapter.getSchemaByModelName(modelName);
 			if (!targetSchema) {
 				return null;

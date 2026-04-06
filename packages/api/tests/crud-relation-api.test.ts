@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { Forja } from "@forja/core";
+import { Datrix } from "@datrix/core";
 import { handleRequest } from "../src/helper";
 import { createTestConfig, getTmpDir } from "./data";
 import { createRequest } from "./data/helper";
@@ -23,10 +23,10 @@ import {
 	randomEmail,
 } from "../../core/tests/test/helpers";
 import fs from "node:fs/promises";
-import { ParsedQuery } from "@forja/core";
+import { ParsedQuery } from "@datrix/core";
 
 describe("CRUD Relation API Tests", () => {
-	let forja: Forja;
+	let datrix: Datrix;
 	const tmpDir = getTmpDir("crud_relation");
 
 	// Helper: POST request
@@ -43,7 +43,7 @@ describe("CRUD Relation API Tests", () => {
 			},
 			params,
 		);
-		return handleRequest(forja, request);
+		return handleRequest(datrix, request);
 	};
 
 	// Helper: PUT request
@@ -52,7 +52,7 @@ describe("CRUD Relation API Tests", () => {
 			method: "PUT",
 			body,
 		});
-		return handleRequest(forja, request);
+		return handleRequest(datrix, request);
 	};
 
 	// Helper: GET request
@@ -64,7 +64,7 @@ describe("CRUD Relation API Tests", () => {
 			},
 			params,
 		);
-		return handleRequest(forja, request);
+		return handleRequest(datrix, request);
 	};
 
 	beforeAll(async () => {
@@ -76,16 +76,16 @@ describe("CRUD Relation API Tests", () => {
 		}
 		await fs.mkdir(tmpDir, { recursive: true });
 
-		// Get Forja instance
-		const getForja = await createTestConfig(tmpDir);
-		forja = await getForja();
+		// Get Datrix instance
+		const getDatrix = await createTestConfig(tmpDir);
+		datrix = await getDatrix();
 
 		// Create tables
-		const adapter = forja.getAdapter();
-		for (const schema of forja.getSchemas().getAll()) {
+		const adapter = datrix.getAdapter();
+		for (const schema of datrix.getSchemas().getAll()) {
 			try {
 				await adapter.dropTable(schema.tableName!);
-			} catch {}
+			} catch { }
 			await adapter.createTable(schema);
 		}
 	});

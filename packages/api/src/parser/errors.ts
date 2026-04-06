@@ -13,8 +13,8 @@ import {
 	type FieldsErrorContext,
 	type PaginationErrorContext,
 	type SortErrorContext,
-} from "@forja/core";
-import { MAX_WHERE_VALUE_LENGTH, MAX_LOGICAL_NESTING_DEPTH } from "@forja/core";
+} from "@datrix/core";
+import { MAX_WHERE_VALUE_LENGTH, MAX_LOGICAL_NESTING_DEPTH } from "@datrix/core";
 
 /**
  * Where Parser Errors

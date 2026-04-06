@@ -4,9 +4,9 @@
  * Shared utility functions for handlers
  */
 
-import { ParserError } from "@forja/core";
-import { ForjaError, ForjaValidationError } from "@forja/core";
-import { ForjaApiError } from "../errors/api-error";
+import { ParserError } from "@datrix/core";
+import { DatrixError, DatrixValidationError } from "@datrix/core";
+import { DatrixApiError } from "../errors/api-error";
 
 /**
  * Create JSON response
@@ -19,17 +19,17 @@ export function jsonResponse(data: unknown, status = 200): Response {
 }
 
 /**
- * Generic ForjaError to Response converter
- * Handles ApiError (with status), ForjaValidationError (400), and base ForjaError
+ * Generic DatrixError to Response converter
+ * Handles ApiError (with status), DatrixValidationError (400), and base DatrixError
  */
-export function forjaErrorResponse(
-	error: ForjaApiError | ForjaError,
+export function datrixErrorResponse(
+	error: DatrixApiError | DatrixError,
 ): Response {
 	let status = 400;
 
-	if (error instanceof ForjaApiError) {
+	if (error instanceof DatrixApiError) {
 		status = error.status;
-	} else if (error instanceof ForjaValidationError) {
+	} else if (error instanceof DatrixValidationError) {
 		status = 400;
 	}
 
@@ -48,7 +48,7 @@ export function forjaErrorResponse(
 
 /**
  * Create error response (Legacy support - will be phased out)
- * Use ApiError/forjaErrorResponse for new code
+ * Use ApiError/datrixErrorResponse for new code
  */
 export function errorResponse(
 	message: string,
@@ -60,10 +60,10 @@ export function errorResponse(
 
 /**
  * Create detailed parser error response
- * @deprecated Use forjaErrorResponse instead
+ * @deprecated Use datrixErrorResponse instead
  */
 export function parserErrorResponse(error: ParserError): Response {
-	return forjaErrorResponse(error);
+	return datrixErrorResponse(error);
 }
 
 /**

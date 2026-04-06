@@ -1,6 +1,6 @@
 "use client";
 
-import { useForja } from "../hooks/useForja";
+import { useDatrix } from "../hooks/useDatrix";
 import { generateFakeComment } from "../utils/faker";
 import { useState } from "react";
 import type { Comment, User, Like } from "../schemas";
@@ -18,8 +18,8 @@ export default function CommentTree({
 	users,
 	parentId,
 }: CommentTreeProps) {
-	const { create: createComment } = useForja<Comment>("comment");
-	const { create: createLike, remove: removeLike } = useForja<Like>("like");
+	const { create: createComment } = useDatrix<Comment>("comment");
+	const { create: createLike, remove: removeLike } = useDatrix<Like>("like");
 	const [commentSort, setCommentSort] = useState<"new" | "popular">("new");
 	const [searchTerm, setSearchTerm] = useState("");
 
@@ -27,32 +27,32 @@ export default function CommentTree({
 
 	const commentQuery = isRoot
 		? {
-				where: {
-					topic: { id: { $eq: topicId } },
-					...(searchTerm.trim() && {
-						$or: [
-							{ content: { $contains: searchTerm } },
-							{ author: { name: { $contains: searchTerm } } },
-						],
-					}),
+			where: {
+				topic: { id: { $eq: topicId } },
+				...(searchTerm.trim() && {
+					$or: [
+						{ content: { $contains: searchTerm } },
+						{ author: { name: { $contains: searchTerm } } },
+					],
+				}),
+			},
+			populate: {
+				author: true,
+				replies: {
+					populate: { author: true, likes: { populate: { user: true } } },
 				},
-				populate: {
-					author: true,
-					replies: {
-						populate: { author: true, likes: { populate: { user: true } } },
-					},
-					likes: { populate: { user: true } },
+				likes: { populate: { user: true } },
+			},
+			orderBy: [
+				{
+					field: commentSort === "new" ? "createdAt" : "likesCount",
+					direction: "desc" as const,
 				},
-				orderBy: [
-					{
-						field: commentSort === "new" ? "createdAt" : "likesCount",
-						direction: "desc" as const,
-					},
-				],
-			}
+			],
+		}
 		: undefined;
 
-	const { data: fetchedComments, isLoading: searching } = useForja<Comment>(
+	const { data: fetchedComments, isLoading: searching } = useDatrix<Comment>(
 		"comment",
 		commentQuery!,
 	);
@@ -148,11 +148,10 @@ export default function CommentTree({
 							<div className="relative group/commentlikes">
 								<button
 									onClick={() => handleToggleLike(comment)}
-									className={`flex items-center gap-1 text-[11px] font-semibold transition-colors ${
-										comment.likes?.some((l) => l.user?.id === users[0]?.id)
+									className={`flex items-center gap-1 text-[11px] font-semibold transition-colors ${comment.likes?.some((l) => l.user?.id === users[0]?.id)
 											? "text-red-500"
 											: "text-slate-400 hover:text-red-500"
-									}`}
+										}`}
 								>
 									<svg
 										xmlns="http://www.w3.org/2000/svg"

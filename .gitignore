@@ -52,6 +52,6 @@ Thumbs.db
 *.sqlite
 *.sqlite3
 
-# Forja specific
-.forja/
+# datrix specific
+.datrix/
 migrations/*.sql

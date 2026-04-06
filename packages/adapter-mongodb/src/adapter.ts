@@ -6,7 +6,7 @@
  *
  * Key differences from SQL adapters:
  * - No SQL generation: uses MongoDB native operations (find, insertMany, updateMany, etc.)
- * - Auto-increment IDs: managed via _forja collection counters (MongoDB has no SERIAL)
+ * - Auto-increment IDs: managed via _datrix collection counters (MongoDB has no SERIAL)
  * - Schema-less: ALTER TABLE operations translate to $set/$unset/$rename on all documents
  * - Transactions: require replica set (MongoDB limitation)
  */
@@ -31,7 +31,7 @@ import {
 import { applyOnDeleteActions } from "./on-delete";
 import { MongoDBExporter } from "./export-import/exporter";
 import { MongoDBImporter } from "./export-import/importer";
-import type { ExportWriter, ImportReader } from "@forja/core";
+import type { ExportWriter, ImportReader } from "@datrix/core";
 import type {
 	MongoDBConfig,
 	MongoFindResult,
@@ -39,8 +39,8 @@ import type {
 } from "./types";
 import { COUNTER_KEY_PREFIX } from "./types";
 import { getNextIds } from "./helpers";
-import type { QueryObject, QuerySelectObject } from "@forja/core";
-import type { ForjaEntry } from "@forja/core";
+import type { QueryObject, QuerySelectObject } from "@datrix/core";
+import type { DatrixEntry } from "@datrix/core";
 import type {
 	AlterOperation,
 	ConnectionState,
@@ -48,9 +48,9 @@ import type {
 	QueryMetadata,
 	QueryResult,
 	Transaction,
-} from "@forja/core";
+} from "@datrix/core";
 import {
-	ForjaAdapterError,
+	DatrixAdapterError,
 	throwNotConnected,
 	throwConnectionError,
 	throwMigrationError,
@@ -60,14 +60,14 @@ import {
 	throwQueryError,
 	throwMetaFieldAlreadyExists,
 	throwMetaFieldNotFound,
-} from "@forja/core";
-import { validateQueryObject } from "@forja/core";
+} from "@datrix/core";
+import { validateQueryObject } from "@datrix/core";
 import type {
 	IndexDefinition,
 	ISchemaRegistry,
 	SchemaDefinition,
-} from "@forja/core";
-import { FORJA_META_MODEL, FORJA_META_KEY_PREFIX } from "@forja/core";
+} from "@datrix/core";
+import { FORJA_META_MODEL, FORJA_META_KEY_PREFIX } from "@datrix/core";
 
 /**
  * MongoDB adapter implementation
@@ -93,7 +93,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 	/**
 	 * Get a MongoClient wrapper for operations
 	 */
-	private createClient<T extends ForjaEntry>(
+	private createClient<T extends DatrixEntry>(
 		session: ClientSession | undefined,
 		query: QueryObject<T>,
 	): MongoClient<T> {
@@ -104,7 +104,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 	}
 
 	/**
-	 * Get the _forja meta collection
+	 * Get the _datrix meta collection
 	 */
 	private getMetaCollection(): Collection<Document> {
 		if (!this.db) {
@@ -129,7 +129,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 				minPoolSize: this.config.minPoolSize ?? 2,
 				connectTimeoutMS: this.config.connectTimeoutMS ?? 10000,
 				serverSelectionTimeoutMS: this.config.serverSelectionTimeoutMS ?? 5000,
-				appName: this.config.appName ?? "forja",
+				appName: this.config.appName ?? "datrix",
 				...(this.config.tls !== undefined && { tls: this.config.tls }),
 				...(this.config.tlsCAFile && { tlsCAFile: this.config.tlsCAFile }),
 				...(this.config.replicaSet && { replicaSet: this.config.replicaSet }),
@@ -186,7 +186,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 	// Query Execution
 	// =========================================================================
 
-	async executeQuery<TResult extends ForjaEntry>(
+	async executeQuery<TResult extends DatrixEntry>(
 		query: QueryObject<TResult>,
 		session?: ClientSession,
 	): Promise<QueryResult<TResult>> {
@@ -234,12 +234,12 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 					});
 			}
 		} catch (error) {
-			if (error instanceof ForjaAdapterError) throw error;
+			if (error instanceof DatrixAdapterError) throw error;
 			throw this.mapMongoError(error, query);
 		}
 	}
 
-	private async executeFindOp<TResult extends ForjaEntry>(
+	private async executeFindOp<TResult extends DatrixEntry>(
 		op: MongoFindResult,
 		client: MongoClient<TResult>,
 	): Promise<QueryResult<TResult>> {
@@ -277,7 +277,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 		return { rows: rows as unknown as readonly TResult[], metadata };
 	}
 
-	private async executeInsertOp<TResult extends ForjaEntry>(
+	private async executeInsertOp<TResult extends DatrixEntry>(
 		op: {
 			readonly collection: string;
 			readonly documents: readonly Document[];
@@ -330,7 +330,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 		return { rows: idRows, metadata };
 	}
 
-	private async executeUpdateOp<TResult extends ForjaEntry>(
+	private async executeUpdateOp<TResult extends DatrixEntry>(
 		op: {
 			readonly collection: string;
 			readonly filter: Document;
@@ -376,7 +376,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 		return { rows: idRows, metadata };
 	}
 
-	private async executeDeleteOp<TResult extends ForjaEntry>(
+	private async executeDeleteOp<TResult extends DatrixEntry>(
 		op: { readonly collection: string; readonly filter: Document },
 		client: MongoClient<TResult>,
 	): Promise<QueryResult<TResult>> {
@@ -417,7 +417,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 		return { rows: [] as unknown as readonly TResult[], metadata };
 	}
 
-	private async executeCountOp<TResult extends ForjaEntry>(
+	private async executeCountOp<TResult extends DatrixEntry>(
 		op: { readonly collection: string; readonly filter: Document },
 		client: MongoClient<TResult>,
 	): Promise<QueryResult<TResult>> {
@@ -442,7 +442,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 	/**
 	 * Execute query with populate
 	 */
-	private async executeWithPopulate<TResult extends ForjaEntry>(
+	private async executeWithPopulate<TResult extends DatrixEntry>(
 		query: QuerySelectObject<TResult>,
 		client: MongoClient<TResult>,
 	): Promise<QueryResult<TResult>> {
@@ -520,7 +520,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 	 * Resolve nested relation conditions in translated query filter.
 	 * Only applies to operations that have a filter (find, count, update, delete).
 	 */
-	private async resolveFilterRelations<TResult extends ForjaEntry>(
+	private async resolveFilterRelations<TResult extends DatrixEntry>(
 		translated: MongoTranslateResult,
 		client: MongoClient<TResult>,
 	): Promise<MongoTranslateResult> {
@@ -540,25 +540,25 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 	}
 
 	/**
-	 * Map MongoDB errors to ForjaAdapterError
+	 * Map MongoDB errors to DatrixAdapterError
 	 */
-	private mapMongoError<TResult extends ForjaEntry>(
+	private mapMongoError<TResult extends DatrixEntry>(
 		error: unknown,
 		query?: QueryObject<TResult>,
-	): ForjaAdapterError {
-		if (error instanceof ForjaAdapterError) return error;
+	): DatrixAdapterError {
+		if (error instanceof DatrixAdapterError) return error;
 
 		const message = error instanceof Error ? error.message : String(error);
 		const mongoError = error as { code?: number; codeName?: string };
 
-		const forjaCode =
+		const datrixCode =
 			mongoError.code === 11000 || mongoError.code === 11001
 				? ("ADAPTER_UNIQUE_CONSTRAINT" as const)
 				: ("ADAPTER_QUERY_ERROR" as const);
 
-		return new ForjaAdapterError(`Query execution failed: ${message}`, {
+		return new DatrixAdapterError(`Query execution failed: ${message}`, {
 			adapter: "mongodb",
-			code: forjaCode,
+			code: datrixCode,
 			operation: "query",
 			context: {
 				...(query && { query: { type: query.type, table: query.table } }),
@@ -573,7 +573,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 	// Raw Query
 	// =========================================================================
 
-	async executeRawQuery<TResult extends ForjaEntry>(
+	async executeRawQuery<TResult extends DatrixEntry>(
 		sql: string,
 		_params: readonly unknown[],
 		session?: ClientSession,
@@ -609,7 +609,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 
 			return { rows: rows as unknown as readonly TResult[], metadata };
 		} catch (error) {
-			if (error instanceof ForjaAdapterError) throw error;
+			if (error instanceof DatrixAdapterError) throw error;
 			throw this.mapMongoError(error);
 		}
 	}
@@ -654,7 +654,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 		options?: {
 			/**
 			 * Set to true when called from the importer.
-			 * Skips upsertSchemaMeta so the importer can restore _forja data as-is.
+			 * Skips upsertSchemaMeta so the importer can restore _datrix data as-is.
 			 */
 			isImport?: boolean;
 		},
@@ -667,7 +667,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 			// Create collection
 			await this.db!.createCollection(schema.tableName!);
 
-			// _forja is a key/value meta collection - index on `key`, not `id`
+			// _datrix is a key/value meta collection - index on `key`, not `id`
 			const collection = this.db!.collection(schema.tableName!);
 			if (schema.name === FORJA_META_MODEL) {
 				await collection.createIndex({ key: 1 }, { unique: true });
@@ -683,7 +683,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 				}
 			}
 
-			// Track schema in _forja (skip during import — _forja data will be restored as-is)
+			// Track schema in _datrix (skip during import — _datrix data will be restored as-is)
 			if (!options?.isImport) {
 				if (schema.name !== FORJA_META_MODEL) {
 					const metaExists = await this.tableExists(FORJA_META_MODEL);
@@ -698,7 +698,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 				await this.upsertSchemaMeta(schema);
 			}
 		} catch (error) {
-			if (error instanceof ForjaAdapterError) throw error;
+			if (error instanceof DatrixAdapterError) throw error;
 			const message = error instanceof Error ? error.message : String(error);
 			throwMigrationError({
 				adapter: "mongodb",
@@ -721,7 +721,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 		try {
 			await this.db!.collection(tableName).drop();
 
-			// Remove schema from _forja (skip during import — _forja data will be restored as-is)
+			// Remove schema from _datrix (skip during import — _datrix data will be restored as-is)
 			if (!options?.isImport && tableName !== FORJA_META_MODEL) {
 				const metaKey = `${FORJA_META_KEY_PREFIX}${tableName}`;
 				const metaCollection = this.getMetaCollection();
@@ -732,7 +732,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 				await metaCollection.deleteOne({ key: counterKey });
 			}
 		} catch (error) {
-			if (error instanceof ForjaAdapterError) throw error;
+			if (error instanceof DatrixAdapterError) throw error;
 			const message = error instanceof Error ? error.message : String(error);
 			throwMigrationError({
 				adapter: "mongodb",
@@ -755,7 +755,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 		try {
 			await this.db!.collection(from).rename(to);
 
-			// Update key in _forja
+			// Update key in _datrix
 			if (from !== FORJA_META_MODEL && to !== FORJA_META_MODEL) {
 				const metaCollection = this.getMetaCollection();
 				const oldKey = `${FORJA_META_KEY_PREFIX}${from}`;
@@ -774,7 +774,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 				);
 			}
 		} catch (error) {
-			if (error instanceof ForjaAdapterError) throw error;
+			if (error instanceof DatrixAdapterError) throw error;
 			const message = error instanceof Error ? error.message : String(error);
 			throwMigrationError({
 				adapter: "mongodb",
@@ -824,12 +824,12 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 				}
 			}
 
-			// Update schema in _forja
+			// Update schema in _datrix
 			if (tableName !== FORJA_META_MODEL) {
 				await this.applyOperationsToMetaSchema(tableName, operations);
 			}
 		} catch (error) {
-			if (error instanceof ForjaAdapterError) throw error;
+			if (error instanceof DatrixAdapterError) throw error;
 			const message = error instanceof Error ? error.message : String(error);
 			throwMigrationError({
 				adapter: "mongodb",
@@ -877,7 +877,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 				name: indexName,
 			});
 		} catch (error) {
-			if (error instanceof ForjaAdapterError) throw error;
+			if (error instanceof DatrixAdapterError) throw error;
 			const message = error instanceof Error ? error.message : String(error);
 			throwMigrationError({
 				adapter: "mongodb",
@@ -901,7 +901,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 			const collection = this.db!.collection(tableName);
 			await collection.dropIndex(indexName);
 		} catch (error) {
-			if (error instanceof ForjaAdapterError) throw error;
+			if (error instanceof DatrixAdapterError) throw error;
 			const message = error instanceof Error ? error.message : String(error);
 			throwMigrationError({
 				adapter: "mongodb",
@@ -1010,7 +1010,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 		if (!doc) {
 			throwMigrationError({
 				adapter: "mongodb",
-				message: `Schema meta for collection '${tableName}' not found in _forja`,
+				message: `Schema meta for collection '${tableName}' not found in _datrix`,
 				table: tableName,
 			});
 		}
@@ -1109,7 +1109,7 @@ class MongoDBTransaction implements Transaction {
 		this.id = id;
 	}
 
-	async executeQuery<TResult extends ForjaEntry>(
+	async executeQuery<TResult extends DatrixEntry>(
 		query: QueryObject<TResult>,
 	): Promise<QueryResult<TResult>> {
 		if (this.committed || this.rolledBack) {
@@ -1137,7 +1137,7 @@ class MongoDBTransaction implements Transaction {
 		}
 	}
 
-	async executeRawQuery<TResult extends ForjaEntry>(
+	async executeRawQuery<TResult extends DatrixEntry>(
 		sql: string,
 		params: readonly unknown[],
 	): Promise<QueryResult<TResult>> {

@@ -2,7 +2,7 @@
  * Migration History Schema Definition
  *
  * Internal schema for tracking applied migrations.
- * This schema is automatically registered by Forja during initialization.
+ * This schema is automatically registered by Datrix during initialization.
  */
 
 import { defineSchema } from "../types/core/schema";
@@ -12,12 +12,12 @@ export { FORJA_META_MODEL };
 /**
  * Default model name for migration history
  */
-export const DEFAULT_MIGRATION_MODEL = "_forja_migration";
+export const DEFAULT_MIGRATION_MODEL = "_datrix_migration";
 
 /**
  * Get migration history schema definition
  *
- * @param modelName - Custom model name (default: '_forja_migration')
+ * @param modelName - Custom model name (default: '_datrix_migration')
  * @returns Schema definition for migration history table
  */
 export function getMigrationSchema(
@@ -89,12 +89,12 @@ export function getMigrationSchema(
 export type MigrationHistorySchema = ReturnType<typeof getMigrationSchema>;
 
 /**
- * Get internal Forja metadata schema definition
+ * Get internal Datrix metadata schema definition
  *
  * Stores per-table schema snapshots as JSON for migration diffing.
- * key: table name, value: full Forja SchemaDefinition as JSON string
+ * key: table name, value: full Datrix SchemaDefinition as JSON string
  */
-export function getForjaMetaSchema() {
+export function getDatrixMetaSchema() {
 	return defineSchema({
 		name: FORJA_META_MODEL,
 		tableName: FORJA_META_MODEL,
@@ -110,7 +110,7 @@ export function getForjaMetaSchema() {
 			value: {
 				type: "string",
 				required: true,
-				description: "Forja SchemaDefinition as JSON string",
+				description: "Datrix SchemaDefinition as JSON string",
 			},
 		},
 
@@ -124,6 +124,6 @@ export function getForjaMetaSchema() {
 }
 
 /**
- * Forja metadata schema type
+ * Datrix metadata schema type
  */
-export type ForjaMetaSchema = ReturnType<typeof getForjaMetaSchema>;
+export type DatrixMetaSchema = ReturnType<typeof getDatrixMetaSchema>;

@@ -8,7 +8,7 @@
  * - Status display (--status)
  */
 
-import type { MigrationSession, MigrationPlan } from "@forja/core";
+import type { MigrationSession, MigrationPlan } from "@datrix/core";
 import type { MigrateCommandOptions } from "../types";
 import { CLIError } from "../types";
 import {
@@ -226,7 +226,7 @@ export async function migrateCommand(
 	session: MigrationSession,
 ): Promise<void> {
 	logger.log("");
-	logger.info("Forja Migration Tool");
+	logger.info("Datrix Migration Tool");
 	logger.log("");
 
 	await runPendingMigrations(session, options);

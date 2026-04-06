@@ -1,0 +1,78 @@
+---
+title: Basic CRUD
+description: Create, read, update and delete records with Datrix.
+order: 5
+---
+
+# Basic CRUD
+
+Once your config and schemas are in place, import the factory and start querying.
+
+```typescript
+import getDatrix from './datrix.config'
+
+const datrix = await getDatrix()
+```
+
+## Create
+
+```typescript
+const user = await datrix.create('user', {
+  name: 'Alice',
+  email: 'alice@example.com',
+  role: 'editor',
+})
+// → { id: 1, name: 'Alice', email: 'alice@example.com', role: 'editor', createdAt: ..., updatedAt: ... }
+```
+
+## Read
+
+```typescript
+// Single record by id
+const user = await datrix.findById('user', 1)
+
+// Single record by condition
+const user = await datrix.findOne('user', { email: 'alice@example.com' })
+
+// Multiple records
+const users = await datrix.findMany('user', {
+  where: { role: 'editor' },
+  sort: { createdAt: 'desc' },
+  limit: 20,
+  offset: 0,
+})
+
+// Count
+const total = await datrix.count('user', { role: 'editor' })
+```
+
+## Update
+
+```typescript
+// Update by id
+const updated = await datrix.update('user', 1, { name: 'Alice Smith' })
+
+// Update multiple records matching a condition
+const updated = await datrix.updateMany('user', { role: 'editor' }, { role: 'user' })
+```
+
+## Delete
+
+```typescript
+// Delete by id
+const deleted = await datrix.delete('user', 1)
+
+// Delete multiple records matching a condition
+const deleted = await datrix.deleteMany('user', { role: 'user' })
+```
+
+## Bulk create
+
+```typescript
+const users = await datrix.createMany('user', [
+  { name: 'Bob',   email: 'bob@example.com' },
+  { name: 'Carol', email: 'carol@example.com' },
+])
+```
+
+For filtering, sorting, pagination and relation population details see [Core: Query](/docs/core/query).

@@ -9,7 +9,7 @@ import type {
 	QueryPopulate,
 	QueryPopulateOptions,
 	QuerySelectObject,
-} from "@forja/core";
+} from "@datrix/core";
 import type { MySQLQueryTranslator } from "../query-translator";
 import { escapeIdentifier } from "../helpers";
 import type { PopulateStrategy, PopulateOptionsAnalysis } from "./types";
@@ -17,10 +17,10 @@ import { JoinBuilder } from "./join-builder";
 import { AggregationBuilder } from "./aggregation-builder";
 import { ResultProcessor } from "./result-processor";
 import { MySQLClient } from "../mysql-client";
-import { throwMaxDepthExceeded } from "@forja/core";
-import { ForjaEntry } from "@forja/core";
+import { throwMaxDepthExceeded } from "@datrix/core";
+import { DatrixEntry } from "@datrix/core";
 import { MySQLQueryObject } from "../types";
-import { ISchemaRegistry } from "@forja/core";
+import { ISchemaRegistry } from "@datrix/core";
 
 /**
  * Maximum populate nesting depth
@@ -67,7 +67,7 @@ export class MySQLPopulator {
 	 * @param query - Query object with populate
 	 * @returns Rows with populated relations
 	 */
-	async populate<T extends ForjaEntry>(
+	async populate<T extends DatrixEntry>(
 		query: QuerySelectObject<T>,
 	): Promise<readonly T[]> {
 		if (!query.populate) {
@@ -107,7 +107,7 @@ export class MySQLPopulator {
 	 * Uses JSON_ARRAYAGG() and JSON_OBJECT() for single-query populate.
 	 * Best for simple cases without complex populate options.
 	 */
-	private async executeJsonAggregation<T extends ForjaEntry>(
+	private async executeJsonAggregation<T extends DatrixEntry>(
 		query: QuerySelectObject<T>,
 	): Promise<readonly T[]> {
 		const modifiedQuery = this.buildJsonAggregationQuery(query);
@@ -126,7 +126,7 @@ export class MySQLPopulator {
 	 * Uses LATERAL joins for populate with limit/offset/where/orderBy.
 	 * Allows per-relation options while maintaining single query.
 	 */
-	private async executeLateralJoins<T extends ForjaEntry>(
+	private async executeLateralJoins<T extends DatrixEntry>(
 		query: QuerySelectObject<T>,
 	): Promise<readonly T[]> {
 		const modelName = this.schemaRegistry.findModelByTableName(query.table);
@@ -150,13 +150,13 @@ export class MySQLPopulator {
 		const mainQuery: QuerySelectObject<T> =
 			fkColumnsNeeded.length > 0
 				? {
-						...query,
-						populate: undefined,
-						select: [
-							...(query.select as string[]),
-							...fkColumnsNeeded,
-						] as unknown as QuerySelectObject<T>["select"],
-					}
+					...query,
+					populate: undefined,
+					select: [
+						...(query.select as string[]),
+						...fkColumnsNeeded,
+					] as unknown as QuerySelectObject<T>["select"],
+				}
 				: { ...query, populate: undefined };
 
 		const { sql: mainSql, params: mainParams } =
@@ -392,7 +392,7 @@ export class MySQLPopulator {
 	 * Executes batched queries for each relation (avoids N+1).
 	 * Supports recursive nested populate at any depth.
 	 */
-	private async executeBatchedQueries<T extends ForjaEntry>(
+	private async executeBatchedQueries<T extends DatrixEntry>(
 		query: QuerySelectObject<T>,
 	): Promise<readonly T[]> {
 		const modelName = this.schemaRegistry.findModelByTableName(query.table);
@@ -415,12 +415,12 @@ export class MySQLPopulator {
 		const queryWithFks: QuerySelectObject<T> =
 			fkColumnsNeeded.length > 0
 				? {
-						...query,
-						select: [
-							...(query.select as string[]),
-							...fkColumnsNeeded,
-						] as unknown as QuerySelectObject<T>["select"],
-					}
+					...query,
+					select: [
+						...(query.select as string[]),
+						...fkColumnsNeeded,
+					] as unknown as QuerySelectObject<T>["select"],
+				}
 				: query;
 
 		const { sql, params } = this.translator.translate(queryWithFks);
@@ -610,7 +610,7 @@ export class MySQLPopulator {
 	/**
 	 * Recursively populate nested relations on already-fetched rows
 	 */
-	private async populateBatchedRows<T extends ForjaEntry>(
+	private async populateBatchedRows<T extends DatrixEntry>(
 		rows: (T & { _fk: number })[],
 		tableName: string,
 		populate: QueryPopulate<T>,
@@ -774,7 +774,7 @@ export class MySQLPopulator {
 	/**
 	 * Build query with JSON aggregation
 	 */
-	private buildJsonAggregationQuery<T extends ForjaEntry>(
+	private buildJsonAggregationQuery<T extends DatrixEntry>(
 		query: QuerySelectObject<T>,
 	): MySQLQueryObject<T> {
 		const mysqlQuery = query as MySQLQueryObject<T>;
@@ -800,7 +800,7 @@ export class MySQLPopulator {
 	/**
 	 * Analyze populate requirements
 	 */
-	private analyzePopulate<T extends ForjaEntry>(
+	private analyzePopulate<T extends DatrixEntry>(
 		populate: QueryPopulate<T>,
 		tableName: string,
 	): PopulateOptionsAnalysis {
@@ -904,7 +904,7 @@ export class MySQLPopulator {
 	 * Collect FK columns needed by nested populate (belongsTo).
 	 * These must be included in JSON_OBJECT so recursive populate can use them.
 	 */
-	private collectNestedFkColumns<T extends ForjaEntry>(
+	private collectNestedFkColumns<T extends DatrixEntry>(
 		targetModel: string,
 		opts: QueryPopulateOptions<T>,
 	): readonly string[] {
@@ -929,7 +929,7 @@ export class MySQLPopulator {
 	 * Execute a batched query, parse JSON data column, and return typed rows with _fk.
 	 * Error handling is delegated to MySQLClient.
 	 */
-	private async fetchBatchQueryResults<T extends ForjaEntry>(
+	private async fetchBatchQueryResults<T extends DatrixEntry>(
 		sql: string,
 		params: unknown[],
 	): Promise<(T & { _fk: number })[]> {
@@ -945,7 +945,7 @@ export class MySQLPopulator {
 	 * Like fetchBatchQueryResults but supports extra params after the IN (?) array.
 	 * MySQL positional params: first param is the IN array, rest are flat extra params.
 	 */
-	private async fetchBatchQueryResultsWithParams<T extends ForjaEntry>(
+	private async fetchBatchQueryResultsWithParams<T extends DatrixEntry>(
 		sql: string,
 		inParams: unknown[],
 		extraParams: unknown[],
@@ -961,7 +961,7 @@ export class MySQLPopulator {
 	/**
 	 * Helper function to fetch target related rows, populate nested relations, and return a map
 	 */
-	private async fetchAndPopulateNested<T extends ForjaEntry, R = Partial<T>>(
+	private async fetchAndPopulateNested<T extends DatrixEntry, R = Partial<T>>(
 		opts: QueryPopulateOptions<T>,
 		targetTable: string,
 		batchQuery: string,
@@ -996,7 +996,7 @@ export class MySQLPopulator {
 	 * Build JSON_OBJECT expression for a target model.
 	 * Includes all non-relation fields + FK columns needed for nested populate.
 	 */
-	private buildJsonObject<T extends ForjaEntry>(
+	private buildJsonObject<T extends DatrixEntry>(
 		targetModel: string,
 		opts?: QueryPopulateOptions<T>,
 	): string {
@@ -1007,8 +1007,8 @@ export class MySQLPopulator {
 		const fields: string[] = opts?.select
 			? [...(opts.select as string[])]
 			: Object.entries(targetSchema.fields)
-					.filter(([_, field]) => field.type !== "relation")
-					.map(([name]) => name);
+				.filter(([_, field]) => field.type !== "relation")
+				.map(([name]) => name);
 
 		// Inject FK columns needed for nested populate
 		if (opts) {
@@ -1031,7 +1031,7 @@ export class MySQLPopulator {
 	 * Build extra SQL clauses (WHERE/ORDER BY) for batch/lateral queries from populate options.
 	 * MySQL uses positional ? params — returns sql fragment and params to append.
 	 */
-	private buildBatchOptionsClause<T extends ForjaEntry>(
+	private buildBatchOptionsClause<T extends DatrixEntry>(
 		options: QueryPopulateOptions<T>,
 		targetTable: string,
 	): { sql: string; params: unknown[] } {
@@ -1079,7 +1079,7 @@ export class MySQLPopulator {
 	/**
 	 * Build relation path string for error messages
 	 */
-	private buildRelationPath<T extends ForjaEntry>(
+	private buildRelationPath<T extends DatrixEntry>(
 		populate: QueryPopulate<T>,
 		prefix = "",
 	): string {

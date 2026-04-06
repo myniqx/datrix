@@ -4,7 +4,7 @@
  * Type definitions for populate functionality.
  */
 
-import type { QuerySelect } from "@forja/core";
+import type { QuerySelect } from "@datrix/core";
 
 /**
  * Populate strategy selection

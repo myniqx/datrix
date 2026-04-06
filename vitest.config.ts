@@ -43,25 +43,25 @@ export default defineConfig({
 	resolve: {
 		alias: {
 			// Monorepo package aliases
-			"@forja/core": path.resolve(
+			"@datrix/core": path.resolve(
 				__dirname,
 				"./packages/core/src/types/utils/index.ts",
 			),
-			"@forja/core": path.resolve(
+			"@datrix/core": path.resolve(
 				__dirname,
 				"./packages/core/src/types/core/index.ts",
 			),
-			"@forja/core": path.resolve(__dirname, "./packages/core/src"),
-			"@forja/adapter-postgres": path.resolve(
+			"@datrix/core": path.resolve(__dirname, "./packages/core/src"),
+			"@datrix/adapter-postgres": path.resolve(
 				__dirname,
 				"./packages/adapter-postgres/src",
 			),
-			"@forja/adapter-mysql": path.resolve(
+			"@datrix/adapter-mysql": path.resolve(
 				__dirname,
 				"./packages/adapter-mysql/src",
 			),
-			"@forja/api": path.resolve(__dirname, "./packages/api/src"),
-			"@forja/api-upload": path.resolve(__dirname, "./packages/api-upload/src"),
+			"@datrix/api": path.resolve(__dirname, "./packages/api/src"),
+			"@datrix/api-upload": path.resolve(__dirname, "./packages/api-upload/src"),
 		},
 	},
 });

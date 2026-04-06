@@ -17,7 +17,7 @@ export default function Home() {
 							<span className="text-white font-bold text-lg">F</span>
 						</div>
 						<h1 className="text-xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600 hidden sm:block">
-							Forja <span className="text-indigo-600">Next.js</span> Example
+							Datrix <span className="text-indigo-600">Next.js</span> Example
 						</h1>
 					</div>
 
@@ -83,7 +83,7 @@ export default function Home() {
 						</span>
 					</h2>
 					<p className="text-lg text-slate-500 max-w-2xl mx-auto">
-						This demo showcases Forja's advanced features: nested relationships,
+						This demo showcases Datrix's advanced features: nested relationships,
 						recursive population, smart sorting, and real-time fake data
 						generation.
 					</p>
@@ -105,7 +105,7 @@ export default function Home() {
 
 				{/* Footer */}
 				<footer className="pt-12 border-t border-slate-200 text-center text-slate-400 text-sm">
-					<p>Built with Forja + Next.js + Tailwind CSS</p>
+					<p>Built with Datrix + Next.js + Tailwind CSS</p>
 				</footer>
 			</main>
 

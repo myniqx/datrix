@@ -1,7 +1,7 @@
 /**
  * Migration E2E Tests - Schema Sync
  *
- * Tests that _forja meta schema stays in sync with core registry
+ * Tests that _datrix meta schema stays in sync with core registry
  * across multiple sequential migrations, especially for relation fields.
  *
  * Covers: addMetaField, dropMetaField, modifyMetaField operations.
@@ -13,11 +13,11 @@
  *
  * Each step verifies:
  * 1. Data preservation
- * 2. Schema sync between registry and adapter (_forja)
+ * 2. Schema sync between registry and adapter (_datrix)
  */
 
 import { describe, it, beforeAll, afterAll, expect } from "vitest";
-import { createForjaWithSchemas, getTmpDir } from "./setup/config";
+import { createDatrixWithSchemas, getTmpDir } from "./setup/config";
 import { getAdapter, getAdapterType } from "./setup/adapter";
 import {
 	baseUserSchema,
@@ -34,7 +34,7 @@ import {
 	assertNoChanges,
 	resolveAmbiguousById,
 } from "./setup/helpers";
-import type { DatabaseAdapter } from "@forja/core";
+import type { DatabaseAdapter } from "@datrix/core";
 
 describe("Migration E2E - Schema Sync", () => {
 	const tmpDir = getTmpDir("schema-sync");
@@ -52,7 +52,7 @@ describe("Migration E2E - Schema Sync", () => {
 		await adapter.disconnect();
 	});
 
-	it("should keep _forja schema in sync across 3 sequential migrations", async () => {
+	it("should keep _datrix schema in sync across 3 sequential migrations", async () => {
 		await dropAllTables(adapter);
 
 		// ============================================
@@ -71,47 +71,47 @@ describe("Migration E2E - Schema Sync", () => {
 			},
 		});
 
-		const forja1 = await createForjaWithSchemas(tmpDir, [
+		const datrix1 = await createDatrixWithSchemas(tmpDir, [
 			baseUserSchema,
 			postV1,
 			baseCategorySchema,
 		]);
-		const s1 = await forja1.beginMigrate();
+		const s1 = await datrix1.beginMigrate();
 		await applyMigration(s1);
 
 		// Insert test data
-		const user1 = await forja1.create("user", {
+		const user1 = await datrix1.create("user", {
 			email: "alice@test.com",
 			name: "Alice",
 			age: 30,
 		});
-		const user2 = await forja1.create("user", {
+		const user2 = await datrix1.create("user", {
 			email: "bob@test.com",
 			name: "Bob",
 			age: 25,
 		});
-		const cat1 = await forja1.create("category", {
+		const cat1 = await datrix1.create("category", {
 			name: "Tech",
 			slug: "tech",
 		});
-		const cat2 = await forja1.create("category", {
+		const cat2 = await datrix1.create("category", {
 			name: "News",
 			slug: "news",
 		});
 
-		const post1 = await forja1.create("post", {
+		const post1 = await datrix1.create("post", {
 			title: "Alice Tech Post",
 			author: { set: user1.id },
 			category: { set: cat1.id },
 		});
-		const post2 = await forja1.create("post", {
+		const post2 = await datrix1.create("post", {
 			title: "Bob News Post",
 			author: { set: user2.id },
 			category: { set: cat2.id },
 		});
 
 		// Verify v1 data with populate
-		const postsV1 = await forja1.findMany("post", { populate: true });
+		const postsV1 = await datrix1.findMany("post", { populate: true });
 		expect(postsV1).toHaveLength(2);
 		expect(postsV1[0]!.author.id).toBe(user1.id);
 		expect(postsV1[0]!.category.id).toBe(cat1.id);
@@ -119,11 +119,11 @@ describe("Migration E2E - Schema Sync", () => {
 		expect(postsV1[1]!.category.id).toBe(cat2.id);
 
 		// Verify v1 schema sync
-		await assertSchemaSync(forja1, "post");
-		await assertSchemaSync(forja1, "user");
-		await assertSchemaSync(forja1, "category");
+		await assertSchemaSync(datrix1, "post");
+		await assertSchemaSync(datrix1, "user");
+		await assertSchemaSync(datrix1, "category");
 
-		await forja1.shutdown();
+		await datrix1.shutdown();
 
 		// ============================================
 		// v2: Drop category relation, add tags (manyToMany),
@@ -142,12 +142,12 @@ describe("Migration E2E - Schema Sync", () => {
 			},
 		});
 
-		const forja2 = await createForjaWithSchemas(
+		const datrix2 = await createDatrixWithSchemas(
 			tmpDir,
 			[baseUserSchema, postV2, baseCategorySchema, baseTagSchema],
 			true,
 		);
-		const s2 = await forja2.beginMigrate();
+		const s2 = await datrix2.beginMigrate();
 
 		// Resolve ambiguous changes individually:
 		// - authorId→writerId: rename (FK column rename)
@@ -175,24 +175,24 @@ describe("Migration E2E - Schema Sync", () => {
 		await s2.apply();
 
 		// Insert tags
-		const tag1 = await forja2.create("tag", { name: "JavaScript" });
-		const tag2 = await forja2.create("tag", { name: "TypeScript" });
+		const tag1 = await datrix2.create("tag", { name: "JavaScript" });
+		const tag2 = await datrix2.create("tag", { name: "TypeScript" });
 
 		// Assign tags to posts via manyToMany
-		await forja2.update("post", post1.id, {
+		await datrix2.update("post", post1.id, {
 			tags: { set: [tag1.id, tag2.id] },
 		});
-		await forja2.update("post", post2.id, {
+		await datrix2.update("post", post2.id, {
 			tags: { set: [tag1.id] },
 		});
 
-		// Verify v2 schema sync (CRITICAL — relation changes must be reflected in _forja)
-		await assertSchemaSync(forja2, "post");
-		await assertSchemaSync(forja2, "user");
-		await assertSchemaSync(forja2, "tag");
+		// Verify v2 schema sync (CRITICAL — relation changes must be reflected in _datrix)
+		await assertSchemaSync(datrix2, "post");
+		await assertSchemaSync(datrix2, "user");
+		await assertSchemaSync(datrix2, "tag");
 
 		// Verify v2 data preservation — author relation still works with renamed FK
-		const postsV2 = await forja2.findMany("post", { populate: true });
+		const postsV2 = await datrix2.findMany("post", { populate: true });
 		expect(postsV2).toHaveLength(2);
 
 		const p1v2 = postsV2.find((p) => p.title === "Alice Tech Post");
@@ -209,13 +209,13 @@ describe("Migration E2E - Schema Sync", () => {
 		expect(p1v2!.category).toBeUndefined();
 
 		// Verify junction table exists
-		await assertTableExists(forja2, "tag");
+		await assertTableExists(datrix2, "tag");
 
 		// Re-check: no pending changes (schema is fully synced)
-		const s2check = await forja2.beginMigrate();
+		const s2check = await datrix2.beginMigrate();
 		assertNoChanges(s2check);
 
-		await forja2.shutdown();
+		await datrix2.shutdown();
 
 		// ============================================
 		// v3: Drop tags (manyToMany), add reviewer (belongsTo user),
@@ -238,12 +238,12 @@ describe("Migration E2E - Schema Sync", () => {
 			},
 		});
 
-		const forja3 = await createForjaWithSchemas(
+		const datrix3 = await createDatrixWithSchemas(
 			tmpDir,
 			[baseUserSchema, postV3, baseCategorySchema, baseTagSchema],
 			true,
 		);
-		const s3 = await forja3.beginMigrate();
+		const s3 = await datrix3.beginMigrate();
 
 		// Resolve ambiguous changes individually:
 		// - writerId→creatorId: rename (FK column rename)
@@ -271,16 +271,16 @@ describe("Migration E2E - Schema Sync", () => {
 		await s3.apply();
 
 		// Assign reviewer
-		await forja3.update("post", post1.id, {
+		await datrix3.update("post", post1.id, {
 			reviewer: { set: user2.id },
 		});
 
 		// Verify v3 schema sync
-		await assertSchemaSync(forja3, "post");
-		await assertSchemaSync(forja3, "user");
+		await assertSchemaSync(datrix3, "post");
+		await assertSchemaSync(datrix3, "user");
 
 		// Verify v3 data preservation
-		const postsV3 = await forja3.findMany("post", { populate: true });
+		const postsV3 = await datrix3.findMany("post", { populate: true });
 		expect(postsV3).toHaveLength(2);
 
 		const p1v3 = postsV3.find((p) => p.title === "Alice Tech Post");
@@ -297,9 +297,9 @@ describe("Migration E2E - Schema Sync", () => {
 		expect(p1v3!.tags).toBeUndefined();
 
 		// Re-check: no pending changes
-		const s3check = await forja3.beginMigrate();
+		const s3check = await datrix3.beginMigrate();
 		assertNoChanges(s3check);
 
-		await forja3.shutdown();
+		await datrix3.shutdown();
 	});
 });

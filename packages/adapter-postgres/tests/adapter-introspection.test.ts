@@ -22,7 +22,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 const TEST_CONFIG: PostgresConfig = {
 	host: process.env["POSTGRES_HOST"] ?? "localhost",
 	port: Number(process.env["POSTGRES_PORT"]) || 5432,
-	database: process.env["POSTGRES_DB"] ?? "forja_test",
+	database: process.env["POSTGRES_DB"] ?? "datrix_test",
 	user: process.env["POSTGRES_USER"] ?? "postgres",
 	password: process.env["POSTGRES_PASSWORD"] ?? "postgres",
 	ssl: false,

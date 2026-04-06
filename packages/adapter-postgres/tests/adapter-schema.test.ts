@@ -15,7 +15,7 @@
 
 import { PostgresAdapter, PostgresConfig } from "../src";
 import { AlterOperation } from "../../types/src/adapter";
-import { ForjaEntry, SchemaDefinition } from "../../types/src/core/schema";
+import { DatrixEntry, SchemaDefinition } from "../../types/src/core/schema";
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 
 // =============================================================================
@@ -25,7 +25,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 const TEST_CONFIG: PostgresConfig = {
 	host: process.env["POSTGRES_HOST"] ?? "localhost",
 	port: Number(process.env["POSTGRES_PORT"]) || 5432,
-	database: process.env["POSTGRES_DB"] ?? "forja_test",
+	database: process.env["POSTGRES_DB"] ?? "datrix_test",
 	user: process.env["POSTGRES_USER"] ?? "postgres",
 	password: process.env["POSTGRES_PASSWORD"] ?? "postgres",
 	ssl: false,
@@ -166,7 +166,7 @@ describe("PostgresAdapter - Schema Operations", () => {
 
 		// Verify defaults were applied
 		const result = await adapter.executeQuery<
-			ForjaEntry & {
+			DatrixEntry & {
 				status: string;
 				count: number;
 				enabled: boolean;
@@ -364,7 +364,7 @@ describe("PostgresAdapter - Schema Operations", () => {
 
 		// Verify existing row got default value
 		const selectResult = await adapter.executeQuery<
-			{ status: string } & ForjaEntry
+			{ status: string } & DatrixEntry
 		>({
 			type: "select",
 			table: "test_schema_table",

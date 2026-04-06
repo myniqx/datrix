@@ -11,15 +11,15 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { Forja } from "@forja/core";
+import { Datrix } from "@datrix/core";
 import { handleRequest } from "../src/helper";
 import { createTestConfig, getTmpDir, testSchemas } from "./data";
 import { serializeQuery } from "../src/serializer/query";
 import fs from "node:fs/promises";
 
 describe("Query Operators Integration Tests", () => {
-	let forja: Forja;
-	let getForja: () => Promise<Forja>;
+	let datrix: Datrix;
+	let getDatrix: () => Promise<Datrix>;
 	const tmpDir = getTmpDir("operators");
 
 	beforeAll(async () => {
@@ -32,18 +32,18 @@ describe("Query Operators Integration Tests", () => {
 		// Create temporary directory
 		await fs.mkdir(tmpDir, { recursive: true });
 
-		// Get Forja factory function
-		getForja = await createTestConfig(tmpDir);
+		// Get Datrix factory function
+		getDatrix = await createTestConfig(tmpDir);
 
-		// Get Forja instance (this will initialize everything)
-		forja = await getForja();
+		// Get Datrix instance (this will initialize everything)
+		datrix = await getDatrix();
 
 		// Create tables manually for JsonAdapter
-		const adapter = forja.getAdapter();
-		for (const schema of forja.getSchemas().getAll()) {
+		const adapter = datrix.getAdapter();
+		for (const schema of datrix.getSchemas().getAll()) {
 			try {
 				await adapter.dropTable(schema.tableName!);
-			} catch {}
+			} catch { }
 			await adapter.createTable(schema);
 		}
 
@@ -66,7 +66,7 @@ describe("Query Operators Integration Tests", () => {
 	async function seedTestData(): Promise<void> {
 		// Create categories
 		await handleRequest(
-			forja,
+			datrix,
 			new Request("http://localhost:3000/api/categories", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
@@ -79,7 +79,7 @@ describe("Query Operators Integration Tests", () => {
 		);
 
 		await handleRequest(
-			forja,
+			datrix,
 			new Request("http://localhost:3000/api/categories", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
@@ -92,7 +92,7 @@ describe("Query Operators Integration Tests", () => {
 		);
 
 		await handleRequest(
-			forja,
+			datrix,
 			new Request("http://localhost:3000/api/categories", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
@@ -106,7 +106,7 @@ describe("Query Operators Integration Tests", () => {
 
 		// Create suppliers
 		await handleRequest(
-			forja,
+			datrix,
 			new Request("http://localhost:3000/api/suppliers", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
@@ -121,7 +121,7 @@ describe("Query Operators Integration Tests", () => {
 		);
 
 		await handleRequest(
-			forja,
+			datrix,
 			new Request("http://localhost:3000/api/suppliers", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
@@ -136,7 +136,7 @@ describe("Query Operators Integration Tests", () => {
 		);
 
 		await handleRequest(
-			forja,
+			datrix,
 			new Request("http://localhost:3000/api/suppliers", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
@@ -244,7 +244,7 @@ describe("Query Operators Integration Tests", () => {
 
 		for (const product of products) {
 			const result = await handleRequest(
-				forja,
+				datrix,
 				new Request("http://localhost:3000/api/products", {
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
@@ -275,7 +275,7 @@ describe("Query Operators Integration Tests", () => {
 			},
 		);
 
-		const response = await handleRequest(forja, request);
+		const response = await handleRequest(datrix, request);
 		const data = await response.json();
 
 		if (response.status !== 200) {

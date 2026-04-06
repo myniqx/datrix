@@ -1,6 +1,6 @@
-# Forja Express.js Example
+# Datrix Express.js Example
 
-Complete example of integrating Forja with Express.js for traditional REST APIs.
+Complete example of integrating Datrix with Express.js for traditional REST APIs.
 
 ## Features Demonstrated
 
@@ -25,8 +25,8 @@ Complete example of integrating Forja with Express.js for traditional REST APIs.
 ### 1. Initialize Project
 
 ```bash
-mkdir forja-express-example
-cd forja-express-example
+mkdir datrix-express-example
+cd datrix-express-example
 pnpm init
 ```
 
@@ -34,7 +34,7 @@ pnpm init
 
 ```bash
 # Core dependencies
-pnpm add express forja pg
+pnpm add express datrix pg
 
 # TypeScript dependencies
 pnpm add -D typescript @types/express @types/node tsx nodemon
@@ -85,7 +85,7 @@ PORT=3000
 NODE_ENV=development
 
 # Database
-DATABASE_URL="postgresql://user:password@localhost:5432/forja_express"
+DATABASE_URL="postgresql://user:password@localhost:5432/datrix_express"
 
 # JWT
 JWT_SECRET="your-super-secret-jwt-key-min-32-chars-long"
@@ -106,8 +106,8 @@ CORS_ORIGIN="http://localhost:3000,http://localhost:5173"
     "dev": "nodemon --exec tsx src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "migrate": "forja migrate",
-    "migrate:dry-run": "forja migrate --dry-run",
+    "migrate": "datrix migrate",
+    "migrate:dry-run": "datrix migrate --dry-run",
     "type-check": "tsc --noEmit"
   }
 }
@@ -122,7 +122,7 @@ mkdir -p src/{schemas,routes,middleware,utils}
 ## Project Structure
 
 ```
-forja-express-example/
+datrix-express-example/
 ├── src/
 │   ├── server.ts              # Main Express server
 │   ├── schemas/
@@ -138,9 +138,9 @@ forja-express-example/
 │   │   ├── error.middleware.ts # Error handling
 │   │   └── upload.middleware.ts # File upload
 │   └── utils/
-│       ├── forja.ts           # Forja client
+│       ├── datrix.ts           # Datrix client
 │       └── jwt.ts             # JWT utilities
-├── forja.config.ts            # Forja configuration
+├── datrix.config.ts            # Datrix configuration
 ├── .env                       # Environment variables
 ├── tsconfig.json              # TypeScript config
 └── package.json
@@ -219,7 +219,7 @@ curl -X POST http://localhost:3000/api/posts \
   -H "Content-Type: application/json" \
   -d '{
     "title": "My First Post",
-    "content": "This is my first post using Forja!",
+    "content": "This is my first post using Datrix!",
     "status": "published"
   }'
 ```
@@ -433,7 +433,7 @@ NODE_ENV=production pnpm start
 npm install -g pm2
 
 # Start with PM2
-pm2 start dist/server.js --name forja-api
+pm2 start dist/server.js --name datrix-api
 
 # Enable startup script
 pm2 startup
@@ -529,7 +529,7 @@ app.get('/api/posts', cache(60), (req, res) => {
 
 ### 4. Database Connection Pooling
 
-Already configured in `forja.config.ts`:
+Already configured in `datrix.config.ts`:
 ```typescript
 {
   connectionString: process.env.DATABASE_URL,
@@ -629,7 +629,7 @@ Access to fetch at 'http://localhost:3000/api/users' from origin 'http://localho
 ## Resources
 
 - [Express.js Documentation](https://expressjs.com/)
-- [Forja Documentation](../../SETUP_GUIDE.md)
+- [Datrix Documentation](../../SETUP_GUIDE.md)
 - [PostgreSQL Documentation](https://www.postgresql.org/docs/)
 
 ## License

@@ -2,7 +2,7 @@
  * Migration History Manager Implementation
  *
  * Manages migration execution history in the database.
- * Uses forja.raw for all CRUD operations - no raw SQL.
+ * Uses datrix.raw for all CRUD operations - no raw SQL.
  */
 
 import { createHash } from "crypto";
@@ -13,14 +13,14 @@ import {
 	MigrationStatus,
 	MigrationSystemError,
 } from "../types/core/migration";
-import { IForja } from "../types/core/forja";
-import { ForjaEntry } from "../types/core/schema";
+import { IDatrix } from "../types/core";
+import { DatrixEntry } from "../types/core/schema";
 import { DEFAULT_MIGRATION_MODEL, FORJA_META_MODEL } from "./schema";
 
 /**
  * Migration history entry type (matches the schema)
  */
-interface MigrationEntry extends ForjaEntry {
+interface MigrationEntry extends DatrixEntry {
 	name: string;
 	version: string;
 	executionTime: number;
@@ -34,12 +34,12 @@ interface MigrationEntry extends ForjaEntry {
  * Migration history manager implementation
  */
 export class ForgeMigrationHistory implements MigrationHistory {
-	private readonly forja: IForja;
+	private readonly datrix: IDatrix;
 	private readonly modelName: string;
 	private initialized = false;
 
-	constructor(forja: IForja, modelName: string = DEFAULT_MIGRATION_MODEL) {
-		this.forja = forja;
+	constructor(datrix: IDatrix, modelName: string = DEFAULT_MIGRATION_MODEL) {
+		this.datrix = datrix;
 		this.modelName = modelName;
 	}
 
@@ -47,7 +47,7 @@ export class ForgeMigrationHistory implements MigrationHistory {
 	 * Initialize migrations tracking table
 	 *
 	 * The table is created via adapter.createTable using the migration schema.
-	 * Schema is already registered in Forja initialization.
+	 * Schema is already registered in Datrix initialization.
 	 */
 	async initialize(): Promise<void> {
 		if (this.initialized) {
@@ -55,7 +55,7 @@ export class ForgeMigrationHistory implements MigrationHistory {
 		}
 
 		try {
-			const schema = this.forja.getSchemas().get(this.modelName);
+			const schema = this.datrix.getSchemas().get(this.modelName);
 			if (!schema) {
 				throw new MigrationSystemError(
 					`Migration schema '${this.modelName}' not found in registry`,
@@ -63,12 +63,12 @@ export class ForgeMigrationHistory implements MigrationHistory {
 				);
 			}
 
-			const adapter = this.forja.getAdapter();
+			const adapter = this.datrix.getAdapter();
 
-			// Ensure _forja metadata table exists before any other table operation
+			// Ensure _datrix metadata table exists before any other table operation
 			const metaExists = await adapter.tableExists(FORJA_META_MODEL);
 			if (!metaExists) {
-				const metaSchema = this.forja.getSchemas().get(FORJA_META_MODEL);
+				const metaSchema = this.datrix.getSchemas().get(FORJA_META_MODEL);
 				if (!metaSchema) {
 					throw new MigrationSystemError(
 						`Schema '${FORJA_META_MODEL}' not found in registry`,
@@ -79,7 +79,7 @@ export class ForgeMigrationHistory implements MigrationHistory {
 					await adapter.createTable(metaSchema);
 				} catch (error) {
 					throw new MigrationSystemError(
-						`Failed to create _forja metadata table: ${(error as Error).message}`,
+						`Failed to create _datrix metadata table: ${(error as Error).message}`,
 						"MIGRATION_ERROR",
 						error,
 					);
@@ -124,7 +124,7 @@ export class ForgeMigrationHistory implements MigrationHistory {
 		try {
 			const checksum = this.calculateChecksum(migration);
 
-			await this.forja.raw.create<MigrationEntry>(this.modelName, {
+			await this.datrix.raw.create<MigrationEntry>(this.modelName, {
 				name: migration.metadata.name,
 				version: migration.metadata.version,
 				executionTime,
@@ -148,7 +148,7 @@ export class ForgeMigrationHistory implements MigrationHistory {
 	 */
 	async getAll(): Promise<readonly MigrationHistoryRecord[]> {
 		try {
-			const entries = await this.forja.raw.findMany<MigrationEntry>(
+			const entries = await this.datrix.raw.findMany<MigrationEntry>(
 				this.modelName,
 				{
 					orderBy: { appliedAt: "asc" },
@@ -182,7 +182,7 @@ export class ForgeMigrationHistory implements MigrationHistory {
 	 */
 	async getLast(): Promise<MigrationHistoryRecord | undefined> {
 		try {
-			const entries = await this.forja.raw.findMany<MigrationEntry>(
+			const entries = await this.datrix.raw.findMany<MigrationEntry>(
 				this.modelName,
 				{
 					where: { status: "completed" },
@@ -223,7 +223,7 @@ export class ForgeMigrationHistory implements MigrationHistory {
 	 */
 	async isApplied(version: string): Promise<boolean> {
 		try {
-			const count = await this.forja.raw.count<MigrationEntry>(this.modelName, {
+			const count = await this.datrix.raw.count<MigrationEntry>(this.modelName, {
 				version,
 				status: "completed",
 			});
@@ -270,8 +270,8 @@ export class ForgeMigrationHistory implements MigrationHistory {
  * Create migration history manager
  */
 export function createMigrationHistory(
-	forja: IForja,
+	datrix: IDatrix,
 	tableName?: string,
 ): MigrationHistory {
-	return new ForgeMigrationHistory(forja, tableName);
+	return new ForgeMigrationHistory(datrix, tableName);
 }

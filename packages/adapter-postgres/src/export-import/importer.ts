@@ -1,8 +1,8 @@
 import type { Pool } from "pg";
-import type { ImportReader } from "@forja/core";
-import type { SchemaDefinition } from "@forja/core";
+import type { ImportReader } from "@datrix/core";
+import type { SchemaDefinition } from "@datrix/core";
 import type { PostgresAdapter } from "../adapter";
-import { FORJA_META_MODEL } from "@forja/core";
+import { FORJA_META_MODEL } from "@datrix/core";
 
 const CHUNK_SIZE = 1000;
 
@@ -10,7 +10,7 @@ export class PostgresImporter {
 	constructor(
 		private pool: Pool,
 		private adapter: PostgresAdapter,
-	) {}
+	) { }
 
 	async import(reader: ImportReader): Promise<void> {
 		const schemas = await this.collectSchemas(reader);
@@ -21,8 +21,8 @@ export class PostgresImporter {
 			await this.adapter.dropTable(tableName, undefined, { isImport: true });
 		}
 
-		// 2. Create tables — isImport skips FK constraints and _forja meta writes.
-		//    _forja data will be restored as plain rows in step 3.
+		// 2. Create tables — isImport skips FK constraints and _datrix meta writes.
+		//    _datrix data will be restored as plain rows in step 3.
 		for (const schema of schemas.values()) {
 			await this.adapter.createTable(schema, undefined, { isImport: true });
 		}
@@ -35,7 +35,7 @@ export class PostgresImporter {
 			}
 		}
 
-		// 4. Add FK constraints (skip _forja)
+		// 4. Add FK constraints (skip _datrix)
 		for (const schema of schemas.values()) {
 			if (schema.name === FORJA_META_MODEL) continue;
 			await this.addForeignKeys(schema);

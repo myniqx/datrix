@@ -1,7 +1,7 @@
 /**
  * Basic Read Tests
  *
- * Tests for forja.findOne(), forja.findMany(), forja.findById(), forja.count()
+ * Tests for datrix.findOne(), datrix.findMany(), datrix.findById(), datrix.count()
  *
  * Covers:
  * - findById basic usage
@@ -14,7 +14,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { Forja } from "@forja/core";
+import { Datrix } from "@datrix/core";
 import fs from "node:fs/promises";
 import {
 	createTestConfig,
@@ -25,7 +25,7 @@ import {
 } from "../setup";
 
 describe("Basic Read", () => {
-	let forja: Forja;
+	let datrix: Datrix;
 	let seed: SeedResult;
 	const tmpDir = getTmpDir("basic_read");
 
@@ -33,13 +33,13 @@ describe("Basic Read", () => {
 		await fs.rm(tmpDir, { recursive: true, force: true });
 		await fs.mkdir(tmpDir, { recursive: true });
 
-		const getForja = await createTestConfig(tmpDir);
-		forja = await getForja();
+		const getDatrix = await createTestConfig(tmpDir);
+		datrix = await getDatrix();
 
-		await setupTables(forja);
+		await setupTables(datrix);
 
 		// Seed test data
-		seed = await seedBasicData(forja);
+		seed = await seedBasicData(datrix);
 	});
 
 	afterAll(async () => {
@@ -53,7 +53,7 @@ describe("Basic Read", () => {
 	describe("findById", () => {
 		it("should find record by id", async () => {
 			const org = seed.organizations[0];
-			const result = await forja.findById("organization", org.id);
+			const result = await datrix.findById("organization", org.id);
 
 			expect(result).not.toBeNull();
 			expect(result!.id).toBe(org.id);
@@ -61,14 +61,14 @@ describe("Basic Read", () => {
 		});
 
 		it("should return null for non-existent id", async () => {
-			const result = await forja.findById("organization", 99999);
+			const result = await datrix.findById("organization", 99999);
 
 			expect(result).toBeNull();
 		});
 
 		it("should return all fields by default", async () => {
 			const org = seed.organizations[0];
-			const result = await forja.findById("organization", org.id);
+			const result = await datrix.findById("organization", org.id);
 
 			expect(result).toHaveProperty("id");
 			expect(result).toHaveProperty("name");
@@ -80,7 +80,7 @@ describe("Basic Read", () => {
 
 		it("should return only selected fields", async () => {
 			const org = seed.organizations[0];
-			const result = await forja.findById("organization", org.id, {
+			const result = await datrix.findById("organization", org.id, {
 				select: ["id", "name"],
 			});
 
@@ -99,7 +99,7 @@ describe("Basic Read", () => {
 
 	describe("findOne", () => {
 		it("should find record by where clause", async () => {
-			const result = await forja.findOne("organization", {
+			const result = await datrix.findOne("organization", {
 				name: "Acme Corp",
 			});
 
@@ -109,7 +109,7 @@ describe("Basic Read", () => {
 		});
 
 		it("should find record with multiple conditions", async () => {
-			const result = await forja.findOne("user", {
+			const result = await datrix.findOne("user", {
 				isActive: true,
 				name: "Admin User",
 			});
@@ -119,7 +119,7 @@ describe("Basic Read", () => {
 		});
 
 		it("should return null when no match found", async () => {
-			const result = await forja.findOne("organization", {
+			const result = await datrix.findOne("organization", {
 				name: "Non Existent Org",
 			});
 
@@ -128,7 +128,7 @@ describe("Basic Read", () => {
 
 		it("should return first match when multiple exist", async () => {
 			// Multiple active users exist
-			const result = await forja.findOne("user", {
+			const result = await datrix.findOne("user", {
 				isActive: true,
 			});
 
@@ -137,7 +137,7 @@ describe("Basic Read", () => {
 		});
 
 		it("should support $eq operator", async () => {
-			const result = await forja.findOne("organization", {
+			const result = await datrix.findOne("organization", {
 				name: { $eq: "Tech Ltd" },
 			});
 
@@ -152,13 +152,13 @@ describe("Basic Read", () => {
 
 	describe("findMany", () => {
 		it("should return all records without filters", async () => {
-			const results = await forja.findMany("organization");
+			const results = await datrix.findMany("organization");
 
 			expect(results.length).toBeGreaterThanOrEqual(2);
 		});
 
 		it("should filter by where clause", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: { isActive: true },
 			});
 
@@ -169,7 +169,7 @@ describe("Basic Read", () => {
 		});
 
 		it("should limit results", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				limit: 2,
 			});
 
@@ -177,8 +177,8 @@ describe("Basic Read", () => {
 		});
 
 		it("should offset results", async () => {
-			const allUsers = await forja.findMany("user");
-			const offsetUsers = await forja.findMany("user", {
+			const allUsers = await datrix.findMany("user");
+			const offsetUsers = await datrix.findMany("user", {
 				offset: 2,
 			});
 
@@ -187,13 +187,13 @@ describe("Basic Read", () => {
 
 		it("should combine limit and offset for pagination", async () => {
 			// Page 1
-			const page1 = await forja.findMany("user", {
+			const page1 = await datrix.findMany("user", {
 				limit: 2,
 				offset: 0,
 			});
 
 			// Page 2
-			const page2 = await forja.findMany("user", {
+			const page2 = await datrix.findMany("user", {
 				limit: 2,
 				offset: 2,
 			});
@@ -210,7 +210,7 @@ describe("Basic Read", () => {
 		});
 
 		it("should order by field ascending", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				orderBy: [{ field: "age", direction: "asc" }],
 			});
 
@@ -226,7 +226,7 @@ describe("Basic Read", () => {
 		it("should order by field descending (shortcut syntax)", async () => {
 			// TODO: Implement shortcut syntax in query builder
 			// This should work: { field: "direction" } -> [{ field, direction }]
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				orderBy: { age: "desc" },
 			});
 
@@ -240,7 +240,7 @@ describe("Basic Read", () => {
 		});
 
 		it("should return empty array when no matches", async () => {
-			const results = await forja.findMany("organization", {
+			const results = await datrix.findMany("organization", {
 				where: { name: "Non Existent" },
 			});
 
@@ -249,7 +249,7 @@ describe("Basic Read", () => {
 		});
 
 		it("should select specific fields", async () => {
-			const results = await forja.findMany("organization", {
+			const results = await datrix.findMany("organization", {
 				select: ["id", "name"],
 			});
 
@@ -269,21 +269,21 @@ describe("Basic Read", () => {
 
 	describe("count", () => {
 		it("should count all records", async () => {
-			const count = await forja.count("organization");
+			const count = await datrix.count("organization");
 
 			expect(count).toBeGreaterThanOrEqual(2);
 		});
 
 		it("should count with where clause", async () => {
-			const activeCount = await forja.count("user", { isActive: true });
-			const inactiveCount = await forja.count("user", { isActive: false });
-			const totalCount = await forja.count("user");
+			const activeCount = await datrix.count("user", { isActive: true });
+			const inactiveCount = await datrix.count("user", { isActive: false });
+			const totalCount = await datrix.count("user");
 
 			expect(activeCount + inactiveCount).toBe(totalCount);
 		});
 
 		it("should return 0 for no matches", async () => {
-			const count = await forja.count("organization", {
+			const count = await datrix.count("organization", {
 				name: "Non Existent Org",
 			});
 
@@ -297,7 +297,7 @@ describe("Basic Read", () => {
 
 	describe("Where Operators", () => {
 		it("should support $ne (not equal)", async () => {
-			const results = await forja.findMany("organization", {
+			const results = await datrix.findMany("organization", {
 				where: { name: { $ne: "Acme Corp" } },
 			});
 
@@ -307,7 +307,7 @@ describe("Basic Read", () => {
 		});
 
 		it("should support $gt (greater than)", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: { age: { $gt: 30 } },
 			});
 
@@ -317,7 +317,7 @@ describe("Basic Read", () => {
 		});
 
 		it("should support $gte (greater than or equal)", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: { age: { $gte: 35 } },
 			});
 
@@ -327,7 +327,7 @@ describe("Basic Read", () => {
 		});
 
 		it("should support $lt (less than)", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: { age: { $lt: 30 } },
 			});
 
@@ -337,7 +337,7 @@ describe("Basic Read", () => {
 		});
 
 		it("should support $lte (less than or equal)", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: { age: { $lte: 28 } },
 			});
 
@@ -347,7 +347,7 @@ describe("Basic Read", () => {
 		});
 
 		it("should support $in (in array)", async () => {
-			const results = await forja.findMany("organization", {
+			const results = await datrix.findMany("organization", {
 				where: { country: { $in: ["USA", "UK"] } },
 			});
 
@@ -357,7 +357,7 @@ describe("Basic Read", () => {
 		});
 
 		it("should support $nin (not in array)", async () => {
-			const results = await forja.findMany("organization", {
+			const results = await datrix.findMany("organization", {
 				where: { country: { $nin: ["USA"] } },
 			});
 
@@ -374,7 +374,7 @@ describe("Basic Read", () => {
 	describe("Error Cases", () => {
 		it("should throw error for invalid field in where", async () => {
 			await expect(
-				forja.findMany("organization", {
+				datrix.findMany("organization", {
 					where: { nonExistentField: "value" },
 				}),
 			).rejects.toThrow();
@@ -382,7 +382,7 @@ describe("Basic Read", () => {
 
 		it("should throw error for invalid field in select", async () => {
 			await expect(
-				forja.findMany("organization", {
+				datrix.findMany("organization", {
 					select: ["nonExistentField"],
 				}),
 			).rejects.toThrow();
@@ -390,7 +390,7 @@ describe("Basic Read", () => {
 
 		it("should throw error for invalid operator", async () => {
 			await expect(
-				forja.findMany("organization", {
+				datrix.findMany("organization", {
 					where: { name: { $invalid: "value" } } as Record<string, unknown>,
 				}),
 			).rejects.toThrow();

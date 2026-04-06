@@ -10,7 +10,7 @@
  * - beforeUpdate / afterUpdate — data modification, must return
  * - beforeDelete / afterDelete — id pass-through, must return id
  * - beforeFind  / afterFind   — query injection, result filtering, must return
- * - hooks skipped on forja.raw.*
+ * - hooks skipped on datrix.raw.*
  * - hooks NOT called when hook is undefined
  *
  * Plugin hooks (onCreateQueryContext / onBeforeQuery / onAfterQuery):
@@ -18,17 +18,17 @@
  * - onBeforeQuery        — modify query, must return
  * - onAfterQuery         — modify result, must return
  * - execution order: plugin hooks run before schema hooks
- * - plugin hooks skipped on forja.raw.*
+ * - plugin hooks skipped on datrix.raw.*
  */
 
 import { describe, it, expect } from "vitest";
-import { Forja, defineConfig } from "@forja/core";
-import { BasePlugin } from "@forja/core";
-import { defineSchema } from "@forja/core";
-import type { ForjaEntry, LifecycleHooks } from "@forja/core";
-import type { PluginContext, SchemaDefinition } from "@forja/core";
-import type { QueryContext } from "@forja/core";
-import type { QueryObject } from "@forja/core";
+import { Datrix, defineConfig } from "@datrix/core";
+import { BasePlugin } from "@datrix/core";
+import { defineSchema } from "@datrix/core";
+import type { DatrixEntry, LifecycleHooks } from "@datrix/core";
+import type { PluginContext, SchemaDefinition } from "@datrix/core";
+import type { QueryContext } from "@datrix/core";
+import type { QueryObject } from "@datrix/core";
 import fs from "node:fs/promises";
 import { getAdapter, getAdapterType, getTmpDir } from "../setup";
 
@@ -36,7 +36,7 @@ import { getAdapter, getAdapterType, getTmpDir } from "../setup";
 // Shared schema type
 // ============================================================================
 
-interface HookItem extends ForjaEntry {
+interface HookItem extends DatrixEntry {
 	name: string;
 	value: string;
 }
@@ -57,28 +57,28 @@ function makeItemSchema(hooks?: LifecycleHooks<HookItem>): SchemaDefinition {
 }
 
 // ============================================================================
-// Helper — spin up an isolated Forja instance with the given schema
+// Helper — spin up an isolated Datrix instance with the given schema
 // ============================================================================
 
-async function createIsolatedForja(
+async function createIsolatedDatrix(
 	tmpDir: string,
 	schema: SchemaDefinition,
 	plugins: PluginContext["adapter"] extends never ? never : unknown[] = [],
-): Promise<Forja> {
+): Promise<Datrix> {
 	const adapterType = getAdapterType();
 	const adapter = await getAdapter(adapterType, tmpDir);
 
-	const getForja = defineConfig(() => ({
+	const getDatrix = defineConfig(() => ({
 		adapter,
 		schemas: [schema],
 		plugins: plugins as never[],
 	}));
 
-	const forja = await getForja();
-	const migration = await forja.beginMigrate();
+	const datrix = await getDatrix();
+	const migration = await datrix.beginMigrate();
 	await migration.apply();
 
-	return forja;
+	return datrix;
 }
 
 // ============================================================================
@@ -103,8 +103,8 @@ describe("Lifecycle Hooks", () => {
 					afterCreate: (records) => records,
 				});
 
-				const forja = await createIsolatedForja(tmpDir, schema);
-				const item = await forja.create("hookItem", {
+				const datrix = await createIsolatedDatrix(tmpDir, schema);
+				const item = await datrix.create("hookItem", {
 					name: "test",
 					value: "original",
 				});
@@ -126,11 +126,11 @@ describe("Lifecycle Hooks", () => {
 					},
 				});
 
-				const forja = await createIsolatedForja(tmpDir, schema);
+				const datrix = await createIsolatedDatrix(tmpDir, schema);
 
 				// Should throw because validated data becomes undefined/null
 				await expect(
-					forja.create("hookItem", { name: "test", value: "x" }),
+					datrix.create("hookItem", { name: "test", value: "x" }),
 				).rejects.toThrow();
 
 				await fs.rm(tmpDir, { recursive: true, force: true });
@@ -151,8 +151,8 @@ describe("Lifecycle Hooks", () => {
 					},
 				});
 
-				const forja = await createIsolatedForja(tmpDir, schema);
-				const item = await forja.create("hookItem", {
+				const datrix = await createIsolatedDatrix(tmpDir, schema);
+				const item = await datrix.create("hookItem", {
 					name: "capture",
 					value: "v",
 				});
@@ -180,14 +180,14 @@ describe("Lifecycle Hooks", () => {
 					},
 				});
 
-				const forja = await createIsolatedForja(tmpDir, schema);
-				await forja.create("hookItem", { name: "meta", value: "v" });
+				const datrix = await createIsolatedDatrix(tmpDir, schema);
+				await datrix.create("hookItem", { name: "meta", value: "v" });
 
 				expect(sharedValue).toBe("hello");
 				await fs.rm(tmpDir, { recursive: true, force: true });
 			});
 
-			it("hooks skipped on forja.raw.create", async () => {
+			it("hooks skipped on datrix.raw.create", async () => {
 				const tmpDir = getTmpDir("hooks_raw_create");
 				await fs.rm(tmpDir, { recursive: true, force: true });
 				await fs.mkdir(tmpDir, { recursive: true });
@@ -200,8 +200,8 @@ describe("Lifecycle Hooks", () => {
 					afterCreate: (records) => records,
 				});
 
-				const forja = await createIsolatedForja(tmpDir, schema);
-				const item = await forja.raw.create("hookItem", {
+				const datrix = await createIsolatedDatrix(tmpDir, schema);
+				const item = await datrix.raw.create("hookItem", {
 					name: "raw",
 					value: "raw-value",
 				});
@@ -227,12 +227,12 @@ describe("Lifecycle Hooks", () => {
 					afterUpdate: (records) => records,
 				});
 
-				const forja = await createIsolatedForja(tmpDir, schema);
-				const item = await forja.create("hookItem", {
+				const datrix = await createIsolatedDatrix(tmpDir, schema);
+				const item = await datrix.create("hookItem", {
 					name: "u",
 					value: "original",
 				});
-				const updated = await forja.update("hookItem", item.id, {
+				const updated = await datrix.update("hookItem", item.id, {
 					value: "manual",
 				});
 
@@ -254,11 +254,11 @@ describe("Lifecycle Hooks", () => {
 					},
 				});
 
-				const forja = await createIsolatedForja(tmpDir, schema);
-				const item = await forja.create("hookItem", { name: "u", value: "v" });
+				const datrix = await createIsolatedDatrix(tmpDir, schema);
+				const item = await datrix.create("hookItem", { name: "u", value: "v" });
 
 				await expect(
-					forja.update("hookItem", item.id, { value: "new" }),
+					datrix.update("hookItem", item.id, { value: "new" }),
 				).rejects.toThrow();
 
 				await fs.rm(tmpDir, { recursive: true, force: true });
@@ -284,15 +284,15 @@ describe("Lifecycle Hooks", () => {
 					},
 				});
 
-				const forja = await createIsolatedForja(tmpDir, schema);
-				const item = await forja.create("hookItem", { name: "m", value: "v" });
-				await forja.update("hookItem", item.id, { value: "new" });
+				const datrix = await createIsolatedDatrix(tmpDir, schema);
+				const item = await datrix.create("hookItem", { name: "m", value: "v" });
+				await datrix.update("hookItem", item.id, { value: "new" });
 
 				expect(sharedValue).toBe("update-tag");
 				await fs.rm(tmpDir, { recursive: true, force: true });
 			});
 
-			it("hooks skipped on forja.raw.update", async () => {
+			it("hooks skipped on datrix.raw.update", async () => {
 				const tmpDir = getTmpDir("hooks_raw_update");
 				await fs.rm(tmpDir, { recursive: true, force: true });
 				await fs.mkdir(tmpDir, { recursive: true });
@@ -307,9 +307,9 @@ describe("Lifecycle Hooks", () => {
 					afterUpdate: (records) => records,
 				});
 
-				const forja = await createIsolatedForja(tmpDir, schema);
-				const item = await forja.create("hookItem", { name: "r", value: "v" });
-				const updated = await forja.raw.update("hookItem", item.id, {
+				const datrix = await createIsolatedDatrix(tmpDir, schema);
+				const item = await datrix.create("hookItem", { name: "r", value: "v" });
+				const updated = await datrix.raw.update("hookItem", item.id, {
 					value: "raw-value",
 				});
 
@@ -336,9 +336,9 @@ describe("Lifecycle Hooks", () => {
 					},
 				});
 
-				const forja = await createIsolatedForja(tmpDir, schema);
-				const item = await forja.create("hookItem", { name: "d", value: "v" });
-				await forja.delete("hookItem", item.id);
+				const datrix = await createIsolatedDatrix(tmpDir, schema);
+				const item = await datrix.create("hookItem", { name: "d", value: "v" });
+				await datrix.delete("hookItem", item.id);
 
 				expect(deletedIds).toContain(item.id);
 				await fs.rm(tmpDir, { recursive: true, force: true });
@@ -358,10 +358,10 @@ describe("Lifecycle Hooks", () => {
 					},
 				});
 
-				const forja = await createIsolatedForja(tmpDir, schema);
-				const item = await forja.create("hookItem", { name: "d", value: "v" });
+				const datrix = await createIsolatedDatrix(tmpDir, schema);
+				const item = await datrix.create("hookItem", { name: "d", value: "v" });
 
-				await expect(forja.delete("hookItem", item.id)).rejects.toThrow();
+				await expect(datrix.delete("hookItem", item.id)).rejects.toThrow();
 
 				await fs.rm(tmpDir, { recursive: true, force: true });
 			});
@@ -382,15 +382,15 @@ describe("Lifecycle Hooks", () => {
 					},
 				});
 
-				const forja = await createIsolatedForja(tmpDir, schema);
-				const item = await forja.create("hookItem", { name: "ad", value: "v" });
-				await forja.delete("hookItem", item.id);
+				const datrix = await createIsolatedDatrix(tmpDir, schema);
+				const item = await datrix.create("hookItem", { name: "ad", value: "v" });
+				await datrix.delete("hookItem", item.id);
 
 				expect(afterIds).toContain(item.id);
 				await fs.rm(tmpDir, { recursive: true, force: true });
 			});
 
-			it("hooks skipped on forja.raw.delete", async () => {
+			it("hooks skipped on datrix.raw.delete", async () => {
 				const tmpDir = getTmpDir("hooks_raw_delete");
 				await fs.rm(tmpDir, { recursive: true, force: true });
 				await fs.mkdir(tmpDir, { recursive: true });
@@ -409,9 +409,9 @@ describe("Lifecycle Hooks", () => {
 					},
 				});
 
-				const forja = await createIsolatedForja(tmpDir, schema);
-				const item = await forja.create("hookItem", { name: "rd", value: "v" });
-				await forja.raw.delete("hookItem", item.id);
+				const datrix = await createIsolatedDatrix(tmpDir, schema);
+				const item = await datrix.create("hookItem", { name: "rd", value: "v" });
+				await datrix.raw.delete("hookItem", item.id);
 
 				expect(called.before).toBe(false);
 				expect(called.after).toBe(false);
@@ -436,11 +436,11 @@ describe("Lifecycle Hooks", () => {
 					afterFind: (results) => results,
 				});
 
-				const forja = await createIsolatedForja(tmpDir, schema);
-				await forja.create("hookItem", { name: "a", value: "visible" });
-				await forja.create("hookItem", { name: "b", value: "hidden" });
+				const datrix = await createIsolatedDatrix(tmpDir, schema);
+				await datrix.create("hookItem", { name: "a", value: "visible" });
+				await datrix.create("hookItem", { name: "b", value: "hidden" });
 
-				const results = await forja.findMany("hookItem");
+				const results = await datrix.findMany("hookItem");
 
 				expect(results.length).toBe(1);
 				expect(results[0]!["value"]).toBe("visible");
@@ -461,10 +461,10 @@ describe("Lifecycle Hooks", () => {
 					},
 				});
 
-				const forja = await createIsolatedForja(tmpDir, schema);
-				await forja.create("hookItem", { name: "x", value: "v" });
+				const datrix = await createIsolatedDatrix(tmpDir, schema);
+				await datrix.create("hookItem", { name: "x", value: "v" });
 
-				await expect(forja.findMany("hookItem")).rejects.toThrow();
+				await expect(datrix.findMany("hookItem")).rejects.toThrow();
 				await fs.rm(tmpDir, { recursive: true, force: true });
 			});
 
@@ -480,11 +480,11 @@ describe("Lifecycle Hooks", () => {
 					afterFind: (results) => results.filter((r) => r.value !== "filtered"),
 				});
 
-				const forja = await createIsolatedForja(tmpDir, schema);
-				await forja.create("hookItem", { name: "keep", value: "keep" });
-				await forja.create("hookItem", { name: "remove", value: "filtered" });
+				const datrix = await createIsolatedDatrix(tmpDir, schema);
+				await datrix.create("hookItem", { name: "keep", value: "keep" });
+				await datrix.create("hookItem", { name: "remove", value: "filtered" });
 
-				const results = await forja.findMany("hookItem");
+				const results = await datrix.findMany("hookItem");
 
 				expect(results.every((r) => r["value"] !== "filtered")).toBe(true);
 				await fs.rm(tmpDir, { recursive: true, force: true });
@@ -505,16 +505,16 @@ describe("Lifecycle Hooks", () => {
 					},
 				});
 
-				const forja = await createIsolatedForja(tmpDir, schema);
-				await forja.create("hookItem", { name: "x", value: "v" });
+				const datrix = await createIsolatedDatrix(tmpDir, schema);
+				await datrix.create("hookItem", { name: "x", value: "v" });
 
 				// afterFind returning undefined means caller gets undefined instead of array
-				const result = await forja.findMany("hookItem");
+				const result = await datrix.findMany("hookItem");
 				expect(result).toBeUndefined();
 				await fs.rm(tmpDir, { recursive: true, force: true });
 			});
 
-			it("hooks skipped on forja.raw.findMany", async () => {
+			it("hooks skipped on datrix.raw.findMany", async () => {
 				const tmpDir = getTmpDir("hooks_raw_find");
 				await fs.rm(tmpDir, { recursive: true, force: true });
 				await fs.mkdir(tmpDir, { recursive: true });
@@ -530,11 +530,11 @@ describe("Lifecycle Hooks", () => {
 					afterFind: (results) => results,
 				});
 
-				const forja = await createIsolatedForja(tmpDir, schema);
-				await forja.create("hookItem", { name: "visible", value: "v" });
+				const datrix = await createIsolatedDatrix(tmpDir, schema);
+				await datrix.create("hookItem", { name: "visible", value: "v" });
 
-				const normal = await forja.findMany("hookItem");
-				const raw = await forja.raw.findMany("hookItem");
+				const normal = await datrix.findMany("hookItem");
+				const raw = await datrix.raw.findMany("hookItem");
 
 				expect(normal).toHaveLength(0); // hook filtered everything
 				expect(raw).toHaveLength(1); // raw bypassed hook
@@ -550,11 +550,11 @@ describe("Lifecycle Hooks", () => {
 		function makePlugin(
 			overrides: Partial<{
 				onCreateQueryContext: (ctx: QueryContext) => Promise<QueryContext>;
-				onBeforeQuery: <T extends ForjaEntry>(
+				onBeforeQuery: <T extends DatrixEntry>(
 					q: QueryObject<T>,
 					ctx: QueryContext,
 				) => Promise<QueryObject<T>>;
-				onAfterQuery: <T extends ForjaEntry>(
+				onAfterQuery: <T extends DatrixEntry>(
 					r: T,
 					ctx: QueryContext,
 				) => Promise<T>;
@@ -566,19 +566,19 @@ describe("Lifecycle Hooks", () => {
 				async init(ctx: PluginContext): Promise<void> {
 					this.context = ctx;
 				}
-				async destroy(): Promise<void> {}
+				async destroy(): Promise<void> { }
 				override async onCreateQueryContext(
 					ctx: QueryContext,
 				): Promise<QueryContext> {
 					return overrides.onCreateQueryContext?.(ctx) ?? ctx;
 				}
-				override async onBeforeQuery<T extends ForjaEntry>(
+				override async onBeforeQuery<T extends DatrixEntry>(
 					q: QueryObject<T>,
 					ctx: QueryContext,
 				): Promise<QueryObject<T>> {
 					return overrides.onBeforeQuery?.(q, ctx) ?? q;
 				}
-				override async onAfterQuery<T extends ForjaEntry>(
+				override async onAfterQuery<T extends DatrixEntry>(
 					r: T,
 					ctx: QueryContext,
 				): Promise<T> {
@@ -588,24 +588,24 @@ describe("Lifecycle Hooks", () => {
 			return new TestPlugin({});
 		}
 
-		async function createForjaWithPlugin(
+		async function createDatrixWithPlugin(
 			tmpDir: string,
 			plugin: unknown,
-		): Promise<Forja> {
+		): Promise<Datrix> {
 			const adapterType = getAdapterType();
 			const adapter = await getAdapter(adapterType, tmpDir);
 			const schema = makeItemSchema();
 
-			const getForja = defineConfig(() => ({
+			const getDatrix = defineConfig(() => ({
 				adapter,
 				schemas: [schema as SchemaDefinition],
 				plugins: [plugin as never],
 			}));
 
-			const forja = await getForja();
-			const migration = await forja.beginMigrate();
+			const datrix = await getDatrix();
+			const migration = await datrix.beginMigrate();
 			await migration.apply();
-			return forja;
+			return datrix;
 		}
 
 		it("onCreateQueryContext enriches context.metadata before query", async () => {
@@ -626,8 +626,8 @@ describe("Lifecycle Hooks", () => {
 				},
 			});
 
-			const forja = await createForjaWithPlugin(tmpDir, plugin);
-			await forja.create("hookItem", { name: "n", value: "v" });
+			const datrix = await createDatrixWithPlugin(tmpDir, plugin);
+			await datrix.create("hookItem", { name: "n", value: "v" });
 
 			expect(captured).toContain("req-123");
 			await fs.rm(tmpDir, { recursive: true, force: true });
@@ -654,8 +654,8 @@ describe("Lifecycle Hooks", () => {
 				},
 			});
 
-			const forja = await createForjaWithPlugin(tmpDir, plugin);
-			const item = await forja.create("hookItem", {
+			const datrix = await createDatrixWithPlugin(tmpDir, plugin);
+			const item = await datrix.create("hookItem", {
 				name: "n",
 				value: "original",
 			});
@@ -684,8 +684,8 @@ describe("Lifecycle Hooks", () => {
 				},
 			});
 
-			const forja = await createForjaWithPlugin(tmpDir, plugin);
-			const item = await forja.create("hookItem", { name: "test", value: "v" });
+			const datrix = await createDatrixWithPlugin(tmpDir, plugin);
+			const item = await datrix.create("hookItem", { name: "test", value: "v" });
 
 			expect((item as unknown as HookItem).name).toBe("test-enriched");
 			await fs.rm(tmpDir, { recursive: true, force: true });
@@ -739,17 +739,17 @@ describe("Lifecycle Hooks", () => {
 				},
 			} as const) as unknown as SchemaDefinition;
 
-			const getForja = defineConfig(() => ({
+			const getDatrix = defineConfig(() => ({
 				adapter,
 				schemas: [schema],
 				plugins: [plugin as never],
 			}));
-			const forja = await getForja();
+			const datrix = await getDatrix();
 
-			const migration = await forja.beginMigrate();
+			const migration = await datrix.beginMigrate();
 			await migration.apply();
 
-			const item = await forja.create("hookItem", {
+			const item = await datrix.create("hookItem", {
 				name: "n",
 				value: "original",
 			});
@@ -760,7 +760,7 @@ describe("Lifecycle Hooks", () => {
 			await fs.rm(tmpDir, { recursive: true, force: true });
 		});
 
-		it("plugin hooks skipped on forja.raw.*", async () => {
+		it("plugin hooks skipped on datrix.raw.*", async () => {
 			const tmpDir = getTmpDir("plugin_raw_skip");
 			await fs.rm(tmpDir, { recursive: true, force: true });
 			await fs.mkdir(tmpDir, { recursive: true });
@@ -778,8 +778,8 @@ describe("Lifecycle Hooks", () => {
 				},
 			});
 
-			const forja = await createForjaWithPlugin(tmpDir, plugin);
-			await forja.raw.create("hookItem", { name: "n", value: "v" });
+			const datrix = await createDatrixWithPlugin(tmpDir, plugin);
+			await datrix.raw.create("hookItem", { name: "n", value: "v" });
 
 			expect(called.before).toBe(false);
 			expect(called.after).toBe(false);
@@ -800,11 +800,11 @@ describe("Lifecycle Hooks", () => {
 				},
 			});
 
-			const forja = await createForjaWithPlugin(tmpDir, plugin);
-			const item = await forja.create("hookItem", { name: "n", value: "v" });
-			await forja.findMany("hookItem");
-			await forja.update("hookItem", item.id, { value: "new" });
-			await forja.delete("hookItem", item.id);
+			const datrix = await createDatrixWithPlugin(tmpDir, plugin);
+			const item = await datrix.create("hookItem", { name: "n", value: "v" });
+			await datrix.findMany("hookItem");
+			await datrix.update("hookItem", item.id, { value: "new" });
+			await datrix.delete("hookItem", item.id);
 
 			expect(actions).toContain("create");
 			expect(actions).toContain("findMany");

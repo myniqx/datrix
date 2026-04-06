@@ -15,12 +15,12 @@ import {
 import { PluginRegistry } from "../types/core/plugin";
 import { QueryAction, QueryContext } from "../types/core/query-context";
 import {
-	ForjaEntry,
-	ForjaRecord,
+	DatrixEntry,
+	DatrixRecord,
 	SchemaDefinition,
 	LifecycleHooks,
 } from "../types/core/schema";
-import type { Forja } from "../forja";
+import type { Datrix } from "../datrix";
 import { validateQueryObject } from "../types/utils/query";
 import { SchemaRegistry } from "../schema";
 import {
@@ -32,10 +32,10 @@ import {
 /**
  * Create a new query context
  */
-function createQueryContext(action: QueryAction, forja: Forja): QueryContext {
+function createQueryContext(action: QueryAction, datrix: Datrix): QueryContext {
 	return {
 		action,
-		forja,
+		datrix,
 		metadata: {},
 	};
 }
@@ -46,8 +46,8 @@ function createQueryContext(action: QueryAction, forja: Forja): QueryContext {
 export class Dispatcher {
 	constructor(
 		private readonly registry: PluginRegistry,
-		private readonly forja: Forja,
-	) {}
+		private readonly datrix: Datrix,
+	) { }
 
 	/**
 	 * Create and populate query context
@@ -55,7 +55,7 @@ export class Dispatcher {
 	 * This allows plugins to enrich the context before query execution.
 	 */
 	async buildQueryContext(action: QueryAction): Promise<QueryContext> {
-		let context = createQueryContext(action, this.forja);
+		let context = createQueryContext(action, this.datrix);
 
 		for (const plugin of this.registry.getAll()) {
 			try {
@@ -102,8 +102,8 @@ export class Dispatcher {
 	 * 4. onAfterQuery plugin hooks + schema after hook
 	 */
 	async executeQuery<
-		TResult extends ForjaEntry,
-		R extends ForjaEntry = ForjaEntry,
+		TResult extends DatrixEntry,
+		R extends DatrixEntry = DatrixEntry,
 	>(
 		action: QueryAction,
 		schema: SchemaDefinition,
@@ -126,7 +126,7 @@ export class Dispatcher {
 	 * Both plugins and schema hooks can modify and return the query.
 	 * hookCtx is shared with dispatchAfterQuery so metadata persists.
 	 */
-	async dispatchBeforeQuery<TResult extends ForjaEntry = ForjaRecord>(
+	async dispatchBeforeQuery<TResult extends DatrixEntry = DatrixRecord>(
 		query: QueryObject<TResult>,
 		schema: SchemaDefinition,
 		context: QueryContext,
@@ -160,7 +160,7 @@ export class Dispatcher {
 	 * Both plugins and schema hooks can modify and return the result.
 	 * hookCtx is the same instance as in dispatchBeforeQuery so metadata is shared.
 	 */
-	async dispatchAfterQuery<TResult extends ForjaEntry>(
+	async dispatchAfterQuery<TResult extends DatrixEntry>(
 		result: TResult,
 		schema: SchemaDefinition,
 		context: QueryContext,
@@ -186,7 +186,7 @@ export class Dispatcher {
 		return currentResult;
 	}
 
-	private async dispatchSchemaBeforeHook<TResult extends ForjaEntry>(
+	private async dispatchSchemaBeforeHook<TResult extends DatrixEntry>(
 		query: QueryObject<TResult>,
 		schema: SchemaDefinition,
 		context: QueryContext,
@@ -251,7 +251,7 @@ export class Dispatcher {
 		return query;
 	}
 
-	private async dispatchSchemaAfterHook<TResult extends ForjaEntry>(
+	private async dispatchSchemaAfterHook<TResult extends DatrixEntry>(
 		result: TResult,
 		schema: SchemaDefinition,
 		context: QueryContext,
@@ -265,7 +265,7 @@ export class Dispatcher {
 		if ((action === "create" || action === "createMany") && hooks.afterCreate) {
 			try {
 				return (await hooks.afterCreate(
-					rows as unknown as ForjaEntry[],
+					rows as unknown as DatrixEntry[],
 					context,
 				)) as unknown as TResult;
 			} catch (error) {
@@ -276,7 +276,7 @@ export class Dispatcher {
 		if ((action === "update" || action === "updateMany") && hooks.afterUpdate) {
 			try {
 				return (await hooks.afterUpdate(
-					rows as unknown as ForjaEntry[],
+					rows as unknown as DatrixEntry[],
 					context,
 				)) as unknown as TResult;
 			} catch (error) {
@@ -286,7 +286,7 @@ export class Dispatcher {
 
 		if ((action === "delete" || action === "deleteMany") && hooks.afterDelete) {
 			try {
-				await hooks.afterDelete(rows as unknown as ForjaEntry[], context);
+				await hooks.afterDelete(rows as unknown as DatrixEntry[], context);
 			} catch (error) {
 				warnAfterHookError("afterDelete", error);
 			}
@@ -296,7 +296,7 @@ export class Dispatcher {
 		if ((action === "findOne" || action === "findMany") && hooks.afterFind) {
 			try {
 				return (await hooks.afterFind(
-					rows as unknown as ForjaEntry[],
+					rows as unknown as DatrixEntry[],
 					context,
 				)) as unknown as TResult;
 			} catch (error) {
@@ -313,7 +313,7 @@ export class Dispatcher {
  */
 export function createDispatcher(
 	registry: PluginRegistry,
-	forja: Forja,
+	datrix: Datrix,
 ): Dispatcher {
-	return new Dispatcher(registry, forja);
+	return new Dispatcher(registry, datrix);
 }

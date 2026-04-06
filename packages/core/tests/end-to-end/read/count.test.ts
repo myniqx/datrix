@@ -1,7 +1,7 @@
 /**
  * Count Tests
  *
- * Tests for forja.count() functionality
+ * Tests for datrix.count() functionality
  *
  * Covers:
  * - Basic count (all records)
@@ -13,12 +13,12 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { Forja } from "@forja/core";
+import { Datrix } from "@datrix/core";
 import fs from "node:fs/promises";
 import { createTestConfig, getTmpDir, setupTables } from "../setup";
 
 describe("Count", () => {
-	let forja: Forja;
+	let datrix: Datrix;
 	const tmpDir = getTmpDir("count");
 
 	let orgId: number;
@@ -28,19 +28,19 @@ describe("Count", () => {
 		await fs.rm(tmpDir, { recursive: true, force: true });
 		await fs.mkdir(tmpDir, { recursive: true });
 
-		const getForja = await createTestConfig(tmpDir);
-		forja = await getForja();
+		const getDatrix = await createTestConfig(tmpDir);
+		datrix = await getDatrix();
 
-		await setupTables(forja);
+		await setupTables(datrix);
 
 		// Create test data
-		const org = await forja.create("organization", {
+		const org = await datrix.create("organization", {
 			name: "Count Test Org",
 			country: "USA",
 		});
 		orgId = org.id;
 
-		const dept = await forja.create("department", {
+		const dept = await datrix.create("department", {
 			name: "Count Test Dept",
 			code: "CTD",
 			organization: orgId,
@@ -48,7 +48,7 @@ describe("Count", () => {
 		deptId = dept.id;
 
 		// Create users with various attributes
-		await forja.createMany("user", [
+		await datrix.createMany("user", [
 			{
 				email: "user1@test.com",
 				name: "User 1",
@@ -110,21 +110,21 @@ describe("Count", () => {
 
 	describe("Basic Count", () => {
 		it("should count all records", async () => {
-			const count = await forja.count("user");
+			const count = await datrix.count("user");
 
 			expect(count).toBe(10);
 		});
 
 		it("should return 0 for empty table", async () => {
-			const count = await forja.count("tag");
+			const count = await datrix.count("tag");
 
 			expect(count).toBe(0);
 		});
 
 		it("should count different models", async () => {
-			const userCount = await forja.count("user");
-			const orgCount = await forja.count("organization");
-			const deptCount = await forja.count("department");
+			const userCount = await datrix.count("user");
+			const orgCount = await datrix.count("organization");
+			const deptCount = await datrix.count("department");
 
 			expect(userCount).toBe(10);
 			expect(orgCount).toBe(1);
@@ -138,25 +138,25 @@ describe("Count", () => {
 
 	describe("Count with Simple Where", () => {
 		it("should count with equality filter", async () => {
-			const count = await forja.count("user", { isActive: true });
+			const count = await datrix.count("user", { isActive: true });
 
 			expect(count).toBe(7);
 		});
 
 		it("should count with number filter", async () => {
-			const count = await forja.count("user", { age: 25 });
+			const count = await datrix.count("user", { age: 25 });
 
 			expect(count).toBe(2);
 		});
 
 		it("should count with string filter", async () => {
-			const count = await forja.count("user", { name: "User 1" });
+			const count = await datrix.count("user", { name: "User 1" });
 
 			expect(count).toBe(1);
 		});
 
 		it("should return 0 for no matches", async () => {
-			const count = await forja.count("user", { age: 999 });
+			const count = await datrix.count("user", { age: 999 });
 
 			expect(count).toBe(0);
 		});
@@ -168,53 +168,53 @@ describe("Count", () => {
 
 	describe("Count with Operators", () => {
 		it("should count with $gt operator", async () => {
-			const count = await forja.count("user", { age: { $gt: 35 } });
+			const count = await datrix.count("user", { age: { $gt: 35 } });
 
 			// age > 35: 40, 45, 40, 50 = 4 users
 			expect(count).toBe(4);
 		});
 
 		it("should count with $gte operator", async () => {
-			const count = await forja.count("user", { age: { $gte: 35 } });
+			const count = await datrix.count("user", { age: { $gte: 35 } });
 
 			// age >= 35: 35, 40, 45, 35, 40, 50 = 6 users
 			expect(count).toBe(6);
 		});
 
 		it("should count with $lt operator", async () => {
-			const count = await forja.count("user", { age: { $lt: 30 } });
+			const count = await datrix.count("user", { age: { $lt: 30 } });
 
 			// age < 30: 25, 25 = 2 users
 			expect(count).toBe(2);
 		});
 
 		it("should count with $lte operator", async () => {
-			const count = await forja.count("user", { age: { $lte: 30 } });
+			const count = await datrix.count("user", { age: { $lte: 30 } });
 
 			// age <= 30: 25, 30, 25, 30 = 4 users
 			expect(count).toBe(4);
 		});
 
 		it("should count with $ne operator", async () => {
-			const count = await forja.count("user", { isActive: { $ne: true } });
+			const count = await datrix.count("user", { isActive: { $ne: true } });
 
 			expect(count).toBe(3);
 		});
 
 		it("should count with $in operator", async () => {
-			const count = await forja.count("user", { age: { $in: [25, 30] } });
+			const count = await datrix.count("user", { age: { $in: [25, 30] } });
 
 			expect(count).toBe(4);
 		});
 
 		it("should count with $nin operator", async () => {
-			const count = await forja.count("user", { age: { $nin: [25, 30] } });
+			const count = await datrix.count("user", { age: { $nin: [25, 30] } });
 
 			expect(count).toBe(6);
 		});
 
 		it("should count with $like operator", async () => {
-			const count = await forja.count("user", { email: { $like: "user1%" } });
+			const count = await datrix.count("user", { email: { $like: "user1%" } });
 
 			// user1@, user10@
 			expect(count).toBe(2);
@@ -227,7 +227,7 @@ describe("Count", () => {
 
 	describe("Count with Complex Where", () => {
 		it("should count with $and", async () => {
-			const count = await forja.count("user", {
+			const count = await datrix.count("user", {
 				$and: [{ isActive: true }, { age: { $gte: 30 } }],
 			});
 
@@ -236,7 +236,7 @@ describe("Count", () => {
 		});
 
 		it("should count with $or", async () => {
-			const count = await forja.count("user", {
+			const count = await datrix.count("user", {
 				$or: [{ age: 25 }, { age: 50 }],
 			});
 
@@ -245,7 +245,7 @@ describe("Count", () => {
 		});
 
 		it("should count with nested $and and $or", async () => {
-			const count = await forja.count("user", {
+			const count = await datrix.count("user", {
 				$and: [
 					{ isActive: true },
 					{
@@ -259,7 +259,7 @@ describe("Count", () => {
 		});
 
 		it("should count with implicit AND (multiple fields)", async () => {
-			const count = await forja.count("user", {
+			const count = await datrix.count("user", {
 				isActive: true,
 				age: { $gte: 40 },
 			});
@@ -275,7 +275,7 @@ describe("Count", () => {
 
 	describe("Count with Relation Where", () => {
 		it("should count by belongsTo relation id", async () => {
-			const count = await forja.count("user", {
+			const count = await datrix.count("user", {
 				organization: { id: orgId },
 			});
 
@@ -284,7 +284,7 @@ describe("Count", () => {
 		});
 
 		it("should count by belongsTo relation field", async () => {
-			const count = await forja.count("user", {
+			const count = await datrix.count("user", {
 				organization: { name: "Count Test Org" },
 			});
 
@@ -292,7 +292,7 @@ describe("Count", () => {
 		});
 
 		it("should count with multiple relation filters", async () => {
-			const count = await forja.count("user", {
+			const count = await datrix.count("user", {
 				organization: { id: orgId },
 				department: { id: deptId },
 			});
@@ -302,7 +302,7 @@ describe("Count", () => {
 		});
 
 		it("should count combining relation and field filters", async () => {
-			const count = await forja.count("user", {
+			const count = await datrix.count("user", {
 				organization: { id: orgId },
 				isActive: true,
 			});
@@ -318,11 +318,11 @@ describe("Count", () => {
 
 	describe("Edge Cases", () => {
 		it("should handle null field comparison", async () => {
-			const countWithOrg = await forja.count("user", {
+			const countWithOrg = await datrix.count("user", {
 				organization: { $notNull: true },
 			});
 
-			const countWithoutOrg = await forja.count("user", {
+			const countWithoutOrg = await datrix.count("user", {
 				organization: { $null: true },
 			});
 
@@ -331,25 +331,25 @@ describe("Count", () => {
 		});
 
 		it("should count after bulk create", async () => {
-			const beforeCount = await forja.count("tag");
+			const beforeCount = await datrix.count("tag");
 
-			await forja.createMany("tag", [
+			await datrix.createMany("tag", [
 				{ name: "CountTag1", color: "#111111" },
 				{ name: "CountTag2", color: "#222222" },
 				{ name: "CountTag3", color: "#333333" },
 			]);
 
-			const afterCount = await forja.count("tag");
+			const afterCount = await datrix.count("tag");
 
 			expect(afterCount).toBe(beforeCount + 3);
 		});
 
 		it("should count after delete", async () => {
-			const beforeCount = await forja.count("tag");
+			const beforeCount = await datrix.count("tag");
 
-			await forja.deleteMany("tag", { name: { $like: "CountTag%" } });
+			await datrix.deleteMany("tag", { name: { $like: "CountTag%" } });
 
-			const afterCount = await forja.count("tag");
+			const afterCount = await datrix.count("tag");
 
 			expect(afterCount).toBe(beforeCount - 3);
 		});
@@ -363,10 +363,10 @@ describe("Count", () => {
 				isActive: i % 2 === 0,
 			}));
 
-			await forja.createMany("user", bulkUsers);
+			await datrix.createMany("user", bulkUsers);
 
 			const start = performance.now();
-			const count = await forja.count("user");
+			const count = await datrix.count("user");
 			const duration = performance.now() - start;
 
 			expect(count).toBe(110); // 10 original + 100 bulk

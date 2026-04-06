@@ -5,9 +5,9 @@
  * Only processes images — non-image files are passed through unchanged.
  */
 
-import type { UploadFile, MediaVariant, MediaVariants } from "@forja/core";
+import type { UploadFile, MediaVariant, MediaVariants } from "@datrix/core";
 import type { ImageFormat, ResolutionConfig } from "./types";
-import { ForjaError } from "@forja/core";
+import { DatrixError } from "@datrix/core";
 
 const IMAGE_MIME_TYPES = new Set([
 	"image/jpeg",
@@ -59,7 +59,7 @@ export async function convertFormat(
 		sharp = (await import("sharp"))
 			.default as unknown as typeof import("sharp");
 	} catch (error) {
-		throw new ForjaError("sharp is not installed", {
+		throw new DatrixError("sharp is not installed", {
 			code: "SHARP_NOT_FOUND",
 			operation: "upload:convertFormat",
 		});
@@ -80,7 +80,7 @@ export async function convertFormat(
 			filename: newFilename,
 		};
 	} catch (error) {
-		throw new ForjaError("Failed to convert image format", {
+		throw new DatrixError("Failed to convert image format", {
 			code: "IMAGE_CONVERT_ERROR",
 			operation: "upload:convertFormat",
 			cause: error instanceof Error ? error : undefined,
@@ -109,7 +109,7 @@ export async function generateVariants<TResolutions extends string>(
 		sharp = (await import("sharp"))
 			.default as unknown as typeof import("sharp");
 	} catch (error) {
-		throw new ForjaError("sharp is not installed", {
+		throw new DatrixError("sharp is not installed", {
 			code: "SHARP_NOT_FOUND",
 			operation: "upload:generateVariants",
 		});
@@ -160,8 +160,8 @@ export async function generateVariants<TResolutions extends string>(
 				url: undefined!,
 			};
 		} catch (error) {
-			if (error instanceof ForjaError) throw error;
-			throw new ForjaError(`Failed to generate variant: ${name}`, {
+			if (error instanceof DatrixError) throw error;
+			throw new DatrixError(`Failed to generate variant: ${name}`, {
 				code: "VARIANT_GENERATE_ERROR",
 				operation: "upload:generateVariants",
 				cause: error instanceof Error ? error : undefined,

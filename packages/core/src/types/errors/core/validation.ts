@@ -1,21 +1,21 @@
 /**
- * Forja Validation Error
+ * Datrix Validation Error
  *
  * Specialized error for data validation failures.
- * Extends ForjaError with structured validation error details.
+ * Extends DatrixError with structured validation error details.
  */
 
 import {
-	ForjaError,
-	type ForjaErrorOptions,
-	type SerializedForjaError,
-} from "../forja-error";
+	DatrixError,
+	type DatrixErrorOptions,
+	type SerializedDatrixError,
+} from "../datrix-error";
 import type { ValidationError } from "../../core/validator";
 
 /**
- * Options for creating ForjaValidationError
+ * Options for creating DatrixValidationError
  */
-export interface ForjaValidationErrorOptions extends Partial<ForjaErrorOptions> {
+export interface DatrixValidationErrorOptions extends Partial<DatrixErrorOptions> {
 	readonly model: string;
 	readonly errors: readonly ValidationError[];
 }
@@ -23,22 +23,22 @@ export interface ForjaValidationErrorOptions extends Partial<ForjaErrorOptions> 
 /**
  * Serialized validation error for API responses
  */
-export interface SerializedForjaValidationError extends SerializedForjaError {
+export interface SerializedDatrixValidationError extends SerializedDatrixError {
 	readonly model: string;
 	readonly errors: readonly ValidationError[];
 }
 
 /**
- * Forja Validation Error Class
+ * Datrix Validation Error Class
  *
- * Specialized ForjaError for schema validation failures.
+ * Specialized DatrixError for schema validation failures.
  * Includes the model name and a list of specific validation errors.
  */
-export class ForjaValidationError extends ForjaError {
+export class DatrixValidationError extends DatrixError {
 	readonly model: string;
 	readonly errors: readonly ValidationError[];
 
-	constructor(message: string, options: ForjaValidationErrorOptions) {
+	constructor(message: string, options: DatrixValidationErrorOptions) {
 		super(message, {
 			code: options.code || "VALIDATION_FAILED",
 			operation: options.operation || "validation",
@@ -59,7 +59,7 @@ export class ForjaValidationError extends ForjaError {
 	/**
 	 * Override toJSON to include validation-specific fields
 	 */
-	override toJSON(): SerializedForjaValidationError {
+	override toJSON(): SerializedDatrixValidationError {
 		return {
 			...super.toJSON(),
 			model: this.model,

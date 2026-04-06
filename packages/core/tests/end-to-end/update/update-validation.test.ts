@@ -14,12 +14,12 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { Forja } from "@forja/core";
+import { Datrix } from "@datrix/core";
 import fs from "node:fs/promises";
 import { createTestConfig, getTmpDir, setupTables } from "../setup";
 
 describe("Update Validation", () => {
-	let forja: Forja;
+	let datrix: Datrix;
 	const tmpDir = getTmpDir("update_validation");
 
 	let userId: number;
@@ -29,19 +29,19 @@ describe("Update Validation", () => {
 		await fs.rm(tmpDir, { recursive: true, force: true });
 		await fs.mkdir(tmpDir, { recursive: true });
 
-		const getForja = await createTestConfig(tmpDir);
-		forja = await getForja();
+		const getDatrix = await createTestConfig(tmpDir);
+		datrix = await getDatrix();
 
-		await setupTables(forja);
+		await setupTables(datrix);
 
 		// Create test data
-		const org = await forja.create("organization", {
+		const org = await datrix.create("organization", {
 			name: "Update Validation Org",
 			country: "USA",
 		});
 		orgId = org.id;
 
-		const user = await forja.create("user", {
+		const user = await datrix.create("user", {
 			email: "update-val@test.com",
 			name: "Update Validation User",
 			age: 30,
@@ -61,7 +61,7 @@ describe("Update Validation", () => {
 	describe("Type Validation", () => {
 		it("should fail when updating string field with number", async () => {
 			await expect(
-				forja.update("user", userId, {
+				datrix.update("user", userId, {
 					name: 12345 as unknown as string,
 				}),
 			).rejects.toThrow();
@@ -69,7 +69,7 @@ describe("Update Validation", () => {
 
 		it("should fail when updating number field with invalid string", async () => {
 			await expect(
-				forja.update("user", userId, {
+				datrix.update("user", userId, {
 					age: "invalid" as unknown as number,
 				}),
 			).rejects.toThrow();
@@ -77,7 +77,7 @@ describe("Update Validation", () => {
 
 		it("should fail when updating boolean field with string", async () => {
 			await expect(
-				forja.update("user", userId, {
+				datrix.update("user", userId, {
 					isActive: "true" as unknown as boolean,
 				}),
 			).rejects.toThrow();
@@ -91,33 +91,33 @@ describe("Update Validation", () => {
 	describe("String Constraints", () => {
 		it("should fail when updating with string exceeding maxLength", async () => {
 			await expect(
-				forja.update("user", userId, {
+				datrix.update("user", userId, {
 					name: "a".repeat(300),
 				}),
 			).rejects.toThrow();
 		});
 
 		it("should fail when updating with string below minLength", async () => {
-			const dept = await forja.create("department", {
+			const dept = await datrix.create("department", {
 				name: "Test Dept",
 				code: "TEST",
 			});
 
 			await expect(
-				forja.update("department", dept.id, {
+				datrix.update("department", dept.id, {
 					code: "A", // Too short for pattern
 				}),
 			).rejects.toThrow();
 		});
 
 		it("should fail when updating with invalid pattern", async () => {
-			const dept = await forja.create("department", {
+			const dept = await datrix.create("department", {
 				name: "Pattern Dept",
 				code: "PTRN",
 			});
 
 			await expect(
-				forja.update("department", dept.id, {
+				datrix.update("department", dept.id, {
 					code: "invalid123", // Doesn't match ^[A-Z]{2,10}$
 				}),
 			).rejects.toThrow();
@@ -131,7 +131,7 @@ describe("Update Validation", () => {
 	describe("Number Constraints", () => {
 		it("should fail when updating with number below min", async () => {
 			await expect(
-				forja.update("user", userId, {
+				datrix.update("user", userId, {
 					age: -10,
 				}),
 			).rejects.toThrow();
@@ -139,14 +139,14 @@ describe("Update Validation", () => {
 
 		it("should fail when updating with number above max", async () => {
 			await expect(
-				forja.update("user", userId, {
+				datrix.update("user", userId, {
 					age: 200,
 				}),
 			).rejects.toThrow();
 		});
 
 		it("should accept updating to null for optional number", async () => {
-			const updated = await forja.update("user", userId, {
+			const updated = await datrix.update("user", userId, {
 				age: null,
 			});
 
@@ -154,7 +154,7 @@ describe("Update Validation", () => {
 		});
 
 		it("should accept updating to boundary value", async () => {
-			const updated = await forja.update("user", userId, {
+			const updated = await datrix.update("user", userId, {
 				age: 0,
 			});
 
@@ -169,14 +169,14 @@ describe("Update Validation", () => {
 	describe("Unique Constraint", () => {
 		it("should fail when updating to duplicate unique value", async () => {
 			// Create another user
-			await forja.create("user", {
+			await datrix.create("user", {
 				email: "existing@test.com",
 				name: "Existing User",
 			});
 
 			// Try to update to same email
 			await expect(
-				forja.update("user", userId, {
+				datrix.update("user", userId, {
 					email: "existing@test.com",
 				}),
 			).rejects.toThrow();
@@ -184,7 +184,7 @@ describe("Update Validation", () => {
 
 		it("should allow updating same record with same unique value", async () => {
 			// This should not fail - updating to same value
-			const updated = await forja.update("user", userId, {
+			const updated = await datrix.update("user", userId, {
 				email: "update-val@test.com", // Same email
 				name: "Updated Name",
 			});
@@ -193,18 +193,18 @@ describe("Update Validation", () => {
 		});
 
 		it("should fail on unique index violation", async () => {
-			await forja.create("category", {
+			await datrix.create("category", {
 				name: "Existing Cat",
 				slug: "existing-cat",
 			});
 
-			const newCat = await forja.create("category", {
+			const newCat = await datrix.create("category", {
 				name: "New Cat",
 				slug: "new-cat",
 			});
 
 			await expect(
-				forja.update("category", newCat.id, {
+				datrix.update("category", newCat.id, {
 					slug: "existing-cat",
 				}),
 			).rejects.toThrow();
@@ -218,7 +218,7 @@ describe("Update Validation", () => {
 	describe("Relation Validation", () => {
 		it("should fail when updating belongsTo to non-existent", async () => {
 			await expect(
-				forja.update("user", userId, {
+				datrix.update("user", userId, {
 					organization: 99999,
 				}),
 			).rejects.toThrow();
@@ -226,19 +226,19 @@ describe("Update Validation", () => {
 
 		it("should fail when connecting manyToMany to non-existent", async () => {
 			await expect(
-				forja.update("user", userId, {
+				datrix.update("user", userId, {
 					roles: { connect: [99999] },
 				}),
 			).rejects.toThrow();
 		});
 
 		it("should accept updating to valid relation", async () => {
-			const newOrg = await forja.create("organization", {
+			const newOrg = await datrix.create("organization", {
 				name: "New Org",
 				country: "UK",
 			});
 
-			const updated = await forja.update("user", userId, {
+			const updated = await datrix.update("user", userId, {
 				organization: newOrg.id,
 			});
 
@@ -246,12 +246,12 @@ describe("Update Validation", () => {
 		});
 
 		it("should accept updating relation to null", async () => {
-			const updated = await forja.update("user", userId, {
+			const updated = await datrix.update("user", userId, {
 				organization: { disconnect: true },
 			});
 
 			// Verify with populate
-			const fetched = await forja.findById("user", userId, {
+			const fetched = await datrix.findById("user", userId, {
 				populate: { organization: { select: "*" } },
 			});
 			expect(fetched!.organization).toBeNull();
@@ -265,7 +265,7 @@ describe("Update Validation", () => {
 	describe("Record Not Found", () => {
 		it("should fail when updating non-existent record", async () => {
 			await expect(
-				forja.update("user", 99999, {
+				datrix.update("user", 99999, {
 					name: "Ghost",
 				}),
 			).rejects.toThrow();
@@ -273,7 +273,7 @@ describe("Update Validation", () => {
 
 		it("should include record id in error", async () => {
 			try {
-				await forja.update("user", 99999, { name: "Ghost" });
+				await datrix.update("user", 99999, { name: "Ghost" });
 				expect.fail("Should have thrown");
 			} catch (error) {
 				expect((error as Error).message).toContain("99999");
@@ -288,7 +288,7 @@ describe("Update Validation", () => {
 	describe("Partial Update Validation", () => {
 		it("should allow partial update without required fields", async () => {
 			// Should not require email to be present in update
-			const updated = await forja.update("user", userId, {
+			const updated = await datrix.update("user", userId, {
 				name: "Partial Update",
 			});
 
@@ -298,7 +298,7 @@ describe("Update Validation", () => {
 
 		it("should validate only fields being updated", async () => {
 			// Valid partial update
-			const updated = await forja.update("user", userId, {
+			const updated = await datrix.update("user", userId, {
 				age: 35,
 			});
 
@@ -307,7 +307,7 @@ describe("Update Validation", () => {
 
 		it("should not allow setting required field to null", async () => {
 			await expect(
-				forja.update("user", userId, {
+				datrix.update("user", userId, {
 					email: null as unknown as string,
 				}),
 			).rejects.toThrow();
@@ -321,7 +321,7 @@ describe("Update Validation", () => {
 	describe("UpdateMany Validation", () => {
 		it("should validate data for all matching records", async () => {
 			await expect(
-				forja.updateMany(
+				datrix.updateMany(
 					"user",
 					{ isActive: true },
 					{ age: -10 }, // Invalid
@@ -331,19 +331,19 @@ describe("Update Validation", () => {
 
 		it("should fail on unique violation in updateMany", async () => {
 			// Create users with different emails
-			await forja.create("user", {
+			await datrix.create("user", {
 				email: "target-email@test.com",
 				name: "Target",
 			});
 
-			const source = await forja.create("user", {
+			const source = await datrix.create("user", {
 				email: "source-email@test.com",
 				name: "Source",
 			});
 
 			// Try to update source to target's email
 			await expect(
-				forja.updateMany(
+				datrix.updateMany(
 					"user",
 					{ id: source.id },
 					{ email: "target-email@test.com" },
@@ -359,7 +359,7 @@ describe("Update Validation", () => {
 	describe("Error Message Quality", () => {
 		it("should include field name in validation error", async () => {
 			try {
-				await forja.update("user", userId, { age: -10 });
+				await datrix.update("user", userId, { age: -10 });
 				expect.fail("Should have thrown");
 			} catch (error) {
 				expect((error as Error).message.toLowerCase()).toContain("age");
@@ -368,7 +368,7 @@ describe("Update Validation", () => {
 
 		it("should indicate it's an update operation", async () => {
 			try {
-				await forja.update("user", 99999, { name: "Ghost" });
+				await datrix.update("user", 99999, { name: "Ghost" });
 				expect.fail("Should have thrown");
 			} catch (error) {
 				const message = (error as Error).message.toLowerCase();

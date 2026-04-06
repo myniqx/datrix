@@ -83,7 +83,7 @@ export interface MongoCountResult {
 }
 
 /**
- * Counter key prefix for auto-increment IDs in _forja collection
+ * Counter key prefix for auto-increment IDs in _datrix collection
  * Stored as: _counter_tableName → { value: lastId }
  */
 export const COUNTER_KEY_PREFIX = "_counter_";

@@ -1,17 +1,17 @@
 {
-	"name": "forja-monorepo",
+	"name": "datrix-monorepo",
 	"version": "0.1.0",
 	"private": true,
 	"description": "TypeScript-first database management framework with Strapi-like API flexibility",
-	"author": "Forja Contributors",
+	"author": "datrix Contributors",
 	"license": "MIT",
-	"homepage": "https://github.com/myniqx/forja#readme",
+	"homepage": "https://github.com/myniqx/datrix#readme",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/myniqx/forja.git"
+		"url": "https://github.com/myniqx/datrix.git"
 	},
 	"bugs": {
-		"url": "https://github.com/myniqx/forja/issues"
+		"url": "https://github.com/myniqx/datrix/issues"
 	},
 	"keywords": [
 		"database",

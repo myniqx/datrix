@@ -1,6 +1,6 @@
-# forja-adapter-json
+# datrix-adapter-json
 
-A file-based JSON database adapter for Forja framework. Perfect for development, testing, static sites, and small-scale applications.
+A file-based JSON database adapter for Datrix framework. Perfect for development, testing, static sites, and small-scale applications.
 
 ## Features
 
@@ -8,7 +8,7 @@ A file-based JSON database adapter for Forja framework. Perfect for development,
 - **Full CRUD operations** - Create, read, update, delete with type safety
 - **Relations support** - belongsTo, hasMany, hasOne, manyToMany with eager loading
 - **Query features** - WHERE clauses, SELECT projection, ORDER BY, LIMIT, OFFSET, DISTINCT
-- **Schema-based validation** - Automatic validation using Forja schemas
+- **Schema-based validation** - Automatic validation using Datrix schemas
 - **Migration support** - Create, alter tables, add indexes
 - **Cache mechanism** - mtime-based caching for performance
 - **Thread-safe** - File-level locking for concurrent operations
@@ -18,29 +18,29 @@ A file-based JSON database adapter for Forja framework. Perfect for development,
 
 ```bash
 # pnpm
-pnpm add forja-adapter-json
+pnpm add datrix-adapter-json
 
 # yarn
-yarn add forja-adapter-json
+yarn add datrix-adapter-json
 
 # npm
-npm install forja-adapter-json
+npm install datrix-adapter-json
 ```
 
-## Quick Start with Forja
+## Quick Start with Datrix
 
 ```typescript
-import { defineConfig } from "forja-core";
-import { JsonAdapter } from "forja-adapter-json";
+import { defineConfig } from "datrix-core";
+import { JsonAdapter } from "datrix-adapter-json";
 
-// Create Forja configuration
+// Create Datrix configuration
 const config = defineConfig(() => ({
 	adapter: new JsonAdapter({
 		root: "./data",
 	}),
 
 	schemas: [
-		// Your schemas here (see Forja documentation)
+		// Your schemas here (see Datrix documentation)
 	],
 
 	plugins: [
@@ -170,7 +170,7 @@ Each file contains:
 
 ## Standalone Usage
 
-For using JsonAdapter without Forja framework, see the comprehensive guide:
+For using JsonAdapter without Datrix framework, see the comprehensive guide:
 
 Check **[HOW_TO_USE.md](./HOW_TO_USE.md)**
 
@@ -183,7 +183,7 @@ Covers:
 
 ## Relations & Populate
 
-JsonAdapter supports all Forja relation types:
+JsonAdapter supports all Datrix relation types:
 
 | Type           | Description  | FK Location    | Result                |
 | -------------- | ------------ | -------------- | --------------------- |
@@ -222,14 +222,14 @@ populate: {
 }
 ```
 
-**Note:** Populate is handled by Forja core. See Forja documentation for query API details.
+**Note:** Populate is handled by Datrix core. See Datrix documentation for query API details.
 
 ## Error Handling
 
-Operations throw `ForjaAdapterError` on failure:
+Operations throw `DatrixAdapterError` on failure:
 
 ```typescript
-import { ForjaAdapterError } from "@forja/core";
+import { DatrixAdapterError } from "@datrix/core";
 
 try {
 	const result = await adapter.executeQuery({
@@ -238,7 +238,7 @@ try {
 	});
 	console.log(result.rows);
 } catch (error) {
-	if (error instanceof ForjaAdapterError) {
+	if (error instanceof DatrixAdapterError) {
 		console.error(error.code); // "ADAPTER_QUERY_ERROR"
 		console.error(error.message); // Detailed message
 	}
@@ -247,10 +247,10 @@ try {
 
 ## License
 
-MIT © Forja Contributors
+MIT © Datrix Contributors
 
 ## Links
 
-- [Forja Documentation](https://tryforja.com) - Configuration, schemas, migrations
-- [How to Use Guide](./HOW_TO_USE.md) - Standalone usage without Forja
-- [GitHub Repository](https://github.com/myniqx/forja)
+- [Datrix Documentation](https://datrix.dev) - Configuration, schemas, migrations
+- [How to Use Guide](./HOW_TO_USE.md) - Standalone usage without Datrix
+- [GitHub Repository](https://github.com/myniqx/datrix)

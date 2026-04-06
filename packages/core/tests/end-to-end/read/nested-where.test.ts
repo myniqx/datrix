@@ -11,12 +11,12 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { Forja } from "@forja/core";
+import { Datrix } from "@datrix/core";
 import fs from "node:fs/promises";
 import { createTestConfig, getTmpDir, setupTables } from "../setup";
 
 describe("Nested Where", () => {
-	let forja: Forja;
+	let datrix: Datrix;
 	const tmpDir = getTmpDir("nested_where");
 
 	// Store IDs for reference
@@ -30,18 +30,18 @@ describe("Nested Where", () => {
 		await fs.rm(tmpDir, { recursive: true, force: true });
 		await fs.mkdir(tmpDir, { recursive: true });
 
-		const getForja = await createTestConfig(tmpDir);
-		forja = await getForja();
+		const getDatrix = await createTestConfig(tmpDir);
+		datrix = await getDatrix();
 
-		await setupTables(forja);
+		await setupTables(datrix);
 
 		// Create organizations
-		const acme = await forja.create("organization", {
+		const acme = await datrix.create("organization", {
 			name: "Acme Corp",
 			country: "USA",
 			isActive: true,
 		});
-		const tech = await forja.create("organization", {
+		const tech = await datrix.create("organization", {
 			name: "Tech Ltd",
 			country: "UK",
 			isActive: false,
@@ -49,19 +49,19 @@ describe("Nested Where", () => {
 		orgs = { acme: acme.id, tech: tech.id };
 
 		// Create departments
-		const eng = await forja.create("department", {
+		const eng = await datrix.create("department", {
 			name: "Engineering",
 			code: "ENG",
 			budget: 100000,
 			organization: acme.id,
 		});
-		const sales = await forja.create("department", {
+		const sales = await datrix.create("department", {
 			name: "Sales",
 			code: "SLS",
 			budget: 50000,
 			organization: acme.id,
 		});
-		const hr = await forja.create("department", {
+		const hr = await datrix.create("department", {
 			name: "HR",
 			code: "HR",
 			budget: 30000,
@@ -70,18 +70,18 @@ describe("Nested Where", () => {
 		depts = { eng: eng.id, sales: sales.id, hr: hr.id };
 
 		// Create roles
-		const adminRole = await forja.create("role", {
+		const adminRole = await datrix.create("role", {
 			name: "Admin",
 			level: 100,
 		});
-		const devRole = await forja.create("role", {
+		const devRole = await datrix.create("role", {
 			name: "Developer",
 			level: 50,
 		});
 		roles = { admin: adminRole.id, dev: devRole.id };
 
 		// Create users
-		const alice = await forja.create("user", {
+		const alice = await datrix.create("user", {
 			email: "alice@acme.com",
 			name: "Alice",
 			age: 30,
@@ -90,7 +90,7 @@ describe("Nested Where", () => {
 			department: eng.id,
 			roles: { connect: [adminRole.id, devRole.id] },
 		});
-		const bob = await forja.create("user", {
+		const bob = await datrix.create("user", {
 			email: "bob@acme.com",
 			name: "Bob",
 			age: 25,
@@ -99,7 +99,7 @@ describe("Nested Where", () => {
 			department: sales.id,
 			roles: { connect: [devRole.id] },
 		});
-		const charlie = await forja.create("user", {
+		const charlie = await datrix.create("user", {
 			email: "charlie@tech.com",
 			name: "Charlie",
 			age: 35,
@@ -110,28 +110,28 @@ describe("Nested Where", () => {
 		users = { alice: alice.id, bob: bob.id, charlie: charlie.id };
 
 		// Create categories and posts
-		const techCat = await forja.create("category", {
+		const techCat = await datrix.create("category", {
 			name: "Technology",
 			slug: "technology",
 			isActive: true,
 		});
-		const sciCat = await forja.create("category", {
+		const sciCat = await datrix.create("category", {
 			name: "Science",
 			slug: "science",
 			isActive: false,
 		});
 
-		const tag1 = await forja.create("tag", {
+		const tag1 = await datrix.create("tag", {
 			name: "JavaScript",
 			color: "#F7DF1E",
 		});
-		const tag2 = await forja.create("tag", {
+		const tag2 = await datrix.create("tag", {
 			name: "Python",
 			color: "#3776AB",
 		});
 		tags = { js: tag1.id, python: tag2.id };
 
-		await forja.create("post", {
+		await datrix.create("post", {
 			title: "JavaScript Tips",
 			content: "JS content",
 			slug: "js-tips",
@@ -141,7 +141,7 @@ describe("Nested Where", () => {
 			tags: { connect: [tag1.id] },
 		});
 
-		await forja.create("post", {
+		await datrix.create("post", {
 			title: "Python Basics",
 			content: "Python content",
 			slug: "python-basics",
@@ -162,7 +162,7 @@ describe("Nested Where", () => {
 
 	describe("BelongsTo Relation Where", () => {
 		it("should filter by direct belongsTo field", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: {
 					organization: { name: "Acme Corp" },
 				},
@@ -175,7 +175,7 @@ describe("Nested Where", () => {
 		});
 
 		it("should filter by belongsTo with operator", async () => {
-			const results = await forja.findMany("department", {
+			const results = await datrix.findMany("department", {
 				where: {
 					organization: { isActive: true },
 				},
@@ -188,7 +188,7 @@ describe("Nested Where", () => {
 		});
 
 		it("should filter by belongsTo country", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: {
 					organization: { country: "UK" },
 				},
@@ -199,7 +199,7 @@ describe("Nested Where", () => {
 		});
 
 		it("should filter by department budget", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: {
 					department: { budget: { $gte: 50000 } },
 				},
@@ -216,7 +216,7 @@ describe("Nested Where", () => {
 	describe("Deep Nested Where", () => {
 		it("should filter by 2-level deep relation", async () => {
 			// Users where department's organization is in USA
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: {
 					department: {
 						organization: { country: "USA" },
@@ -228,7 +228,7 @@ describe("Nested Where", () => {
 		});
 
 		it("should filter posts by author's organization", async () => {
-			const results = await forja.findMany("post", {
+			const results = await datrix.findMany("post", {
 				where: {
 					author: {
 						organization: { name: "Acme Corp" },
@@ -240,7 +240,7 @@ describe("Nested Where", () => {
 		});
 
 		it("should filter posts by category status", async () => {
-			const results = await forja.findMany("post", {
+			const results = await datrix.findMany("post", {
 				where: {
 					category: { isActive: true },
 				},
@@ -257,7 +257,7 @@ describe("Nested Where", () => {
 
 	describe("Combined Local and Nested Where", () => {
 		it("should combine local field with nested relation", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: {
 					isActive: true,
 					organization: { country: "USA" },
@@ -271,7 +271,7 @@ describe("Nested Where", () => {
 		});
 
 		it("should combine multiple nested relations", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: {
 					organization: { isActive: true },
 					department: { budget: { $gt: 75000 } },
@@ -283,7 +283,7 @@ describe("Nested Where", () => {
 		});
 
 		it("should combine age filter with org filter", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: {
 					age: { $gte: 30 },
 					organization: { name: "Acme Corp" },
@@ -301,7 +301,7 @@ describe("Nested Where", () => {
 
 	describe("Nested Where with Logical Operators", () => {
 		it("should use $or with nested where", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: {
 					$or: [
 						{ organization: { country: "UK" } },
@@ -318,7 +318,7 @@ describe("Nested Where", () => {
 		});
 
 		it("should use $and with nested where", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: {
 					$and: [{ organization: { isActive: true } }, { isActive: true }],
 				},
@@ -336,20 +336,20 @@ describe("Nested Where", () => {
 	describe("Self-Referencing Nested Where", () => {
 		beforeAll(async () => {
 			// Create hierarchical categories
-			const parent = await forja.create("category", {
+			const parent = await datrix.create("category", {
 				name: "Parent Category",
 				slug: "parent-category",
 				isActive: true,
 			});
 
-			await forja.create("category", {
+			await datrix.create("category", {
 				name: "Child Category",
 				slug: "child-category",
 				isActive: true,
 				parent: parent.id,
 			});
 
-			await forja.create("category", {
+			await datrix.create("category", {
 				name: "Another Child",
 				slug: "another-child",
 				isActive: false,
@@ -358,7 +358,7 @@ describe("Nested Where", () => {
 		});
 
 		it("should filter by parent category", async () => {
-			const results = await forja.findMany("category", {
+			const results = await datrix.findMany("category", {
 				where: {
 					parent: { name: "Parent Category" },
 				},
@@ -371,7 +371,7 @@ describe("Nested Where", () => {
 		});
 
 		it("should combine self-reference with local field", async () => {
-			const results = await forja.findMany("category", {
+			const results = await datrix.findMany("category", {
 				where: {
 					isActive: true,
 					parent: { name: "Parent Category" },
@@ -389,7 +389,7 @@ describe("Nested Where", () => {
 
 	describe("ManyToMany Relation Where", () => {
 		it("should filter users by role name", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: {
 					roles: { name: "Admin" },
 				},
@@ -400,7 +400,7 @@ describe("Nested Where", () => {
 		});
 
 		it("should filter users by role level", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: {
 					roles: { level: { $gte: 50 } },
 				},
@@ -414,7 +414,7 @@ describe("Nested Where", () => {
 		});
 
 		it("should filter users who have no matching role (empty result)", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: {
 					roles: { name: "NonExistentRole" },
 				},
@@ -424,7 +424,7 @@ describe("Nested Where", () => {
 		});
 
 		it("should filter posts by tag name", async () => {
-			const results = await forja.findMany("post", {
+			const results = await datrix.findMany("post", {
 				where: {
 					tags: { name: "JavaScript" },
 				},
@@ -435,7 +435,7 @@ describe("Nested Where", () => {
 		});
 
 		it("should filter posts by tag color", async () => {
-			const results = await forja.findMany("post", {
+			const results = await datrix.findMany("post", {
 				where: {
 					tags: { color: "#3776AB" },
 				},
@@ -452,7 +452,7 @@ describe("Nested Where", () => {
 
 	describe("HasMany Relation Where", () => {
 		it("should filter organizations by department name", async () => {
-			const results = await forja.findMany("organization", {
+			const results = await datrix.findMany("organization", {
 				where: {
 					departments: { name: "Engineering" },
 				},
@@ -463,7 +463,7 @@ describe("Nested Where", () => {
 		});
 
 		it("should filter organizations by department budget", async () => {
-			const results = await forja.findMany("organization", {
+			const results = await datrix.findMany("organization", {
 				where: {
 					departments: { budget: { $gte: 100000 } },
 				},
@@ -474,7 +474,7 @@ describe("Nested Where", () => {
 		});
 
 		it("should filter organizations that have no matching department (empty result)", async () => {
-			const results = await forja.findMany("organization", {
+			const results = await datrix.findMany("organization", {
 				where: {
 					departments: { code: "NONEXISTENT" },
 				},
@@ -484,7 +484,7 @@ describe("Nested Where", () => {
 		});
 
 		it("should filter users by post published status", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: {
 					posts: { isPublished: true },
 				},
@@ -495,7 +495,7 @@ describe("Nested Where", () => {
 		});
 
 		it("should combine hasMany where with local field", async () => {
-			const results = await forja.findMany("user", {
+			const results = await datrix.findMany("user", {
 				where: {
 					isActive: true,
 					posts: { isPublished: false },
@@ -514,7 +514,7 @@ describe("Nested Where", () => {
 	describe("Error Cases", () => {
 		it("should throw for invalid nested field", async () => {
 			await expect(
-				forja.findMany("user", {
+				datrix.findMany("user", {
 					where: {
 						organization: { nonExistentField: "value" },
 					},
@@ -524,7 +524,7 @@ describe("Nested Where", () => {
 
 		it("should throw for non-relation field used as nested", async () => {
 			await expect(
-				forja.findMany("user", {
+				datrix.findMany("user", {
 					where: {
 						name: { someField: "value" },
 					} as Record<string, unknown>,

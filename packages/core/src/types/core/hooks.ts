@@ -2,7 +2,7 @@
  * Schema lifecycle hook types.
  */
 
-import type { ForjaEntry } from "./entry";
+import type { DatrixEntry } from "./entry";
 import type {
 	QueryInsertObject,
 	QueryUpdateObject,
@@ -17,9 +17,9 @@ import type { QueryContext } from "./query-context";
  * Before hooks receive the current query object and must return it (optionally modified).
  * After hooks receive the result array and must return it (optionally modified).
  * ctx.metadata is shared between before and after hooks for the same operation.
- * ctx.forja gives access to the Forja instance for additional queries or schema inspection.
+ * ctx.datrix gives access to the Datrix instance for additional queries or schema inspection.
  */
-export interface LifecycleHooks<T extends ForjaEntry = ForjaEntry> {
+export interface LifecycleHooks<T extends DatrixEntry = DatrixEntry> {
 	// --- write hooks ---
 	readonly beforeCreate?: (
 		query: QueryInsertObject<T>,

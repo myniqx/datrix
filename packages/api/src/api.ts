@@ -1,44 +1,43 @@
 /**
  * API Plugin
  *
- * Transforms the API package into a Forja plugin.
+ * Transforms the API package into a Datrix plugin.
  * Manages authentication schema, user sync, and auth routes.
  */
 
-import { BasePlugin } from "@forja/core";
+import { BasePlugin } from "@datrix/core";
 import type {
 	PluginContext,
 	QueryContext,
 	SchemaDefinition,
-} from "@forja/core";
-import { DefaultPermission, defineSchema } from "@forja/core";
-import { DEFAULT_API_AUTH_CONFIG } from "@forja/core";
+} from "@datrix/core";
+import { DefaultPermission, defineSchema } from "@datrix/core";
+import { DEFAULT_API_AUTH_CONFIG } from "@datrix/core";
 import { AuthManager } from "./auth/manager";
 import { createUnifiedAuthHandler } from "./handler/auth-handler";
 import { handleCrudRequest } from "./handler/unified";
 import { handlerError } from "./errors/api-error";
 import { ApiConfig } from "./types";
-import { Forja } from "@forja/core";
-import type { IApiPlugin } from "@forja/core";
-import type { ForjaEntry, ForjaRecord } from "@forja/core";
-import { forjaErrorResponse } from "./handler/utils";
-import type { AuthUser, IUpload } from "@forja/core";
-import { QueryObject } from "@forja/core";
-import { FallbackInput } from "@forja/core";
+import { Datrix } from "@datrix/core";
+import type { IApiPlugin } from "@datrix/core";
+import type { DatrixEntry, DatrixRecord } from "@datrix/core";
+import { datrixErrorResponse } from "./handler/utils";
+import type { AuthUser, IUpload } from "@datrix/core";
+import { QueryObject } from "@datrix/core";
+import { FallbackInput } from "@datrix/core";
 
 export class ApiPlugin<TRole extends string = string>
 	extends BasePlugin<ApiConfig<TRole>>
-	implements IApiPlugin<TRole>
-{
+	implements IApiPlugin<TRole> {
 	readonly name = "api";
 	readonly version = "1.0.0";
 
 	public authManager?: AuthManager;
 	public user: AuthUser | null = null;
-	private forjaInstance?: Forja;
+	private datrixInstance?: Datrix;
 
-	public get forja(): Forja {
-		return this.forjaInstance as Forja;
+	public get datrix(): Datrix {
+		return this.datrixInstance as Datrix;
 	}
 
 	public get upload(): IUpload | undefined {
@@ -80,13 +79,13 @@ export class ApiPlugin<TRole extends string = string>
 	public get excludeSchemas(): readonly string[] {
 		return [
 			...(this.apiConfig.excludeSchemas ?? []),
-			"_forja",
-			"_forja_migrations",
+			"_datrix",
+			"_datrix_migrations",
 		];
 	}
 
 	private getTableName(schemaName: string): string {
-		const schema = this.forja.getSchema(schemaName);
+		const schema = this.datrix.getSchema(schemaName);
 		return schema?.tableName || `${schemaName.toLowerCase()}s`;
 	}
 
@@ -144,7 +143,7 @@ export class ApiPlugin<TRole extends string = string>
 		this.authManager = new AuthManager(this.authConfig);
 	}
 
-	async destroy(): Promise<void> {}
+	async destroy(): Promise<void> { }
 
 	override async getSchemas(): Promise<SchemaDefinition[]> {
 		const schemas: SchemaDefinition[] = [];
@@ -203,7 +202,7 @@ export class ApiPlugin<TRole extends string = string>
 		return schemas;
 	}
 
-	override async onBeforeQuery<T extends ForjaEntry>(
+	override async onBeforeQuery<T extends DatrixEntry>(
 		query: QueryObject<T>,
 		context: QueryContext,
 	): Promise<QueryObject<T>> {
@@ -248,7 +247,7 @@ export class ApiPlugin<TRole extends string = string>
 		if (context.metadata["api:createAuth"]) {
 			const { id: userId } = Array.isArray(result) ? result[0] : result;
 			if (typeof userId === "number") {
-				const user: Partial<ForjaRecord> = {
+				const user: Partial<DatrixRecord> = {
 					...(context.metadata["api:userData"] as Record<string, unknown>),
 					userId,
 				};
@@ -267,7 +266,7 @@ export class ApiPlugin<TRole extends string = string>
 	}
 
 	private async createAuthenticationRecord(
-		_user: Partial<ForjaRecord>,
+		_user: Partial<DatrixRecord>,
 		_context: PluginContext,
 	): Promise<void> {
 		const emailField = this.userSchemaEmailField;
@@ -280,7 +279,7 @@ export class ApiPlugin<TRole extends string = string>
 			role: user["role"] || this.authConfig?.defaultRole || "user",
 		};
 
-		await this.forjaInstance!.raw.create(this.authSchemaName, authData);
+		await this.datrixInstance!.raw.create(this.authSchemaName, authData);
 	}
 
 	private async syncAuthenticationEmail(
@@ -288,7 +287,7 @@ export class ApiPlugin<TRole extends string = string>
 		newEmail: string,
 		_context: PluginContext,
 	): Promise<void> {
-		await this.forja.raw.updateMany(
+		await this.datrix.raw.updateMany(
 			this.authSchemaName,
 			{ user: { id: { $eq: userId } } },
 			{ email: newEmail },
@@ -301,20 +300,20 @@ export class ApiPlugin<TRole extends string = string>
 	 * Main entry point for all API requests.
 	 * Routes to auth handlers or CRUD handlers.
 	 */
-	async handleRequest(request: Request, forja: Forja): Promise<Response> {
+	async handleRequest(request: Request, datrix: Datrix): Promise<Response> {
 		if (!this.isInitialized()) {
-			return forjaErrorResponse(
+			return datrixErrorResponse(
 				handlerError.internalError("API plugin not initialized"),
 			);
 		}
 
-		this.forjaInstance = forja;
+		this.datrixInstance = datrix;
 
 		const url = new URL(request.url);
 		const prefix = this.apiConfig.prefix ?? "/api";
 
 		if (!url.pathname.startsWith(prefix)) {
-			return forjaErrorResponse(
+			return datrixErrorResponse(
 				handlerError.internalError("Invalid API prefix"),
 			);
 		}
@@ -324,7 +323,7 @@ export class ApiPlugin<TRole extends string = string>
 		const model = segments[0];
 
 		if (this.authConfig && this.isAuthPath(pathAfterPrefix)) {
-			return this.handleAuthRequest(request, forja);
+			return this.handleAuthRequest(request, datrix);
 		}
 
 		if (
@@ -332,10 +331,10 @@ export class ApiPlugin<TRole extends string = string>
 			this.apiConfig.upload &&
 			request.method !== "GET"
 		) {
-			return this.apiConfig.upload.handleRequest(request, forja);
+			return this.apiConfig.upload.handleRequest(request, datrix);
 		}
 
-		return handleCrudRequest(request, forja, this, {
+		return handleCrudRequest(request, datrix, this, {
 			apiPrefix: prefix,
 		});
 	}
@@ -362,17 +361,17 @@ export class ApiPlugin<TRole extends string = string>
 	 */
 	private async handleAuthRequest(
 		request: Request,
-		forja: Forja,
+		datrix: Datrix,
 	): Promise<Response> {
 		if (!this.authManager) {
-			return forjaErrorResponse(
+			return datrixErrorResponse(
 				handlerError.internalError("Authentication not configured"),
 			);
 		}
 
 		const handler = createUnifiedAuthHandler(
 			{
-				forja,
+				datrix,
 				authManager: this.authManager,
 				authConfig: this.authConfig!,
 			},

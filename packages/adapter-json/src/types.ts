@@ -25,8 +25,8 @@ export interface JsonAdapterConfig extends Record<string, unknown> {
 	 */
 	readLock?: boolean;
 	/**
-	 * Standalone mode: automatically creates _forja metadata table on connect (default: false)
-	 * Use this when running the JSON adapter without Forja core (e.g. direct adapter usage or tests)
+	 * Standalone mode: automatically creates _datrix metadata table on connect (default: false)
+	 * Use this when running the JSON adapter without Datrix core (e.g. direct adapter usage or tests)
 	 */
 	standalone?: boolean;
 }
@@ -70,6 +70,6 @@ export interface SchemaOperationOptions {
 	skipLock?: boolean;
 	/** Skip writing to disk (transaction will write on commit) */
 	skipWrite?: boolean;
-	/** Skip _forja metadata operations (used during import) */
+	/** Skip _datrix metadata operations (used during import) */
 	isImport?: boolean;
 }

@@ -5,18 +5,18 @@
  */
 
 import { expect } from "vitest";
-import type { DatabaseAdapter } from "@forja/core";
-import type { MigrationSession, AmbiguousChange, Forja } from "@forja/core";
+import type { DatabaseAdapter } from "@datrix/core";
+import type { MigrationSession, AmbiguousChange, Datrix } from "@datrix/core";
 
 // ============================================
 // Table Name Resolution
 // ============================================
 
 /**
- * Get table name from model name using Forja's schema registry
+ * Get table name from model name using Datrix's schema registry
  */
-function getTableName(forja: Forja, modelName: string): string {
-	const schema = forja.getSchemas().get(modelName);
+function getTableName(datrix: Datrix, modelName: string): string {
+	const schema = datrix.getSchemas().get(modelName);
 	if (!schema) {
 		throw new Error(`Schema '${modelName}' not found in registry`);
 	}
@@ -127,11 +127,11 @@ export async function applyMigration(
  * Assert table exists in database (by model name)
  */
 export async function assertTableExists(
-	forja: Forja,
+	datrix: Datrix,
 	modelName: string,
 ): Promise<void> {
-	const tableName = getTableName(forja, modelName);
-	const adapter = forja.getAdapter();
+	const tableName = getTableName(datrix, modelName);
+	const adapter = datrix.getAdapter();
 	const exists = await adapter.tableExists(tableName);
 	expect(
 		exists,
@@ -155,12 +155,12 @@ export async function assertTableNotExists(
  * Assert column exists in table (by model name)
  */
 export async function assertColumnExists(
-	forja: Forja,
+	datrix: Datrix,
 	modelName: string,
 	columnName: string,
 ): Promise<void> {
-	const tableName = getTableName(forja, modelName);
-	const adapter = forja.getAdapter();
+	const tableName = getTableName(datrix, modelName);
+	const adapter = datrix.getAdapter();
 	const schemaResult = await adapter.getTableSchema(tableName);
 
 	const fields = Object.keys(schemaResult.fields);
@@ -174,12 +174,12 @@ export async function assertColumnExists(
  * Assert column does NOT exist in table (by model name)
  */
 export async function assertColumnNotExists(
-	forja: Forja,
+	datrix: Datrix,
 	modelName: string,
 	columnName: string,
 ): Promise<void> {
-	const tableName = getTableName(forja, modelName);
-	const adapter = forja.getAdapter();
+	const tableName = getTableName(datrix, modelName);
+	const adapter = datrix.getAdapter();
 	const schemaResult = await adapter.getTableSchema(tableName);
 
 	const fields = Object.keys(schemaResult.fields);
@@ -193,12 +193,12 @@ export async function assertColumnNotExists(
  * Assert table has exactly these columns (excluding auto-generated: id, createdAt, updatedAt)
  */
 export async function assertTableColumns(
-	forja: Forja,
+	datrix: Datrix,
 	modelName: string,
 	expectedColumns: readonly string[],
 ): Promise<void> {
-	const tableName = getTableName(forja, modelName);
-	const adapter = forja.getAdapter();
+	const tableName = getTableName(datrix, modelName);
+	const adapter = datrix.getAdapter();
 	const schemaResult = await adapter.getTableSchema(tableName);
 
 	const allFields = Object.keys(schemaResult.fields);
@@ -216,11 +216,11 @@ export async function assertTableColumns(
  * Get table column names (excluding auto-generated)
  */
 export async function getTableColumns(
-	forja: Forja,
+	datrix: Datrix,
 	modelName: string,
 ): Promise<string[]> {
-	const tableName = getTableName(forja, modelName);
-	const adapter = forja.getAdapter();
+	const tableName = getTableName(datrix, modelName);
+	const adapter = datrix.getAdapter();
 	const schemaResult = await adapter.getTableSchema(tableName);
 
 	const allFields = Object.keys(schemaResult.fields);
@@ -515,28 +515,28 @@ export function assertColumnInAdd(
  * Assert specific column is being dropped from a table
  */
 /**
- * Assert that adapter's _forja schema is in sync with core registry schema.
+ * Assert that adapter's _datrix schema is in sync with core registry schema.
  * Compares field names and relation field definitions between the two sources.
  *
- * @param forja - Forja instance (has registry)
+ * @param datrix - Datrix instance (has registry)
  * @param modelName - Model name to check
  */
 export async function assertSchemaSync(
-	forja: Forja,
+	datrix: Datrix,
 	modelName: string,
 ): Promise<void> {
-	const registrySchema = forja.getSchemas().get(modelName);
+	const registrySchema = datrix.getSchemas().get(modelName);
 	expect(
 		registrySchema,
 		`Schema '${modelName}' not found in registry`,
 	).toBeDefined();
 
 	const tableName = registrySchema!.tableName ?? registrySchema!.name;
-	const adapter = forja.getAdapter();
+	const adapter = datrix.getAdapter();
 	const adapterSchema = await adapter.getTableSchema(tableName);
 	expect(
 		adapterSchema,
-		`Schema for table '${tableName}' not found in adapter (_forja)`,
+		`Schema for table '${tableName}' not found in adapter (_datrix)`,
 	).toBeDefined();
 
 	const registryFields = registrySchema!.fields;

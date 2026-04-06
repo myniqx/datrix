@@ -10,12 +10,12 @@ import type {
 	HttpMethod,
 	ContextBuilderOptions,
 } from "./types";
-import type { Forja } from "@forja/core";
-import { ParserError } from "@forja/core";
+import type { Datrix } from "@datrix/core";
+import { ParserError } from "@datrix/core";
 import { methodToAction } from "./permission";
 import { parseQuery } from "../parser";
-import { FallbackInput } from "@forja/core";
-import { AuthUser, IApiPlugin } from "@forja/core";
+import { FallbackInput } from "@datrix/core";
+import { AuthUser, IApiPlugin } from "@datrix/core";
 
 /**
  * Extract table name from URL path
@@ -83,7 +83,7 @@ export class ContextBuildError extends Error {
  */
 export async function buildRequestContext<TRole extends string = string>(
 	request: Request,
-	forja: Forja,
+	datrix: Datrix,
 	api: IApiPlugin<TRole>,
 	options: ContextBuilderOptions = {},
 ): Promise<RequestContext<TRole>> {
@@ -97,8 +97,8 @@ export async function buildRequestContext<TRole extends string = string>(
 	const modelName =
 		tableName === "upload" && api.upload
 			? api.upload.getModelName()
-			: forja.getSchemas().findModelByTableName(tableName);
-	const schema = modelName ? (forja.getSchema(modelName) ?? null) : null;
+			: datrix.getSchemas().findModelByTableName(tableName);
+	const schema = modelName ? (datrix.getSchema(modelName) ?? null) : null;
 
 	// 2. DERIVE ACTION from HTTP method
 	const action = methodToAction(method);
@@ -164,7 +164,7 @@ export async function buildRequestContext<TRole extends string = string>(
 		url,
 		request,
 		user,
-		forja,
+		datrix,
 		api,
 		authEnabled,
 	};

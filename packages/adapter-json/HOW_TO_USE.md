@@ -1,6 +1,6 @@
 # JsonAdapter - Standalone Usage Guide
 
-This guide covers using JsonAdapter **without** Forja framework. For Forja integration, see [README.md](./README.md).
+This guide covers using JsonAdapter **without** Datrix framework. For Datrix integration, see [README.md](./README.md).
 
 ## Table of Contents
 
@@ -19,11 +19,11 @@ This guide covers using JsonAdapter **without** Forja framework. For Forja integ
 ### Connection
 
 ```typescript
-import { JsonAdapter } from "forja-adapter-json";
+import { JsonAdapter } from "datrix-adapter-json";
 
 const adapter = new JsonAdapter({
   root: "./data",
-  standalone: true, // auto-creates _forja metadata table
+  standalone: true, // auto-creates _datrix metadata table
   cache: true,      // enable mtime-based caching (default: true)
   readLock: false,   // lock on reads too (default: false)
   lockTimeout: 5000, // ms to wait for lock (default: 5000)
@@ -93,10 +93,10 @@ console.log("Count:", countResult.metadata.count);
 
 ### Error Handling
 
-All operations throw `ForjaAdapterError` on failure:
+All operations throw `DatrixAdapterError` on failure:
 
 ```typescript
-import { ForjaAdapterError } from "@forja/core";
+import { DatrixAdapterError } from "@datrix/core";
 
 try {
   const result = await adapter.executeQuery({
@@ -105,7 +105,7 @@ try {
   });
   console.log(result.rows);
 } catch (error) {
-  if (error instanceof ForjaAdapterError) {
+  if (error instanceof DatrixAdapterError) {
     console.error("Code:", error.code);
     console.error("Message:", error.message);
   }
@@ -521,7 +521,7 @@ await adapter.executeQuery({
   table: "posts",
   data: [{ title: "Test", authorId: 999 }],
 });
-// → ForjaAdapterError: Foreign key constraint failed: user with id '999' does not exist
+// → DatrixAdapterError: Foreign key constraint failed: user with id '999' does not exist
 ```
 
 ### Unique Constraints
@@ -538,7 +538,7 @@ await adapter.createTable({
 });
 
 // Inserting duplicate email throws:
-// → ForjaAdapterError: Duplicate value 'alice@example.com' for unique field 'email'
+// → DatrixAdapterError: Duplicate value 'alice@example.com' for unique field 'email'
 ```
 
 ---
@@ -737,7 +737,7 @@ await adapter.executeQuery({
 
 ```typescript
 import { describe, it, beforeEach, afterEach } from "vitest";
-import { JsonAdapter } from "forja-adapter-json";
+import { JsonAdapter } from "datrix-adapter-json";
 import fs from "node:fs/promises";
 
 describe("My Tests", () => {
@@ -787,7 +787,7 @@ describe("My Tests", () => {
 
 ```
 data/
-├── _forja.json          # Schema metadata (auto-managed)
+├── _datrix.json          # Schema metadata (auto-managed)
 ├── users.json           # User table
 ├── posts.json           # Post table
 ├── categories.json      # Category table
@@ -813,4 +813,4 @@ Each table file:
 
 ---
 
-For Forja integration, see [README.md](./README.md).
+For Datrix integration, see [README.md](./README.md).
