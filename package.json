@@ -63,8 +63,6 @@
 		"vitest": "^1.2.2"
 	},
 	"workspaces": [
-		"packages/*",
-		"examples/nextjs",
-		"datrix-web"
+		"packages/*"
 	]
 }
