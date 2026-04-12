@@ -100,7 +100,7 @@ beforeAll(async () => {
 afterAll(async () => {
 	const outputPath = path.resolve(
 		process.cwd(),
-		"datrix-web/src/data/playground.json", 
+		"datrix-web/src/data/playground.json",
 	);
 
 	// Serialize schemas — convert RegExp pattern fields to strings
@@ -453,7 +453,9 @@ describe("Update", () => {
 	it("connect and disconnect manyToMany relation", async () => {
 		const id = seed.users[1]!.id as number;
 
-		await datrix.update("user", id, { roles: { connect: [seed.roles[2]!.id] } });
+		await datrix.update("user", id, {
+			roles: { connect: [seed.roles[2]!.id] },
+		});
 
 		const data = { roles: { disconnect: [seed.roles[2]!.id] } };
 		const options = { populate: true };

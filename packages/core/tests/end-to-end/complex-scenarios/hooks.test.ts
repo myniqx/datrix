@@ -383,7 +383,10 @@ describe("Lifecycle Hooks", () => {
 				});
 
 				const datrix = await createIsolatedDatrix(tmpDir, schema);
-				const item = await datrix.create("hookItem", { name: "ad", value: "v" });
+				const item = await datrix.create("hookItem", {
+					name: "ad",
+					value: "v",
+				});
 				await datrix.delete("hookItem", item.id);
 
 				expect(afterIds).toContain(item.id);
@@ -410,7 +413,10 @@ describe("Lifecycle Hooks", () => {
 				});
 
 				const datrix = await createIsolatedDatrix(tmpDir, schema);
-				const item = await datrix.create("hookItem", { name: "rd", value: "v" });
+				const item = await datrix.create("hookItem", {
+					name: "rd",
+					value: "v",
+				});
 				await datrix.raw.delete("hookItem", item.id);
 
 				expect(called.before).toBe(false);
@@ -566,7 +572,7 @@ describe("Lifecycle Hooks", () => {
 				async init(ctx: PluginContext): Promise<void> {
 					this.context = ctx;
 				}
-				async destroy(): Promise<void> { }
+				async destroy(): Promise<void> {}
 				override async onCreateQueryContext(
 					ctx: QueryContext,
 				): Promise<QueryContext> {
@@ -685,7 +691,10 @@ describe("Lifecycle Hooks", () => {
 			});
 
 			const datrix = await createDatrixWithPlugin(tmpDir, plugin);
-			const item = await datrix.create("hookItem", { name: "test", value: "v" });
+			const item = await datrix.create("hookItem", {
+				name: "test",
+				value: "v",
+			});
 
 			expect((item as unknown as HookItem).name).toBe("test-enriched");
 			await fs.rm(tmpDir, { recursive: true, force: true });

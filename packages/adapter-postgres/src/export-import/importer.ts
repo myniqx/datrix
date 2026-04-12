@@ -10,7 +10,7 @@ export class PostgresImporter {
 	constructor(
 		private pool: Pool,
 		private adapter: PostgresAdapter,
-	) { }
+	) {}
 
 	async import(reader: ImportReader): Promise<void> {
 		const schemas = await this.collectSchemas(reader);

@@ -5,7 +5,10 @@
  * Provides consistent error formatting across all config validators.
  */
 
-import { DatrixConfigError, DatrixConfigValidationError } from "../types/errors";
+import {
+	DatrixConfigError,
+	DatrixConfigValidationError,
+} from "../types/errors";
 
 /**
  * Throw config not found error

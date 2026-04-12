@@ -9,7 +9,7 @@ export class MySQLExporter {
 	constructor(
 		private pool: Pool,
 		private adapter: MySQLAdapter,
-	) { }
+	) {}
 
 	async export(writer: ExportWriter): Promise<void> {
 		await writer.writeMeta({

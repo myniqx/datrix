@@ -48,7 +48,7 @@
 		"clean": "rm -rf dist"
 	},
 	"peerDependencies": {
-		"@datrix/core": "^0.1.1"
+		"@datrix/core": "^0.1.2"
 	},
 	"dependencies": {
 		"mysql2": "^3.9.1"

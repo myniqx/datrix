@@ -32,7 +32,7 @@ export class AggregationBuilder {
 	constructor(
 		private translator: PostgresQueryTranslator,
 		private schemaRegistry: ISchemaRegistry,
-	) { }
+	) {}
 
 	/**
 	 * Build all aggregation clauses for a query

@@ -10,7 +10,11 @@
  *   - type UpdateUserInput = Partial<Omit<UserBase, keyof DatrixEntry>> & UserRelationUpdate
  */
 
-import { DATRIX_META_MODEL, type RelationField, type SchemaDefinition } from "@datrix/core";
+import {
+	DATRIX_META_MODEL,
+	type RelationField,
+	type SchemaDefinition,
+} from "@datrix/core";
 import { toPascalCase } from "../utils/templates";
 import {
 	scalarFieldToTypeString,

@@ -25,13 +25,13 @@ export interface PostgresConfig {
 	readonly user: string;
 	readonly password: string;
 	readonly ssl?:
-	| boolean
-	| {
-		readonly rejectUnauthorized?: boolean;
-		readonly ca?: string;
-		readonly cert?: string;
-		readonly key?: string;
-	};
+		| boolean
+		| {
+				readonly rejectUnauthorized?: boolean;
+				readonly ca?: string;
+				readonly cert?: string;
+				readonly key?: string;
+		  };
 	readonly connectionTimeoutMillis?: number;
 	readonly idleTimeoutMillis?: number;
 	readonly max?: number; // Maximum pool size

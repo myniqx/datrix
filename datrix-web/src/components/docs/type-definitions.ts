@@ -400,11 +400,24 @@ export const TYPE_DEFINITIONS: Record<string, TypeDefinition> = {
 		signature: `interface ApiConfig<TRole extends string = string> {\n  prefix?:           string       // route prefix — default: '/api'\n  defaultPageSize?:  number       // default: 25\n  maxPageSize?:      number       // default: 100\n  maxPopulateDepth?: number       // default: 5\n  autoRoutes?:       boolean      // auto-generate CRUD routes — default: true\n  excludeSchemas?:   string[]     // schemas to exclude from auto-routes\n  auth?:             AuthConfig<TRole>\n  upload?:           IUpload\n}`,
 		description: "Configuration for ApiPlugin. Pass to new ApiPlugin({ ... }).",
 	},
+	AuthUser: {
+		group: "API",
+		skipDocs: true,
+		signature: `interface AuthUser {\n  readonly id:    number\n  readonly email: string\n  readonly role:  string\n}`,
+		description:
+			"Minimal shape of an authenticated user. Attached to QueryContext and PermissionContext during authenticated requests.",
+	},
+	AuthenticatedUser: {
+		group: "API",
+		signature: `interface AuthenticatedUser<\n  TRole extends string = string,\n  TUser extends DatrixEntry = DatrixEntry\n> extends DatrixEntry {\n  user:                TUser\n  email:               string\n  password:            string\n  passwordSalt:        string\n  role:                TRole\n  resetToken?:         string\n  resetTokenExpiry?:   Date\n}`,
+		description:
+			"Record stored in the authentication table. Extends DatrixEntry and links to the user schema via the user relation. password and passwordSalt are always excluded from onForgotPassword callbacks. resetToken and resetTokenExpiry are populated only during a password reset flow.",
+	},
 	AuthConfig: {
 		group: "API",
-		signature: `interface AuthConfig<TRole extends string = string> {\n  roles:              readonly TRole[]\n  defaultRole:        TRole\n  defaultPermission?: SchemaPermission\n  jwt?:               JwtConfig\n  session?:           SessionConfig\n  password?:          PasswordConfig\n  authSchemaName?:    string  // default: 'authentication'\n  userSchema?: {\n    name?:  string  // default: 'user'\n    email?: string  // default: 'email'\n  }\n  endpoints?: {\n    login?:           string   // default: '/auth/login'\n    register?:        string   // default: '/auth/register'\n    logout?:          string   // default: '/auth/logout'\n    me?:              string   // default: '/auth/me'\n    disableRegister?: boolean  // default: false\n  }\n}`,
+		signature: `interface AuthConfig<\n  TRole extends string = string,\n  TUser extends DatrixEntry = DatrixEntry\n> {\n  roles:              readonly TRole[]\n  defaultRole:        TRole\n  defaultPermission?: SchemaPermission\n  jwt?:               JwtConfig\n  session?:           SessionConfig\n  password?:          PasswordConfig\n  authSchemaName?:    string  // default: 'authentication'\n  userSchema?: {\n    name?:  string  // default: 'user'\n    email?: string  // default: 'email'\n  }\n  endpoints?: {\n    login?:           string   // default: '/auth/login'\n    register?:        string   // default: '/auth/register'\n    logout?:          string   // default: '/auth/logout'\n    me?:              string   // default: '/auth/me'\n    forgotPassword?:  string   // default: '/auth/forgot-password'\n    resetPassword?:   string   // default: '/auth/reset-password'\n    disableRegister?: boolean  // default: false\n  }\n  passwordReset?: {\n    tokenExpirySeconds?:  number  // default: 3600\n    onForgotPassword?:    (user: AuthenticatedUser<TRole, TUser>, token: string) => Promise<void>\n  }\n}`,
 		description:
-			"Authentication configuration block inside ApiConfig. Enables JWT and/or session auth, RBAC roles, and password policy.",
+			"Authentication configuration block inside ApiConfig. Enables JWT and/or session auth, RBAC roles, and password policy. Set passwordReset.onForgotPassword to activate the forgot-password endpoint.",
 	},
 	JwtConfig: {
 		group: "API",

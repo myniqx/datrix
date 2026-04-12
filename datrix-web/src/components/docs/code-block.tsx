@@ -316,55 +316,55 @@ function HoverableToken({
 
 	const tooltip = coords
 		? createPortal(
-			<div
-				className="fixed z-9999 w-160 rounded-lg shadow-2xl font-mono text-xs"
-				style={{
-					top: coords.openUpward ? undefined : coords.top + 6,
-					bottom: coords.openUpward
-						? window.innerHeight - coords.top + 6
-						: undefined,
-					left: Math.min(coords.left, window.innerWidth - 400),
-					backgroundColor: "#18181b",
-					border: "1px solid #3f3f46",
-				}}
-			>
-				<pre
-					style={{ color: "#e4e4e7", margin: 0 }}
-					className="px-4 pt-3 pb-2 whitespace-pre-wrap wrap-break-word leading-relaxed"
-				>
-					{tokenizeSignature(definition.signature).map((t, i) => (
-						<span key={i} style={{ color: tokenKindToColor(t.kind) }}>
-							{t.value}
-						</span>
-					))}
-				</pre>
 				<div
+					className="fixed z-9999 w-160 rounded-lg shadow-2xl font-mono text-xs"
 					style={{
-						borderTop: "1px solid #3f3f46",
+						top: coords.openUpward ? undefined : coords.top + 6,
+						bottom: coords.openUpward
+							? window.innerHeight - coords.top + 6
+							: undefined,
+						left: Math.min(coords.left, window.innerWidth - 400),
 						backgroundColor: "#18181b",
+						border: "1px solid #3f3f46",
 					}}
-					className="px-4 pb-3 pt-2 rounded-b-lg"
 				>
-					{definition.description && (
-						<p
-							style={{ color: "#a1a1aa" }}
-							className="font-sans text-xs leading-relaxed whitespace-normal"
-						>
-							{definition.description}
-						</p>
-					)}
-					{!(definition as TypeDefinition).skipDocs && (
-						<p
-							className="mt-2 font-sans text-xs"
-							style={{ color: "#60a5fa" }}
-						>
-							click to view docs →
-						</p>
-					)}
-				</div>
-			</div>,
-			document.body,
-		)
+					<pre
+						style={{ color: "#e4e4e7", margin: 0 }}
+						className="px-4 pt-3 pb-2 whitespace-pre-wrap wrap-break-word leading-relaxed"
+					>
+						{tokenizeSignature(definition.signature).map((t, i) => (
+							<span key={i} style={{ color: tokenKindToColor(t.kind) }}>
+								{t.value}
+							</span>
+						))}
+					</pre>
+					<div
+						style={{
+							borderTop: "1px solid #3f3f46",
+							backgroundColor: "#18181b",
+						}}
+						className="px-4 pb-3 pt-2 rounded-b-lg"
+					>
+						{definition.description && (
+							<p
+								style={{ color: "#a1a1aa" }}
+								className="font-sans text-xs leading-relaxed whitespace-normal"
+							>
+								{definition.description}
+							</p>
+						)}
+						{!(definition as TypeDefinition).skipDocs && (
+							<p
+								className="mt-2 font-sans text-xs"
+								style={{ color: "#60a5fa" }}
+							>
+								click to view docs →
+							</p>
+						)}
+					</div>
+				</div>,
+				document.body,
+			)
 		: null;
 
 	return (

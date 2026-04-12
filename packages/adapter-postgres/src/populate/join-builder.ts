@@ -28,7 +28,7 @@ export class JoinBuilder {
 	constructor(
 		private schemaRegistry: ISchemaRegistry,
 		private translator: PostgresQueryTranslator,
-	) { }
+	) {}
 
 	/**
 	 * Build all JOINs for a query

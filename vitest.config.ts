@@ -61,7 +61,10 @@ export default defineConfig({
 				"./packages/adapter-mysql/src",
 			),
 			"@datrix/api": path.resolve(__dirname, "./packages/api/src"),
-			"@datrix/api-upload": path.resolve(__dirname, "./packages/api-upload/src"),
+			"@datrix/api-upload": path.resolve(
+				__dirname,
+				"./packages/api-upload/src",
+			),
 		},
 	},
 });

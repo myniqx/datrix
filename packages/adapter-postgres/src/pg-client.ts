@@ -34,7 +34,7 @@ export class PgClient {
 	constructor(
 		private readonly runner: Pool | PoolClient,
 		private readonly queryObject: QueryObject,
-	) { }
+	) {}
 
 	/**
 	 * Execute a SQL query with optional parameters.

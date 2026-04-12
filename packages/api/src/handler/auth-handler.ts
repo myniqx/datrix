@@ -28,10 +28,13 @@ import { FallbackInput } from "@datrix/core";
 /**
  * Auth Handler Configuration
  */
-export interface AuthHandlerConfig {
+export interface AuthHandlerConfig<
+	TRole extends string = string,
+	TUser extends DatrixEntry = DatrixEntry,
+> {
 	readonly datrix: Datrix;
-	readonly authManager: AuthManager;
-	readonly authConfig: AuthConfig;
+	readonly authManager: AuthManager<TRole, TUser>;
+	readonly authConfig: AuthConfig<TRole, TUser>;
 }
 
 /**
@@ -39,7 +42,10 @@ export interface AuthHandlerConfig {
  *
  * Creates authentication endpoint handlers
  */
-export function createAuthHandlers(config: AuthHandlerConfig) {
+export function createAuthHandlers<
+	TRole extends string = string,
+	TUser extends DatrixEntry = DatrixEntry,
+>(config: AuthHandlerConfig<TRole, TUser>) {
 	const { datrix, authManager, authConfig } = config;
 
 	const userSchemaName = authConfig.userSchema?.name ?? "user";
@@ -315,16 +321,138 @@ export function createAuthHandlers(config: AuthHandlerConfig) {
 		}
 	}
 
-	return { register, login, logout, me };
+	/**
+	 * POST /auth/forgot-password - Request password reset token
+	 */
+	async function forgotPassword(request: Request): Promise<Response> {
+		try {
+			const onForgotPassword = authConfig.passwordReset?.onForgotPassword;
+
+			if (!onForgotPassword) {
+				throw handlerError.permissionDenied("Password reset is not configured");
+			}
+
+			const body = (await request.json()) as Record<string, unknown>;
+			const { email } = body;
+
+			if (!email || typeof email !== "string") {
+				throw handlerError.invalidBody("Email is required");
+			}
+
+			const authRecord = await datrix.raw.findOne<
+				AuthenticatedUser<TRole, TUser>
+			>(
+				authSchemaName,
+				{ email },
+				{
+					populate: true,
+					select: ["email", "role", "resetToken", "resetTokenExpiry"],
+				},
+			);
+
+			if (!authRecord) {
+				return jsonResponse({ data: { success: true } });
+			}
+
+			const tokenBytes = new Uint8Array(32);
+			crypto.getRandomValues(tokenBytes);
+			const token = Array.from(tokenBytes)
+				.map((b) => b.toString(16).padStart(2, "0"))
+				.join("");
+
+			const expirySeconds =
+				authConfig.passwordReset?.tokenExpirySeconds ??
+				DEFAULT_API_AUTH_CONFIG.passwordReset.tokenExpirySeconds;
+
+			const expiry = new Date(Date.now() + expirySeconds * 1000);
+
+			await datrix.raw.update(authSchemaName, authRecord.id, {
+				resetToken: token,
+				resetTokenExpiry: expiry,
+			});
+
+			await onForgotPassword(authRecord, token);
+
+			return jsonResponse({ data: { success: true } });
+		} catch (error) {
+			if (error instanceof DatrixError) {
+				return datrixErrorResponse(error);
+			}
+			const message =
+				error instanceof Error ? error.message : "Internal server error";
+			return datrixErrorResponse(
+				handlerError.internalError(
+					message,
+					error instanceof Error ? error : undefined,
+				),
+			);
+		}
+	}
+
+	/**
+	 * POST /auth/reset-password - Reset password using token
+	 */
+	async function resetPassword(request: Request): Promise<Response> {
+		try {
+			const body = (await request.json()) as Record<string, unknown>;
+			const { token, password } = body;
+
+			if (!token || typeof token !== "string") {
+				throw handlerError.invalidBody("Token is required");
+			}
+
+			if (!password || typeof password !== "string") {
+				throw handlerError.invalidBody("Password is required");
+			}
+
+			const authRecord = await datrix.raw.findOne<AuthenticatedUser>(
+				authSchemaName,
+				{ resetToken: token },
+			);
+
+			if (
+				!authRecord ||
+				!authRecord.resetTokenExpiry ||
+				new Date(authRecord.resetTokenExpiry) < new Date()
+			) {
+				throw handlerError.invalidBody("Invalid or expired reset token");
+			}
+
+			const { hash, salt } = await authManager.hashPassword(password);
+
+			await datrix.raw.update(authSchemaName, authRecord.id, {
+				password: hash,
+				passwordSalt: salt,
+				resetToken: null,
+				resetTokenExpiry: null,
+			});
+
+			return jsonResponse({ data: { success: true } });
+		} catch (error) {
+			if (error instanceof DatrixError) {
+				return datrixErrorResponse(error);
+			}
+			const message =
+				error instanceof Error ? error.message : "Internal server error";
+			return datrixErrorResponse(
+				handlerError.internalError(
+					message,
+					error instanceof Error ? error : undefined,
+				),
+			);
+		}
+	}
+
+	return { register, login, logout, me, forgotPassword, resetPassword };
 }
 
 /**
  * Create unified auth handler (handles routing internally)
  */
-export function createUnifiedAuthHandler(
-	config: AuthHandlerConfig,
-	apiPrefix: string = "/api",
-) {
+export function createUnifiedAuthHandler<
+	TRole extends string = string,
+	TUser extends DatrixEntry = DatrixEntry,
+>(config: AuthHandlerConfig<TRole, TUser>, apiPrefix: string = "/api") {
 	const handlers = createAuthHandlers(config);
 	const { authConfig } = config;
 
@@ -337,6 +465,12 @@ export function createUnifiedAuthHandler(
 		logout:
 			authConfig.endpoints?.logout ?? DEFAULT_API_AUTH_CONFIG.endpoints.logout,
 		me: authConfig.endpoints?.me ?? DEFAULT_API_AUTH_CONFIG.endpoints.me,
+		forgotPassword:
+			authConfig.endpoints?.forgotPassword ??
+			DEFAULT_API_AUTH_CONFIG.endpoints.forgotPassword,
+		resetPassword:
+			authConfig.endpoints?.resetPassword ??
+			DEFAULT_API_AUTH_CONFIG.endpoints.resetPassword,
 	};
 
 	return async function authHandler(request: Request): Promise<Response> {
@@ -358,6 +492,14 @@ export function createUnifiedAuthHandler(
 
 		if (path === endpoints.me && method === "GET") {
 			return handlers.me(request);
+		}
+
+		if (path === endpoints.forgotPassword && method === "POST") {
+			return handlers.forgotPassword(request);
+		}
+
+		if (path === endpoints.resetPassword && method === "POST") {
+			return handlers.resetPassword(request);
 		}
 
 		return datrixErrorResponse(

@@ -41,7 +41,7 @@ function AdapterCard() {
 						</p>
 					</div>
 				</div>
-				<div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+				<div className="grid grid-cols-1 gap-2 sm:grid-cols-4">
 					{ADAPTERS.map((adapter) => (
 						<div
 							key={adapter.name}
@@ -70,7 +70,7 @@ const CLI_COMMANDS = [
 	{ cmd: "datrix migrate", desc: "run pending migrations" },
 	{ cmd: "datrix generate types", desc: "generate TS types" },
 	{ cmd: "datrix generate schema User", desc: "scaffold schema" },
-	{ cmd: "datrix dev", desc: "watch & auto-migrate" },
+	{ cmd: "datrix export", desc: "export all data to zip" },
 ] as const;
 
 function CliCard() {
@@ -144,7 +144,7 @@ function ApiPluginCard() {
 						</p>
 					</div>
 				</div>
-				<div className="grid grid-cols-2 gap-2">
+				<div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
 					{API_FEATURES.map((feature) => (
 						<div
 							key={feature.name}
@@ -202,8 +202,8 @@ export function Features() {
 					Everything you need, nothing you don&apos;t
 				</h2>
 				<p className="text-base text-foreground/80">
-					Datrix is a minimal, type-safe database framework designed to integrate
-					into your existing stack — not replace it.
+					Datrix is a minimal, type-safe database framework designed to
+					integrate into your existing stack — not replace it.
 				</p>
 			</div>
 

@@ -93,7 +93,9 @@ describe("Migration E2E - Fresh Start", () => {
 		it("should add new table when schema added", async () => {
 			// Start fresh with user, post, category
 			await dropAllTables(adapter);
-			const datrix1 = await createDatrixWithSchemas(tmpDir, [...allBaseSchemas]);
+			const datrix1 = await createDatrixWithSchemas(tmpDir, [
+				...allBaseSchemas,
+			]);
 			const s1 = await datrix1.beginMigrate();
 			await applyMigration(s1);
 			await datrix1.shutdown();
@@ -164,7 +166,9 @@ describe("Migration E2E - Fresh Start", () => {
 		it("should drop table when schema removed", async () => {
 			// Start with user, post, category
 			await dropAllTables(adapter);
-			const datrix1 = await createDatrixWithSchemas(tmpDir, [...allBaseSchemas]);
+			const datrix1 = await createDatrixWithSchemas(tmpDir, [
+				...allBaseSchemas,
+			]);
 			const s1 = await datrix1.beginMigrate();
 			await applyMigration(s1);
 			await datrix1.shutdown();

@@ -49,7 +49,10 @@ export async function handleUploadRequest(
 
 		return datrixErrorResponse(handlerError.methodNotAllowed(method));
 	} catch (error) {
-		if (error instanceof DatrixValidationError || error instanceof DatrixError) {
+		if (
+			error instanceof DatrixValidationError ||
+			error instanceof DatrixError
+		) {
 			return datrixErrorResponse(error);
 		}
 

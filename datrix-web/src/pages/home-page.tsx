@@ -41,7 +41,7 @@ export default function HomePage() {
 			.then((data) => {
 				if (data) setStarCount(data.stargazers_count);
 			})
-			.catch(() => { });
+			.catch(() => {});
 	}, []);
 
 	return (

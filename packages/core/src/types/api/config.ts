@@ -41,6 +41,11 @@ export const DEFAULT_API_AUTH_CONFIG = {
 		register: "/auth/register",
 		logout: "/auth/logout",
 		me: "/auth/me",
+		forgotPassword: "/auth/forgot-password",
+		resetPassword: "/auth/reset-password",
 		disableRegister: false,
+	},
+	passwordReset: {
+		tokenExpirySeconds: 3600,
 	},
 } as const;

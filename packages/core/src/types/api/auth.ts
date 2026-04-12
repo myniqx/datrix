@@ -9,6 +9,8 @@ export interface AuthenticatedUser<
 	password: string;
 	passwordSalt: string;
 	role: TRoles;
+	resetToken?: string;
+	resetTokenExpiry?: Date;
 }
 
 /**

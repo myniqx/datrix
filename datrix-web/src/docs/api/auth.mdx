@@ -40,6 +40,20 @@ new ApiPlugin<Role>({
 			update: ["admin", "editor"],
 			delete: ["admin"],
 		},
+
+		passwordReset: {
+			tokenExpirySeconds: 3600, // default: 1 hour
+
+			onForgotPassword: async (user: AuthenticatedUser<Role>, token) => {
+				// user contains the full authenticated record (password fields excluded)
+				// send the token however you like — email, Telegram, SMS, etc.
+				await myMailer.send({
+					to: user.email,
+					subject: "Reset your password",
+					body: `https://example.com/reset?token=${token}`,
+				});
+			},
+		},
 	} satisfies AuthConfig<Role>,
 });
 ```
@@ -52,12 +66,14 @@ A `user` schema with an `email` field must exist before enabling auth. The plugi
 
 ## Endpoints
 
-| Method | Path                 | Description                           |
-| ------ | -------------------- | ------------------------------------- |
-| `POST` | `/api/auth/register` | Create a new user account             |
-| `POST` | `/api/auth/login`    | Login, receive token / session cookie |
-| `POST` | `/api/auth/logout`   | Invalidate session                    |
-| `GET`  | `/api/auth/me`       | Get the currently authenticated user  |
+| Method | Path                          | Description                           |
+| ------ | ----------------------------- | ------------------------------------- |
+| `POST` | `/api/auth/register`          | Create a new user account             |
+| `POST` | `/api/auth/login`             | Login, receive token / session cookie |
+| `POST` | `/api/auth/logout`            | Invalidate session                    |
+| `GET`  | `/api/auth/me`                | Get the currently authenticated user  |
+| `POST` | `/api/auth/forgot-password`   | Request a password reset token        |
+| `POST` | `/api/auth/reset-password`    | Reset password using the token        |
 
 ### Register
 
@@ -87,6 +103,36 @@ Content-Type: application/json
 ```
 
 When session is enabled, the response also sets a `sessionId` cookie (`HttpOnly`).
+
+### Forgot Password
+
+Requires `passwordReset.onForgotPassword` to be configured — otherwise the endpoint returns `403`. Always responds with `{ data: { success: true } }` regardless of whether the email exists (prevents user enumeration).
+
+```http
+POST /api/auth/forgot-password
+Content-Type: application/json
+
+{ "email": "user@example.com" }
+```
+
+```json
+{ "data": { "success": true } }
+```
+
+### Reset Password
+
+Verifies the token and updates the password. The token expires after `passwordReset.tokenExpirySeconds` seconds (default: 1 hour).
+
+```http
+POST /api/auth/reset-password
+Content-Type: application/json
+
+{ "token": "a3f9...", "password": "newSecret123" }
+```
+
+```json
+{ "data": { "success": true } }
+```
 
 ### Authenticated requests
 
@@ -174,7 +220,7 @@ auth: {
     update: ["admin"],
     delete: ["admin"],
   },
-}
+} satisfies AuthConfig<Role>
 ```
 
 ---
@@ -247,19 +293,50 @@ Override the default auth route paths or disable registration entirely:
 ```typescript
 auth: {
   endpoints: {
-    login:           "/auth/login",    // default
-    register:        "/auth/register", // default
-    logout:          "/auth/logout",   // default
-    me:              "/auth/me",       // default
-    disableRegister: false,            // set true to block new registrations
+    login:           "/auth/login",            // default
+    register:        "/auth/register",         // default
+    logout:          "/auth/logout",           // default
+    me:              "/auth/me",               // default
+    forgotPassword:  "/auth/forgot-password",  // default
+    resetPassword:   "/auth/reset-password",   // default
+    disableRegister: false,                    // set true to block new registrations
   },
 }
 ```
 
-| Option            | Type      | Default             | Description                          |
-| ----------------- | --------- | ------------------- | ------------------------------------ |
-| `login`           | `string`  | `"/auth/login"`     | Login endpoint path.                 |
-| `register`        | `string`  | `"/auth/register"`  | Register endpoint path.              |
-| `logout`          | `string`  | `"/auth/logout"`    | Logout endpoint path.                |
-| `me`              | `string`  | `"/auth/me"`        | Current user endpoint path.          |
-| `disableRegister` | `boolean` | `false`             | Block all new user registrations.    |
+| Option            | Type      | Default                      | Description                          |
+| ----------------- | --------- | ---------------------------- | ------------------------------------ |
+| `login`           | `string`  | `"/auth/login"`              | Login endpoint path.                 |
+| `register`        | `string`  | `"/auth/register"`           | Register endpoint path.              |
+| `logout`          | `string`  | `"/auth/logout"`             | Logout endpoint path.                |
+| `me`              | `string`  | `"/auth/me"`                 | Current user endpoint path.          |
+| `forgotPassword`  | `string`  | `"/auth/forgot-password"`    | Forgot password endpoint path.       |
+| `resetPassword`   | `string`  | `"/auth/reset-password"`     | Reset password endpoint path.        |
+| `disableRegister` | `boolean` | `false`                      | Block all new user registrations.    |
+
+### `auth.passwordReset`
+
+Password reset is disabled by default. Set `onForgotPassword` to enable it.
+
+```typescript
+auth: {
+  passwordReset: {
+    tokenExpirySeconds: 3600, // default: 1 hour
+
+    onForgotPassword: async (user: AuthenticatedUser<Role>, token: string) => {
+      // user contains the full authenticated record (password fields excluded)
+      // use token to build your reset link, then notify however you prefer
+      await myMailer.send({
+        to: user.email,
+        subject: "Reset your password",
+        body: `https://example.com/reset?token=${token}`,
+      });
+    },
+  },
+} satisfies AuthConfig<Role>
+```
+
+| Option               | Type                                              | Default  | Description                                                                             |
+| -------------------- | ------------------------------------------------- | -------- | --------------------------------------------------------------------------------------- |
+| `tokenExpirySeconds` | `number`                                          | `3600`   | Reset token lifetime in seconds.                                                        |
+| `onForgotPassword`   | `(user: AuthenticatedUser, token: string) => Promise<void>` | —  | Called after a token is generated. Use it to send an email, Telegram message, or any notification. Required to activate the endpoint. |

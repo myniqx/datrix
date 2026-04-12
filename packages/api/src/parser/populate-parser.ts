@@ -265,7 +265,7 @@ function parseRelationPath(
 
 		const populateObj =
 			typeof relationData["populate"] === "object" &&
-				!Array.isArray(relationData["populate"])
+			!Array.isArray(relationData["populate"])
 				? (relationData["populate"] as Record<string, Record<string, unknown>>)
 				: {};
 

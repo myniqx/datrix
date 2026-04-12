@@ -14,7 +14,7 @@ import {
 import { JsonQueryRunner } from "./runner";
 
 export class JsonPopulator {
-	constructor(private adapter: JsonAdapter) { }
+	constructor(private adapter: JsonAdapter) {}
 
 	async populate<T extends DatrixEntry>(
 		rows: T[],
@@ -85,8 +85,8 @@ export class JsonPopulator {
 
 			const options =
 				typeof _options === "object" &&
-					_options !== null &&
-					!Array.isArray(_options)
+				_options !== null &&
+				!Array.isArray(_options)
 					? (_options as QueryPopulateOptions<DatrixEntry>)
 					: undefined;
 

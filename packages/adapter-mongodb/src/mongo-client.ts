@@ -25,7 +25,7 @@ export class MongoClient<T extends DatrixEntry> {
 		private readonly db: Db,
 		private readonly session: ClientSession | undefined,
 		private readonly query: QueryObject<T>,
-	) { }
+	) {}
 
 	/**
 	 * Get a collection handle with optional session

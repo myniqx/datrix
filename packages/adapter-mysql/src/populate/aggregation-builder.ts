@@ -34,7 +34,7 @@ export class AggregationBuilder {
 	constructor(
 		private translator: MySQLQueryTranslator,
 		private schemaRegistry: ISchemaRegistry,
-	) { }
+	) {}
 
 	/**
 	 * Build all aggregation clauses for a query

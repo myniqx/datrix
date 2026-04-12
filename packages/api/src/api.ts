@@ -28,11 +28,12 @@ import { FallbackInput } from "@datrix/core";
 
 export class ApiPlugin<TRole extends string = string>
 	extends BasePlugin<ApiConfig<TRole>>
-	implements IApiPlugin<TRole> {
+	implements IApiPlugin<TRole>
+{
 	readonly name = "api";
 	readonly version = "1.0.0";
 
-	public authManager?: AuthManager;
+	public authManager?: AuthManager<TRole>;
 	public user: AuthUser | null = null;
 	private datrixInstance?: Datrix;
 
@@ -143,7 +144,7 @@ export class ApiPlugin<TRole extends string = string>
 		this.authManager = new AuthManager(this.authConfig);
 	}
 
-	async destroy(): Promise<void> { }
+	async destroy(): Promise<void> {}
 
 	override async getSchemas(): Promise<SchemaDefinition[]> {
 		const schemas: SchemaDefinition[] = [];
@@ -398,7 +399,7 @@ export class ApiPlugin<TRole extends string = string>
 	/**
 	 * Get auth manager (for external use)
 	 */
-	getAuthManager(): AuthManager | undefined {
+	getAuthManager(): AuthManager<TRole> | undefined {
 		return this.authManager;
 	}
 }

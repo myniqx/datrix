@@ -14,7 +14,10 @@ import {
 	type PaginationErrorContext,
 	type SortErrorContext,
 } from "@datrix/core";
-import { MAX_WHERE_VALUE_LENGTH, MAX_LOGICAL_NESTING_DEPTH } from "@datrix/core";
+import {
+	MAX_WHERE_VALUE_LENGTH,
+	MAX_LOGICAL_NESTING_DEPTH,
+} from "@datrix/core";
 
 /**
  * Where Parser Errors

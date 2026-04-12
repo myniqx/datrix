@@ -333,12 +333,12 @@ export function mergePopulateClauses<T extends DatrixEntry>(
 						? { where: newOptions.where || existing.where }
 						: {}),
 					...(newOptions.populate !== undefined ||
-						existing.populate !== undefined
+					existing.populate !== undefined
 						? {
-							populate: newOptions.populate
-								? mergePopulateClauses(existing.populate, newOptions.populate)
-								: existing.populate,
-						}
+								populate: newOptions.populate
+									? mergePopulateClauses(existing.populate, newOptions.populate)
+									: existing.populate,
+							}
 						: {}),
 					...(newOptions.limit !== undefined || existing.limit !== undefined
 						? { limit: newOptions.limit ?? existing.limit }

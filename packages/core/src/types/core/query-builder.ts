@@ -163,11 +163,11 @@ type Writable<T> = { -readonly [K in keyof T]: T[K] };
  */
 export type FallbackWhereClause = {
 	[key: string]:
-	| QueryPrimitive
-	| ComparisonOperators
-	| FallbackWhereClause
-	| FallbackWhereClause[]
-	| undefined;
+		| QueryPrimitive
+		| ComparisonOperators
+		| FallbackWhereClause
+		| FallbackWhereClause[]
+		| undefined;
 	$and?: FallbackWhereClause[];
 	$or?: FallbackWhereClause[];
 	$not?: FallbackWhereClause;
@@ -178,14 +178,14 @@ export type FallbackWhereClause = {
  */
 type TypedWhereClause<T extends DatrixEntry> = Writable<{
 	[K in keyof T]?: T[K] extends RelationInput<infer R extends DatrixEntry>
-	? WhereClause<R>
-	: NonNullable<T[K]> extends DatrixEntry
-	? WhereClause<NonNullable<T[K]>>
-	: NonNullable<T[K]> extends DatrixEntry[]
-	? WhereClause<NonNullable<T[K]>[number]>
-	: T[K] extends ScalarValue
-	? T[K] | ComparisonOperators<T[K]>
-	: never;
+		? WhereClause<R>
+		: NonNullable<T[K]> extends DatrixEntry
+			? WhereClause<NonNullable<T[K]>>
+			: NonNullable<T[K]> extends DatrixEntry[]
+				? WhereClause<NonNullable<T[K]>[number]>
+				: NonNullable<T[K]> extends ScalarValue
+					? NonNullable<T[K]> | ComparisonOperators<NonNullable<T[K]>>
+					: never;
 }> &
 	LogicalOperators<T>;
 
@@ -230,8 +230,8 @@ type TypedPopulateValue<T> =
 	NonNullable<T> extends DatrixEntry
 		? PopulateOptions<NonNullable<T>> | "*" | boolean
 		: NonNullable<T> extends DatrixEntry[]
-		? PopulateOptions<NonNullable<T>[number]> | "*" | boolean
-		: PopulateOptions<DatrixRecord> | "*" | boolean;
+			? PopulateOptions<NonNullable<T>[number]> | "*" | boolean
+			: PopulateOptions<DatrixRecord> | "*" | boolean;
 
 type TypedPopulateClause<T extends DatrixEntry> = {
 	readonly [K in keyof T]?: TypedPopulateValue<T[K]>;
@@ -243,8 +243,8 @@ export type PopulateClause<T extends DatrixEntry = DatrixRecord> =
 	| "true"
 	| (DatrixRecord extends T ? readonly string[] : readonly (keyof T)[])
 	| (DatrixRecord extends T
-		? Record<string, PopulateOptions<DatrixRecord> | "*" | boolean>
-		: TypedPopulateClause<T>);
+			? Record<string, PopulateOptions<DatrixRecord> | "*" | boolean>
+			: TypedPopulateClause<T>);
 
 /**
  * Order direction
@@ -271,8 +271,8 @@ export type FallbackOrderByItem = {
 
 export type QueryOrderBy<T extends DatrixEntry = DatrixRecord> =
 	DatrixRecord extends T
-	? readonly FallbackOrderByItem[]
-	: readonly OrderByItem<T>[];
+		? readonly FallbackOrderByItem[]
+		: readonly OrderByItem<T>[];
 
 /**
  * OrderByClause - Input format for orderBy (before normalization)
@@ -296,14 +296,14 @@ export type QueryOrderBy<T extends DatrixEntry = DatrixRecord> =
  */
 export type OrderByClause<T extends DatrixEntry = DatrixRecord> =
 	DatrixRecord extends T
-	?
-	| readonly FallbackOrderByItem[]
-	| Record<string, OrderDirection>
-	| readonly string[]
-	:
-	| QueryOrderBy<T>
-	| Partial<Record<keyof T, OrderDirection>>
-	| readonly (keyof T | `-${string & keyof T}`)[];
+		?
+				| readonly FallbackOrderByItem[]
+				| Record<string, OrderDirection>
+				| readonly string[]
+		:
+				| QueryOrderBy<T>
+				| Partial<Record<keyof T, OrderDirection>>
+				| readonly (keyof T | `-${string & keyof T}`)[];
 
 /**
  * QuerySelect - Normalized form of SelectClause (always array, never '*')
@@ -336,8 +336,8 @@ export type QueryPopulate<T extends DatrixEntry = DatrixRecord> = {
 	readonly [K in keyof T]?: T[K] extends RelationInput<
 		infer R extends DatrixEntry
 	>
-	? QueryPopulateOptions<R>
-	: never;
+		? QueryPopulateOptions<R>
+		: never;
 };
 
 /**
@@ -436,8 +436,8 @@ export type QueryRelations<T extends DatrixEntry> = {
 	readonly [K in keyof T]?: T[K] extends RelationInput<
 		infer R extends DatrixEntry
 	>
-	? NormalizedRelationOperations<R>
-	: never;
+		? NormalizedRelationOperations<R>
+		: never;
 };
 
 /**
@@ -536,11 +536,11 @@ export type QueryObjectForType<
 > = TType extends "select"
 	? QuerySelectObject<T>
 	: TType extends "count"
-	? QueryCountObject<T>
-	: TType extends "insert"
-	? QueryInsertObject<T>
-	: TType extends "update"
-	? QueryUpdateObject<T>
-	: TType extends "delete"
-	? QueryDeleteObject<T>
-	: QueryObject<T>;
+		? QueryCountObject<T>
+		: TType extends "insert"
+			? QueryInsertObject<T>
+			: TType extends "update"
+				? QueryUpdateObject<T>
+				: TType extends "delete"
+					? QueryDeleteObject<T>
+					: QueryObject<T>;

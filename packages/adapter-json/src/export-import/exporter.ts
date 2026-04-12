@@ -7,7 +7,7 @@ export class JsonExporter {
 	constructor(
 		private root: string,
 		private adapter: JsonAdapter,
-	) { }
+	) {}
 
 	async export(writer: ExportWriter): Promise<void> {
 		await writer.writeMeta({

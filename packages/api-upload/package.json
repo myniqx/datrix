@@ -48,8 +48,8 @@
 		"clean": "rm -rf dist"
 	},
 	"peerDependencies": {
-		"@datrix/core": "^0.1.1",
-		"@datrix/api": "^0.1.1"
+		"@datrix/core": "^0.1.2",
+		"@datrix/api": "^0.1.2"
 	},
 	"dependencies": {
 		"sharp": "^0.34.5"

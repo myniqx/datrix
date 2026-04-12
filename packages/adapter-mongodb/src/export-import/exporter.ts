@@ -8,7 +8,7 @@ export class MongoDBExporter {
 	constructor(
 		private db: Db,
 		private adapter: MongoDBAdapter,
-	) { }
+	) {}
 
 	async export(writer: ExportWriter): Promise<void> {
 		await writer.writeMeta({

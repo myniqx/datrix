@@ -267,13 +267,16 @@ export function throwInvalidQueryType(receivedType: unknown): never {
  * ```
  */
 export function throwSchemaNotFound(modelName: string): never {
-	throw new DatrixQueryBuilderError(`Schema not found for model: ${modelName}`, {
-		code: "SCHEMA_NOT_FOUND",
-		component: "builder",
-		context: { modelName },
-		suggestion: `Check that '${modelName}' is registered in the schema registry`,
-		received: modelName,
-	});
+	throw new DatrixQueryBuilderError(
+		`Schema not found for model: ${modelName}`,
+		{
+			code: "SCHEMA_NOT_FOUND",
+			component: "builder",
+			context: { modelName },
+			suggestion: `Check that '${modelName}' is registered in the schema registry`,
+			received: modelName,
+		},
+	);
 }
 
 /**

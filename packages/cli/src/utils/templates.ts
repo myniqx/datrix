@@ -11,10 +11,10 @@
  * Do not define them manually in the schema.
  */
 export function schemaTemplate(name: string): string {
-  const schemaVarName = name.charAt(0).toLowerCase() + name.slice(1);
-  const schemaNameLower = name.toLowerCase();
+	const schemaVarName = name.charAt(0).toLowerCase() + name.slice(1);
+	const schemaNameLower = name.toLowerCase();
 
-  return `import { defineSchema } from '@datrix/core';
+	return `import { defineSchema } from '@datrix/core';
 
 export const ${schemaVarName}Schema = defineSchema({
   name: '${schemaNameLower}',
@@ -109,40 +109,40 @@ export const ${schemaVarName}Schema = defineSchema({
  * Generate config template
  */
 export function configTemplate(
-  dbType: "postgres" | "mysql" | "json" | "mongodb",
+	dbType: "postgres" | "mysql" | "json" | "mongodb",
 ): string {
-  const adapterImport: Record<string, string> = {
-    postgres:
-      "import { createPostgresAdapter } from '@datrix/adapter-postgres';",
-    mysql: "import { createMySqlAdapter } from '@datrix/adapter-mysql';",
-    json: "import { createJsonAdapter } from '@datrix/adapter-json';",
-    mongodb: "import { createMongoDbAdapter } from '@datrix/adapter-mongodb';",
-  };
+	const adapterImport: Record<string, string> = {
+		postgres:
+			"import { createPostgresAdapter } from '@datrix/adapter-postgres';",
+		mysql: "import { createMySqlAdapter } from '@datrix/adapter-mysql';",
+		json: "import { createJsonAdapter } from '@datrix/adapter-json';",
+		mongodb: "import { createMongoDbAdapter } from '@datrix/adapter-mongodb';",
+	};
 
-  const connectionConfig: Record<string, string> = {
-    postgres: `createPostgresAdapter({
+	const connectionConfig: Record<string, string> = {
+		postgres: `createPostgresAdapter({
     host: process.env.DB_HOST ?? 'localhost',
     port: Number(process.env.DB_PORT) || 5432,
     database: process.env.DB_NAME ?? 'myapp',
     user: process.env.DB_USER ?? 'postgres',
     password: process.env.DB_PASSWORD ?? 'password',
   })`,
-    mysql: `createMySqlAdapter({
+		mysql: `createMySqlAdapter({
     host: process.env.DB_HOST ?? 'localhost',
     port: Number(process.env.DB_PORT) || 3306,
     database: process.env.DB_NAME ?? 'myapp',
     user: process.env.DB_USER ?? 'root',
     password: process.env.DB_PASSWORD ?? 'password',
   })`,
-    json: `createJsonAdapter({
+		json: `createJsonAdapter({
     directory: './data',
   })`,
-  };
+	};
 
-  const importLine = adapterImport[dbType];
-  const adapterConfig = connectionConfig[dbType];
+	const importLine = adapterImport[dbType];
+	const adapterConfig = connectionConfig[dbType];
 
-  return `${importLine}
+	return `${importLine}
 import { createDatrix } from '@datrix/core';
 
 // Import your schemas here
@@ -172,29 +172,29 @@ export default async function createApp() {
  * Convert string to kebab-case
  */
 export function toKebabCase(str: string): string {
-  return str
-    .replace(/([a-z])([A-Z])/g, "$1-$2")
-    .replace(/[\s_]+/g, "-")
-    .toLowerCase();
+	return str
+		.replace(/([a-z])([A-Z])/g, "$1-$2")
+		.replace(/[\s_]+/g, "-")
+		.toLowerCase();
 }
 
 /**
  * Convert string to PascalCase
  */
 export function toPascalCase(str: string): string {
-  return str
-    .split(/[\s_-]+/)
-    .map(
-      (word): string =>
-        word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(),
-    )
-    .join("");
+	return str
+		.split(/[\s_-]+/)
+		.map(
+			(word): string =>
+				word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(),
+		)
+		.join("");
 }
 
 /**
  * Convert string to camelCase
  */
 export function toCamelCase(str: string): string {
-  const pascal = toPascalCase(str);
-  return pascal.charAt(0).toLowerCase() + pascal.slice(1);
+	const pascal = toPascalCase(str);
+	return pascal.charAt(0).toLowerCase() + pascal.slice(1);
 }

@@ -222,7 +222,7 @@ async function main(): Promise<void> {
 					packFiles: args.options["pack-files"] !== undefined,
 					packFilesChunkSize:
 						typeof args.options["pack-files"] === "string" &&
-							args.options["pack-files"] !== ""
+						args.options["pack-files"] !== ""
 							? parseInt(args.options["pack-files"], 10)
 							: undefined!,
 					resume,

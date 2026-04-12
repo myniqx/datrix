@@ -150,13 +150,13 @@ export class MySQLPopulator {
 		const mainQuery: QuerySelectObject<T> =
 			fkColumnsNeeded.length > 0
 				? {
-					...query,
-					populate: undefined,
-					select: [
-						...(query.select as string[]),
-						...fkColumnsNeeded,
-					] as unknown as QuerySelectObject<T>["select"],
-				}
+						...query,
+						populate: undefined,
+						select: [
+							...(query.select as string[]),
+							...fkColumnsNeeded,
+						] as unknown as QuerySelectObject<T>["select"],
+					}
 				: { ...query, populate: undefined };
 
 		const { sql: mainSql, params: mainParams } =
@@ -415,12 +415,12 @@ export class MySQLPopulator {
 		const queryWithFks: QuerySelectObject<T> =
 			fkColumnsNeeded.length > 0
 				? {
-					...query,
-					select: [
-						...(query.select as string[]),
-						...fkColumnsNeeded,
-					] as unknown as QuerySelectObject<T>["select"],
-				}
+						...query,
+						select: [
+							...(query.select as string[]),
+							...fkColumnsNeeded,
+						] as unknown as QuerySelectObject<T>["select"],
+					}
 				: query;
 
 		const { sql, params } = this.translator.translate(queryWithFks);
@@ -1007,8 +1007,8 @@ export class MySQLPopulator {
 		const fields: string[] = opts?.select
 			? [...(opts.select as string[])]
 			: Object.entries(targetSchema.fields)
-				.filter(([_, field]) => field.type !== "relation")
-				.map(([name]) => name);
+					.filter(([_, field]) => field.type !== "relation")
+					.map(([name]) => name);
 
 		// Inject FK columns needed for nested populate
 		if (opts) {

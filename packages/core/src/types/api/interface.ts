@@ -10,7 +10,9 @@ import { DatrixPlugin } from "../core/plugin";
  * Defines the public contract for the API plugin.
  * All modules should depend on this interface, not the concrete class.
  */
-export interface IApiPlugin<TRole extends string = string> extends DatrixPlugin {
+export interface IApiPlugin<
+	TRole extends string = string,
+> extends DatrixPlugin {
 	/**
 	 * Plugin name
 	 */

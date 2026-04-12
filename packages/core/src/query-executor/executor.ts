@@ -56,7 +56,7 @@ export class QueryExecutor {
 		private readonly schemas: ISchemaRegistry,
 		private readonly getAdapter: () => DatabaseAdapter,
 		private readonly getDispatcher: () => Dispatcher,
-	) { }
+	) {}
 
 	/**
 	 * Execute a query
