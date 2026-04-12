@@ -11,7 +11,13 @@ import { JwtStrategy } from "./jwt";
 import { SessionStrategy } from "./session";
 import { AuthConfig } from "./types";
 import { throwSessionNotConfigured } from "./error-helper";
-import { AuthContext, AuthUser, IAuthManager, LoginResult } from "@datrix/core";
+import {
+	AuthContext,
+	AuthUser,
+	IAuthManager,
+	LoginResult,
+	DatrixEntry,
+} from "@datrix/core";
 
 /**
  * Auth Manager
@@ -21,17 +27,18 @@ import { AuthContext, AuthUser, IAuthManager, LoginResult } from "@datrix/core";
  */
 export class AuthManager<
 	TRole extends string = string,
+	TUser extends DatrixEntry = DatrixEntry,
 > implements IAuthManager {
 	private readonly passwordManager: PasswordManager;
 	private readonly jwtStrategy: JwtStrategy | undefined;
 	private readonly sessionStrategy: SessionStrategy | undefined;
-	private readonly config: AuthConfig<TRole>;
+	private readonly config: AuthConfig<TRole, TUser>;
 
-	public get authConfig(): AuthConfig<TRole> {
+	public get authConfig(): AuthConfig<TRole, TUser> {
 		return this.config;
 	}
 
-	constructor(config: AuthConfig<TRole>) {
+	constructor(config: AuthConfig<TRole, TUser>) {
 		this.config = config;
 
 		// Initialize password manager

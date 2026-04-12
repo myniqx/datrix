@@ -12,7 +12,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Maximize2Icon, Minimize2Icon } from "lucide-react";
-import { Separator } from "@/components/ui/separator";
 import { Card } from "@/components/ui/card";
 import playgroundData from "@/data/playground.json";
 
@@ -246,8 +245,13 @@ const FIELD_TYPE_COLORS: Record<string, string> = {
 	relation: CODE_COLORS.relKey,
 };
 
-function SchemaViewer({ modelName }: { modelName: string }) {
-	const [showJson, setShowJson] = useState(false);
+function SchemaViewer({
+	modelName,
+	showJson,
+}: {
+	modelName: string;
+	showJson: boolean;
+}) {
 	const schema = schemas.find((s) => s.name === modelName);
 	if (!schema) return null;
 
@@ -255,24 +259,6 @@ function SchemaViewer({ modelName }: { modelName: string }) {
 
 	return (
 		<div className="flex flex-col gap-1.5">
-			<div className="flex items-center gap-2 mb-1">
-				<span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-					Schema
-				</span>
-				<Badge variant="outline" className="text-xs px-1.5 py-0">
-					{schema.name}
-				</Badge>
-				<button
-					onClick={() => setShowJson((v) => !v)}
-					className={`ml-auto text-[10px] font-mono px-2 py-0.5 rounded border transition-colors ${showJson
-						? "border-primary text-primary bg-primary/10"
-						: "border-border text-muted-foreground hover:text-foreground hover:border-foreground/30"
-						}`}
-				>
-					{"{ }"}
-				</button>
-			</div>
-
 			{showJson ? (
 				<pre className="text-xs font-mono leading-relaxed">
 					<code>
@@ -329,6 +315,7 @@ export function Playground() {
 		groups[0]!.scenarios[0]!.id,
 	);
 	const [isFullscreen, setIsFullscreen] = useState(false);
+	const [showSchemaJson, setShowSchemaJson] = useState(false);
 	const containerRef = useRef<HTMLDivElement>(null);
 
 	useEffect(() => {
@@ -364,32 +351,47 @@ export function Playground() {
 			ref={containerRef}
 			className={`w-full gap-0 p-0 ${isFullscreen ? "flex flex-col h-screen" : ""}`}
 		>
-			{/* Header — CRUD tabs */}
-			<div className="flex items-center justify-between gap-4 px-4 py-3 border-b border-border bg-muted/30">
-				<Tabs value={activeGroup} onValueChange={handleGroupChange}>
-					<TabsList className="bg-transparent gap-1 p-0 h-auto">
-						{groups.map((group) => (
-							<TabsTrigger
-								key={group.id}
-								value={group.id}
-								className={`h-7 px-3 text-xs font-mono border border-transparent rounded-md transition-colors
+			{/* Header — CRUD tabs + scenario */}
+			<div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-0 border-b border-border bg-muted/30">
+				{/* Row 1: CRUD tabs + fullscreen (always visible) */}
+				<div className="flex items-center justify-between gap-4 px-4 py-3">
+					<Tabs value={activeGroup} onValueChange={handleGroupChange}>
+						<TabsList className="bg-transparent gap-1 p-0 h-auto">
+							{groups.map((group) => (
+								<TabsTrigger
+									key={group.id}
+									value={group.id}
+									className={`h-7 px-3 text-xs font-mono border border-transparent rounded-md transition-colors
                   text-muted-foreground hover:text-foreground
                   data-[state=active]:bg-transparent data-[state=active]:shadow-none
                   ${GROUP_COLORS[group.id] ?? ""}`}
-							>
-								{group.label}
-							</TabsTrigger>
-						))}
-					</TabsList>
-				</Tabs>
+								>
+									{group.label}
+								</TabsTrigger>
+							))}
+						</TabsList>
+					</Tabs>
+					<Button
+						variant="ghost"
+						size="icon-sm"
+						onClick={toggleFullscreen}
+						className="shrink-0 hidden lg:flex"
+					>
+						{isFullscreen ? (
+							<Minimize2Icon className="size-3.5" />
+						) : (
+							<Maximize2Icon className="size-3.5" />
+						)}
+					</Button>
+				</div>
 
-				{/* Scenario dropdown */}
-				<div className="flex items-center gap-2">
-					<span className="text-[10px] text-muted-foreground whitespace-nowrap hidden sm:block">
-						Select a scenario:
+				{/* Row 2 (mobile) / inline (desktop): scenario dropdown */}
+				<div className="flex items-center gap-2 px-4 pb-3 lg:pb-0 lg:pr-4 lg:pl-0">
+					<span className="text-[10px] text-muted-foreground whitespace-nowrap">
+						Scenario:
 					</span>
 					<Select value={activeScenario} onValueChange={setActiveScenario}>
-						<SelectTrigger className="h-7 w-52 text-xs font-mono border-border">
+						<SelectTrigger className="h-7 flex-1 lg:w-52 lg:flex-none text-xs font-mono border-border">
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent
@@ -408,24 +410,12 @@ export function Playground() {
 							))}
 						</SelectContent>
 					</Select>
-					<Button
-						variant="ghost"
-						size="icon-sm"
-						onClick={toggleFullscreen}
-						className="shrink-0"
-					>
-						{isFullscreen ? (
-							<Minimize2Icon className="size-3.5" />
-						) : (
-							<Maximize2Icon className="size-3.5" />
-						)}
-					</Button>
 				</div>
 			</div>
 
 			{/* Body — code | output, fixed height */}
 			<div
-				className={`grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-border ${isFullscreen ? "flex-1 min-h-0" : "h-[480px]"}`}
+				className={`grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-border ${isFullscreen ? "flex-1 min-h-0" : "lg:h-[480px]"}`}
 			>
 				{/* Left — code + schema */}
 				<div className="flex flex-col h-full min-h-0">
@@ -441,11 +431,36 @@ export function Playground() {
 						</Badge>
 					</div>
 					<CodeBlock scenario={currentScenario} />
-					<Separator className="shrink-0" />
 					<div
-						className={`shrink-0 overflow-auto p-4 ${isFullscreen ? "h-1/2" : "h-44"}`}
+						className={`flex flex-col border-t border-border ${isFullscreen ? "h-1/2" : "h-44"}`}
 					>
-						<SchemaViewer modelName={currentScenario.model} />
+						<div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-muted/20 shrink-0">
+							<span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+								Schema
+							</span>
+							<Badge
+								variant="outline"
+								className="text-[10px] px-1.5 py-0 font-mono"
+							>
+								{currentScenario.model}
+							</Badge>
+							<button
+								onClick={() => setShowSchemaJson((v) => !v)}
+								className={`ml-auto text-[10px] font-mono px-2 py-0.5 rounded border transition-colors ${
+									showSchemaJson
+										? "border-primary text-primary bg-primary/10"
+										: "border-border text-muted-foreground hover:text-foreground hover:border-foreground/30"
+								}`}
+							>
+								{"{ }"}
+							</button>
+						</div>
+						<div className="overflow-auto p-4 flex-1 min-h-0">
+							<SchemaViewer
+								modelName={currentScenario.model}
+								showJson={showSchemaJson}
+							/>
+						</div>
 					</div>
 				</div>
 
@@ -462,7 +477,7 @@ export function Playground() {
 							{currentScenario.model}
 						</Badge>
 					</div>
-					<pre className="flex-1 overflow-auto p-4 text-xs font-mono leading-relaxed min-h-0">
+					<pre className="flex-1 overflow-auto p-4 text-xs font-mono leading-relaxed min-h-0 max-h-[480px] lg:max-h-none">
 						<code>
 							<JsonToken value={currentScenario.output} />
 						</code>

@@ -5,7 +5,11 @@
  * Permission/RBAC types are now in @datrix/core.
  */
 
-import type { DefaultPermission } from "@datrix/core";
+import type {
+	DefaultPermission,
+	AuthenticatedUser,
+	DatrixEntry,
+} from "@datrix/core";
 import type { PasswordConfig } from "./password";
 
 /**
@@ -113,7 +117,10 @@ export interface SessionConfig {
  *
  * @template TRole - Union type of valid role names
  */
-export interface AuthConfig<TRole extends string = string> {
+export interface AuthConfig<
+	TRole extends string = string,
+	TUser extends DatrixEntry = DatrixEntry,
+> {
 	/**
 	 * Available roles in the application
 	 */
@@ -169,14 +176,32 @@ export interface AuthConfig<TRole extends string = string> {
 		readonly register?: string;
 		readonly logout?: string;
 		readonly me?: string;
+		readonly forgotPassword?: string;
+		readonly resetPassword?: string;
 		readonly disableRegister?: boolean;
 	};
-}
 
-/**
- * @deprecated Use AuthConfig instead
- */
-export type AuthPluginOptions = AuthConfig<string>;
+	/**
+	 * Password reset configuration.
+	 * If onForgotPassword is not provided, the forgot-password endpoint will throw.
+	 */
+	readonly passwordReset?: {
+		/**
+		 * Reset token expiry in seconds.
+		 * @default 3600 (1 hour)
+		 */
+		readonly tokenExpirySeconds?: number;
+
+		/**
+		 * Called after a reset token is generated.
+		 * Use this to send an email, Telegram message, or any notification.
+		 */
+		readonly onForgotPassword?: (
+			user: Omit<AuthenticatedUser<TRole, TUser>, "password" | "passwordSalt">,
+			token: string,
+		) => Promise<void>;
+	};
+}
 
 /**
  * Login credentials
