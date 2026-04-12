@@ -1,6 +1,6 @@
 {
 	"name": "@datrix/adapter-json",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"description": "JSON file adapter for Datrix framework",
 	"author": "Datrix Contributors",
 	"license": "MIT",
@@ -50,7 +50,7 @@
 		"clean": "rm -rf dist"
 	},
 	"peerDependencies": {
-		"@datrix/core": "^0.1.1"
+		"@datrix/core": "^0.1.2"
 	},
 	"devDependencies": {
 		"@datrix/core": "workspace:*",

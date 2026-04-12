@@ -51,7 +51,7 @@
 		"clean": "rm -rf dist"
 	},
 	"peerDependencies": {
-		"@datrix/core": "^0.1.1"
+		"@datrix/core": "^0.1.2"
 	},
 	"dependencies": {
 		"adm-zip": "^0.5.16",

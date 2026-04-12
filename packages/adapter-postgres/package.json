@@ -49,7 +49,7 @@
 		"clean": "rm -rf dist"
 	},
 	"peerDependencies": {
-		"@datrix/core": "^0.1.1"
+		"@datrix/core": "^0.1.2"
 	},
 	"dependencies": {
 		"pg": "^8.11.3"
