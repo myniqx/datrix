@@ -224,13 +224,11 @@ describe("Transaction-Like Behavior", () => {
 			});
 
 			// Verify initial state
-			let fetched = await datrix.findById<DatrixEntry & { roles: DatrixEntry[] }>(
-				"user",
-				user.id,
-				{
-					populate: { roles: { select: "*" } },
-				},
-			);
+			let fetched = await datrix.findById<
+				DatrixEntry & { roles: DatrixEntry[] }
+			>("user", user.id, {
+				populate: { roles: { select: "*" } },
+			});
 			expect((fetched!.roles as unknown[]).length).toBe(2);
 
 			// Disconnect one role

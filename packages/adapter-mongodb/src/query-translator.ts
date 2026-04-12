@@ -42,12 +42,14 @@ const MAX_WHERE_DEPTH = 10;
  * MongoDB query translator implementation
  */
 export class MongoDBQueryTranslator {
-	constructor(private readonly schemaRegistry: ISchemaRegistry) { }
+	constructor(private readonly schemaRegistry: ISchemaRegistry) {}
 
 	/**
 	 * Translate a QueryObject into a MongoDB operation descriptor
 	 */
-	translate<T extends DatrixEntry>(query: QueryObject<T>): MongoTranslateResult {
+	translate<T extends DatrixEntry>(
+		query: QueryObject<T>,
+	): MongoTranslateResult {
 		switch (query.type) {
 			case "select":
 				return this.translateSelect(query as QuerySelectObject<T>);
@@ -279,10 +281,10 @@ export class MongoDBQueryTranslator {
 								value === null
 									? null
 									: this.convertValueForField(
-										value,
-										currentSchema,
-										relationField.foreignKey,
-									);
+											value,
+											currentSchema,
+											relationField.foreignKey,
+										);
 						}
 						continue;
 					}

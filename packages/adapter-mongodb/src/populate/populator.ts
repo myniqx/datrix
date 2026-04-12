@@ -34,7 +34,7 @@ export class MongoDBPopulator<T extends DatrixEntry> {
 		private readonly client: MongoClient<T>,
 		private readonly schemaRegistry: ISchemaRegistry,
 		private readonly translator: MongoDBQueryTranslator,
-	) { }
+	) {}
 
 	/**
 	 * Main entry point for populate
@@ -303,10 +303,10 @@ export class MongoDBPopulator<T extends DatrixEntry> {
 			const targetProjection =
 				options.populate && baseTargetProjection
 					? this.injectFkColumns(
-						baseTargetProjection,
-						targetSchema,
-						options.populate,
-					)
+							baseTargetProjection,
+							targetSchema,
+							options.populate,
+						)
 					: baseTargetProjection;
 
 			if (relation.kind === "belongsTo") {

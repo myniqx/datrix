@@ -43,7 +43,7 @@ export class MySQLClient {
 	constructor(
 		private readonly runner: Pool | PoolConnection,
 		private readonly queryObject: QueryObject,
-	) { }
+	) {}
 
 	/**
 	 * Execute a SQL query with optional parameters (prepared statement).

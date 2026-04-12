@@ -35,8 +35,8 @@ describe("Core - Dispatcher - Error Path", () => {
 				name: "bad-plugin",
 				version: "1",
 				options: {},
-				init: async () => { },
-				destroy: async () => { },
+				init: async () => {},
+				destroy: async () => {},
 				onBeforeQuery: async (q) =>
 					({ ...q, ghostKey: "I should not be here" }) as any,
 			};

@@ -15,7 +15,7 @@ import { throwResultProcessingError } from "@datrix/core";
  * Processes flat SQL results into nested structures with populated relations.
  */
 export class ResultProcessor {
-	constructor(private schemaRegistry: ISchemaRegistry) { }
+	constructor(private schemaRegistry: ISchemaRegistry) {}
 
 	/**
 	 * Process JSON aggregation results

@@ -1,4 +1,8 @@
-import { DatrixEntry, ForeignKeyReference, SchemaDefinition } from "@datrix/core";
+import {
+	DatrixEntry,
+	ForeignKeyReference,
+	SchemaDefinition,
+} from "@datrix/core";
 import { QuerySelectObject } from "@datrix/core";
 import { ExecuteQueryOptions, JsonTableFile } from "./types";
 import type { JsonAdapter } from "./adapter";

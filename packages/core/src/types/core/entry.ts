@@ -18,13 +18,13 @@ export interface DatrixEntry {
  */
 export type FallbackValue = {
 	[key: string]:
-	| string
-	| number
-	| boolean
-	| Date
-	| null
-	| FallbackValue
-	| FallbackValue[];
+		| string
+		| number
+		| boolean
+		| Date
+		| null
+		| FallbackValue
+		| FallbackValue[];
 };
 
 /**

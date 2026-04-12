@@ -50,7 +50,11 @@ describe("Migration E2E - Column Changes", () => {
 				},
 			});
 
-			const datrix = await createDatrixWithSchemas(tmpDir, [userWithPhone], true);
+			const datrix = await createDatrixWithSchemas(
+				tmpDir,
+				[userWithPhone],
+				true,
+			);
 			const session = await datrix.beginMigrate();
 
 			// Should detect column addition
@@ -238,7 +242,11 @@ describe("Migration E2E - Column Changes", () => {
 				},
 			});
 
-			const datrix = await createDatrixWithSchemas(tmpDir, [userModified], true);
+			const datrix = await createDatrixWithSchemas(
+				tmpDir,
+				[userModified],
+				true,
+			);
 			const session = await datrix.beginMigrate();
 			assertHasChanges(session);
 
@@ -272,7 +280,11 @@ describe("Migration E2E - Column Changes", () => {
 				},
 			});
 
-			const datrix = await createDatrixWithSchemas(tmpDir, [userAgeString], true);
+			const datrix = await createDatrixWithSchemas(
+				tmpDir,
+				[userAgeString],
+				true,
+			);
 			const session = await datrix.beginMigrate();
 
 			// Should detect modification

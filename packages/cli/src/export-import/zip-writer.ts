@@ -76,8 +76,8 @@ export class ZipExportWriter implements ExportWriter {
 		const schema = this.metadata.schemas.find((s) => s.tableName === tableName);
 		const fields = schema
 			? Object.entries(schema.fields)
-				.filter(([, f]) => f.type !== "relation")
-				.map(([name]) => name)
+					.filter(([, f]) => f.type !== "relation")
+					.map(([name]) => name)
 			: rows.length > 0
 				? Object.keys(rows[0]!)
 				: [];

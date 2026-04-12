@@ -20,16 +20,16 @@ describe("Core - Dispatcher - Happy Path", () => {
 			name: "p1",
 			version: "1",
 			options: {},
-			init: async () => { },
-			destroy: async () => { },
+			init: async () => {},
+			destroy: async () => {},
 			onSchemaLoad: vi.fn(),
 		};
 		const secondPlugin: DatrixPlugin = {
 			name: "p2",
 			version: "1",
 			options: {},
-			init: async () => { },
-			destroy: async () => { },
+			init: async () => {},
+			destroy: async () => {},
 			onSchemaLoad: vi.fn(),
 		};
 
@@ -51,16 +51,16 @@ describe("Core - Dispatcher - Happy Path", () => {
 			name: "p1",
 			version: "1",
 			options: {},
-			init: async () => { },
-			destroy: async () => { },
+			init: async () => {},
+			destroy: async () => {},
 			onBeforeQuery: async (q) => ({ ...q, table: q.table + "_p1" }),
 		};
 		const tableAppendingPlugin2: DatrixPlugin = {
 			name: "p2",
 			version: "1",
 			options: {},
-			init: async () => { },
-			destroy: async () => { },
+			init: async () => {},
+			destroy: async () => {},
 			onBeforeQuery: async (q) => ({ ...q, table: q.table + "_p2" }),
 		};
 
@@ -85,8 +85,8 @@ describe("Core - Dispatcher - Happy Path", () => {
 			name: "p1",
 			version: "1",
 			options: {},
-			init: async () => { },
-			destroy: async () => { },
+			init: async () => {},
+			destroy: async () => {},
 			onAfterQuery: async (r: any) => ({ ...r, count: (r.count || 0) + 1 }),
 		};
 
@@ -109,8 +109,8 @@ describe("Core - Dispatcher - Happy Path", () => {
 			name: "p1",
 			version: "1",
 			options: {},
-			init: async () => { },
-			destroy: async () => { },
+			init: async () => {},
+			destroy: async () => {},
 			onBeforeQuery: async (q) => ({
 				...q,
 				meta: { ...q.meta, p1_data: "hello" },
@@ -120,8 +120,8 @@ describe("Core - Dispatcher - Happy Path", () => {
 			name: "p2",
 			version: "1",
 			options: {},
-			init: async () => { },
-			destroy: async () => { },
+			init: async () => {},
+			destroy: async () => {},
 			onBeforeQuery: async (q) => {
 				const p1Data = q.meta?.["p1_data"];
 				return { ...q, table: q.table + "_" + p1Data };

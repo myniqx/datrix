@@ -8,7 +8,7 @@ export class PostgresExporter {
 	constructor(
 		private pool: Pool,
 		private adapter: PostgresAdapter,
-	) { }
+	) {}
 
 	async export(writer: ExportWriter): Promise<void> {
 		await writer.writeMeta({

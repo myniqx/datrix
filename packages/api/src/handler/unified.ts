@@ -293,7 +293,10 @@ export async function handleCrudRequest<TRole extends string = string>(
 			}
 		}
 	} catch (error) {
-		if (error instanceof DatrixValidationError || error instanceof DatrixError) {
+		if (
+			error instanceof DatrixValidationError ||
+			error instanceof DatrixError
+		) {
 			return datrixErrorResponse(error);
 		}
 

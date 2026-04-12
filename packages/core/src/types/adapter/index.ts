@@ -125,32 +125,32 @@ export interface Transaction extends QueryRunner, SchemaOperations {
  */
 export type AlterOperation =
 	| {
-		readonly type: "addColumn";
-		readonly column: string;
-		readonly definition: FieldDefinition;
-	}
+			readonly type: "addColumn";
+			readonly column: string;
+			readonly definition: FieldDefinition;
+	  }
 	| { readonly type: "dropColumn"; readonly column: string }
 	| {
-		readonly type: "modifyColumn";
-		readonly column: string;
-		readonly newDefinition: FieldDefinition;
-	}
+			readonly type: "modifyColumn";
+			readonly column: string;
+			readonly newDefinition: FieldDefinition;
+	  }
 	| {
-		readonly type: "renameColumn";
-		readonly from: string;
-		readonly to: string;
-	}
+			readonly type: "renameColumn";
+			readonly from: string;
+			readonly to: string;
+	  }
 	| {
-		readonly type: "addMetaField";
-		readonly field: string;
-		readonly definition: FieldDefinition;
-	}
+			readonly type: "addMetaField";
+			readonly field: string;
+			readonly definition: FieldDefinition;
+	  }
 	| { readonly type: "dropMetaField"; readonly field: string }
 	| {
-		readonly type: "modifyMetaField";
-		readonly field: string;
-		readonly newDefinition: FieldDefinition;
-	};
+			readonly type: "modifyMetaField";
+			readonly field: string;
+			readonly newDefinition: FieldDefinition;
+	  };
 
 /**
  * Connection state

@@ -40,13 +40,13 @@ export async function createUploadTestConfig(
 
 	const resolutions = options.withResolutions
 		? ({
-			thumbnail: { width: 150, height: 150, fit: "cover" as const },
-			small: { width: 320 },
-			medium: { width: 640 },
-		} satisfies Record<
-			TestResolutions,
-			{ width: number; height?: number; fit?: "cover" }
-		>)
+				thumbnail: { width: 150, height: 150, fit: "cover" as const },
+				small: { width: 320 },
+				medium: { width: 640 },
+			} satisfies Record<
+				TestResolutions,
+				{ width: number; height?: number; fit?: "cover" }
+			>)
 		: undefined;
 
 	const upload = new Upload({

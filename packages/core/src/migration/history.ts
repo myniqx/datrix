@@ -223,10 +223,13 @@ export class ForgeMigrationHistory implements MigrationHistory {
 	 */
 	async isApplied(version: string): Promise<boolean> {
 		try {
-			const count = await this.datrix.raw.count<MigrationEntry>(this.modelName, {
-				version,
-				status: "completed",
-			});
+			const count = await this.datrix.raw.count<MigrationEntry>(
+				this.modelName,
+				{
+					version,
+					status: "completed",
+				},
+			);
 
 			return count > 0;
 		} catch (error) {

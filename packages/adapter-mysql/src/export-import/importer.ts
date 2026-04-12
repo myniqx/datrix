@@ -10,7 +10,7 @@ export class MySQLImporter {
 	constructor(
 		private pool: Pool,
 		private adapter: MySQLAdapter,
-	) { }
+	) {}
 
 	async import(reader: ImportReader): Promise<void> {
 		const schemas = await this.collectSchemas(reader);

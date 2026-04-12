@@ -47,7 +47,7 @@ export class Dispatcher {
 	constructor(
 		private readonly registry: PluginRegistry,
 		private readonly datrix: Datrix,
-	) { }
+	) {}
 
 	/**
 	 * Create and populate query context

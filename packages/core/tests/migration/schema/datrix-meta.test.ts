@@ -135,7 +135,7 @@ describe("_datrix metadata table", () => {
 
 		try {
 			await adapter.createTable(productSchema);
-		} catch { }
+		} catch {}
 	});
 
 	// ============================================================

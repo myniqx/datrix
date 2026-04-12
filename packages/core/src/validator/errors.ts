@@ -69,8 +69,9 @@ export function formatErrorMessage(
 			return `Field '${field}' must have at most ${options?.max} items`;
 
 		case "PATTERN":
-			return `Field '${field}' does not match required pattern${options?.pattern ? `: ${options.pattern}` : ""
-				}`;
+			return `Field '${field}' does not match required pattern${
+				options?.pattern ? `: ${options.pattern}` : ""
+			}`;
 
 		case "UNIQUE":
 			return `Field '${field}' must be unique`;
@@ -384,12 +385,15 @@ export function throwValidationSingle(
 		expected: options?.expected,
 	});
 
-	throw new DatrixValidationError(`Validation failed for ${model}: ${message}`, {
-		model,
-		errors: [error],
-		operation: "validation:field",
-		suggestion: options?.suggestion,
-	});
+	throw new DatrixValidationError(
+		`Validation failed for ${model}: ${message}`,
+		{
+			model,
+			errors: [error],
+			operation: "validation:field",
+			suggestion: options?.suggestion,
+		},
+	);
 }
 
 /**

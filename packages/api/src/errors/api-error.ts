@@ -59,7 +59,10 @@ export interface ApiErrorOptions {
  * Centralized error creation for routine API handlers.
  */
 export const handlerError = {
-	schemaNotFound(tableName: string, availableModels?: string[]): DatrixApiError {
+	schemaNotFound(
+		tableName: string,
+		availableModels?: string[],
+	): DatrixApiError {
 		return new DatrixApiError(`Model not found for table: ${tableName}`, {
 			code: "SCHEMA_NOT_FOUND",
 			status: 404,

@@ -429,7 +429,11 @@ describe("Migration E2E - Complex Scenarios", () => {
 			const userModified = cloneSchema(baseUserSchema, {
 				addFields: { external: { type: "string" } },
 			});
-			const datrix = await createDatrixWithSchemas(tmpDir, [userModified], true);
+			const datrix = await createDatrixWithSchemas(
+				tmpDir,
+				[userModified],
+				true,
+			);
 			const session = await datrix.beginMigrate();
 
 			// Should detect the missing column

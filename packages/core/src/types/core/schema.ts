@@ -248,13 +248,13 @@ export type RelationBelongsTo<T extends DatrixEntry> =
 	| RelationIdRef
 	| null
 	| {
-		connect?: RelationIdRef;
-		set?: RelationIdRef;
-		disconnect?: true;
-		create?: Partial<T>;
-		update?: { where: { id: number }; data: Partial<T> };
-		delete?: RelationIdRef;
-	};
+			connect?: RelationIdRef;
+			set?: RelationIdRef;
+			disconnect?: true;
+			create?: Partial<T>;
+			update?: { where: { id: number }; data: Partial<T> };
+			delete?: RelationIdRef;
+	  };
 
 /**
  * hasOne (1:1) relation input - write operations
@@ -287,15 +287,15 @@ export type RelationHasOne<T extends DatrixEntry> = RelationBelongsTo<T>;
 export type RelationHasMany<T extends DatrixEntry> =
 	| RelationIdRefs
 	| {
-		connect?: RelationIdRefs;
-		disconnect?: RelationIdRefs;
-		set?: RelationIdRefs;
-		create?: Partial<T> | Partial<T>[];
-		update?:
-		| { where: { id: number }; data: Partial<T> }
-		| { where: { id: number }; data: Partial<T> }[];
-		delete?: RelationIdRefs;
-	};
+			connect?: RelationIdRefs;
+			disconnect?: RelationIdRefs;
+			set?: RelationIdRefs;
+			create?: Partial<T> | Partial<T>[];
+			update?:
+				| { where: { id: number }; data: Partial<T> }
+				| { where: { id: number }; data: Partial<T> }[];
+			delete?: RelationIdRefs;
+	  };
 
 /**
  * manyToMany (N:N) relation input - write operations
@@ -337,8 +337,8 @@ export type AnyRelationInputObject = {
 	delete?: RelationIdRefs;
 	create?: Record<string, unknown> | Record<string, unknown>[];
 	update?:
-	| { where: { id: number }; data: Record<string, unknown> }
-	| { where: { id: number }; data: Record<string, unknown> }[];
+		| { where: { id: number }; data: Record<string, unknown> }
+		| { where: { id: number }; data: Record<string, unknown> }[];
 };
 
 /**

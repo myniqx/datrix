@@ -262,7 +262,11 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			});
 
-			const datrix = await createDatrixWithSchemas(tmpDir, [userFullName], true);
+			const datrix = await createDatrixWithSchemas(
+				tmpDir,
+				[userFullName],
+				true,
+			);
 			const session = await datrix.beginMigrate();
 
 			assertHasChanges(session);
@@ -297,7 +301,11 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			});
 
-			const datrix = await createDatrixWithSchemas(tmpDir, [userSplitName], true);
+			const datrix = await createDatrixWithSchemas(
+				tmpDir,
+				[userSplitName],
+				true,
+			);
 			const session = await datrix.beginMigrate();
 
 			assertHasChanges(session);
@@ -424,7 +432,11 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			});
 
-			const datrix = await createDatrixWithSchemas(tmpDir, [userAgeString], true);
+			const datrix = await createDatrixWithSchemas(
+				tmpDir,
+				[userAgeString],
+				true,
+			);
 			const session = await datrix.beginMigrate();
 
 			// Should NOT be ambiguous - it's a modification of existing field
@@ -442,7 +454,9 @@ describe("Migration E2E - Ambiguous Detection", () => {
 					birthCity: { type: "string" },
 				},
 			});
-			const datrix1 = await createDatrixWithSchemas(tmpDir, [userWithBirthCity]);
+			const datrix1 = await createDatrixWithSchemas(tmpDir, [
+				userWithBirthCity,
+			]);
 			const s1 = await datrix1.beginMigrate();
 			await applyMigration(s1);
 			await datrix1.shutdown();
@@ -627,7 +641,11 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			});
 
-			const datrix = await createDatrixWithSchemas(tmpDir, [userWithPhone], true);
+			const datrix = await createDatrixWithSchemas(
+				tmpDir,
+				[userWithPhone],
+				true,
+			);
 			const session = await datrix.beginMigrate();
 
 			// No ambiguous - nothing removed
@@ -682,7 +700,11 @@ describe("Migration E2E - Ambiguous Detection", () => {
 			// Update tableName for account
 			(accountSchema as { tableName: string }).tableName = "accounts";
 
-			const datrix = await createDatrixWithSchemas(tmpDir, [accountSchema], true);
+			const datrix = await createDatrixWithSchemas(
+				tmpDir,
+				[accountSchema],
+				true,
+			);
 			const session = await datrix.beginMigrate();
 
 			// Should detect table rename candidate
@@ -716,7 +738,11 @@ describe("Migration E2E - Ambiguous Detection", () => {
 				},
 			};
 
-			const datrix = await createDatrixWithSchemas(tmpDir, [productSchema], true);
+			const datrix = await createDatrixWithSchemas(
+				tmpDir,
+				[productSchema],
+				true,
+			);
 			const session = await datrix.beginMigrate();
 
 			// Should NOT have table rename ambiguous (too different)

@@ -48,13 +48,13 @@ export interface MySQLConfig {
 	 * SSL configuration
 	 */
 	readonly ssl?:
-	| boolean
-	| {
-		readonly rejectUnauthorized?: boolean;
-		readonly ca?: string;
-		readonly cert?: string;
-		readonly key?: string;
-	};
+		| boolean
+		| {
+				readonly rejectUnauthorized?: boolean;
+				readonly ca?: string;
+				readonly cert?: string;
+				readonly key?: string;
+		  };
 
 	/**
 	 * Maximum number of connections in pool

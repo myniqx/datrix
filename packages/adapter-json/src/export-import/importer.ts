@@ -7,7 +7,7 @@ export class JsonImporter {
 	constructor(
 		private root: string,
 		private adapter: JsonAdapter,
-	) { }
+	) {}
 
 	async import(reader: ImportReader): Promise<void> {
 		const schemas = await this.collectSchemas(reader);

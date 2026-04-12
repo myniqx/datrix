@@ -239,8 +239,8 @@ describe("Delete Validation", () => {
 				const message = (error as Error).message.toLowerCase();
 				expect(
 					message.includes("delete") ||
-					message.includes("not found") ||
-					message.includes("record"),
+						message.includes("not found") ||
+						message.includes("record"),
 				).toBe(true);
 			}
 		});

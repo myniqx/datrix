@@ -85,7 +85,7 @@ describe("CRUD Relation API Tests", () => {
 		for (const schema of datrix.getSchemas().getAll()) {
 			try {
 				await adapter.dropTable(schema.tableName!);
-			} catch { }
+			} catch {}
 			await adapter.createTable(schema);
 		}
 	});

@@ -317,7 +317,7 @@ interface EscListener {
 }
 
 function setupEscListener(onEsc: () => void): EscListener {
-	if (!process.stdin.isTTY) return { stop: () => { } };
+	if (!process.stdin.isTTY) return { stop: () => {} };
 
 	process.stdin.setRawMode(true);
 	process.stdin.resume();

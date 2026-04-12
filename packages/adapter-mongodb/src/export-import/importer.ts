@@ -11,7 +11,7 @@ export class MongoDBImporter {
 	constructor(
 		private db: Db,
 		private adapter: MongoDBAdapter,
-	) { }
+	) {}
 
 	async import(reader: ImportReader): Promise<void> {
 		const schemas = await this.collectSchemas(reader);

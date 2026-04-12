@@ -6,7 +6,11 @@
  */
 
 import { DatabaseAdapter } from "../types/adapter";
-import { ISchemaRegistry, DatrixEntry, DatrixRecord } from "../types/core/schema";
+import {
+	ISchemaRegistry,
+	DatrixEntry,
+	DatrixRecord,
+} from "../types/core/schema";
 import { WhereClause } from "../types/core/query-builder";
 import { Dispatcher } from "../dispatcher";
 import {

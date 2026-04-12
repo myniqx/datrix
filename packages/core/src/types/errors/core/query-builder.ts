@@ -91,9 +91,9 @@ export class DatrixQueryBuilderError extends DatrixError<QueryBuilderErrorContex
 		const normalizedOptions: DatrixQueryBuilderErrorOptions =
 			typeof options === "string" || options === undefined
 				? {
-					code: (options as QueryBuilderErrorCode) || "INVALID_VALUE",
-					component: "builder",
-				}
+						code: (options as QueryBuilderErrorCode) || "INVALID_VALUE",
+						component: "builder",
+					}
 				: options;
 
 		super(message, {

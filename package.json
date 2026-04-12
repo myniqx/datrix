@@ -61,5 +61,10 @@
 		"tsup": "^8.0.2",
 		"typescript": "^5.3.3",
 		"vitest": "^1.2.2"
-	}
+	},
+	"workspaces": [
+		"packages/*",
+		"examples/nextjs",
+		"datrix-web"
+	]
 }
