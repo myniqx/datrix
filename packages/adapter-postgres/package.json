@@ -52,7 +52,8 @@
 		"@datrix/core": "^0.1.2"
 	},
 	"dependencies": {
-		"pg": "^8.11.3"
+		"pg": "^8.11.3",
+		"@datrix/adapter-postgres-core": "workspace:*"
 	},
 	"devDependencies": {
 		"@datrix/core": "workspace:*",

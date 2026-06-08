@@ -88,6 +88,9 @@ importers:
 
   packages/adapter-postgres:
     dependencies:
+      '@datrix/adapter-postgres-core':
+        specifier: workspace:*
+        version: link:../adapter-postgres-core
       pg:
         specifier: ^8.11.3
         version: 8.16.3
@@ -98,6 +101,18 @@ importers:
       '@types/pg':
         specifier: ^8.11.0
         version: 8.15.6
+      tsup:
+        specifier: ^8.0.2
+        version: 8.5.1(jiti@2.6.1)(postcss@8.5.8)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2)
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+
+  packages/adapter-postgres-core:
+    devDependencies:
+      '@datrix/core':
+        specifier: workspace:*
+        version: link:../core
       tsup:
         specifier: ^8.0.2
         version: 8.5.1(jiti@2.6.1)(postcss@8.5.8)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.2)
