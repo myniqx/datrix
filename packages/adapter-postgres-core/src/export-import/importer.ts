@@ -1,14 +1,14 @@
-import type { Pool } from "pg";
 import type { ImportReader } from "@datrix/core";
 import type { SchemaDefinition } from "@datrix/core";
 import type { PostgresAdapter } from "../adapter";
+import type { PgRunner } from "../driver";
 import { DATRIX_META_MODEL } from "@datrix/core";
 
 const CHUNK_SIZE = 1000;
 
 export class PostgresImporter {
 	constructor(
-		private pool: Pool,
+		private runner: PgRunner,
 		private adapter: PostgresAdapter,
 	) {}
 
@@ -87,7 +87,7 @@ export class PostgresImporter {
 				}
 			}
 
-			await this.pool.query(
+			await this.runner.query(
 				`INSERT INTO ${escapedTable} (${escapedColumns}) VALUES ${placeholders.join(", ")}`,
 				values,
 			);
@@ -113,7 +113,7 @@ export class PostgresImporter {
 				? ` ON UPDATE ${field.references.onUpdate.toUpperCase()}`
 				: "";
 
-			await this.pool.query(
+			await this.runner.query(
 				`ALTER TABLE ${escapedTable} ADD CONSTRAINT ${constraintName} FOREIGN KEY (${col}) REFERENCES ${refTable} (${refCol})${onDelete}${onUpdate}`,
 			);
 		}
@@ -121,7 +121,7 @@ export class PostgresImporter {
 
 	private async resetSequence(tableName: string): Promise<void> {
 		const escapedTable = `"${tableName}"`;
-		await this.pool.query(
+		await this.runner.query(
 			`SELECT setval(pg_get_serial_sequence('${tableName}', 'id'), COALESCE((SELECT MAX(id) FROM ${escapedTable}), 0) + 1, false)`,
 		);
 	}

@@ -6,9 +6,9 @@
  * - Consistent error handling with DatrixAdapterError
  */
 
-import type { Pool, PoolClient, QueryResult, QueryResultRow } from "pg";
 import { AdapterErrorCode, DatrixAdapterError } from "@datrix/core";
 import { QueryObject } from "@datrix/core";
+import type { PgQueryResult, PgRunner } from "./driver";
 
 const IS_DEBUG = process.env["NODE_ENV"] !== "production";
 
@@ -25,24 +25,24 @@ function pgCodeToAdapterCode(pgCode: string | undefined): AdapterErrorCode {
 }
 
 /**
- * Lightweight wrapper around pg Pool/PoolClient.
+ * Lightweight wrapper around a PgRunner (pool, connection, etc.).
  *
  * Every query passes through a single point that logs SQL
- * in development and wraps pg errors into DatrixAdapterError.
+ * in development and wraps driver errors into DatrixAdapterError.
  */
 export class PgClient {
 	constructor(
-		private readonly runner: Pool | PoolClient,
+		private readonly runner: PgRunner,
 		private readonly queryObject: QueryObject,
 	) {}
 
 	/**
 	 * Execute a SQL query with optional parameters.
 	 */
-	async query<T extends QueryResultRow = QueryResultRow>(
+	async query<T = Record<string, unknown>>(
 		sql: string,
 		params?: readonly unknown[],
-	): Promise<QueryResult<T>> {
+	): Promise<PgQueryResult<T>> {
 		if (IS_DEBUG) {
 			console.log("[PG]", sql, params ?? [], {
 				queryObject: JSON.stringify(this.queryObject),
@@ -50,7 +50,7 @@ export class PgClient {
 		}
 
 		try {
-			return await this.runner.query<T>(sql, params as unknown[]);
+			return await this.runner.query<T>(sql, params);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			const details = error as {

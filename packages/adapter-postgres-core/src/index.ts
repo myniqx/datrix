@@ -5,4 +5,9 @@
  */
 
 export { PostgresAdapter, createPostgresAdapter } from "./adapter";
-export type { PostgresConfig } from "./types";
+export type { PostgresCoreConfig } from "./types";
+export type {
+	PgRunner,
+	PgConnection,
+	PgQueryResult,
+} from "./driver";

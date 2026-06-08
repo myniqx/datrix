@@ -5,11 +5,10 @@
  * Handles connection pooling, query execution, transactions, and schema operations.
  */
 
-import type { Pool, PoolClient, QueryResultRow } from "pg";
-import { Pool as PgPool } from "pg";
+import type { PgConnection, PgRunner } from "./driver";
 
 import { PostgresQueryTranslator } from "./query-translator";
-import type { PostgresConfig } from "./types";
+import type { PostgresCoreConfig } from "./types";
 import { getPostgresTypeWithModifiers } from "./types";
 import { QueryObject } from "@datrix/core";
 import {
@@ -49,11 +48,10 @@ import { ExportWriter, ImportReader } from "@datrix/core";
 /**
  * PostgreSQL adapter implementation
  */
-export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
+export class PostgresAdapter implements DatabaseAdapter<PostgresCoreConfig> {
 	readonly name = "postgres";
-	readonly config: PostgresConfig;
+	readonly config: PostgresCoreConfig;
 
-	private pool: Pool | undefined;
 	private state: ConnectionState = "disconnected";
 	private _schemas: ISchemaRegistry | undefined;
 	private _translator: PostgresQueryTranslator | undefined;
@@ -62,7 +60,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 		return this._translator!;
 	}
 
-	constructor(config: PostgresConfig) {
+	constructor(config: PostgresCoreConfig) {
 		this.config = config;
 	}
 
@@ -78,23 +76,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 		this._translator = new PostgresQueryTranslator(schemas);
 
 		try {
-			this.pool = new PgPool({
-				host: this.config.host,
-				port: this.config.port,
-				database: this.config.database,
-				user: this.config.user,
-				password: this.config.password,
-				ssl: this.config.ssl,
-				connectionTimeoutMillis: this.config.connectionTimeoutMillis ?? 5000,
-				idleTimeoutMillis: this.config.idleTimeoutMillis ?? 30000,
-				max: this.config.max ?? 10,
-				min: this.config.min ?? 2,
-				application_name: this.config.applicationName ?? "datrix",
-			});
-
-			const client = await this.pool.connect();
-			client.release();
-
+			await this.config.ping();
 			this.state = "connected";
 		} catch (error) {
 			this.state = "error";
@@ -116,10 +98,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 		}
 
 		try {
-			if (this.pool) {
-				await this.pool.end();
-				this.pool = undefined;
-			}
+			await this.config.end();
 
 			this.state = "disconnected";
 		} catch (error) {
@@ -137,7 +116,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	 * Check if connected
 	 */
 	isConnected(): boolean {
-		return this.state === "connected" && this.pool !== undefined;
+		return this.state === "connected";
 	}
 
 	/**
@@ -151,21 +130,21 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	 * Execute query
 	 *
 	 * @param query - Query object to execute
-	 * @param client - Optional PoolClient for transaction support. If provided, query runs on this client instead of pool.
+	 * @param connection - Optional PgConnection for transaction support. If provided, query runs on this connection instead of the pooled runner.
 	 */
 	async executeQuery<TResult extends DatrixEntry>(
 		query: QueryObject<TResult>,
-		client?: PoolClient,
+		connection?: PgConnection,
 	): Promise<QueryResult<TResult>> {
 		validateQueryObject(query);
 
-		const queryRunner = client ?? this.pool;
-
-		if (!queryRunner) {
+		if (!this.isConnected()) {
 			throwNotConnected({ adapter: "postgres" });
 		}
 
-		const pgClient = new PgClient(queryRunner!, query as any);
+		const queryRunner: PgRunner = connection ?? this.config.runner;
+
+		const pgClient = new PgClient(queryRunner, query as any);
 		let lastSql: string | undefined;
 
 		try {
@@ -186,10 +165,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 
 			const { sql, params } = this.getTranslator().translate(query);
 			lastSql = sql;
-			const result = await pgClient.query<QueryResultRow>(
-				sql,
-				params as unknown[],
-			);
+			const result = await pgClient.query(sql, params);
 
 			if (query.type === "select") {
 				const rows = result.rows as unknown as readonly TResult[];
@@ -278,12 +254,12 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 		sql: string,
 		params: readonly unknown[],
 	): Promise<QueryResult<TResult>> {
-		if (!this.pool) {
+		if (!this.isConnected()) {
 			throwNotConnected({ adapter: "postgres" });
 		}
 
 		try {
-			const result = await this.pool!.query(sql, params as unknown[]);
+			const result = await this.config.runner.query(sql, params);
 
 			const metadata: QueryMetadata = {
 				rowCount: result.rowCount ?? 0,
@@ -303,16 +279,16 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	 * Begin transaction
 	 */
 	async beginTransaction(): Promise<Transaction> {
-		if (!this.pool) {
+		if (!this.isConnected()) {
 			throwNotConnected({ adapter: "postgres" });
 		}
 
 		try {
-			const client = await this.pool!.connect();
-			await client.query("BEGIN");
+			const connection = await this.config.connect();
+			await connection.query("BEGIN");
 
 			const transaction = new PostgresTransaction(
-				client,
+				connection,
 				this,
 				`tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
 			);
@@ -333,7 +309,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	 */
 	async createTable(
 		schema: SchemaDefinition,
-		client?: PoolClient,
+		connection?: PgConnection,
 		options?: {
 			/**
 			 * Set to true when called from the importer.
@@ -343,8 +319,8 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 			isImport?: boolean;
 		},
 	): Promise<void> {
-		const queryRunner = client ?? this.pool;
-		if (!queryRunner) {
+		const queryRunner: PgRunner = connection ?? this.config.runner;
+		if (!this.isConnected()) {
 			throwNotConnected({ adapter: "postgres" });
 		}
 
@@ -387,7 +363,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 
 			if (schema.indexes && schema.indexes.length > 0) {
 				for (const index of schema.indexes) {
-					await this.addIndex(schema.tableName!, index, schema, client);
+					await this.addIndex(schema.tableName!, index, schema, connection);
 				}
 			}
 
@@ -422,11 +398,11 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	 */
 	async dropTable(
 		tableName: string,
-		client?: PoolClient,
+		connection?: PgConnection,
 		options?: { isImport?: boolean },
 	): Promise<void> {
-		const queryRunner = client ?? this.pool;
-		if (!queryRunner) {
+		const queryRunner: PgRunner = connection ?? this.config.runner;
+		if (!this.isConnected()) {
 			throwNotConnected({ adapter: "postgres" });
 		}
 
@@ -462,10 +438,10 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	async renameTable(
 		from: string,
 		to: string,
-		client?: PoolClient,
+		connection?: PgConnection,
 	): Promise<void> {
-		const queryRunner = client ?? this.pool;
-		if (!queryRunner) {
+		const queryRunner: PgRunner = connection ?? this.config.runner;
+		if (!this.isConnected()) {
 			throwNotConnected({ adapter: "postgres" });
 		}
 
@@ -503,10 +479,10 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	async alterTable(
 		tableName: string,
 		operations: readonly AlterOperation[],
-		client?: PoolClient,
+		connection?: PgConnection,
 	): Promise<void> {
-		const queryRunner = client ?? this.pool;
-		if (!queryRunner) {
+		const queryRunner: PgRunner = connection ?? this.config.runner;
+		if (!this.isConnected()) {
 			throwNotConnected({ adapter: "postgres" });
 		}
 
@@ -578,10 +554,10 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 		tableNameParam: string,
 		index: IndexDefinition,
 		schema?: SchemaDefinition,
-		client?: PoolClient,
+		connection?: PgConnection,
 	): Promise<void> {
-		const queryRunner = client ?? this.pool;
-		if (!queryRunner) {
+		const queryRunner: PgRunner = connection ?? this.config.runner;
+		if (!this.isConnected()) {
 			throwNotConnected({ adapter: "postgres" });
 		}
 
@@ -628,10 +604,10 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	async dropIndex(
 		_tableName: string,
 		indexName: string,
-		client?: PoolClient,
+		connection?: PgConnection,
 	): Promise<void> {
-		const queryRunner = client ?? this.pool;
-		if (!queryRunner) {
+		const queryRunner: PgRunner = connection ?? this.config.runner;
+		if (!this.isConnected()) {
 			throwNotConnected({ adapter: "postgres" });
 		}
 
@@ -653,12 +629,14 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	 * Get all table names
 	 */
 	async getTables(): Promise<readonly string[]> {
-		if (!this.pool) {
+		if (!this.isConnected()) {
 			throwNotConnected({ adapter: "postgres" });
 		}
 
 		try {
-			const result = await this.pool!.query<{ tablename: string }>(
+			const result = await this.config.runner.query<{
+				tablename: string;
+			}>(
 				`SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename`,
 			);
 
@@ -677,7 +655,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	 * Get table schema (introspection)
 	 */
 	async getTableSchema(tableName: string): Promise<SchemaDefinition | null> {
-		if (!this.pool) {
+		if (!this.isConnected()) {
 			throwNotConnected({ adapter: "postgres" });
 		}
 
@@ -685,10 +663,9 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 			const metaKey = `${DATRIX_META_KEY_PREFIX}${tableName}`;
 			const escapedMetaTable =
 				this.getTranslator().escapeIdentifier(DATRIX_META_MODEL);
-			const metaResult = await this.pool!.query<{ value: string }>(
-				`SELECT "value" FROM ${escapedMetaTable} WHERE "key" = $1`,
-				[metaKey],
-			);
+			const metaResult = await this.config.runner.query<{
+				value: string;
+			}>(`SELECT "value" FROM ${escapedMetaTable} WHERE "key" = $1`, [metaKey]);
 
 			if (metaResult.rows.length === 0) {
 				return null;
@@ -710,12 +687,14 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	 * Check if table exists
 	 */
 	async tableExists(tableName: string): Promise<boolean> {
-		if (!this.pool) {
+		if (!this.isConnected()) {
 			return false;
 		}
 
 		try {
-			const result = await this.pool.query<{ exists: boolean }>(
+			const result = await this.config.runner.query<{
+				exists: boolean;
+			}>(
 				`SELECT EXISTS (
           SELECT FROM pg_tables
           WHERE schemaname = 'public'
@@ -735,7 +714,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	 */
 	private async upsertSchemaMeta(
 		schema: SchemaDefinition,
-		queryRunner: Pool | PoolClient,
+		queryRunner: PgRunner,
 	): Promise<void> {
 		const metaKey = `${DATRIX_META_KEY_PREFIX}${schema.tableName ?? schema.name}`;
 		const metaValue = JSON.stringify(schema);
@@ -755,7 +734,7 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	private async applyOperationsToMetaSchema(
 		tableName: string,
 		operations: readonly AlterOperation[],
-		queryRunner: Pool | PoolClient,
+		queryRunner: PgRunner,
 	): Promise<void> {
 		const metaKey = `${DATRIX_META_KEY_PREFIX}${tableName}`;
 		const escapedMetaTable =
@@ -843,11 +822,11 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
 	}
 
 	async exportData(writer: ExportWriter): Promise<void> {
-		await new PostgresExporter(this.pool!, this).export(writer);
+		await new PostgresExporter(this.config.runner, this).export(writer);
 	}
 
 	async importData(reader: ImportReader): Promise<void> {
-		await new PostgresImporter(this.pool!, this).import(reader);
+		await new PostgresImporter(this.config.runner, this).import(reader);
 	}
 
 	/**
@@ -886,13 +865,13 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresConfig> {
  */
 class PostgresTransaction implements Transaction {
 	readonly id: string;
-	private client: PoolClient;
+	private client: PgConnection;
 	private adapter: PostgresAdapter;
 	private committed = false;
 	private rolledBack = false;
 	private aborted = false;
 
-	constructor(client: PoolClient, adapter: PostgresAdapter, id: string) {
+	constructor(client: PgConnection, adapter: PostgresAdapter, id: string) {
 		this.client = client;
 		this.adapter = adapter;
 		this.id = id;
@@ -954,7 +933,7 @@ class PostgresTransaction implements Transaction {
 		}
 
 		try {
-			const result = await this.client.query(sql, params as unknown[]);
+			const result = await this.client.query(sql, params);
 
 			const metadata: QueryMetadata = {
 				rowCount: result.rowCount ?? 0,
@@ -1124,6 +1103,6 @@ class PostgresTransaction implements Transaction {
 /**
  * Create PostgreSQL adapter
  */
-export function createPostgresAdapter(config: PostgresConfig): PostgresAdapter {
+export function createPostgresAdapter(config: PostgresCoreConfig): PostgresAdapter {
 	return new PostgresAdapter(config);
 }

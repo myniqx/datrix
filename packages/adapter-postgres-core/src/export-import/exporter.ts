@@ -1,12 +1,12 @@
-import type { Pool } from "pg";
 import type { ExportWriter } from "@datrix/core";
 import type { PostgresAdapter } from "../adapter";
+import type { PgRunner } from "../driver";
 
 const CHUNK_SIZE = 1000;
 
 export class PostgresExporter {
 	constructor(
-		private pool: Pool,
+		private runner: PgRunner,
 		private adapter: PostgresAdapter,
 	) {}
 
@@ -40,7 +40,7 @@ export class PostgresExporter {
 		let offset = 0;
 
 		while (true) {
-			const result = await this.pool.query<Record<string, unknown>>(
+			const result = await this.runner.query<Record<string, unknown>>(
 				`SELECT * FROM ${escapedTable} ORDER BY "id" LIMIT $1 OFFSET $2`,
 				[CHUNK_SIZE, offset],
 			);

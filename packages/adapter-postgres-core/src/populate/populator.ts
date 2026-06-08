@@ -1121,7 +1121,10 @@ export class PostgresPopulator {
 		sql: string,
 		params: unknown[],
 	): Promise<(T & { _fk: number; data: T })[]> {
-		const result = await this.client.query(sql, params);
-		return result.rows as (T & { _fk: number; data: T })[];
+		const result = await this.client.query<T & { _fk: number; data: T }>(
+			sql,
+			params,
+		);
+		return result.rows;
 	}
 }

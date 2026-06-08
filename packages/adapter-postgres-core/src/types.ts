@@ -8,6 +8,7 @@ import { QuerySelectObject } from "@datrix/core";
 import { FieldDefinition, FieldType, DatrixEntry } from "@datrix/core";
 import { PopulateStrategy } from "./populate";
 import { QueryPopulate } from "@datrix/core";
+import type { PgConnection, PgRunner } from "./driver";
 
 export interface TranslateResult {
 	readonly sql: string;
@@ -16,27 +17,22 @@ export interface TranslateResult {
 }
 
 /**
- * PostgreSQL connection configuration
+ * Driver supplied to the PostgreSQL adapter. Wraps the underlying
+ * database client/pool the user wants to use (e.g. `pg`, `postgres.js`,
+ * the Neon serverless driver). The adapter never imports `pg` directly.
  */
-export interface PostgresConfig {
-	readonly host: string;
-	readonly port: number;
-	readonly database: string;
-	readonly user: string;
-	readonly password: string;
-	readonly ssl?:
-		| boolean
-		| {
-				readonly rejectUnauthorized?: boolean;
-				readonly ca?: string;
-				readonly cert?: string;
-				readonly key?: string;
-		  };
-	readonly connectionTimeoutMillis?: number;
-	readonly idleTimeoutMillis?: number;
-	readonly max?: number; // Maximum pool size
-	readonly min?: number; // Minimum pool size
-	readonly applicationName?: string;
+export interface PostgresCoreConfig {
+	/** Pooled runner for non-transactional queries. */
+	readonly runner: PgRunner;
+
+	/** Acquire a dedicated connection for a transaction. */
+	connect(): Promise<PgConnection>;
+
+	/** Verify connectivity (used by adapter.connect()). */
+	ping(): Promise<void>;
+
+	/** Release all underlying resources (used by adapter.disconnect()). */
+	end(): Promise<void>;
 }
 
 /**
