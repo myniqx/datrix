@@ -1,6 +1,6 @@
 import type { ImportReader } from "@datrix/core";
 import type { SchemaDefinition } from "@datrix/core";
-import type { PostgresAdapter } from "../adapter";
+import type { PostgresCoreAdapter } from "../adapter";
 import type { PgRunner } from "../driver";
 import { DATRIX_META_MODEL } from "@datrix/core";
 
@@ -9,7 +9,7 @@ const CHUNK_SIZE = 1000;
 export class PostgresImporter {
 	constructor(
 		private runner: PgRunner,
-		private adapter: PostgresAdapter,
+		private adapter: PostgresCoreAdapter,
 	) {}
 
 	async import(reader: ImportReader): Promise<void> {

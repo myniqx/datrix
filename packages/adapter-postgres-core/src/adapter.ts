@@ -48,7 +48,7 @@ import { ExportWriter, ImportReader } from "@datrix/core";
 /**
  * PostgreSQL adapter implementation
  */
-export class PostgresAdapter implements DatabaseAdapter<PostgresCoreConfig> {
+export class PostgresCoreAdapter implements DatabaseAdapter<PostgresCoreConfig> {
 	readonly name = "postgres";
 	readonly config: PostgresCoreConfig;
 
@@ -866,12 +866,12 @@ export class PostgresAdapter implements DatabaseAdapter<PostgresCoreConfig> {
 class PostgresTransaction implements Transaction {
 	readonly id: string;
 	private client: PgConnection;
-	private adapter: PostgresAdapter;
+	private adapter: PostgresCoreAdapter;
 	private committed = false;
 	private rolledBack = false;
 	private aborted = false;
 
-	constructor(client: PgConnection, adapter: PostgresAdapter, id: string) {
+	constructor(client: PgConnection, adapter: PostgresCoreAdapter, id: string) {
 		this.client = client;
 		this.adapter = adapter;
 		this.id = id;
@@ -1103,6 +1103,6 @@ class PostgresTransaction implements Transaction {
 /**
  * Create PostgreSQL adapter
  */
-export function createPostgresAdapter(config: PostgresCoreConfig): PostgresAdapter {
-	return new PostgresAdapter(config);
+export function createPostgresCoreAdapter(config: PostgresCoreConfig): PostgresCoreAdapter {
+	return new PostgresCoreAdapter(config);
 }

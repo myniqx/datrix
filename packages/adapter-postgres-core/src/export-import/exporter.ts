@@ -1,5 +1,5 @@
 import type { ExportWriter } from "@datrix/core";
-import type { PostgresAdapter } from "../adapter";
+import type { PostgresCoreAdapter } from "../adapter";
 import type { PgRunner } from "../driver";
 
 const CHUNK_SIZE = 1000;
@@ -7,7 +7,7 @@ const CHUNK_SIZE = 1000;
 export class PostgresExporter {
 	constructor(
 		private runner: PgRunner,
-		private adapter: PostgresAdapter,
+		private adapter: PostgresCoreAdapter,
 	) {}
 
 	async export(writer: ExportWriter): Promise<void> {

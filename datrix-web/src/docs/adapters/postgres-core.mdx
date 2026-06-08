@@ -1,0 +1,108 @@
+---
+title: PostgreSQL (core)
+description: Driver-agnostic PostgreSQL adapter — bring your own driver.
+order: 2
+---
+
+# PostgreSQL Adapter (core)
+
+```bash
+pnpm add @datrix/adapter-postgres-core
+```
+
+No `pg` dependency. You provide a `PostgresCoreConfig` implementation that wraps
+whatever PostgreSQL client you want to use — `pg`, `postgres.js`, the Neon
+serverless driver, Cloudflare Hyperdrive, etc.
+
+This is the same adapter as [`@datrix/adapter-postgres`](/docs/adapters/postgres)
+under the hood — same query translation, populate strategies, migrations, and
+field type mapping — just without a hard dependency on `pg`. Use it when:
+
+- you're targeting a serverless/edge runtime where `pg`'s TCP-based pooling doesn't work,
+- you want to use a different driver (`postgres.js`, Neon, Hyperdrive, ...),
+- or you simply don't want `pg` in your dependency tree.
+
+If you're on a standard Node.js server and already use `pg`,
+[`@datrix/adapter-postgres`](/docs/adapters/postgres) is the simpler choice — it
+implements `PostgresCoreConfig` for you.
+
+---
+
+## The `PostgresCoreConfig` contract
+
+```typescript
+interface PgQueryResult<T = Record<string, unknown>> {
+  readonly rows: T[];
+  readonly rowCount: number | null;
+}
+
+interface PgRunner {
+  query<T = Record<string, unknown>>(
+    sql: string,
+    params?: readonly unknown[],
+  ): Promise<PgQueryResult<T>>;
+}
+
+interface PgConnection extends PgRunner {
+  release(): void | Promise<void>;
+}
+
+interface PostgresCoreConfig {
+  readonly runner: PgRunner;        // pooled runner for regular queries
+  connect(): Promise<PgConnection>; // dedicated connection for transactions
+  ping(): Promise<void>;            // connectivity check (adapter.connect())
+  end(): Promise<void>;             // release all resources (adapter.disconnect())
+}
+```
+
+`runner` is used for one-off queries; `connect()` must return a dedicated
+session that keeps `BEGIN` / `COMMIT` / `ROLLBACK` / `SAVEPOINT` on the same
+connection — required for Datrix transactions.
+
+---
+
+## Example: wrapping `pg`
+
+```typescript
+import { Pool } from "pg"
+import { PostgresCoreAdapter } from "@datrix/adapter-postgres-core"
+import type { PostgresCoreConfig, PgQueryResult } from "@datrix/adapter-postgres-core"
+
+function toPgResult<T>(result: { rows: T[]; rowCount: number | null }): PgQueryResult<T> {
+  return { rows: result.rows, rowCount: result.rowCount }
+}
+
+const pool = new Pool({ connectionString: process.env.DATABASE_URL })
+
+const config: PostgresCoreConfig = {
+  runner: {
+    query: async (sql, params) => toPgResult(await pool.query(sql, params as unknown[])),
+  },
+  connect: async () => {
+    const client = await pool.connect()
+    return {
+      query: async (sql, params) => toPgResult(await client.query(sql, params as unknown[])),
+      release: () => client.release(),
+    }
+  },
+  ping: async () => {
+    const client = await pool.connect()
+    client.release()
+  },
+  end: async () => pool.end(),
+}
+
+const adapter = new PostgresCoreAdapter(config)
+```
+
+This is essentially what `@datrix/adapter-postgres` does internally — see its
+source if you want a reference implementation for another driver.
+
+---
+
+## Populate strategies, migrations, field mapping, limitations
+
+Identical to [`@datrix/adapter-postgres`](/docs/adapters/postgres) — the core
+package contains the actual adapter logic. Refer to that page for details on
+populate strategies, migration behavior, known limitations, and the
+Datrix-type-to-PostgreSQL-column mapping.

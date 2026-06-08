@@ -4,7 +4,7 @@
  * Exports all PostgreSQL adapter components.
  */
 
-export { PostgresAdapter, createPostgresAdapter } from "./adapter";
+export { PostgresCoreAdapter, createPostgresCoreAdapter } from "./adapter";
 export type { PostgresCoreConfig } from "./types";
 export type {
 	PgRunner,

@@ -13,7 +13,8 @@ queries. Pass an adapter instance to `adapter` in `defineConfig()`.
 
 | Adapter | Description |
 | --- | --- |
-| [PostgreSQL](/docs/adapters/postgres) | Production-ready. Full SQL support including transactions and migrations. |
+| [PostgreSQL](/docs/adapters/postgres) | Production-ready. Full SQL support including transactions and migrations. Uses `pg` under the hood. |
+| [PostgreSQL (core)](/docs/adapters/postgres-core) | Driver-agnostic variant of the PostgreSQL adapter — no `pg` dependency. Bring your own driver (`pg`, `postgres.js`, Neon serverless, etc.) by implementing `PostgresCoreConfig`. Useful for serverless/edge environments. |
 | [MySQL](/docs/adapters/mysql) | Production-ready. Works with MySQL 8+ and MariaDB 10.5+. |
 | [MongoDB](/docs/adapters/mongodb) | Requires a replica set for transactions. |
 | [JSON](/docs/adapters/json) | File-based. For development and testing only. |
