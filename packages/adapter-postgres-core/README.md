@@ -1,34 +1,50 @@
-# Datrix PostgreSQL Adapter
+# Datrix PostgreSQL Adapter Core
 
-PostgreSQL adapter for the Datrix framework. Provides full CRUD, relation population, migration support, and native referential integrity enforcement.
+Driver-agnostic PostgreSQL adapter core for the Datrix framework. Provides full CRUD, relation population, migration support, and native referential integrity enforcement — without depending on `pg` or any specific driver.
 
 ## Installation
 
 ```bash
-pnpm add @datrix/adapter-postgres
+pnpm add @datrix/adapter-postgres-core
 ```
 
-Requires `pg` (node-postgres) driver as a peer dependency.
+This package never imports `pg`. You provide a `PostgresCoreConfig` that wraps whatever PostgreSQL client you want to use (`pg`, `postgres.js`, the Neon serverless driver, etc.). If you just want a ready-to-use `pg`-based adapter, use `@datrix/adapter-postgres` instead, which wraps this package with a `pg` driver.
 
 ## Configuration
 
-```typescript
-import { PostgresAdapter } from "@datrix/adapter-postgres";
+Implement `PostgresCoreConfig` (see `src/driver.ts`) by wrapping your driver's pool/client:
 
-const adapter = new PostgresAdapter({
-  host: "localhost",
-  port: 5432,
-  user: "datrix",
-  password: "datrix",
-  database: "myapp",
-  max: 10,
-  min: 2,
-  connectionTimeoutMillis: 5000,
-  idleTimeoutMillis: 30000,
-  applicationName: "myapp",
-  // Optional
-  ssl: { rejectUnauthorized: false },
-});
+```typescript
+import { PostgresAdapter, PostgresCoreConfig } from "@datrix/adapter-postgres-core";
+import { Pool } from "pg";
+
+const pool = new Pool({ host: "localhost", database: "myapp" });
+
+const config: PostgresCoreConfig = {
+  runner: {
+    query: async (sql, params) => {
+      const result = await pool.query(sql, params as unknown[]);
+      return { rows: result.rows, rowCount: result.rowCount };
+    },
+  },
+  connect: async () => {
+    const client = await pool.connect();
+    return {
+      query: async (sql, params) => {
+        const result = await client.query(sql, params as unknown[]);
+        return { rows: result.rows, rowCount: result.rowCount };
+      },
+      release: () => client.release(),
+    };
+  },
+  ping: async () => {
+    const client = await pool.connect();
+    client.release();
+  },
+  end: async () => pool.end(),
+};
+
+const adapter = new PostgresAdapter(config);
 ```
 
 ## Requirements
@@ -40,11 +56,11 @@ const adapter = new PostgresAdapter({
 
 ```text
 src/
-├── adapter.ts                  # Main adapter logic & connection pool handling
+├── adapter.ts                  # Main adapter logic & connection handling
+├── driver.ts                   # Driver-agnostic contracts: PgRunner, PgConnection, PostgresCoreConfig
 ├── query-translator.ts         # Translates Datrix QueryObjects into raw SQL
-├── pg-client.ts                # Pool/PoolClient wrapper with debug logging and error mapping
+├── pg-client.ts                # PgRunner wrapper with debug logging and error mapping
 ├── types.ts                    # PostgreSQL-specific type mappings and query types
-├── test-utils.ts               # Test database setup helpers
 ├── index.ts                    # Public package exports
 └── populate/
     ├── index.ts
@@ -76,18 +92,4 @@ Migration operations map directly to native PostgreSQL DDL commands (`CREATE TAB
 
 ## Testing
 
-```bash
-# PostgreSQL (default port 5432)
-ADAPTER=postgres pnpm test
-```
-
-Docker setup for test database:
-
-```bash
-docker run -d --name postgres-test \
-  -e POSTGRES_USER=datrix_test \
-  -e POSTGRES_PASSWORD=datrix_test \
-  -e POSTGRES_DB=datrix_test \
-  -p 5432:5432 \
-  postgres:16
-```
+This package has no tests of its own — it is exercised through `@datrix/adapter-postgres`, which wraps it with a `pg` driver and runs the full integration suite against a real PostgreSQL instance.
