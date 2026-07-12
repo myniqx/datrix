@@ -10,8 +10,10 @@ import {
 	throwRelationNotFound,
 	throwInvalidRelationType,
 	throwTargetModelNotFound,
+	throwQueryError,
 } from "@datrix/core";
 import { JsonQueryRunner } from "./runner";
+import { resolveForeignKey, resolveJunctionTableName } from "./table-utils";
 
 export class JsonPopulator {
 	constructor(private adapter: JsonAdapter) {}
@@ -56,7 +58,11 @@ export class JsonPopulator {
 
 			const relField = relationField as RelationField;
 			const targetModelName = relField.model;
-			const foreignKey = relField.foreignKey!;
+			const foreignKey = resolveForeignKey(
+				relationName,
+				relField,
+				currentModelName,
+			);
 			const kind = relField.kind;
 
 			// Get target schema from adapter (cache-aware)
@@ -110,6 +116,7 @@ export class JsonPopulator {
 				}
 
 				// If where is specified, pre-filter the map using runner's match logic
+				// (single scan over the target table, not one scan per candidate row)
 				let filteredMap = relatedMap;
 				if (options?.where) {
 					filteredMap = new Map();
@@ -118,14 +125,15 @@ export class JsonPopulator {
 						this.adapter,
 						targetSchema!,
 					);
+					const matched = await filterRunner.filterAndSort({
+						type: "select",
+						table: targetTable,
+						where: options.where,
+						select: "*" as unknown as QuerySelect,
+					});
+					const matchedIds = new Set(matched.map((r) => r["id"]));
 					for (const [id, item] of relatedMap) {
-						const matched = await filterRunner.filterAndSort({
-							type: "select",
-							table: targetTable,
-							where: options.where,
-							select: "*" as unknown as QuerySelect,
-						});
-						if (matched.some((r) => r["id"] === id)) {
+						if (matchedIds.has(id)) {
 							filteredMap.set(id, item);
 						}
 					}
@@ -176,32 +184,36 @@ export class JsonPopulator {
 					const rowId = row["id"] as number;
 					let group = grouped.get(rowId) ?? [];
 
+					if (hasSortOrFilter && group.length > 0) {
+						const groupTable = { ...tableData, data: group };
+						const groupRunner = new JsonQueryRunner(
+							groupTable,
+							this.adapter,
+							targetSchema!,
+						);
+						group = (await groupRunner.filterAndSort({
+							type: "select",
+							table: targetTable,
+							where: options?.where!,
+							orderBy: options?.orderBy,
+							limit: kind === "hasOne" ? undefined : options?.limit,
+							offset: kind === "hasOne" ? undefined : options?.offset,
+							select: "*" as unknown as QuerySelect,
+						})) as unknown as Record<string, unknown>[];
+					}
+
 					if (kind === "hasOne") {
 						row[relationName as keyof T] = (group[0] ?? null) as T[keyof T];
 					} else {
-						if (hasSortOrFilter && group.length > 0) {
-							const groupTable = { ...tableData, data: group };
-							const groupRunner = new JsonQueryRunner(
-								groupTable,
-								this.adapter,
-								targetSchema!,
-							);
-							group = (await groupRunner.filterAndSort({
-								type: "select",
-								table: targetTable,
-								where: options?.where!,
-								orderBy: options?.orderBy,
-								limit: options?.limit,
-								offset: options?.offset,
-								select: "*" as unknown as QuerySelect,
-							})) as unknown as Record<string, unknown>[];
-						}
 						row[relationName as keyof T] = group as T[keyof T];
 					}
 				}
 			} else if (kind === "manyToMany") {
 				// ManyToMany uses junction table (e.g. Post <-> Tag via post_tag)
-				const junctionTableName = relField.through!;
+				const junctionTableName = resolveJunctionTableName(
+					relField,
+					currentModelName,
+				);
 				const sourceFK = `${currentModelName}Id`;
 				const targetFK = `${targetModelName}Id`;
 
@@ -209,9 +221,10 @@ export class JsonPopulator {
 				const junctionData =
 					await this.adapter.getCachedTable(junctionTableName);
 				if (!junctionData) {
-					throw new Error(
-						`Junction table '${junctionTableName}' not found for manyToMany relation '${relationName}' in schema '${currentSchema.name}'`,
-					);
+					throwQueryError({
+						adapter: "json",
+						message: `Junction table '${junctionTableName}' not found for manyToMany relation '${relationName}' in schema '${currentSchema.name}'`,
+					});
 				}
 
 				// Collect source IDs
@@ -222,7 +235,13 @@ export class JsonPopulator {
 				if (sourceIds.length === 0) continue;
 
 				// Use Runner for schema-aware filtering (handles string/number coercion)
-				const junctionRunner = new JsonQueryRunner(junctionData, this.adapter);
+				const junctionSchema =
+					await this.adapter.getSchemaByTableName(junctionTableName);
+				const junctionRunner = new JsonQueryRunner(
+					junctionData,
+					this.adapter,
+					junctionSchema ?? undefined,
+				);
 				const relevantJunctions = await junctionRunner.run({
 					type: "select",
 					table: junctionTableName,

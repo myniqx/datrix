@@ -33,7 +33,7 @@ export class JsonImporter {
 				rows.push(...chunk);
 			}
 
-			await this.writeTableFile(tableName, rows);
+			await this.writeTableFile(tableName, rows, schemas.get(tableName));
 		}
 	}
 
@@ -50,6 +50,7 @@ export class JsonImporter {
 	private async writeTableFile(
 		tableName: string,
 		rows: Record<string, unknown>[],
+		schema: SchemaDefinition | undefined,
 	): Promise<void> {
 		const fs = await import("node:fs/promises");
 		const path = await import("node:path");
@@ -65,7 +66,7 @@ export class JsonImporter {
 				version: 1,
 				lastInsertId: maxId,
 				updatedAt: new Date().toISOString(),
-				name: tableName,
+				name: schema?.name ?? tableName,
 			},
 			data: rows,
 		};

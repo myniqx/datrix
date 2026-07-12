@@ -1,6 +1,7 @@
 import {
 	DatrixEntry,
 	ForeignKeyReference,
+	RelationField,
 	SchemaDefinition,
 } from "@datrix/core";
 import { QuerySelectObject } from "@datrix/core";
@@ -14,6 +15,50 @@ import {
 	throwUniqueConstraintIndex,
 } from "@datrix/core";
 import { DATRIX_META_MODEL } from "@datrix/core";
+
+/**
+ * Fallback projection when `select` is undefined (core issue 2.2, post-write
+ * refetch): all non-hidden, non-relation scalar columns per info_core.md §3/§8.
+ * Returns undefined (no projection possible) when no schema is available.
+ */
+export function defaultSelectFromSchema<T extends DatrixEntry>(
+	schema: SchemaDefinition | undefined,
+): QuerySelectObject<T>["select"] | undefined {
+	if (!schema?.fields) return undefined;
+	const fields = Object.entries(schema.fields)
+		.filter(([, def]) => def.type !== "relation" && !def.hidden)
+		.map(([name]) => name);
+	return fields as unknown as QuerySelectObject<T>["select"];
+}
+
+/**
+ * Resolve the FK column name for a belongsTo/hasOne/hasMany relation field.
+ * Falls back to the info_core.md §5 defaults when the registry hasn't set
+ * `foreignKey` explicitly:
+ * - belongsTo: `<field>Id`
+ * - hasOne/hasMany: `<OwnerModelName>Id` (owner = the model declaring the relation)
+ */
+export function resolveForeignKey(
+	fieldName: string,
+	relationField: RelationField,
+	ownerModelName: string,
+): string {
+	if (relationField.foreignKey) return relationField.foreignKey;
+	if (relationField.kind === "belongsTo") return `${fieldName}Id`;
+	return `${ownerModelName}Id`;
+}
+
+/**
+ * Resolve the junction table name for a manyToMany relation field.
+ * Falls back to the info_core.md §5 default: alphabetically sorted `ModelA_ModelB`.
+ */
+export function resolveJunctionTableName(
+	relationField: RelationField,
+	ownerModelName: string,
+): string {
+	if (relationField.through) return relationField.through;
+	return [ownerModelName, relationField.model].sort().join("_");
+}
 
 /**
  * Validate table name for security (no null bytes, path separators, or parent refs)

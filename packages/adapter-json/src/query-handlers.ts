@@ -14,6 +14,7 @@ import {
 	applySelectRecursive,
 	checkForeignKeyConstraints,
 	checkUniqueConstraints,
+	defaultSelectFromSchema,
 } from "./table-utils";
 import type { JsonAdapter } from "./adapter";
 import type { ExecuteQueryOptions } from "./types";
@@ -44,7 +45,10 @@ export async function handleSelect<T extends DatrixEntry>(ctx: {
 		rows = await runner.filterAndSort(query);
 		const populator = new JsonPopulator(adapter);
 		rows = await populator.populate(rows, query);
-		rows = applySelectRecursive<T>(rows, query.select, query.populate) as T[];
+		// select: undefined means "all non-hidden scalar columns" (core issue 2.2,
+		// post-write refetch) — don't fall through to "keep every field".
+		const effectiveSelect = query.select ?? defaultSelectFromSchema(runner.tableSchema);
+		rows = applySelectRecursive<T>(rows, effectiveSelect, query.populate) as T[];
 	} else {
 		rows = (await runner.run(query)) as T[];
 	}

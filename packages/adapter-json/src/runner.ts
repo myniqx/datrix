@@ -17,7 +17,13 @@ import type { JsonAdapter } from "./adapter";
 import {
 	throwInvalidRelationWhereSyntax,
 	throwInvalidWhereField,
+	throwQueryError,
 } from "@datrix/core";
+import {
+	resolveForeignKey,
+	resolveJunctionTableName,
+	defaultSelectFromSchema,
+} from "./table-utils";
 
 export class JsonQueryRunner {
 	private schema: SchemaDefinition | undefined;
@@ -66,12 +72,8 @@ export class JsonQueryRunner {
 			return result;
 		}
 
-		// 3. Project & Distinct
-		if (query.select || query.distinct) {
-			result = this.project(result, query.select, query.distinct) as T[];
-		}
-
-		// 4. Sort (mutates array in-place)
+		// 2. Sort (mutates array in-place) — must run BEFORE projection, since
+		// orderBy may reference a field that isn't in `select`.
 		if (query.orderBy && query.orderBy.length > 0) {
 			result.sort((a, b) =>
 				this.sort(
@@ -82,13 +84,21 @@ export class JsonQueryRunner {
 			);
 		}
 
-		// 5. Offset/Limit
+		// 3. Offset/Limit
 		const offset = query.offset ?? 0;
 
 		if (query.limit !== undefined) {
 			result = result.slice(offset, offset + query.limit);
 		} else if (offset > 0) {
 			result = result.slice(offset);
+		}
+
+		// 4. Project & Distinct (distinct must run AFTER projection — it dedupes
+		// the projected shape, not the raw rows)
+		const effectiveSelect =
+			query.select ?? defaultSelectFromSchema<T>(this.schema);
+		if (effectiveSelect || query.distinct) {
+			result = this.project(result, effectiveSelect, query.distinct) as T[];
 		}
 
 		return result;
@@ -311,7 +321,11 @@ export class JsonQueryRunner {
 		relationWhere: WhereClause<T>,
 		relationField: RelationField,
 	): Promise<boolean> {
-		const foreignKey = relationField.foreignKey!;
+		const foreignKey = resolveForeignKey(
+			relationName,
+			relationField,
+			this.schema?.name ?? "",
+		);
 		const targetModelName = relationField.model;
 		const kind = relationField.kind;
 
@@ -404,10 +418,10 @@ export class JsonQueryRunner {
 
 		if (kind === "manyToMany") {
 			// Junction table bridges this record and target records
-			const junctionTableName = relationField.through;
-			if (!junctionTableName) {
-				return false;
-			}
+			const junctionTableName = resolveJunctionTableName(
+				relationField,
+				this.schema?.name ?? "",
+			);
 
 			const sourceId = item["id"] as number | string | undefined;
 			if (sourceId === null || sourceId === undefined) {
@@ -611,6 +625,7 @@ export class JsonQueryRunner {
 				case "$like":
 				case "$ilike": {
 					const pattern = (opValue as string)
+						.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 						.replace(/%/g, ".*")
 						.replace(/_/g, ".");
 					const flags = op === "$ilike" ? "i" : "";
@@ -620,6 +635,14 @@ export class JsonQueryRunner {
 				}
 				case "$contains":
 					if (!String(value ?? "").includes(String(opValue))) return false;
+					break;
+				case "$icontains":
+					if (
+						!String(value ?? "")
+							.toLowerCase()
+							.includes(String(opValue).toLowerCase())
+					)
+						return false;
 					break;
 				case "$notContains":
 					if (String(value ?? "").includes(String(opValue))) return false;
@@ -635,6 +658,17 @@ export class JsonQueryRunner {
 					if (opValue && (value === null || value === undefined)) return false;
 					if (!opValue && value !== null && value !== undefined) return false;
 					break;
+				case "$regex": {
+					const regex =
+						opValue instanceof RegExp ? opValue : new RegExp(opValue as string);
+					if (!regex.test(String(value ?? ""))) return false;
+					break;
+				}
+				default:
+					throwQueryError({
+						adapter: "json",
+						message: `Unsupported operator '${op}' for field '${fieldName}'`,
+					});
 			}
 		}
 		return true;

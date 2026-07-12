@@ -119,6 +119,10 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 	}
 
 	async disconnect(): Promise<void> {
+		if (this.activeTransactionCache) {
+			await this.rollbackTransaction();
+		}
+		this.cache.clear();
 		this.state = "disconnected";
 	}
 
@@ -154,7 +158,11 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 
 		// 1. Check tombstone first - table was dropped in this transaction
 		if (this.activeTransactionDeletedTables?.has(tableName)) {
-			throw new Error(`Table '${tableName}' does not exist`);
+			throwMigrationError({
+				adapter: "json",
+				message: `Table '${tableName}' does not exist`,
+				table: tableName,
+			});
 		}
 
 		// 2. Check transaction cache (if transaction active)
@@ -279,7 +287,11 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 			(r) => (r as Record<string, unknown>)["key"] === metaKey,
 		);
 		if (!row) {
-			throw new Error(`Schema for '${tableName}' not found in _datrix`);
+			throwMigrationError({
+				adapter: "json",
+				message: `Schema for '${tableName}' not found in _datrix`,
+				table: tableName,
+			});
 		}
 		return JSON.parse(
 			(row as Record<string, unknown>)["value"] as string,
@@ -605,7 +617,18 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		} else {
 			// Normal mode: delete from disk
 			const filePath = this.getTablePath(tableName);
-			await fs.unlink(filePath);
+			try {
+				await fs.unlink(filePath);
+			} catch (err) {
+				if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+					throwMigrationError({
+						adapter: "json",
+						message: `Failed to delete table '${tableName}': ${err instanceof Error ? err.message : String(err)}`,
+						table: tableName,
+						cause: err instanceof Error ? err : new Error(String(err)),
+					});
+				}
+			}
 			this.invalidateCache(tableName);
 		}
 
@@ -694,10 +717,15 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 			try {
 				tableData = await this.readTable(query.table);
 			} catch (err) {
-				if (lockAcquired) await this.lock.release();
+				const message =
+					err instanceof Error && err.name === "SyntaxError"
+						? `Table file '${query.table}.json' is corrupted: ${err.message}`
+						: err instanceof Error && (err as NodeJS.ErrnoException).code === "ENOENT"
+							? `Table '${query.table}' not found`
+							: `Failed to read table '${query.table}': ${err instanceof Error ? err.message : String(err)}`;
 				throwQueryError({
 					adapter: "json",
-					message: `Table '${query.table}' not found`,
+					message,
 					query: query as QueryObject,
 					cause: err instanceof Error ? err : new Error(String(err)),
 				});
@@ -718,18 +746,11 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 
 			const runner = new JsonQueryRunner(tableData!, this, tableSchema);
 
-			let handlerResult: Awaited<ReturnType<typeof handleSelect>>;
+			let handlerResult: Awaited<ReturnType<typeof handleSelect>> | undefined;
 
 			switch (query.type) {
 				case "count":
 					handlerResult = await handleCount({ runner, query });
-					if (handlerResult.earlyReturn) {
-						if (lockAcquired) await this.lock.release();
-						return {
-							rows: [] as TResult[],
-							metadata: handlerResult.metadata,
-						};
-					}
 					break;
 				case "select":
 					handlerResult = await handleSelect({ runner, query, adapter: this });
@@ -748,6 +769,13 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 						queryOptions: { skipLock: true, skipWrite },
 					});
 					break;
+			}
+
+			if (handlerResult!.earlyReturn) {
+				return {
+					rows: [] as TResult[],
+					metadata: handlerResult!.metadata,
+				};
 			}
 
 			const rows = handlerResult!.rows as TResult[];
@@ -776,15 +804,12 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 
 			metadata.rowCount = rows.length;
 
-			if (lockAcquired) await this.lock.release();
-
 			return {
 				rows: rows as TResult[],
 				metadata,
 			};
-		} catch (error) {
+		} finally {
 			if (lockAcquired) await this.lock.release();
-			throw error;
 		}
 	}
 
@@ -1083,16 +1108,45 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 			await this.updateCache(to, json);
 		}
 
-		// Update key in _datrix
+		// Update key + schema content in _datrix, and fix up any FK references
+		// in OTHER schemas that pointed at the renamed table.
 		if (from !== DATRIX_META_MODEL && to !== DATRIX_META_MODEL) {
 			const oldKey = `${DATRIX_META_KEY_PREFIX}${from}`;
 			const newKey = `${DATRIX_META_KEY_PREFIX}${to}`;
 			const metaFile = await this.readTable(DATRIX_META_MODEL);
-			const row = metaFile.data.find(
-				(r) => (r as Record<string, unknown>)["key"] === oldKey,
-			);
-			if (row) {
-				(row as Record<string, unknown>)["key"] = newKey;
+			let metaChanged = false;
+
+			for (const r of metaFile.data) {
+				const record = r as Record<string, unknown>;
+				const key = record["key"];
+				if (typeof key !== "string" || !key.startsWith(DATRIX_META_KEY_PREFIX)) {
+					continue;
+				}
+
+				let schema = JSON.parse(record["value"] as string) as SchemaDefinition;
+				let schemaChanged = false;
+
+				if (key === oldKey) {
+					record["key"] = newKey;
+					schema = { ...schema, tableName: to };
+					schemaChanged = true;
+				}
+
+				for (const field of Object.values(schema.fields)) {
+					const ref = (field as { references?: { table: string } }).references;
+					if (ref?.table === from) {
+						(ref as { table: string }).table = to;
+						schemaChanged = true;
+					}
+				}
+
+				if (schemaChanged) {
+					record["value"] = JSON.stringify(schema);
+					metaChanged = true;
+				}
+			}
+
+			if (metaChanged) {
 				metaFile.meta.updatedAt = new Date().toISOString();
 
 				if (skipWrite) {
@@ -1149,7 +1203,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		const files = await fs.readdir(this.config.root);
 		const tables = files
 			.filter((f) => f.endsWith(".json"))
-			.map((f) => f.replace(".json", ""));
+			.map((f) => f.slice(0, -".json".length));
 		return tables;
 	}
 
