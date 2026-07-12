@@ -494,12 +494,18 @@ export class PostgresQueryTranslator implements QueryTranslator {
 
 	/**
 	 * Translate SELECT fields with aliases
+	 *
+	 * `select` should always be a concrete field list by the time it reaches
+	 * the adapter (core issue 2.2). If it arrives undefined/empty anyway,
+	 * fail safe with just "id" rather than crashing or guessing the full
+	 * column list.
 	 */
 	private translateSelectClause<T extends DatrixEntry>(
-		select: QuerySelect<T>,
+		select: QuerySelect<T> | undefined,
 		tableAlias?: string,
 	): string {
-		return select
+		const fields = select && select.length > 0 ? select : (["id"] as const);
+		return fields
 			.map((field) => {
 				const escaped = this.escapeIdentifier(field as string);
 				return tableAlias

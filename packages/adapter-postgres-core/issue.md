@@ -181,7 +181,15 @@ none of these):
 
 ## Section B — Decision-required issues (one Part per session)
 
-### Part 1 — `select: undefined` crashes the translator (core issue 2.2 survival)
+### Part 1 — `select: undefined` crashes the translator (core issue 2.2 survival) ✅ DONE
+
+**Resolution (deviates from both options above).** Discussed with the user: core sending
+`select: undefined` is purely core issue 2.2 (core must always normalize `select` before it
+reaches the adapter) — the adapter should not try to reconstruct "all non-hidden scalar columns"
+from the registry, since that guesses at contract behavior the adapter shouldn't own. Instead the
+adapter fails safe with the minimal always-valid column: `["id"]`. Implemented in
+`translateSelectClause` (query-translator.ts) and both populator batch-select spread sites
+(populator.ts, `executeLateralJoins` and `executeBatchedQueries`).
 
 **Problem.** Contract §3/§8: post-write refetch may arrive with `select: undefined`, and the
 adapter must treat it as "all non-hidden scalar columns". Today it crashes:

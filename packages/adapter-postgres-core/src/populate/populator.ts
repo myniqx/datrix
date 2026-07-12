@@ -176,13 +176,17 @@ export class PostgresPopulator {
 		}
 
 		// Run main query without populate
+		const baseSelect =
+			query.select && (query.select as string[]).length > 0
+				? (query.select as string[])
+				: ["id"];
 		const mainQuery: QuerySelectObject<T> =
 			fkColumnsNeeded.length > 0
 				? {
 						...query,
 						populate: undefined,
 						select: [
-							...(query.select as string[]),
+							...baseSelect,
 							...fkColumnsNeeded,
 						] as unknown as QuerySelectObject<T>["select"],
 					}
@@ -453,12 +457,16 @@ export class PostgresPopulator {
 		}
 
 		// Inject FK columns into the select list if needed
+		const baseSelect =
+			query.select && (query.select as string[]).length > 0
+				? (query.select as string[])
+				: ["id"];
 		const queryWithFks: QuerySelectObject<T> =
 			fkColumnsNeeded.length > 0
 				? {
 						...query,
 						select: [
-							...(query.select as string[]),
+							...baseSelect,
 							...fkColumnsNeeded,
 						] as unknown as QuerySelectObject<T>["select"],
 					}
