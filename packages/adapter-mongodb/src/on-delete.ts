@@ -59,8 +59,21 @@ export async function applyOnDeleteActions<T extends DatrixEntry>(
 	idsToDelete: readonly number[],
 	client: MongoClient<T>,
 	schemaRegistry: ISchemaRegistry,
+	visited: Set<string> = new Set(),
 ): Promise<void> {
 	if (idsToDelete.length === 0) return;
+
+	// Cyclic FK graphs (A.fk -> B cascade, B.fk -> A cascade) would otherwise
+	// recurse forever: the recursion keeps finding the still-existing original
+	// rows on the way back around the cycle. Track (table, id) pairs already
+	// scheduled for cascade and drop any that repeat.
+	const survivingIds = idsToDelete.filter(
+		(id) => !visited.has(`${targetTable}:${id}`),
+	);
+	if (survivingIds.length === 0) return;
+	for (const id of survivingIds) {
+		visited.add(`${targetTable}:${id}`);
+	}
 
 	const deps = findFkDependencies(targetTable, schemaRegistry);
 	if (deps.length === 0) return;
@@ -76,7 +89,7 @@ export async function applyOnDeleteActions<T extends DatrixEntry>(
 			`onDelete:restrict:${dep.tableName}`,
 			() =>
 				col.countDocuments(
-					{ [dep.fieldName]: { $in: idsToDelete } },
+					{ [dep.fieldName]: { $in: survivingIds } },
 					sessionOpts,
 				),
 		);
@@ -105,7 +118,7 @@ export async function applyOnDeleteActions<T extends DatrixEntry>(
 		const col = client.getCollection(dep.tableName);
 		await client.execute(`onDelete:setNull:${dep.tableName}`, () =>
 			col.updateMany(
-				{ [dep.fieldName]: { $in: idsToDelete } },
+				{ [dep.fieldName]: { $in: survivingIds } },
 				{ $set: { [dep.fieldName]: null } },
 				sessionOpts,
 			),
@@ -122,7 +135,7 @@ export async function applyOnDeleteActions<T extends DatrixEntry>(
 			() =>
 				col
 					.find(
-						{ [dep.fieldName]: { $in: idsToDelete } },
+						{ [dep.fieldName]: { $in: survivingIds } },
 						{ ...sessionOpts, projection: { _id: 0, id: 1 } },
 					)
 					.toArray(),
@@ -131,8 +144,15 @@ export async function applyOnDeleteActions<T extends DatrixEntry>(
 		const childIds = childDocs.map((d) => d["id"] as number);
 		if (childIds.length === 0) continue;
 
-		// Recursive: apply onDelete for children before deleting them
-		await applyOnDeleteActions(dep.tableName, childIds, client, schemaRegistry);
+		// Recursive: apply onDelete for children before deleting them, passing
+		// `visited` through so the cycle guard applies across the whole tree.
+		await applyOnDeleteActions(
+			dep.tableName,
+			childIds,
+			client,
+			schemaRegistry,
+			visited,
+		);
 
 		await client.execute(`onDelete:cascade:delete:${dep.tableName}`, () =>
 			col.deleteMany({ id: { $in: childIds } }, sessionOpts),

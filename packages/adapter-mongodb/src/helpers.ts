@@ -66,24 +66,45 @@ export async function getNextIds(
 	count: number,
 ): Promise<number> {
 	const counterKey = `${COUNTER_KEY_PREFIX}${collectionName}`;
+	const MAX_ATTEMPTS = 3;
 
-	const result = await metaCollection.findOneAndUpdate(
-		{ key: counterKey },
-		{ $inc: { value: count } },
-		{
-			upsert: true,
-			returnDocument: "after",
-		},
-	);
+	for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+		try {
+			const result = await metaCollection.findOneAndUpdate(
+				{ key: counterKey },
+				{ $inc: { value: count } },
+				{
+					upsert: true,
+					returnDocument: "after",
+				},
+			);
 
-	if (!result) {
-		throwQueryError({
-			adapter: "mongodb",
-			message: `Failed to generate auto-increment ID for collection '${collectionName}'`,
-		});
+			if (!result) {
+				throwQueryError({
+					adapter: "mongodb",
+					message: `Failed to generate auto-increment ID for collection '${collectionName}'`,
+				});
+			}
+
+			const lastId = result!["value"] as number;
+			// Return the first ID in the reserved range
+			return lastId - count + 1;
+		} catch (error) {
+			// The upsert on a missing counter doc is not atomic across concurrent
+			// callers: two first-ever inserts can both attempt the upsert, and
+			// the loser gets an E11000 on the unique `key` index. The doc exists
+			// now, so retrying takes the $inc path instead of upserting again.
+			const mongoError = error as { code?: number };
+			if (mongoError.code === 11000 && attempt < MAX_ATTEMPTS) {
+				continue;
+			}
+			throw error;
+		}
 	}
 
-	const lastId = result!["value"] as number;
-	// Return the first ID in the reserved range
-	return lastId - count + 1;
+	// Unreachable: the loop always returns or throws.
+	throwQueryError({
+		adapter: "mongodb",
+		message: `Failed to generate auto-increment ID for collection '${collectionName}' after ${MAX_ATTEMPTS} attempts`,
+	});
 }
