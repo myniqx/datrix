@@ -551,6 +551,19 @@ export class JsonQueryRunner {
 			return Boolean(itemValue) === Boolean(queryValue);
 		}
 
+		if (fieldType === "date") {
+			if (itemValue === null || itemValue === undefined) {
+				return itemValue === queryValue;
+			}
+			const itemTime = new Date(itemValue as string | number | Date).getTime();
+			const queryTime = new Date(
+				queryValue as string | number | Date,
+			).getTime();
+			return (
+				!isNaN(itemTime) && !isNaN(queryTime) && itemTime === queryTime
+			);
+		}
+
 		// Default: strict equality
 		return itemValue === queryValue;
 	}
@@ -696,6 +709,11 @@ export class JsonQueryRunner {
 
 		if (fieldType === "string") {
 			return String(value);
+		}
+
+		if (fieldType === "date") {
+			const time = new Date(value as string | number | Date).getTime();
+			return isNaN(time) ? value : time;
 		}
 
 		return value;

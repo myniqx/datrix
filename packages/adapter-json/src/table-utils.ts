@@ -115,6 +115,60 @@ export async function createMetaTable(adapter: JsonAdapter): Promise<void> {
 }
 
 /**
+ * Normalize `date` fields to ISO strings before they're written to a table
+ * file. Canonical on-disk representation for dates is ISO string (per
+ * issue.md Part 1) — this keeps `.json` files human-readable and gives
+ * `compareValues`/`coerceForComparison` a single, parseable representation to
+ * work with, regardless of whether the value arrived as a `Date` object or an
+ * already-serialized ISO string.
+ */
+export function normalizeDatesForStorage(
+	schema: SchemaDefinition | undefined,
+	data: Record<string, unknown>,
+): void {
+	if (!schema?.fields) return;
+
+	for (const [fieldName, fieldDef] of Object.entries(schema.fields)) {
+		if (fieldDef.type !== "date") continue;
+		const value = data[fieldName];
+		if (value === undefined || value === null) continue;
+
+		const date = value instanceof Date ? value : new Date(value as string | number);
+		if (!isNaN(date.getTime())) {
+			data[fieldName] = date.toISOString();
+		}
+	}
+}
+
+/**
+ * Convert `date` fields on a row back to `Date` objects at the adapter's
+ * result boundary. Storage is ISO strings (see `normalizeDatesForStorage`),
+ * but info_core.md §1 requires adapters to return `Date` objects for date
+ * fields.
+ */
+export function hydrateDatesFromStorage<T extends DatrixEntry>(
+	schema: SchemaDefinition | undefined,
+	row: T,
+): T {
+	if (!schema?.fields) return row;
+
+	const record = row as Record<string, unknown>;
+
+	for (const [fieldName, fieldDef] of Object.entries(schema.fields)) {
+		if (fieldDef.type !== "date") continue;
+		const value = record[fieldName];
+		if (value === undefined || value === null || value instanceof Date) continue;
+
+		const date = new Date(value as string | number);
+		if (!isNaN(date.getTime())) {
+			record[fieldName] = date;
+		}
+	}
+
+	return row;
+}
+
+/**
  * Apply default values from schema for fields not provided.
  * Mimics SQL DEFAULT behavior.
  */
@@ -135,6 +189,23 @@ export function applyDefaultValues(
 }
 
 /**
+ * Tracks unique values already claimed earlier in the SAME batch
+ * (insert/update loop), so a later item in the batch is checked against
+ * sibling items too — not just against rows already on disk. Without this,
+ * updating two rows to the same unique value in one batch call passes both
+ * checks (each only sees the other's OLD value) and both get persisted (see
+ * issue.md Part 8).
+ */
+export type PendingUniqueValues = {
+	fields: Map<string, Set<unknown>>;
+	indexes: Map<string, Set<string>>;
+};
+
+export function createPendingUniqueValues(): PendingUniqueValues {
+	return { fields: new Map(), indexes: new Map() };
+}
+
+/**
  * Check unique constraints before insert/update.
  * Validates field-level unique and composite unique indexes.
  */
@@ -143,6 +214,7 @@ export function checkUniqueConstraints(
 	schema: SchemaDefinition | undefined,
 	newData: Record<string, unknown>,
 	excludeId?: number | string,
+	pending?: PendingUniqueValues,
 ): void {
 	if (!schema?.fields) return;
 
@@ -159,13 +231,21 @@ export function checkUniqueConstraints(
 			(row) => row[fieldName] === value && row["id"] !== excludeId,
 		);
 
-		if (duplicate) {
+		const pendingSet = pending?.fields.get(fieldName);
+		const claimedInBatch = pendingSet?.has(value);
+
+		if (duplicate || claimedInBatch) {
 			throwUniqueConstraintField({
 				field: fieldName,
 				value,
 				adapter: "json",
 				table: schema.tableName ?? "unknown",
 			});
+		}
+
+		if (pending) {
+			if (!pendingSet) pending.fields.set(fieldName, new Set([value]));
+			else pendingSet.add(value);
 		}
 	}
 
@@ -185,7 +265,20 @@ export function checkUniqueConstraints(
 				row["id"] !== excludeId,
 		);
 
-		if (duplicate) {
+		const indexKey = index.fields.join(" ");
+		const compositeValue = JSON.stringify(indexValues);
+		const pendingIndexSet = pending?.indexes.get(indexKey);
+		const claimedInBatch = pendingIndexSet?.has(compositeValue);
+
+		if (pending) {
+			if (!pendingIndexSet) {
+				pending.indexes.set(indexKey, new Set([compositeValue]));
+			} else {
+				pendingIndexSet.add(compositeValue);
+			}
+		}
+
+		if (duplicate || claimedInBatch) {
 			throwUniqueConstraintIndex({
 				fields: index.fields,
 				table: schema.tableName ?? "unknown",

@@ -60,6 +60,13 @@ export interface ExecuteQueryOptions {
 	skipLock?: boolean;
 	/** Skip writing to disk (transaction will write on commit) */
 	skipWrite?: boolean;
+	/**
+	 * Set when the call originates from the active JsonTransaction.
+	 * Only calls carrying this flag see the transaction cache/tombstones —
+	 * plain (non-transactional) queries always read main cache/disk, even
+	 * while a transaction is in progress, avoiding dirty reads.
+	 */
+	inTransaction?: boolean;
 }
 
 /**
@@ -72,4 +79,9 @@ export interface SchemaOperationOptions {
 	skipWrite?: boolean;
 	/** Skip _datrix metadata operations (used during import) */
 	isImport?: boolean;
+	/**
+	 * Set when the call originates from the active JsonTransaction.
+	 * See `ExecuteQueryOptions.inTransaction`.
+	 */
+	inTransaction?: boolean;
 }

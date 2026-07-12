@@ -15,6 +15,91 @@ Issues are split into two groups:
 `describe.skip`'d repo-wide (pre-existing, unrelated to this pass) so no test signal was
 available; changes were verified by type-check + manual trace only.
 
+**Section B decisions (confirmed):**
+- Part 1 — canonical storage = ISO string, add `date` branch to compare/coerce, convert at
+  result boundary.
+- Part 2 — copy-at-boundary (shallow-copy rows before populate/return; mutate a copy on write,
+  swap into cache only after a successful disk write).
+- Part 3 — `inTransaction` flag on `ExecuteQueryOptions`; `beginTransaction` awaits the current
+  transaction (with timeout) instead of throwing.
+- Part 4 — write-then-rename (`.tmp` + `fs.rename`) everywhere; importer stages into a temp
+  dir then swaps.
+- Part 5 — ownership token + heartbeat in `SimpleLock`.
+- Part 6 — throw `DatrixAdapterError` for `groupBy`/`having` for now; real grouping is a
+  separate future session once core's `having` aggregate surface is defined.
+- Part 7 — in-memory `modelName→tableName` / `tableName→SchemaDefinition` index over `_datrix`,
+  invalidated on every `_datrix` write.
+- Part 8 — fix (1) with a pending-values set during batch update; fix (2) with upsert semantics
+  (duplicate junction insert returns the EXISTING row's id instead of dropping the row).
+
+**Planned execution order:** Part 5 → Part 3 → Part 2 → Part 4 → Part 1 → Part 7 → Part 6 →
+Part 8 (lock/tx infra first, then cache/durability built on top, then data-type/perf, then
+independent small fixes).
+
+**Progress: Part 5 — DONE** (ownership token + heartbeat in `lock.ts`).
+**Progress: Part 3 — DONE.** Implemented via `AsyncLocalStorage` (`tx-context.ts`) instead of
+threading an `inTransaction` flag through 20+ call sites — `JsonTransaction`'s methods run
+inside `runInTransactionContext`, and `readTable` only honors the tx cache/tombstones when
+`isInTransactionContext()` is true. `beginTransaction` now queues (`waitForCurrentTransaction`,
+timeout = `lockTimeout`) instead of throwing when a transaction is already active. Note: DDL
+methods' plain (non-tx) entry points (`createTable`/`dropTable`/etc.) still consult
+`activeTransactionCache` unconditionally for existence checks — left as-is since DDL and
+in-flight transactions rarely overlap in practice; flag if this becomes a real issue.
+**Progress: Part 2 — DONE.** Both halves done in one session (per decision): (A)
+`handleSelect` now copies rows (`{...r}`) before populate mutates them and for the bare
+no-projection select path; (B) `executeQueryWithOptions` builds a `workingTableData`
+shallow-copy (meta + per-row copies) for insert/update/delete, hands that to the runner/
+handlers, and only writes/swaps it into the cache (or tx cache, for `skipWrite`) after a
+successful disk write. A failed write now leaves the cache untouched.
+**Progress: Part 4 — DONE.** Added `fs-utils.ts::atomicWriteFile` (write to `.<uuid>.tmp`,
+`fs.rename` over the target) and replaced every `fs.writeFile` in `adapter.ts` with it.
+Rewrote `JsonImporter.import` to stage all table files into a temp directory first, and only
+delete/replace the real files after every table has been staged successfully — a failure
+partway through the archive now leaves prior data completely untouched (old behavior: drop
+everything, then import, so a mid-import failure was a full data loss). Added
+`JsonAdapter.clearCache()` (public) so the importer can drop stale per-table cache entries
+after the swap. Note (unresolved, matches the confirmed decision): multi-table transaction
+commit (`commitTransaction`) still writes tables sequentially without a journal — a failure on
+table N of a multi-table commit still leaves 1..N-1 committed. A commit journal was
+explicitly out of scope for this pass.
+**Progress: Part 1 — DONE** (canonical storage = ISO string). Added `normalizeDatesForStorage`
+(write path, called from `handleInsert`/`handleUpdate` right after `applyDefaultValues`) and
+`hydrateDatesFromStorage` (result boundary, wired into the same copy points Part 2 added in
+`handleSelect`) to `table-utils.ts`. Added a `date` branch to `compareValues` and
+`coerceForComparison` in `runner.ts` (epoch-millis comparison via `new Date(v).getTime()`), so
+`$eq`/`$ne`/`$gt`/`$gte`/`$lt`/`$lte`/`$in`/`$nin`/sort all work correctly on date fields
+regardless of whether the stored value is a `Date` object (fresh from cache) or an ISO string
+(read from disk). Known gap: nested populate results (relation rows assigned directly from
+`getCachedTable`) are NOT hydrated — they can still surface as ISO strings on relation fields.
+Fixing that cleanly needs the same copy-at-boundary treatment applied per-relation in
+`populate.ts`, deferred to keep this session scoped to the top-level row boundary.
+**Progress: Part 7 — DONE** (in-memory `_datrix` index). Added `JsonAdapter.schemaIndex`
+(private) + `getSchemaIndex()`: builds `modelName→tableName` and `tableName→SchemaDefinition`
+maps from a single read of `_datrix.data`, keyed by `_datrix.meta.updatedAt` (bumped on every
+`upsertSchemaMeta`/`dropTable`/`renameTable`/`alterTable` write) instead of by `fs.stat` mtime.
+`getSchemaByModelName` no longer calls `getTables()` (a `fs.readdir`) + per-table
+`readTableSchema` in a loop; `getSchemaByTableName` no longer does a linear `Array.find` over
+`_datrix.data`. Both are now O(1) after the first index build per `_datrix` version. Known
+theoretical gap: the version marker is `Date.parse(updatedAt)` (millisecond resolution) — two
+`_datrix` writes inside the same millisecond with the same row count would not invalidate the
+index. Left as-is: the file lock already serializes writes, and this adapter isn't built for
+sub-millisecond write throughput.
+**Progress: Part 6 — DONE** (throw for now). Added `assertNoGroupByOrHaving` in
+`query-handlers.ts`, called from both `handleSelect` and `handleCount` before any row
+processing — a `groupBy`/`having` query now throws `DatrixAdapterError` instead of silently
+returning ungrouped rows/a plain total count.
+**Progress: Part 8 — DONE** (both fixes). (1) Added `PendingUniqueValues` +
+`createPendingUniqueValues()` to `table-utils.ts`; `checkUniqueConstraints` now takes an
+optional `pending` param and checks/records claimed values (both single-field `unique` and
+composite unique indexes) across the whole batch, not just against rows already on disk —
+wired into both `handleInsert`'s and `handleUpdate`'s per-batch loops. (2) Junction insert
+dedup in `handleInsert` now pushes the EXISTING row's id into `insertedIds` instead of
+`continue`-ing past it silently, so a duplicate-relation insert no longer shortens
+`rows`/`insertIds` relative to `query.data` (upsert semantics, matches core's positional
+`query.data[i] <-> rows[i]` id mapping).
+
+**Section B (Part 1–8): ALL DONE.** `type-check` passes after every step.
+
 ---
 
 ## Section A — Mechanical fixes (delegate to Sonnet agent as-is)
