@@ -409,12 +409,17 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 			{ filter: op.filter },
 		);
 
+		// Contract §3: delete must return the deleted rows. We already
+		// pre-fetched their ids above (needed for ON DELETE actions) — reuse
+		// them instead of returning an empty array.
+		const idRows = docsToDelete.map((doc) => ({ id: doc["id"] })) as TResult[];
+
 		const metadata: QueryMetadata = {
 			rowCount: result.deletedCount,
 			affectedRows: result.deletedCount,
 		};
 
-		return { rows: [] as unknown as readonly TResult[], metadata };
+		return { rows: idRows, metadata };
 	}
 
 	private async executeCountOp<TResult extends DatrixEntry>(
@@ -446,6 +451,16 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 		query: QuerySelectObject<TResult>,
 		client: MongoClient<TResult>,
 	): Promise<QueryResult<TResult>> {
+		// MongoDB treats limit(0) as "no limit" (batched strategy) and the
+		// lookup strategy would push { $limit: 0 }, which is a server error —
+		// short-circuit the same way executeFindOp already does.
+		if (query.limit === 0) {
+			return {
+				rows: [] as unknown as readonly TResult[],
+				metadata: { rowCount: 0, affectedRows: 0 },
+			};
+		}
+
 		const populator = new MongoDBPopulator(
 			client,
 			this._schemas!,
@@ -765,6 +780,32 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 					{ $set: { key: newKey } },
 				);
 
+				// The `key` was just updated, but the JSON stored in `value` still
+				// contains the stale tableName from before the rename. Patch it so
+				// getTableSchema(to) doesn't return a schema pointing at `from`
+				// forever (which would make migration diffing see a phantom rename).
+				const renamedDoc = await metaCollection.findOne({ key: newKey });
+				if (renamedDoc) {
+					const renamedSchema = JSON.parse(
+						renamedDoc["value"] as string,
+					) as SchemaDefinition;
+					if (renamedSchema.tableName !== to) {
+						const patchedSchema: SchemaDefinition = {
+							...renamedSchema,
+							tableName: to,
+						};
+						await metaCollection.updateOne(
+							{ key: newKey },
+							{
+								$set: {
+									value: JSON.stringify(patchedSchema),
+									updatedAt: new Date(),
+								},
+							},
+						);
+					}
+				}
+
 				// Rename counter key
 				const oldCounterKey = `${COUNTER_KEY_PREFIX}${from}`;
 				const newCounterKey = `${COUNTER_KEY_PREFIX}${to}`;
@@ -772,6 +813,11 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 					{ key: oldCounterKey },
 					{ $set: { key: newCounterKey } },
 				);
+
+				// Other stored schemas may reference the renamed collection via
+				// `fields.*.references.table` — patch those too, otherwise they
+				// keep pointing at a collection name that no longer exists.
+				await this.patchStaleReferences(metaCollection, from, to);
 			}
 		} catch (error) {
 			if (error instanceof DatrixAdapterError) throw error;
@@ -784,10 +830,54 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 		}
 	}
 
+	/**
+	 * Scan every stored schema in `_datrix` and patch any FK
+	 * `fields.*.references.table` value that still points at the old
+	 * collection name after a rename, writing back only when changed.
+	 */
+	private async patchStaleReferences(
+		metaCollection: Collection<Document>,
+		from: string,
+		to: string,
+	): Promise<void> {
+		const docs = await metaCollection
+			.find({ key: { $regex: `^${DATRIX_META_KEY_PREFIX}` } })
+			.toArray();
+
+		for (const doc of docs) {
+			const schema = JSON.parse(doc["value"] as string) as SchemaDefinition;
+			let changed = false;
+
+			// The schema was just parsed from JSON, so it is a plain mutable
+			// object at runtime even though SchemaDefinition types it readonly.
+			for (const fieldDef of Object.values(schema.fields)) {
+				const numField = fieldDef as unknown as {
+					references?: { table?: string };
+				};
+				if (numField.references && numField.references.table === from) {
+					numField.references.table = to;
+					changed = true;
+				}
+			}
+
+			if (changed) {
+				await metaCollection.updateOne(
+					{ key: doc["key"] as string },
+					{
+						$set: {
+							value: JSON.stringify(schema),
+							updatedAt: new Date(),
+						},
+					},
+				);
+			}
+		}
+	}
+
 	async alterTable(
 		tableName: string,
 		operations: readonly AlterOperation[],
-		_session?: ClientSession,
+		session?: ClientSession,
 	): Promise<void> {
 		if (!this.db) {
 			throwNotConnected({ adapter: "mongodb" });
@@ -795,6 +885,11 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 
 		try {
 			const collection = this.db!.collection(tableName);
+			// updateMany/findOne/updateOne fully support sessions (unlike
+			// collection DDL, which MongoDB genuinely can't run in a
+			// transaction) — thread it through so a migration rollback also
+			// undoes the document rewrites below.
+			const sessionOpts = session ? { session } : {};
 
 			for (const op of operations) {
 				switch (op.type) {
@@ -804,11 +899,16 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 						await collection.updateMany(
 							{},
 							{ $set: { [op.column]: defaultVal } },
+							sessionOpts,
 						);
 						break;
 					}
 					case "dropColumn": {
-						await collection.updateMany({}, { $unset: { [op.column]: "" } });
+						await collection.updateMany(
+							{},
+							{ $unset: { [op.column]: "" } },
+							sessionOpts,
+						);
 						break;
 					}
 					case "modifyColumn": {
@@ -818,7 +918,11 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 						break;
 					}
 					case "renameColumn": {
-						await collection.updateMany({}, { $rename: { [op.from]: op.to } });
+						await collection.updateMany(
+							{},
+							{ $rename: { [op.from]: op.to } },
+							sessionOpts,
+						);
 						break;
 					}
 				}
@@ -826,7 +930,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 
 			// Update schema in _datrix
 			if (tableName !== DATRIX_META_MODEL) {
-				await this.applyOperationsToMetaSchema(tableName, operations);
+				await this.applyOperationsToMetaSchema(tableName, operations, session);
 			}
 		} catch (error) {
 			if (error instanceof DatrixAdapterError) throw error;
@@ -1002,10 +1106,12 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 	private async applyOperationsToMetaSchema(
 		tableName: string,
 		operations: readonly AlterOperation[],
+		session?: ClientSession,
 	): Promise<void> {
 		const metaCollection = this.getMetaCollection();
 		const metaKey = `${DATRIX_META_KEY_PREFIX}${tableName}`;
-		const doc = await metaCollection.findOne({ key: metaKey });
+		const sessionOpts = session ? { session } : {};
+		const doc = await metaCollection.findOne({ key: metaKey }, sessionOpts);
 
 		if (!doc) {
 			throwMigrationError({
@@ -1081,6 +1187,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 		await metaCollection.updateOne(
 			{ key: metaKey },
 			{ $set: { value: updatedValue, updatedAt: new Date() } },
+			sessionOpts,
 		);
 	}
 }
