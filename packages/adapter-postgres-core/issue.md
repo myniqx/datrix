@@ -216,7 +216,7 @@ adapter must treat it as "all non-hidden scalar columns". Today it crashes:
 clone the query with the resolved list before the switch. Add unit tests: refetch-shaped query
 without select, with a schema containing a hidden FK and a relation field.
 
-### Part 2 — Per-relation `limit`/`offset` applies globally, not per parent row
+### Part 2 — Per-relation `limit`/`offset` applies globally, not per parent row ✅ DONE
 
 **Resolution (decided 2026-07-12).** Option 1: window function (`ROW_NUMBER() OVER (PARTITION BY
 fk ORDER BY <orderBy or id>)`). Keep the plain `ANY($1)` fast path when neither `limit` nor
@@ -326,7 +326,7 @@ them to `FROM`/`USING` + ANDed conditions. This changes LEFT JOIN semantics to a
 **Files.** query-translator.ts `translateUpdate`, `translateDelete`; tests for `$or` with
 relation + scalar branches on UPDATE and DELETE, NULL-FK rows included.
 
-### Part 5 — populate `where` silently ignored for belongsTo/hasOne in the batched strategy
+### Part 5 — populate `where` silently ignored for belongsTo/hasOne in the batched strategy ✅ DONE
 
 **Resolution (decided 2026-07-12).** Semantics: `where` on a belongsTo/hasOne populate means
 "populate only if the target matches, else null" — exactly what the lateral strategy already

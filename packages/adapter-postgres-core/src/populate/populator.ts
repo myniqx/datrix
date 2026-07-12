@@ -16,7 +16,7 @@ import type { PopulateStrategy, PopulateOptionsAnalysis } from "./types";
 import { JoinBuilder } from "./join-builder";
 import { AggregationBuilder } from "./aggregation-builder";
 import { ResultProcessor } from "./result-processor";
-import { throwMaxDepthExceeded } from "@datrix/core";
+import { throwMaxDepthExceeded, throwQueryError } from "@datrix/core";
 import { DatrixEntry } from "@datrix/core";
 import { PostgresQueryObject } from "../types";
 import { ISchemaRegistry } from "@datrix/core";
@@ -241,6 +241,7 @@ export class PostgresPopulator {
 					options,
 					targetTable,
 					1,
+					relationName,
 				);
 				const lateralSql = `
           SELECT t."id" as _fk, ${rowToJson} as data
@@ -267,6 +268,7 @@ export class PostgresPopulator {
 					options,
 					targetTable,
 					1,
+					relationName,
 				);
 				const lateralSql = `
           SELECT t.${this.translator.escapeIdentifier(fkColumn)} as _fk, ${rowToJson} as data
@@ -287,57 +289,21 @@ export class PostgresPopulator {
 				}
 			} else if (relation.kind === "hasMany") {
 				const fkColumn = relation.foreignKey!;
-				const innerParams: unknown[] = [parentIds];
-				let paramIdx = 2;
-
-				let whereSQL = "";
-				if (options.where) {
-					const whereResult = this.translator.translateWhere(
-						options.where,
-						paramIdx - 1,
+				const fkExpr = `t.${this.translator.escapeIdentifier(fkColumn)}`;
+				const { sql: lateralSql, params: extraParams } =
+					this.buildOneToManyBatchQuery(
+						options,
 						targetTable,
-						"t",
+						relationName,
+						fkExpr,
+						fkExpr,
+						this.translator.escapeIdentifier(targetTable) + " t",
+						rowToJson,
 					);
-					whereSQL = ` AND ${whereResult.sql}`;
-					innerParams.push(...whereResult.params);
-					paramIdx += whereResult.params.length;
-				}
-
-				let orderSQL = "";
-				if (options.orderBy && options.orderBy.length > 0) {
-					orderSQL =
-						" ORDER BY " +
-						options.orderBy
-							.map((item) => {
-								let s = `t.${this.translator.escapeIdentifier(item.field as string)} ${item.direction.toUpperCase()}`;
-								if (item.nulls) s += ` NULLS ${item.nulls.toUpperCase()}`;
-								return s;
-							})
-							.join(", ");
-				}
-
-				let limitSQL = "";
-				if (options.limit !== undefined) {
-					limitSQL = ` LIMIT $${paramIdx}`;
-					innerParams.push(options.limit);
-					paramIdx++;
-				}
-
-				let offsetSQL = "";
-				if (options.offset !== undefined && options.offset > 0) {
-					offsetSQL = ` OFFSET $${paramIdx}`;
-					innerParams.push(options.offset);
-				}
-
-				const lateralSql = `
-          SELECT t."${fkColumn}" as _fk, ${rowToJson} as data
-          FROM ${this.translator.escapeIdentifier(targetTable)} t
-          WHERE t."${fkColumn}" = ANY($1)${whereSQL}${orderSQL}${limitSQL}${offsetSQL}
-        `;
-				const batchRows = await this.fetchBatchQueryResults<T>(
-					lateralSql,
-					innerParams,
-				);
+				const batchRows = await this.fetchBatchQueryResults<T>(lateralSql, [
+					parentIds,
+					...extraParams,
+				]);
 
 				const groupMap = new Map<number, T[]>();
 				for (const r of batchRows) {
@@ -353,59 +319,24 @@ export class PostgresPopulator {
 				const junctionTable = relation.through!;
 				const sourceFK = `${schema.name}Id`;
 				const targetFK = `${relation.model}Id`;
-				const innerParams: unknown[] = [parentIds];
-				let paramIdx = 2;
-
-				let whereSQL = "";
-				if (options.where) {
-					const whereResult = this.translator.translateWhere(
-						options.where,
-						paramIdx - 1,
-						targetTable,
-						"t",
-					);
-					whereSQL = ` AND ${whereResult.sql}`;
-					innerParams.push(...whereResult.params);
-					paramIdx += whereResult.params.length;
-				}
-
-				let orderSQL = "";
-				if (options.orderBy && options.orderBy.length > 0) {
-					orderSQL =
-						" ORDER BY " +
-						options.orderBy
-							.map((item) => {
-								let s = `t.${this.translator.escapeIdentifier(item.field as string)} ${item.direction.toUpperCase()}`;
-								if (item.nulls) s += ` NULLS ${item.nulls.toUpperCase()}`;
-								return s;
-							})
-							.join(", ");
-				}
-
-				let limitSQL = "";
-				if (options.limit !== undefined) {
-					limitSQL = ` LIMIT $${paramIdx}`;
-					innerParams.push(options.limit);
-					paramIdx++;
-				}
-
-				let offsetSQL = "";
-				if (options.offset !== undefined && options.offset > 0) {
-					offsetSQL = ` OFFSET $${paramIdx}`;
-					innerParams.push(options.offset);
-				}
-
-				const lateralSql = `
-          SELECT j."${sourceFK}" as _fk, ${rowToJson} as data
-          FROM ${this.translator.escapeIdentifier(targetTable)} t
+				const fkExpr = `j.${this.translator.escapeIdentifier(sourceFK)}`;
+				const fromClause = `${this.translator.escapeIdentifier(targetTable)} t
           INNER JOIN ${this.translator.escapeIdentifier(junctionTable)} j
-            ON t."id" = j."${targetFK}"
-          WHERE j."${sourceFK}" = ANY($1)${whereSQL}${orderSQL}${limitSQL}${offsetSQL}
-        `;
-				const batchRows = await this.fetchBatchQueryResults<T>(
-					lateralSql,
-					innerParams,
-				);
+            ON t."id" = j.${this.translator.escapeIdentifier(targetFK)}`;
+				const { sql: lateralSql, params: extraParams } =
+					this.buildOneToManyBatchQuery(
+						options,
+						targetTable,
+						relationName,
+						fkExpr,
+						fkExpr,
+						fromClause,
+						rowToJson,
+					);
+				const batchRows = await this.fetchBatchQueryResults<T>(lateralSql, [
+					parentIds,
+					...extraParams,
+				]);
 
 				const groupMap = new Map<number, T[]>();
 				for (const r of batchRows) {
@@ -521,13 +452,20 @@ export class PostgresPopulator {
 					relation.model,
 					options,
 				);
+				const belongsToExtra = this.buildBatchOptionsClause(
+					options,
+					targetTable,
+					1,
+					relationName,
+				);
 				batchQuery = `
           SELECT t."id" as _fk, ${rowToJson} as data
           FROM ${this.translator.escapeIdentifier(targetTable)} t
-          WHERE t."id" = ANY($1)
+          WHERE t."id" = ANY($1)${belongsToExtra.sql}
         `;
 				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [
 					fkValues,
+					...belongsToExtra.params,
 				]);
 
 				let relatedRows = batchRows.map((r) => r.data);
@@ -562,13 +500,20 @@ export class PostgresPopulator {
 					relation.model,
 					options,
 				);
+				const hasOneExtra = this.buildBatchOptionsClause(
+					options,
+					targetTable,
+					1,
+					relationName,
+				);
 				batchQuery = `
           SELECT t.${this.translator.escapeIdentifier(fkColumn)} as _fk, ${hasOneRowToJson} as data
           FROM ${this.translator.escapeIdentifier(targetTable)} t
-          WHERE t.${this.translator.escapeIdentifier(fkColumn)} = ANY($1)
+          WHERE t.${this.translator.escapeIdentifier(fkColumn)} = ANY($1)${hasOneExtra.sql}
         `;
 				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [
 					parentIds,
+					...hasOneExtra.params,
 				]);
 
 				const nestedPopulate = options?.["populate"];
@@ -596,19 +541,21 @@ export class PostgresPopulator {
 					relation.model,
 					options,
 				);
-				const hasManyExtra = this.buildBatchOptionsClause(
-					options,
-					targetTable,
-					1,
-				);
-				batchQuery = `
-          SELECT t."${fkColumn}" as _fk, ${hasManyRowToJson} as data
-          FROM ${this.translator.escapeIdentifier(targetTable)} t
-          WHERE t."${fkColumn}" = ANY($1)${hasManyExtra.sql}
-        `;
+				const hasManyFkExpr = `t.${this.translator.escapeIdentifier(fkColumn)}`;
+				const { sql: hasManySql, params: hasManyExtraParams } =
+					this.buildOneToManyBatchQuery(
+						options,
+						targetTable,
+						relationName,
+						hasManyFkExpr,
+						hasManyFkExpr,
+						this.translator.escapeIdentifier(targetTable) + " t",
+						hasManyRowToJson,
+					);
+				batchQuery = hasManySql;
 				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [
 					parentIds,
-					...hasManyExtra.params,
+					...hasManyExtraParams,
 				]);
 
 				const nestedPopulate = options?.["populate"];
@@ -641,17 +588,24 @@ export class PostgresPopulator {
 					relation.model,
 					options,
 				);
-				const m2mExtra = this.buildBatchOptionsClause(options, targetTable, 1);
-				batchQuery = `
-          SELECT j."${sourceFK}" as _fk, ${m2mRowToJson} as data
-          FROM ${this.translator.escapeIdentifier(targetTable)} t
+				const m2mFkExpr = `j.${this.translator.escapeIdentifier(sourceFK)}`;
+				const m2mFromClause = `${this.translator.escapeIdentifier(targetTable)} t
           INNER JOIN ${this.translator.escapeIdentifier(junctionTable)} j
-            ON t."id" = j."${targetFK}"
-          WHERE j."${sourceFK}" = ANY($1)${m2mExtra.sql}
-        `;
+            ON t."id" = j.${this.translator.escapeIdentifier(targetFK)}`;
+				const { sql: m2mSql, params: m2mExtraParams } =
+					this.buildOneToManyBatchQuery(
+						options,
+						targetTable,
+						relationName,
+						m2mFkExpr,
+						m2mFkExpr,
+						m2mFromClause,
+						m2mRowToJson,
+					);
+				batchQuery = m2mSql;
 				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [
 					parentIds,
-					...m2mExtra.params,
+					...m2mExtraParams,
 				]);
 
 				const nestedPopulate = options?.["populate"];
@@ -735,13 +689,20 @@ export class PostgresPopulator {
 					continue;
 				}
 
+				const belongsToExtra = this.buildBatchOptionsClause(
+					opts,
+					targetTable,
+					1,
+					relationName,
+				);
 				const batchQuery = `
           SELECT t."id" as _fk, ${nestedRowToJson} as data
           FROM ${this.translator.escapeIdentifier(targetTable)} t
-          WHERE t."id" = ANY($1)
+          WHERE t."id" = ANY($1)${belongsToExtra.sql}
         `;
 				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [
 					fkValues,
+					...belongsToExtra.params,
 				]);
 
 				let relatedRows = batchRows.map((r) => r.data);
@@ -768,14 +729,21 @@ export class PostgresPopulator {
 			} else if (relation.kind === "hasOne") {
 				const fkColumn = relation.foreignKey!;
 				const nestedParentIds = parentIds;
+				const hasOneExtra = this.buildBatchOptionsClause(
+					opts,
+					targetTable,
+					1,
+					relationName,
+				);
 
 				const batchQuery = `
           SELECT t.${this.translator.escapeIdentifier(fkColumn)} as _fk, ${nestedRowToJson} as data
           FROM ${this.translator.escapeIdentifier(targetTable)} t
-          WHERE t.${this.translator.escapeIdentifier(fkColumn)} = ANY($1)
+          WHERE t.${this.translator.escapeIdentifier(fkColumn)} = ANY($1)${hasOneExtra.sql}
         `;
 				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [
 					nestedParentIds,
+					...hasOneExtra.params,
 				]);
 
 				const nestedPopulate = opts.populate;
@@ -797,16 +765,20 @@ export class PostgresPopulator {
 				}
 			} else if (relation.kind === "hasMany") {
 				const fkColumn = relation.foreignKey!;
-				const hasManyExtra = this.buildBatchOptionsClause(opts, targetTable, 1);
-
-				const batchQuery = `
-          SELECT t."${fkColumn}" as _fk, ${nestedRowToJson} as data
-          FROM ${this.translator.escapeIdentifier(targetTable)} t
-          WHERE t."${fkColumn}" = ANY($1)${hasManyExtra.sql}
-        `;
+				const nestedHasManyFkExpr = `t.${this.translator.escapeIdentifier(fkColumn)}`;
+				const { sql: batchQuery, params: hasManyExtraParams } =
+					this.buildOneToManyBatchQuery(
+						opts,
+						targetTable,
+						relationName,
+						nestedHasManyFkExpr,
+						nestedHasManyFkExpr,
+						this.translator.escapeIdentifier(targetTable) + " t",
+						nestedRowToJson,
+					);
 				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [
 					parentIds,
-					...hasManyExtra.params,
+					...hasManyExtraParams,
 				]);
 
 				const nestedPopulate = opts.populate;
@@ -832,18 +804,23 @@ export class PostgresPopulator {
 				const junctionTable = relation.through!;
 				const sourceFK = `${schema.name}Id`;
 				const targetFK = `${relation.model}Id`;
-				const m2mExtra = this.buildBatchOptionsClause(opts, targetTable, 1);
-
-				const batchQuery = `
-          SELECT j."${sourceFK}" as _fk, ${nestedRowToJson} as data
-          FROM ${this.translator.escapeIdentifier(targetTable)} t
+				const nestedM2mFkExpr = `j.${this.translator.escapeIdentifier(sourceFK)}`;
+				const nestedM2mFromClause = `${this.translator.escapeIdentifier(targetTable)} t
           INNER JOIN ${this.translator.escapeIdentifier(junctionTable)} j
-            ON t."id" = j."${targetFK}"
-          WHERE j."${sourceFK}" = ANY($1)${m2mExtra.sql}
-        `;
+            ON t."id" = j.${this.translator.escapeIdentifier(targetFK)}`;
+				const { sql: batchQuery, params: m2mExtraParams } =
+					this.buildOneToManyBatchQuery(
+						opts,
+						targetTable,
+						relationName,
+						nestedM2mFkExpr,
+						nestedM2mFkExpr,
+						nestedM2mFromClause,
+						nestedRowToJson,
+					);
 				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [
 					parentIds,
-					...m2mExtra.params,
+					...m2mExtraParams,
 				]);
 
 				const nestedPopulate = opts.populate;
@@ -1063,54 +1040,173 @@ export class PostgresPopulator {
 	}
 
 	/**
-	 * Build extra SQL clauses (WHERE/ORDER BY) for batch queries from populate options.
-	 * Returns the SQL fragment to append and the extra params (starting at startParamIndex).
+	 * Translate a populate-level `where` against the target table, aliased as
+	 * `t` (or `j`/`t` for manyToMany — the alias is always "t" for the target
+	 * table itself). Returns the ` AND <cond>` SQL fragment (empty string if no
+	 * `where`) plus the extra params, starting at `startParamIndex`.
+	 *
+	 * Nested relation filters (conditions whose translation needs a JOIN, e.g.
+	 * `{ author: { verified: true } }` inside a populate-level `where`) are not
+	 * wired into the batch SQL — the joins that `translateWhere` would produce
+	 * have no attachment point here. Per contract §4 ("never silently ignore a
+	 * condition"), this is a hard error rather than a silent drop.
+	 */
+	private translateOptionsWhere<T extends DatrixEntry>(
+		options: QueryPopulateOptions<T>,
+		targetTable: string,
+		startParamIndex: number,
+		relationName: string,
+	): { sql: string; params: unknown[] } {
+		if (!options.where) {
+			return { sql: "", params: [] };
+		}
+
+		const whereResult = this.translator.translateWhere(
+			options.where,
+			startParamIndex,
+			targetTable,
+			"t",
+		);
+
+		if (whereResult.joins.length > 0) {
+			throwQueryError({
+				adapter: "postgres",
+				message:
+					`Populate "where" on relation "${relationName}" contains a nested ` +
+					`relation condition, which is not supported in the batched/lateral ` +
+					`populate strategies. Move the nested-relation filter to the top-level ` +
+					`query WHERE, or filter on scalar fields of "${targetTable}" only.`,
+			});
+		}
+
+		return { sql: ` AND ${whereResult.sql}`, params: [...whereResult.params] };
+	}
+
+	/**
+	 * Build extra SQL clauses (WHERE/ORDER BY/LIMIT/OFFSET) for batch queries
+	 * from populate options, WITHOUT per-parent-row semantics. Used only for
+	 * belongsTo/hasOne (single-row relations), where `limit`/`offset` are
+	 * meaningless and therefore intentionally not applied (Part 5 resolution).
+	 * `orderBy` alone (no limit/offset) is harmless to keep here too, but
+	 * belongsTo/hasOne never pass more than one matching row per parent so it
+	 * has no observable effect; kept for parity with the previous behavior.
 	 */
 	private buildBatchOptionsClause<T extends DatrixEntry>(
 		options: QueryPopulateOptions<T>,
 		targetTable: string,
 		startParamIndex: number,
+		relationName: string,
 	): { sql: string; params: unknown[] } {
-		let sql = "";
-		const params: unknown[] = [];
-		let paramIdx = startParamIndex;
+		const { sql: whereSQL, params } = this.translateOptionsWhere(
+			options,
+			targetTable,
+			startParamIndex,
+			relationName,
+		);
 
-		if (options.where) {
-			const whereResult = this.translator.translateWhere(
-				options.where,
-				paramIdx,
-				targetTable,
-				"t",
-			);
-			sql += ` AND ${whereResult.sql}`;
-			params.push(...whereResult.params);
-			paramIdx += whereResult.params.length;
+		return { sql: whereSQL, params };
+	}
+
+	/**
+	 * Build the full batched SQL query for a hasMany or manyToMany populate.
+	 *
+	 * Fast path (no `limit`/`offset`): a plain `WHERE fk = ANY($1) [AND where] [ORDER BY]`.
+	 * Windowed path (`limit` and/or `offset` present): wraps the same
+	 * projection in `ROW_NUMBER() OVER (PARTITION BY <partition column> ORDER
+	 * BY <orderBy or "id">)` so limit/offset apply PER parent row instead of
+	 * globally across the whole batch (Part 2 resolution).
+	 *
+	 * @param fkSelectExpr - SQL expression selected as `_fk` (e.g. `t."postId"` or `j."postId"`).
+	 * @param partitionExpr - SQL expression to PARTITION BY in the windowed path
+	 *   (same as fkSelectExpr for hasMany; the junction sourceFK for manyToMany).
+	 * @param fromClause - SQL after `FROM` (target table alone, or target + junction JOIN).
+	 */
+	private buildOneToManyBatchQuery<T extends DatrixEntry>(
+		options: QueryPopulateOptions<T>,
+		targetTable: string,
+		relationName: string,
+		fkSelectExpr: string,
+		partitionExpr: string,
+		fromClause: string,
+		rowToJson: string,
+	): { sql: string; params: unknown[] } {
+		const { sql: whereSQL, params: whereParams } = this.translateOptionsWhere(
+			options,
+			targetTable,
+			2,
+			relationName,
+		);
+
+		const needsWindow =
+			options.limit !== undefined ||
+			(options.offset !== undefined && options.offset > 0);
+
+		if (!needsWindow) {
+			let orderSQL = "";
+			if (options.orderBy && options.orderBy.length > 0) {
+				orderSQL = ` ORDER BY ${this.buildOrderBySQL(options.orderBy)}`;
+			}
+
+			const sql = `
+        SELECT ${fkSelectExpr} as _fk, ${rowToJson} as data
+        FROM ${fromClause}
+        WHERE ${fkSelectExpr} = ANY($1)${whereSQL}${orderSQL}
+      `;
+			return { sql, params: whereParams };
 		}
 
-		if (options.orderBy && options.orderBy.length > 0) {
-			const orderSQL = options.orderBy
-				.map((item) => {
-					let s = `t.${this.translator.escapeIdentifier(item.field as string)} ${item.direction.toUpperCase()}`;
-					if (item.nulls) s += ` NULLS ${item.nulls.toUpperCase()}`;
-					return s;
-				})
-				.join(", ");
-			sql += ` ORDER BY ${orderSQL}`;
+		const partitionOrderSQL =
+			options.orderBy && options.orderBy.length > 0
+				? this.buildOrderBySQL(options.orderBy)
+				: `t."id"`;
+
+		const params = [...whereParams];
+		let paramIdx = 2 + whereParams.length;
+
+		let boundsSQL = "";
+		if (options.offset !== undefined && options.offset > 0) {
+			boundsSQL += ` AND w._rn > $${paramIdx}`;
+			params.push(options.offset);
+			paramIdx++;
+		} else {
+			boundsSQL += ` AND w._rn > 0`;
 		}
 
 		if (options.limit !== undefined) {
-			sql += ` LIMIT $${paramIdx + 1}`;
-			params.push(options.limit);
+			const offsetValue =
+				options.offset !== undefined && options.offset > 0 ? options.offset : 0;
+			boundsSQL += ` AND w._rn <= $${paramIdx}`;
+			params.push(offsetValue + options.limit);
 			paramIdx++;
 		}
 
-		if (options.offset !== undefined && options.offset > 0) {
-			sql += ` OFFSET $${paramIdx + 1}`;
-			params.push(options.offset);
-			paramIdx++;
-		}
+		const sql = `
+      SELECT w."_fk", w."data"
+      FROM (
+        SELECT ${fkSelectExpr} as _fk, ${rowToJson} as data,
+          ROW_NUMBER() OVER (PARTITION BY ${partitionExpr} ORDER BY ${partitionOrderSQL}) AS _rn
+        FROM ${fromClause}
+        WHERE ${fkSelectExpr} = ANY($1)${whereSQL}
+      ) w
+      WHERE TRUE${boundsSQL}
+    `;
 
 		return { sql, params };
+	}
+
+	/**
+	 * Shared ORDER BY builder for populate options (target table aliased "t").
+	 */
+	private buildOrderBySQL<T extends DatrixEntry>(
+		orderBy: NonNullable<QueryPopulateOptions<T>["orderBy"]>,
+	): string {
+		return orderBy
+			.map((item) => {
+				let s = `t.${this.translator.escapeIdentifier(item.field as string)} ${item.direction.toUpperCase()}`;
+				if (item.nulls) s += ` NULLS ${item.nulls.toUpperCase()}`;
+				return s;
+			})
+			.join(", ");
 	}
 
 	/**
