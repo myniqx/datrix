@@ -93,49 +93,6 @@ export const FIELD_TYPE_TO_POSTGRES: Record<FieldType, PostgresDataType> = {
 };
 
 /**
- * PostgreSQL type to TypeScript type mapping
- */
-export const POSTGRES_TO_TS_TYPE: Record<PostgresDataType, string> = {
-	SMALLINT: "number",
-	INTEGER: "number",
-	BIGINT: "number",
-	DECIMAL: "number",
-	NUMERIC: "number",
-	REAL: "number",
-	"DOUBLE PRECISION": "number",
-	SMALLSERIAL: "number",
-	SERIAL: "number",
-	BIGSERIAL: "number",
-	MONEY: "number",
-	CHAR: "string",
-	VARCHAR: "string",
-	TEXT: "string",
-	BYTEA: "Uint8Array",
-	TIMESTAMP: "Date",
-	"TIMESTAMP WITH TIME ZONE": "Date",
-	DATE: "Date",
-	TIME: "string",
-	"TIME WITH TIME ZONE": "string",
-	INTERVAL: "string",
-	BOOLEAN: "boolean",
-	POINT: "string",
-	LINE: "string",
-	LSEG: "string",
-	BOX: "string",
-	PATH: "string",
-	POLYGON: "string",
-	CIRCLE: "string",
-	INET: "string",
-	CIDR: "string",
-	MACADDR: "string",
-	UUID: "string",
-	JSON: "unknown",
-	JSONB: "unknown",
-	ARRAY: "unknown[]",
-	XML: "string",
-};
-
-/**
  * Get PostgreSQL type for field type
  */
 export function getPostgresType(fieldType: FieldType): PostgresDataType {
@@ -170,130 +127,16 @@ export function getPostgresTypeWithModifiers(field: FieldDefinition): string {
 		return `${pgType}(${field.precision})`;
 	}
 
+	if (field.type === "number" && "integer" in field && field.integer) {
+		return "INTEGER";
+	}
+
 	// Handle arrays
 	if ("array" in field && field.array) {
 		return `${pgType}[]`;
 	}
 
 	return pgType;
-}
-
-/**
- * Convert value to PostgreSQL format
- */
-export function toPostgresValue(value: unknown, fieldType: FieldType): unknown {
-	if (value === null || value === undefined) {
-		return null;
-	}
-
-	switch (fieldType) {
-		case "date":
-			if (value instanceof Date) {
-				return value;
-			}
-			if (typeof value === "string" || typeof value === "number") {
-				return new Date(value);
-			}
-			return null;
-
-		case "boolean":
-			if (typeof value === "boolean") {
-				return value;
-			}
-			if (typeof value === "string") {
-				const lower = value.toLowerCase();
-				if (lower === "true" || value === "1") {
-					return true;
-				}
-				if (lower === "false" || value === "0") {
-					return false;
-				}
-				// Other strings: use Boolean() conversion (truthy/falsy)
-				return Boolean(value);
-			}
-			if (typeof value === "number") {
-				return value !== 0;
-			}
-			return Boolean(value);
-
-		case "number":
-			if (typeof value === "number") {
-				return value;
-			}
-			if (typeof value === "string") {
-				// Empty string or whitespace-only should be null
-				if (value.trim() === "") {
-					return null;
-				}
-				const parsed = Number(value);
-				return isNaN(parsed) ? null : parsed;
-			}
-			return null;
-
-		case "json":
-		case "array":
-			// PostgreSQL JSONB handles objects and arrays natively
-			return value;
-
-		case "string":
-		case "enum":
-		case "file":
-			return String(value);
-
-		case "relation":
-			// Foreign key - ensure it's a number or null
-			if (typeof value === "number") {
-				return value;
-			}
-			if (typeof value === "string") {
-				const parsed = Number(value);
-				return isNaN(parsed) ? null : parsed;
-			}
-			return null;
-
-		default:
-			return value;
-	}
-}
-
-/**
- * Convert PostgreSQL value to TypeScript
- */
-export function fromPostgresValue(
-	value: unknown,
-	fieldType: FieldType,
-): unknown {
-	if (value === null || value === undefined) {
-		return null;
-	}
-
-	switch (fieldType) {
-		case "date":
-			// pg library automatically converts timestamps to Date objects
-			return value instanceof Date ? value : new Date(String(value));
-
-		case "boolean":
-			return Boolean(value);
-
-		case "number":
-			return typeof value === "number" ? value : Number(value);
-
-		case "json":
-		case "array":
-			// JSONB is automatically parsed by pg library
-			return value;
-
-		case "string":
-		case "enum":
-		case "file":
-			return String(value);
-
-		case "relation":
-			return typeof value === "number" ? value : Number(value);
-
-		default:
-			return value;
-	}
 }
 
 export interface PostgresQueryObject<

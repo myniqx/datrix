@@ -59,6 +59,14 @@ export class PostgresQueryTranslator implements QueryTranslator {
 	}
 
 	/**
+	 * Escape LIKE/ILIKE pattern metacharacters (\, %, _) in a user-supplied
+	 * value that will be wrapped with adapter-added wildcards.
+	 */
+	private escapeLikePattern(value: string): string {
+		return value.replace(/[\\%_]/g, (m) => "\\" + m);
+	}
+
+	/**
 	 * Add parameter and return placeholder with type-aware conversion
 	 *
 	 * @param value - The value to add
@@ -314,6 +322,7 @@ export class PostgresQueryTranslator implements QueryTranslator {
 
 		// Handle COUNT separately (only has where, groupBy, having)
 		if (query.type === "count") {
+			const countIndex = parts.length;
 			parts.push("SELECT COUNT(*)");
 			parts.push(`FROM ${this.escapeIdentifier(query.table)}`);
 
@@ -325,6 +334,8 @@ export class PostgresQueryTranslator implements QueryTranslator {
 				);
 				if (whereResult.joins.length > 0) {
 					parts.push(whereResult.joins.join(" "));
+					const tableEsc = this.escapeIdentifier(query.table);
+					parts[countIndex] = `SELECT COUNT(DISTINCT ${tableEsc}."id")`;
 				}
 				parts.push(`WHERE ${whereResult.sql}`);
 				this.paramIndex += whereResult.params.length;
@@ -332,8 +343,9 @@ export class PostgresQueryTranslator implements QueryTranslator {
 			}
 
 			if (query.groupBy && query.groupBy.length > 0) {
+				const tableEsc = this.escapeIdentifier(query.table);
 				const groupByFields = query.groupBy
-					.map((field) => this.escapeIdentifier(field))
+					.map((field) => `${tableEsc}.${this.escapeIdentifier(field)}`)
 					.join(", ");
 				parts.push(`GROUP BY ${groupByFields}`);
 			}
@@ -445,8 +457,9 @@ export class PostgresQueryTranslator implements QueryTranslator {
 			query.groupBy &&
 			query.groupBy.length > 0
 		) {
+			const tableEsc = this.escapeIdentifier(query.table);
 			const groupByFields = query.groupBy
-				.map((field) => this.escapeIdentifier(field))
+				.map((field) => `${tableEsc}.${this.escapeIdentifier(field)}`)
 				.join(", ");
 			parts.push(`GROUP BY ${groupByFields}`);
 		}
@@ -461,7 +474,9 @@ export class PostgresQueryTranslator implements QueryTranslator {
 
 		// ORDER BY
 		if (query.orderBy && query.orderBy.length > 0) {
-			parts.push(`ORDER BY ${this.translateOrderBy(query.orderBy)}`);
+			parts.push(
+				`ORDER BY ${this.translateOrderBy(query.orderBy, query.table)}`,
+			);
 		}
 
 		// LIMIT
@@ -687,10 +702,14 @@ export class PostgresQueryTranslator implements QueryTranslator {
 	 */
 	private translateOrderBy<T extends DatrixEntry>(
 		orderBy: QuerySelectObject<T>["orderBy"],
+		tableAlias?: string,
 	): string {
+		const tablePrefix = tableAlias
+			? `${this.escapeIdentifier(tableAlias)}.`
+			: "";
 		return orderBy!
 			.map((item) => {
-				let sql = this.escapeIdentifier(item.field as string);
+				let sql = `${tablePrefix}${this.escapeIdentifier(item.field as string)}`;
 				sql += ` ${item.direction.toUpperCase()}`;
 				if (item.nulls) {
 					sql += ` NULLS ${item.nulls.toUpperCase()}`;
@@ -1114,16 +1133,19 @@ export class PostgresQueryTranslator implements QueryTranslator {
 				return `${fieldName} ILIKE ${this.addParam(value, currentSchema, fieldPath)}`;
 
 			case "$contains":
-				return `${fieldName} ILIKE ${this.addParam(`%${String(value)}%`, currentSchema, fieldPath)}`;
+				return `${fieldName} LIKE ${this.addParam(`%${this.escapeLikePattern(String(value))}%`, currentSchema, fieldPath)} ESCAPE '\\'`;
+
+			case "$icontains":
+				return `${fieldName} ILIKE ${this.addParam(`%${this.escapeLikePattern(String(value))}%`, currentSchema, fieldPath)} ESCAPE '\\'`;
 
 			case "$notContains":
-				return `${fieldName} NOT ILIKE ${this.addParam(`%${String(value)}%`, currentSchema, fieldPath)}`;
+				return `${fieldName} NOT LIKE ${this.addParam(`%${this.escapeLikePattern(String(value))}%`, currentSchema, fieldPath)} ESCAPE '\\'`;
 
 			case "$startsWith":
-				return `${fieldName} ILIKE ${this.addParam(`${String(value)}%`, currentSchema, fieldPath)}`;
+				return `${fieldName} ILIKE ${this.addParam(`${this.escapeLikePattern(String(value))}%`, currentSchema, fieldPath)} ESCAPE '\\'`;
 
 			case "$endsWith":
-				return `${fieldName} ILIKE ${this.addParam(`%${String(value)}`, currentSchema, fieldPath)}`;
+				return `${fieldName} ILIKE ${this.addParam(`%${this.escapeLikePattern(String(value))}`, currentSchema, fieldPath)} ESCAPE '\\'`;
 
 			case "$regex":
 				if (value instanceof RegExp) {

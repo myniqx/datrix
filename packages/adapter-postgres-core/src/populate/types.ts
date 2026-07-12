@@ -22,7 +22,6 @@ export interface JoinClause {
 	readonly table: string;
 	readonly alias: string;
 	readonly condition: string;
-	readonly isLateral: boolean;
 }
 
 /**
@@ -33,18 +32,6 @@ export interface AggregationClause {
 	readonly relationKind: "belongsTo" | "hasOne" | "hasMany" | "manyToMany";
 	readonly sql: string;
 	readonly alias: string;
-}
-
-/**
- * Processed result metadata
- */
-export interface ProcessedResult<T> {
-	readonly rows: readonly T[];
-	readonly metadata: {
-		readonly strategy: PopulateStrategy;
-		readonly joinCount: number;
-		readonly nestedLevels: number;
-	};
 }
 
 /**
@@ -67,14 +54,4 @@ export interface PopulateOptionsAnalysis {
 export interface PopulateFieldSelection {
 	readonly fields: QuerySelect;
 	readonly sql: string;
-}
-
-/**
- * Populate context (passed through recursive calls)
- */
-export interface PopulateContext {
-	readonly depth: number;
-	readonly relationPath: string[];
-	readonly parentAlias: string;
-	readonly strategy: PopulateStrategy;
 }

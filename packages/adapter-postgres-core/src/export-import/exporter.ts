@@ -36,7 +36,7 @@ export class PostgresExporter {
 		tableName: string,
 		writer: ExportWriter,
 	): Promise<void> {
-		const escapedTable = `"${tableName}"`;
+		const escapedTable = this.adapter.getTranslator().escapeIdentifier(tableName);
 		let offset = 0;
 
 		while (true) {

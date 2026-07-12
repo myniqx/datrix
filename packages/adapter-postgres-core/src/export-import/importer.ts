@@ -63,9 +63,12 @@ export class PostgresImporter {
 	): Promise<void> {
 		if (rows.length === 0) return;
 
-		const escapedTable = `"${tableName}"`;
+		const translator = this.adapter.getTranslator();
+		const escapedTable = translator.escapeIdentifier(tableName);
 		const columns = Object.keys(rows[0]!);
-		const escapedColumns = columns.map((c) => `"${c}"`).join(", ");
+		const escapedColumns = columns
+			.map((c) => translator.escapeIdentifier(c))
+			.join(", ");
 
 		for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
 			const batch = rows.slice(i, i + CHUNK_SIZE);
@@ -96,15 +99,20 @@ export class PostgresImporter {
 
 	private async addForeignKeys(schema: SchemaDefinition): Promise<void> {
 		const tableName = schema.tableName!;
-		const escapedTable = `"${tableName}"`;
+		const translator = this.adapter.getTranslator();
+		const escapedTable = translator.escapeIdentifier(tableName);
 
 		for (const [fieldName, field] of Object.entries(schema.fields)) {
 			if (field.type !== "number" || !field.references) continue;
 
-			const col = `"${fieldName}"`;
-			const refTable = `"${field.references.table}"`;
-			const refCol = `"${field.references.column ?? "id"}"`;
-			const constraintName = `"fk_${tableName}_${fieldName}"`;
+			const col = translator.escapeIdentifier(fieldName);
+			const refTable = translator.escapeIdentifier(field.references.table);
+			const refCol = translator.escapeIdentifier(
+				field.references.column ?? "id",
+			);
+			const constraintName = translator.escapeIdentifier(
+				`fk_${tableName}_${fieldName}`,
+			);
 
 			const onDelete = field.references.onDelete
 				? ` ON DELETE ${field.references.onDelete === "setNull" ? "SET NULL" : field.references.onDelete.toUpperCase()}`
@@ -120,9 +128,10 @@ export class PostgresImporter {
 	}
 
 	private async resetSequence(tableName: string): Promise<void> {
-		const escapedTable = `"${tableName}"`;
+		const escapedTable = this.adapter.getTranslator().escapeIdentifier(tableName);
 		await this.runner.query(
-			`SELECT setval(pg_get_serial_sequence('${tableName}', 'id'), COALESCE((SELECT MAX(id) FROM ${escapedTable}), 0) + 1, false)`,
+			`SELECT setval(pg_get_serial_sequence($1, 'id'), COALESCE((SELECT MAX(id) FROM ${escapedTable}), 0) + 1, false)`,
+			[tableName],
 		);
 	}
 }

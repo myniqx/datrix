@@ -12,5 +12,4 @@ export type {
 	PopulateStrategy,
 	JoinClause,
 	AggregationClause,
-	ProcessedResult,
 } from "./types";

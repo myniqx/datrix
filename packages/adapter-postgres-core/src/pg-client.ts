@@ -10,7 +10,7 @@ import { AdapterErrorCode, DatrixAdapterError } from "@datrix/core";
 import { QueryObject } from "@datrix/core";
 import type { PgQueryResult, PgRunner } from "./driver";
 
-const IS_DEBUG = process.env["NODE_ENV"] !== "production";
+const IS_DEBUG = process.env["DATRIX_DEBUG"] === "1";
 
 const PG_CODE_MAP: Record<string, AdapterErrorCode> = {
 	"23505": "ADAPTER_UNIQUE_CONSTRAINT",

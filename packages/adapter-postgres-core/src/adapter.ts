@@ -283,8 +283,9 @@ export class PostgresCoreAdapter implements DatabaseAdapter<PostgresCoreConfig> 
 			throwNotConnected({ adapter: "postgres" });
 		}
 
+		const connection = await this.config.connect();
+
 		try {
-			const connection = await this.config.connect();
 			await connection.query("BEGIN");
 
 			const transaction = new PostgresTransaction(
@@ -295,6 +296,7 @@ export class PostgresCoreAdapter implements DatabaseAdapter<PostgresCoreConfig> 
 
 			return transaction;
 		} catch (error) {
+			connection.release();
 			const message = error instanceof Error ? error.message : String(error);
 			throwTransactionError({
 				adapter: "postgres",
@@ -370,7 +372,10 @@ export class PostgresCoreAdapter implements DatabaseAdapter<PostgresCoreConfig> 
 			// Track schema in _datrix (skip during import — _datrix data will be restored as-is)
 			if (!options?.isImport) {
 				if (schema.name !== DATRIX_META_MODEL) {
-					const metaExists = await this.tableExists(DATRIX_META_MODEL);
+					const metaExists = await this.tableExists(
+						DATRIX_META_MODEL,
+						queryRunner,
+					);
 					if (!metaExists) {
 						throwMigrationError({
 							adapter: "postgres",
@@ -461,6 +466,54 @@ export class PostgresCoreAdapter implements DatabaseAdapter<PostgresCoreConfig> 
 					`UPDATE ${escapedMetaTable} SET "key" = $1 WHERE "key" = $2`,
 					[newKey, oldKey],
 				);
+
+				// Fix the stale tableName inside the renamed schema's own JSON,
+				// and patch any references.table pointing at the old name in
+				// other stored schemas.
+				const allMetaResult = await queryRunner!.query<{
+					key: string;
+					value: string;
+				}>(
+					`SELECT "key", "value" FROM ${escapedMetaTable} WHERE "key" LIKE $1`,
+					[`${DATRIX_META_KEY_PREFIX}%`],
+				);
+
+				for (const row of allMetaResult.rows) {
+					const schema = JSON.parse(row.value) as SchemaDefinition;
+					const fields = { ...schema.fields };
+					let changed = false;
+
+					let newTableName = schema.tableName;
+					if (row.key === newKey && schema.tableName === from) {
+						newTableName = to;
+						changed = true;
+					}
+
+					for (const [fieldName, field] of Object.entries(fields)) {
+						if (
+							field.type === "number" &&
+							field.references?.table === from
+						) {
+							fields[fieldName] = {
+								...field,
+								references: { ...field.references, table: to },
+							};
+							changed = true;
+						}
+					}
+
+					if (changed) {
+						const updatedSchema: SchemaDefinition = {
+							...schema,
+							...(newTableName !== undefined && { tableName: newTableName }),
+							fields,
+						};
+						await queryRunner!.query(
+							`UPDATE ${escapedMetaTable} SET "value" = $1, "updatedAt" = NOW() WHERE "key" = $2`,
+							[JSON.stringify(updatedSchema), row.key],
+						);
+					}
+				}
 			}
 		} catch (error) {
 			if (error instanceof DatrixAdapterError) throw error;
@@ -686,13 +739,18 @@ export class PostgresCoreAdapter implements DatabaseAdapter<PostgresCoreConfig> 
 	/**
 	 * Check if table exists
 	 */
-	async tableExists(tableName: string): Promise<boolean> {
+	async tableExists(
+		tableName: string,
+		connection?: PgRunner,
+	): Promise<boolean> {
 		if (!this.isConnected()) {
 			return false;
 		}
 
+		const queryRunner: PgRunner = connection ?? this.config.runner;
+
 		try {
-			const result = await this.config.runner.query<{
+			const result = await queryRunner.query<{
 				exists: boolean;
 			}>(
 				`SELECT EXISTS (
@@ -977,7 +1035,6 @@ class PostgresTransaction implements Transaction {
 		try {
 			await this.client.query("COMMIT");
 			this.committed = true;
-			this.client.release();
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			throwTransactionError({
@@ -985,6 +1042,8 @@ class PostgresTransaction implements Transaction {
 				message: `Failed to commit transaction: ${message}`,
 				cause: error instanceof Error ? error : undefined,
 			});
+		} finally {
+			this.client.release();
 		}
 	}
 
@@ -1009,7 +1068,6 @@ class PostgresTransaction implements Transaction {
 		try {
 			await this.client.query("ROLLBACK");
 			this.rolledBack = true;
-			this.client.release();
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			throwTransactionError({
@@ -1017,6 +1075,8 @@ class PostgresTransaction implements Transaction {
 				message: `Failed to rollback transaction: ${message}`,
 				cause: error instanceof Error ? error : undefined,
 			});
+		} finally {
+			this.client.release();
 		}
 	}
 

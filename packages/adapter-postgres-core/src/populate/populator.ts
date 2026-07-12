@@ -55,7 +55,7 @@ export class PostgresPopulator {
 			translator,
 			schemaRegistry,
 		);
-		this.resultProcessor = new ResultProcessor(schemaRegistry);
+		this.resultProcessor = new ResultProcessor();
 	}
 
 	/**
@@ -499,6 +499,15 @@ export class PostgresPopulator {
 				const fkValues = rows
 					.map((row) => row[fkColumn as keyof T])
 					.filter((v) => v != null);
+
+				if (fkValues.length === 0) {
+					for (const row of rows) {
+						row[relationName as keyof T] = null as T[keyof T];
+						delete row[fkColumn as keyof T];
+					}
+					continue;
+				}
+
 				const rowToJson = this.buildSelectiveRowToJson(
 					options.select as readonly string[],
 					relation.model,
@@ -710,7 +719,13 @@ export class PostgresPopulator {
 					.map((row) => row[fkColumn as keyof T])
 					.filter((v) => v != null);
 
-				if (fkValues.length === 0) continue;
+				if (fkValues.length === 0) {
+					for (const row of rows) {
+						row[relationName as keyof T] = null as T[keyof T];
+						delete row[fkColumn as keyof T];
+					}
+					continue;
+				}
 
 				const batchQuery = `
           SELECT t."id" as _fk, ${nestedRowToJson} as data
