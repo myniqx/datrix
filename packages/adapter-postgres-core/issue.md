@@ -218,6 +218,11 @@ without select, with a schema containing a hidden FK and a relation field.
 
 ### Part 2 — Per-relation `limit`/`offset` applies globally, not per parent row
 
+**Resolution (decided 2026-07-12).** Option 1: window function (`ROW_NUMBER() OVER (PARTITION BY
+fk ORDER BY <orderBy or id>)`). Keep the plain `ANY($1)` fast path when neither `limit` nor
+`offset` is present — only branch to the window query when needed. Applies to hasMany,
+manyToMany (partition by junction sourceFK), and the nested/batched path.
+
 **Problem.** The "lateral-joins" strategy does not actually use LATERAL. All constrained
 populates are batched with `WHERE fk = ANY($1) ... LIMIT n`:
 
@@ -248,6 +253,13 @@ only branch to the window query when needed).
 tests: 3 parents × 5 children, `limit: 2` → each parent gets exactly its own first 2 by orderBy.
 
 ### Part 3 — Returned rows violate the JS-type contract (dates/numbers as strings)
+
+**Resolution (decided 2026-07-12).** Schema-driven post-processing pass (`convertRowTypes`)
+applied at all three sites listed below; precompute a per-schema "needs conversion" flag and skip
+the pass when the schema has no date/precision-number/json-as-string fields. `NUMERIC` →
+`Number(v)` is accepted (core assumes JS numbers end-to-end); document the >2^53 precision-loss
+caveat in the adapter README. Driver-contract narrowing alone was rejected — it cannot fix the
+`row_to_json` string dates.
 
 **Problem.** Contract §1.4: rows must come back with `Date` objects for date fields, numbers for
 numeric fields, parsed JSON for json fields.
@@ -283,6 +295,11 @@ Suggested split if too big for one session: 3a = populated-relation conversion,
 
 ### Part 4 — Relation-WHERE on UPDATE/DELETE: JOIN→FROM/USING conversion is semantically wrong
 
+**Resolution (decided 2026-07-12).** Option 1: id-subquery translation. When
+`whereResult.joins.length > 0`, emit `WHERE "t"."id" IN (SELECT ... FROM "t" LEFT JOIN ... WHERE
+<conditions>)`, reusing the (correct) SELECT-path translation. Remove the regex JOIN→FROM/USING
+conversion entirely. Option 2 (EXISTS rewrite) is deferred as a possible future improvement.
+
 **Problem.** `packages/adapter-postgres-core/src/query-translator.ts:592-620` (UPDATE) and
 `:646-673` (DELETE) regex-parse the generated `LEFT JOIN ... AS ... ON ...` strings and convert
 them to `FROM`/`USING` + ANDed conditions. This changes LEFT JOIN semantics to an inner join:
@@ -311,6 +328,13 @@ relation + scalar branches on UPDATE and DELETE, NULL-FK rows included.
 
 ### Part 5 — populate `where` silently ignored for belongsTo/hasOne in the batched strategy
 
+**Resolution (decided 2026-07-12).** Semantics: `where` on a belongsTo/hasOne populate means
+"populate only if the target matches, else null" — exactly what the lateral strategy already
+implements. Apply `buildBatchOptionsClause` in the four batched branches so both strategies
+behave identically. Nested relation filters inside populate-level `where` (which would need
+joins that `buildBatchOptionsClause` discards) are REJECTED with a clear `DatrixAdapterError`
+in all strategies — do not wire joins into the batch SQL for now.
+
 **Problem.** Contract §4: an adapter must never silently ignore a condition. The lateral
 strategy applies `options.where` to belongsTo/hasOne (populator.ts:236-249, 262-271), but the
 batched strategy (chosen for depth > 1 or complex options at depth > 1) does not:
@@ -333,6 +357,13 @@ aliases and fail; either wire the joins into the batch SQL or reject nested rela
 populate-where with a clear error).
 
 ### Part 6 — `modifyColumn` is incomplete (TYPE only, no USING, no nullability/default)
+
+**Resolution (decided 2026-07-12).** v1 scope: TYPE change (always with `USING col::newtype`),
+NOT NULL set/drop, DEFAULT set/drop. `unique` changes → explicit
+`throwMigrationError("unsupported: unique change via modifyColumn")` instead of silence. Read the
+old definition from the `_datrix` meta row (same read as `applyOperationsToMetaSchema`) to emit
+only the needed sub-statements; multiple `ALTER TABLE` statements are fine (runs inside the
+migration transaction). Enum `values` changes: swap the CHECK constraint per Part 7.
 
 **Problem.** `packages/adapter-postgres-core/src/adapter.ts:511-516`: `modifyColumn` emits only
 `ALTER COLUMN <c> TYPE <t>`.
@@ -359,6 +390,12 @@ populate-where with a clear error).
 
 ### Part 7 — Enum columns have no DB-level constraint
 
+**Resolution (decided 2026-07-12).** Option 1: inline CHECK constraint —
+`"col" TEXT ... CHECK ("col" IN (...))` with stable name `chk_<table>_<col>_enum`, implemented in
+`buildColumnDefinition` + `addColumn`; Part 6's `modifyColumn` drops + re-adds the CHECK when
+enum `values` change. Values escaped via `translator.escapeValue`. Native `CREATE TYPE ... AS
+ENUM` rejected (lifecycle pain in a migration-driven system).
+
 **Problem.** Contract §6: enum → "values list — CHECK constraint or native enum".
 `packages/adapter-postgres-core/src/types.ts:83-93` maps enum → `VARCHAR` (no length, no CHECK),
 and `buildColumnDefinition` (adapter.ts:835-857) adds nothing. Data written via
@@ -380,7 +417,19 @@ If Option 1: implement in `buildColumnDefinition` + `addColumn`, and extend Part
 `modifyColumn` to swap the CHECK when `values` change. Escape values via
 `translator.escapeValue`.
 
-### Part 8 — Export/import scope and safety (data-destructive)
+### Part 8 — Export/import scope and safety (data-destructive) ✅ DONE
+
+**Resolution (decided 2026-07-12).**
+1. **Scope:** restrict BOTH export and import to datrix-managed tables = tables with a
+   `table:<name>` key in `_datrix`, plus `_datrix` itself and the migration-history table. Derive
+   the list from `_datrix` keys, not `pg_tables`. `getTables()` itself stays broad (introspection
+   behavior unchanged — CLI usage is a separate question); filtering lives in exporter/importer.
+2. **Drop order:** `DROP TABLE ... CASCADE`, safe now that scope is limited to managed tables.
+3. **Atomicity:** wrap import steps 1–4 in a single transaction (`config.connect()` + BEGIN …
+   COMMIT/ROLLBACK); `resetSequence` stays outside. Lock-duration risk on huge archives is
+   accepted and documented, not engineered around.
+Wipe-and-restore semantics itself is intended (CLI already warns) — only scope/order/atomicity
+change.
 
 **Problem.** Import is a wipe-and-restore over the **entire public schema**:
 
@@ -416,6 +465,15 @@ If Option 1: implement in `buildColumnDefinition` + `addColumn`, and extend Part
 do A10 first so this part builds on escaped identifiers.
 
 ### Part 9 — hasOne row explosion in the json-aggregation strategy (minor)
+
+**Resolution (decided 2026-07-12).** Verified in core: the hasOne hidden FK is NOT marked
+`unique` (registry.ts:606-624 — hasOne and hasMany share the same FK-injection path), and the
+target schema's FK field is shape-identical for both kinds, so the adapter cannot detect "this
+FK should be UNIQUE" at `createTable` time. Therefore: (b) defensive aggregation in the adapter
+(DISTINCT ON / lateral LIMIT 1 for hasOne in the json-aggregation strategy). The schema-level
+fix (unique FK) is filed as CORE issue 3.12 in `packages/core/issue.md`; the adapter-side
+defense stays harmless after core fixes it. Option (a) — adapter adding a UNIQUE index on its
+own — rejected (adapter would be guessing schema semantics it doesn't own).
 
 **Problem.** hasOne is populated via plain LEFT JOIN + `GROUP BY main."id", rel."id"`
 (join-builder.ts:237-271; query-translator.ts:419-442). Nothing enforces FK uniqueness at the

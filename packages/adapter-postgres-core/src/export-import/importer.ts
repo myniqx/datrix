@@ -1,7 +1,7 @@
 import type { ImportReader } from "@datrix/core";
 import type { SchemaDefinition } from "@datrix/core";
 import type { PostgresCoreAdapter } from "../adapter";
-import type { PgRunner } from "../driver";
+import type { PgConnection, PgRunner } from "../driver";
 import { DATRIX_META_MODEL } from "@datrix/core";
 
 const CHUNK_SIZE = 1000;
@@ -15,33 +15,59 @@ export class PostgresImporter {
 	async import(reader: ImportReader): Promise<void> {
 		const schemas = await this.collectSchemas(reader);
 
-		// 1. Drop all existing tables
-		const existingTables = await this.adapter.getTables();
-		for (const tableName of existingTables) {
-			await this.adapter.dropTable(tableName, undefined, { isImport: true });
-		}
+		// Steps 1-4 (drop, create, insert, add FKs) run on a single dedicated
+		// connection wrapped in one transaction, so a failure midway never
+		// leaves the database with tables dropped but not restored.
+		const connection = await this.adapter.config.connect();
 
-		// 2. Create tables — isImport skips FK constraints and _datrix meta writes.
-		//    _datrix data will be restored as plain rows in step 3.
-		for (const schema of schemas.values()) {
-			await this.adapter.createTable(schema, undefined, { isImport: true });
-		}
+		try {
+			await connection.query("BEGIN");
 
-		// 3. Insert data chunk by chunk
-		const tables = await reader.getTables();
-		for (const tableName of tables) {
-			for await (const chunk of reader.readChunks(tableName)) {
-				await this.insertChunk(tableName, chunk);
+			// 1. Drop only datrix-managed tables (scope derived from _datrix keys,
+			//    not pg_tables) so a shared-database host app's own tables survive.
+			//    CASCADE is safe here because scope is limited to managed tables.
+			const managedTables = await this.adapter.getManagedTables(connection);
+			for (const tableName of managedTables) {
+				await this.adapter.dropTable(tableName, connection, {
+					isImport: true,
+					cascade: true,
+				});
 			}
+
+			// 2. Create tables — isImport skips FK constraints and _datrix meta writes.
+			//    _datrix data will be restored as plain rows in step 3.
+			for (const schema of schemas.values()) {
+				await this.adapter.createTable(schema, connection, { isImport: true });
+			}
+
+			// 3. Insert data chunk by chunk
+			const tables = await reader.getTables();
+			for (const tableName of tables) {
+				for await (const chunk of reader.readChunks(tableName)) {
+					await this.insertChunk(connection, tableName, chunk);
+				}
+			}
+
+			// 4. Add FK constraints (skip _datrix)
+			for (const schema of schemas.values()) {
+				if (schema.name === DATRIX_META_MODEL) continue;
+				await this.addForeignKeys(connection, schema);
+			}
+
+			await connection.query("COMMIT");
+		} catch (error) {
+			await connection.query("ROLLBACK").catch(() => {
+				// Best-effort rollback; the original error is what matters.
+			});
+			throw error;
+		} finally {
+			await connection.release();
 		}
 
-		// 4. Add FK constraints (skip _datrix)
-		for (const schema of schemas.values()) {
-			if (schema.name === DATRIX_META_MODEL) continue;
-			await this.addForeignKeys(schema);
-		}
-
-		// 5. Reset sequences for all tables
+		// 5. Reset sequences for all tables — stays outside the transaction
+		// (accepted risk per the Part 8 resolution: lock-duration on huge
+		// archives is not engineered around).
+		const tables = await reader.getTables();
 		for (const tableName of tables) {
 			await this.resetSequence(tableName);
 		}
@@ -58,6 +84,7 @@ export class PostgresImporter {
 	}
 
 	private async insertChunk(
+		connection: PgConnection,
 		tableName: string,
 		rows: Record<string, unknown>[],
 	): Promise<void> {
@@ -90,14 +117,17 @@ export class PostgresImporter {
 				}
 			}
 
-			await this.runner.query(
+			await connection.query(
 				`INSERT INTO ${escapedTable} (${escapedColumns}) VALUES ${placeholders.join(", ")}`,
 				values,
 			);
 		}
 	}
 
-	private async addForeignKeys(schema: SchemaDefinition): Promise<void> {
+	private async addForeignKeys(
+		connection: PgConnection,
+		schema: SchemaDefinition,
+	): Promise<void> {
 		const tableName = schema.tableName!;
 		const translator = this.adapter.getTranslator();
 		const escapedTable = translator.escapeIdentifier(tableName);
@@ -121,14 +151,16 @@ export class PostgresImporter {
 				? ` ON UPDATE ${field.references.onUpdate.toUpperCase()}`
 				: "";
 
-			await this.runner.query(
+			await connection.query(
 				`ALTER TABLE ${escapedTable} ADD CONSTRAINT ${constraintName} FOREIGN KEY (${col}) REFERENCES ${refTable} (${refCol})${onDelete}${onUpdate}`,
 			);
 		}
 	}
 
 	private async resetSequence(tableName: string): Promise<void> {
-		const escapedTable = this.adapter.getTranslator().escapeIdentifier(tableName);
+		const escapedTable = this.adapter
+			.getTranslator()
+			.escapeIdentifier(tableName);
 		await this.runner.query(
 			`SELECT setval(pg_get_serial_sequence($1, 'id'), COALESCE((SELECT MAX(id) FROM ${escapedTable}), 0) + 1, false)`,
 			[tableName],

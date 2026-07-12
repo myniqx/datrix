@@ -16,7 +16,7 @@ export class PostgresExporter {
 			exportedAt: new Date().toISOString(),
 		});
 
-		const tables = await this.adapter.getTables();
+		const tables = await this.adapter.getManagedTables();
 
 		for (const tableName of tables) {
 			const schema = await this.adapter.getTableSchema(tableName);
@@ -36,7 +36,9 @@ export class PostgresExporter {
 		tableName: string,
 		writer: ExportWriter,
 	): Promise<void> {
-		const escapedTable = this.adapter.getTranslator().escapeIdentifier(tableName);
+		const escapedTable = this.adapter
+			.getTranslator()
+			.escapeIdentifier(tableName);
 		let offset = 0;
 
 		while (true) {

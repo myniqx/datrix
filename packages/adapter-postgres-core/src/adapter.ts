@@ -404,7 +404,7 @@ export class PostgresCoreAdapter implements DatabaseAdapter<PostgresCoreConfig> 
 	async dropTable(
 		tableName: string,
 		connection?: PgConnection,
-		options?: { isImport?: boolean },
+		options?: { isImport?: boolean; cascade?: boolean },
 	): Promise<void> {
 		const queryRunner: PgRunner = connection ?? this.config.runner;
 		if (!this.isConnected()) {
@@ -413,7 +413,10 @@ export class PostgresCoreAdapter implements DatabaseAdapter<PostgresCoreConfig> 
 
 		try {
 			const escapedTable = this.getTranslator().escapeIdentifier(tableName);
-			await queryRunner!.query(`DROP TABLE IF EXISTS ${escapedTable}`);
+			const cascadeClause = options?.cascade ? " CASCADE" : "";
+			await queryRunner!.query(
+				`DROP TABLE IF EXISTS ${escapedTable}${cascadeClause}`,
+			);
 
 			// Remove schema from _datrix (skip during import — _datrix data will be restored as-is)
 			if (!options?.isImport && tableName !== DATRIX_META_MODEL) {
@@ -490,10 +493,7 @@ export class PostgresCoreAdapter implements DatabaseAdapter<PostgresCoreConfig> 
 					}
 
 					for (const [fieldName, field] of Object.entries(fields)) {
-						if (
-							field.type === "number" &&
-							field.references?.table === from
-						) {
+						if (field.type === "number" && field.references?.table === from) {
 							fields[fieldName] = {
 								...field,
 								references: { ...field.references, table: to },
@@ -673,6 +673,46 @@ export class PostgresCoreAdapter implements DatabaseAdapter<PostgresCoreConfig> 
 			throwMigrationError({
 				adapter: "postgres",
 				message: `Failed to drop index '${indexName}': ${message}`,
+				cause: error instanceof Error ? error : undefined,
+			});
+		}
+	}
+
+	/**
+	 * Get datrix-managed table names: every table that has a schema entry in
+	 * `_datrix` (key prefix `DATRIX_META_KEY_PREFIX`), plus `_datrix` itself.
+	 *
+	 * Unlike `getTables()` (broad `pg_tables` introspection, unchanged), this is
+	 * the scope used by export/import so a shared-database host app's own
+	 * tables are never touched. `_datrix` self-registers a meta row when it is
+	 * created, but it is also included explicitly as a defensive fallback.
+	 */
+	async getManagedTables(connection?: PgRunner): Promise<readonly string[]> {
+		if (!this.isConnected()) {
+			throwNotConnected({ adapter: "postgres" });
+		}
+
+		const queryRunner: PgRunner = connection ?? this.config.runner;
+
+		try {
+			const escapedMetaTable =
+				this.getTranslator().escapeIdentifier(DATRIX_META_MODEL);
+			const result = await queryRunner.query<{ key: string }>(
+				`SELECT "key" FROM ${escapedMetaTable} WHERE "key" LIKE $1`,
+				[`${DATRIX_META_KEY_PREFIX}%`],
+			);
+
+			const tables = new Set<string>([DATRIX_META_MODEL]);
+			for (const row of result.rows) {
+				tables.add(row.key.slice(DATRIX_META_KEY_PREFIX.length));
+			}
+
+			return Array.from(tables).sort();
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			throwIntrospectionError({
+				adapter: "postgres",
+				message: `Failed to get managed tables: ${message}`,
 				cause: error instanceof Error ? error : undefined,
 			});
 		}
@@ -1163,6 +1203,8 @@ class PostgresTransaction implements Transaction {
 /**
  * Create PostgreSQL adapter
  */
-export function createPostgresCoreAdapter(config: PostgresCoreConfig): PostgresCoreAdapter {
+export function createPostgresCoreAdapter(
+	config: PostgresCoreConfig,
+): PostgresCoreAdapter {
 	return new PostgresCoreAdapter(config);
 }
