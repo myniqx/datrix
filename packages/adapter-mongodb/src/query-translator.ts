@@ -81,7 +81,14 @@ export class MongoDBQueryTranslator {
 			? this.translateWhere(query.where, query.table)
 			: {};
 
-		const projection = this.translateProjection(query.select);
+		let projection = this.translateProjection(query.select);
+		if (projection === undefined) {
+			// select: undefined (post-write refetch, contract §3/§8) must be
+			// treated as "all non-hidden scalar columns" — otherwise hidden FK
+			// fields leak into the result. Only stays undefined when the schema
+			// itself is unknown (e.g. `_datrix` internals).
+			projection = this.buildDefaultProjection(query.table);
+		}
 		const sort = query.orderBy
 			? this.translateSort(query.orderBy as readonly OrderByItem<DatrixEntry>[])
 			: undefined;
@@ -260,6 +267,11 @@ export class MongoDBQueryTranslator {
 				continue;
 			}
 
+			// Any key that is not exactly $and/$or/$not must be a plain field name.
+			// Reject operator-like or dotted keys before they can reach MongoDB
+			// (prevents e.g. `{ $where: "..." }` from becoming server-side JS).
+			validateIdentifier(key);
+
 			// Check if this is a relation field
 			if (currentSchema) {
 				const field = currentSchema.fields[key];
@@ -276,16 +288,24 @@ export class MongoDBQueryTranslator {
 						typeof value === "string" ||
 						value === null
 					) {
-						if (relationField.foreignKey) {
-							filter[relationField.foreignKey] =
-								value === null
-									? null
-									: this.convertValueForField(
-											value,
-											currentSchema,
-											relationField.foreignKey,
-										);
+						if (
+							!relationField.foreignKey ||
+							(relationField.kind !== "belongsTo" &&
+								relationField.kind !== "hasOne")
+						) {
+							throwQueryError({
+								adapter: "mongodb",
+								message: `relation shortcut '${key}' cannot be translated`,
+							});
 						}
+						filter[relationField.foreignKey] =
+							value === null
+								? null
+								: this.convertValueForField(
+										value,
+										currentSchema,
+										relationField.foreignKey,
+									);
 						continue;
 					}
 
@@ -308,12 +328,25 @@ export class MongoDBQueryTranslator {
 								!Array.isArray(idValue)
 							) {
 								// Has operators: { id: { $ne: 1 } }
-								const translated = this.translateComparisonOperators(
-									idValue as ComparisonOperators,
-									currentSchema,
-									relationField.foreignKey,
-								);
-								filter[relationField.foreignKey] = translated;
+								const { fieldFilter, extraFilters } =
+									this.translateComparisonOperators(
+										idValue as ComparisonOperators,
+										currentSchema,
+										relationField.foreignKey,
+									);
+								filter[relationField.foreignKey] = fieldFilter;
+								if (extraFilters.length > 0) {
+									const fk = relationField.foreignKey;
+									const andConditions = extraFilters.map((extra) => ({
+										[fk]: extra,
+									}));
+									const existingAnd = filter["$and"] as
+										| Record<string, unknown>[]
+										| undefined;
+									filter["$and"] = existingAnd
+										? [...existingAnd, ...andConditions]
+										: andConditions;
+								}
 							} else {
 								filter[relationField.foreignKey] =
 									idValue === null ? null : idValue;
@@ -347,12 +380,23 @@ export class MongoDBQueryTranslator {
 				!(value instanceof Date)
 			) {
 				// Comparison operators
-				const translated = this.translateComparisonOperators(
+				const { fieldFilter, extraFilters } = this.translateComparisonOperators(
 					value as ComparisonOperators,
 					currentSchema,
 					key,
 				);
-				filter[key] = translated;
+				filter[key] = fieldFilter;
+				if (extraFilters.length > 0) {
+					const andConditions = extraFilters.map((extra) => ({
+						[key]: extra,
+					}));
+					const existingAnd = filter["$and"] as
+						| Record<string, unknown>[]
+						| undefined;
+					filter["$and"] = existingAnd
+						? [...existingAnd, ...andConditions]
+						: andConditions;
+				}
 			} else {
 				// Simple equality
 				filter[key] =
@@ -366,17 +410,41 @@ export class MongoDBQueryTranslator {
 	}
 
 	/**
-	 * Translate comparison operators for a single field
+	 * Translate comparison operators for a single field.
+	 *
+	 * Returns the primary field filter plus any "extra" pattern filters that
+	 * could not be merged into the same object (multiple pattern operators
+	 * on one field would otherwise silently overwrite each other's `$regex`
+	 * key). Callers must AND the extras in via `$and` at the field level.
 	 */
 	private translateComparisonOperators(
 		ops: ComparisonOperators,
 		currentSchema?: SchemaDefinition,
 		fieldPath?: string,
-	): Record<string, unknown> {
+	): {
+		fieldFilter: Record<string, unknown>;
+		extraFilters: Record<string, unknown>[];
+	} {
 		const result: Record<string, unknown> = {};
+		const extraFilters: Record<string, unknown>[] = [];
 
 		const simpleOps = ["$eq", "$ne", "$gt", "$gte", "$lt", "$lte"] as const;
 		const arrayOps = ["$in", "$nin"] as const;
+
+		/**
+		 * Write a pattern-match condition (`$regex`/`$options` or `$not`) into
+		 * `result`, or push it to `extraFilters` if the key is already taken by
+		 * a previous pattern operator on this same field.
+		 */
+		const writePattern = (condition: Record<string, unknown>): void => {
+			const keys = Object.keys(condition);
+			const collides = keys.some((k) => k in result);
+			if (collides) {
+				extraFilters.push(condition);
+			} else {
+				Object.assign(result, condition);
+			}
+		};
 
 		for (const [operator, opValue] of Object.entries(ops)) {
 			if (simpleOps.includes(operator as any)) {
@@ -402,53 +470,70 @@ export class MongoDBQueryTranslator {
 
 			switch (operator) {
 				case "$like":
-					result["$regex"] = this.likeToRegex(String(opValue));
+					writePattern({ $regex: this.likeToRegex(String(opValue)) });
 					break;
 				case "$ilike":
-					result["$regex"] = this.likeToRegex(String(opValue));
-					result["$options"] = "i";
+					writePattern({
+						$regex: this.likeToRegex(String(opValue)),
+						$options: "i",
+					});
 					break;
 				case "$contains":
-					result["$regex"] = this.escapeRegex(String(opValue));
-					result["$options"] = "i";
+					// Case-sensitive LIKE %value% (contract §4)
+					writePattern({ $regex: this.escapeRegex(String(opValue)) });
 					break;
-				case "$notContains":
-					result["$not"] = {
+				case "$icontains":
+					// Case-insensitive LIKE %value%
+					writePattern({
 						$regex: this.escapeRegex(String(opValue)),
 						$options: "i",
-					};
+					});
+					break;
+				case "$notContains":
+					// Case-sensitive NOT LIKE %value%
+					writePattern({
+						$not: { $regex: this.escapeRegex(String(opValue)) },
+					});
 					break;
 				case "$startsWith":
-					result["$regex"] = `^${this.escapeRegex(String(opValue))}`;
-					result["$options"] = "i";
+					writePattern({
+						$regex: `^${this.escapeRegex(String(opValue))}`,
+						$options: "i",
+					});
 					break;
 				case "$endsWith":
-					result["$regex"] = `${this.escapeRegex(String(opValue))}$`;
-					result["$options"] = "i";
+					writePattern({
+						$regex: `${this.escapeRegex(String(opValue))}$`,
+						$options: "i",
+					});
 					break;
 				case "$regex":
 					if (opValue instanceof RegExp) {
-						result["$regex"] = opValue.source;
-						if (opValue.flags) result["$options"] = opValue.flags;
+						writePattern(
+							opValue.flags
+								? { $regex: opValue.source, $options: opValue.flags }
+								: { $regex: opValue.source },
+						);
 					} else {
-						result["$regex"] = String(opValue);
+						writePattern({ $regex: String(opValue) });
 					}
 					break;
 				case "$exists":
-					result["$exists"] = Boolean(opValue);
+				case "$notNull":
+					// Contract semantics: $exists / $notNull ≡ IS NOT NULL.
+					// MongoDB's native $exists means "field present" (even if null),
+					// which is NOT the same thing — never emit it.
+					if (opValue) {
+						result["$ne"] = null;
+					} else {
+						result["$eq"] = null;
+					}
 					break;
 				case "$null":
 					if (opValue) {
 						result["$eq"] = null;
 					} else {
 						result["$ne"] = null;
-					}
-					break;
-				case "$notNull":
-					if (opValue) {
-						result["$ne"] = null;
-					} else {
-						result["$eq"] = null;
 					}
 					break;
 				default:
@@ -459,7 +544,7 @@ export class MongoDBQueryTranslator {
 			}
 		}
 
-		return result;
+		return { fieldFilter: result, extraFilters };
 	}
 
 	/**
@@ -476,11 +561,35 @@ export class MongoDBQueryTranslator {
 
 		const projection: Record<string, number> = {};
 		for (const field of selectArr) {
+			validateIdentifier(field);
 			projection[field] = 1;
 		}
 		// Always include id
 		projection["id"] = 1;
 		// Exclude MongoDB's _id from results
+		projection["_id"] = 0;
+
+		return projection;
+	}
+
+	/**
+	 * Build a default projection from the schema when `select` is undefined
+	 * (post-write refetch, contract §3/§8): every non-relation, non-hidden
+	 * field, plus `id`. Returns undefined when the schema itself is unknown
+	 * (e.g. `_datrix` internals), since there is nothing to derive a
+	 * projection from in that case.
+	 */
+	private buildDefaultProjection(tableName: string): Document | undefined {
+		const schema = this.getSchema(tableName);
+		if (!schema) return undefined;
+
+		const projection: Record<string, number> = {};
+		for (const [fieldName, field] of Object.entries(schema.fields)) {
+			if (field.type === "relation") continue;
+			if (field.hidden) continue;
+			projection[fieldName] = 1;
+		}
+		projection["id"] = 1;
 		projection["_id"] = 0;
 
 		return projection;
@@ -494,6 +603,7 @@ export class MongoDBQueryTranslator {
 	): Sort {
 		const sort: Record<string, 1 | -1> = {};
 		for (const item of orderBy) {
+			validateIdentifier(item.field as string);
 			sort[item.field as string] = item.direction === "asc" ? 1 : -1;
 		}
 		return sort;

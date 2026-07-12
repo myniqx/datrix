@@ -16,6 +16,7 @@ import type { DatrixEntry, ISchemaRegistry } from "@datrix/core";
 import type { MongoClient } from "../mongo-client";
 import type { MongoDBQueryTranslator } from "../query-translator";
 import { throwMaxDepthExceeded } from "@datrix/core";
+import { validateIdentifier } from "../helpers";
 
 /**
  * Maximum populate nesting depth
@@ -462,6 +463,7 @@ export class MongoDBPopulator<T extends DatrixEntry> {
 		if (options.orderBy && options.orderBy.length > 0) {
 			sort = {};
 			for (const item of options.orderBy) {
+				validateIdentifier(item.field as string);
 				sort[item.field as string] = item.direction === "asc" ? 1 : -1;
 			}
 		}
@@ -519,6 +521,7 @@ export class MongoDBPopulator<T extends DatrixEntry> {
 		if (options.orderBy && options.orderBy.length > 0) {
 			const sort: Document = {};
 			for (const item of options.orderBy) {
+				validateIdentifier(item.field as string);
 				sort[item.field as string] = item.direction === "asc" ? 1 : -1;
 			}
 			innerPipeline.push({ $sort: sort });
@@ -556,6 +559,7 @@ export class MongoDBPopulator<T extends DatrixEntry> {
 		if (!select || select.length === 0) return undefined;
 		const projection: Record<string, number> = {};
 		for (const field of select) {
+			validateIdentifier(field);
 			projection[field] = 1;
 		}
 		projection["id"] = 1;
@@ -569,18 +573,23 @@ export class MongoDBPopulator<T extends DatrixEntry> {
 		baseProjection: Document | undefined,
 		populate: QueryPopulate<T>,
 	): Document | undefined {
-		const proj: Record<string, unknown> = { _id: 0 };
-
-		if (baseProjection) {
-			Object.assign(proj, baseProjection);
+		// When there is no base projection (select: undefined / "*"), mixing
+		// `_id: 0` (exclusion) with relation-field inclusions below would make
+		// MongoDB treat the whole object as an inclusion projection — silently
+		// stripping every scalar field from the result. Exclude only `_id` and
+		// let $lookup-added relation fields pass through by default.
+		if (!baseProjection) {
+			return { _id: 0 };
 		}
+
+		const proj: Record<string, unknown> = { _id: 0, ...baseProjection };
 
 		// Ensure populated relation fields are included
 		for (const relationName of Object.keys(populate)) {
 			proj[relationName] = 1;
 		}
 
-		return Object.keys(proj).length > 1 ? proj : { _id: 0 };
+		return proj;
 	}
 
 	/**
@@ -594,6 +603,16 @@ export class MongoDBPopulator<T extends DatrixEntry> {
 		options: QueryPopulateOptions<T>,
 		collectionName?: string,
 	): Document[] {
+		// Nothing enforces uniqueness of the hasOne FK, so the $lookup array
+		// can contain 2+ documents; without capping it, $unwind would emit the
+		// parent row once per child (duplicated main rows). Harmless for
+		// belongsTo since the FK -> unique `id` can only match one document.
+		const { pipeline: innerPipeline = [] } = this.buildLookupPipeline(
+			options,
+			collectionName,
+		);
+		innerPipeline.push({ $limit: 1 });
+
 		return [
 			{
 				$lookup: {
@@ -601,7 +620,7 @@ export class MongoDBPopulator<T extends DatrixEntry> {
 					localField,
 					foreignField,
 					as: asName,
-					...this.buildLookupPipeline(options, collectionName),
+					pipeline: innerPipeline,
 				},
 			},
 			{
