@@ -16,6 +16,9 @@ export type QueryBuilderComponent =
 	| "select"
 	| "populate"
 	| "data"
+	| "orderBy"
+	| "groupBy"
+	| "having"
 	| "pagination";
 
 /**
@@ -32,6 +35,7 @@ export type QueryBuilderErrorCode =
 	| "DUPLICATE_FIELD"
 	| "COERCION_FAILED"
 	| "DELETE_WITHOUT_WHERE"
+	| "UPDATE_WITHOUT_WHERE"
 	| "MISSING_DATA"
 	| "RELATION_IN_SELECT"
 	| "SCHEMA_NOT_FOUND"

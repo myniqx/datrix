@@ -346,27 +346,26 @@ describe("Cascade Delete", () => {
 				{ name: "Bulk Tag B", color: "#BBBBBB" },
 			]);
 
-			// Create multiple posts with tags
-			await datrix.createMany("post", [
-				{
-					title: "Bulk Delete Post 1",
-					content: "Content",
-					slug: "bulk-del-1",
-					isPublished: false,
-					author: author.id,
-					category: category.id,
-					tags: { connect: tags.map((t) => t.id) },
-				},
-				{
-					title: "Bulk Delete Post 2",
-					content: "Content",
-					slug: "bulk-del-2",
-					isPublished: false,
-					author: author.id,
-					category: category.id,
-					tags: { connect: [tags[0].id] },
-				},
-			]);
+			// Create multiple posts with per-post tags (bulk insert shares one
+			// relation set across all items, so create them individually)
+			await datrix.create("post", {
+				title: "Bulk Delete Post 1",
+				content: "Content",
+				slug: "bulk-del-1",
+				isPublished: false,
+				author: author.id,
+				category: category.id,
+				tags: { connect: tags.map((t) => t.id) },
+			});
+			await datrix.create("post", {
+				title: "Bulk Delete Post 2",
+				content: "Content",
+				slug: "bulk-del-2",
+				isPublished: false,
+				author: author.id,
+				category: category.id,
+				tags: { connect: [tags[0].id] },
+			});
 
 			// Delete all unpublished posts
 			const deleted = await datrix.deleteMany("post", { isPublished: false });

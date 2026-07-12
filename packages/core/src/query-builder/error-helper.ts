@@ -220,6 +220,21 @@ export function throwDeleteWithoutWhere(): never {
 }
 
 /**
+ * Throw missing WHERE clause error for UPDATE queries
+ */
+export function throwUpdateWithoutWhere(): never {
+	throw new DatrixQueryBuilderError(
+		"UPDATE query requires a WHERE clause. Use .where({}) to update all records explicitly.",
+		{
+			code: "UPDATE_WITHOUT_WHERE",
+			component: "builder",
+			suggestion:
+				"Add .where() clause or use .where({}) for an intentional full-table update",
+		},
+	);
+}
+
+/**
  * Throw missing data error for INSERT/UPDATE queries
  */
 export function throwMissingData(queryType: "insert" | "update"): never {

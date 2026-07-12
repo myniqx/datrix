@@ -2,7 +2,7 @@
  * MongoDB Client Wrapper
  *
  * Wraps MongoDB Db to provide:
- * - Automatic debug logging (non-production)
+ * - Opt-in debug logging (DATRIX_DEBUG=1)
  * - Consistent error handling with DatrixAdapterError
  * - Unified interface for both normal and transaction (session) operations
  */
@@ -12,7 +12,10 @@ import { DatrixAdapterError } from "@datrix/core";
 import { mongoCodeToAdapterCode } from "./helpers";
 import { DatrixEntry, QueryObject } from "@datrix/core";
 
-const IS_DEBUG = process.env["NODE_ENV"] !== "production";
+// Explicit opt-in only: logging every operation (including the full
+// serialized QueryObject) is noisy and can leak row data into logs. Gating on
+// NODE_ENV !== "production" meant it was always on in dev/test by default.
+const IS_DEBUG = process.env["DATRIX_DEBUG"] === "1";
 
 /**
  * Lightweight wrapper around MongoDB Db.
@@ -32,13 +35,6 @@ export class MongoClient<T extends DatrixEntry> {
 	 */
 	getCollection<T extends Document = Document>(name: string): Collection<T> {
 		return this.db.collection<T>(name);
-	}
-
-	/**
-	 * Get the session (for passing to MongoDB operations)
-	 */
-	getSession(): ClientSession | undefined {
-		return this.session;
 	}
 
 	/**

@@ -23,8 +23,10 @@ import type {
 	NormalizedRelationOperations,
 	NormalizedRelationUpdate,
 	QueryRelations,
+	WhereClause,
 } from "../types/core/query-builder";
 import { throwInvalidField, throwInvalidValue } from "./error-helper";
+import { normalizeWhere } from "./where";
 
 /**
  * Maximum depth for nested create/update operations
@@ -68,52 +70,50 @@ function isRelationInputObject(value: unknown): boolean {
 /**
  * Extract IDs from various formats and convert to number array
  *
+ * IDs are numeric end-to-end (auto-increment PK policy): anything that
+ * does not resolve to a valid integer id throws instead of silently
+ * producing NaN/0.
+ *
  * @param value - Input value (number, {id}, array of numbers/objects)
+ * @param fieldName - Relation field name (for error messages)
  * @returns Array of numbers
+ * @throws {DatrixQueryBuilderError} If any item is not a usable numeric id
  *
  * @example
  * ```ts
- * extractIds(5)                          // [5]
- * extractIds([1, 2, 3])                  // [1, 2, 3]
- * extractIds([{id: 1}, {id: 2}])         // [1, 2]
- * extractIds({id: 5})                    // [5]
+ * extractIds(5, 'tags')                          // [5]
+ * extractIds([1, 2, 3], 'tags')                  // [1, 2, 3]
+ * extractIds([{id: 1}, {id: 2}], 'tags')         // [1, 2]
+ * extractIds({id: 5}, 'tags')                    // [5]
+ * extractIds("abc", 'tags')                      // throws
  * ```
  */
-function extractIds(value: unknown): number[] {
-	// Single number
-	if (typeof value === "number") {
-		return [value];
-	}
+function extractIds(value: unknown, fieldName: string): number[] {
+	const toId = (item: unknown): number => {
+		if (typeof item === "number") {
+			if (!Number.isInteger(item)) {
+				throwInvalidValue("data", fieldName, item, "integer id");
+			}
+			return item;
+		}
+		if (typeof item === "string") {
+			const num = Number(item);
+			if (item.trim() === "" || Number.isNaN(num) || !Number.isInteger(num)) {
+				throwInvalidValue("data", fieldName, item, "numeric id");
+			}
+			return num;
+		}
+		if (typeof item === "object" && item !== null && "id" in item) {
+			return toId((item as { id: unknown }).id);
+		}
+		throwInvalidValue("data", fieldName, item, "numeric id or { id } object");
+	};
 
-	// Single string (convert to number)
-	if (typeof value === "string") {
-		return [Number(value)];
-	}
-
-	// Single object with id
-	if (typeof value === "object" && value !== null && "id" in value) {
-		const id = (value as { id: string | number }).id;
-		return [typeof id === "number" ? id : Number(id)];
-	}
-
-	// Array
 	if (Array.isArray(value)) {
-		return value.map((item) => {
-			if (typeof item === "number") {
-				return item;
-			}
-			if (typeof item === "string") {
-				return Number(item);
-			}
-			if (typeof item === "object" && item !== null && "id" in item) {
-				const id = (item as { id: string | number }).id;
-				return typeof id === "number" ? id : Number(id);
-			}
-			return 0; // Fallback
-		});
+		return value.map(toId);
 	}
 
-	return [];
+	return [toId(value)];
 }
 
 /**
@@ -273,17 +273,23 @@ export function processData<T extends DatrixEntry>(
 		}
 		// Case 1: Direct ID shortcut (category: 5)
 		else if (typeof value === "number" || typeof value === "string") {
-			normalized = { set: extractIds(value) };
+			normalized = { set: extractIds(value, key) };
 		}
 		// Case 2: Array shortcut (tags: [1, 2, 3] or [{id: 1}, {id: 2}])
 		else if (Array.isArray(value)) {
 			const isRawIdArray =
 				value.length === 0 || !isRelationInputObject(value[0]);
 			if (isRawIdArray) {
-				normalized = { set: extractIds(value) };
+				normalized = { set: extractIds(value, key) };
 			} else {
-				// Already RelationInput array, needs processing
-				normalized = {};
+				// Array of RelationInput objects is ambiguous — reject explicitly
+				// instead of silently dropping the operations
+				throwInvalidValue(
+					"data",
+					key,
+					value,
+					"an array of ids/{ id } refs, or a single relation-operations object ({ connect, set, create, ... })",
+				);
 			}
 		}
 		// Case 3: RelationInput object - normalize each operation to number arrays
@@ -293,7 +299,10 @@ export function processData<T extends DatrixEntry>(
 
 			// Normalize connect to number array
 			if (relInput.connect !== undefined) {
-				normalized = { ...normalized, connect: extractIds(relInput.connect) };
+				normalized = {
+					...normalized,
+					connect: extractIds(relInput.connect, key),
+				};
 			}
 
 			// Normalize disconnect to number array
@@ -308,19 +317,22 @@ export function processData<T extends DatrixEntry>(
 				} else {
 					normalized = {
 						...normalized,
-						disconnect: extractIds(relInput.disconnect),
+						disconnect: extractIds(relInput.disconnect, key),
 					};
 				}
 			}
 
 			// Normalize set to number array
 			if (relInput.set !== undefined) {
-				normalized = { ...normalized, set: extractIds(relInput.set) };
+				normalized = { ...normalized, set: extractIds(relInput.set, key) };
 			}
 
 			// Normalize delete to number array
 			if (relInput.delete !== undefined) {
-				normalized = { ...normalized, delete: extractIds(relInput.delete) };
+				normalized = {
+					...normalized,
+					delete: extractIds(relInput.delete, key),
+				};
 			}
 
 			// Recursively process create operations
@@ -382,57 +394,58 @@ export function processData<T extends DatrixEntry>(
 
 				const nextVisited = new Set([...visitedModels, schema.name]);
 
-				// Handle array of updates
-				if (Array.isArray(relInput.update)) {
-					normalized = {
-						...normalized,
-						update: relInput.update.map((item) => {
-							const whereClause = item.where;
-							const updateData = item.data as Partial<T>;
-							const processed = processData<T>(
-								updateData,
-								targetSchema,
-								registry,
-								depth + 1,
-								nextVisited,
-							);
-							return {
-								where: whereClause,
-								...processed,
-							} satisfies NormalizedRelationUpdate<T>;
-						}),
-					};
-				} else {
-					// Single update
-					const whereClause = relInput.update.where;
-					const updateData = relInput.update.data as Partial<T>;
-					const processed = processData<T>(
-						updateData,
+				// Validate + normalize the nested where against the TARGET schema —
+				// it flows to the adapter and must never carry raw field names
+				const normalizeUpdateWhere = (whereClause: unknown): WhereClause<T> => {
+					if (
+						typeof whereClause !== "object" ||
+						whereClause === null ||
+						Object.keys(whereClause).length === 0
+					) {
+						throwInvalidValue(
+							"data",
+							`relation ${key}.update.where`,
+							whereClause,
+							"a non-empty where clause",
+						);
+					}
+					return normalizeWhere(
+						[whereClause as WhereClause<T>],
 						targetSchema,
 						registry,
-						depth + 1,
-						nextVisited,
-					);
-					normalized = {
-						...normalized,
-						update: [
-							{
-								where: whereClause,
-								...processed,
-							} satisfies NormalizedRelationUpdate<T>,
-						],
-					};
-				}
+					)!;
+				};
+
+				const updateItems = Array.isArray(relInput.update)
+					? relInput.update
+					: [relInput.update];
+
+				normalized = {
+					...normalized,
+					update: updateItems.map((item) => {
+						const whereClause = normalizeUpdateWhere(item.where);
+						const updateData = item.data as Partial<T>;
+						const processed = processData<T>(
+							updateData,
+							targetSchema,
+							registry,
+							depth + 1,
+							nextVisited,
+						);
+						return {
+							where: whereClause,
+							...processed,
+						} satisfies NormalizedRelationUpdate<T>;
+					}),
+				};
 			}
 		} else {
 			// Fallback (shouldn't happen)
 			normalized = {};
 		}
 
-		// Inline foreign keys for belongsTo only
-		// hasOne FK is on TARGET table, not on owner - cannot inline into owner's scalars
-		if (field.kind === "belongsTo") {
-			// Singular relations can only reference one record total
+		// Singular relations (belongsTo/hasOne) can only reference one record total
+		if (field.kind === "belongsTo" || field.kind === "hasOne") {
 			const totalRefs =
 				(normalized.connect?.length ?? 0) +
 				(normalized.set?.length ?? 0) +
@@ -443,10 +456,14 @@ export function processData<T extends DatrixEntry>(
 					"data",
 					`relation ${key} (${field.kind})`,
 					`${totalRefs} references`,
-					"a single reference — belongsTo can only reference one record",
+					`a single reference — ${field.kind} can only reference one record`,
 				);
 			}
+		}
 
+		// Inline foreign keys for belongsTo only
+		// hasOne FK is on TARGET table, not on owner - cannot inline into owner's scalars
+		if (field.kind === "belongsTo") {
 			const foreignKey = field.foreignKey!;
 			let inlinedId: number | null | undefined = undefined;
 

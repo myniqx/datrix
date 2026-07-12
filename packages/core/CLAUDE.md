@@ -59,15 +59,44 @@ Datrix uses a layered validation architecture. Each layer has specific responsib
 |------|------------|-------|
 | `builder.ts` | Schema exists in registry | `throwSchemaNotFound()` |
 | `builder.ts` | DELETE must have WHERE clause | `throwDeleteWithoutWhere()` |
-| `where.ts` | Field exists in schema | `throwInvalidField()` |
+| `builder.ts` | UPDATE must have WHERE clause (use `.where({})` for intentional full-table update) | `throwUpdateWithoutWhere()` |
+| `builder.ts` | groupBy fields exist and are not relations | `throwInvalidField()` |
+| `builder.ts` | having goes through the WHERE validate/normalize pipeline | (same as where) |
+| `builder.ts` | Bulk insert items must share identical relation ops | `throwInvalidValue()` |
+| `where.ts` | Field exists in schema (incl. nested relation WHERE, all relation kinds) | `throwInvalidField()` |
 | `where.ts` | Operator is valid | `throwInvalidOperator()` |
 | `where.ts` | Depth limit (max 10 levels) | `throwMaxDepthExceeded()` |
+| `where.ts` | Relation IDs are numeric (number-only ID policy) | `throwCoercionFailed()` |
+| `where.ts` | Primitive/`$null` shortcuts only on belongsTo/hasOne | `throwInvalidValue()` |
+| `orderby.ts` | orderBy fields exist, direction is `asc\|desc` | `throwInvalidField()` / `throwInvalidValue()` |
 | `select.ts` | Field exists in schema | `throwInvalidFields()` |
 | `select.ts` | Relation fields not in SELECT | `throwRelationInSelect()` |
 | `populate.ts` | Field is a relation | `throwInvalidValue()` |
+| `populate.ts` | Populate options (`where`/`orderBy`/`limit`/`offset`) validated against target schema; unknown option keys rejected | `throwInvalidField()` / `throwInvalidValue()` |
 | `data.ts` | Field exists in schema | `throwInvalidField()` |
 | `data.ts` | Nested depth (max 5 levels) | `throwInvalidValue()` |
 | `data.ts` | No circular relations | `throwInvalidValue()` |
+| `data.ts` | Relation IDs are numeric integers (no `NaN`/`0` fallbacks) | `throwInvalidValue()` |
+| `data.ts` | belongsTo/hasOne accept a single reference only | `throwInvalidValue()` |
+| `data.ts` | Nested update `where` validated/normalized against target schema | (same as where) |
+
+### Identifier Safety (SQL injection)
+
+Adapters can parameterize **values** but never **identifiers** (field/column
+names). Every identifier that reaches an adapter — WHERE fields (including
+nested relation WHERE), SELECT fields, orderBy/groupBy/having fields, populate
+options — is therefore whitelisted against the schema in the Query Builder.
+Adapters must still quote identifiers, but they can rely on core having
+validated them.
+
+### Bulk Insert Relations Contract
+
+Bulk insert (`insertInto(model, [item1, item2, ...])`) takes the relation
+operations from the **first** item and applies them to **every** inserted
+record ("these 5 products, all in this category"). Per-item relations would
+force an N-query loop and defeat the purpose of bulk insert. `build()` throws
+if later items carry relation ops that differ from the first item's; users who
+need per-item relations should call single `create` in their own loop.
 
 ### Normalization (Not Validation)
 

@@ -400,7 +400,8 @@ export type NormalizedRelationOperations<R extends DatrixEntry> = {
 export interface NormalizedRelationUpdate<
 	T extends DatrixEntry,
 > extends NormalizedNestedData<T> {
-	readonly where: { readonly id: number };
+	// Validated + normalized against the target schema by processData
+	readonly where: WhereClause<T>;
 }
 
 /**

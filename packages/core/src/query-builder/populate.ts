@@ -18,6 +18,8 @@ import type {
 } from "../types/core/schema";
 import { throwInvalidField, throwInvalidValue } from "./error-helper";
 import { normalizeSelect } from "./select";
+import { normalizeWhere } from "./where";
+import { normalizeOrderBy, validateOrderBy } from "./orderby";
 
 /**
  * Maximum nesting depth for populate clauses to prevent stack overflow
@@ -108,7 +110,13 @@ export function normalizePopulate<T extends DatrixEntry>(
 
 	// Handle array format - dot notation ['category', 'author.company']
 	if (Array.isArray(populate)) {
-		return normalizePopulateDotNotation(populate, schema, modelName, registry);
+		return normalizePopulateDotNotation(
+			populate,
+			schema,
+			modelName,
+			registry,
+			depth,
+		);
 	}
 
 	// Handle object format
@@ -134,21 +142,83 @@ export function normalizePopulate<T extends DatrixEntry>(
 		const relationField = field as RelationField;
 		const targetModel = relationField.model;
 
-		if (typeof value === "boolean" || value === "*") {
+		// Explicit opt-out: populate[category]=false → skip this relation
+		if (value === false) {
+			continue;
+		}
+
+		if (value === true || value === "*") {
 			// populate[category]=true or populate[category]='*' → convert to { select: [...] }
 			result[relationName] = {
 				select: registry.getCachedSelectFields(targetModel),
 			};
 		} else if (typeof value === "object" && value !== null) {
-			// populate[category]={ select: [...], populate: {...} }
+			// populate[category]={ select: [...], where: {...}, populate: {...} }
+			const targetSchema = registry.get(targetModel);
+			if (!targetSchema) {
+				throwInvalidValue("populate", relationName, targetModel, "valid model");
+			}
+
+			// Reject unknown option keys instead of silently dropping them
+			const allowedOptions = [
+				"select",
+				"where",
+				"populate",
+				"limit",
+				"offset",
+				"orderBy",
+			];
+			for (const optKey of Object.keys(value)) {
+				if (!allowedOptions.includes(optKey)) {
+					throwInvalidField(
+						"populate",
+						`${relationName}.${optKey}`,
+						allowedOptions,
+					);
+				}
+			}
+
+			// Validate + normalize populate-level where against the target schema
+			const normalizedWhere =
+				value.where !== undefined
+					? normalizeWhere([value.where], targetSchema, registry)
+					: undefined;
+
+			// Normalize + validate populate-level orderBy against the target schema
+			const normalizedOrderBy = normalizeOrderBy(value.orderBy);
+			validateOrderBy(normalizedOrderBy, targetSchema);
+
+			// Validate pagination options
+			for (const [optName, optValue] of [
+				["limit", value.limit],
+				["offset", value.offset],
+			] as const) {
+				if (
+					optValue !== undefined &&
+					(typeof optValue !== "number" ||
+						!Number.isInteger(optValue) ||
+						optValue < 0)
+				) {
+					throwInvalidValue(
+						"populate",
+						`${relationName}.${optName}`,
+						optValue,
+						"non-negative integer",
+					);
+				}
+			}
+
+			// Build the options explicitly — never spread raw user input through
 			result[relationName] = {
-				...value,
-				// Normalize select for this level (if provided)
 				select: normalizeSelect(
 					value.select !== undefined ? [value.select] : undefined,
-					registry.get(targetModel)!,
+					targetSchema,
 					registry,
 				),
+				...(normalizedWhere !== undefined && { where: normalizedWhere }),
+				...(normalizedOrderBy !== undefined && { orderBy: normalizedOrderBy }),
+				...(value.limit !== undefined && { limit: value.limit }),
+				...(value.offset !== undefined && { offset: value.offset }),
 				// Recursively process nested populate
 				populate: value.populate
 					? normalizePopulate(value.populate, targetModel, registry, depth + 1)
@@ -184,7 +254,17 @@ function normalizePopulateDotNotation<T extends DatrixEntry>(
 	schema: SchemaDefinition,
 	_modelName: string,
 	registry: ISchemaRegistry,
+	depth = 0,
 ): PopulateClause<T> {
+	if (depth > MAX_POPULATE_DEPTH) {
+		throwInvalidValue(
+			"populate",
+			schema.name,
+			depth,
+			`maximum nesting depth of ${MAX_POPULATE_DEPTH}`,
+		);
+	}
+
 	const result: Record<string, any> = {};
 
 	for (const path of paths) {
@@ -239,6 +319,7 @@ function normalizePopulateDotNotation<T extends DatrixEntry>(
 					targetSchema,
 					targetModel,
 					registry,
+					depth + 1,
 				);
 				// Merge nested populate
 				Object.assign(result[firstPart].populate, nested);

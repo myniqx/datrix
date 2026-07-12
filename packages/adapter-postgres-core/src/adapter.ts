@@ -344,7 +344,11 @@ export class PostgresCoreAdapter implements DatabaseAdapter<PostgresCoreConfig> 
 
 			for (const [fieldName, field] of Object.entries(schema.fields)) {
 				if (field.type === "relation") continue;
-				const columnDef = this.buildColumnDefinition(fieldName, field);
+				const columnDef = this.buildColumnDefinition(
+					fieldName,
+					field,
+					schema.tableName!,
+				);
 				columns.push(columnDef);
 
 				if (!options?.isImport && field.type === "number" && field.references) {
@@ -554,41 +558,70 @@ export class PostgresCoreAdapter implements DatabaseAdapter<PostgresCoreConfig> 
 		try {
 			const escapedTable = this.getTranslator().escapeIdentifier(tableName);
 
+			// modifyColumn needs the OLD field definition (AlterOperation only
+			// carries newDefinition) to know which sub-statements are actually
+			// needed. Lazily loaded once and cached, since multiple modifyColumn
+			// ops can appear in the same alterTable call.
+			let oldFields: Record<string, FieldDefinition> | undefined;
+			const getOldField = async (
+				column: string,
+			): Promise<FieldDefinition | undefined> => {
+				if (!oldFields) {
+					const schema = await this.readSchemaMeta(tableName, queryRunner!);
+					oldFields = schema?.fields ?? {};
+				}
+				return oldFields[column];
+			};
+
 			for (const op of operations) {
-				let sql = "";
+				const statements: string[] = [];
 
 				switch (op.type) {
 					case "addColumn": {
 						const columnDef = this.buildColumnDefinition(
 							op.column,
 							op.definition,
+							tableName,
 						);
-						sql = `ALTER TABLE ${escapedTable} ADD COLUMN ${columnDef}`;
+						statements.push(
+							`ALTER TABLE ${escapedTable} ADD COLUMN ${columnDef}`,
+						);
 						break;
 					}
 
 					case "dropColumn": {
 						const columnName = this.getTranslator().escapeIdentifier(op.column);
-						sql = `ALTER TABLE ${escapedTable} DROP COLUMN ${columnName}`;
+						statements.push(
+							`ALTER TABLE ${escapedTable} DROP COLUMN ${columnName}`,
+						);
 						break;
 					}
 
 					case "modifyColumn": {
-						const columnName = this.getTranslator().escapeIdentifier(op.column);
-						const pgType = getPostgresTypeWithModifiers(op.newDefinition);
-						sql = `ALTER TABLE ${escapedTable} ALTER COLUMN ${columnName} TYPE ${pgType}`;
+						const oldDefinition = await getOldField(op.column);
+						statements.push(
+							...this.buildModifyColumnStatements(
+								tableName,
+								escapedTable,
+								op.column,
+								oldDefinition,
+								op.newDefinition,
+							),
+						);
 						break;
 					}
 
 					case "renameColumn": {
 						const fromColumn = this.getTranslator().escapeIdentifier(op.from);
 						const toColumn = this.getTranslator().escapeIdentifier(op.to);
-						sql = `ALTER TABLE ${escapedTable} RENAME COLUMN ${fromColumn} TO ${toColumn}`;
+						statements.push(
+							`ALTER TABLE ${escapedTable} RENAME COLUMN ${fromColumn} TO ${toColumn}`,
+						);
 						break;
 					}
 				}
 
-				if (sql) {
+				for (const sql of statements) {
 					await queryRunner!.query(sql);
 				}
 			}
@@ -839,13 +872,13 @@ export class PostgresCoreAdapter implements DatabaseAdapter<PostgresCoreConfig> 
 	}
 
 	/**
-	 * Read schema from _datrix, apply AlterOperations, write back
+	 * Read the stored schema definition for a table from `_datrix`.
+	 * Throws `throwMigrationError` if no meta row exists for the table.
 	 */
-	private async applyOperationsToMetaSchema(
+	private async readSchemaMeta(
 		tableName: string,
-		operations: readonly AlterOperation[],
 		queryRunner: PgRunner,
-	): Promise<void> {
+	): Promise<SchemaDefinition> {
 		const metaKey = `${DATRIX_META_KEY_PREFIX}${tableName}`;
 		const escapedMetaTable =
 			this.getTranslator().escapeIdentifier(DATRIX_META_MODEL);
@@ -862,7 +895,21 @@ export class PostgresCoreAdapter implements DatabaseAdapter<PostgresCoreConfig> 
 			});
 		}
 
-		const schema = JSON.parse(metaResult.rows[0]!.value) as SchemaDefinition;
+		return JSON.parse(metaResult.rows[0]!.value) as SchemaDefinition;
+	}
+
+	/**
+	 * Read schema from _datrix, apply AlterOperations, write back
+	 */
+	private async applyOperationsToMetaSchema(
+		tableName: string,
+		operations: readonly AlterOperation[],
+		queryRunner: PgRunner,
+	): Promise<void> {
+		const metaKey = `${DATRIX_META_KEY_PREFIX}${tableName}`;
+		const escapedMetaTable =
+			this.getTranslator().escapeIdentifier(DATRIX_META_MODEL);
+		const schema = await this.readSchemaMeta(tableName, queryRunner);
 		const fields = { ...schema.fields };
 
 		for (const op of operations) {

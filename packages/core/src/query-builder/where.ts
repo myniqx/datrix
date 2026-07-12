@@ -140,7 +140,8 @@ function isCorrectType(value: unknown, fieldType: FieldType): boolean {
 		case "array":
 			return Array.isArray(value);
 		case "relation":
-			return typeof value === "number" || typeof value === "string";
+			// IDs are numeric end-to-end (auto-increment PK policy)
+			return typeof value === "number" && !Number.isNaN(value);
 		default:
 			return true;
 	}
@@ -211,9 +212,12 @@ function coerceString(
 		}
 
 		case "relation": {
-			// Try to parse as number first, otherwise keep as string ID
+			// IDs are numeric end-to-end — non-numeric strings must fail loudly
 			const num = Number(value);
-			return Number.isNaN(num) ? value : num;
+			if (value.trim() === "" || Number.isNaN(num)) {
+				throwCoercionFailed(fieldName, value, "numeric id");
+			}
+			return num;
 		}
 
 		default:
@@ -389,10 +393,45 @@ export function validateWhereClause<T extends DatrixEntry>(
 		// Handle relation fields
 		if (fieldDef.type === "relation") {
 			const relationField = fieldDef as RelationField;
+			const isSingular =
+				relationField.kind === "belongsTo" || relationField.kind === "hasOne";
 
 			// Primitive value shortcut: { category: 2 }
+			// Only defined for singular relations (FK equality). For hasMany/manyToMany
+			// the semantics are ambiguous — require an explicit nested WHERE.
 			if (typeof value === "string" || typeof value === "number") {
+				if (!isSingular) {
+					throwInvalidValue(
+						"where",
+						key,
+						value,
+						`a nested where clause — '${key}' is a ${relationField.kind} relation, use e.g. { ${key}: { id: ${String(value)} } }`,
+					);
+				}
 				continue;
+			}
+
+			// null shortcut: { category: null } → FK IS NULL (singular relations only)
+			if (value === null) {
+				if (!isSingular) {
+					throwInvalidValue(
+						"where",
+						key,
+						value,
+						`a nested where clause — null is not supported on ${relationField.kind} relations`,
+					);
+				}
+				continue;
+			}
+
+			// Arrays are ambiguous for relations — reject explicitly
+			if (Array.isArray(value)) {
+				throwInvalidValue(
+					"where",
+					key,
+					value,
+					`a nested where clause — use e.g. { ${key}: { id: { $in: [...] } } }`,
+				);
 			}
 
 			// Object value - could be $null/$notNull or nested WHERE
@@ -405,11 +444,20 @@ export function validateWhereClause<T extends DatrixEntry>(
 				const keys = Object.keys(valueObj);
 
 				// Check for $null or $notNull operators on relation (FK null check)
-				// { organization: { $null: true } } - valid for belongsTo/hasOne
+				// { organization: { $null: true } } - valid for belongsTo/hasOne only:
+				// hasMany/manyToMany have no FK on this table to null-check
 				if (
 					keys.length === 1 &&
 					(keys[0] === "$null" || keys[0] === "$notNull")
 				) {
+					if (!isSingular) {
+						throwInvalidValue(
+							"where",
+							key,
+							keys[0],
+							`a nested where clause — ${keys[0]} is not supported on ${relationField.kind} relations`,
+						);
+					}
 					const opValue = valueObj[keys[0]];
 					// Validate that the value is boolean or string that can be coerced
 					if (typeof opValue !== "boolean" && typeof opValue !== "string") {
@@ -430,8 +478,16 @@ export function validateWhereClause<T extends DatrixEntry>(
 						);
 					}
 				}
+				continue;
 			}
-			continue;
+
+			// Anything else (boolean, Date, null...) has no defined relation semantics
+			throwInvalidValue(
+				"where",
+				key,
+				value,
+				"a numeric id (belongsTo/hasOne) or a nested where clause",
+			);
 		}
 
 		// Handle comparison operators
@@ -569,7 +625,7 @@ function normalizeWhereClause<T extends DatrixEntry>(
 			const relationField = fieldDef as RelationField;
 			const kind = relationField.kind;
 
-			// Only normalize for belongsTo/hasOne (they have FK in current table)
+			// Singular relations (FK in current table): shortcut normalization
 			if (kind === "belongsTo" || kind === "hasOne") {
 				const foreignKey = relationField.foreignKey!;
 
@@ -580,12 +636,14 @@ function normalizeWhereClause<T extends DatrixEntry>(
 					continue;
 				}
 
+				// null shortcut: { category: null } → { categoryId: { $null: true } }
+				if (value === null) {
+					normalized[foreignKey] = { $null: true };
+					continue;
+				}
+
 				// Object value - check if it's $null/$notNull operator for FK
-				if (
-					typeof value === "object" &&
-					value !== null &&
-					!(value instanceof Date)
-				) {
+				if (typeof value === "object" && !(value instanceof Date)) {
 					const valueObj = value as Record<string, unknown>;
 					const keys = Object.keys(valueObj);
 
@@ -605,21 +663,29 @@ function normalizeWhereClause<T extends DatrixEntry>(
 						normalized[foreignKey] = { [operator]: coercedValue };
 						continue;
 					}
-
-					// Nested WHERE - recursively normalize with target schema
-					const targetSchema = registry.get(relationField.model);
-					if (targetSchema) {
-						normalized[key] = normalizeWhereClause(
-							value as WhereClause<T>,
-							targetSchema,
-							registry,
-						);
-						continue;
-					}
 				}
 			}
 
-			// hasMany/manyToMany or fallback: keep as-is
+			// Nested WHERE (all relation kinds) — recursively normalize against
+			// the target schema so adapters receive validated, coerced clauses
+			if (
+				typeof value === "object" &&
+				value !== null &&
+				!Array.isArray(value) &&
+				!(value instanceof Date)
+			) {
+				const targetSchema = registry.get(relationField.model);
+				if (targetSchema) {
+					normalized[key] = normalizeWhereClause(
+						value as WhereClause<T>,
+						targetSchema,
+						registry,
+					);
+					continue;
+				}
+			}
+
+			// Anything else was already rejected by validateWhereClause
 			normalized[key] = value;
 			continue;
 		}
