@@ -252,7 +252,7 @@ only branch to the window query when needed).
 `executeBatchedQueries`, `populateBatchedRows`, plus `buildBatchOptionsClause`. Add integration
 tests: 3 parents × 5 children, `limit: 2` → each parent gets exactly its own first 2 by orderBy.
 
-### Part 3 — Returned rows violate the JS-type contract (dates/numbers as strings)
+### Part 3 — Returned rows violate the JS-type contract (dates/numbers as strings) ✅ DONE
 
 **Resolution (decided 2026-07-12).** Schema-driven post-processing pass (`convertRowTypes`)
 applied at all three sites listed below; precompute a per-schema "needs conversion" flag and skip

@@ -44,6 +44,7 @@ import { PgClient } from "./pg-client";
 import { PostgresExporter } from "./export-import/exporter";
 import { PostgresImporter } from "./export-import/importer";
 import { ExportWriter, ImportReader } from "@datrix/core";
+import { convertRowTypes, schemaNeedsConversion } from "./type-conversion";
 
 /**
  * PostgreSQL adapter implementation
@@ -168,7 +169,18 @@ export class PostgresCoreAdapter implements DatabaseAdapter<PostgresCoreConfig> 
 			const result = await pgClient.query(sql, params);
 
 			if (query.type === "select") {
-				const rows = result.rows as unknown as readonly TResult[];
+				let rows = result.rows as unknown as TResult[];
+
+				const targetSchema = this._schemas?.getByTableName(query.table)?.schema;
+				if (targetSchema && schemaNeedsConversion(targetSchema)) {
+					rows = rows.map((row) =>
+						convertRowTypes(
+							row as unknown as Record<string, unknown>,
+							targetSchema,
+						),
+					) as unknown as TResult[];
+				}
+
 				const metadata: QueryMetadata = {
 					rowCount: rows.length,
 					affectedRows: 0,

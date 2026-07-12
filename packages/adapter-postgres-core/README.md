@@ -87,6 +87,7 @@ Migration operations map directly to native PostgreSQL DDL commands (`CREATE TAB
 ## Known Limitations
 
 - **No partial or expression indexes.** Only simple field indexes with an optional unique constraint.
+- **`NUMERIC`/`BIGINT` values are coerced to JS `number`.** PostgreSQL drivers return `NUMERIC` (used when a number field sets `precision`) and `BIGINT` as strings to avoid precision loss. The adapter converts them back to `number` via `Number(v)` because the framework assumes JS numbers end-to-end. Values with more than 2^53 of integer precision (or more decimal digits than a float64 can hold) lose precision silently. If you need exact arbitrary-precision values, store them in a `string` field instead.
 - **Auto-increment IDs are not gap-free.** Counter increments are atomic but failed inserts do not reclaim IDs.
 - **`json_agg` on empty sets returns `null`**, not an empty array `[]`. The `ResultProcessor` handles this and normalizes the value to `[]`.
 

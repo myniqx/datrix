@@ -17,9 +17,10 @@ import { JoinBuilder } from "./join-builder";
 import { AggregationBuilder } from "./aggregation-builder";
 import { ResultProcessor } from "./result-processor";
 import { throwMaxDepthExceeded, throwQueryError } from "@datrix/core";
-import { DatrixEntry } from "@datrix/core";
+import { DatrixEntry, SchemaDefinition } from "@datrix/core";
 import { PostgresQueryObject } from "../types";
 import { ISchemaRegistry } from "@datrix/core";
+import { convertRowTypes, schemaNeedsConversion } from "../type-conversion";
 
 /**
  * Maximum populate nesting depth
@@ -55,7 +56,7 @@ export class PostgresPopulator {
 			translator,
 			schemaRegistry,
 		);
-		this.resultProcessor = new ResultProcessor();
+		this.resultProcessor = new ResultProcessor(schemaRegistry);
 	}
 
 	/**
@@ -127,6 +128,7 @@ export class PostgresPopulator {
 		return this.resultProcessor.processJsonAggregation<T>(
 			result.rows as T[],
 			query.populate!,
+			query.table,
 		);
 	}
 
@@ -248,10 +250,11 @@ export class PostgresPopulator {
           FROM ${this.translator.escapeIdentifier(targetTable)} t
           WHERE t."id" = ANY($1)${whereExtra.sql}
         `;
-				const batchRows = await this.fetchBatchQueryResults<T>(lateralSql, [
-					fkValues,
-					...whereExtra.params,
-				]);
+				const batchRows = await this.fetchBatchQueryResults<T>(
+					lateralSql,
+					[fkValues, ...whereExtra.params],
+					targetSchema,
+				);
 
 				const dataMap = new Map<number, T>();
 				for (const r of batchRows) dataMap.set(r._fk, r.data);
@@ -275,10 +278,11 @@ export class PostgresPopulator {
           FROM ${this.translator.escapeIdentifier(targetTable)} t
           WHERE t.${this.translator.escapeIdentifier(fkColumn)} = ANY($1)${whereExtra.sql}
         `;
-				const batchRows = await this.fetchBatchQueryResults<T>(lateralSql, [
-					parentIds,
-					...whereExtra.params,
-				]);
+				const batchRows = await this.fetchBatchQueryResults<T>(
+					lateralSql,
+					[parentIds, ...whereExtra.params],
+					targetSchema,
+				);
 
 				const dataMap = new Map<number, T>();
 				for (const r of batchRows) dataMap.set(r._fk, r.data);
@@ -300,10 +304,11 @@ export class PostgresPopulator {
 						this.translator.escapeIdentifier(targetTable) + " t",
 						rowToJson,
 					);
-				const batchRows = await this.fetchBatchQueryResults<T>(lateralSql, [
-					parentIds,
-					...extraParams,
-				]);
+				const batchRows = await this.fetchBatchQueryResults<T>(
+					lateralSql,
+					[parentIds, ...extraParams],
+					targetSchema,
+				);
 
 				const groupMap = new Map<number, T[]>();
 				for (const r of batchRows) {
@@ -333,10 +338,11 @@ export class PostgresPopulator {
 						fromClause,
 						rowToJson,
 					);
-				const batchRows = await this.fetchBatchQueryResults<T>(lateralSql, [
-					parentIds,
-					...extraParams,
-				]);
+				const batchRows = await this.fetchBatchQueryResults<T>(
+					lateralSql,
+					[parentIds, ...extraParams],
+					targetSchema,
+				);
 
 				const groupMap = new Map<number, T[]>();
 				for (const r of batchRows) {
@@ -463,10 +469,11 @@ export class PostgresPopulator {
           FROM ${this.translator.escapeIdentifier(targetTable)} t
           WHERE t."id" = ANY($1)${belongsToExtra.sql}
         `;
-				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [
-					fkValues,
-					...belongsToExtra.params,
-				]);
+				const batchRows = await this.fetchBatchQueryResults<T>(
+					batchQuery,
+					[fkValues, ...belongsToExtra.params],
+					targetSchema,
+				);
 
 				let relatedRows = batchRows.map((r) => r.data);
 
@@ -511,10 +518,11 @@ export class PostgresPopulator {
           FROM ${this.translator.escapeIdentifier(targetTable)} t
           WHERE t.${this.translator.escapeIdentifier(fkColumn)} = ANY($1)${hasOneExtra.sql}
         `;
-				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [
-					parentIds,
-					...hasOneExtra.params,
-				]);
+				const batchRows = await this.fetchBatchQueryResults<T>(
+					batchQuery,
+					[parentIds, ...hasOneExtra.params],
+					targetSchema,
+				);
 
 				const nestedPopulate = options?.["populate"];
 				if (nestedPopulate && batchRows.length > 0) {
@@ -553,10 +561,11 @@ export class PostgresPopulator {
 						hasManyRowToJson,
 					);
 				batchQuery = hasManySql;
-				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [
-					parentIds,
-					...hasManyExtraParams,
-				]);
+				const batchRows = await this.fetchBatchQueryResults<T>(
+					batchQuery,
+					[parentIds, ...hasManyExtraParams],
+					targetSchema,
+				);
 
 				const nestedPopulate = options?.["populate"];
 				if (nestedPopulate && batchRows.length > 0) {
@@ -603,10 +612,11 @@ export class PostgresPopulator {
 						m2mRowToJson,
 					);
 				batchQuery = m2mSql;
-				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [
-					parentIds,
-					...m2mExtraParams,
-				]);
+				const batchRows = await this.fetchBatchQueryResults<T>(
+					batchQuery,
+					[parentIds, ...m2mExtraParams],
+					targetSchema,
+				);
 
 				const nestedPopulate = options?.["populate"];
 				if (nestedPopulate && batchRows.length > 0) {
@@ -700,10 +710,11 @@ export class PostgresPopulator {
           FROM ${this.translator.escapeIdentifier(targetTable)} t
           WHERE t."id" = ANY($1)${belongsToExtra.sql}
         `;
-				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [
-					fkValues,
-					...belongsToExtra.params,
-				]);
+				const batchRows = await this.fetchBatchQueryResults<T>(
+					batchQuery,
+					[fkValues, ...belongsToExtra.params],
+					targetSchema,
+				);
 
 				let relatedRows = batchRows.map((r) => r.data);
 
@@ -741,10 +752,11 @@ export class PostgresPopulator {
           FROM ${this.translator.escapeIdentifier(targetTable)} t
           WHERE t.${this.translator.escapeIdentifier(fkColumn)} = ANY($1)${hasOneExtra.sql}
         `;
-				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [
-					nestedParentIds,
-					...hasOneExtra.params,
-				]);
+				const batchRows = await this.fetchBatchQueryResults<T>(
+					batchQuery,
+					[nestedParentIds, ...hasOneExtra.params],
+					targetSchema,
+				);
 
 				const nestedPopulate = opts.populate;
 				if (nestedPopulate && batchRows.length > 0) {
@@ -776,10 +788,11 @@ export class PostgresPopulator {
 						this.translator.escapeIdentifier(targetTable) + " t",
 						nestedRowToJson,
 					);
-				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [
-					parentIds,
-					...hasManyExtraParams,
-				]);
+				const batchRows = await this.fetchBatchQueryResults<T>(
+					batchQuery,
+					[parentIds, ...hasManyExtraParams],
+					targetSchema,
+				);
 
 				const nestedPopulate = opts.populate;
 				if (nestedPopulate && batchRows.length > 0) {
@@ -818,10 +831,11 @@ export class PostgresPopulator {
 						nestedM2mFromClause,
 						nestedRowToJson,
 					);
-				const batchRows = await this.fetchBatchQueryResults<T>(batchQuery, [
-					parentIds,
-					...m2mExtraParams,
-				]);
+				const batchRows = await this.fetchBatchQueryResults<T>(
+					batchQuery,
+					[parentIds, ...m2mExtraParams],
+					targetSchema,
+				);
 
 				const nestedPopulate = opts.populate;
 				if (nestedPopulate && batchRows.length > 0) {
@@ -1235,15 +1249,36 @@ export class PostgresPopulator {
 	/**
 	 * Execute a batched SQL query and cast the result rows.
 	 * Error handling is delegated to PgClient (already wraps errors in DatrixAdapterError).
+	 *
+	 * `targetSchema`, when provided, is the schema of the relation's target
+	 * model (the `row_to_json` payload in `r.data`). Part 3: `row_to_json` has
+	 * no knowledge of the schema, so date/number/json fields inside `data`
+	 * arrive as strings — this is the single choke point every batched/lateral
+	 * relation fetch goes through, so converting here covers site (b) for all
+	 * strategies (lateral-joins, batched-queries, populateBatchedRows) without
+	 * repeating the conversion call at each of the ~11 call sites.
 	 */
 	private async fetchBatchQueryResults<T extends DatrixEntry>(
 		sql: string,
 		params: unknown[],
+		targetSchema?: SchemaDefinition,
 	): Promise<(T & { _fk: number; data: T })[]> {
 		const result = await this.client.query<T & { _fk: number; data: T }>(
 			sql,
 			params,
 		);
+
+		if (targetSchema && schemaNeedsConversion(targetSchema)) {
+			for (const row of result.rows) {
+				if (row.data && typeof row.data === "object") {
+					convertRowTypes(
+						row.data as unknown as Record<string, unknown>,
+						targetSchema,
+					);
+				}
+			}
+		}
+
 		return result.rows;
 	}
 }
