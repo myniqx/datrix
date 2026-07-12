@@ -293,7 +293,7 @@ numeric fields, parsed JSON for json fields.
 Suggested split if too big for one session: 3a = populated-relation conversion,
 3b = main-row conversion + driver contract doc in `driver.ts`/README.
 
-### Part 4 — Relation-WHERE on UPDATE/DELETE: JOIN→FROM/USING conversion is semantically wrong
+### Part 4 — Relation-WHERE on UPDATE/DELETE: JOIN→FROM/USING conversion is semantically wrong ✅ DONE
 
 **Resolution (decided 2026-07-12).** Option 1: id-subquery translation. When
 `whereResult.joins.length > 0`, emit `WHERE "t"."id" IN (SELECT ... FROM "t" LEFT JOIN ... WHERE

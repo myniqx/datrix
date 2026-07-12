@@ -604,40 +604,11 @@ export class PostgresQueryTranslator implements QueryTranslator {
 
 		// WHERE clause (important for UPDATE!)
 		if (query.where) {
-			const whereResult = this.translateWhere(
+			const whereSQL = this.translateRelationAwareWhere(
 				query.where,
-				this.paramIndex,
 				query.table,
 			);
-
-			// PostgreSQL UPDATE uses FROM instead of JOIN
-			// Convert "LEFT JOIN <table> AS <alias> ON <condition>" to FROM + WHERE
-			if (whereResult.joins.length > 0) {
-				const fromTables: string[] = [];
-				const joinConditions: string[] = [];
-
-				for (const joinClause of whereResult.joins) {
-					const match = joinClause.match(
-						/LEFT JOIN\s+(.+?)\s+AS\s+(.+?)\s+ON\s+(.+)/,
-					);
-					if (match && match[1] && match[2] && match[3]) {
-						fromTables.push(`${match[1]} AS ${match[2]}`);
-						joinConditions.push(match[3]);
-					}
-				}
-
-				if (fromTables.length > 0) {
-					parts.push(`FROM ${fromTables.join(", ")}`);
-				}
-
-				const allConditions = [whereResult.sql, ...joinConditions];
-				parts.push(`WHERE ${allConditions.join(" AND ")}`);
-			} else {
-				parts.push(`WHERE ${whereResult.sql}`);
-			}
-
-			this.paramIndex += whereResult.params.length;
-			this.params.push(...whereResult.params);
+			parts.push(`WHERE ${whereSQL}`);
 		}
 
 		const tableEsc = this.escapeIdentifier(query.table);
@@ -658,45 +629,67 @@ export class PostgresQueryTranslator implements QueryTranslator {
 
 		// WHERE clause (important for DELETE!)
 		if (query.where) {
-			const whereResult = this.translateWhere(
+			const whereSQL = this.translateRelationAwareWhere(
 				query.where,
-				this.paramIndex,
 				query.table,
 			);
-
-			// PostgreSQL DELETE uses USING instead of JOIN
-			if (whereResult.joins.length > 0) {
-				const usingTables: string[] = [];
-				const joinConditions: string[] = [];
-
-				for (const joinClause of whereResult.joins) {
-					const match = joinClause.match(
-						/LEFT JOIN\s+(.+?)\s+AS\s+(.+?)\s+ON\s+(.+)/,
-					);
-					if (match && match[1] && match[2] && match[3]) {
-						usingTables.push(`${match[1]} AS ${match[2]}`);
-						joinConditions.push(match[3]);
-					}
-				}
-
-				if (usingTables.length > 0) {
-					parts.push(`USING ${usingTables.join(", ")}`);
-				}
-
-				const allConditions = [whereResult.sql, ...joinConditions];
-				parts.push(`WHERE ${allConditions.join(" AND ")}`);
-			} else {
-				parts.push(`WHERE ${whereResult.sql}`);
-			}
-
-			this.paramIndex += whereResult.params.length;
-			this.params.push(...whereResult.params);
+			parts.push(`WHERE ${whereSQL}`);
 		}
 
 		const tableEsc = this.escapeIdentifier(query.table);
 		parts.push(`RETURNING ${tableEsc}."id"`);
 
 		return parts.join(" ");
+	}
+
+	/**
+	 * Translate a WHERE clause for UPDATE/DELETE, accounting for relation
+	 * joins.
+	 *
+	 * PostgreSQL's UPDATE/DELETE statements don't support arbitrary JOINs the
+	 * way SELECT does (no plain `LEFT JOIN` target). When the WHERE clause
+	 * needs relation joins (nested relation conditions, e.g.
+	 * `{ author: { verified: true } }`), converting those joins into
+	 * `FROM`/`USING` + ANDed conditions silently turns LEFT JOIN semantics
+	 * into INNER JOIN semantics: rows with a NULL FK (no related row) can
+	 * never match, and `$or` branches that don't involve the relation are
+	 * incorrectly filtered by the ANDed join condition. It also duplicates
+	 * ids for hasMany/manyToMany joins, which is harmful for
+	 * DELETE ... RETURNING.
+	 *
+	 * Instead, when joins are present we emit an id-subquery that reuses the
+	 * exact same join/condition SQL the SELECT path builds (including its
+	 * DISTINCT handling for row-multiplying joins), and match on
+	 * `"table"."id" IN (SELECT "table"."id" FROM "table" LEFT JOIN ... WHERE
+	 * <conditions>)`. This preserves LEFT JOIN semantics and de-duplicates
+	 * matched ids for free via the IN check.
+	 */
+	private translateRelationAwareWhere<T extends DatrixEntry>(
+		where: WhereClause<T>,
+		table: string,
+	): string {
+		const whereResult = this.translateWhere(where, this.paramIndex, table);
+
+		// Params are allocated by translateWhere starting at the current
+		// paramIndex, so advance the shared counter/params array before
+		// building the subquery string (which doesn't consume params itself)
+		// to keep numbering consistent with any params allocated afterward
+		// (e.g. RETURNING has none, but this keeps the invariant general).
+		this.paramIndex += whereResult.params.length;
+		this.params.push(...whereResult.params);
+
+		if (whereResult.joins.length === 0) {
+			return whereResult.sql;
+		}
+
+		const tableEsc = this.escapeIdentifier(table);
+		const joinsSQL = whereResult.joins.join(" ");
+
+		return (
+			`${tableEsc}."id" IN (` +
+			`SELECT ${tableEsc}."id" FROM ${tableEsc} ${joinsSQL} ` +
+			`WHERE ${whereResult.sql})`
+		);
 	}
 
 	/**
