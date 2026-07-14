@@ -751,6 +751,46 @@ describe("Issue Regressions", () => {
 			).rejects.toThrow();
 		});
 
+		// core Issue 6 — combining connect + create on a manyToMany relation is
+		// valid ("link this existing tag AND create+link a new one"), but it must
+		// be expressed as ONE RelationInput object with both keys — not as an
+		// ARRAY of separate RelationInput objects, which is ambiguous (each
+		// array element looks like a complete op; nothing says whether they
+		// merge or which one wins) and now throws instead of silently
+		// normalizing to `{}` (the whole relation operation vanishing).
+		it("allows connect and create together on a manyToMany relation via one object", async () => {
+			const tag = await datrix.create("tag", { name: "Existing Combo Tag" });
+
+			const post = await datrix.create(
+				"post",
+				{
+					title: "Combo Tags Post",
+					content: "c",
+					slug: "combo-tags-post",
+					tags: { connect: [tag.id], create: { name: "New Combo Tag" } },
+				},
+				{ populate: { tags: true } },
+			);
+
+			const tagNames = (post["tags"] as { name: string }[])
+				.map((t) => t.name)
+				.sort();
+			expect(tagNames).toEqual(["Existing Combo Tag", "New Combo Tag"]);
+		});
+
+		it("throws when a relation field receives an array of RelationInput objects", async () => {
+			const tag = await datrix.create("tag", { name: "Ambiguous Tag" });
+
+			await expect(
+				datrix.create("post", {
+					title: "Ambiguous Tags Post",
+					content: "c",
+					slug: "ambiguous-tags-post",
+					tags: [{ connect: [tag.id] }, { create: { name: "New Tag" } }] as never,
+				}),
+			).rejects.toThrow();
+		});
+
 		// core 2.3 — nested create payloads must respect the reserved-field check
 		it("throws when a nested create supplies a reserved field", async () => {
 			await expect(

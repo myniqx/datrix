@@ -168,6 +168,22 @@ describe("Aggregation (groupBy / having / distinct)", () => {
 				}),
 			).rejects.toThrow();
 		});
+
+		// countMany without a groupBy is meaningless — it's just `count` — so
+		// `groupBy` is a required field on RawCountManyOptions at the type
+		// level. TypeScript blocks omitting it entirely, but a caller can still
+		// bypass that at runtime (`groupBy: undefined!`, a JS caller with no
+		// types at all, etc.) — this must fail loudly with a clear error, not
+		// crash on an unrelated internals error (e.g. spreading `undefined`)
+		// or silently behave like plain `count`.
+		it("rejects a runtime call with groupBy missing, instead of crashing on an internal error", async () => {
+			await expect(
+				datrix.countMany("user", {
+					where: { email: { $startsWith: "agg-" } },
+					groupBy: undefined as unknown as string[],
+				}),
+			).rejects.toThrow();
+		});
 	});
 
 	describe("distinct", () => {
@@ -182,6 +198,20 @@ describe("Aggregation (groupBy / having / distinct)", () => {
 			expect(distinctValues.length).toBe(2);
 			const values = distinctValues.map((r) => r["isActive"]).sort();
 			expect(values).toEqual([false, true]);
+		});
+
+		// countMany has no `distinct` option — groupBy already IS "distinct
+		// combinations + a count per combination", so a separate distinct flag
+		// would be redundant. This locks in that the option is absent from the
+		// type, not silently ignored if someone adds it back without wiring it.
+		it("does not accept a distinct option on countMany (compile-time only)", () => {
+			const build = () =>
+				datrix.countMany("user", {
+					groupBy: ["isActive"],
+					// @ts-expect-error countMany has no `distinct` option
+					distinct: true,
+				});
+			expect(typeof build).toBe("function");
 		});
 	});
 });
