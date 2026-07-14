@@ -311,6 +311,9 @@ export class DatrixQueryBuilder<
 	 * Group by fields
 	 */
 	groupBy(fields: readonly string[]): this {
+		if (!Array.isArray(fields)) {
+			throwInvalidValue("groupBy", "groupBy", fields, "an array of field names");
+		}
 		this.query.groupBy = [...(this.query.groupBy || []), ...fields];
 		return this;
 	}
@@ -387,10 +390,9 @@ export class DatrixQueryBuilder<
 				: undefined;
 
 		// Spread helpers for reuse
-		const selectSpread =
-			normalizedSelect !== undefined
-				? { select: normalizedSelect }
-				: { select: undefined };
+		// normalizeSelect always returns a concrete field list (wildcard-expanded
+		// when the user never called .select()), never undefined
+		const selectSpread = { select: normalizedSelect };
 		const populateSpread =
 			normalizedPopulate !== undefined ? { populate: normalizedPopulate } : {};
 		const whereSpread =

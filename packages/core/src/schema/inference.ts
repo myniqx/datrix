@@ -12,6 +12,7 @@ import type {
 	RelationField,
 	SchemaDefinition,
 } from "../types/core/schema";
+import { pluralize } from "./pluralize";
 
 /**
  * Infer type from field definition at runtime
@@ -38,9 +39,9 @@ export function inferFieldType(field: FieldDefinition): string {
 			return `Array<${itemType}>`;
 		}
 		case "relation":
-			return "string"; // Relation ID
+			return "number"; // Relation FK id (number-only ID policy)
 		case "file":
-			return "string"; // File URL
+			return "number"; // Transformed to a media relation at registration
 		default:
 			return "unknown";
 	}
@@ -238,18 +239,6 @@ export function hasSoftDelete(schema: SchemaDefinition): boolean {
  */
 export function getTableName(schema: SchemaDefinition): string {
 	return schema.tableName ?? pluralize(schema.name.toLowerCase());
-}
-
-/**
- * Simple pluralization helper
- */
-function pluralize(word: string): string {
-	if (word.endsWith("s")) return word;
-	if (word.endsWith("y")) return word.slice(0, -1) + "ies";
-	if (word.endsWith("ch") || word.endsWith("sh") || word.endsWith("x")) {
-		return word + "es";
-	}
-	return word + "s";
 }
 
 /**

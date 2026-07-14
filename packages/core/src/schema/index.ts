@@ -7,6 +7,9 @@
 // Export schema registry
 export { SchemaRegistry } from "./registry";
 
+// Export shared pluralization helper (single source of truth for table names)
+export { pluralize } from "./pluralize";
+
 // Export type inference utilities
 export {
 	inferFieldType,

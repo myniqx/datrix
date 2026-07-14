@@ -26,7 +26,7 @@ import { FieldValidationResult } from "../types/core/validator";
  */
 const isString = (value: unknown): value is string => typeof value === "string";
 const isNumber = (value: unknown): value is number =>
-	typeof value === "number" && !isNaN(value);
+	typeof value === "number" && Number.isFinite(value);
 const isBoolean = (value: unknown): value is boolean =>
 	typeof value === "boolean";
 const isDate = (value: unknown): value is Date =>
@@ -177,16 +177,20 @@ function validateString(
 		);
 	}
 
-	// Pattern
-	if (field.pattern && !field.pattern.test(value)) {
-		errors.push(
-			createValidationError(
-				fieldName,
-				"PATTERN",
-				formatErrorMessage("PATTERN", fieldName, { pattern: field.pattern }),
-				{ value },
-			),
-		);
+	// Pattern — reset lastIndex so stateful g/y-flagged patterns don't
+	// alternate between pass/fail across validations
+	if (field.pattern) {
+		field.pattern.lastIndex = 0;
+		if (!field.pattern.test(value)) {
+			errors.push(
+				createValidationError(
+					fieldName,
+					"PATTERN",
+					formatErrorMessage("PATTERN", fieldName, { pattern: field.pattern }),
+					{ value },
+				),
+			);
+		}
 	}
 
 	// Custom validator
@@ -565,9 +569,36 @@ function validateRelation(
 	value: unknown,
 	fieldName: string,
 ): FieldValidationResult<unknown> {
-	// 1. Shortcut: ID (string or number)
-	if (typeof value === "string" || typeof value === "number") {
+	// 1. Shortcut: numeric ID (number-only ID policy)
+	if (typeof value === "number") {
+		if (!Number.isInteger(value)) {
+			return {
+				success: false,
+				error: [
+					createValidationError(
+						fieldName,
+						"INVALID_FORMAT",
+						`Relation field '${fieldName}' must be a numeric integer ID`,
+						{ value },
+					),
+				],
+			};
+		}
 		return { success: true, data: value };
+	}
+
+	if (typeof value === "string") {
+		return {
+			success: false,
+			error: [
+				createValidationError(
+					fieldName,
+					"INVALID_FORMAT",
+					`Relation field '${fieldName}' must be a numeric ID (IDs are number-only)`,
+					{ value },
+				),
+			],
+		};
 	}
 
 	// 2. RelationInput object: { connect, disconnect, set, create, update, delete }

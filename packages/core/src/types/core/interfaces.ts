@@ -23,14 +23,46 @@ export interface RawCrudOptions<T extends DatrixEntry = DatrixRecord> {
 	action?: QueryAction;
 }
 
+export interface RawCountOptions<T extends DatrixEntry = DatrixRecord> {
+	/** Group results by these fields (must be non-relation schema fields). */
+	groupBy?: readonly string[] | undefined;
+	/** Filter groups after aggregation. Only meaningful together with `groupBy`. */
+	having?: WhereClause<T> | undefined;
+}
+
+/**
+ * Options for `countMany` — mirrors `RawFindManyOptions`'s single-options-bag
+ * shape (`where` inside, not a separate positional parameter), but `groupBy`
+ * is required: `countMany` without a grouping is just `count`.
+ *
+ * Contract: `countMany` always resolves to an array — one entry per distinct
+ * group, each entry carrying that group's `groupBy` field values plus a
+ * `count`. No rows match (or `having` filters every group out) → `[]`, never
+ * a bare `0`. This is deliberately a different shape from `count()` (which
+ * always returns a single `number`) so callers never have to guess whether
+ * a "count" result is a number or an array — `count` vs `countMany` disambiguates
+ * by name.
+ */
+export interface RawCountManyOptions<T extends DatrixEntry = DatrixRecord> {
+	where?: WhereClause<T> | undefined;
+	groupBy: readonly string[];
+	/** Filter groups after aggregation; fields must be a subset of `groupBy`. */
+	having?: WhereClause<T> | undefined;
+}
+
 export interface RawFindManyOptions<
 	T extends DatrixEntry = DatrixRecord,
-> extends RawCrudOptions<T> {
+> extends RawCrudOptions<T>, RawCountOptions<T> {
 	orderBy?: OrderByClause<T> | undefined;
 	limit?: number | undefined;
 	offset?: number | undefined;
 	where?: WhereClause<T> | undefined;
+	
+	/** Deduplicate rows (SELECT DISTINCT). */
+	distinct?: boolean | undefined;
 }
+
+
 
 /**
  * Scalar primitive accepted in untyped CRUD input.
@@ -80,6 +112,10 @@ export interface IRawCrud {
 		model: string,
 		where?: WhereClause<T>,
 	): Promise<number>;
+	countMany<T extends DatrixEntry = DatrixRecord>(
+		model: string,
+		options: RawCountManyOptions<T>,
+	): Promise<(Record<string, unknown> & { count: number })[]>;
 	create<
 		T extends DatrixEntry = DatrixRecord,
 		TInput extends FallbackInput = FallbackInput,

@@ -53,11 +53,16 @@ export function throwHookPluginError(
  * See docs: after hook errors are non-fatal by design.
  */
 export function warnAfterHookError(
-	hookName: AfterHookName,
+	hookName: AfterHookName | "onAfterQuery",
 	error: unknown,
+	details?: { pluginName?: string; action?: string },
 ): void {
+	const source = details?.pluginName
+		? `Plugin '${details.pluginName}' ${hookName}`
+		: hookName;
+	const actionInfo = details?.action ? ` (action: ${details.action})` : "";
 	console.warn(
-		`[Datrix] ${hookName} hook threw an error. The operation completed successfully but the hook failed.`,
+		`[Datrix] ${source} hook${actionInfo} threw an error. The operation completed successfully but the hook failed.`,
 		error,
 	);
 }

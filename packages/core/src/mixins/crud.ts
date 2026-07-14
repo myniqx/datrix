@@ -17,6 +17,7 @@ import {
 	IRawCrud,
 	RawCrudOptions,
 	RawFindManyOptions,
+	RawCountManyOptions,
 	FallbackInput,
 } from "../types/core";
 import {
@@ -183,6 +184,15 @@ export class CrudOperations implements IRawCrud {
 		if (options?.offset !== undefined) {
 			builder.offset(options.offset);
 		}
+		if (options?.groupBy) {
+			builder.groupBy(options.groupBy);
+		}
+		if (options?.having) {
+			builder.having(options.having);
+		}
+		if (options?.distinct !== undefined) {
+			builder.distinct(options.distinct);
+		}
 
 		const query = builder.build();
 
@@ -227,6 +237,49 @@ export class CrudOperations implements IRawCrud {
 		const query = builder.build();
 
 		const result = await this.executor.execute<T, number>(query, {
+			noDispatcher: this.getDispatcher === null,
+			action: "count",
+		});
+
+		return result;
+	}
+
+	/**
+	 * Count records grouped by one or more fields — one count per distinct
+	 * group, unlike `count()` which always returns a single total.
+	 *
+	 * @param model - Model name
+	 * @param options - `where` (optional), `groupBy` (required), and optional
+	 *   `having` to filter groups after aggregation
+	 * @returns One entry per distinct group: the group's field values plus a
+	 *   `count` of matching records. `[]` if nothing matches — never a bare `0`.
+	 *
+	 * @example
+	 * ```ts
+	 * const byActive = await crud.countMany('User', { groupBy: ['isActive'] });
+	 * // [{ isActive: true, count: 5 }, { isActive: false, count: 3 }]
+	 * ```
+	 */
+	async countMany<T extends DatrixEntry = DatrixRecord>(
+		model: string,
+		options: RawCountManyOptions<T>,
+	): Promise<(Record<string, unknown> & { count: number })[]> {
+		const builder = countFrom<T>(model, this.schemas);
+
+		if (options.where) {
+			builder.where(options.where);
+		}
+		builder.groupBy(options.groupBy);
+		if (options.having) {
+			builder.having(options.having);
+		}
+
+		const query = builder.build();
+
+		const result = await this.executor.execute<
+			T,
+			(Record<string, unknown> & { count: number })[]
+		>(query, {
 			noDispatcher: this.getDispatcher === null,
 			action: "count",
 		});

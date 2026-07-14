@@ -29,7 +29,6 @@ import {
  */
 const DEFAULT_OPTIONS: Required<ValidatorOptions> = {
 	strict: true,
-	coerce: false,
 	stripUnknown: false,
 	abortEarly: false,
 };
@@ -62,7 +61,12 @@ function getFieldValue(
 	let value = inputData[fieldName];
 
 	// Fallback to foreign key for belongsTo/hasOne relations
-	if (!value && isRelationWithForeignKey(fieldDef) && fieldDef.foreignKey) {
+	// (only when truly absent — 0 is a legitimate relation value)
+	if (
+		(value === undefined || value === null) &&
+		isRelationWithForeignKey(fieldDef) &&
+		fieldDef.foreignKey
+	) {
 		value = inputData[fieldDef.foreignKey];
 	}
 

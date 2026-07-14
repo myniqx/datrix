@@ -189,7 +189,10 @@ export function validateData<
 		? data
 		: addTimestamps(data, { isCreate, isRawMode });
 
-	// 3. Schema validation (with timestamps already present)
+	// 3. Schema validation (with timestamps already present).
+	// With strict: true and stripUnknown: false the validator is check-only
+	// (it throws on failure, never transforms), so returning
+	// dataWithTimestamps below is the validated payload.
 	const validationOptions = {
 		strict: true,
 		stripUnknown: false,

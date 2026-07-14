@@ -22,6 +22,7 @@ import {
 } from "../types/core/schema";
 import { DATRIX_META_MODEL } from "../types/core/constants";
 import { QuerySelect } from "../types/core/query-builder";
+import { pluralize } from "./pluralize";
 
 /**
  * Schema registry error
@@ -64,6 +65,7 @@ interface RegistryCache {
 	referencingSchemas: Map<string, readonly string[]>;
 	fieldTypeIndex: Map<string, readonly SchemaDefinition[]>;
 	selectFields: Map<string, readonly string[]>;
+	tableNames: Map<string, string>;
 }
 
 /**
@@ -78,6 +80,7 @@ export class SchemaRegistry implements ISchemaRegistry {
 		referencingSchemas: new Map(),
 		fieldTypeIndex: new Map(),
 		selectFields: new Map(),
+		tableNames: new Map(),
 	};
 
 	constructor(config?: SchemaRegistryConfig) {
@@ -96,6 +99,7 @@ export class SchemaRegistry implements ISchemaRegistry {
 		this.cache.referencingSchemas.clear();
 		this.cache.fieldTypeIndex.clear();
 		this.cache.selectFields.clear();
+		this.cache.tableNames.clear();
 	}
 
 	/**
@@ -155,6 +159,21 @@ export class SchemaRegistry implements ISchemaRegistry {
 
 		const transformedFields = this.transformFileFields(schema.fields);
 
+		// Junction tables intentionally never carry timestamps — re-registering
+		// one (e.g. via fromJSON) must not inject createdAt/updatedAt.
+		const timestampFields = schema._isJunctionTable
+			? {}
+			: {
+					createdAt: {
+						type: "date" as const,
+						required: true,
+					},
+					updatedAt: {
+						type: "date" as const,
+						required: true,
+					},
+				};
+
 		const enhancedFields = {
 			id: {
 				type: "number" as const,
@@ -163,20 +182,64 @@ export class SchemaRegistry implements ISchemaRegistry {
 				required: true,
 			},
 			...transformedFields,
-			createdAt: {
-				type: "date" as const,
-				required: true,
-			},
-			updatedAt: {
-				type: "date" as const,
-				required: true,
-			},
+			...timestampFields,
 		};
 
 		const storedSchema = {
 			...schema,
-			tableName: schema.tableName ?? this.pluralize(schema.name.toLowerCase()),
+			tableName: schema.tableName ?? pluralize(schema.name.toLowerCase()),
 			fields: enhancedFields,
+		};
+
+		this.schemas.set(schema.name, storedSchema);
+		this.invalidateCache();
+
+		return storedSchema;
+	}
+
+	/**
+	 * Replace an already-registered schema in place (internal).
+	 *
+	 * Used by plugin schema extensions: the input is a schema previously
+	 * returned by `get()`, so it already carries the reserved fields and
+	 * tableName. Bypasses the duplicate/reserved-field checks of `register()`
+	 * but still runs strict validation and file-field transformation.
+	 */
+	replace(schema: SchemaDefinition): SchemaDefinition {
+		if (this.locked) {
+			throw new SchemaRegistryError("Registry is locked", {
+				code: "REGISTRY_LOCKED",
+			});
+		}
+
+		if (!schema.name || !this.schemas.has(schema.name)) {
+			throw new SchemaRegistryError(
+				`Cannot replace unregistered schema: ${schema.name}`,
+				{
+					code: "SCHEMA_NOT_FOUND",
+					schemaName: schema.name,
+				},
+			);
+		}
+
+		if (this.config.strict) {
+			const validation = validateSchemaDefinition(schema);
+			if (!validation.valid) {
+				throw new SchemaRegistryError(
+					`Schema validation failed: ${schema.name}`,
+					{
+						code: "VALIDATION_FAILED",
+						schemaName: schema.name,
+						details: validation.errors,
+					},
+				);
+			}
+		}
+
+		const storedSchema = {
+			...schema,
+			tableName: schema.tableName ?? pluralize(schema.name.toLowerCase()),
+			fields: this.transformFileFields(schema.fields),
 		};
 
 		this.schemas.set(schema.name, storedSchema);
@@ -211,6 +274,10 @@ export class SchemaRegistry implements ISchemaRegistry {
 		}
 
 		this.sortByDependencies();
+
+		// processRelations/createJunctionTable write to the schema map directly,
+		// bypassing register() — drop caches built before finalization.
+		this.invalidateCache();
 	}
 
 	/**
@@ -258,7 +325,7 @@ export class SchemaRegistry implements ISchemaRegistry {
 		if (!schema) return undefined;
 		return {
 			schema,
-			tableName: schema.tableName ?? this.pluralize(modelName.toLowerCase()),
+			tableName: schema.tableName ?? pluralize(modelName.toLowerCase()),
 		};
 	}
 
@@ -306,14 +373,18 @@ export class SchemaRegistry implements ISchemaRegistry {
 	 */
 	findModelByTableName(tableName: string | null): string | null {
 		if (!tableName) return null;
-		for (const [modelName, schema] of this.schemas.entries()) {
-			const schemaTableName =
-				schema.tableName ?? this.pluralize(modelName.toLowerCase());
-			if (schemaTableName === tableName) {
-				return modelName;
+
+		// O(1) lookup via cached tableName → modelName index (rebuilt lazily
+		// after any cache invalidation).
+		if (this.cache.tableNames.size === 0 && this.schemas.size > 0) {
+			for (const [modelName, schema] of this.schemas.entries()) {
+				const schemaTableName =
+					schema.tableName ?? pluralize(modelName.toLowerCase());
+				this.cache.tableNames.set(schemaTableName, modelName);
 			}
 		}
-		return null;
+
+		return this.cache.tableNames.get(tableName) ?? null;
 	}
 
 	/**
@@ -555,6 +626,11 @@ export class SchemaRegistry implements ISchemaRegistry {
 	 * Create junction tables for manyToMany
 	 */
 	private processRelations(): void {
+		// Detect two hasOne/hasMany relations claiming the same FK column on the
+		// same target model (e.g. `reviewer: hasOne User` + `editor: hasOne User`
+		// both defaulting to `PostId`) — they would be indistinguishable.
+		const claimedForeignKeys = new Map<string, string>();
+
 		for (const [schemaName, schema] of this.schemas.entries()) {
 			const enhancedFields = { ...schema.fields };
 
@@ -581,7 +657,7 @@ export class SchemaRegistry implements ISchemaRegistry {
 					if (!(foreignKey in enhancedFields)) {
 						const targetTableName =
 							targetSchema.tableName ??
-							this.pluralize(relation.model.toLowerCase());
+							pluralize(relation.model.toLowerCase());
 						const isRequired = relation.required ?? false;
 						const defaultOnDelete = isRequired ? "cascade" : "setNull";
 						enhancedFields[foreignKey] = {
@@ -605,15 +681,46 @@ export class SchemaRegistry implements ISchemaRegistry {
 
 				if (relation.kind === "hasOne" || relation.kind === "hasMany") {
 					const foreignKey = relation.foreignKey ?? `${schemaName}Id`;
-					const targetFields = { ...targetSchema.fields };
+
+					const claimKey = `${relation.model}.${foreignKey}`;
+					const claimedBy = claimedForeignKeys.get(claimKey);
+					if (claimedBy) {
+						throw new SchemaRegistryError(
+							`Foreign key collision: relations '${claimedBy}' and ` +
+								`'${schemaName}.${fieldName}' both map to column ` +
+								`'${foreignKey}' on model '${relation.model}'. ` +
+								`Set an explicit 'foreignKey' on at least one of them.`,
+							{
+								code: "FOREIGN_KEY_COLLISION",
+								schemaName,
+								details: {
+									field: fieldName,
+									target: relation.model,
+									foreignKey,
+									conflictsWith: claimedBy,
+								},
+							},
+						);
+					}
+					claimedForeignKeys.set(claimKey, `${schemaName}.${fieldName}`);
+
+					// Self-relations must write the FK into enhancedFields — the final
+					// schemas.set below would clobber a FK written via the target path.
+					const isSelfRelation = relation.model === schemaName;
+					const targetFields = isSelfRelation
+						? enhancedFields
+						: { ...targetSchema.fields };
 
 					if (!(foreignKey in targetFields)) {
 						const sourceTableName =
-							schema.tableName ?? this.pluralize(schemaName.toLowerCase());
+							schema.tableName ?? pluralize(schemaName.toLowerCase());
 						targetFields[foreignKey] = {
 							type: "number",
 							required: false,
 							hidden: true,
+							// hasOne: at most one child row may point at a parent —
+							// enforced at the DB level via a UNIQUE constraint.
+							...(relation.kind === "hasOne" && { unique: true }),
 							references: {
 								table: sourceTableName,
 								column: "id",
@@ -623,10 +730,12 @@ export class SchemaRegistry implements ISchemaRegistry {
 						};
 					}
 
-					this.schemas.set(relation.model, {
-						...targetSchema,
-						fields: targetFields,
-					});
+					if (!isSelfRelation) {
+						this.schemas.set(relation.model, {
+							...targetSchema,
+							fields: targetFields,
+						});
+					}
 
 					enhancedFields[fieldName] = {
 						...relation,
@@ -665,22 +774,40 @@ export class SchemaRegistry implements ISchemaRegistry {
 	): void {
 		if (this.schemas.has(junctionTableName)) return;
 
-		const sourceFk = `${schemaName}Id`;
-		const targetFk = `${relation.model}Id`;
+		// FK references must point at the actual table names — a schema may
+		// declare a custom tableName that differs from the pluralized model name.
+		const sourceTableName =
+			this.schemas.get(schemaName)?.tableName ??
+			pluralize(schemaName.toLowerCase());
+		const targetTableName =
+			this.schemas.get(relation.model)?.tableName ??
+			pluralize(relation.model.toLowerCase());
+
+		// Self-referential manyToMany (e.g. User "friends" User) needs distinct
+		// field/FK names — `${model}Id` would collide on both sides. The source
+		// field is registered first; consumers rely on that order to tell the
+		// two sides apart.
+		const isSelfRelation = schemaName === relation.model;
+		const sourceFieldName = isSelfRelation ? `source${schemaName}` : schemaName;
+		const targetFieldName = isSelfRelation
+			? `target${relation.model}`
+			: relation.model;
+		const sourceFk = `${sourceFieldName}Id`;
+		const targetFk = `${targetFieldName}Id`;
 
 		const junctionSchema: SchemaDefinition = {
 			name: junctionTableName,
 			tableName: junctionTableName,
 			fields: {
 				id: { type: "number", required: false, autoIncrement: true },
-				[schemaName]: {
+				[sourceFieldName]: {
 					type: "relation",
 					kind: "belongsTo",
 					model: schemaName,
 					foreignKey: sourceFk,
 					required: true,
 				} as RelationField,
-				[relation.model]: {
+				[targetFieldName]: {
 					type: "relation",
 					kind: "belongsTo",
 					model: relation.model,
@@ -692,7 +819,7 @@ export class SchemaRegistry implements ISchemaRegistry {
 					required: true,
 					hidden: true,
 					references: {
-						table: this.pluralize(schemaName.toLowerCase()),
+						table: sourceTableName,
 						column: "id",
 						onDelete: "cascade" as const,
 					},
@@ -702,7 +829,7 @@ export class SchemaRegistry implements ISchemaRegistry {
 					required: true,
 					hidden: true,
 					references: {
-						table: this.pluralize(relation.model.toLowerCase()),
+						table: targetTableName,
 						column: "id",
 						onDelete: "cascade" as const,
 					},
@@ -730,88 +857,18 @@ export class SchemaRegistry implements ISchemaRegistry {
 	}
 
 	/**
-	 * Enhanced pluralization with common English rules
-	 */
-	private pluralize(word: string): string {
-		const irregulars: Record<string, string> = {
-			person: "people",
-			child: "children",
-			man: "men",
-			woman: "women",
-			tooth: "teeth",
-			foot: "feet",
-			mouse: "mice",
-			goose: "geese",
-			ox: "oxen",
-			datum: "data",
-			index: "indices",
-			vertex: "vertices",
-			matrix: "matrices",
-			status: "statuses",
-			quiz: "quizzes",
-		};
-
-		const lower = word.toLowerCase();
-		const irregular = irregulars[lower];
-		if (irregular) {
-			const firstChar = word.charAt(0);
-			return firstChar === firstChar.toUpperCase()
-				? irregular.charAt(0).toUpperCase() + irregular.slice(1)
-				: irregular;
-		}
-
-		if (
-			word.endsWith("ss") ||
-			lower === "data" ||
-			lower === "information" ||
-			lower === "equipment"
-		) {
-			return word;
-		}
-
-		if (word.endsWith("y") && word.length > 1) {
-			const beforeY = word[word.length - 2];
-			if (beforeY && !"aeiou".includes(beforeY.toLowerCase())) {
-				return word.slice(0, -1) + "ies";
-			}
-		}
-
-		if (word.endsWith("f")) {
-			return word.slice(0, -1) + "ves";
-		}
-		if (word.endsWith("fe")) {
-			return word.slice(0, -2) + "ves";
-		}
-
-		if (word.endsWith("o") && word.length > 1) {
-			const beforeO = word[word.length - 2];
-			if (beforeO && !"aeiou".includes(beforeO.toLowerCase())) {
-				return word + "es";
-			}
-		}
-
-		if (
-			word.endsWith("ch") ||
-			word.endsWith("sh") ||
-			word.endsWith("s") ||
-			word.endsWith("ss") ||
-			word.endsWith("x") ||
-			word.endsWith("z")
-		) {
-			return word + "es";
-		}
-
-		return word + "s";
-	}
-
-	/**
 	 * Export schemas as JSON
+	 *
+	 * Junction schemas are excluded — they are fully derivable from the
+	 * manyToMany relations and would otherwise round-trip with a different
+	 * shape (re-injected timestamps they intentionally never had).
 	 */
 	toJSON(): Record<string, SchemaDefinition> {
 		const autoFields = new Set(["id", "createdAt", "updatedAt"]);
 		const result: Record<string, SchemaDefinition> = {};
 
 		for (const [name, schema] of this.schemas) {
+			if (schema._isJunctionTable) continue;
 			const fields: Record<string, unknown> = {};
 			for (const [fieldName, fieldDef] of Object.entries(schema.fields)) {
 				if (autoFields.has(fieldName)) continue;

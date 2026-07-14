@@ -29,6 +29,7 @@ import {
 	IDatrix,
 	RawCrudOptions,
 	RawFindManyOptions,
+	RawCountManyOptions,
 	FallbackInput,
 } from "./types/core";
 import { DatrixError } from "./types/errors";
@@ -38,6 +39,7 @@ import {
 	getDatrixMetaSchema,
 } from "./migration/schema";
 import { MigrationSession, createMigrationSession } from "./migration/session";
+import { validateConfig } from "./config/validator";
 
 /**
  * Datrix initialization options
@@ -78,7 +80,11 @@ export class Datrix implements IDatrix {
 			return;
 		}
 
+		let connected = false;
+
 		try {
+			validateConfig(config);
+
 			this.config = config;
 			this.adapter = config.adapter;
 
@@ -91,11 +97,6 @@ export class Datrix implements IDatrix {
 
 			// Create dispatcher
 			this.dispatcher = createDispatcher(this.pluginRegistry, this);
-
-			// Connect to database
-			if (!options.skipConnection && this.adapter) {
-				await this.adapter.connect(this._schemas);
-			}
 
 			// 1. Register internal _datrix metadata schema
 			const datrixMetaSchema = getDatrixMetaSchema();
@@ -143,6 +144,13 @@ export class Datrix implements IDatrix {
 			// 5. Finalize registry (process relations, create junction tables)
 			this._schemas.finalizeRegistry();
 
+			// Connect to database — after finalize so adapters receive a complete
+			// registry (some adapters read schemas during connect)
+			if (!options.skipConnection && this.adapter) {
+				await this.adapter.connect(this._schemas);
+				connected = true;
+			}
+
 			// Initialize mixins
 			this._crud = new CrudOperations(
 				this._schemas,
@@ -173,9 +181,10 @@ export class Datrix implements IDatrix {
 
 			this.initialized = true;
 
-			// Auto-migrate if configured
+			// Auto-migrate if configured (needs a live connection — skipped
+			// together with skipConnection)
 			const migrationConfig = this.getMigrationConfig();
-			if (migrationConfig.auto) {
+			if (!options.skipConnection && migrationConfig.auto) {
 				const session = await createMigrationSession(this);
 
 				if (session.ambiguous.length > 0) {
@@ -191,6 +200,17 @@ export class Datrix implements IDatrix {
 				}
 			}
 		} catch (error) {
+			// Leave the instance clean so a retry after a transient failure
+			// (e.g. DB connection) does not hit DUPLICATE_SCHEMA on re-register
+			if (connected && this.adapter) {
+				try {
+					await this.adapter.disconnect();
+				} catch {
+					// Disconnect failure must not mask the original init error
+				}
+			}
+			this.reset();
+
 			if (error instanceof DatrixError) {
 				throw error;
 			}
@@ -373,6 +393,14 @@ export class Datrix implements IDatrix {
 		return this._crud.count(model, where);
 	}
 
+	async countMany<T extends DatrixEntry = DatrixRecord>(
+		model: string,
+		options: RawCountManyOptions<T>,
+	): Promise<(Record<string, unknown> & { count: number })[]> {
+		this.ensureInitialized();
+		return this._crud.countMany(model, options);
+	}
+
 	async create<
 		T extends DatrixEntry = DatrixRecord,
 		TInput extends FallbackInput = FallbackInput,
@@ -473,7 +501,13 @@ export class Datrix implements IDatrix {
 
 	private applySchemaExtensions(extensions: SchemaExtension[]): void {
 		for (const extension of extensions) {
-			const schema = this._schemas.get(extension.targetSchema)!;
+			const schema = this._schemas.get(extension.targetSchema);
+			if (!schema) {
+				throw new DatrixError(
+					`Schema extension target not found: '${extension.targetSchema}'`,
+					{ code: "INIT_FAILED" },
+				);
+			}
 			const extendedFields = { ...schema.fields };
 			const extendedIndexes = [...(schema.indexes || [])];
 
@@ -523,7 +557,9 @@ export class Datrix implements IDatrix {
 				indexes: extendedIndexes,
 			};
 
-			this._schemas.register(extendedSchema);
+			// register() would reject this (duplicate name + reserved fields
+			// already present on a schema that came from get())
+			this._schemas.replace(extendedSchema);
 		}
 	}
 }
@@ -553,12 +589,20 @@ export class Datrix implements IDatrix {
  * const users = await datrix().findMany('user');
  * ```
  */
-export function defineConfig(factory: ConfigFactory): () => Promise<Datrix> {
+export function defineConfig(
+	factory: ConfigFactory,
+): (options?: DatrixInitOptions) => Promise<Datrix> {
 	const instance = new Datrix();
 	let initPromise: Promise<Datrix> | null = null;
 
-	return async function getDatrixInstance(): Promise<Datrix> {
-		// Already initialized - return immediately
+	return async function getDatrixInstance(
+		options?: DatrixInitOptions,
+	): Promise<Datrix> {
+		// Already initialized - return immediately.
+		// Caveat: the instance is memoized, so init options only apply to the
+		// FIRST call — a skipConnection init leaves the singleton without a
+		// connection for later callers. Fine for short-lived CLI processes;
+		// long-lived apps should call with no options.
 		if (instance.isInitialized()) {
 			return instance;
 		}
@@ -573,7 +617,7 @@ export function defineConfig(factory: ConfigFactory): () => Promise<Datrix> {
 			const config = factory();
 
 			try {
-				await instance.initializeWithConfig(config);
+				await instance.initializeWithConfig(config, options ?? {});
 			} finally {
 				initPromise = null;
 			}
