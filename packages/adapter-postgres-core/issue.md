@@ -356,14 +356,20 @@ are **discarded** by `buildBatchOptionsClause` (populator.ts:1055-1065 ignores
 aliases and fail; either wire the joins into the batch SQL or reject nested relation filters in
 populate-where with a clear error).
 
-### Part 6 — `modifyColumn` is incomplete (TYPE only, no USING, no nullability/default)
+### Part 6 — `modifyColumn` is incomplete (TYPE only, no USING, no nullability/default) ✅ DONE
 
-**Resolution (decided 2026-07-12).** v1 scope: TYPE change (always with `USING col::newtype`),
-NOT NULL set/drop, DEFAULT set/drop. `unique` changes → explicit
-`throwMigrationError("unsupported: unique change via modifyColumn")` instead of silence. Read the
-old definition from the `_datrix` meta row (same read as `applyOperationsToMetaSchema`) to emit
-only the needed sub-statements; multiple `ALTER TABLE` statements are fine (runs inside the
-migration transaction). Enum `values` changes: swap the CHECK constraint per Part 7.
+**Resolution (updated 2026-07-12, implemented same day).** v1 scope: TYPE change (always with
+`USING col::newtype`), NOT NULL set/drop, DEFAULT set/drop, **and UNIQUE add/drop** — the
+original "throw on unique change" decision was REVISED because core 3.12 (hasOne FK
+`unique: true`) makes the differ emit legitimate unique-constraint changes on hasOne↔hasMany
+kind switches; throwing would break core-generated migrations. UNIQUE uses the stable name
+`uq_<table>_<column>` (a legacy `<table>_<column>_key` auto-name is also dropped defensively).
+Old definition is read lazily from the `_datrix` meta row (`readSchemaMeta`, shared with
+`applyOperationsToMetaSchema`); when it is missing, statements are emitted unconditionally in
+idempotent forms. Enum `values` changes swap the CHECK constraint per Part 7 (DROP before
+TYPE/values change, re-ADD after). Converting an existing column to auto-increment throws.
+Implemented in `buildModifyColumnStatements` (adapter.ts); named UNIQUE constraints also emitted
+by `buildColumnDefinition` at createTable/addColumn time so modifyColumn can drop them by name.
 
 **Problem.** `packages/adapter-postgres-core/src/adapter.ts:511-516`: `modifyColumn` emits only
 `ALTER COLUMN <c> TYPE <t>`.
@@ -388,13 +394,15 @@ migration transaction). Enum `values` changes: swap the CHECK constraint per Par
 - Failure semantics: `alterTable` runs inside the migration transaction (contract §6 phase 2),
   so multi-statement modify is safe to emit as several `ALTER TABLE` statements.
 
-### Part 7 — Enum columns have no DB-level constraint
+### Part 7 — Enum columns have no DB-level constraint ✅ DONE
 
-**Resolution (decided 2026-07-12).** Option 1: inline CHECK constraint —
-`"col" TEXT ... CHECK ("col" IN (...))` with stable name `chk_<table>_<col>_enum`, implemented in
-`buildColumnDefinition` + `addColumn`; Part 6's `modifyColumn` drops + re-adds the CHECK when
-enum `values` change. Values escaped via `translator.escapeValue`. Native `CREATE TYPE ... AS
-ENUM` rejected (lifecycle pain in a migration-driven system).
+**Resolution (decided 2026-07-12, implemented same day).** Option 1: inline CHECK constraint —
+`CONSTRAINT chk_<table>_<col>_enum CHECK ("col" IN (...))`, implemented in
+`buildEnumCheckClause` + `buildColumnDefinition` (covers both `createTable` and `addColumn`,
+which share `buildColumnDefinition`); Part 6's `modifyColumn` drops + re-adds the CHECK when
+enum `values` change. Values escaped via `translator.escapeValue`; constraint names truncated
+to 63 chars. Native `CREATE TYPE ... AS ENUM` rejected (lifecycle pain in a migration-driven
+system).
 
 **Problem.** Contract §6: enum → "values list — CHECK constraint or native enum".
 `packages/adapter-postgres-core/src/types.ts:83-93` maps enum → `VARCHAR` (no length, no CHECK),
@@ -464,16 +472,21 @@ change.
 **Files.** exporter.ts, importer.ts, adapter.ts (`exportData`/`importData`), plus A10 overlaps —
 do A10 first so this part builds on escaped identifiers.
 
-### Part 9 — hasOne row explosion in the json-aggregation strategy (minor)
+### Part 9 — hasOne row explosion in the json-aggregation strategy (minor) ✅ DONE
 
-**Resolution (decided 2026-07-12).** Verified in core: the hasOne hidden FK is NOT marked
-`unique` (registry.ts:606-624 — hasOne and hasMany share the same FK-injection path), and the
-target schema's FK field is shape-identical for both kinds, so the adapter cannot detect "this
-FK should be UNIQUE" at `createTable` time. Therefore: (b) defensive aggregation in the adapter
-(DISTINCT ON / lateral LIMIT 1 for hasOne in the json-aggregation strategy). The schema-level
-fix (unique FK) is filed as CORE issue 3.12 in `packages/core/issue.md`; the adapter-side
-defense stays harmless after core fixes it. Option (a) — adapter adding a UNIQUE index on its
-own — rejected (adapter would be guessing schema semantics it doesn't own).
+**Resolution (decided 2026-07-12, implemented same day).** Core issue 3.12 has since been FIXED
+(hasOne hidden FKs now carry `unique: true`, and `buildColumnDefinition` translates the flag
+into a named UNIQUE constraint), so new tables are protected at the DB level. The adapter-side
+defense was still implemented for legacy tables: hasOne in the json-aggregation strategy no
+longer uses a LEFT JOIN + GROUP BY — it is populated via a correlated subquery with
+`ORDER BY id LIMIT 1` (`buildHasOneSubquery` in aggregation-builder.ts), which makes parent-row
+duplication structurally impossible. Consequences: the hasOne JOIN and its `GROUP BY rel."id"`
+entry were removed (join-builder now emits belongsTo JOINs only; the dead hasOne/hasMany/
+manyToMany join builders and the unused lateral strategy branch were deleted per the A9
+pattern). Bonus fix folded in: the hasMany/manyToMany aggregation subqueries now alias the
+target table to the relation name — previously the relation-alias-qualified field selection
+only resolved when the relation name happened to equal the target table name, and
+self-referential hasMany correlation was silently wrong (inner table shadowed the outer).
 
 **Problem.** hasOne is populated via plain LEFT JOIN + `GROUP BY main."id", rel."id"`
 (join-builder.ts:237-271; query-translator.ts:419-442). Nothing enforces FK uniqueness at the
@@ -487,6 +500,42 @@ hidden FK field carries `unique` already, this is a non-issue and only needs a t
 or (b) make the aggregation defensive (`DISTINCT ON`/lateral `LIMIT 1`). Verify actual behavior
 with an integration test first — it's possible core already sets `unique: true` on the hidden
 FK for hasOne, in which case close this issue as documentation.
+
+### Part 10 — Self-referential manyToMany populate recomputes `${model}Id` FK templates ✅ DONE
+
+**Origin:** core issue 2.4 done-note ("Adapters still recompute `${model}Id` templates in their
+populate paths"). Core now names self-relation junction FKs `source<Model>Id` /
+`target<Model>Id`, so the string templates in the populate paths resolved to a nonexistent
+column (`UserId`) for self-relations like `User manyToMany User "friends"`.
+
+**Resolution (implemented 2026-07-12).** New `populate/junction.ts` →
+`resolveJunctionForeignKeys(junctionTable, sourceModel, targetModel, registry)` — reads the
+belongsTo relation fields of the junction schema (same logic as core's resolver in
+`query-executor/relations.ts`): match by `model` for normal relations, insertion order for
+self-relations (source registered first), fall back to `${model}Id` for custom `through` tables
+without a registered schema. Wired into all five recompute sites: aggregation-builder
+`buildManyToManySubquery`, populator `executeLateralJoins` / `executeBatchedQueries` /
+`populateBatchedRows` (m2m branches); the fifth site (join-builder `buildManyToManyJoin`) was
+deleted outright as dead code under Part 9.
+
+---
+
+## Shell package verification (`@datrix/adapter-postgres`) — 2026-07-12 ✅
+
+Verified after Parts 6/7/9/10: the shell is a correct thin wrapper over
+`@datrix/adapter-postgres-core`.
+
+- `src/index.ts` — re-exports core adapter types + `PostgresCoreAdapter as PostgresAdapter`;
+  `createPostgresAdapter(config)` = `new PostgresCoreAdapter(createPgDriver(config))`. No
+  validation/translation logic of its own. ✓
+- `src/pg-driver.ts` — implements the `PostgresCoreConfig` driver contract exactly:
+  `runner` (pool wrapper), `connect()` (dedicated `PoolClient` with `release()`), `ping()`
+  (acquire+release), `end()`. Return shape matches `PgQueryResult` (`rowCount: number | null`). ✓
+- `package.json` — `@datrix/adapter-postgres-core` as workspace dependency, `@datrix/core` as
+  peer dependency, `pg` as the only driver dependency. ✓
+- Stale tests were removed under A11; the package type-checks clean. The NUMERIC >2^53 caveat
+  is documented in the core package README (Part 3). Remaining known nit: `test-utils.ts`
+  interpolates `dbName` unescaped (accepted, see Notes).
 
 ---
 

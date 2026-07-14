@@ -98,6 +98,12 @@ force an N-query loop and defeat the purpose of bulk insert. `build()` throws
 if later items carry relation ops that differ from the first item's; users who
 need per-item relations should call single `create` in their own loop.
 
+The same contract applies to **nested relations in `update`**: when an update
+matches N rows, nested create/update/delete operations are resolved **once**
+(`resolveRelationCUD`), then only ID-based linking runs per matched row. One
+shared nested-relation set applies to all matched rows — no N-query loops in
+core. Users who need per-row behavior loop single-record `update` themselves.
+
 ### Normalization (Not Validation)
 
 - Relation shortcuts: `category: 2` → `{ set: [2] }`
@@ -118,6 +124,32 @@ need per-item relations should call single `create` in their own loop.
 2. addTimestamps(data, options)           // Inject createdAt/updatedAt
 3. validateSchema(data, schema)           // Full field validation
 ```
+
+Nested relation payloads (create/update inside relation ops) are validated
+with the **parent operation's** raw-mode flag — raw mode is a caller decision,
+never a nested-processing default.
+
+### Executor Contracts
+
+- **Read consistency:** All returning-reads run **inside** the write
+  transaction — DELETE prefetches rows before deleting, INSERT/UPDATE refetch
+  full records (with select/populate) before COMMIT.
+- **count and hooks:** `count` skips after-hooks (result-transform hooks are
+  typed for entry rows, count resolves to a scalar). Before-hooks still run.
+- **Context construction fails closed:** a plugin throwing in
+  `onCreateQueryContext` aborts the query (`HOOK_PLUGIN_ERROR`) instead of
+  proceeding with an unenriched context.
+
+### Lifecycle Contracts (Datrix init)
+
+- Config is validated (`validateConfig`) before anything else; an empty
+  `schemas` array is valid (plugin-only / internal-only setups).
+- `adapter.connect()` runs **after** `finalizeRegistry()` — adapters receive a
+  complete registry at connect time.
+- A failed init disconnects the adapter and resets the instance, so a retry
+  starts clean (no `DUPLICATE_SCHEMA` masking the real error).
+- Plugin schema extensions go through the internal `registry.replace()` (not
+  `register()`); a missing `targetSchema` is a hard error.
 
 ### Field-Level Validations (via Validator)
 

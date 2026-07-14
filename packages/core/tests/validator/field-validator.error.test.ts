@@ -228,6 +228,34 @@ describe("FieldValidator - Error Path", () => {
 					validationError.error.some((e) => e.code === "TYPE_MISMATCH"),
 				).toBe(true);
 			});
+
+			// core Issue 39 — only NaN was rejected; Infinity passed number
+			// validation and could flow into an adapter as an unrepresentable value
+			it("should reject Infinity", () => {
+				const validationResult = validateField(
+					Infinity,
+					sampleFields.requiredNumber,
+					"age",
+				);
+
+				const validationError = expectFailureError(validationResult);
+				expect(
+					validationError.error.some((e) => e.code === "TYPE_MISMATCH"),
+				).toBe(true);
+			});
+
+			it("should reject -Infinity", () => {
+				const validationResult = validateField(
+					-Infinity,
+					sampleFields.requiredNumber,
+					"age",
+				);
+
+				const validationError = expectFailureError(validationResult);
+				expect(
+					validationError.error.some((e) => e.code === "TYPE_MISMATCH"),
+				).toBe(true);
+			});
 		});
 
 		describe("min Validation", () => {

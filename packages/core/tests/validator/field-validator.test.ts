@@ -144,6 +144,25 @@ describe("FieldValidator - Happy Path", () => {
 					expectSuccessData(validationResult);
 				}
 			});
+
+			// core Issue 35 — a pattern with the `g` flag is stateful (lastIndex
+			// persists between calls); validating the SAME matching value twice in a
+			// row must pass both times, not alternate pass/fail.
+			it("should pass repeatedly for a pattern with the global flag", () => {
+				const globalPatternField = {
+					type: "string" as const,
+					pattern: /^[a-z]+$/g,
+				};
+
+				const first = validateField("abc", globalPatternField, "name");
+				expectSuccessData(first);
+
+				const second = validateField("abc", globalPatternField, "name");
+				expectSuccessData(second);
+
+				const third = validateField("abc", globalPatternField, "name");
+				expectSuccessData(third);
+			});
 		});
 
 		describe("Edge Cases", () => {

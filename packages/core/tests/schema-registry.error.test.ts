@@ -90,5 +90,56 @@ describe("Core - Schema Registry - Error Path", () => {
 			const relationError = expectFailureError(relationValidationResult);
 			expect(relationError.code).toBe("INVALID_RELATION_TARGET");
 		});
+
+		it("should reject two relations sharing the same default FK column", () => {
+			const postSchema: SchemaDefinition = {
+				name: "Post",
+				fields: {
+					reviewer: { type: "relation", model: "User", kind: "hasOne" },
+					editor: { type: "relation", model: "User", kind: "hasOne" },
+				},
+			};
+			const userSchema: SchemaDefinition = {
+				name: "User",
+				fields: { sid: { type: "string" } },
+			};
+
+			strictSchemaRegistry.registerMany([postSchema, userSchema]);
+			const collisionResult = () => strictSchemaRegistry.finalizeRegistry();
+
+			const collisionError = expectFailureError(collisionResult);
+			expect(collisionError.code).toBe("FOREIGN_KEY_COLLISION");
+		});
+
+		it("should allow two relations to the same model with explicit foreignKeys", () => {
+			const postSchema: SchemaDefinition = {
+				name: "Post",
+				fields: {
+					reviewer: {
+						type: "relation",
+						model: "User",
+						kind: "hasOne",
+						foreignKey: "reviewedPostId",
+					},
+					editor: {
+						type: "relation",
+						model: "User",
+						kind: "hasOne",
+						foreignKey: "editedPostId",
+					},
+				},
+			};
+			const userSchema: SchemaDefinition = {
+				name: "User",
+				fields: { sid: { type: "string" } },
+			};
+
+			strictSchemaRegistry.registerMany([postSchema, userSchema]);
+			strictSchemaRegistry.finalizeRegistry();
+
+			const userFields = strictSchemaRegistry.get("User")?.fields ?? {};
+			expect(userFields["reviewedPostId"]).toBeDefined();
+			expect(userFields["editedPostId"]).toBeDefined();
+		});
 	});
 });

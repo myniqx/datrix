@@ -625,7 +625,7 @@ describe("Migration E2E - Relation Changes", () => {
 			await datrix.shutdown();
 		});
 
-		it("should not change DB when hasOne switches to hasMany (field name changes)", async () => {
+		it("should drop FK unique constraint when hasOne switches to hasMany (field name changes)", async () => {
 			await dropAllTables(adapter);
 
 			const userWithProfileOne = cloneSchema(baseUserSchema, {
@@ -648,18 +648,29 @@ describe("Migration E2E - Relation Changes", () => {
 				},
 			});
 
+			// hasOne FK is UNIQUE, hasMany FK is not — the switch alters the column
 			const datrix = await createDatrixWithSchemas(
 				tmpDir,
 				[userWithProfileMany, baseProfileSchema],
 				true,
 			);
 			const session = await datrix.beginMigrate();
-			assertNoChanges(session);
-
+			assertHasChanges(session);
+			assertTablesToAlter(session, 1);
+			await applyMigration(session);
 			await datrix.shutdown();
+
+			const datrix2 = await createDatrixWithSchemas(
+				tmpDir,
+				[userWithProfileMany, baseProfileSchema],
+				true,
+			);
+			const session2 = await datrix2.beginMigrate();
+			assertNoChanges(session2);
+			await datrix2.shutdown();
 		});
 
-		it("should not change DB when hasOne switches to hasMany (field name same)", async () => {
+		it("should drop FK unique constraint when hasOne switches to hasMany (field name same)", async () => {
 			await dropAllTables(adapter);
 
 			const userWithProfileOne = cloneSchema(baseUserSchema, {
@@ -682,18 +693,29 @@ describe("Migration E2E - Relation Changes", () => {
 				},
 			});
 
+			// hasOne FK is UNIQUE, hasMany FK is not — the switch alters the column
 			const datrix = await createDatrixWithSchemas(
 				tmpDir,
 				[userWithProfileMany, baseProfileSchema],
 				true,
 			);
 			const session = await datrix.beginMigrate();
-			assertNoChanges(session);
-
+			assertHasChanges(session);
+			assertTablesToAlter(session, 1);
+			await applyMigration(session);
 			await datrix.shutdown();
+
+			const datrix2 = await createDatrixWithSchemas(
+				tmpDir,
+				[userWithProfileMany, baseProfileSchema],
+				true,
+			);
+			const session2 = await datrix2.beginMigrate();
+			assertNoChanges(session2);
+			await datrix2.shutdown();
 		});
 
-		it("should not change DB when hasMany switches to hasOne", async () => {
+		it("should add FK unique constraint when hasMany switches to hasOne", async () => {
 			await dropAllTables(adapter);
 
 			const userWithProfiles = cloneSchema(baseUserSchema, {
@@ -716,15 +738,26 @@ describe("Migration E2E - Relation Changes", () => {
 				},
 			});
 
+			// hasMany FK is not unique, hasOne FK is — the switch alters the column
 			const datrix = await createDatrixWithSchemas(
 				tmpDir,
 				[userWithProfileOne, baseProfileSchema],
 				true,
 			);
 			const session = await datrix.beginMigrate();
-			assertNoChanges(session);
-
+			assertHasChanges(session);
+			assertTablesToAlter(session, 1);
+			await applyMigration(session);
 			await datrix.shutdown();
+
+			const datrix2 = await createDatrixWithSchemas(
+				tmpDir,
+				[userWithProfileOne, baseProfileSchema],
+				true,
+			);
+			const session2 = await datrix2.beginMigrate();
+			assertNoChanges(session2);
+			await datrix2.shutdown();
 		});
 
 		it("should change DB when foreignKey differs in hasOne to hasMany switch", async () => {
@@ -774,7 +807,7 @@ describe("Migration E2E - Relation Changes", () => {
 			await datrix.shutdown();
 		});
 
-		it("should not change DB when switching from hasOne to belongsTo with same FK column", async () => {
+		it("should drop FK unique constraint when switching from hasOne to belongsTo with same FK column", async () => {
 			await dropAllTables(adapter);
 
 			const userWithProfile = cloneSchema(baseUserSchema, {
@@ -792,8 +825,8 @@ describe("Migration E2E - Relation Changes", () => {
 			await assertColumnExists(datrix1, "profile", "userId");
 			await datrix1.shutdown();
 
-			// profiles.userId already exists from hasOne
-			// belongsTo on profile side also uses profiles.userId — no change
+			// profiles.userId already exists from hasOne but carries a UNIQUE
+			// constraint that the belongsTo FK does not — the switch alters it
 			const profileWithUser = cloneSchema(baseProfileSchema, {
 				addFields: {
 					user: { type: "relation", kind: "belongsTo", model: "user" },
@@ -806,9 +839,19 @@ describe("Migration E2E - Relation Changes", () => {
 				true,
 			);
 			const session = await datrix.beginMigrate();
-			assertNoChanges(session);
-
+			assertHasChanges(session);
+			assertTablesToAlter(session, 1);
+			await applyMigration(session);
 			await datrix.shutdown();
+
+			const datrix2 = await createDatrixWithSchemas(
+				tmpDir,
+				[baseUserSchema, profileWithUser],
+				true,
+			);
+			const session2 = await datrix2.beginMigrate();
+			assertNoChanges(session2);
+			await datrix2.shutdown();
 		});
 
 		it("should not change DB when switching from belongsTo to hasMany with same FK column", async () => {
@@ -1321,7 +1364,7 @@ describe("Migration E2E - Relation Changes", () => {
 
 	describe("Cross-schema relation mirrors", () => {
 		describe("hasOne/hasMany ↔ belongsTo flip", () => {
-			it("should not change DB when hasOne owner side is removed and belongsTo target side is added", async () => {
+			it("should drop FK unique constraint when hasOne owner side is removed and belongsTo target side is added", async () => {
 				await dropAllTables(adapter);
 
 				const userWithProfile = cloneSchema(baseUserSchema, {
@@ -1339,8 +1382,9 @@ describe("Migration E2E - Relation Changes", () => {
 				await assertColumnExists(datrix1, "profile", "userId");
 				await datrix1.shutdown();
 
-				// Remove hasOne from user, add belongsTo on profile side
-				// Both point to the same profiles.userId column
+				// Remove hasOne from user, add belongsTo on profile side.
+				// Both point to profiles.userId, but the hasOne FK was UNIQUE and
+				// the belongsTo FK is not — the flip alters the column.
 				const profileWithUser = cloneSchema(baseProfileSchema, {
 					addFields: {
 						user: { type: "relation", kind: "belongsTo", model: "user" },
@@ -1353,9 +1397,19 @@ describe("Migration E2E - Relation Changes", () => {
 					true,
 				);
 				const session = await datrix.beginMigrate();
-				assertNoChanges(session);
-
+				assertHasChanges(session);
+				assertTablesToAlter(session, 1);
+				await applyMigration(session);
 				await datrix.shutdown();
+
+				const datrix2 = await createDatrixWithSchemas(
+					tmpDir,
+					[baseUserSchema, profileWithUser],
+					true,
+				);
+				const session2 = await datrix2.beginMigrate();
+				assertNoChanges(session2);
+				await datrix2.shutdown();
 			});
 
 			it("should not change DB when hasMany owner side is removed and belongsTo target side is added", async () => {
@@ -1394,7 +1448,7 @@ describe("Migration E2E - Relation Changes", () => {
 				await datrix.shutdown();
 			});
 
-			it("should not change DB when belongsTo target side is removed and hasOne owner side is added", async () => {
+			it("should add FK unique constraint when belongsTo target side is removed and hasOne owner side is added", async () => {
 				await dropAllTables(adapter);
 
 				const profileWithUser = cloneSchema(baseProfileSchema, {
@@ -1412,7 +1466,8 @@ describe("Migration E2E - Relation Changes", () => {
 				await assertColumnExists(datrix1, "profile", "userId");
 				await datrix1.shutdown();
 
-				// Remove belongsTo from profile, add hasOne on user side
+				// Remove belongsTo from profile, add hasOne on user side.
+				// The hasOne FK gains a UNIQUE constraint — the flip alters the column.
 				const userWithProfile = cloneSchema(baseUserSchema, {
 					addFields: {
 						profile: { type: "relation", kind: "hasOne", model: "profile" },
@@ -1425,9 +1480,19 @@ describe("Migration E2E - Relation Changes", () => {
 					true,
 				);
 				const session = await datrix.beginMigrate();
-				assertNoChanges(session);
-
+				assertHasChanges(session);
+				assertTablesToAlter(session, 1);
+				await applyMigration(session);
 				await datrix.shutdown();
+
+				const datrix2 = await createDatrixWithSchemas(
+					tmpDir,
+					[userWithProfile, baseProfileSchema],
+					true,
+				);
+				const session2 = await datrix2.beginMigrate();
+				assertNoChanges(session2);
+				await datrix2.shutdown();
 			});
 		});
 

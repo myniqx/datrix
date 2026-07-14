@@ -77,6 +77,24 @@ Two strategies are used depending on relation depth:
 
 FK columns needed for belongsTo relations (e.g. `authorId`) are automatically injected into projections even when not explicitly selected, to ensure population works correctly.
 
+Per-relation `limit`/`offset` are applied **per parent row** in both strategies. In the batched strategy this happens in memory: all related rows for the parent batch are fetched first (the `where` filter still applies server-side), then each parent's group is windowed. With very large child sets this intermediate fetch is unbounded — prefer filtering via `where` when children are numerous. For single-row relations (belongsTo/hasOne) `limit`/`offset` are meaningless and ignored.
+
+## distinct / groupBy / having
+
+Implemented via aggregation pipelines (`$group`), mirroring the postgres adapter's SQL semantics:
+
+- `distinct` — deduplicates on the selected field list.
+- `groupBy` — every selected field must appear in `groupBy` (as in SQL); violations throw.
+- `having` — may only reference grouped fields (core's `WhereClause` cannot express aggregates).
+- `count` with `groupBy` returns the first group's count in `metadata.count` (postgres parity).
+- None of these can be combined with `populate` (throws).
+
+## Export / Import
+
+Export and import only touch **datrix-managed collections** (those with a schema entry in `_datrix`, plus `_datrix` itself). Foreign collections in a shared database are never exported, dropped, or overwritten. Collections that lost their `_datrix` entry are treated as foreign.
+
+Import is staged: all archive data lands in `_import_tmp_*` collections first, and only after every collection imported successfully are they renamed into place (`dropTarget: true`). A failure during staging drops the temps and leaves existing data untouched. The rename swap is atomic per collection, but there is a small window between renames in which some collections are already replaced and others are not — stop writers during import if that matters.
+
 ## Known Limitations
 
 - **Transaction rollback does not undo DDL.** If a migration fails after `createTable` (phase 1), the created collection remains. This is a MongoDB limitation.

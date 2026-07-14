@@ -27,6 +27,7 @@ import path from "node:path";
 import { exportCommand } from "../src/commands/export";
 import { importCommand } from "../src/commands/import";
 import { FileExporter } from "../src/export-import/file-exporter";
+import { Ledger } from "../src/export-import/ledger";
 import AdmZip from "adm-zip";
 
 // ============================================================================
@@ -53,6 +54,19 @@ const TEST_ROOT = path.join(
 
 const HTTP_PORT = 19876;
 const BASE_URL = `http://localhost:${HTTP_PORT}/uploads`;
+
+const EXPORT_STATUSES = ["pending", "done", "missing", "restricted"] as const;
+const IMPORT_STATUSES = ["pending", "done", "skipped"] as const;
+
+/**
+ * Read a ledger file's effective state (base entries + journal lines applied)
+ */
+async function readLedgerState(
+	filePath: string,
+	statuses: readonly string[],
+): Promise<{ id: string; key: string; status: string }[]> {
+	return new Ledger(filePath, statuses).read();
+}
 
 // ============================================================================
 // Helpers
@@ -252,15 +266,14 @@ describe("export --include-files", () => {
 			output: outputDir,
 		});
 
-		const ledger = await fs.readFile(
+		const entries = await readLedgerState(
 			path.join(outputDir, "files-progress.txt"),
-			"utf-8",
+			EXPORT_STATUSES,
 		);
-		const lines = ledger.split("\n").filter((l) => l.trim() !== "");
 
-		expect(lines.length).toBe(2);
-		for (const line of lines) {
-			expect(line.endsWith("done")).toBe(true);
+		expect(entries.length).toBe(2);
+		for (const entry of entries) {
+			expect(entry.status).toBe("done");
 		}
 	});
 
@@ -276,6 +289,8 @@ describe("export --include-files", () => {
 			output: outputDir,
 		});
 
+		// Base entry keeps the <id> <key> <status> format; status updates are
+		// appended as "<id> <status>" journal lines.
 		const ledger = await fs.readFile(
 			path.join(outputDir, "files-progress.txt"),
 			"utf-8",
@@ -285,7 +300,15 @@ describe("export --include-files", () => {
 
 		expect(parts[0]).toBe(String(id));
 		expect(parts[1]).toBe("photo-004.jpg");
-		expect(parts[2]).toBe("done");
+		expect(parts[2]).toBe("pending");
+
+		const entries = await readLedgerState(
+			path.join(outputDir, "files-progress.txt"),
+			EXPORT_STATUSES,
+		);
+		expect(entries).toEqual([
+			{ id: String(id), key: "photo-004.jpg", status: "done" },
+		]);
 	});
 
 	it("should include variant entries in the ledger", async () => {
@@ -304,16 +327,15 @@ describe("export --include-files", () => {
 			output: outputDir,
 		});
 
-		const ledger = await fs.readFile(
+		const entries = await readLedgerState(
 			path.join(outputDir, "files-progress.txt"),
-			"utf-8",
+			EXPORT_STATUSES,
 		);
-		const lines = ledger.split("\n").filter((l) => l.trim() !== "");
 
-		// 1 main + 2 variants = 3 lines
-		expect(lines.length).toBe(3);
+		// 1 main + 2 variants = 3 entries
+		expect(entries.length).toBe(3);
 
-		const ids = lines.map((l) => l.split(" ")[0]);
+		const ids = entries.map((e) => e.id);
 		expect(ids).toContain(String(id));
 		expect(ids).toContain(`${id}__thumbnail`);
 		expect(ids).toContain(`${id}__small`);
@@ -390,11 +412,13 @@ describe("export --include-files --resume", () => {
 		).toBe(false);
 
 		// ledger updated
-		const ledger = await fs.readFile(
+		const entries = await readLedgerState(
 			path.join(outputDir, "files-progress.txt"),
-			"utf-8",
+			EXPORT_STATUSES,
 		);
-		expect(ledger).toContain("needs-download.jpg done");
+		expect(entries.find((e) => e.key === "needs-download.jpg")!.status).toBe(
+			"done",
+		);
 	});
 
 	it("should fail with error if resume dir has no ledger", async () => {
@@ -550,14 +574,13 @@ describe("import --with-files", () => {
 		expect(storageFiles.length).toBeGreaterThan(0);
 
 		// import-progress.txt should have all entries as done
-		const ledger = await fs.readFile(
+		const entries = await readLedgerState(
 			path.join(exportDir, "import-progress.txt"),
-			"utf-8",
+			IMPORT_STATUSES,
 		);
-		const lines = ledger.split("\n").filter((l) => l.trim() !== "");
-		expect(lines.length).toBeGreaterThan(0);
-		for (const line of lines) {
-			expect(line.endsWith("done")).toBe(true);
+		expect(entries.length).toBeGreaterThan(0);
+		for (const entry of entries) {
+			expect(entry.status).toBe("done");
 		}
 	});
 
@@ -661,12 +684,16 @@ describe("import --with-files", () => {
 			datrix,
 		});
 
-		const ledger = await fs.readFile(
+		const entries = await readLedgerState(
 			path.join(exportDir, "import-progress.txt"),
-			"utf-8",
+			IMPORT_STATUSES,
 		);
-		expect(ledger).toContain("import-004.jpg done");
-		expect(ledger).toContain("import-005.jpg skipped");
+		expect(entries.find((e) => e.key === "import-004.jpg")!.status).toBe(
+			"done",
+		);
+		expect(entries.find((e) => e.key === "import-005.jpg")!.status).toBe(
+			"skipped",
+		);
 	});
 
 	it("should skip re-upload if file already exists in storage", async () => {
