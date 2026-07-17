@@ -25,6 +25,7 @@ import type {
 } from "@datrix/core";
 import { DatrixEntry } from "@datrix/core";
 import { PostgresQueryObject, TranslateResult } from "./types";
+import { resolveJunctionForeignKeys } from "./populate/junction";
 
 /**
  * Maximum nesting depth for WHERE clauses to prevent stack overflow
@@ -322,9 +323,24 @@ export class PostgresQueryTranslator implements QueryTranslator {
 
 		// Handle COUNT separately (only has where, groupBy, having)
 		if (query.type === "count") {
+			const tableEsc = this.escapeIdentifier(query.table);
+			const hasGroupBy = query.groupBy && query.groupBy.length > 0;
+			const groupByFields = hasGroupBy
+				? query
+						.groupBy!.map((field) => `${tableEsc}.${this.escapeIdentifier(field)}`)
+						.join(", ")
+				: undefined;
+
 			const countIndex = parts.length;
-			parts.push("SELECT COUNT(*)");
-			parts.push(`FROM ${this.escapeIdentifier(query.table)}`);
+			// Grouped count returns one row per group: SELECT the group fields
+			// alongside COUNT(*) so the adapter can read the group's own field
+			// values back off each row, not just a bare total.
+			parts.push(
+				groupByFields
+					? `SELECT ${groupByFields}, COUNT(*) AS count`
+					: "SELECT COUNT(*)",
+			);
+			parts.push(`FROM ${tableEsc}`);
 
 			if (query.where) {
 				const whereResult = this.translateWhere(
@@ -334,19 +350,16 @@ export class PostgresQueryTranslator implements QueryTranslator {
 				);
 				if (whereResult.joins.length > 0) {
 					parts.push(whereResult.joins.join(" "));
-					const tableEsc = this.escapeIdentifier(query.table);
-					parts[countIndex] = `SELECT COUNT(DISTINCT ${tableEsc}."id")`;
+					parts[countIndex] = groupByFields
+						? `SELECT ${groupByFields}, COUNT(DISTINCT ${tableEsc}."id") AS count`
+						: `SELECT COUNT(DISTINCT ${tableEsc}."id")`;
 				}
 				parts.push(`WHERE ${whereResult.sql}`);
 				this.paramIndex += whereResult.params.length;
 				this.params.push(...whereResult.params);
 			}
 
-			if (query.groupBy && query.groupBy.length > 0) {
-				const tableEsc = this.escapeIdentifier(query.table);
-				const groupByFields = query.groupBy
-					.map((field) => `${tableEsc}.${this.escapeIdentifier(field)}`)
-					.join(", ");
+			if (groupByFields) {
 				parts.push(`GROUP BY ${groupByFields}`);
 			}
 
@@ -434,16 +447,15 @@ export class PostgresQueryTranslator implements QueryTranslator {
 			const groupByFields: string[] = [`${tableEsc}."id"`];
 
 			// Add populated relation primary keys to GROUP BY
-			// ONLY for belongsTo and hasOne (single record relations)
-			// NOT for hasMany or manyToMany (array relations with json_agg)
+			// ONLY for belongsTo (the only relation kind with a JOIN)
+			// NOT for hasOne/hasMany/manyToMany (correlated-subquery relations)
 			// Use currentSchema (already looked up at the beginning - no repeated lookup!)
 			if (currentSchema) {
 				for (const relationName of Object.keys(query.populate)) {
 					const field = currentSchema.fields[relationName];
 					if (field && field.type === "relation") {
 						const relKind = (field as any).kind;
-						// Only add to GROUP BY if it's a single-record relation
-						if (relKind === "belongsTo" || relKind === "hasOne") {
+						if (relKind === "belongsTo") {
 							const relationAlias = this.escapeIdentifier(relationName);
 							groupByFields.push(`${relationAlias}."id"`);
 						}
@@ -963,8 +975,12 @@ export class PostgresQueryTranslator implements QueryTranslator {
 								const currentSchemaForFK = currentModelName
 									? this.schemaRegistry.get(currentModelName)
 									: currentSchema;
-								const sourceFK = `${currentSchemaForFK?.name ?? currentModelName}Id`;
-								const targetFK = `${relationField.model}Id`;
+								const { sourceFK, targetFK } = resolveJunctionForeignKeys(
+									junctionTable,
+									currentSchemaForFK?.name ?? currentModelName ?? "",
+									relationField.model,
+									this.schemaRegistry,
+								);
 
 								const junctionAlias = `${key}_junction`;
 								const junctionTableEsc = this.escapeIdentifier(junctionTable);

@@ -15,6 +15,7 @@ import {
 	AlterOperation,
 	ConnectionState,
 	DatabaseAdapter,
+	GroupCountData,
 	QueryMetadata,
 	QueryResult,
 	Transaction,
@@ -189,6 +190,25 @@ export class PostgresCoreAdapter implements DatabaseAdapter<PostgresCoreConfig> 
 			}
 
 			if (query.type === "count") {
+				if (query.groupBy && query.groupBy.length > 0) {
+					const countMany: GroupCountData[] = (
+						result.rows as Record<string, unknown>[]
+					).map((row) => {
+						const { count, ...groupFields } = row;
+						return {
+							...groupFields,
+							count:
+								typeof count === "string" ? parseInt(count, 10) : (count as number),
+						};
+					});
+					const metadata: QueryMetadata = {
+						rowCount: 0,
+						affectedRows: 0,
+						countMany,
+					};
+					return { rows: [] as TResult[], metadata };
+				}
+
 				const countRow = result.rows[0] as
 					| { count: string | number }
 					| undefined;
@@ -987,11 +1007,38 @@ export class PostgresCoreAdapter implements DatabaseAdapter<PostgresCoreConfig> 
 	}
 
 	/**
+	 * Build a stable constraint name, truncated to PostgreSQL's 63-char
+	 * identifier limit so DROP/ADD pairs always resolve the same name.
+	 */
+	private constraintName(...parts: string[]): string {
+		return parts.join("_").slice(0, 63);
+	}
+
+	/**
+	 * Build the CHECK constraint clause enforcing an enum field's values.
+	 * Stable name (chk_<table>_<column>_enum) so modifyColumn can swap it.
+	 */
+	private buildEnumCheckClause(
+		tableName: string,
+		fieldName: string,
+		values: readonly string[],
+	): string {
+		const translator = this.getTranslator();
+		const name = translator.escapeIdentifier(
+			this.constraintName("chk", tableName, fieldName, "enum"),
+		);
+		const column = translator.escapeIdentifier(fieldName);
+		const list = values.map((v) => translator.escapeValue(v)).join(", ");
+		return `CONSTRAINT ${name} CHECK (${column} IN (${list}))`;
+	}
+
+	/**
 	 * Build column definition for CREATE/ALTER TABLE
 	 */
 	private buildColumnDefinition(
 		fieldName: string,
 		field: FieldDefinition,
+		tableName: string,
 	): string {
 		const columnName = this.getTranslator().escapeIdentifier(fieldName);
 
@@ -1004,13 +1051,152 @@ export class PostgresCoreAdapter implements DatabaseAdapter<PostgresCoreConfig> 
 		const pgType = getPostgresTypeWithModifiers(field);
 		const nullable = field.required ? " NOT NULL" : "";
 		const defaultValue =
-			field.default !== undefined
+			field.default !== undefined && typeof field.default !== "function"
 				? ` DEFAULT ${this.getTranslator().escapeValue(field.default)}`
 				: "";
 
-		const unique = "unique" in field && field.unique ? " UNIQUE" : "";
+		// Named UNIQUE constraint (uq_<table>_<column>) so modifyColumn can
+		// drop it by name when the unique flag is removed.
+		const unique =
+			"unique" in field && field.unique
+				? ` CONSTRAINT ${this.getTranslator().escapeIdentifier(this.constraintName("uq", tableName, fieldName))} UNIQUE`
+				: "";
 
-		return `${columnName} ${pgType}${nullable}${defaultValue}${unique}`;
+		const enumCheck =
+			field.type === "enum"
+				? ` ${this.buildEnumCheckClause(tableName, fieldName, field.values)}`
+				: "";
+
+		return `${columnName} ${pgType}${nullable}${defaultValue}${unique}${enumCheck}`;
+	}
+
+	/**
+	 * Build the ALTER TABLE statements for a modifyColumn operation.
+	 *
+	 * Supported deltas: column type (always with USING cast), NOT NULL
+	 * set/drop, DEFAULT set/drop, UNIQUE constraint add/drop, and enum
+	 * values (CHECK constraint swap). Runs inside the migration
+	 * transaction, so emitting several statements is safe.
+	 *
+	 * When the old definition is unavailable, statements are emitted
+	 * unconditionally from the new definition (idempotent forms).
+	 */
+	private buildModifyColumnStatements(
+		tableName: string,
+		escapedTable: string,
+		column: string,
+		oldDefinition: FieldDefinition | undefined,
+		newDefinition: FieldDefinition,
+	): string[] {
+		const translator = this.getTranslator();
+		const escapedColumn = translator.escapeIdentifier(column);
+		const statements: string[] = [];
+
+		if (newDefinition.type === "number" && newDefinition.autoIncrement) {
+			throwMigrationError({
+				adapter: "postgres",
+				message: `Cannot modify column '${column}' on '${tableName}' to auto-increment: converting an existing column to SERIAL is not supported`,
+				table: tableName,
+			});
+		}
+
+		const enumCheckName = translator.escapeIdentifier(
+			this.constraintName("chk", tableName, column, "enum"),
+		);
+		const uniqueName = translator.escapeIdentifier(
+			this.constraintName("uq", tableName, column),
+		);
+
+		const newType = getPostgresTypeWithModifiers(newDefinition);
+		const oldType = oldDefinition
+			? getPostgresTypeWithModifiers(oldDefinition)
+			: undefined;
+		const typeChanged = oldType !== newType;
+
+		const oldValues =
+			oldDefinition?.type === "enum" ? oldDefinition.values : undefined;
+		const newValues =
+			newDefinition.type === "enum" ? newDefinition.values : undefined;
+		const enumChanged =
+			JSON.stringify(oldValues ?? null) !== JSON.stringify(newValues ?? null);
+
+		// Drop the enum CHECK before a type change or value swap — the old
+		// constraint would otherwise block the cast / conflict with new values.
+		if ((typeChanged || enumChanged) && (oldValues || !oldDefinition)) {
+			statements.push(
+				`ALTER TABLE ${escapedTable} DROP CONSTRAINT IF EXISTS ${enumCheckName}`,
+			);
+		}
+
+		if (typeChanged) {
+			// A default of the old type cannot always be cast automatically;
+			// drop it first, the new default is re-applied below.
+			statements.push(
+				`ALTER TABLE ${escapedTable} ALTER COLUMN ${escapedColumn} DROP DEFAULT`,
+			);
+			statements.push(
+				`ALTER TABLE ${escapedTable} ALTER COLUMN ${escapedColumn} TYPE ${newType} USING ${escapedColumn}::${newType}`,
+			);
+		}
+
+		const oldRequired = oldDefinition?.required ?? false;
+		const newRequired = newDefinition.required ?? false;
+		if (!oldDefinition || oldRequired !== newRequired) {
+			statements.push(
+				`ALTER TABLE ${escapedTable} ALTER COLUMN ${escapedColumn} ${newRequired ? "SET" : "DROP"} NOT NULL`,
+			);
+		}
+
+		const newDefault =
+			newDefinition.default !== undefined &&
+			typeof newDefinition.default !== "function"
+				? translator.escapeValue(newDefinition.default)
+				: undefined;
+		const oldDefault =
+			oldDefinition?.default !== undefined &&
+			typeof oldDefinition.default !== "function"
+				? translator.escapeValue(oldDefinition.default)
+				: undefined;
+		if (newDefault !== undefined) {
+			if (typeChanged || oldDefault !== newDefault) {
+				statements.push(
+					`ALTER TABLE ${escapedTable} ALTER COLUMN ${escapedColumn} SET DEFAULT ${newDefault}`,
+				);
+			}
+		} else if (!typeChanged && (oldDefault !== undefined || !oldDefinition)) {
+			// typeChanged already emitted DROP DEFAULT above
+			statements.push(
+				`ALTER TABLE ${escapedTable} ALTER COLUMN ${escapedColumn} DROP DEFAULT`,
+			);
+		}
+
+		const oldUnique =
+			(oldDefinition && "unique" in oldDefinition && oldDefinition.unique) ??
+			false;
+		const newUnique =
+			("unique" in newDefinition && newDefinition.unique) ?? false;
+		if (newUnique && (!oldDefinition || !oldUnique)) {
+			statements.push(
+				`ALTER TABLE ${escapedTable} ADD CONSTRAINT ${uniqueName} UNIQUE (${escapedColumn})`,
+			);
+		} else if (!newUnique && (!oldDefinition || oldUnique)) {
+			statements.push(
+				`ALTER TABLE ${escapedTable} DROP CONSTRAINT IF EXISTS ${uniqueName}`,
+			);
+			// Tables created before named constraints used PostgreSQL's
+			// default name — drop that form too.
+			statements.push(
+				`ALTER TABLE ${escapedTable} DROP CONSTRAINT IF EXISTS ${translator.escapeIdentifier(this.constraintName(tableName, column, "key"))}`,
+			);
+		}
+
+		if (newValues && (typeChanged || enumChanged || !oldDefinition)) {
+			statements.push(
+				`ALTER TABLE ${escapedTable} ADD ${this.buildEnumCheckClause(tableName, column, newValues)}`,
+			);
+		}
+
+		return statements;
 	}
 }
 

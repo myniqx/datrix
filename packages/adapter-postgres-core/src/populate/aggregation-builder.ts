@@ -13,6 +13,7 @@ import type {
 import type { DatrixEntry, ISchemaRegistry, RelationField } from "@datrix/core";
 import type { PostgresQueryTranslator } from "../query-translator";
 import type { AggregationClause, PopulateFieldSelection } from "./types";
+import { resolveJunctionForeignKeys } from "./junction";
 import {
 	throwModelNotFound,
 	throwSchemaNotFound,
@@ -124,9 +125,21 @@ export class AggregationBuilder {
 
 		switch (relation.kind) {
 			case "belongsTo":
-			case "hasOne":
 				// Single object: row_to_json() with specific fields
 				sql = `row_to_json((SELECT r FROM (SELECT ${fieldSelection.sql}) r)) AS ${relationAlias}`;
+				break;
+
+			case "hasOne":
+				// Single object via correlated subquery with LIMIT 1: nothing at
+				// the DB level guarantees FK uniqueness for legacy tables created
+				// before core marked hasOne FKs unique (core issue 3.12), and a
+				// plain LEFT JOIN would duplicate the parent row per extra match.
+				sql = this.buildHasOneSubquery(
+					sourceTable,
+					relationName,
+					relation,
+					fieldSelection,
+				);
 				break;
 
 			case "hasMany":
@@ -162,7 +175,72 @@ export class AggregationBuilder {
 	}
 
 	/**
+	 * Build hasOne subquery (no JOIN, no row explosion)
+	 *
+	 * The target table is aliased to the relation name so the field
+	 * selection (relation-alias-qualified) resolves, and so self-relations
+	 * don't shadow the outer table in the correlation.
+	 *
+	 * Generates:
+	 * ```sql
+	 * (
+	 *   SELECT row_to_json(t.*)
+	 *   FROM (
+	 *     SELECT fields...
+	 *     FROM target_table AS relationName
+	 *     WHERE relationName.foreignKey = source_table.id
+	 *     ORDER BY relationName.id
+	 *     LIMIT 1
+	 *   ) t
+	 * ) AS relationName
+	 * ```
+	 */
+	private buildHasOneSubquery(
+		sourceTable: string,
+		relationName: string,
+		relation: RelationField,
+		fieldSelection: PopulateFieldSelection,
+	): string {
+		const targetSchema = this.schemaRegistry.get(relation.model);
+		if (!targetSchema) {
+			throwTargetModelNotFound({
+				adapter: "postgres",
+				targetModel: relation.model,
+				relationName,
+				schemaName: sourceTable,
+			});
+		}
+
+		const targetTable = targetSchema.tableName ?? relation.model.toLowerCase();
+		const foreignKey = relation.foreignKey!;
+
+		const sourceTableEsc = this.translator.escapeIdentifier(sourceTable);
+		const targetTableEsc = this.translator.escapeIdentifier(targetTable);
+		const foreignKeyEsc = this.translator.escapeIdentifier(foreignKey);
+		const relationAlias = this.translator.escapeIdentifier(relationName);
+
+		const subquery = `
+      (
+        SELECT row_to_json(t.*)
+        FROM (
+          SELECT ${fieldSelection.sql}
+          FROM ${targetTableEsc} AS ${relationAlias}
+          WHERE ${relationAlias}.${foreignKeyEsc} = ${sourceTableEsc}."id"
+          ORDER BY ${relationAlias}."id"
+          LIMIT 1
+        ) t
+      ) AS ${relationAlias}
+    `
+			.trim()
+			.replace(/\s+/g, " ");
+
+		return subquery;
+	}
+
+	/**
 	 * Build hasMany subquery (no JOIN, no row explosion)
+	 *
+	 * The target table is aliased to the relation name (see buildHasOneSubquery).
 	 *
 	 * Generates:
 	 * ```sql
@@ -170,8 +248,8 @@ export class AggregationBuilder {
 	 *   SELECT COALESCE(json_agg(row_to_json(t.*)), '[]'::jsonb)
 	 *   FROM (
 	 *     SELECT target.*
-	 *     FROM target_table target
-	 *     WHERE target.foreignKey = source_table.id
+	 *     FROM target_table AS relationName
+	 *     WHERE relationName.foreignKey = source_table.id
 	 *   ) t
 	 * ) AS relationName
 	 * ```
@@ -200,15 +278,15 @@ export class AggregationBuilder {
 		const foreignKeyEsc = this.translator.escapeIdentifier(foreignKey);
 		const relationAlias = this.translator.escapeIdentifier(relationName);
 
-		const selectFields = fieldSelection.sql || `${targetTableEsc}.*`;
+		const selectFields = fieldSelection.sql || `${relationAlias}.*`;
 
 		const subquery = `
       (
         SELECT COALESCE(jsonb_agg(row_to_json(t.*)), '[]'::jsonb)
         FROM (
           SELECT ${selectFields}
-          FROM ${targetTableEsc}
-          WHERE ${targetTableEsc}.${foreignKeyEsc} = ${sourceTableEsc}."id"
+          FROM ${targetTableEsc} AS ${relationAlias}
+          WHERE ${relationAlias}.${foreignKeyEsc} = ${sourceTableEsc}."id"
         ) t
       ) AS ${relationAlias}
     `
@@ -221,15 +299,19 @@ export class AggregationBuilder {
 	/**
 	 * Build manyToMany subquery with junction table (no JOIN, no row explosion)
 	 *
+	 * The target table is aliased to the relation name and the junction to
+	 * `j` (see buildHasOneSubquery). Junction FK column names are resolved
+	 * from the junction schema (self-relations use source/target prefixes).
+	 *
 	 * Generates:
 	 * ```sql
 	 * (
 	 *   SELECT COALESCE(json_agg(row_to_json(t.*)), '[]'::jsonb)
 	 *   FROM (
 	 *     SELECT target.*
-	 *     FROM target_table target
-	 *     INNER JOIN junction_table ON target.id = junction_table.TargetId
-	 *     WHERE junction_table.SourceId = source_table.id
+	 *     FROM target_table AS relationName
+	 *     INNER JOIN junction_table AS j ON relationName.id = j.TargetId
+	 *     WHERE j.SourceId = source_table.id
 	 *   ) t
 	 * ) AS relationName
 	 * ```
@@ -264,8 +346,12 @@ export class AggregationBuilder {
 			throwSchemaNotFound({ adapter: "postgres", modelName: currentModelName });
 		}
 
-		const sourceFK = `${currentSchema.name}Id`;
-		const targetFK = `${relation.model}Id`;
+		const { sourceFK, targetFK } = resolveJunctionForeignKeys(
+			junctionTable,
+			currentSchema.name,
+			relation.model,
+			this.schemaRegistry,
+		);
 
 		const sourceTableEsc = this.translator.escapeIdentifier(sourceTable);
 		const targetTableEsc = this.translator.escapeIdentifier(targetTable);
@@ -274,16 +360,16 @@ export class AggregationBuilder {
 		const targetFKEsc = this.translator.escapeIdentifier(targetFK);
 		const relationAlias = this.translator.escapeIdentifier(relationName);
 
-		const selectFields = fieldSelection.sql || `${targetTableEsc}.*`;
+		const selectFields = fieldSelection.sql || `${relationAlias}.*`;
 
 		const subquery = `
       (
         SELECT COALESCE(jsonb_agg(row_to_json(t.*)), '[]'::jsonb)
         FROM (
           SELECT ${selectFields}
-          FROM ${targetTableEsc}
-          INNER JOIN ${junctionTableEsc} ON ${targetTableEsc}."id" = ${junctionTableEsc}.${targetFKEsc}
-          WHERE ${junctionTableEsc}.${sourceFKEsc} = ${sourceTableEsc}."id"
+          FROM ${targetTableEsc} AS ${relationAlias}
+          INNER JOIN ${junctionTableEsc} AS j ON ${relationAlias}."id" = j.${targetFKEsc}
+          WHERE j.${sourceFKEsc} = ${sourceTableEsc}."id"
         ) t
       ) AS ${relationAlias}
     `

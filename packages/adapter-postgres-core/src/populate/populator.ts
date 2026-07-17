@@ -14,6 +14,7 @@ import type { PgClient } from "../pg-client";
 import type { PostgresQueryTranslator } from "../query-translator";
 import type { PopulateStrategy, PopulateOptionsAnalysis } from "./types";
 import { JoinBuilder } from "./join-builder";
+import { resolveJunctionForeignKeys } from "./junction";
 import { AggregationBuilder } from "./aggregation-builder";
 import { ResultProcessor } from "./result-processor";
 import { throwMaxDepthExceeded, throwQueryError } from "@datrix/core";
@@ -322,8 +323,12 @@ export class PostgresPopulator {
 				}
 			} else if (relation.kind === "manyToMany") {
 				const junctionTable = relation.through!;
-				const sourceFK = `${schema.name}Id`;
-				const targetFK = `${relation.model}Id`;
+				const { sourceFK, targetFK } = resolveJunctionForeignKeys(
+					junctionTable,
+					schema.name,
+					relation.model,
+					this.schemaRegistry,
+				);
 				const fkExpr = `j.${this.translator.escapeIdentifier(sourceFK)}`;
 				const fromClause = `${this.translator.escapeIdentifier(targetTable)} t
           INNER JOIN ${this.translator.escapeIdentifier(junctionTable)} j
@@ -589,8 +594,12 @@ export class PostgresPopulator {
 				}
 			} else if (relation.kind === "manyToMany") {
 				const junctionTable = relation.through!;
-				const sourceFK = `${schema.name}Id`;
-				const targetFK = `${relation.model}Id`;
+				const { sourceFK, targetFK } = resolveJunctionForeignKeys(
+					junctionTable,
+					schema.name,
+					relation.model,
+					this.schemaRegistry,
+				);
 
 				const m2mRowToJson = this.buildSelectiveRowToJson(
 					options.select as readonly string[],
@@ -815,8 +824,12 @@ export class PostgresPopulator {
 				}
 			} else if (relation.kind === "manyToMany") {
 				const junctionTable = relation.through!;
-				const sourceFK = `${schema.name}Id`;
-				const targetFK = `${relation.model}Id`;
+				const { sourceFK, targetFK } = resolveJunctionForeignKeys(
+					junctionTable,
+					schema.name,
+					relation.model,
+					this.schemaRegistry,
+				);
 				const nestedM2mFkExpr = `j.${this.translator.escapeIdentifier(sourceFK)}`;
 				const nestedM2mFromClause = `${this.translator.escapeIdentifier(targetTable)} t
           INNER JOIN ${this.translator.escapeIdentifier(junctionTable)} j
@@ -869,7 +882,7 @@ export class PostgresPopulator {
 		query: QuerySelectObject<T>,
 	): PostgresQueryObject<T> {
 		const pgQuery = query as PostgresQueryObject<T>;
-		const joins = this.joinBuilder.buildJoins(pgQuery, "json-aggregation");
+		const joins = this.joinBuilder.buildJoins(pgQuery);
 		const aggregations = this.aggregationBuilder.buildAggregations(
 			query.table,
 			query.populate!,
@@ -1147,7 +1160,7 @@ export class PostgresPopulator {
 		const { sql: whereSQL, params: whereParams } = this.translateOptionsWhere(
 			options,
 			targetTable,
-			2,
+			1,
 			relationName,
 		);
 
