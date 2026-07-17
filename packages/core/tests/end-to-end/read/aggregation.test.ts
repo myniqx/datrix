@@ -82,6 +82,26 @@ describe("Aggregation (groupBy / having / distinct)", () => {
 				}),
 			).rejects.toThrow();
 		});
+
+		it("throws when groupBy is given without select (wildcard select can't be a groupBy subset)", async () => {
+			await expect(
+				datrix.findMany("user", {
+					where: { email: { $startsWith: "agg-" } },
+					groupBy: ["isActive"],
+				}),
+			).rejects.toThrow();
+		});
+
+		it("narrows to a single group when where filters on the grouped field itself", async () => {
+			const groups = await datrix.findMany("user", {
+				where: { email: { $startsWith: "agg-" }, isActive: true },
+				select: ["isActive"],
+				groupBy: ["isActive"],
+			});
+
+			expect(groups.length).toBe(1);
+			expect(groups[0]!["isActive"]).toBe(true);
+		});
 	});
 
 	describe("having", () => {
@@ -198,6 +218,18 @@ describe("Aggregation (groupBy / having / distinct)", () => {
 			expect(distinctValues.length).toBe(2);
 			const values = distinctValues.map((r) => r["isActive"]).sort();
 			expect(values).toEqual([false, true]);
+		});
+
+		it("throws when distinct is given without select (wildcard's unique id would defeat it)", async () => {
+			// No `select` means wildcard, which always includes `id` — every row
+			// is unique on `id` alone, so `distinct` could never collapse
+			// anything. Reject loudly instead of silently returning duplicates.
+			await expect(
+				datrix.findMany("user", {
+					where: { email: { $startsWith: "agg-" } },
+					distinct: true,
+				}),
+			).rejects.toThrow();
 		});
 
 		// countMany has no `distinct` option — groupBy already IS "distinct

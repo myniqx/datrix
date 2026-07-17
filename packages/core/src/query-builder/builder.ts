@@ -16,7 +16,7 @@ import type {
 	OrderByClause,
 } from "../types/core/query-builder";
 
-import { normalizeWhere } from "./where";
+import { normalizeWhere, isLogicalOperator } from "./where";
 import { normalizePopulateArray } from "./populate";
 import { normalizeSelect } from "./select";
 import { processData } from "./data";
@@ -349,10 +349,26 @@ export class DatrixQueryBuilder<
 			this._schema,
 			this._registry,
 		);
+		// distinct without an explicit select would fall back to the wildcard
+		// field list, which always includes `id` — since `id` is unique per
+		// row, that silently makes `distinct` a no-op instead of erroring
+		if (
+			this.query.distinct === true &&
+			(this.query.select === undefined || this.query.select.length === 0)
+		) {
+			throwInvalidValue(
+				"select",
+				"distinct",
+				undefined,
+				"an explicit select — distinct requires select so the wildcard's unique `id` field can't silently defeat deduplication",
+			);
+		}
+
 		const normalizedSelect = normalizeSelect(
 			this.query.select,
 			this._schema,
 			this._registry,
+			this.query.groupBy !== undefined || this.query.distinct === true,
 		);
 		const normalizedPopulate = normalizePopulateArray(
 			this.query.populate,
@@ -381,6 +397,20 @@ export class DatrixQueryBuilder<
 					);
 				}
 			}
+
+			// SELECT with GROUP BY can only project grouped columns — SQL has no
+			// defined row to read an ungrouped column from once rows collapse
+			// into groups (same reasoning as the having check below)
+			if (type === "select") {
+				const groupByFields = new Set(this.query.groupBy);
+				for (const field of normalizedSelect) {
+					if (!groupByFields.has(field as string)) {
+						throwInvalidField("select", field as string, [
+							...groupByFields,
+						]);
+					}
+				}
+			}
 		}
 
 		// having goes through the same validate/normalize pipeline as where
@@ -388,6 +418,17 @@ export class DatrixQueryBuilder<
 			this.query.having !== undefined
 				? normalizeWhere([this.query.having], this._schema, this._registry)
 				: undefined;
+
+		// having can only reference grouped fields — SQL has no defined row to
+		// read an ungrouped column from once rows are collapsed into groups
+		if (normalizedHaving !== undefined) {
+			const groupByFields = new Set(this.query.groupBy ?? []);
+			for (const field of collectWhereFields(normalizedHaving)) {
+				if (!groupByFields.has(field)) {
+					throwInvalidField("having", field, [...groupByFields]);
+				}
+			}
+		}
 
 		// Spread helpers for reuse
 		// normalizeSelect always returns a concrete field list (wildcard-expanded
@@ -668,4 +709,28 @@ export function countFrom<TSchema extends DatrixEntry>(
 		schemaRegistry,
 		"count",
 	);
+}
+
+/**
+ * Collect the top-level field names referenced by a WHERE/HAVING clause,
+ * recursing through $and/$or/$not so a field nested in a logical operator
+ * is still caught by the groupBy-subset check.
+ */
+function collectWhereFields(where: WhereClause<DatrixEntry>): string[] {
+	const fields: string[] = [];
+
+	for (const [key, value] of Object.entries(where)) {
+		if (isLogicalOperator(key)) {
+			const clauses = (
+				key === "$not" ? [value] : (value as unknown[])
+			) as WhereClause<DatrixEntry>[];
+			for (const clause of clauses) {
+				fields.push(...collectWhereFields(clause));
+			}
+			continue;
+		}
+		fields.push(key);
+	}
+
+	return fields;
 }

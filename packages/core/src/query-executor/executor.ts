@@ -31,7 +31,7 @@ import {
 	throwSchemaNotFoundError,
 	throwUnsupportedQueryType,
 } from "./error-helper";
-import { DatabaseAdapter, QueryRunner } from "../types/adapter";
+import { DatabaseAdapter, QueryRunner, GroupCountData } from "../types/adapter";
 
 /**
  * Executor execution options
@@ -137,15 +137,20 @@ export class QueryExecutor {
 	/**
 	 * Execute COUNT query
 	 *
-	 * After-hooks are skipped: count resolves to a scalar, while result-transform
-	 * hooks (onAfterQuery / schema after hooks) are typed for entry rows.
-	 * Before-hooks still run so plugins can restrict the query.
+	 * Plain count (no `groupBy`) resolves to a scalar via `metadata.count`.
+	 * Grouped count (`groupBy` set) resolves to one row per distinct group,
+	 * via `metadata.countMany` — the adapter never touches `rows` for COUNT.
+	 *
+	 * After-hooks are skipped: count resolves to a scalar or a plain row
+	 * array, while result-transform hooks (onAfterQuery / schema after
+	 * hooks) are typed for entry rows. Before-hooks still run so plugins can
+	 * restrict the query.
 	 */
 	async executeCount<T extends DatrixEntry>(
 		query: QueryCountObject<T>,
 		schema: SchemaDefinition,
 		options: ExecutorOptions,
-	): Promise<number> {
+	): Promise<number | GroupCountData[]> {
 		return this.withLifecycle(
 			options.action ?? "count",
 			schema,
@@ -153,6 +158,9 @@ export class QueryExecutor {
 			query,
 			async (mq) => {
 				const result = await this.getAdapter().executeQuery<T>(mq);
+				if (mq.groupBy && mq.groupBy.length > 0) {
+					return [...(result.metadata.countMany ?? [])];
+				}
 				return result.metadata.count ?? 0;
 			},
 			true,

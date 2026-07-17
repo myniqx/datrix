@@ -5,7 +5,7 @@
  * This class encapsulates all data manipulation logic.
  */
 
-import { DatabaseAdapter } from "../types/adapter";
+import { DatabaseAdapter, GroupCountData } from "../types/adapter";
 import {
 	ISchemaRegistry,
 	DatrixEntry,
@@ -263,7 +263,7 @@ export class CrudOperations implements IRawCrud {
 	async countMany<T extends DatrixEntry = DatrixRecord>(
 		model: string,
 		options: RawCountManyOptions<T>,
-	): Promise<(Record<string, unknown> & { count: number })[]> {
+	): Promise<GroupCountData[]> {
 		const builder = countFrom<T>(model, this.schemas);
 
 		if (options.where) {
@@ -276,10 +276,7 @@ export class CrudOperations implements IRawCrud {
 
 		const query = builder.build();
 
-		const result = await this.executor.execute<
-			T,
-			(Record<string, unknown> & { count: number })[]
-		>(query, {
+		const result = await this.executor.execute<T, GroupCountData[]>(query, {
 			noDispatcher: this.getDispatcher === null,
 			action: "count",
 		});

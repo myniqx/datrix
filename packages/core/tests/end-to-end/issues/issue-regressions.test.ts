@@ -726,7 +726,7 @@ describe("Issue Regressions", () => {
 					title: "Bad Id Post 2",
 					content: "c",
 					slug: "bad-id-post-2",
-					author: "5" as never,
+					author: "abc" as never,
 				}),
 			).rejects.toThrow();
 		});
