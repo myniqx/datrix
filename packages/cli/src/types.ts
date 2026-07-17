@@ -46,6 +46,7 @@ export interface BaseCommandOptions {
  */
 export interface MigrateCommandOptions extends BaseCommandOptions {
 	readonly dryRun?: boolean | undefined;
+	readonly yes?: boolean | undefined;
 }
 
 /**
@@ -53,4 +54,5 @@ export interface MigrateCommandOptions extends BaseCommandOptions {
  */
 export interface GenerateCommandOptions extends BaseCommandOptions {
 	readonly output?: string | undefined;
+	readonly force?: boolean | undefined;
 }

@@ -112,20 +112,33 @@ export class ZipExportWriter implements ExportWriter {
 	}
 
 	async finalize(): Promise<void> {
-		// Sort schemas by FK dependency order so import can create tables in the right order
-		this.metadata.schemas = sortSchemasByDependency(this.metadata.schemas);
+		try {
+			// Sort schemas by FK dependency order so import can create tables in the right order
+			this.metadata.schemas = sortSchemasByDependency(this.metadata.schemas);
 
-		// Write metadata.json
-		await fs.writeFile(
-			path.join(this.tempDir, "metadata.json"),
-			JSON.stringify(this.metadata, null, 2),
-			"utf-8",
-		);
+			// Write metadata.json
+			await fs.writeFile(
+				path.join(this.tempDir, "metadata.json"),
+				JSON.stringify(this.metadata, null, 2),
+				"utf-8",
+			);
 
-		// Create zip
-		await this.createZip();
+			// Ensure the output directory exists before streaming the zip
+			await fs.mkdir(path.dirname(this.outputPath), { recursive: true });
 
-		// Cleanup temp dir
+			// Create zip
+			await this.createZip();
+		} finally {
+			await this.cleanup();
+		}
+	}
+
+	/**
+	 * Remove the temp directory. Safe to call multiple times; also used by
+	 * exportCommand for best-effort cleanup when the export fails before
+	 * finalize().
+	 */
+	async cleanup(): Promise<void> {
 		await fs.rm(this.tempDir, { recursive: true, force: true });
 	}
 

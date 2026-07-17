@@ -20,14 +20,17 @@ export function scalarFieldToTypeString(field: FieldDefinition): string {
 		case "date":
 			return "Date";
 		case "json":
-			return "Record<string, unknown>";
+			// JSON columns can legally hold objects, arrays and primitives —
+			// JsonValue is declared once in the generated file header
+			return "JsonValue";
 		case "file": {
 			const fileField = field as { type: "file"; multiple?: boolean };
 			return fileField.multiple ? "string[]" : "string";
 		}
 		case "enum": {
 			const enumField = field as EnumField;
-			return enumField.values.map((v) => `"${v}"`).join(" | ");
+			// JSON.stringify escapes quotes/backslashes inside values
+			return enumField.values.map((v) => JSON.stringify(v)).join(" | ");
 		}
 		case "array": {
 			const arrayField = field as ArrayField;

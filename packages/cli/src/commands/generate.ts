@@ -11,14 +11,21 @@ import { join, dirname } from "path";
 import type { GenerateCommandOptions } from "../types";
 import { CLIError } from "../types";
 import { logger, formatError } from "../utils/logger";
-import { schemaTemplate, toPascalCase, toKebabCase } from "../utils/templates";
+import {
+	schemaTemplate,
+	configTemplate,
+	isConfigDbType,
+	CONFIG_DB_TYPES,
+	toPascalCase,
+	toKebabCase,
+} from "../utils/templates";
 import type { Datrix } from "@datrix/core";
 import { generateTypesFile } from "../type-generator/schema-types";
 
 /**
- * Generate type (schema or types)
+ * Generate type (schema, types or config)
  */
-export type GenerateType = "schema" | "types";
+export type GenerateType = "schema" | "types" | "config";
 
 /**
  * Ensure directory exists
@@ -99,7 +106,7 @@ async function generateSchema(
 	logger.info(`Output: ${outputPath}`);
 
 	const content = schemaTemplate(pascalName);
-	await writeFileSafe(outputPath, content, false);
+	await writeFileSafe(outputPath, content, options.force ?? false);
 
 	logger.log("");
 	logger.success(`Schema created: ${outputPath}`);
@@ -107,6 +114,40 @@ async function generateSchema(
 	logger.info("Next steps:");
 	logger.info("1. Edit the schema file to add your fields");
 	logger.info("2. Run: datrix migrate");
+	logger.log("");
+}
+
+/**
+ * Generate a datrix.config.ts for the given database type.
+ * Runs BEFORE any config is loaded — there is no config yet.
+ */
+async function generateConfig(
+	dbType: string,
+	options: GenerateCommandOptions,
+): Promise<void> {
+	if (!isConfigDbType(dbType)) {
+		throw new CLIError(
+			`Invalid database type: '${dbType}'. Valid types: ${CONFIG_DB_TYPES.join(", ")}`,
+			"MISSING_ARGUMENT",
+		);
+	}
+
+	const outputPath = options.output ?? join(process.cwd(), "datrix.config.ts");
+
+	logger.log("");
+	logger.info(`Generating ${dbType} config`);
+	logger.info(`Output: ${outputPath}`);
+
+	const content = configTemplate(dbType);
+	await writeFileSafe(outputPath, content, options.force ?? false);
+
+	logger.log("");
+	logger.success(`Config created: ${outputPath}`);
+	logger.log("");
+	logger.info("Next steps:");
+	logger.info("1. Adjust the connection settings (or set the env variables)");
+	logger.info("2. Create schemas: datrix generate schema <Name>");
+	logger.info("3. Run: datrix migrate");
 	logger.log("");
 }
 
@@ -147,6 +188,10 @@ export async function generateCommand(
 			await generateSchema(name, options);
 			break;
 
+		case "config":
+			await generateConfig(name, options);
+			break;
+
 		case "types": {
 			if (!datrix) {
 				throw new CLIError(
@@ -172,5 +217,5 @@ export async function generateCommand(
  * Validate generate type
  */
 export function isValidGenerateType(type: string): type is GenerateType {
-	return type === "schema" || type === "types";
+	return type === "schema" || type === "types" || type === "config";
 }

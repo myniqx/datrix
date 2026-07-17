@@ -7,7 +7,7 @@
 import AdmZip from "adm-zip";
 import type { ImportReader, ExportMeta } from "@datrix/core";
 import type { SchemaDefinition } from "@datrix/core";
-import { decodeLine } from "./csv";
+import { decodeLine, parseLine, splitRecords } from "./csv";
 import { logger } from "../utils/logger";
 
 interface Metadata {
@@ -66,24 +66,32 @@ export class ZipImportReader implements ImportReader {
 
 		for (const fileName of chunkFiles) {
 			const entry = this.zip.getEntry(fileName);
-			if (!entry) continue;
+			if (!entry) {
+				throw new Error(
+					`Corrupt export: chunk file '${fileName}' is listed in metadata.json but missing from the zip`,
+				);
+			}
 
 			const content = entry.getData().toString("utf-8");
-			const lines = content.split("\n").filter((l) => l.trim() !== "");
+			// Quote-aware record splitting — quoted cells may contain newlines
+			const records = splitRecords(content);
 
-			if (lines.length < 2) {
+			if (records.length < 2) {
 				yield [];
 				continue;
 			}
 
-			const headerLine = lines[0]!;
-			const headers = headerLine
-				.split(",")
-				.map((h) => h.replace(/^"|"$/g, "").replace(/""/g, '"'));
+			const headers = parseLine(records[0]!).map((cell) => cell.value);
 
 			const rows: Record<string, unknown>[] = [];
-			for (let i = 1; i < lines.length; i++) {
-				rows.push(decodeLine(lines[i]!, headers, schema));
+			for (let i = 1; i < records.length; i++) {
+				try {
+					rows.push(decodeLine(records[i]!, headers, schema));
+				} catch (error) {
+					const message =
+						error instanceof Error ? error.message : String(error);
+					throw new Error(`${message} (chunk '${fileName}', record ${i})`);
+				}
 			}
 
 			if (this.verbose) {

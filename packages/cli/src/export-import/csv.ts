@@ -4,7 +4,7 @@
  * Format:
  * - RFC 4180 compliant
  * - Header row with column names
- * - null values represented as \N
+ * - null values represented as unquoted \N (a literal string "\N" is quoted)
  * - Strings wrapped in double quotes, internal quotes escaped as ""
  * - Boolean: true / false
  * - Number: raw number
@@ -14,6 +14,15 @@
 import type { SchemaDefinition } from "@datrix/core";
 
 const NULL_TOKEN = "\\N";
+
+/**
+ * A parsed CSV cell. Quoted-ness matters: only an UNQUOTED \N is null;
+ * a quoted "\N" is the literal string.
+ */
+export interface CsvCell {
+	readonly value: string;
+	readonly quoted: boolean;
+}
 
 /**
  * Encode a single value to CSV cell string
@@ -41,9 +50,11 @@ function encodeValue(value: unknown): string {
 		return `"${str.replace(/"/g, '""')}"`;
 	}
 
-	// String: wrap in quotes and escape internal quotes
+	// String: wrap in quotes and escape internal quotes.
+	// A string equal to NULL_TOKEN must be quoted so it does not decode to null.
 	const str = String(value);
 	if (
+		str === NULL_TOKEN ||
 		str.includes('"') ||
 		str.includes(",") ||
 		str.includes("\n") ||
@@ -73,10 +84,47 @@ export function encodeHeader(headers: string[]): string {
 }
 
 /**
- * Parse a single CSV line into cell strings (handles quoted fields)
+ * Split CSV file content into records, breaking only on newlines that are
+ * outside quoted cells (quoted cells may contain literal newlines).
+ * Blank records are skipped.
  */
-function parseLine(line: string): string[] {
-	const cells: string[] = [];
+export function splitRecords(content: string): string[] {
+	const records: string[] = [];
+	let current = "";
+	let inQuotes = false;
+
+	for (let i = 0; i < content.length; i++) {
+		const ch = content[i];
+
+		if (ch === '"') {
+			// Escaped quotes ("") toggle twice, so net state stays correct
+			inQuotes = !inQuotes;
+			current += ch;
+		} else if ((ch === "\n" || ch === "\r") && !inQuotes) {
+			if (ch === "\r" && content[i + 1] === "\n") {
+				i++;
+			}
+			if (current.trim() !== "") {
+				records.push(current);
+			}
+			current = "";
+		} else {
+			current += ch;
+		}
+	}
+
+	if (current.trim() !== "") {
+		records.push(current);
+	}
+
+	return records;
+}
+
+/**
+ * Parse a single CSV record into cells, preserving quoted-ness per cell
+ */
+export function parseLine(line: string): CsvCell[] {
+	const cells: CsvCell[] = [];
 	let i = 0;
 
 	while (i < line.length) {
@@ -100,7 +148,7 @@ function parseLine(line: string): string[] {
 				}
 			}
 
-			cells.push(cell);
+			cells.push({ value: cell, quoted: true });
 
 			// skip comma
 			if (line[i] === ",") i++;
@@ -108,10 +156,10 @@ function parseLine(line: string): string[] {
 			// Unquoted field
 			const end = line.indexOf(",", i);
 			if (end === -1) {
-				cells.push(line.slice(i));
+				cells.push({ value: line.slice(i), quoted: false });
 				break;
 			} else {
-				cells.push(line.slice(i, end));
+				cells.push({ value: line.slice(i, end), quoted: false });
 				i = end + 1;
 			}
 		}
@@ -121,10 +169,17 @@ function parseLine(line: string): string[] {
 }
 
 /**
- * Decode a cell string to a typed value based on schema field type
+ * Decode a cell to a typed value based on schema field type
  */
-function decodeValue(raw: string, fieldType?: string): unknown {
-	if (raw === NULL_TOKEN) {
+function decodeValue(
+	cell: CsvCell,
+	fieldType: string | undefined,
+	fieldName: string,
+): unknown {
+	const raw = cell.value;
+
+	// Only an unquoted \N is null — quoting protects the literal string
+	if (!cell.quoted && raw === NULL_TOKEN) {
 		return null;
 	}
 
@@ -133,7 +188,13 @@ function decodeValue(raw: string, fieldType?: string): unknown {
 	}
 
 	if (fieldType === "number") {
-		return Number(raw);
+		const result = Number(raw);
+		if (Number.isNaN(result)) {
+			throw new Error(
+				`Corrupt CSV data: expected a number for column '${fieldName}', got '${raw}'`,
+			);
+		}
+		return result;
 	}
 
 	if (fieldType === "json" || fieldType === "array") {
@@ -148,8 +209,12 @@ function decodeValue(raw: string, fieldType?: string): unknown {
 		return new Date(raw);
 	}
 
-	// Auto-detect ISO 8601 date strings even without schema field type info
-	if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(raw)) {
+	// Auto-detect ISO 8601 date strings ONLY when there is no schema type
+	// info — a typed string column must round-trip as a string.
+	if (
+		fieldType === undefined &&
+		/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(raw)
+	) {
 		return new Date(raw);
 	}
 
@@ -157,7 +222,7 @@ function decodeValue(raw: string, fieldType?: string): unknown {
 }
 
 /**
- * Decode a CSV line to a typed row using schema
+ * Decode a CSV record to a typed row using schema
  */
 export function decodeLine(
 	line: string,
@@ -169,9 +234,9 @@ export function decodeLine(
 
 	for (let i = 0; i < headers.length; i++) {
 		const header = headers[i]!;
-		const raw = cells[i] ?? NULL_TOKEN;
+		const cell = cells[i] ?? { value: NULL_TOKEN, quoted: false };
 		const fieldType = schema?.fields[header]?.type;
-		row[header] = decodeValue(raw, fieldType);
+		row[header] = decodeValue(cell, fieldType, header);
 	}
 
 	return row;

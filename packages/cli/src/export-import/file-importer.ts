@@ -26,11 +26,16 @@ import type { IUpload } from "@datrix/core";
 import type { IDatrix } from "@datrix/core";
 import { logger } from "../utils/logger";
 import type { LedgerEntry } from "./file-exporter";
+import { Ledger } from "./ledger";
+import type { LedgerRecord } from "./ledger";
+import { findLocalFile } from "./file-naming";
+
+export type ImportFileStatus = "pending" | "done" | "skipped";
 
 export interface ImportLedgerEntry {
 	id: string;
 	key: string;
-	status: "pending" | "done" | "skipped";
+	status: ImportFileStatus;
 }
 
 export interface ImportResult {
@@ -39,16 +44,24 @@ export interface ImportResult {
 }
 
 const IMPORT_LEDGER_FILENAME = "import-progress.txt";
+const IMPORT_STATUSES: readonly ImportFileStatus[] = [
+	"pending",
+	"done",
+	"skipped",
+];
 
 export class FileImporter {
 	private readonly filesDir: string;
-	private readonly ledgerPath: string;
+	private readonly ledger: Ledger<ImportFileStatus>;
 	private readonly upload: IUpload;
 	private readonly datrix: IDatrix;
 
 	constructor(importDir: string, upload: IUpload, datrix: IDatrix) {
 		this.filesDir = path.join(importDir, "files");
-		this.ledgerPath = path.join(importDir, IMPORT_LEDGER_FILENAME);
+		this.ledger = new Ledger(
+			path.join(importDir, IMPORT_LEDGER_FILENAME),
+			IMPORT_STATUSES,
+		);
 		this.upload = upload;
 		this.datrix = datrix;
 	}
@@ -56,40 +69,46 @@ export class FileImporter {
 	/**
 	 * Build import ledger from the export ledger (files-progress.txt).
 	 * Only includes entries that were successfully exported (done).
-	 * Skips entries already in the import ledger (resume support).
+	 * Entries already in the import ledger are skipped (resume support).
+	 * Entries that were missing/restricted at export time are reported —
+	 * their DB records keep the original keys but the files are not uploaded.
 	 */
-	async buildLedger(exportLedgerEntries: LedgerEntry[]): Promise<void> {
-		const existing = await this.readLedger();
-		const existingIds = new Set(existing.map((e) => e.id));
+	async buildLedger(
+		exportLedgerEntries: LedgerEntry[],
+		verbose = false,
+	): Promise<void> {
+		const records: LedgerRecord<ImportFileStatus>[] = [];
+		const unavailable: LedgerEntry[] = [];
 
-		const lines: string[] = [];
 		for (const entry of exportLedgerEntries) {
-			if (entry.status !== "done") continue;
-			if (existingIds.has(entry.id)) continue;
-			lines.push(`${entry.id} ${entry.key} pending`);
+			if (entry.status === "done") {
+				records.push({ id: entry.id, key: entry.key, status: "pending" });
+			} else if (entry.status === "missing" || entry.status === "restricted") {
+				unavailable.push(entry);
+			}
 		}
 
-		if (lines.length > 0) {
-			await fs.appendFile(this.ledgerPath, lines.join("\n") + "\n", "utf-8");
+		await this.ledger.append(records);
+
+		if (unavailable.length > 0) {
+			logger.warn(
+				`${unavailable.length} file(s) were missing or restricted during export and will not be uploaded; ` +
+					"affected DB records keep their original keys.",
+			);
+			if (verbose) {
+				for (const entry of unavailable) {
+					logger.info(`  - ${entry.key} (${entry.status})`);
+				}
+			}
 		}
 	}
 
 	async ledgerExists(): Promise<boolean> {
-		try {
-			await fs.access(this.ledgerPath);
-			return true;
-		} catch {
-			return false;
-		}
+		return this.ledger.exists();
 	}
 
 	async readLedger(): Promise<ImportLedgerEntry[]> {
-		try {
-			const content = await fs.readFile(this.ledgerPath, "utf-8");
-			return parseImportLedger(content);
-		} catch {
-			return [];
-		}
+		return this.ledger.read();
 	}
 
 	/**
@@ -121,8 +140,7 @@ export class FileImporter {
 		const missing: string[] = [];
 
 		for (const entry of pending) {
-			const srcPath = path.join(this.filesDir, path.basename(entry.key));
-			if (!fsSync.existsSync(srcPath)) {
+			if (findLocalFile(this.filesDir, entry.key) === null) {
 				missing.push(entry.key);
 			}
 		}
@@ -132,6 +150,8 @@ export class FileImporter {
 
 	/**
 	 * Upload all pending files. Missing source files are marked as skipped.
+	 * The returned counts cover THIS run only — entries already done from a
+	 * previous (resumed) run are not re-counted as uploads.
 	 */
 	async uploadPending(
 		onProgress?: (done: number, total: number) => void,
@@ -139,19 +159,21 @@ export class FileImporter {
 	): Promise<ImportResult> {
 		const entries = await this.readLedger();
 		const pending = entries.filter((e) => e.status === "pending");
-		let doneCount = entries.filter((e) => e.status === "done").length;
+		let doneCount = entries.length - pending.length;
 		const total = entries.length;
-		let skippedCount = entries.filter((e) => e.status === "skipped").length;
+
+		let uploadedThisRun = 0;
+		let skippedThisRun = 0;
 
 		for (const entry of pending) {
-			const srcPath = path.join(this.filesDir, path.basename(entry.key));
+			const srcPath = findLocalFile(this.filesDir, entry.key);
 
-			if (!fsSync.existsSync(srcPath)) {
+			if (srcPath === null) {
 				if (verbose) {
 					logger.info(`  skipped (not found): ${entry.key}`);
 				}
 				await this.markStatus(entry.id, "skipped");
-				skippedCount++;
+				skippedThisRun++;
 				doneCount++;
 				onProgress?.(doneCount, total);
 				continue;
@@ -180,13 +202,14 @@ export class FileImporter {
 
 			await this.updateDbRecord(entry.id, entry.key, newKey);
 			await this.markStatus(entry.id, "done");
+			uploadedThisRun++;
 			doneCount++;
 			onProgress?.(doneCount, total);
 		}
 
 		return {
-			uploaded: doneCount - skippedCount,
-			skipped: skippedCount,
+			uploaded: uploadedThisRun,
+			skipped: skippedThisRun,
 		};
 	}
 
@@ -223,38 +246,8 @@ export class FileImporter {
 		id: string,
 		status: "done" | "skipped",
 	): Promise<void> {
-		const content = await fs.readFile(this.ledgerPath, "utf-8");
-		const updated = content
-			.split("\n")
-			.map((line) => {
-				const parts = line.trim().split(" ");
-				if (parts[0] === id && parts[2] === "pending") {
-					return `${parts[0]} ${parts[1]} ${status}`;
-				}
-				return line;
-			})
-			.join("\n");
-		await fs.writeFile(this.ledgerPath, updated, "utf-8");
+		await this.ledger.markStatus(id, status);
 	}
-}
-
-function parseImportLedger(content: string): ImportLedgerEntry[] {
-	return content
-		.split("\n")
-		.filter((line) => line.trim() !== "")
-		.map((line) => {
-			const parts = line.trim().split(" ");
-			if (parts.length < 3) return null;
-			const [id, key, status] = parts;
-			if (
-				!id ||
-				!key ||
-				(status !== "pending" && status !== "done" && status !== "skipped")
-			)
-				return null;
-			return { id, key, status };
-		})
-		.filter((e): e is ImportLedgerEntry => e !== null);
 }
 
 function guessMimeType(filename: string): string {

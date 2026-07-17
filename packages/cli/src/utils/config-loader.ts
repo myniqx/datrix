@@ -9,6 +9,7 @@ import { resolve } from "path";
 import { access } from "fs/promises";
 import { CLIError } from "../types";
 import { Datrix } from "@datrix/core";
+import type { DatrixInitOptions } from "@datrix/core";
 
 /**
  * Default config file name
@@ -56,10 +57,15 @@ async function resolveConfigPath(configPath?: string): Promise<string> {
 /**
  * Load config file and return initialized Datrix instance
  *
- * The config file should use defineConfig() which returns () => Promise<Datrix>.
- * We import the module, get the default export (the factory), and call it.
+ * The config file should use defineConfig() which returns
+ * (options?) => Promise<Datrix>. We import the module, get the default
+ * export (the factory), and call it — forwarding optional init options
+ * (e.g. { skipConnection: true } for offline commands like generate types).
  */
-export async function loadConfig(configPath?: string): Promise<Datrix> {
+export async function loadConfig(
+	configPath?: string,
+	initOptions?: DatrixInitOptions,
+): Promise<Datrix> {
 	const resolvedPath = await resolveConfigPath(configPath);
 
 	try {
@@ -83,7 +89,7 @@ export async function loadConfig(configPath?: string): Promise<Datrix> {
 			);
 		}
 
-		const datrix = await factory();
+		const datrix = await factory(initOptions);
 		return datrix;
 	} catch (error) {
 		if (error instanceof CLIError) {
@@ -105,9 +111,11 @@ export async function loadConfig(configPath?: string): Promise<Datrix> {
  * - export default defineConfig(...)  → module is the factory itself
  * - module.default = defineConfig(...) → module.default is the factory
  */
-function extractFactory(configModule: unknown): (() => Promise<Datrix>) | null {
+function extractFactory(
+	configModule: unknown,
+): ((options?: DatrixInitOptions) => Promise<Datrix>) | null {
 	if (typeof configModule === "function") {
-		return configModule as () => Promise<Datrix>;
+		return configModule as (options?: DatrixInitOptions) => Promise<Datrix>;
 	}
 
 	if (
@@ -116,9 +124,9 @@ function extractFactory(configModule: unknown): (() => Promise<Datrix>) | null {
 		"default" in configModule &&
 		typeof (configModule as Record<string, unknown>)["default"] === "function"
 	) {
-		return (configModule as Record<string, unknown>)[
-			"default"
-		] as () => Promise<Datrix>;
+		return (configModule as Record<string, unknown>)["default"] as (
+			options?: DatrixInitOptions,
+		) => Promise<Datrix>;
 	}
 
 	return null;

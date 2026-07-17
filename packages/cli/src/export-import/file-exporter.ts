@@ -12,6 +12,9 @@
  *
  * The variant id uses the pattern: <media_id>__<variantName>
  * This allows import to identify exactly which DB record and variant to update.
+ *
+ * Files are stored locally under keyToFileName(key) so keys that share a
+ * basename (a/1.jpg vs b/1.jpg) never collide.
  */
 
 import fs from "node:fs/promises";
@@ -20,11 +23,17 @@ import fsSync from "node:fs";
 import archiver from "archiver";
 import type { IUpload } from "@datrix/core";
 import { logger, spinner } from "../utils/logger";
+import { confirm } from "../utils/prompt";
+import { Ledger } from "./ledger";
+import type { LedgerRecord } from "./ledger";
+import { keyToFileName } from "./file-naming";
+
+export type ExportFileStatus = "pending" | "done" | "missing" | "restricted";
 
 export interface LedgerEntry {
 	id: string;
 	key: string;
-	status: "pending" | "done" | "missing" | "restricted";
+	status: ExportFileStatus;
 }
 
 export interface DownloadResult {
@@ -34,11 +43,17 @@ export interface DownloadResult {
 const LEDGER_FILENAME = "files-progress.txt";
 const FILES_DIR = "files";
 const DEFAULT_CHUNK_SIZE = 1024 * 1024 * 1024; // 1GB
+const EXPORT_STATUSES: readonly ExportFileStatus[] = [
+	"pending",
+	"done",
+	"missing",
+	"restricted",
+];
 
 export class FileExporter {
 	private readonly outputDir: string;
 	private readonly filesDir: string;
-	private readonly ledgerPath: string;
+	private readonly ledger: Ledger<ExportFileStatus>;
 	private readonly upload: IUpload;
 	private readonly chunkSizeLimit: number;
 
@@ -49,7 +64,10 @@ export class FileExporter {
 	) {
 		this.outputDir = outputDir;
 		this.filesDir = path.join(outputDir, FILES_DIR);
-		this.ledgerPath = path.join(outputDir, LEDGER_FILENAME);
+		this.ledger = new Ledger(
+			path.join(outputDir, LEDGER_FILENAME),
+			EXPORT_STATUSES,
+		);
 		this.upload = upload;
 		this.chunkSizeLimit = chunkSizeLimit;
 	}
@@ -60,22 +78,17 @@ export class FileExporter {
 
 	/**
 	 * Append a batch of media rows to the ledger as pending entries.
-	 * Skips entries that are already in the ledger (for resume support).
+	 * Entries already in the ledger are skipped (resume support).
 	 */
 	async appendToLedger(rows: Record<string, unknown>[]): Promise<void> {
-		const existing = await this.readLedger();
-		const existingIds = new Set(existing.map((e) => e.id));
+		const records: LedgerRecord<ExportFileStatus>[] = [];
 
-		const lines: string[] = [];
 		for (const row of rows) {
 			const id = String(row["id"]);
 			const key = row["key"];
 			if (typeof key !== "string" || !key) continue;
 
-			if (!existingIds.has(id)) {
-				lines.push(`${id} ${key} pending`);
-				existingIds.add(id);
-			}
+			records.push({ id, key, status: "pending" });
 
 			const variants = row["variants"];
 			if (variants !== null && typeof variants === "object") {
@@ -85,24 +98,23 @@ export class FileExporter {
 					if (variant !== null && typeof variant === "object") {
 						const v = variant as Record<string, unknown>;
 						if (typeof v["key"] === "string" && v["key"]) {
-							const variantId = `${id}__${name}`;
-							if (!existingIds.has(variantId)) {
-								lines.push(`${variantId} ${v["key"]} pending`);
-								existingIds.add(variantId);
-							}
+							records.push({
+								id: `${id}__${name}`,
+								key: v["key"],
+								status: "pending",
+							});
 						}
 					}
 				}
 			}
 		}
 
-		if (lines.length > 0) {
-			await fs.appendFile(this.ledgerPath, lines.join("\n") + "\n", "utf-8");
-		}
+		await this.ledger.append(records);
 	}
 
 	/**
-	 * Download all pending files. Supports ESC to gracefully stop.
+	 * Download all pending files. Supports ESC to gracefully stop and
+	 * Ctrl+C to abort immediately.
 	 * If packFiles is true, packs downloaded files into zip chunks
 	 * (size controlled by chunkSizeLimit) instead of leaving them in files/.
 	 */
@@ -110,9 +122,11 @@ export class FileExporter {
 		onProgress?: (done: number, total: number) => void,
 		packFiles = false,
 	): Promise<DownloadResult> {
+		await this.cleanupPartFiles();
+
 		const entries = await this.readLedger();
 		const pending = entries.filter((e) => e.status === "pending");
-		let doneCount = entries.filter((e) => e.status === "done").length;
+		let doneCount = entries.length - pending.length;
 		const total = entries.length;
 
 		let stopped = false;
@@ -143,7 +157,7 @@ export class FileExporter {
 		if (stopped) {
 			spinner.fail(`Stopped at ${doneCount}/${total} files`);
 			logger.info(`Resume with: --resume ${this.outputDir}`);
-			const shouldStop = await askConfirm("Stop now? (Y/n): ", true);
+			const shouldStop = await confirm("Stop now? (Y/n): ", true);
 			if (shouldStop) return { stopped: true };
 			return this.downloadPending(onProgress, packFiles);
 		}
@@ -156,32 +170,37 @@ export class FileExporter {
 	}
 
 	async readLedger(): Promise<LedgerEntry[]> {
-		try {
-			const content = await fs.readFile(this.ledgerPath, "utf-8");
-			return parseLedger(content);
-		} catch {
-			return [];
-		}
+		return this.ledger.read();
 	}
 
 	async ledgerExists(): Promise<boolean> {
-		try {
-			await fs.access(this.ledgerPath);
-			return true;
-		} catch {
-			return false;
-		}
+		return this.ledger.exists();
 	}
 
 	get outputDirectory(): string {
 		return this.outputDir;
 	}
 
+	/**
+	 * Remove stray .part files left behind by an interrupted download —
+	 * they are incomplete by definition and will be re-downloaded.
+	 */
+	private async cleanupPartFiles(): Promise<void> {
+		if (!fsSync.existsSync(this.filesDir)) return;
+
+		const entries = await fs.readdir(this.filesDir);
+		for (const entry of entries) {
+			if (entry.endsWith(".part")) {
+				await fs.unlink(path.join(this.filesDir, entry));
+			}
+		}
+	}
+
 	private async downloadFile(
 		url: string,
 		key: string,
 	): Promise<404 | 403 | null> {
-		const destPath = path.join(this.filesDir, path.basename(key));
+		const destPath = path.join(this.filesDir, keyToFileName(key));
 
 		try {
 			await fs.access(destPath);
@@ -197,8 +216,12 @@ export class FileExporter {
 			throw new Error(`Failed to download ${url}: HTTP ${response.status}`);
 		}
 
+		// Download to a .part file first; the final name only ever exists
+		// complete, so the resume existence-check above stays sound.
+		const partPath = `${destPath}.part`;
 		const buffer = await response.arrayBuffer();
-		await fs.writeFile(destPath, new Uint8Array(buffer));
+		await fs.writeFile(partPath, new Uint8Array(buffer));
+		await fs.rename(partPath, destPath);
 		return null;
 	}
 
@@ -206,36 +229,37 @@ export class FileExporter {
 		id: string,
 		status: "done" | "missing" | "restricted",
 	): Promise<void> {
-		const content = await fs.readFile(this.ledgerPath, "utf-8");
-		const updated = content
-			.split("\n")
-			.map((line) => {
-				const parts = line.trim().split(" ");
-				if (parts[0] === id && parts[2] === "pending") {
-					return `${parts[0]} ${parts[1]} ${status}`;
-				}
-				return line;
-			})
-			.join("\n");
-		await fs.writeFile(this.ledgerPath, updated, "utf-8");
+		await this.ledger.markStatus(id, status);
 	}
 
 	/**
 	 * Pack all downloaded files into zip chunks of at most chunkSizeLimit bytes.
 	 * Chunk files are named chunk_0.zip, chunk_1.zip, ...
+	 * Existing chunks from a previous (resumed) run are kept — numbering
+	 * continues after the highest existing index.
 	 * Original files are removed after packing.
 	 */
 	private async packIntoZipChunks(): Promise<void> {
 		const entries = await fs.readdir(this.filesDir);
-		const files = entries.filter((f) => !f.endsWith(".zip"));
+		const files = entries.filter(
+			(f) => !f.endsWith(".zip") && !f.endsWith(".part"),
+		);
 
 		if (files.length === 0) return;
 
 		spinner.start("Packing files into zip chunks...");
 
 		let chunkIndex = 0;
+		for (const entry of entries) {
+			const match = /^chunk_(\d+)\.zip$/.exec(entry);
+			if (match) {
+				chunkIndex = Math.max(chunkIndex, parseInt(match[1]!, 10) + 1);
+			}
+		}
+
 		let currentChunkSize = 0;
 		let currentFiles: string[] = [];
+		let packedChunks = 0;
 
 		const flushChunk = async (): Promise<void> => {
 			if (currentFiles.length === 0) return;
@@ -245,6 +269,7 @@ export class FileExporter {
 				await fs.unlink(path.join(this.filesDir, f));
 			}
 			chunkIndex++;
+			packedChunks++;
 			currentFiles = [];
 			currentChunkSize = 0;
 		};
@@ -266,30 +291,8 @@ export class FileExporter {
 
 		await flushChunk();
 
-		spinner.succeed(`Packed into ${chunkIndex} zip chunk(s)`);
+		spinner.succeed(`Packed into ${packedChunks} zip chunk(s)`);
 	}
-}
-
-function parseLedger(content: string): LedgerEntry[] {
-	return content
-		.split("\n")
-		.filter((line) => line.trim() !== "")
-		.map((line) => {
-			const parts = line.trim().split(" ");
-			if (parts.length < 3) return null;
-			const [id, key, status] = parts;
-			if (
-				!id ||
-				!key ||
-				(status !== "pending" &&
-					status !== "done" &&
-					status !== "missing" &&
-					status !== "restricted")
-			)
-				return null;
-			return { id, key, status };
-		})
-		.filter((e): e is LedgerEntry => e !== null);
 }
 
 function createZipFromFiles(
@@ -323,38 +326,26 @@ function setupEscListener(onEsc: () => void): EscListener {
 	process.stdin.resume();
 	process.stdin.setEncoding("utf-8");
 
-	const handler = (key: string) => {
+	const restore = (): void => {
+		process.stdin.removeListener("data", handler);
+		process.stdin.setRawMode(false);
+		process.stdin.pause();
+	};
+
+	const handler = (key: string): void => {
 		if (key === "\u001b") {
+			// ESC — graceful stop (finish current file, offer resume)
 			onEsc();
+		} else if (key === "\u0003") {
+			// Ctrl+C — raw mode swallows SIGINT, so abort explicitly
+			restore();
+			process.stdout.write("\n");
+			logger.info("Aborted (Ctrl+C). Resume with --resume.");
+			process.exit(130);
 		}
 	};
 
 	process.stdin.on("data", handler);
 
-	return {
-		stop() {
-			process.stdin.removeListener("data", handler);
-			process.stdin.setRawMode(false);
-			process.stdin.pause();
-		},
-	};
-}
-
-function askConfirm(question: string, defaultYes = false): Promise<boolean> {
-	return new Promise((resolve) => {
-		process.stdout.write(question);
-		process.stdin.setRawMode(false);
-		process.stdin.resume();
-		process.stdin.setEncoding("utf-8");
-
-		process.stdin.once("data", (data) => {
-			const answer = String(data).trim().toLowerCase();
-			process.stdin.pause();
-			if (answer === "") {
-				resolve(defaultYes);
-			} else {
-				resolve(answer === "y");
-			}
-		});
-	});
+	return { stop: restore };
 }

@@ -11,13 +11,14 @@
  * Do not define them manually in the schema.
  */
 export function schemaTemplate(name: string): string {
-	const schemaVarName = name.charAt(0).toLowerCase() + name.slice(1);
-	const schemaNameLower = name.toLowerCase();
+	// camelCase keeps word boundaries ("UserProfile" → "userProfile");
+	// lowercasing would lose them forever (type names, FK names, pluralization)
+	const schemaVarName = toCamelCase(name);
 
 	return `import { defineSchema } from '@datrix/core';
 
 export const ${schemaVarName}Schema = defineSchema({
-  name: '${schemaNameLower}',
+  name: '${schemaVarName}',
 
   fields: {
     // Add your fields here
@@ -106,20 +107,37 @@ export const ${schemaVarName}Schema = defineSchema({
 }
 
 /**
+ * Supported database types for `datrix generate config`
+ */
+export const CONFIG_DB_TYPES = [
+	"postgres",
+	"postgres-core",
+	"mysql",
+	"json",
+	"mongodb",
+] as const;
+
+export type ConfigDbType = (typeof CONFIG_DB_TYPES)[number];
+
+export function isConfigDbType(value: string): value is ConfigDbType {
+	return (CONFIG_DB_TYPES as readonly string[]).includes(value);
+}
+
+/**
  * Generate config template
  */
-export function configTemplate(
-	dbType: "postgres" | "mysql" | "json" | "mongodb",
-): string {
-	const adapterImport: Record<string, string> = {
+export function configTemplate(dbType: ConfigDbType): string {
+	const adapterImport: Record<ConfigDbType, string> = {
 		postgres:
 			"import { createPostgresAdapter } from '@datrix/adapter-postgres';",
-		mysql: "import { createMySqlAdapter } from '@datrix/adapter-mysql';",
-		json: "import { createJsonAdapter } from '@datrix/adapter-json';",
-		mongodb: "import { createMongoDbAdapter } from '@datrix/adapter-mongodb';",
+		"postgres-core":
+			"import { createPostgresCoreAdapter } from '@datrix/adapter-postgres-core';",
+		mysql: "import { createMySQLAdapter } from '@datrix/adapter-mysql';",
+		json: "import { JsonAdapter } from '@datrix/adapter-json';",
+		mongodb: "import { createMongoDBAdapter } from '@datrix/adapter-mongodb';",
 	};
 
-	const connectionConfig: Record<string, string> = {
+	const connectionConfig: Record<ConfigDbType, string> = {
 		postgres: `createPostgresAdapter({
     host: process.env.DB_HOST ?? 'localhost',
     port: Number(process.env.DB_PORT) || 5432,
@@ -127,15 +145,27 @@ export function configTemplate(
     user: process.env.DB_USER ?? 'postgres',
     password: process.env.DB_PASSWORD ?? 'password',
   })`,
-		mysql: `createMySqlAdapter({
+		"postgres-core": `createPostgresCoreAdapter({
+    // Bring your own driver (pg, postgres.js, Neon serverless, etc.)
+    // implementing PgRunner/PgConnection.
+    runner: pgRunner,
+    connect: () => pgRunner.connect(),
+    ping: () => pgRunner.query('SELECT 1').then(() => undefined),
+    end: () => pgRunner.end(),
+  })`,
+		mysql: `createMySQLAdapter({
     host: process.env.DB_HOST ?? 'localhost',
     port: Number(process.env.DB_PORT) || 3306,
     database: process.env.DB_NAME ?? 'myapp',
     user: process.env.DB_USER ?? 'root',
     password: process.env.DB_PASSWORD ?? 'password',
   })`,
-		json: `createJsonAdapter({
-    directory: './data',
+		json: `new JsonAdapter({
+    root: './data',
+  })`,
+		mongodb: `createMongoDBAdapter({
+    uri: process.env.MONGODB_URI ?? 'mongodb://localhost:27017',
+    database: process.env.DB_NAME ?? 'myapp',
   })`,
 	};
 
@@ -143,28 +173,18 @@ export function configTemplate(
 	const adapterConfig = connectionConfig[dbType];
 
 	return `${importLine}
-import { createDatrix } from '@datrix/core';
+import { defineConfig } from '@datrix/core';
 
 // Import your schemas here
 // import { userSchema } from './schemas/user.schema';
 
-export default async function createApp() {
-  const adapter = ${adapterConfig};
-
-  const datrix = await createDatrix({
-    adapter,
-    schemas: [
-      // Add your schemas here
-      // userSchema,
-    ],
-    migration: {
-      tableName: 'datrix_migrations',
-      autoRun: false,
-    },
-  });
-
-  return datrix;
-}
+export default defineConfig(() => ({
+  adapter: ${adapterConfig},
+  schemas: [
+    // Add your schemas here
+    // userSchema,
+  ],
+}));
 `;
 }
 
@@ -182,12 +202,11 @@ export function toKebabCase(str: string): string {
  * Convert string to PascalCase
  */
 export function toPascalCase(str: string): string {
+	// Do NOT lowercase the remainder — "userProfile" must become
+	// "UserProfile", not "Userprofile"
 	return str
 		.split(/[\s_-]+/)
-		.map(
-			(word): string =>
-				word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(),
-		)
+		.map((word): string => word.charAt(0).toUpperCase() + word.slice(1))
 		.join("");
 }
 
