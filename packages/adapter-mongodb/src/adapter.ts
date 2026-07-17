@@ -1323,6 +1323,11 @@ class MongoDBTransaction implements Transaction {
 	private committed = false;
 	private rolledBack = false;
 	private aborted = false;
+	/**
+	 * createIndex/dropIndex queued here instead of running immediately — see
+	 * addIndex/dropIndex below for why.
+	 */
+	private pendingIndexOps: Array<() => Promise<void>> = [];
 
 	constructor(session: ClientSession, adapter: MongoDBAdapter, id: string) {
 		this.session = session;
@@ -1417,6 +1422,14 @@ class MongoDBTransaction implements Transaction {
 				cause: error instanceof Error ? error : undefined,
 			});
 		}
+
+		// Run queued createIndex/dropIndex now that the transaction session
+		// that held the collection lock is closed (see addIndex/dropIndex).
+		const ops = this.pendingIndexOps;
+		this.pendingIndexOps = [];
+		for (const op of ops) {
+			await op();
+		}
 	}
 
 	async rollback(): Promise<void> {
@@ -1432,6 +1445,9 @@ class MongoDBTransaction implements Transaction {
 				message: "Transaction already rolled back",
 			});
 		}
+
+		// A rolled-back transaction never applies its queued DDL.
+		this.pendingIndexOps = [];
 
 		try {
 			await this.session.abortTransaction();
@@ -1482,12 +1498,24 @@ class MongoDBTransaction implements Transaction {
 		return this.adapter.alterTable(tableName, operations, this.session);
 	}
 
+	/**
+	 * createIndex/dropIndex are not transaction-safe operations in MongoDB
+	 * either — same reason createTable/dropTable/renameTable run without the
+	 * session above. Unlike those, the runner interleaves index ops with
+	 * other in-tx operations (e.g. alterTable) on the same collection within
+	 * a single migration, so running createIndex immediately deadlocks: it
+	 * waits on the lock the still-open transaction holds, while that
+	 * transaction's commit is waiting for this call to return. Queue the op
+	 * instead and run it once commit() has closed the session.
+	 */
 	async addIndex(tableName: string, index: IndexDefinition): Promise<void> {
-		return this.adapter.addIndex(tableName, index, undefined, this.session);
+		this.pendingIndexOps.push(() => this.adapter.addIndex(tableName, index));
 	}
 
 	async dropIndex(tableName: string, indexName: string): Promise<void> {
-		return this.adapter.dropIndex(tableName, indexName, this.session);
+		this.pendingIndexOps.push(() =>
+			this.adapter.dropIndex(tableName, indexName),
+		);
 	}
 }
 

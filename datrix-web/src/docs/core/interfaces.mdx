@@ -107,6 +107,10 @@ Inserts multiple records in a single transaction and returns them all.
 
 See [create](#create) for a full description of available options.
 
+Relating to an existing record (id shortcut) can differ per item. Relating to
+a new record (`create`) must be the same for every item — otherwise use
+[create](#create) in a loop instead.
+
 ---
 
 ### update

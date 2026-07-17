@@ -620,7 +620,9 @@ export class MigrationSession {
 					if (handledDiffs.has(addedKey)) continue;
 
 					// Check if could be rename
-					if (this.couldBeRename(undefined, addedDiff.definition)) {
+					if (
+						this.couldBeRename(removedDiff.definition, addedDiff.definition)
+					) {
 						handledDiffs.add(removedKey);
 						handledDiffs.add(addedKey);
 
@@ -912,12 +914,14 @@ export class MigrationSession {
 	 * Check if field change could be a rename
 	 */
 	private couldBeRename(
-		_oldDef: FieldDefinition | undefined,
-		_newDef: FieldDefinition,
+		oldDef: FieldDefinition | undefined,
+		newDef: FieldDefinition,
 	): boolean {
-		// Simple heuristic: if types match, could be rename
-		// In real implementation, check more properties
-		return true; // For now, always offer rename option
+		// Only offer rename when type and nullability match — otherwise it is
+		// a plain drop+add and must not block auto-migration with an ambiguity
+		if (!oldDef) return false;
+		if (oldDef.type !== newDef.type) return false;
+		return (oldDef.required ?? false) === (newDef.required ?? false);
 	}
 
 	/**
@@ -1279,6 +1283,43 @@ export class MigrationSession {
 	}
 
 	/**
+	 * Resolve the two FK column names of a junction schema.
+	 *
+	 * `own` is the FK referencing `referencedTable`, `other` is the opposite
+	 * side. Reading them from the schema (instead of re-deriving
+	 * `singularize(table) + "Id"`) keeps them aligned with the registry's
+	 * `${ModelName}Id` convention, including self-relation junctions.
+	 */
+	private resolveJunctionFkColumns(
+		junctionSchema: SchemaDefinition,
+		referencedTable: string,
+	): { own: string; other: string } {
+		let own: string | undefined;
+		let other: string | undefined;
+
+		for (const [name, def] of Object.entries(junctionSchema.fields)) {
+			const references = (def as { references?: { table?: string } })
+				.references;
+			if (!references?.table) continue;
+
+			if (references.table === referencedTable && own === undefined) {
+				own = name;
+			} else {
+				other = name;
+			}
+		}
+
+		if (!own || !other) {
+			throw new MigrationSystemError(
+				`Cannot resolve junction FK columns for '${junctionSchema.tableName ?? junctionSchema.name}' (referenced table: '${referencedTable}')`,
+				"MIGRATION_ERROR",
+			);
+		}
+
+		return { own, other };
+	}
+
+	/**
 	 * Inject data transfer operations into the migration operation list.
 	 *
 	 * For each resolved ambiguous change with a data migration action,
@@ -1318,6 +1359,13 @@ export class MigrationSession {
 
 				if (createIdx === -1 || dropIdx === -1) continue;
 
+				// FK column names come from the junction schema being created,
+				// not from table-name heuristics
+				const createOp = result[createIdx];
+				if (createOp?.type !== "createTable") continue;
+				const { own: sourceJunctionFkCol, other: targetJunctionFkCol } =
+					this.resolveJunctionFkColumns(createOp.schema, sourceTable);
+
 				const transferOp: DataTransferOperation = {
 					type: "dataTransfer",
 					description: `Migrate '${sourceTable}.${sourceFkCol}' values to junction table '${junctionTable}'`,
@@ -1329,16 +1377,11 @@ export class MigrationSession {
 						});
 						const rows = selectResult.rows;
 
-						// Junction FK col for source: derived from FK col on target (e.g. "categoryId" → target model "category")
-						// Source FK col in junction: singular of sourceTable + "Id" (e.g. "posts" → "postId")
-						const sourceModelName = this.singularize(sourceTable);
-						const sourceJunctionFkCol = `${sourceModelName}Id`;
-
 						const junctionRows = rows
 							.filter((row) => row[sourceFkCol] != null)
 							.map((row) => ({
 								[sourceJunctionFkCol]: row.id,
-								[sourceFkCol]: row[sourceFkCol],
+								[targetJunctionFkCol]: row[sourceFkCol],
 							}));
 
 						if (junctionRows.length === 0) return;
@@ -1376,10 +1419,17 @@ export class MigrationSession {
 
 				if (addColIdx === -1 || dropTableIdx === -1) continue;
 
-				// Junction FK col for target table: singular of targetTable + "Id" (e.g. "posts" → "postId")
-				const targetModelName = this.singularize(targetTable);
-				const sourceFkCol = `${targetModelName}Id`; // e.g. "postId"
-				const relatedFkCol = targetFkCol; // e.g. "tagId"
+				// FK column names come from the DB-side junction schema being
+				// dropped, not from table-name heuristics
+				const junctionSchema = this.databaseSchemas.get(junctionTable);
+				if (!junctionSchema) {
+					throw new MigrationSystemError(
+						`Cannot resolve junction table schema '${junctionTable}' for data transfer`,
+						"MIGRATION_ERROR",
+					);
+				}
+				const { own: sourceFkCol, other: relatedFkCol } =
+					this.resolveJunctionFkColumns(junctionSchema, targetTable);
 
 				const transferOp: DataTransferOperation = {
 					type: "dataTransfer",

@@ -84,6 +84,10 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 		return this._translator!;
 	}
 
+	getSchemaRegistry(): ISchemaRegistry {
+		return this._schemas!;
+	}
+
 	/**
 	 * Connect to MySQL
 	 */
@@ -859,8 +863,9 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 				return { name: fieldName, field: undefined };
 			});
 
-			// MySQL forbids UNIQUE on a TEXT column without a key length — a
-			// string field with no explicit maxLength maps to TEXT (see
+			// MySQL forbids indexing a TEXT/BLOB column without a key length —
+			// this applies to any index, not just UNIQUE ones. A string field
+			// with no explicit maxLength maps to TEXT (see
 			// getMySQLTypeWithModifiers), so cap the index at
 			// defaultUniqueVarcharLength instead of failing at DDL time.
 			const defaultUniqueLength = this.config.defaultUniqueVarcharLength ?? 255;
@@ -868,7 +873,6 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 				.map(({ name, field }) => {
 					const escaped = escapeIdentifier(name);
 					const needsKeyLength =
-						index.unique &&
 						field?.type === "string" &&
 						!("maxLength" in field && field.maxLength);
 					return needsKeyLength
@@ -1629,7 +1633,10 @@ class MySQLTransaction implements Transaction {
 
 	async addIndex(tableName: string, index: IndexDefinition): Promise<void> {
 		this.ddlExecuted = true;
-		return this.adapter.addIndex(tableName, index, undefined, this.connection);
+		const registry = this.adapter.getSchemaRegistry();
+		const modelName = registry.findModelByTableName(tableName);
+		const schema = modelName ? registry.get(modelName) : undefined;
+		return this.adapter.addIndex(tableName, index, schema, this.connection);
 	}
 
 	async dropIndex(tableName: string, indexName: string): Promise<void> {

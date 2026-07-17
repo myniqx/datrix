@@ -187,5 +187,5 @@ export function getAdapterType(): AdapterType {
 	) {
 		return adapterEnv;
 	}
-	return "postgres"; // Default
+	return "mongodb"; // Default
 }
