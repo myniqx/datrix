@@ -13,7 +13,12 @@ import {
 	throwQueryError,
 } from "@datrix/core";
 import { JsonQueryRunner } from "./runner";
-import { resolveForeignKey, resolveJunctionTableName } from "./table-utils";
+import {
+	hydrateDatesFromStorage,
+	resolveForeignKey,
+	resolveJunctionForeignKeys,
+	resolveJunctionTableName,
+} from "./table-utils";
 
 export class JsonPopulator {
 	constructor(private adapter: JsonAdapter) {}
@@ -214,8 +219,12 @@ export class JsonPopulator {
 					relField,
 					currentModelName,
 				);
-				const sourceFK = `${currentModelName}Id`;
-				const targetFK = `${targetModelName}Id`;
+				const { sourceFK, targetFK } = await resolveJunctionForeignKeys(
+					junctionTableName,
+					currentModelName,
+					targetModelName,
+					this.adapter,
+				);
 
 				// Load junction table using adapter cache
 				const junctionData =
@@ -324,6 +333,28 @@ export class JsonPopulator {
 					}
 
 					row[relationName as keyof T] = relatedRecords as T[keyof T];
+				}
+			}
+
+			// Hydrate date fields on the populated relation data. relatedData
+			// (and everything derived from it: relatedMap, grouped, targetRecords)
+			// are cache-owned rows storing dates as ISO strings (see
+			// table-utils.ts normalizeDatesForStorage) — copy-and-hydrate here so
+			// the adapter's Date-object contract holds for populated relations
+			// too, and so we never mutate the cache's own row objects.
+			if (targetSchema) {
+				for (const row of result) {
+					const val = row[relationName as keyof T] as unknown;
+					if (!val) continue;
+					if (Array.isArray(val)) {
+						row[relationName as keyof T] = val.map((item) =>
+							hydrateDatesFromStorage(targetSchema, { ...(item as DatrixEntry) }),
+						) as T[keyof T];
+					} else {
+						row[relationName as keyof T] = hydrateDatesFromStorage(targetSchema, {
+							...(val as DatrixEntry),
+						}) as T[keyof T];
+					}
 				}
 			}
 

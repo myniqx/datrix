@@ -61,6 +61,54 @@ export function resolveJunctionTableName(
 }
 
 /**
+ * Resolve junction-table FK column names from the junction schema the
+ * registry created, instead of recomputing `${model}Id` string templates.
+ * This is what makes self-referential manyToMany work: its junction FKs are
+ * `source${Model}Id` / `target${Model}Id` (see registry.ts
+ * `createJunctionTable`) and cannot be derived from the model name alone. For
+ * self-relations the source field is always registered first, so field
+ * insertion order disambiguates the two sides.
+ *
+ * Falls back to the `${model}Id` convention for custom `through` tables that
+ * have no registered schema.
+ */
+export async function resolveJunctionForeignKeys(
+	junctionTableName: string,
+	sourceModel: string,
+	targetModel: string,
+	adapter: JsonAdapter,
+): Promise<{ sourceFK: string; targetFK: string }> {
+	const junctionSchema = await adapter.getSchemaByTableName(junctionTableName);
+
+	if (junctionSchema) {
+		const belongsToFields: {
+			model: string;
+			foreignKey?: string | undefined;
+		}[] = [];
+		for (const field of Object.values(junctionSchema.fields)) {
+			if (field.type === "relation" && field.kind === "belongsTo") {
+				belongsToFields.push(field);
+			}
+		}
+
+		const source =
+			sourceModel === targetModel
+				? belongsToFields[0]
+				: belongsToFields.find((f) => f.model === sourceModel);
+		const target =
+			sourceModel === targetModel
+				? belongsToFields[1]
+				: belongsToFields.find((f) => f.model === targetModel);
+
+		if (source?.foreignKey && target?.foreignKey) {
+			return { sourceFK: source.foreignKey, targetFK: target.foreignKey };
+		}
+	}
+
+	return { sourceFK: `${sourceModel}Id`, targetFK: `${targetModel}Id` };
+}
+
+/**
  * Validate table name for security (no null bytes, path separators, or parent refs)
  */
 export function validateTableName(tableName: string): void {

@@ -21,6 +21,7 @@ import {
 } from "@datrix/core";
 import {
 	resolveForeignKey,
+	resolveJunctionForeignKeys,
 	resolveJunctionTableName,
 	defaultSelectFromSchema,
 } from "./table-utils";
@@ -154,6 +155,18 @@ export class JsonQueryRunner {
 		distinct?: boolean,
 	): Partial<T>[] {
 		return this.project(data, select, distinct);
+	}
+
+	/**
+	 * Exposed for grouped-count `having` filtering. `having` only ever
+	 * references `groupBy` fields (real schema fields — core rejects any
+	 * other field in `having`), so the table schema applies unchanged.
+	 */
+	public async matchWhere<T extends DatrixEntry>(
+		item: Record<string, unknown>,
+		where: WhereClause<T>,
+	): Promise<boolean> {
+		return this.match(item as T, where);
 	}
 
 	private project<T extends DatrixEntry>(
@@ -434,10 +447,17 @@ export class JsonQueryRunner {
 				return false;
 			}
 
-			// Determine FK column names in junction table (e.g. userId, roleId)
+			// Determine FK column names in junction table (e.g. userId, roleId).
+			// Self-referential manyToMany uses source<Model>Id/target<Model>Id,
+			// which cannot be derived from the model name alone — resolve from
+			// the junction schema's registered belongsTo fields instead.
 			const currentModelName = this.schema?.name ?? "";
-			const sourceFK = `${currentModelName}Id`;
-			const targetFK = `${targetModelName}Id`;
+			const { sourceFK, targetFK } = await resolveJunctionForeignKeys(
+				junctionTableName,
+				currentModelName,
+				targetModelName,
+				this.adapter,
+			);
 
 			// Collect target IDs from junction rows matching this source
 			const targetIds = (junctionTableData.data as Record<string, unknown>[])

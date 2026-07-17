@@ -1,4 +1,4 @@
-import { DatrixEntry } from "@datrix/core";
+import { DatrixEntry, GroupCountData, WhereClause } from "@datrix/core";
 import {
 	QueryCountObject,
 	QueryInsertObject,
@@ -21,19 +21,7 @@ import {
 } from "./table-utils";
 import type { JsonAdapter } from "./adapter";
 import type { ExecuteQueryOptions } from "./types";
-import { throwQueryMissingData, throwQueryError } from "@datrix/core";
-
-function assertNoGroupByOrHaving(query: {
-	groupBy?: readonly string[] | undefined;
-	having?: unknown;
-}): void {
-	if (query.groupBy || query.having) {
-		throwQueryError({
-			adapter: "json",
-			message: "groupBy/having are not supported by JsonAdapter",
-		});
-	}
-}
+import { throwQueryMissingData } from "@datrix/core";
 
 export type QueryHandlerResult<T extends DatrixEntry> = {
 	rows: T[];
@@ -42,6 +30,7 @@ export type QueryHandlerResult<T extends DatrixEntry> = {
 		affectedRows: number;
 		insertIds?: number[];
 		count?: number;
+		countMany?: GroupCountData[];
 	};
 	shouldWrite: boolean;
 	earlyReturn?: boolean;
@@ -53,8 +42,6 @@ export async function handleSelect<T extends DatrixEntry>(ctx: {
 	adapter: JsonAdapter;
 }): Promise<QueryHandlerResult<T>> {
 	const { runner, query, adapter } = ctx;
-
-	assertNoGroupByOrHaving(query);
 
 	let rows: T[];
 
@@ -72,6 +59,20 @@ export async function handleSelect<T extends DatrixEntry>(ctx: {
 		// post-write refetch) — don't fall through to "keep every field".
 		const effectiveSelect = query.select ?? defaultSelectFromSchema(runner.tableSchema);
 		rows = applySelectRecursive<T>(rows, effectiveSelect, query.populate) as T[];
+	} else if (query.groupBy && query.groupBy.length > 0) {
+		const filtered = await runner.filterAndSort(query);
+		const groups = await groupRows(
+			filtered as unknown as Record<string, unknown>[],
+			query.groupBy,
+			query.having,
+			runner,
+		);
+		// select is validated to be a subset of groupBy (see builder.ts), so
+		// dropping `count` and keeping the group field values is exactly the
+		// projected shape the caller asked for.
+		rows = groups.map(
+			({ count: _count, ...fields }) => fields,
+		) as unknown as T[];
 	} else {
 		rows = (await runner.run(query)) as T[];
 		// run() only copies rows when it actually projects/dedupes (`select` or
@@ -90,19 +91,73 @@ export async function handleSelect<T extends DatrixEntry>(ctx: {
 	};
 }
 
+/**
+ * Collapse rows into one entry per distinct `groupBy` combination, with a
+ * `count` of matching records, then apply `having` as a post-aggregation
+ * filter. Shared by `handleCount` (returns the count too) and `handleSelect`
+ * (drops `count`, keeps just the distinct group field values).
+ */
+async function groupRows(
+	rows: readonly Record<string, unknown>[],
+	groupBy: readonly string[],
+	having: WhereClause<DatrixEntry> | undefined,
+	runner: JsonQueryRunner,
+): Promise<GroupCountData[]> {
+	const groups = new Map<string, GroupCountData>();
+
+	for (const row of rows) {
+		const key = JSON.stringify(groupBy.map((field) => row[field]));
+		const existing = groups.get(key);
+		if (existing) {
+			existing.count++;
+			continue;
+		}
+		const groupValues: Record<string, unknown> = {};
+		for (const field of groupBy) {
+			groupValues[field] = row[field];
+		}
+		groups.set(key, { ...groupValues, count: 1 });
+	}
+
+	let result = [...groups.values()];
+
+	if (having) {
+		const matches = await Promise.all(
+			result.map((group) => runner.matchWhere(group, having)),
+		);
+		result = result.filter((_, i) => matches[i]);
+	}
+
+	return result;
+}
+
 export async function handleCount<T extends DatrixEntry>(ctx: {
 	runner: JsonQueryRunner;
 	query: QueryCountObject<T>;
 }): Promise<QueryHandlerResult<T>> {
 	const { runner, query } = ctx;
 
-	assertNoGroupByOrHaving(query);
-
 	const rows = (await runner.run(query)) as T[];
+
+	if (!query.groupBy || query.groupBy.length === 0) {
+		return {
+			rows: [] as T[],
+			metadata: { rowCount: 0, affectedRows: 0, count: rows.length },
+			shouldWrite: false,
+			earlyReturn: true,
+		};
+	}
+
+	const countMany = await groupRows(
+		rows as unknown as Record<string, unknown>[],
+		query.groupBy,
+		query.having,
+		runner,
+	);
 
 	return {
 		rows: [] as T[],
-		metadata: { rowCount: 0, affectedRows: 0, count: rows.length },
+		metadata: { rowCount: 0, affectedRows: 0, countMany },
 		shouldWrite: false,
 		earlyReturn: true,
 	};
