@@ -22,6 +22,7 @@ import type {
 	SchemaDefinition,
 } from "@datrix/core";
 import type { MongoClient } from "./mongo-client";
+import { resolveJunctionForeignKeys } from "./populate/junction";
 
 /**
  * Resolve relation-based WHERE conditions into concrete ID filters.
@@ -187,6 +188,7 @@ async function resolveRelationIds<TResult extends DatrixEntry>(
 			relation.model,
 			resolvedConditions,
 			client,
+			schemaRegistry,
 		);
 	}
 
@@ -233,9 +235,14 @@ async function resolveManyToMany<TResult extends DatrixEntry>(
 	targetModelName: string,
 	conditions: Filter<Document>,
 	client: MongoClient<TResult>,
+	schemaRegistry: ISchemaRegistry,
 ): Promise<readonly number[]> {
-	const sourceFK = `${sourceModelName}Id`;
-	const targetFK = `${targetModelName}Id`;
+	const { sourceFK, targetFK } = resolveJunctionForeignKeys(
+		junctionCollection,
+		sourceModelName,
+		targetModelName,
+		schemaRegistry,
+	);
 
 	// Step 1: find matching target IDs
 	const targetCol = client.getCollection(targetCollection);

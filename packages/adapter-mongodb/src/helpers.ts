@@ -5,8 +5,9 @@
  * and auto-increment counter management.
  */
 
-import type { Collection, Document } from "mongodb";
+import type { Collection, Db, Document } from "mongodb";
 import { throwQueryError } from "@datrix/core";
+import { DATRIX_META_MODEL, DATRIX_META_KEY_PREFIX } from "@datrix/core";
 import { COUNTER_KEY_PREFIX } from "./types";
 
 const VALID_IDENTIFIER_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
@@ -25,6 +26,25 @@ export function validateIdentifier(identifier: string): void {
 			message: `Invalid identifier '${identifier}': must start with letter or underscore, contain only alphanumeric characters and underscores`,
 		});
 	}
+}
+
+/**
+ * List the datrix-managed collections: every collection that has a schema
+ * meta entry in `_datrix` (key `_schema_<tableName>`). Collections without a
+ * meta entry belong to the host application and must never be touched by
+ * export/import. Returns an empty list when `_datrix` doesn't exist yet.
+ */
+export async function getManagedCollections(db: Db): Promise<string[]> {
+	const docs = await db
+		.collection(DATRIX_META_MODEL)
+		.find(
+			{ key: { $regex: `^${DATRIX_META_KEY_PREFIX}` } },
+			{ projection: { key: 1, _id: 0 } },
+		)
+		.toArray();
+	return docs.map((doc) =>
+		String(doc["key"]).slice(DATRIX_META_KEY_PREFIX.length),
+	);
 }
 
 /**

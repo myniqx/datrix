@@ -73,6 +73,8 @@ describe("Complex Populate", () => {
 			email: "deep@test.com",
 			name: "Deep User",
 			age: 30,
+			isActive: true,
+			metadata: { plan: "pro", tags: ["vip", "beta"], nested: { level: 2 } },
 			organization: orgId,
 			department: deptId,
 			roles: { connect: roleIds },
@@ -1140,6 +1142,153 @@ describe("Complex Populate", () => {
 			const titles = author.posts.map((p) => p.title);
 			const sortedDesc = [...titles].sort().reverse();
 			expect(titles).toEqual(sortedDesc);
+		});
+	});
+
+	// ==========================================================================
+	// Type Fidelity (date / json / boolean / number / string survive the
+	// adapter round-trip)
+	//
+	// Every adapter must return `date` fields as real Date instances, `json`
+	// fields as parsed objects (not serialized strings), `boolean` fields as
+	// true/false (not 0/1 — the MySQL TINYINT(1) pitfall), `number` fields as
+	// JS numbers (not strings — a DECIMAL/DOUBLE driver pitfall), and `string`
+	// fields as plain strings. This must hold for a single record, its
+	// populated relations, and grouped results (findMany groupBy /
+	// countMany), since grouped rows go through a separate aggregation code
+	// path in every SQL adapter.
+	// ==========================================================================
+
+	describe("Type Fidelity", () => {
+		it("preserves all field types on a record and its populated relations", async () => {
+			const post = await datrix.findById("post", postId, {
+				populate: {
+					author: {
+						select: "*",
+						populate: { department: { select: "*" } },
+					},
+					category: { select: "*" },
+				},
+			});
+
+			expect(post).not.toBeNull();
+
+			// Top-level record: date + boolean + number + string
+			expect(post!.createdAt).toBeInstanceOf(Date);
+			expect(post!.updatedAt).toBeInstanceOf(Date);
+			expect(typeof post!.isPublished).toBe("boolean");
+			expect(post!.isPublished).toBe(true);
+			expect(typeof post!.viewCount).toBe("number");
+			expect(typeof post!.title).toBe("string");
+			expect(post!.title).toBe("Deep Test Post");
+			expect(typeof post!.slug).toBe("string");
+
+			// Populated belongsTo (author): date + json + boolean + number + string
+			const author = post!.author as {
+				createdAt: unknown;
+				updatedAt: unknown;
+				isActive: unknown;
+				metadata: unknown;
+				age: unknown;
+				name: unknown;
+				email: unknown;
+				department: { budget: unknown; name: unknown };
+			};
+			expect(author.createdAt).toBeInstanceOf(Date);
+			expect(author.updatedAt).toBeInstanceOf(Date);
+			expect(typeof author.isActive).toBe("boolean");
+			expect(author.isActive).toBe(true);
+			expect(typeof author.age).toBe("number");
+			expect(author.age).toBe(30);
+			expect(typeof author.name).toBe("string");
+			expect(typeof author.email).toBe("string");
+
+			expect(typeof author.metadata).toBe("object");
+			expect(author.metadata).not.toBeNull();
+			expect(author.metadata).not.toBeInstanceOf(String);
+			const metadata = author.metadata as {
+				plan: string;
+				tags: string[];
+				nested: { level: number };
+			};
+			expect(metadata.plan).toBe("pro");
+			expect(metadata.tags).toEqual(["vip", "beta"]);
+			expect(metadata.nested.level).toBe(2);
+
+			// Nested belongsTo (author.department): number (budget)
+			expect(typeof author.department.budget).toBe("number");
+			expect(author.department.budget).toBe(100000);
+			expect(typeof author.department.name).toBe("string");
+
+			// Populated belongsTo (category): date + boolean + string
+			const category = post!.category as {
+				createdAt: unknown;
+				isActive: unknown;
+				name: unknown;
+			};
+			expect(category.createdAt).toBeInstanceOf(Date);
+			expect(typeof category.isActive).toBe("boolean");
+			expect(category.isActive).toBe(true);
+			expect(typeof category.name).toBe("string");
+		});
+
+		it("preserves boolean type on grouped findMany rows", async () => {
+			const groups = await datrix.findMany("post", {
+				select: ["isPublished"],
+				groupBy: ["isPublished"],
+			});
+
+			expect(groups.length).toBeGreaterThan(0);
+			for (const g of groups) {
+				expect(typeof g["isPublished"]).toBe("boolean");
+			}
+			const values = groups.map((g) => g["isPublished"]).sort();
+			expect(values).toContain(true);
+		});
+
+		it("preserves boolean and string types on grouped findMany rows (multi-field groupBy)", async () => {
+			const groups = await datrix.findMany("category", {
+				select: ["isActive", "name"],
+				groupBy: ["isActive", "name"],
+			});
+
+			expect(groups.length).toBeGreaterThan(0);
+			for (const g of groups) {
+				expect(typeof g["isActive"]).toBe("boolean");
+				expect(typeof g["name"]).toBe("string");
+			}
+			const names = groups.map((g) => g["name"]);
+			expect(names).toContain("Parent Category");
+		});
+
+		it("preserves boolean type on countMany group fields", async () => {
+			const counts = await datrix.countMany("post", {
+				groupBy: ["isPublished"],
+			});
+
+			expect(counts.length).toBeGreaterThan(0);
+			for (const c of counts) {
+				expect(typeof c["isPublished"]).toBe("boolean");
+				expect(typeof c.count).toBe("number");
+			}
+			const published = counts.find((c) => c["isPublished"] === true);
+			expect(published).toBeDefined();
+			expect(published!.count).toBeGreaterThan(0);
+		});
+
+		it("preserves string type on countMany group fields", async () => {
+			const counts = await datrix.countMany("category", {
+				groupBy: ["name"],
+			});
+
+			expect(counts.length).toBeGreaterThan(0);
+			for (const c of counts) {
+				expect(typeof c["name"]).toBe("string");
+				expect(typeof c.count).toBe("number");
+			}
+			const parent = counts.find((c) => c["name"] === "Parent Category");
+			expect(parent).toBeDefined();
+			expect(parent!.count).toBe(1);
 		});
 	});
 });

@@ -34,6 +34,7 @@ import { MongoDBImporter } from "./export-import/importer";
 import type { ExportWriter, ImportReader } from "@datrix/core";
 import type {
 	MongoDBConfig,
+	MongoCountResult,
 	MongoFindResult,
 	MongoTranslateResult,
 } from "./types";
@@ -45,6 +46,7 @@ import type {
 	AlterOperation,
 	ConnectionState,
 	DatabaseAdapter,
+	GroupCountData,
 	QueryMetadata,
 	QueryResult,
 	Transaction,
@@ -251,6 +253,11 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 			};
 		}
 
+		// distinct/groupBy require a $group stage — aggregation path
+		if (op.groupFields && op.groupFields.length > 0) {
+			return this.executeGroupedFind(op, client);
+		}
+
 		const collection = client.getCollection(op.collection);
 		const sessionOpts = client.sessionOptions();
 
@@ -267,6 +274,60 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 			`find:${op.collection}`,
 			() => cursor.toArray(),
 			{ filter: op.filter },
+		);
+
+		const metadata: QueryMetadata = {
+			rowCount: rows.length,
+			affectedRows: rows.length,
+		};
+
+		return { rows: rows as unknown as readonly TResult[], metadata };
+	}
+
+	/**
+	 * Execute a `distinct`/`groupBy` select as an aggregation pipeline:
+	 * $match → $group on the key fields → $replaceRoot (docs become the group
+	 * key) → optional $match (HAVING) → $sort/$skip/$limit → $project.
+	 * Semantics mirror the postgres adapter's SELECT DISTINCT / GROUP BY.
+	 */
+	private async executeGroupedFind<TResult extends DatrixEntry>(
+		op: MongoFindResult,
+		client: MongoClient<TResult>,
+	): Promise<QueryResult<TResult>> {
+		const collection = client.getCollection(op.collection);
+		const sessionOpts = client.sessionOptions();
+
+		const pipeline: Document[] = [];
+		if (Object.keys(op.filter).length > 0) {
+			pipeline.push({ $match: op.filter });
+		}
+
+		const groupId: Record<string, string> = {};
+		for (const field of op.groupFields!) {
+			groupId[field] = `$${field}`;
+		}
+		pipeline.push({ $group: { _id: groupId } });
+		pipeline.push({ $replaceRoot: { newRoot: "$_id" } });
+
+		if (op.having && Object.keys(op.having).length > 0) {
+			pipeline.push({ $match: op.having });
+		}
+		if (op.sort) pipeline.push({ $sort: op.sort });
+		if (op.skip !== undefined) pipeline.push({ $skip: op.skip });
+		if (op.limit !== undefined) pipeline.push({ $limit: op.limit });
+
+		if (op.resultFields) {
+			const projection: Record<string, number> = { _id: 0 };
+			for (const field of op.resultFields) {
+				projection[field] = 1;
+			}
+			pipeline.push({ $project: projection });
+		}
+
+		const rows = await client.execute(
+			`aggregate:${op.collection}`,
+			() => collection.aggregate(pipeline, sessionOpts).toArray(),
+			{ pipeline },
 		);
 
 		const metadata: QueryMetadata = {
@@ -423,11 +484,50 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 	}
 
 	private async executeCountOp<TResult extends DatrixEntry>(
-		op: { readonly collection: string; readonly filter: Document },
+		op: MongoCountResult,
 		client: MongoClient<TResult>,
 	): Promise<QueryResult<TResult>> {
 		const collection = client.getCollection(op.collection);
 		const sessionOpts = client.sessionOptions();
+
+		// GROUP BY count: $group + $sum per group. Contract parity with the
+		// postgres/mysql adapters — grouped counts populate
+		// metadata.countMany (one entry per group), not metadata.count.
+		if (op.groupBy && op.groupBy.length > 0) {
+			const pipeline: Document[] = [];
+			if (Object.keys(op.filter).length > 0) {
+				pipeline.push({ $match: op.filter });
+			}
+
+			const groupId: Record<string, string> = {};
+			for (const field of op.groupBy) {
+				groupId[field] = `$${field}`;
+			}
+			pipeline.push({ $group: { _id: groupId, count: { $sum: 1 } } });
+			// Flatten so HAVING can match on plain group-field names.
+			pipeline.push({
+				$replaceRoot: {
+					newRoot: { $mergeObjects: ["$_id", { count: "$count" }] },
+				},
+			});
+			if (op.having && Object.keys(op.having).length > 0) {
+				pipeline.push({ $match: op.having });
+			}
+
+			const groups = await client.execute(
+				`aggregate:${op.collection}`,
+				() => collection.aggregate(pipeline, sessionOpts).toArray(),
+				{ pipeline },
+			);
+
+			const metadata: QueryMetadata = {
+				rowCount: 0,
+				affectedRows: 0,
+				countMany: groups as unknown as GroupCountData[],
+			};
+
+			return { rows: [] as unknown as readonly TResult[], metadata };
+		}
 
 		const count = await client.execute(
 			`countDocuments:${op.collection}`,
@@ -451,6 +551,20 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 		query: QuerySelectObject<TResult>,
 		client: MongoClient<TResult>,
 	): Promise<QueryResult<TResult>> {
+		// The populate strategies bypass the grouped-find aggregation path —
+		// never silently ignore these clauses (contract §4).
+		if (
+			query.distinct ||
+			(query.groupBy && query.groupBy.length > 0) ||
+			query.having
+		) {
+			throwQueryError({
+				adapter: "mongodb",
+				message:
+					"distinct/groupBy/having cannot be combined with populate in the mongodb adapter",
+			});
+		}
+
 		// MongoDB treats limit(0) as "no limit" (batched strategy) and the
 		// lookup strategy would push { $limit: 0 }, which is a server error —
 		// short-circuit the same way executeFindOp already does.

@@ -93,6 +93,8 @@ export class MongoDBQueryTranslator {
 			? this.translateSort(query.orderBy as readonly OrderByItem<DatrixEntry>[])
 			: undefined;
 
+		const grouping = this.translateGrouping(query);
+
 		const result: MongoFindResult = {
 			operation: "find",
 			collection: query.table,
@@ -101,9 +103,148 @@ export class MongoDBQueryTranslator {
 			...(sort !== undefined && { sort }),
 			...(query.offset !== undefined && { skip: query.offset }),
 			...(query.limit !== undefined && { limit: query.limit }),
+			...grouping,
 		};
 
 		return result;
+	}
+
+	/**
+	 * Translate `distinct`/`groupBy`/`having` into $group key fields for the
+	 * aggregation-based find path. Returns undefined when the query uses none
+	 * of them (plain find). Semantics mirror the postgres adapter (SQL rules):
+	 * select/orderBy fields must appear in the GROUP BY / DISTINCT list —
+	 * violations throw instead of returning silently wrong rows.
+	 */
+	private translateGrouping<T extends DatrixEntry>(
+		query: QuerySelectObject<T>,
+	):
+		| {
+				groupFields: readonly string[];
+				resultFields: readonly string[];
+				having?: Filter<Document>;
+		  }
+		| undefined {
+		const groupBy = query.groupBy as readonly string[] | undefined;
+		const hasGroupBy = groupBy !== undefined && groupBy.length > 0;
+		const distinct = query.distinct === true;
+
+		if (!hasGroupBy) {
+			if (query.having) {
+				throwQueryError({
+					adapter: "mongodb",
+					message: "HAVING requires GROUP BY",
+				});
+			}
+			if (!distinct) return undefined;
+		}
+
+		const selectArr = query.select as readonly string[] | undefined;
+		const hasConcreteSelect =
+			selectArr !== undefined &&
+			selectArr.length > 0 &&
+			!selectArr.includes("*");
+
+		let groupFields: readonly string[];
+		let resultFields: readonly string[];
+
+		if (hasGroupBy) {
+			for (const field of groupBy) {
+				validateIdentifier(field);
+			}
+			if (!hasConcreteSelect) {
+				throwQueryError({
+					adapter: "mongodb",
+					message:
+						"groupBy requires an explicit select list (every selected field must appear in groupBy)",
+				});
+			}
+			for (const field of selectArr) {
+				if (!groupBy.includes(field)) {
+					throwQueryError({
+						adapter: "mongodb",
+						message: `select field '${field}' must appear in groupBy`,
+					});
+				}
+			}
+			groupFields = groupBy;
+			resultFields = selectArr;
+		} else {
+			// distinct without groupBy: the distinct key is the select list, or
+			// every non-hidden scalar field when select is undefined (matching
+			// SELECT DISTINCT * — the unique id then makes it a no-op, as in SQL).
+			if (hasConcreteSelect) {
+				for (const field of selectArr) {
+					validateIdentifier(field);
+				}
+				groupFields = selectArr;
+			} else {
+				const schema = this.getSchema(query.table);
+				if (!schema) {
+					throwQueryError({
+						adapter: "mongodb",
+						message: `distinct requires an explicit select list for table '${query.table}' (schema unknown)`,
+					});
+				}
+				groupFields = Object.entries(schema!.fields)
+					.filter(([, field]) => field.type !== "relation" && !field.hidden)
+					.map(([name]) => name);
+			}
+			resultFields = groupFields;
+		}
+
+		// SQL parity: ORDER BY expressions must appear in the select/group list.
+		if (query.orderBy) {
+			for (const item of query.orderBy as readonly OrderByItem<DatrixEntry>[]) {
+				const field = item.field as string;
+				if (!groupFields.includes(field)) {
+					throwQueryError({
+						adapter: "mongodb",
+						message: `orderBy field '${field}' must appear in ${hasGroupBy ? "groupBy" : "the distinct select list"}`,
+					});
+				}
+			}
+		}
+
+		const having = query.having
+			? this.translateWhere(query.having, query.table, {
+					rejectNestedRelationFiltersIn: "having",
+				})
+			: undefined;
+		if (having) {
+			this.assertHavingFields(having, groupFields);
+		}
+
+		return {
+			groupFields,
+			resultFields,
+			...(having !== undefined && { having }),
+		};
+	}
+
+	/**
+	 * SQL parity: HAVING may only reference grouped fields (aggregate
+	 * expressions are not representable in core's WhereClause). A condition on
+	 * an ungrouped field would silently never match after $group — throw.
+	 */
+	private assertHavingFields(
+		filter: Filter<Document>,
+		groupFields: readonly string[],
+	): void {
+		for (const [key, value] of Object.entries(filter)) {
+			if (key === "$and" || key === "$or" || key === "$nor") {
+				for (const sub of value as readonly Filter<Document>[]) {
+					this.assertHavingFields(sub, groupFields);
+				}
+				continue;
+			}
+			if (!groupFields.includes(key)) {
+				throwQueryError({
+					adapter: "mongodb",
+					message: `HAVING field '${key}' must appear in groupBy`,
+				});
+			}
+		}
 	}
 
 	/**
@@ -118,10 +259,35 @@ export class MongoDBQueryTranslator {
 			? this.translateWhere(query.where, query.table)
 			: {};
 
+		const groupBy = query.groupBy as readonly string[] | undefined;
+		const hasGroupBy = groupBy !== undefined && groupBy.length > 0;
+
+		if (query.having && !hasGroupBy) {
+			throwQueryError({
+				adapter: "mongodb",
+				message: "HAVING requires GROUP BY",
+			});
+		}
+
+		let having: Filter<Document> | undefined;
+		if (hasGroupBy) {
+			for (const field of groupBy) {
+				validateIdentifier(field);
+			}
+			if (query.having) {
+				having = this.translateWhere(query.having, query.table, {
+					rejectNestedRelationFiltersIn: "having",
+				});
+				this.assertHavingFields(having, groupBy);
+			}
+		}
+
 		return {
 			operation: "countDocuments",
 			collection: query.table,
 			filter,
+			...(hasGroupBy && { groupBy }),
+			...(having !== undefined && { having }),
 		};
 	}
 
@@ -218,18 +384,29 @@ export class MongoDBQueryTranslator {
 	translateWhere<T extends DatrixEntry>(
 		where: WhereClause<T>,
 		tableName?: string,
+		options?: { rejectNestedRelationFiltersIn?: string },
 	): Filter<Document> {
 		const currentSchema = tableName ? this.getSchema(tableName) : undefined;
-		return this.translateWhereConditions(where, 0, currentSchema);
+		return this.translateWhereConditions(
+			where,
+			0,
+			currentSchema,
+			options?.rejectNestedRelationFiltersIn,
+		);
 	}
 
 	/**
 	 * Translate WHERE conditions recursively
+	 *
+	 * `rejectNestedRelationFiltersIn` names a context (e.g. "populate.where",
+	 * "having") that has no resolveNestedWhere pass — nested relation
+	 * conditions throw there instead of being forwarded.
 	 */
 	private translateWhereConditions<T extends DatrixEntry>(
 		where: WhereClause<T>,
 		depth: number,
 		currentSchema?: SchemaDefinition,
+		rejectNestedRelationFiltersIn?: string,
 	): Filter<Document> {
 		if (depth > MAX_WHERE_DEPTH) {
 			throwQueryError({
@@ -244,14 +421,24 @@ export class MongoDBQueryTranslator {
 			// Logical operators
 			if (key === "$and") {
 				filter["$and"] = (value as readonly WhereClause<T>[]).map((condition) =>
-					this.translateWhereConditions(condition, depth + 1, currentSchema),
+					this.translateWhereConditions(
+						condition,
+						depth + 1,
+						currentSchema,
+						rejectNestedRelationFiltersIn,
+					),
 				);
 				continue;
 			}
 
 			if (key === "$or") {
 				filter["$or"] = (value as readonly WhereClause<T>[]).map((condition) =>
-					this.translateWhereConditions(condition, depth + 1, currentSchema),
+					this.translateWhereConditions(
+						condition,
+						depth + 1,
+						currentSchema,
+						rejectNestedRelationFiltersIn,
+					),
 				);
 				continue;
 			}
@@ -261,6 +448,7 @@ export class MongoDBQueryTranslator {
 					value as WhereClause<T>,
 					depth + 1,
 					currentSchema,
+					rejectNestedRelationFiltersIn,
 				);
 				// MongoDB $not works at field level, so we wrap with $nor for top-level NOT
 				filter["$nor"] = [notFilter];
@@ -357,6 +545,14 @@ export class MongoDBQueryTranslator {
 						// Complex nested relation filtering
 						// For MongoDB we translate nested conditions as-is
 						// The populator handles cross-collection lookups
+						if (rejectNestedRelationFiltersIn) {
+							// This context has no resolveNestedWhere pass; a nested
+							// relation condition would silently match nothing.
+							throwQueryError({
+								adapter: "mongodb",
+								message: `nested relation filters are not supported in ${rejectNestedRelationFiltersIn} (relation '${key}')`,
+							});
+						}
 						const targetSchema = relationField.model
 							? this.schemaRegistry.get(relationField.model)
 							: undefined;

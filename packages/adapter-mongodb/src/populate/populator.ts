@@ -17,6 +17,7 @@ import type { MongoClient } from "../mongo-client";
 import type { MongoDBQueryTranslator } from "../query-translator";
 import { throwMaxDepthExceeded } from "@datrix/core";
 import { validateIdentifier } from "../helpers";
+import { resolveJunctionForeignKeys } from "./junction";
 
 /**
  * Maximum populate nesting depth
@@ -140,8 +141,12 @@ export class MongoDBPopulator<T extends DatrixEntry> {
 				});
 			} else if (relation.kind === "manyToMany") {
 				const junctionCollection = relation.through!;
-				const sourceFK = `${schema.name}Id`;
-				const targetFK = `${relation.model}Id`;
+				const { sourceFK, targetFK } = resolveJunctionForeignKeys(
+					junctionCollection,
+					schema.name,
+					relation.model,
+					this.schemaRegistry,
+				);
 
 				// Two-stage lookup: source → junction → target
 				const junctionAlias = `_junction_${relationName}`;
@@ -378,13 +383,19 @@ export class MongoDBPopulator<T extends DatrixEntry> {
 					groupMap.get(fk)!.push(r);
 				}
 				for (const row of rows) {
-					row[relationName as keyof T] = (groupMap.get(row.id) ??
-						[]) as T[keyof T];
+					row[relationName as keyof T] = this.applyRelationWindow(
+						groupMap.get(row.id) ?? [],
+						options,
+					) as T[keyof T];
 				}
 			} else if (relation.kind === "manyToMany") {
 				const junctionCollection = relation.through!;
-				const sourceFK = `${schema.name}Id`;
-				const targetFK = `${relation.model}Id`;
+				const { sourceFK, targetFK } = resolveJunctionForeignKeys(
+					junctionCollection,
+					schema.name,
+					relation.model,
+					this.schemaRegistry,
+				);
 				const parentIds = rows.map((r) => r.id);
 
 				const junctionCol = this.client.getCollection(junctionCollection);
@@ -414,22 +425,31 @@ export class MongoDBPopulator<T extends DatrixEntry> {
 					options,
 				);
 
-				const targetMap = new Map(relatedRows.map((r) => [r.id, r]));
-
-				// Build parent → related mapping via junction
-				const groupMap = new Map<number, DatrixEntry[]>();
+				// Build parent → related mapping via junction. Groups are filled by
+				// iterating relatedRows (fetch order = orderBy order) so each
+				// parent's group preserves the sort order; junction docs only
+				// provide the membership.
+				const parentsByTarget = new Map<number, number[]>();
 				for (const j of junctionDocs) {
 					const sFK = j[sourceFK] as number;
 					const tFK = j[targetFK] as number;
-					const target = targetMap.get(tFK);
-					if (!target) continue;
-					if (!groupMap.has(sFK)) groupMap.set(sFK, []);
-					groupMap.get(sFK)!.push(target);
+					if (!parentsByTarget.has(tFK)) parentsByTarget.set(tFK, []);
+					parentsByTarget.get(tFK)!.push(sFK);
+				}
+
+				const groupMap = new Map<number, DatrixEntry[]>();
+				for (const r of relatedRows) {
+					for (const parentId of parentsByTarget.get(r.id) ?? []) {
+						if (!groupMap.has(parentId)) groupMap.set(parentId, []);
+						groupMap.get(parentId)!.push(r);
+					}
 				}
 
 				for (const row of rows) {
-					row[relationName as keyof T] = (groupMap.get(row.id) ??
-						[]) as T[keyof T];
+					row[relationName as keyof T] = this.applyRelationWindow(
+						groupMap.get(row.id) ?? [],
+						options,
+					) as T[keyof T];
 				}
 			}
 		}
@@ -452,6 +472,7 @@ export class MongoDBPopulator<T extends DatrixEntry> {
 			const whereFilter = this.translator.translateWhere(
 				options.where,
 				targetCollection,
+				{ rejectNestedRelationFiltersIn: "populate.where" },
 			);
 			if (Object.keys(whereFilter).length > 0) {
 				mergedFilter = { $and: [filter, whereFilter] } as Filter<Document>;
@@ -475,9 +496,11 @@ export class MongoDBPopulator<T extends DatrixEntry> {
 		});
 
 		if (sort) cursor = cursor.sort(sort);
-		if (options.offset !== undefined && options.offset > 0)
-			cursor = cursor.skip(options.offset);
-		if (options.limit !== undefined) cursor = cursor.limit(options.limit);
+		// limit/offset are intentionally NOT applied here: they are per-parent
+		// windows, but this cursor spans the whole parent batch ($in query).
+		// hasMany/manyToMany apply the window in memory after grouping; for
+		// belongsTo/hasOne (single-row relations) limit/offset are meaningless
+		// and applying them globally would starve some parents of their row.
 
 		const relatedDocs = await this.client.execute(
 			`batch:${targetCollection}`,
@@ -498,6 +521,33 @@ export class MongoDBPopulator<T extends DatrixEntry> {
 	}
 
 	/**
+	 * Apply per-parent offset/limit to a grouped relation window (batched
+	 * strategy for hasMany/manyToMany). The batched fetch spans the whole
+	 * parent batch, so the window must be applied in memory per group to
+	 * match the $lookup strategy's per-parent semantics. Groups arrive in
+	 * fetch order (server-side orderBy sort preserved by grouping); when no
+	 * orderBy is given, fall back to sorting by id for a deterministic window.
+	 */
+	private applyRelationWindow(
+		group: DatrixEntry[],
+		options: QueryPopulateOptions<T>,
+	): DatrixEntry[] {
+		const start = options.offset !== undefined && options.offset > 0
+			? options.offset
+			: 0;
+		const hasWindow = options.limit !== undefined || start > 0;
+		if (!hasWindow) return group;
+
+		const windowed = [...group];
+		if (!options.orderBy || options.orderBy.length === 0) {
+			windowed.sort((a, b) => (a.id as number) - (b.id as number));
+		}
+
+		const end = options.limit !== undefined ? start + options.limit : undefined;
+		return windowed.slice(start, end);
+	}
+
+	/**
 	 * Build $lookup pipeline sub-options (field selection for lookup results)
 	 */
 	private buildLookupPipeline(
@@ -511,6 +561,7 @@ export class MongoDBPopulator<T extends DatrixEntry> {
 			const filter = this.translator.translateWhere(
 				options.where,
 				targetCollection,
+				{ rejectNestedRelationFiltersIn: "populate.where" },
 			);
 			if (Object.keys(filter).length > 0) {
 				innerPipeline.push({ $match: filter });
@@ -603,12 +654,16 @@ export class MongoDBPopulator<T extends DatrixEntry> {
 		options: QueryPopulateOptions<T>,
 		collectionName?: string,
 	): Document[] {
+		// limit/offset are meaningless for single-row relations (belongsTo/
+		// hasOne) — strip them so a populate-level window cannot starve the
+		// parent of its related row; the $limit: 1 below is the only cap.
+		const { limit: _limit, offset: _offset, ...singleRowOptions } = options;
 		// Nothing enforces uniqueness of the hasOne FK, so the $lookup array
 		// can contain 2+ documents; without capping it, $unwind would emit the
 		// parent row once per child (duplicated main rows). Harmless for
 		// belongsTo since the FK -> unique `id` can only match one document.
 		const { pipeline: innerPipeline = [] } = this.buildLookupPipeline(
-			options,
+			singleRowOptions as QueryPopulateOptions<T>,
 			collectionName,
 		);
 		innerPipeline.push({ $limit: 1 });
