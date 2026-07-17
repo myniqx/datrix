@@ -19,11 +19,12 @@ import {
 	DatrixAdapterError,
 } from "@datrix/core";
 import { MySQLQueryObject } from "../types";
+import { resolveJunctionForeignKeys } from "./junction";
 
 /**
  * JOIN Builder Class
  *
- * Generates optimized JOIN clauses for different populate strategies.
+ * Generates optimized JOIN clauses for the json-aggregation strategy.
  */
 export class JoinBuilder {
 	constructor(private schemaRegistry: ISchemaRegistry) {}
@@ -34,9 +35,6 @@ export class JoinBuilder {
 	 * For json-aggregation strategy:
 	 * - Only generates JOINs for belongsTo and hasOne relations
 	 * - hasMany and manyToMany use subqueries (no JOIN to avoid row explosion)
-	 *
-	 * For lateral-joins strategy:
-	 * - Handles all complex populate options via LATERAL subqueries (MySQL 8.0.14+)
 	 *
 	 * @param query - Query with populate
 	 * @param strategy - Populate strategy
@@ -62,7 +60,7 @@ export class JoinBuilder {
 
 		const joins: JoinClause[] = [];
 
-		for (const [relationName, options] of Object.entries(query.populate)) {
+		for (const [relationName] of Object.entries(query.populate)) {
 			const relationField = schema.fields[relationName];
 			if (!relationField) {
 				throwRelationNotFound({
@@ -91,19 +89,14 @@ export class JoinBuilder {
 						query.table,
 						relationName,
 						relField,
-						strategy,
-						options,
 					);
 					joins.push(...joinClauses);
 				}
 			} else {
-				// For lateral-joins: build LATERAL JOINs for all relations
 				const joinClauses = this.buildRelationJoin(
 					query.table,
 					relationName,
 					relField,
-					strategy,
-					options,
 				);
 				joins.push(...joinClauses);
 			}
@@ -119,8 +112,6 @@ export class JoinBuilder {
 		sourceTable: string,
 		relationName: string,
 		relation: RelationField,
-		strategy: PopulateStrategy,
-		options: unknown,
 	): JoinClause[] {
 		try {
 			switch (relation.kind) {
@@ -128,36 +119,12 @@ export class JoinBuilder {
 					return this.buildBelongsToJoin(sourceTable, relationName, relation);
 
 				case "hasOne":
-					if (strategy === "lateral-joins" && this.hasComplexOptions(options)) {
-						return this.buildHasOneLateralJoin(
-							sourceTable,
-							relationName,
-							relation,
-							options,
-						);
-					}
 					return this.buildHasOneJoin(sourceTable, relationName, relation);
 
 				case "hasMany":
-					if (strategy === "lateral-joins" && this.hasComplexOptions(options)) {
-						return this.buildHasManyLateralJoin(
-							sourceTable,
-							relationName,
-							relation,
-							options,
-						);
-					}
 					return this.buildHasManyJoin(sourceTable, relationName, relation);
 
 				case "manyToMany":
-					if (strategy === "lateral-joins" && this.hasComplexOptions(options)) {
-						return this.buildManyToManyLateralJoin(
-							sourceTable,
-							relationName,
-							relation,
-							options,
-						);
-					}
 					return this.buildManyToManyJoin(sourceTable, relationName, relation);
 
 				default:
@@ -219,7 +186,6 @@ export class JoinBuilder {
 				table: targetTable,
 				alias: relationName,
 				condition,
-				isLateral: false,
 			},
 		];
 	}
@@ -263,7 +229,6 @@ export class JoinBuilder {
 				table: targetTable,
 				alias: relationName,
 				condition,
-				isLateral: false,
 			},
 		];
 	}
@@ -281,64 +246,6 @@ export class JoinBuilder {
 	): JoinClause[] {
 		// Same as hasOne but with aggregation in SELECT clause
 		return this.buildHasOneJoin(sourceTable, relationName, relation);
-	}
-
-	/**
-	 * Build LATERAL JOIN for hasOne with complex options (MySQL 8.0.14+)
-	 */
-	private buildHasOneLateralJoin(
-		sourceTable: string,
-		relationName: string,
-		relation: RelationField,
-		_options: unknown,
-	): JoinClause[] {
-		// Get target schema
-		const targetSchema = this.schemaRegistry.get(relation.model);
-		if (!targetSchema) {
-			throwTargetModelNotFound({
-				adapter: "mysql",
-				targetModel: relation.model,
-				relationName,
-				schemaName: sourceTable,
-			});
-		}
-
-		const targetTable = targetSchema.tableName ?? relation.model.toLowerCase();
-		const foreignKey = relation.foreignKey!;
-
-		const sourceTableEsc = escapeIdentifier(sourceTable);
-		const targetTableEsc = escapeIdentifier(targetTable);
-		const foreignKeyEsc = escapeIdentifier(foreignKey);
-		const relationAlias = escapeIdentifier(relationName);
-
-		const condition = `${sourceTableEsc}.\`id\` = ${targetTableEsc}.${foreignKeyEsc}`;
-
-		return [
-			{
-				type: "LATERAL",
-				table: targetTable,
-				alias: `${relationAlias}_lateral`,
-				condition,
-				isLateral: true,
-			},
-		];
-	}
-
-	/**
-	 * Build LATERAL JOIN for hasMany with complex options
-	 */
-	private buildHasManyLateralJoin(
-		sourceTable: string,
-		relationName: string,
-		relation: RelationField,
-		options: unknown,
-	): JoinClause[] {
-		return this.buildHasOneLateralJoin(
-			sourceTable,
-			relationName,
-			relation,
-			options,
-		);
 	}
 
 	/**
@@ -378,9 +285,14 @@ export class JoinBuilder {
 			throwSchemaNotFound({ adapter: "mysql", modelName: currentModelName });
 		}
 
-		// Foreign key names in junction table: {ModelName}Id
-		const sourceFK = `${currentSchema.name}Id`;
-		const targetFK = `${relation.model}Id`;
+		// Junction FK column names come from the junction schema (handles
+		// self-referential source/target FK naming)
+		const { sourceFK, targetFK } = resolveJunctionForeignKeys(
+			junctionTable,
+			currentSchema.name,
+			relation.model,
+			this.schemaRegistry,
+		);
 
 		// Check if junction table exists
 		const junctionModelName =
@@ -410,7 +322,6 @@ export class JoinBuilder {
 				table: junctionTable,
 				alias: junctionAlias,
 				condition: `${sourceTableEsc}.\`id\` = ${junctionAliasEsc}.${sourceFKEsc}`,
-				isLateral: false,
 			},
 			// Second: junction -> target
 			{
@@ -418,86 +329,8 @@ export class JoinBuilder {
 				table: targetTable,
 				alias: relationName,
 				condition: `${junctionAliasEsc}.${targetFKEsc} = ${relationAlias}.\`id\``,
-				isLateral: false,
 			},
 		];
-	}
-
-	/**
-	 * Build LATERAL JOIN for manyToMany with complex options
-	 */
-	private buildManyToManyLateralJoin(
-		sourceTable: string,
-		relationName: string,
-		relation: RelationField,
-		_options: unknown,
-	): JoinClause[] {
-		// Get schemas
-		const targetSchema = this.schemaRegistry.get(relation.model);
-		if (!targetSchema) {
-			throwTargetModelNotFound({
-				adapter: "mysql",
-				targetModel: relation.model,
-				relationName,
-				schemaName: sourceTable,
-			});
-		}
-
-		const targetTable = targetSchema.tableName ?? relation.model.toLowerCase();
-		const junctionTable = relation.through!;
-
-		const currentModelName =
-			this.schemaRegistry.findModelByTableName(sourceTable);
-		if (!currentModelName) {
-			throwModelNotFound({ adapter: "mysql", table: sourceTable });
-		}
-
-		const currentSchema = this.schemaRegistry.get(currentModelName);
-		if (!currentSchema) {
-			throwSchemaNotFound({ adapter: "mysql", modelName: currentModelName });
-		}
-
-		// Check junction table exists
-		const junctionModelName =
-			this.schemaRegistry.findModelByTableName(junctionTable);
-		if (!junctionModelName) {
-			throwJunctionTableNotFound({
-				adapter: "mysql",
-				junctionTable,
-				relationName,
-				schemaName: currentSchema.name,
-			});
-		}
-
-		const sourceTableEsc = escapeIdentifier(sourceTable);
-
-		return [
-			{
-				type: "LATERAL",
-				table: targetTable,
-				alias: `${relationName}_lateral`,
-				condition: `${sourceTableEsc}.\`id\` IS NOT NULL`,
-				isLateral: true,
-			},
-		];
-	}
-
-	/**
-	 * Check if populate options include complex features
-	 */
-	private hasComplexOptions(options: unknown): boolean {
-		if (typeof options !== "object" || options === null) {
-			return false;
-		}
-
-		const opts = options as Record<string, unknown>;
-
-		return (
-			"limit" in opts ||
-			"offset" in opts ||
-			"where" in opts ||
-			"orderBy" in opts
-		);
 	}
 
 	/**
@@ -509,14 +342,8 @@ export class JoinBuilder {
 				const tableEsc = escapeIdentifier(join.table);
 				const aliasEsc = escapeIdentifier(join.alias);
 
-				if (join.isLateral) {
-					// LATERAL joins handled by AggregationBuilder
-					return "";
-				}
-
 				return `${join.type} ${tableEsc} AS ${aliasEsc} ON ${join.condition}`;
 			})
-			.filter((sql) => sql !== "")
 			.join(" ");
 	}
 }

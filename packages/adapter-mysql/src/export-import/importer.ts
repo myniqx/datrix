@@ -1,11 +1,25 @@
-import type { Pool } from "mysql2/promise";
+import type { Pool, PoolConnection } from "mysql2/promise";
 import type { ImportReader } from "@datrix/core";
 import type { SchemaDefinition } from "@datrix/core";
 import type { MySQLAdapter } from "../adapter";
 import { DATRIX_META_MODEL } from "@datrix/core";
+import {
+	escapeIdentifier,
+	mapReferentialAction,
+	clampGeneratedIdentifier,
+} from "../helpers";
 
 const CHUNK_SIZE = 1000;
 
+/**
+ * Import is a wipe-and-restore over datrix-managed tables ONLY (tables with a
+ * schema entry in `_datrix`, plus the internal `_datrix*` tables). Foreign
+ * (host application) tables in a shared database are never touched.
+ *
+ * MySQL DDL cannot run in a transaction, so the import is NOT atomic: a
+ * failure mid-import leaves the datrix tables partially restored and requires
+ * re-importing the archive.
+ */
 export class MySQLImporter {
 	constructor(
 		private pool: Pool,
@@ -15,44 +29,60 @@ export class MySQLImporter {
 	async import(reader: ImportReader): Promise<void> {
 		const schemas = await this.collectSchemas(reader);
 
-		// 1. Disable FK checks for the session
-		await this.pool.execute("SET FOREIGN_KEY_CHECKS = 0");
+		// Resolve the managed-table list BEFORE dropping anything — the list
+		// lives in _datrix, which is itself dropped below
+		const managedTables = await this.adapter.getManagedTables();
+
+		// One dedicated connection for the whole import: FOREIGN_KEY_CHECKS is
+		// a session variable, and pooled connections must never leak with FK
+		// checks disabled
+		const connection = await this.pool.getConnection();
 
 		try {
-			// 2. Drop all existing tables
-			const existingTables = await this.adapter.getTables();
-			for (const tableName of existingTables) {
-				await this.adapter.dropTable(tableName, undefined, { isImport: true });
+			await connection.query("SET FOREIGN_KEY_CHECKS = 0");
+
+			try {
+				// 1. Drop existing datrix-managed tables
+				for (const tableName of managedTables) {
+					await this.adapter.dropTable(tableName, connection, {
+						isImport: true,
+					});
+				}
+
+				// 2. Create tables — isImport skips FK constraints and _datrix meta
+				//    writes. _datrix data will be restored as plain rows in step 3.
+				for (const schema of schemas.values()) {
+					await this.adapter.createTable(schema, connection, {
+						isImport: true,
+					});
+				}
+
+				// 3. Insert data chunk by chunk
+				const tables = await reader.getTables();
+				for (const tableName of tables) {
+					for await (const chunk of reader.readChunks(tableName)) {
+						await this.insertChunk(connection, tableName, chunk);
+					}
+				}
+
+				// 4. Add FK constraints (skip _datrix)
+				for (const schema of schemas.values()) {
+					if (schema.name === DATRIX_META_MODEL) continue;
+					await this.addForeignKeys(connection, schema);
+				}
+			} finally {
+				// Always re-enable FK checks on the SAME connection before it
+				// returns to the pool
+				await connection.query("SET FOREIGN_KEY_CHECKS = 1");
 			}
 
-			// 3. Create tables — isImport skips FK constraints and _datrix meta writes.
-			//    _datrix data will be restored as plain rows in step 4.
-			for (const schema of schemas.values()) {
-				await this.adapter.createTable(schema, undefined, { isImport: true });
-			}
-
-			// 4. Insert data chunk by chunk
+			// 5. Reset AUTO_INCREMENT for all tables
 			const tables = await reader.getTables();
 			for (const tableName of tables) {
-				for await (const chunk of reader.readChunks(tableName)) {
-					await this.insertChunk(tableName, chunk);
-				}
-			}
-
-			// 5. Add FK constraints (skip _datrix)
-			for (const schema of schemas.values()) {
-				if (schema.name === DATRIX_META_MODEL) continue;
-				await this.addForeignKeys(schema);
+				await this.resetAutoIncrement(connection, tableName);
 			}
 		} finally {
-			// Always re-enable FK checks
-			await this.pool.execute("SET FOREIGN_KEY_CHECKS = 1");
-		}
-
-		// 6. Reset AUTO_INCREMENT for all tables
-		const tables = await reader.getTables();
-		for (const tableName of tables) {
-			await this.resetAutoIncrement(tableName);
+			connection.release();
 		}
 	}
 
@@ -67,14 +97,19 @@ export class MySQLImporter {
 	}
 
 	private async insertChunk(
+		connection: PoolConnection,
 		tableName: string,
 		rows: Record<string, unknown>[],
 	): Promise<void> {
 		if (rows.length === 0) return;
 
-		const escapedTable = `\`${tableName}\``;
+		// Archive content is external input — every identifier goes through
+		// escapeIdentifier (validation + quoting)
+		const escapedTable = escapeIdentifier(tableName);
 		const columns = Object.keys(rows[0]!);
-		const escapedColumns = columns.map((c) => `\`${c}\``).join(", ");
+		const escapedColumns = columns
+			.map((c) => escapeIdentifier(c))
+			.join(", ");
 
 		for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
 			const batch = rows.slice(i, i + CHUNK_SIZE);
@@ -95,45 +130,54 @@ export class MySQLImporter {
 				}
 			}
 
-			await this.pool.execute(
+			await connection.execute(
 				`INSERT INTO ${escapedTable} (${escapedColumns}) VALUES ${placeholders}`,
 				values,
 			);
 		}
 	}
 
-	private async addForeignKeys(schema: SchemaDefinition): Promise<void> {
+	private async addForeignKeys(
+		connection: PoolConnection,
+		schema: SchemaDefinition,
+	): Promise<void> {
 		const tableName = schema.tableName!;
-		const escapedTable = `\`${tableName}\``;
+		const escapedTable = escapeIdentifier(tableName);
 
 		for (const [fieldName, field] of Object.entries(schema.fields)) {
 			if (field.type !== "number" || !field.references) continue;
 
-			const col = `\`${fieldName}\``;
-			const refTable = `\`${field.references.table}\``;
-			const refCol = `\`${field.references.column ?? "id"}\``;
-			const constraintName = `\`fk_${tableName}_${fieldName}\``;
+			const col = escapeIdentifier(fieldName);
+			const refTable = escapeIdentifier(field.references.table);
+			const refCol = escapeIdentifier(field.references.column ?? "id");
+			const constraintName = escapeIdentifier(
+				clampGeneratedIdentifier(`fk_${tableName}_${fieldName}`),
+			);
 
 			const onDelete = field.references.onDelete
-				? ` ON DELETE ${field.references.onDelete === "setNull" ? "SET NULL" : field.references.onDelete.toUpperCase()}`
+				? ` ON DELETE ${mapReferentialAction(field.references.onDelete)}`
 				: "";
 			const onUpdate = field.references.onUpdate
-				? ` ON UPDATE ${field.references.onUpdate.toUpperCase()}`
+				? ` ON UPDATE ${mapReferentialAction(field.references.onUpdate)}`
 				: "";
 
-			await this.pool.execute(
+			await connection.execute(
 				`ALTER TABLE ${escapedTable} ADD CONSTRAINT ${constraintName} FOREIGN KEY (${col}) REFERENCES ${refTable} (${refCol})${onDelete}${onUpdate}`,
 			);
 		}
 	}
 
-	private async resetAutoIncrement(tableName: string): Promise<void> {
-		const escapedTable = `\`${tableName}\``;
-		const [rows] = await this.pool.execute(
+	private async resetAutoIncrement(
+		connection: PoolConnection,
+		tableName: string,
+	): Promise<void> {
+		const escapedTable = escapeIdentifier(tableName);
+		const [rows] = await connection.execute(
 			`SELECT MAX(\`id\`) as maxId FROM ${escapedTable}`,
 		);
-		const maxId = (rows as Array<{ maxId: number | null }>)[0]?.maxId ?? 0;
-		await this.pool.execute(
+		const rawMaxId = (rows as Array<{ maxId: number | null }>)[0]?.maxId ?? 0;
+		const maxId = Number.isInteger(rawMaxId) ? (rawMaxId as number) : 0;
+		await connection.execute(
 			`ALTER TABLE ${escapedTable} AUTO_INCREMENT = ${maxId + 1}`,
 		);
 	}

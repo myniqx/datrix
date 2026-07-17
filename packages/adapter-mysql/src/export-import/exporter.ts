@@ -2,6 +2,7 @@ import type { Pool, RowDataPacket } from "mysql2/promise";
 import type { ExportWriter } from "@datrix/core";
 import type { SchemaDefinition } from "@datrix/core";
 import type { MySQLAdapter } from "../adapter";
+import { escapeIdentifier } from "../helpers";
 
 const CHUNK_SIZE = 1000;
 
@@ -17,7 +18,9 @@ export class MySQLExporter {
 			exportedAt: new Date().toISOString(),
 		});
 
-		const tables = await this.adapter.getTables();
+		// Only datrix-managed tables — datrix runs as a plugin in shared
+		// databases, foreign tables must not be dumped into the archive
+		const tables = await this.adapter.getManagedTables();
 		const schemas = new Map<string, SchemaDefinition>();
 
 		for (const tableName of tables) {
@@ -40,7 +43,7 @@ export class MySQLExporter {
 		schema: SchemaDefinition | undefined,
 		writer: ExportWriter,
 	): Promise<void> {
-		const escapedTable = `\`${tableName}\``;
+		const escapedTable = escapeIdentifier(tableName);
 
 		// Collect bool and json field names once from schema
 		const boolFields: string[] = [];
@@ -58,9 +61,11 @@ export class MySQLExporter {
 		let offset = 0;
 
 		while (true) {
+			// LIMIT/OFFSET inlined (internal integer constants): binding them as
+			// prepared-statement params sends DOUBLE, which MySQL < 8.0.22 and
+			// MariaDB reject for LIMIT/OFFSET
 			const [rows] = await this.pool.execute<RowDataPacket[]>(
-				`SELECT * FROM ${escapedTable} ORDER BY \`id\` LIMIT ? OFFSET ?`,
-				[CHUNK_SIZE, offset],
+				`SELECT * FROM ${escapedTable} ORDER BY \`id\` LIMIT ${CHUNK_SIZE} OFFSET ${offset}`,
 			);
 
 			if (rows.length === 0) {

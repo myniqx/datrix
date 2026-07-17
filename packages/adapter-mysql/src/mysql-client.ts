@@ -16,7 +16,7 @@ import type {
 import { AdapterErrorCode, DatrixAdapterError } from "@datrix/core";
 import { QueryObject } from "@datrix/core";
 
-const IS_DEBUG = process.env["NODE_ENV"] !== "production" && false;
+const IS_DEBUG = process.env["DATRIX_DEBUG"] === "1";
 
 const MYSQL_CODE_MAP: Record<string, string> = {
 	ER_DUP_ENTRY: "ADAPTER_UNIQUE_CONSTRAINT",
@@ -24,7 +24,7 @@ const MYSQL_CODE_MAP: Record<string, string> = {
 	ER_ROW_IS_REFERENCED_2: "ADAPTER_FOREIGN_KEY_CONSTRAINT",
 };
 
-function mysqlCodeToAdapterCode(mysqlCode: string | undefined): string {
+export function mysqlCodeToAdapterCode(mysqlCode: string | undefined): string {
 	if (mysqlCode && mysqlCode in MYSQL_CODE_MAP) {
 		return MYSQL_CODE_MAP[mysqlCode]!;
 	}

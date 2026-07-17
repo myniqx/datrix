@@ -91,6 +91,15 @@ export interface MySQLConfig {
 	 * @default 'local'
 	 */
 	readonly timezone?: string;
+
+	/**
+	 * VARCHAR length used for `unique: true` string fields (columns and
+	 * `indexes: [{ unique: true }]` entries) that don't set an explicit
+	 * `maxLength`. MySQL forbids UNIQUE on a TEXT column without a key
+	 * length; a field's own `maxLength` always takes precedence over this.
+	 * @default 255
+	 */
+	readonly defaultUniqueVarcharLength?: number;
 }
 
 /**
@@ -152,8 +161,16 @@ function getMySQLType(fieldType: FieldType): MySQLDataType {
 
 /**
  * Get MySQL type with modifiers from FieldDefinition
+ *
+ * @param defaultUniqueVarcharLength - VARCHAR length to fall back to for a
+ *   `unique: true` string field that has no explicit `maxLength` (MySQL
+ *   forbids UNIQUE on TEXT without a key length). The field's own
+ *   `maxLength` always wins when set.
  */
-export function getMySQLTypeWithModifiers(field: FieldDefinition): string {
+export function getMySQLTypeWithModifiers(
+	field: FieldDefinition,
+	defaultUniqueVarcharLength = 255,
+): string {
 	// Foreign key columns must match the referenced column type (INT)
 	if (field.type === "number" && "references" in field && field.references) {
 		return "INT";
@@ -164,6 +181,10 @@ export function getMySQLTypeWithModifiers(field: FieldDefinition): string {
 	if (field.type === "string" && "maxLength" in field && field.maxLength) {
 		mysqlType = "VARCHAR";
 		return `${mysqlType}(${field.maxLength})`;
+	}
+
+	if (field.type === "string" && "unique" in field && field.unique) {
+		return `VARCHAR(${defaultUniqueVarcharLength})`;
 	}
 
 	if (field.type === "number" && "precision" in field && field.precision) {
@@ -238,7 +259,6 @@ export function parseConnectionString(
 export interface TranslateResult {
 	readonly sql: string;
 	readonly params: unknown[];
-	readonly needAggregation: boolean;
 }
 
 /**

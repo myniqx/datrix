@@ -25,7 +25,13 @@ import type {
 } from "@datrix/core";
 import { DatrixEntry } from "@datrix/core";
 import { MySQLQueryObject, TranslateResult } from "./types";
-import { escapeIdentifier, escapeValue } from "./helpers";
+import {
+	escapeIdentifier,
+	escapeValue,
+	escapeLikePattern,
+	buildOrderByClause,
+} from "./helpers";
+import { resolveJunctionForeignKeys } from "./populate/junction";
 
 /**
  * Maximum nesting depth for WHERE clauses to prevent stack overflow
@@ -229,7 +235,6 @@ export class MySQLQueryTranslator implements QueryTranslator {
 			return {
 				sql,
 				params: [...this.params],
-				needAggregation: false,
 			};
 		} catch (error) {
 			if (error instanceof DatrixAdapterError) {
@@ -260,15 +265,42 @@ export class MySQLQueryTranslator implements QueryTranslator {
 
 		// Handle COUNT separately (only has where, groupBy, having)
 		if (query.type === "count") {
-			parts.push("SELECT COUNT(*) as `count`");
-			parts.push(`FROM ${escapeIdentifier(query.table)}`);
+			const tableEsc = escapeIdentifier(query.table);
+			const hasGroupBy = query.groupBy && query.groupBy.length > 0;
+			const groupByFields = hasGroupBy
+				? query
+						.groupBy!.map((field) => `${tableEsc}.${escapeIdentifier(field)}`)
+						.join(", ")
+				: undefined;
 
+			let whereResult:
+				| ReturnType<MySQLQueryTranslator["translateWhere"]>
+				| undefined;
 			if (query.where) {
-				const whereResult = this.translateWhere(
+				whereResult = this.translateWhere(
 					query.where,
 					this.paramIndex,
 					query.table,
 				);
+			}
+
+			// Relation-WHERE joins (hasMany/manyToMany) multiply rows —
+			// count distinct entities, not joined rows
+			const countExpr =
+				whereResult && whereResult.joins.length > 0
+					? `COUNT(DISTINCT ${tableEsc}.\`id\`)`
+					: "COUNT(*)";
+			// Grouped count returns one row per group: SELECT the group fields
+			// alongside COUNT(*) so the adapter can read the group's own field
+			// values back off each row, not just a bare total.
+			parts.push(
+				groupByFields
+					? `SELECT ${groupByFields}, ${countExpr} as \`count\``
+					: `SELECT ${countExpr} as \`count\``,
+			);
+			parts.push(`FROM ${tableEsc}`);
+
+			if (whereResult) {
 				if (whereResult.joins.length > 0) {
 					parts.push(whereResult.joins.join(" "));
 				}
@@ -277,10 +309,7 @@ export class MySQLQueryTranslator implements QueryTranslator {
 				this.params.push(...whereResult.params);
 			}
 
-			if (query.groupBy && query.groupBy.length > 0) {
-				const groupByFields = query.groupBy
-					.map((field) => escapeIdentifier(field))
-					.join(", ");
+			if (groupByFields) {
 				parts.push(`GROUP BY ${groupByFields}`);
 			}
 
@@ -387,8 +416,9 @@ export class MySQLQueryTranslator implements QueryTranslator {
 			query.groupBy &&
 			query.groupBy.length > 0
 		) {
+			const tableEsc = escapeIdentifier(query.table);
 			const groupByFields = query.groupBy
-				.map((field) => escapeIdentifier(field))
+				.map((field) => `${tableEsc}.${escapeIdentifier(field)}`)
 				.join(", ");
 			parts.push(`GROUP BY ${groupByFields}`);
 		}
@@ -401,27 +431,43 @@ export class MySQLQueryTranslator implements QueryTranslator {
 			this.params.push(...havingResult.params);
 		}
 
-		// ORDER BY
+		// ORDER BY (columns qualified with the main table — populate/relation
+		// joins can introduce ambiguous column names)
 		if (query.orderBy && query.orderBy.length > 0) {
 			parts.push(
-				`ORDER BY ${this.translateOrderBy(query.orderBy as unknown as readonly OrderByItem<DatrixEntry>[])}`,
+				`ORDER BY ${buildOrderByClause(query.orderBy as unknown as readonly OrderByItem<DatrixEntry>[], query.table)}`,
 			);
 		}
 
-		// LIMIT (MySQL requires LIMIT when OFFSET is used)
+		// LIMIT/OFFSET are inlined as validated integer literals — binding them
+		// as prepared-statement params sends DOUBLE, which MySQL < 8.0.22 and
+		// MariaDB reject for LIMIT/OFFSET.
 		if (query.limit !== undefined) {
-			parts.push(`LIMIT ${this.addParam(query.limit)}`);
+			parts.push(`LIMIT ${this.toSafeLimitValue(query.limit, "LIMIT")}`);
 		} else if (query.offset !== undefined) {
 			// MySQL/MariaDB: OFFSET without LIMIT is a syntax error
-			parts.push(`LIMIT ${this.addParam(2147483647)}`);
+			parts.push(`LIMIT 2147483647`);
 		}
 
 		// OFFSET
 		if (query.offset !== undefined) {
-			parts.push(`OFFSET ${this.addParam(query.offset)}`);
+			parts.push(`OFFSET ${this.toSafeLimitValue(query.offset, "OFFSET")}`);
 		}
 
 		return parts.join(" ");
+	}
+
+	/**
+	 * Validate a LIMIT/OFFSET value for literal inlining
+	 */
+	private toSafeLimitValue(value: unknown, clause: string): number {
+		if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
+			throwQueryError({
+				adapter: "mysql",
+				message: `Invalid ${clause} value: ${String(value)} (must be a non-negative integer)`,
+			});
+		}
+		return value;
 	}
 
 	/**
@@ -601,28 +647,6 @@ export class MySQLQueryTranslator implements QueryTranslator {
 		}
 
 		return parts.join(" ");
-	}
-
-	/**
-	 * Translate ORDER BY clause
-	 * Note: MySQL doesn't support NULLS FIRST/LAST natively, use workaround
-	 */
-	private translateOrderBy<T extends DatrixEntry>(
-		orderBy: readonly OrderByItem<T>[],
-	): string {
-		return orderBy
-			.map((item) => {
-				const field = escapeIdentifier(item.field as string);
-				const direction = item.direction.toUpperCase();
-
-				if (item.nulls) {
-					const nullsFirst = item.nulls.toUpperCase() === "FIRST";
-					return `CASE WHEN ${field} IS NULL THEN ${nullsFirst ? 0 : 1} ELSE ${nullsFirst ? 1 : 0} END, ${field} ${direction}`;
-				}
-
-				return `${field} ${direction}`;
-			})
-			.join(", ");
 	}
 
 	/**
@@ -864,8 +888,12 @@ export class MySQLQueryTranslator implements QueryTranslator {
 								const currentSchemaForFK = currentModelName
 									? this.schemaRegistry.get(currentModelName)
 									: currentSchema;
-								const sourceFK = `${currentSchemaForFK?.name ?? currentModelName}Id`;
-								const targetFK = `${relationField.model}Id`;
+								const { sourceFK, targetFK } = resolveJunctionForeignKeys(
+									junctionTable,
+									currentSchemaForFK?.name ?? currentModelName ?? "",
+									relationField.model!,
+									this.schemaRegistry,
+								);
 
 								const junctionAlias = `${key}_junction`;
 								const junctionTableEsc = escapeIdentifier(junctionTable);
@@ -1007,31 +1035,48 @@ export class MySQLQueryTranslator implements QueryTranslator {
 				}
 				return `${fieldName} NOT IN (${value.map((v) => this.addParam(v, currentSchema, fieldPath)).join(", ")})`;
 
+			// Case-sensitivity note: tables use the case-insensitive
+			// utf8mb4_unicode_ci collation, so the non-`i` variants force a
+			// binary collation to honor the contract ($like/$contains/... are
+			// case-SENSITIVE; $ilike/$icontains are not). Adapter-added `%`
+			// wrappers escape LIKE metacharacters with an explicit ESCAPE.
 			case "$like":
-				return `${fieldName} LIKE ${this.addParam(value, currentSchema, fieldPath)}`;
+				return `${fieldName} COLLATE utf8mb4_bin LIKE ${this.addParam(value, currentSchema, fieldPath)}`;
 
 			case "$ilike":
 				// MySQL doesn't have ILIKE, use LOWER() workaround
 				return `LOWER(${fieldName}) LIKE LOWER(${this.addParam(value, currentSchema, fieldPath)})`;
 
 			case "$contains":
-				return `LOWER(${fieldName}) LIKE LOWER(${this.addParam(`%${String(value)}%`, currentSchema, fieldPath)})`;
+				return `${fieldName} COLLATE utf8mb4_bin LIKE ${this.addParam(`%${escapeLikePattern(String(value))}%`, currentSchema, fieldPath)} ESCAPE '\\\\'`;
+
+			case "$icontains":
+				return `LOWER(${fieldName}) LIKE LOWER(${this.addParam(`%${escapeLikePattern(String(value))}%`, currentSchema, fieldPath)}) ESCAPE '\\\\'`;
 
 			case "$notContains":
-				return `LOWER(${fieldName}) NOT LIKE LOWER(${this.addParam(`%${String(value)}%`, currentSchema, fieldPath)})`;
+				return `${fieldName} COLLATE utf8mb4_bin NOT LIKE ${this.addParam(`%${escapeLikePattern(String(value))}%`, currentSchema, fieldPath)} ESCAPE '\\\\'`;
 
 			case "$startsWith":
-				return `LOWER(${fieldName}) LIKE LOWER(${this.addParam(`${String(value)}%`, currentSchema, fieldPath)})`;
+				return `${fieldName} COLLATE utf8mb4_bin LIKE ${this.addParam(`${escapeLikePattern(String(value))}%`, currentSchema, fieldPath)} ESCAPE '\\\\'`;
 
 			case "$endsWith":
-				return `LOWER(${fieldName}) LIKE LOWER(${this.addParam(`%${String(value)}`, currentSchema, fieldPath)})`;
+				return `${fieldName} COLLATE utf8mb4_bin LIKE ${this.addParam(`%${escapeLikePattern(String(value))}`, currentSchema, fieldPath)} ESCAPE '\\\\'`;
 
-			case "$regex":
-				// MySQL uses REGEXP
+			case "$regex": {
+				// MySQL uses REGEXP; case-sensitive via binary collation unless
+				// the RegExp carries an `i` flag (CI collation handles that)
 				if (value instanceof RegExp) {
-					return `${fieldName} REGEXP ${this.addParam(value.source, currentSchema, fieldPath)}`;
+					const patternParam = this.addParam(
+						value.source,
+						currentSchema,
+						fieldPath,
+					);
+					return value.flags.includes("i")
+						? `${fieldName} REGEXP ${patternParam}`
+						: `${fieldName} COLLATE utf8mb4_bin REGEXP ${patternParam}`;
 				}
-				return `${fieldName} REGEXP ${this.addParam(value, currentSchema, fieldPath)}`;
+				return `${fieldName} COLLATE utf8mb4_bin REGEXP ${this.addParam(value, currentSchema, fieldPath)}`;
+			}
 
 			case "$exists":
 				return value ? `${fieldName} IS NOT NULL` : `${fieldName} IS NULL`;

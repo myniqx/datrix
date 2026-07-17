@@ -2,7 +2,8 @@
  * Datrix MySQL Adapter
  *
  * MySQL/MariaDB adapter for Datrix framework.
- * Supports MySQL 5.7+ and MariaDB 10.2+.
+ * Requires MySQL 8.0.16+ or MariaDB 10.5+ (window functions, JSON aggregation,
+ * expression defaults, enforced CHECK constraints).
  *
  * @example
  * ```typescript
