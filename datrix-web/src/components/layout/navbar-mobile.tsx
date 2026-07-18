@@ -1,4 +1,5 @@
-import { MenuIcon, StarIcon, GithubIcon } from "lucide-react";
+import { MenuIcon, StarIcon } from "lucide-react";
+import { siGithub } from "simple-icons";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -64,7 +65,9 @@ export function NavbarMobile({ starCount }: NavbarMobileProps) {
 						rel="noopener noreferrer"
 						className="flex items-center gap-2 rounded-md px-2 py-2 text-sm text-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
 					>
-						<GithubIcon className="size-4" />
+						<svg role="img" viewBox="0 0 24 24" className="size-4 fill-current">
+							<path d={siGithub.path} />
+						</svg>
 						GitHub
 						{starCount !== null && (
 							<span className="ml-auto flex items-center gap-1 text-xs text-foreground/80">
