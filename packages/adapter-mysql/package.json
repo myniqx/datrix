@@ -1,6 +1,6 @@
 {
 	"name": "@datrix/adapter-mysql",
-	"version": "0.1.1",
+	"version": "0.2.0",
 	"description": "MySQL and MariaDB adapter for Datrix framework",
 	"author": "Datrix Contributors",
 	"license": "MIT",
@@ -49,7 +49,7 @@
 		"clean": "rm -rf dist"
 	},
 	"peerDependencies": {
-		"@datrix/core": "^0.1.2"
+		"@datrix/core": "workspace:^"
 	},
 	"dependencies": {
 		"mysql2": "^3.23.0"

@@ -48,5 +48,5 @@ jobs:
             fi
 
             echo "> Publishing $name@$local_version (was: ${published_version:-none})"
-            (cd "packages/$dir" && npm publish --access public --provenance)
+            (cd "packages/$dir" && pnpm publish --access public --no-git-checks --provenance)
           done

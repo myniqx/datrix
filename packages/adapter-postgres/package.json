@@ -1,6 +1,6 @@
 {
 	"name": "@datrix/adapter-postgres",
-	"version": "0.1.1",
+	"version": "0.2.0",
 	"description": "PostgreSQL adapter for Datrix framework",
 	"author": "Datrix Contributors",
 	"license": "MIT",
@@ -49,11 +49,11 @@
 		"clean": "rm -rf dist"
 	},
 	"peerDependencies": {
-		"@datrix/core": "^0.1.2"
+		"@datrix/core": "workspace:^"
 	},
 	"dependencies": {
 		"pg": "^8.22.0",
-		"@datrix/adapter-postgres-core": "workspace:*"
+		"@datrix/adapter-postgres-core": "workspace:^"
 	},
 	"devDependencies": {
 		"@datrix/core": "workspace:*",

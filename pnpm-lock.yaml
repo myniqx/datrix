@@ -89,7 +89,7 @@ importers:
   packages/adapter-postgres:
     dependencies:
       '@datrix/adapter-postgres-core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../adapter-postgres-core
       pg:
         specifier: ^8.22.0
