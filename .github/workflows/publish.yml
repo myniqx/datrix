@@ -1,0 +1,52 @@
+name: Publish packages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build all packages
+        run: pnpm build
+
+      # Publish order matters: @datrix/core is a peer/dev dependency of every
+      # other package, so it must be published first.
+      - name: Publish changed packages
+        run: |
+          set -e
+          PACKAGES="core adapter-json adapter-mongodb adapter-mysql adapter-postgres adapter-postgres-core api api-upload cli"
+
+          for dir in $PACKAGES; do
+            pkg_path="packages/$dir/package.json"
+            name=$(node -p "require('./$pkg_path').name")
+            local_version=$(node -p "require('./$pkg_path').version")
+            published_version=$(npm view "$name" version 2>/dev/null || echo "")
+
+            if [ "$local_version" = "$published_version" ]; then
+              echo "= $name@$local_version already published, skipping"
+              continue
+            fi
+
+            echo "> Publishing $name@$local_version (was: ${published_version:-none})"
+            (cd "packages/$dir" && npm publish --access public --provenance)
+          done

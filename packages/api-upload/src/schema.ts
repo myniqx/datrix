@@ -4,13 +4,19 @@
 
 import { defineSchema } from "@datrix/core";
 import type { SchemaPermission, SchemaDefinition } from "@datrix/core";
-import type { UploadOptions } from "./types";
 
 export function createMediaSchema(
-	options: UploadOptions,
+	modelName: string,
 	permission?: SchemaPermission,
 ): SchemaDefinition {
-	const modelName = options.modelName ?? "media";
+	// Media rows must only be written through the upload pipeline — direct
+	// CRUD create/update is denied unless the user explicitly overrides it.
+	// The upload handler writes via datrix.raw.*, which bypasses this layer.
+	const effectivePermission: SchemaPermission = {
+		create: false,
+		update: false,
+		...permission,
+	};
 
 	return defineSchema({
 		name: modelName,
@@ -22,6 +28,6 @@ export function createMediaSchema(
 			key: { type: "string", required: true },
 			variants: { type: "json" },
 		},
-		...(permission !== undefined && { permission }),
+		permission: effectivePermission,
 	});
 }

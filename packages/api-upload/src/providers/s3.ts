@@ -24,6 +24,13 @@ class UploadError extends DatrixError {
 	}
 }
 
+interface S3RequestOptions {
+	readonly body?: Uint8Array;
+	readonly contentType?: string;
+	/** HEAD responses carry no body — skip reading it on error */
+	readonly readErrorBody?: boolean;
+}
+
 export class S3StorageProvider implements StorageProvider {
 	readonly name = "s3" as const;
 
@@ -33,6 +40,8 @@ export class S3StorageProvider implements StorageProvider {
 	private readonly secretAccessKey: string;
 	private readonly endpoint: string;
 	private readonly pathPrefix: string;
+	private readonly sessionToken: string | undefined;
+	private readonly forcePathStyle: boolean;
 
 	constructor(options: S3ProviderOptions) {
 		this.bucket = options.bucket;
@@ -41,6 +50,8 @@ export class S3StorageProvider implements StorageProvider {
 		this.secretAccessKey = options.secretAccessKey;
 		this.endpoint = options.endpoint ?? `s3.${options.region}.amazonaws.com`;
 		this.pathPrefix = options.pathPrefix ?? "uploads";
+		this.sessionToken = options.sessionToken;
+		this.forcePathStyle = options.forcePathStyle ?? false;
 	}
 
 	async upload(file: UploadFile): Promise<UploadResult> {
@@ -49,7 +60,10 @@ export class S3StorageProvider implements StorageProvider {
 			const filename = generateUniqueFilename(sanitized);
 			const key = this.pathPrefix ? `${this.pathPrefix}/${filename}` : filename;
 
-			await this.putObject(key, file.buffer, file.mimetype);
+			await this.sendRequest("PUT", key, {
+				body: file.buffer,
+				contentType: file.mimetype,
+			});
 
 			return {
 				key,
@@ -66,7 +80,7 @@ export class S3StorageProvider implements StorageProvider {
 
 	async delete(key: string): Promise<void> {
 		try {
-			await this.deleteObject(key);
+			await this.sendRequest("DELETE", key, {});
 		} catch (error) {
 			if (error instanceof UploadError) throw error;
 			const cause = error instanceof Error ? error : undefined;
@@ -75,193 +89,66 @@ export class S3StorageProvider implements StorageProvider {
 	}
 
 	getUrl(key: string): string {
-		return `https://${this.bucket}.${this.endpoint}/${key}`;
+		const encodedKey = encodePath(key);
+		return this.forcePathStyle
+			? `https://${this.endpoint}/${this.bucket}/${encodedKey}`
+			: `https://${this.bucket}.${this.endpoint}/${encodedKey}`;
 	}
 
 	async exists(key: string): Promise<boolean> {
 		try {
-			await this.headObject(key);
+			await this.sendRequest("HEAD", key, { readErrorBody: false });
 			return true;
 		} catch {
 			return false;
 		}
 	}
 
-	private async putObject(
+	private hostAndPath(key: string): { host: string; urlPath: string } {
+		const encodedKey = encodePath(key);
+		return this.forcePathStyle
+			? { host: this.endpoint, urlPath: `/${this.bucket}/${encodedKey}` }
+			: { host: `${this.bucket}.${this.endpoint}`, urlPath: `/${encodedKey}` };
+	}
+
+	/**
+	 * Send a SigV4-signed request to S3, resolving on 2xx and rejecting with
+	 * the response body otherwise.
+	 */
+	private async sendRequest(
+		method: string,
 		key: string,
-		buffer: Uint8Array,
-		contentType: string,
+		options: S3RequestOptions,
 	): Promise<void> {
 		const https = await import("https");
 		const crypto = await import("crypto");
 
-		const host = `${this.bucket}.${this.endpoint}`;
-		const urlPath = `/${key}`;
-		const method = "PUT";
-		const date = new Date().toUTCString();
+		const { host, urlPath } = this.hostAndPath(key);
+		const { body, contentType, readErrorBody = true } = options;
+
+		// One timestamp for the whole signature — header, canonical request,
+		// string-to-sign, and credential scope must all agree.
+		const amzDate = new Date().toISOString().replace(/[:-]|\.\d{3}/g, "");
+		const dateStamp = amzDate.slice(0, 8);
 		const contentHash = crypto
 			.createHash("sha256")
-			.update(buffer)
+			.update(body ?? "")
 			.digest("hex");
-		const authorization = await this.signRequest(
-			method,
-			urlPath,
-			host,
-			date,
-			contentType,
-			contentHash,
-		);
 
-		await new Promise<void>((resolve, reject) => {
-			const req = https.request(
-				{
-					hostname: host,
-					port: 443,
-					path: urlPath,
-					method,
-					headers: {
-						Host: host,
-						Date: date,
-						"Content-Type": contentType,
-						"Content-Length": buffer.length,
-						"x-amz-content-sha256": contentHash,
-						Authorization: authorization,
-					},
-				},
-				(res) => {
-					const status = res.statusCode ?? 0;
-					if (status >= 200 && status < 300) {
-						resolve();
-					} else {
-						let body = "";
-						res.on("data", (chunk: Buffer) => {
-							body += chunk.toString();
-						});
-						res.on("end", () => {
-							reject(new UploadError(`S3 upload failed: ${status} ${body}`));
-						});
-					}
-				},
-			);
-			req.on("error", (error: Error) => {
-				reject(new UploadError("S3 request failed", error));
-			});
-			req.write(buffer);
-			req.end();
-		});
-	}
+		// Signed headers, alphabetically ordered
+		const signedHeaderEntries: [string, string][] = [
+			["host", host],
+			["x-amz-content-sha256", contentHash],
+			["x-amz-date", amzDate],
+		];
+		if (this.sessionToken !== undefined) {
+			signedHeaderEntries.push(["x-amz-security-token", this.sessionToken]);
+		}
 
-	private async deleteObject(key: string): Promise<void> {
-		const https = await import("https");
-		const crypto = await import("crypto");
-
-		const host = `${this.bucket}.${this.endpoint}`;
-		const urlPath = `/${key}`;
-		const method = "DELETE";
-		const date = new Date().toUTCString();
-		const contentHash = crypto.createHash("sha256").update("").digest("hex");
-		const authorization = await this.signRequest(
-			method,
-			urlPath,
-			host,
-			date,
-			"",
-			contentHash,
-		);
-
-		await new Promise<void>((resolve, reject) => {
-			const req = https.request(
-				{
-					hostname: host,
-					port: 443,
-					path: urlPath,
-					method,
-					headers: {
-						Host: host,
-						Date: date,
-						"x-amz-content-sha256": contentHash,
-						Authorization: authorization,
-					},
-				},
-				(res) => {
-					const status = res.statusCode ?? 0;
-					if (status >= 200 && status < 300) {
-						resolve();
-					} else {
-						let body = "";
-						res.on("data", (chunk: Buffer) => {
-							body += chunk.toString();
-						});
-						res.on("end", () => {
-							reject(new UploadError(`S3 delete failed: ${status} ${body}`));
-						});
-					}
-				},
-			);
-			req.on("error", (error: Error) => {
-				reject(new UploadError("S3 request failed", error));
-			});
-			req.end();
-		});
-	}
-
-	private async headObject(key: string): Promise<void> {
-		const https = await import("https");
-		const crypto = await import("crypto");
-
-		const host = `${this.bucket}.${this.endpoint}`;
-		const urlPath = `/${key}`;
-		const method = "HEAD";
-		const date = new Date().toUTCString();
-		const contentHash = crypto.createHash("sha256").update("").digest("hex");
-		const authorization = await this.signRequest(
-			method,
-			urlPath,
-			host,
-			date,
-			"",
-			contentHash,
-		);
-
-		await new Promise<void>((resolve, reject) => {
-			const req = https.request(
-				{
-					hostname: host,
-					port: 443,
-					path: urlPath,
-					method,
-					headers: {
-						Host: host,
-						Date: date,
-						"x-amz-content-sha256": contentHash,
-						Authorization: authorization,
-					},
-				},
-				(res) => {
-					const status = res.statusCode ?? 0;
-					if (status >= 200 && status < 300) resolve();
-					else reject(new UploadError(`Object not found: ${status}`));
-				},
-			);
-			req.on("error", (error: Error) => {
-				reject(new UploadError("S3 request failed", error));
-			});
-			req.end();
-		});
-	}
-
-	private async signRequest(
-		method: string,
-		urlPath: string,
-		host: string,
-		date: string,
-		_contentType: string,
-		contentHash: string,
-	): Promise<string> {
-		const crypto = await import("crypto");
-
-		const canonicalHeaders = `host:${host}\nx-amz-content-sha256:${contentHash}\nx-amz-date:${date}\n`;
-		const signedHeaders = "host;x-amz-content-sha256;x-amz-date";
+		const canonicalHeaders = signedHeaderEntries
+			.map(([name, value]) => `${name}:${value}\n`)
+			.join("");
+		const signedHeaders = signedHeaderEntries.map(([name]) => name).join(";");
 		const canonicalRequest = [
 			method,
 			urlPath,
@@ -272,8 +159,7 @@ export class S3StorageProvider implements StorageProvider {
 		].join("\n");
 
 		const algorithm = "AWS4-HMAC-SHA256";
-		const amzDate = this.getAmzDate();
-		const credentialScope = `${this.getDateStamp()}/${this.region}/s3/aws4_request`;
+		const credentialScope = `${dateStamp}/${this.region}/s3/aws4_request`;
 		const canonicalRequestHash = crypto
 			.createHash("sha256")
 			.update(canonicalRequest)
@@ -285,17 +171,69 @@ export class S3StorageProvider implements StorageProvider {
 			canonicalRequestHash,
 		].join("\n");
 
-		const signature = this.calculateSignature(crypto, stringToSign);
-		return `${algorithm} Credential=${this.accessKeyId}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+		const signature = this.calculateSignature(crypto, stringToSign, dateStamp);
+		const authorization = `${algorithm} Credential=${this.accessKeyId}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+
+		const headers: Record<string, string | number> = {
+			Host: host,
+			"x-amz-date": amzDate,
+			"x-amz-content-sha256": contentHash,
+			Authorization: authorization,
+		};
+		if (this.sessionToken !== undefined) {
+			headers["x-amz-security-token"] = this.sessionToken;
+		}
+		if (body !== undefined) {
+			headers["Content-Length"] = body.length;
+			if (contentType !== undefined) {
+				headers["Content-Type"] = contentType;
+			}
+		}
+
+		await new Promise<void>((resolve, reject) => {
+			const req = https.request(
+				{ hostname: host, port: 443, path: urlPath, method, headers },
+				(res) => {
+					const status = res.statusCode ?? 0;
+					if (status >= 200 && status < 300) {
+						res.resume();
+						resolve();
+						return;
+					}
+					if (!readErrorBody) {
+						res.resume();
+						reject(new UploadError(`S3 ${method} failed: ${status}`));
+						return;
+					}
+					let responseBody = "";
+					res.on("data", (chunk: Buffer) => {
+						responseBody += chunk.toString();
+					});
+					res.on("end", () => {
+						reject(
+							new UploadError(`S3 ${method} failed: ${status} ${responseBody}`),
+						);
+					});
+				},
+			);
+			req.on("error", (error: Error) => {
+				reject(new UploadError("S3 request failed", error));
+			});
+			if (body !== undefined) {
+				req.write(body);
+			}
+			req.end();
+		});
 	}
 
 	private calculateSignature(
 		crypto: typeof import("crypto"),
 		stringToSign: string,
+		dateStamp: string,
 	): string {
 		const kDate = crypto
 			.createHmac("sha256", `AWS4${this.secretAccessKey}`)
-			.update(this.getDateStamp())
+			.update(dateStamp)
 			.digest();
 		const kRegion = crypto
 			.createHmac("sha256", kDate)
@@ -311,16 +249,20 @@ export class S3StorageProvider implements StorageProvider {
 			.update(stringToSign)
 			.digest("hex");
 	}
+}
 
-	private getAmzDate(): string {
-		return new Date().toISOString().replace(/[:-]|\.\d{3}/g, "");
-	}
-
-	private getDateStamp(): string {
-		const now = new Date();
-		const year = now.getUTCFullYear();
-		const month = String(now.getUTCMonth() + 1).padStart(2, "0");
-		const day = String(now.getUTCDate()).padStart(2, "0");
-		return `${year}${month}${day}`;
-	}
+/**
+ * RFC 3986 encoding of an object-key path, keeping `/` separators —
+ * required for both the request path and the SigV4 canonical URI.
+ */
+function encodePath(key: string): string {
+	return key
+		.split("/")
+		.map((segment) =>
+			encodeURIComponent(segment).replace(
+				/[!'()*]/g,
+				(char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
+			),
+		)
+		.join("/");
 }

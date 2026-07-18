@@ -13,6 +13,7 @@ import type {
 	ResultSetHeader,
 	RowDataPacket,
 } from "mysql2/promise";
+import type { ExecuteValues } from "mysql2";
 import { AdapterErrorCode, DatrixAdapterError } from "@datrix/core";
 import { QueryObject } from "@datrix/core";
 
@@ -78,7 +79,10 @@ export class MySQLClient {
 		}
 
 		try {
-			const result = await this.runner[method](sql, params as unknown[]);
+			const result =
+				method === "execute"
+					? await this.runner.execute(sql, params as ExecuteValues[])
+					: await this.runner.query(sql, params as ExecuteValues[]);
 			return result as MySQLExecuteResult;
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);

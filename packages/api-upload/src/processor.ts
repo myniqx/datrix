@@ -1,8 +1,9 @@
 /**
  * Image Processor
  *
- * Handles format conversion and resolution variant generation using sharp.
- * Only processes images — non-image files are passed through unchanged.
+ * Handles content-type detection, format conversion and resolution variant
+ * generation using sharp. Only processes images — non-image files are passed
+ * through unchanged.
  */
 
 import type { UploadFile, MediaVariant, MediaVariants } from "@datrix/core";
@@ -17,6 +18,18 @@ const IMAGE_MIME_TYPES = new Set([
 	"image/gif",
 	"image/tiff",
 ]);
+
+/** sharp metadata format → MIME type, for content-based type verification */
+const FORMAT_TO_MIME: Record<string, string> = {
+	jpeg: "image/jpeg",
+	png: "image/png",
+	webp: "image/webp",
+	avif: "image/avif",
+	heif: "image/avif",
+	gif: "image/gif",
+	tiff: "image/tiff",
+	svg: "image/svg+xml",
+};
 
 function isImage(mimetype: string): boolean {
 	return IMAGE_MIME_TYPES.has(mimetype);
@@ -34,6 +47,32 @@ function getMimeType(format: ImageFormat): string {
 
 function getExtension(format: ImageFormat): string {
 	return format === "jpeg" ? "jpg" : format;
+}
+
+// sharp is a heavy native module — load it lazily and once
+type SharpFactory = typeof import("sharp").default;
+let sharpModule: SharpFactory | null = null;
+async function loadSharp(): Promise<SharpFactory> {
+	if (sharpModule === null) {
+		sharpModule = (await import("sharp")).default;
+	}
+	return sharpModule;
+}
+
+/**
+ * Detect the actual MIME type of a buffer from its content.
+ * Returns undefined when the buffer is not a recognizable image.
+ */
+export async function detectImageMime(
+	buffer: Uint8Array,
+): Promise<string | undefined> {
+	const sharp = await loadSharp();
+	try {
+		const { format } = await sharp(buffer).metadata();
+		return format !== undefined ? FORMAT_TO_MIME[format] : undefined;
+	} catch {
+		return undefined;
+	}
 }
 
 /**
@@ -54,16 +93,7 @@ export async function convertFormat(
 		};
 	}
 
-	let sharp: typeof import("sharp");
-	try {
-		sharp = (await import("sharp"))
-			.default as unknown as typeof import("sharp");
-	} catch (error) {
-		throw new DatrixError("sharp is not installed", {
-			code: "SHARP_NOT_FOUND",
-			operation: "upload:convertFormat",
-		});
-	}
+	const sharp = await loadSharp();
 
 	try {
 		const converted = await sharp(file.buffer)
@@ -91,7 +121,8 @@ export async function convertFormat(
 /**
  * Generate resolution variants for an image.
  * Returns a map of resolution name → MediaVariant.
- * Uploads each variant via the provider.
+ * Uploads each variant via the provider — the caller's uploadFn is
+ * responsible for tracking uploaded keys for failure cleanup.
  */
 export async function generateVariants<TResolutions extends string>(
 	file: UploadFile,
@@ -104,16 +135,7 @@ export async function generateVariants<TResolutions extends string>(
 		return {};
 	}
 
-	let sharp: typeof import("sharp");
-	try {
-		sharp = (await import("sharp"))
-			.default as unknown as typeof import("sharp");
-	} catch (error) {
-		throw new DatrixError("sharp is not installed", {
-			code: "SHARP_NOT_FOUND",
-			operation: "upload:generateVariants",
-		});
-	}
+	const sharp = await loadSharp();
 
 	const targetFormat = format ?? "jpeg";
 	const outputMime = getMimeType(targetFormat);
@@ -157,7 +179,6 @@ export async function generateVariants<TResolutions extends string>(
 				height: variantBuffer.info.height,
 				size: variantBuffer.data.length,
 				mimeType: outputMime,
-				url: undefined!,
 			};
 		} catch (error) {
 			if (error instanceof DatrixError) throw error;

@@ -1,6 +1,6 @@
 # @datrix/api
 
-## Unreleased
+## 0.2.0
 
 ### Breaking / behavior changes
 
@@ -36,6 +36,20 @@
 - Session cookies honor `session.maxAge` and set `Secure` on HTTPS.
 - Concurrent request identity is isolated via `AsyncLocalStorage` (fixes
   cross-request user leakage under load).
+
+### Fixes
+
+- `/auth/me` no longer leaks the password hash/salt in its response.
+- Register no longer allows mass-assignment of `id`/timestamps/email-field
+  through raw mode, and is now transactional (an auth-record failure rolls
+  back the created user instead of leaving it orphaned).
+- Login no longer allows user enumeration via response-timing differences.
+- Field-level read/write permissions are now enforced recursively into
+  populated relations and nested relation create/update payloads.
+- Fixed several routing edge cases: config-driven `defaultPageSize`/
+  `maxPageSize`/`maxPopulateDepth` were previously ignored, custom auth
+  endpoint prefixes could misroute, and malformed JSON bodies produced a
+  generic error instead of a clear 400.
 
 ## 0.1.2
 

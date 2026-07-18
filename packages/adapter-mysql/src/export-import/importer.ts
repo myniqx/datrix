@@ -1,4 +1,5 @@
 import type { Pool, PoolConnection } from "mysql2/promise";
+import type { ExecuteValues } from "mysql2";
 import type { ImportReader } from "@datrix/core";
 import type { SchemaDefinition } from "@datrix/core";
 import type { MySQLAdapter } from "../adapter";
@@ -116,7 +117,7 @@ export class MySQLImporter {
 			const placeholders = batch
 				.map(() => `(${columns.map(() => "?").join(", ")})`)
 				.join(", ");
-			const values: unknown[] = [];
+			const values: ExecuteValues[] = [];
 
 			for (const row of batch) {
 				for (const col of columns) {
@@ -125,7 +126,7 @@ export class MySQLImporter {
 					values.push(
 						val !== null && typeof val === "object" && !(val instanceof Date)
 							? JSON.stringify(val)
-							: val,
+							: (val as ExecuteValues),
 					);
 				}
 			}

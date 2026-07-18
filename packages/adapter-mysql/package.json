@@ -45,17 +45,18 @@
 	"scripts": {
 		"build": "tsup",
 		"dev": "tsup --watch",
+		"type-check": "tsc --noEmit",
 		"clean": "rm -rf dist"
 	},
 	"peerDependencies": {
 		"@datrix/core": "^0.1.2"
 	},
 	"dependencies": {
-		"mysql2": "^3.9.1"
+		"mysql2": "^3.23.0"
 	},
 	"devDependencies": {
 		"@datrix/core": "workspace:*",
-		"tsup": "^8.0.2",
-		"typescript": "^5.3.3"
+		"tsup": "^8.5.1",
+		"typescript": "^5.7.3"
 	}
 }

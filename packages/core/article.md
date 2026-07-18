@@ -165,3 +165,62 @@ büyük oranda kenar durumlarında hata fırlatmayı unutmuş kod yolları; sık
 
 Genç bir ORM'de tercih edeceğiniz kombinasyon tam olarak bu: mimari borç yok, mühendislik
 borcu var. İlki ödenmez, ikincisi ödenir.
+
+---
+
+## 0.2.0 Güncellemesi Notu
+
+*Bu yazı 0.1.x sürümü üzerinden yazılmıştı.* "Zayıf yanlar ve olgunlaşma alanları"
+bölümünde sayılan maddelerin 0.2.0 itibarıyla durumu:
+
+> **Doğrulama kalkanında delikler var.** Katman modeli `where` ve `select` için kusursuz
+> işliyor ama `orderBy`, `groupBy` ve `having` şu an bu kalkanın dışında — alan adları
+> şemaya karşı doğrulanmadan adapter'a iniyor. Aynı şekilde populate içindeki `where` da
+> normalize edilmiyor.
+
+Düzeltildi. `orderBy`/`groupBy` alanları artık şemaya karşı doğrulanıyor, `having` aynı
+`where` doğrulama/normalizasyon hattından geçiyor, populate-seviyesi `where`/`orderBy` da
+hedef şemaya karşı normalize ediliyor. Kalkan artık `where`/`select` ile aynı disiplinde.
+
+> **Sessizlik en büyük düşman.** [...] geçersiz bir ID `NaN`'a dönüşüp sorguya
+> karışabiliyor, desteklenmeyen bir ilişki formatı sessizce yutulabiliyor,
+> `populate: { rel: false }` yanlışlıkla `true` gibi davranıyor.
+
+Düzeltildi. Geçersiz ID artık `NaN`/`0` fallback'i yerine throw ediyor (number-only ID
+politikası tüm katmanlarda tutarlı hale getirildi), desteklenmeyen ilişki formatları
+sessizce yutulmak yerine hata veriyor, `populate: { rel: false }` artık gerçekten `false`
+gibi davranıyor.
+
+> **Self-referential ilişkiler henüz güvenilir değil.** `Category → parent Category` gibi
+> kendine dönen hasMany'de FK kaydı kaybolabiliyor; self manyToMany'de (arkadaşlık tablosu
+> senaryosu) kaynak ve hedef FK aynı ada düşüp çakışıyor.
+
+Düzeltildi. Self-referential `hasOne`/`hasMany` artık FK'sini kaybetmiyor; self
+manyToMany junction tabloları `source<Model>Id`/`target<Model>Id` gibi ayrık isimler
+alıyor, adapter'ların populate yolları da bu isimleri şemadan okuyor (önceden string
+template ile yeniden hesaplıyorlardı). Ağaç/graf/arkadaşlık modelleri artık güvenilir.
+
+> **ID politikası: sadece number.** Bilinçli bir karar [...] ama UUID tabanlı
+> mimarilerle çalışanlar için elenme sebebi.
+
+Değişmedi — bu bir tasarım kararı, bug değildi; hâlâ geçerli.
+
+> **Migration diff'inde false-positive riski.** Diff mekanizması `pattern` (RegExp) ve
+> `default` gibi alanları referans karşılaştırmasıyla ölçüyor [...] bu alanlar "sürekli
+> değişmiş" görünebiliyor.
+
+Düzeltildi. Karşılaştırma artık değer bazlı (`pattern` string'e çevrilip, `default`/
+`items` yapısal olarak normalize edilip kıyaslanıyor); DB'den JSON olarak dönen eski şema
+ile bellek içi tanım artık gereksiz yere "değişti" olarak işaretlenmiyor.
+
+> **Test kapsamı her yere yetişmemiş.** [...] plugin'lerin şema genişletme yolu
+> (`extendSchemas`) gibi bazı özellikler, mevcut haliyle çalışamayacak durumda olmasına
+> rağmen testlerden yakalanmamış.
+
+Düzeltildi. `extendSchemas` artık çalışıyor (register yerine duplicate/reserved
+kontrollerini atlayan dahili bir `replace()` yolu kullanıyor) ve regresyon testleriyle
+kapsanıyor; genel olarak bu turda dokunulan alanların çoğuna regresyon testi eklendi.
+
+Bu arada "Test kapsamı" maddesiyle ilgili güncel bir rakam: monorepo genelinde toplam
+**89 test dosyası**, içlerinde **708 `describe` bloğu** ve **1718 `it`/`test` case**
+bulunuyor.

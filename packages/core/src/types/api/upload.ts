@@ -43,10 +43,11 @@ export interface StorageProvider {
 
 /**
  * A single processed variant (thumbnail, small, medium, etc.)
+ * `url` is never stored — it is injected at read time from `key`.
  */
 export interface MediaVariant {
 	readonly key: string;
-	readonly url: string;
+	readonly url?: string;
 	readonly width: number;
 	readonly height: number;
 	readonly size: number;
@@ -81,7 +82,8 @@ export interface MediaEntry<
 	readonly originalName: string;
 	readonly mimeType: string;
 	readonly size: number;
-	readonly url: string;
+	/** Injected at read time from `key` — not a stored column */
+	readonly url?: string;
 	readonly key: string;
 	readonly variants: MediaVariants<TResolutions> | null;
 }
@@ -136,6 +138,13 @@ export interface S3ProviderOptions {
 	readonly secretAccessKey: string;
 	readonly endpoint?: string;
 	readonly pathPrefix?: string;
+	/** STS temporary-credential session token (signed as x-amz-security-token) */
+	readonly sessionToken?: string;
+	/**
+	 * Use path-style addressing (`https://endpoint/bucket/key`) instead of
+	 * virtual-host style. Required by MinIO/localstack-like endpoints.
+	 */
+	readonly forcePathStyle?: boolean;
 }
 
 /**
@@ -195,6 +204,12 @@ export interface IUpload {
 	 * Used by the CLI file importer to upload files directly.
 	 */
 	readonly provider: StorageProvider;
+	/**
+	 * User-configured permission for the media schema. The API plugin uses it
+	 * to gate the dedicated upload endpoints (POST /upload, DELETE /upload/:id):
+	 * an explicit value wins; otherwise writes require an authenticated user.
+	 */
+	getPermission?(): SchemaPermission | undefined;
 }
 
 /**

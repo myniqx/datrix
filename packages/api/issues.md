@@ -20,9 +20,12 @@ Decisions already made (do not re-discuss during fix sessions):
 
 ---
 
-## Session 1 — Auth endpoint security fixes (`src/handler/auth-handler.ts`)
+**Status: ALL SESSIONS (1–9) DONE.** Fixed in `refactor(api): rework query parsing,
+auth, and permission middleware` (32d23bd).
 
-### 1.1 `/auth/me` leaks password hash and salt
+## Session 1 — Auth endpoint security fixes (`src/handler/auth-handler.ts`) [DONE]
+
+### 1.1 [DONE] `/auth/me` leaks password hash and salt
 - **Problem:** The endpoint returns the full authentication record. `password` and
   `passwordSalt` are included in the JSON response.
 - **Where:** `src/handler/auth-handler.ts:295-308`
@@ -30,7 +33,7 @@ Decisions already made (do not re-discuss during fix sessions):
   `raw.findById`, keep `populate: { user: "*" }`. Never return `password`,
   `passwordSalt`, `resetToken`, `resetTokenExpiry`.
 
-### 1.2 Register mass assignment through raw mode
+### 1.2 [DONE] Register mass assignment through raw mode
 - **Problem:** `...extraData` from the request body is spread into
   `datrix.raw.create(userSchemaName, userData)`. Raw mode skips the reserved-field check
   (`checkReservedFields` returns early when `isRawMode`), so a client can set `id`,
@@ -40,7 +43,7 @@ Decisions already made (do not re-discuss during fix sessions):
   `userData`. Also strip the configured `userEmailField` key from `extraData` so a body
   like `{ email, name: "x", [emailField]: "other@x" }` cannot override the checked email.
 
-### 1.3 Register is not transactional — orphan user on auth-record failure
+### 1.3 [DONE] Register is not transactional — orphan user on auth-record failure
 - **Problem:** `raw.create` throws on failure (it never returns null), so the
   `if (!authRecord)` rollback branch is dead. If the authentication insert throws
   (e.g. unique email race), the already-created user row stays orphaned.
@@ -49,7 +52,7 @@ Decisions already made (do not re-discuss during fix sessions):
   user (`datrix.raw.delete(userSchemaName, user.id)`) and rethrow. Keep the null check
   removed or as a defensive assert.
 
-### 1.4 Login allows user enumeration via timing
+### 1.4 [DONE] Login allows user enumeration via timing
 - **Problem:** When no auth record matches the email, the handler throws immediately —
   measurably faster than the PBKDF2 verification path (100k iterations), letting an
   attacker probe which emails exist.
@@ -58,14 +61,14 @@ Decisions already made (do not re-discuss during fix sessions):
   (`authManager.verifyPassword(password, dummyHash, dummySalt)` against a fixed
   precomputed hash) before throwing `authError.invalidCredentials()`.
 
-### 1.5 `crypto.getRandomValues` global is not guaranteed on Node 18
+### 1.5 [DONE] `crypto.getRandomValues` global is not guaranteed on Node 18
 - **Problem:** The reset-token generator uses the global `crypto` (WebCrypto). The global
   is only reliably present from Node 19+; `package.json` engines allows `>=18`.
 - **Where:** `src/handler/auth-handler.ts:357-361`
 - **Fix:** Use `randomBytes(32).toString("hex")` from `node:crypto` (already the pattern
   in `src/auth/session.ts:190`).
 
-### 1.6 Logout is broken for JWT-only configurations
+### 1.6 [DONE] Logout is broken for JWT-only configurations
 - **Problem:** Without a session cookie the endpoint returns 400 ("No session found");
   with a cookie but no session strategy, `authManager.logout` throws
   `SESSION_NOT_CONFIGURED`. JWT-only apps can never log out cleanly.
@@ -74,7 +77,7 @@ Decisions already made (do not re-discuss during fix sessions):
   is configured, delete the session; otherwise skip. Always return 200 with the
   cookie-clearing `Set-Cookie` header. (JWT invalidation is client-side by design.)
 
-### 1.7 Login must reject passwordless (empty-hash) accounts explicitly
+### 1.7 [DONE] Login must reject passwordless (empty-hash) accounts explicitly
 - **Problem:** Per D3, synced accounts may have `password: ""`. Verification would fail
   anyway (length mismatch), but this must be an explicit, documented guard rather than
   an accident of `timingSafeEqual` semantics.
@@ -85,9 +88,9 @@ Decisions already made (do not re-discuss during fix sessions):
 
 ---
 
-## Session 2 — Plugin state & lifecycle correctness (`src/api.ts`)
+## Session 2 — Plugin state & lifecycle correctness (`src/api.ts`) [DONE]
 
-### 2.1 Concurrent requests leak each other's identity (critical)
+### 2.1 [DONE] Concurrent requests leak each other's identity (critical)
 - **Problem:** The authenticated user is stored on the plugin instance
   (`public user`), written per-request by `api.setUser(ctx.user)` and read by
   `onCreateQueryContext`. Two concurrent requests interleave: request A's queries can run
@@ -99,7 +102,7 @@ Decisions already made (do not re-discuss during fix sessions):
   `setUser` method signature (core `IApiPlugin` contract) but back it with the ALS store.
   The plugin-level `user` field is removed.
 
-### 2.2 `this.datrix` is undefined until the first HTTP request
+### 2.2 [DONE] `this.datrix` is undefined until the first HTTP request
 - **Problem:** `datrixInstance` is only assigned inside `handleRequest`. The hooks
   (`onBeforeQuery`/`onAfterQuery` → `getTableName`, `createAuthenticationRecord`) call
   `this.datrix` — a cast of `undefined` — so any programmatic `datrix.create("user")`
@@ -110,7 +113,7 @@ Decisions already made (do not re-discuss during fix sessions):
   session:** guard the hooks — when `datrixInstance` is unset, log a clear warning and
   skip the sync (never crash the user's insert).
 
-### 2.3 Bulk user insert only syncs the first row
+### 2.3 [DONE] Bulk user insert only syncs the first row
 - **Problem:** `onBeforeQuery` stores `query.data[0]` and `onAfterQuery` reads
   `result[0]`; inserting N users creates an auth record only for the first.
 - **Where:** `src/api.ts:217-220`, `:248-257`
@@ -118,7 +121,7 @@ Decisions already made (do not re-discuss during fix sessions):
   result rows, pair each row (by index) with its input data, and create one auth record
   per row.
 
-### 2.4 Email-sync id extraction breaks on operator objects and non-id updates
+### 2.4 [DONE] Email-sync id extraction breaks on operator objects and non-id updates
 - **Problem:** `query.where?.["id"]` may be `5`, `{ $eq: 5 }`, or absent (update by any
   other field). An operator object ends up nested as
   `{ user: { id: { $eq: { $eq: 5 } } } }`; non-id updates never sync. `userId` is also
@@ -129,13 +132,13 @@ Decisions already made (do not re-discuss during fix sessions):
   affected row id: `raw.updateMany(authSchema, { user: { id: { $in: ids } } }, { email })`.
   Type the id as `number`.
 
-### 2.5 Plugin `destroy()` never releases AuthManager resources
+### 2.5 [DONE] Plugin `destroy()` never releases AuthManager resources
 - **Problem:** `destroy()` is empty. `AuthManager` owns a session-cleanup interval and
   the session store; they are never stopped/cleared on plugin teardown.
 - **Where:** `src/api.ts:147`; `src/auth/manager.ts:219-229`
 - **Fix:** `async destroy() { await this.authManager?.destroy(); }`
 
-### 2.6 Auto-created auth record stores plaintext password and client-controlled role (critical)
+### 2.6 [DONE] Auto-created auth record stores plaintext password and client-controlled role (critical)
 - **Problem:** `createAuthenticationRecord` writes `password: user["password"] || ""`
   (raw plaintext from the insert payload) and `role: user["role"] || defaultRole` —
   so `POST /api/user` with `{ role: "admin" }` (when the user schema has a `role` field)
@@ -151,9 +154,9 @@ Decisions already made (do not re-discuss during fix sessions):
 
 ---
 
-## Session 3 — Auth schema, reset flow, JWT/cookie hygiene
+## Session 3 — Auth schema, reset flow, JWT/cookie hygiene [DONE]
 
-### 3.1 Generated auth schema is missing `resetToken` / `resetTokenExpiry` — reset flow is dead
+### 3.1 [DONE] Generated auth schema is missing `resetToken` / `resetTokenExpiry` — reset flow is dead
 - **Problem:** `getSchemas()` defines only `user/email/password/passwordSalt/role`, but
   `forgotPassword` selects and updates `resetToken`/`resetTokenExpiry` and
   `resetPassword` filters on `resetToken`. The query builder rejects unknown fields, so
@@ -163,14 +166,14 @@ Decisions already made (do not re-discuss during fix sessions):
 - **Fix:** Add to the auth schema: `resetToken: { type: "string" }` and
   `resetTokenExpiry: { type: "date" }` (both optional). Add an index on `resetToken`.
 
-### 3.2 Reset token stored in plaintext
+### 3.2 [DONE] Reset token stored in plaintext
 - **Problem:** The reset token is a bearer credential; a DB leak lets an attacker reset
   any pending account's password.
 - **Where:** `src/handler/auth-handler.ts:357-372` (store), `:408-411` (lookup)
 - **Fix:** Store `sha256(token)` (hex) in `resetToken`; on reset, hash the presented
   token and look up by the hash. The raw token is only ever given to `onForgotPassword`.
 
-### 3.3 Session cookie ignores session `maxAge` and lacks `Secure`
+### 3.3 [DONE] Session cookie ignores session `maxAge` and lacks `Secure`
 - **Problem:** `Set-Cookie` hardcodes `Max-Age=86400` in register and login while the
   session's real lifetime is `session.maxAge` (configurable) — the cookie can outlive or
   undercut the session. No `Secure` attribute is ever set.
@@ -180,7 +183,7 @@ Decisions already made (do not re-discuss during fix sessions):
   `new URL(request.url).protocol === "https:"`. Keep `HttpOnly; Path=/; SameSite=Strict`.
   Use the same attributes (minus Max-Age) for the logout clearing cookie.
 
-### 3.4 JWT signature is double-encoded — tokens are not standard JWTs
+### 3.4 [DONE] JWT signature is double-encoded — tokens are not standard JWTs
 - **Problem:** `signData` computes `base64url(base64(hmac))`: the digest is first encoded
   as base64, then that *string* is base64url-encoded again. Sign/verify are internally
   consistent, but the tokens cannot be verified by any standard JWT library or debugger.
@@ -188,13 +191,13 @@ Decisions already made (do not re-discuss during fix sessions):
 - **Fix:** `return hmac.digest("base64url")`. This invalidates previously issued tokens —
   acceptable at 0.1.x; note it in the changelog.
 
-### 3.5 `parseExpiry` silently defaults invalid config to 3600
+### 3.5 [DONE] `parseExpiry` silently defaults invalid config to 3600
 - **Problem:** A typo like `expiresIn: "1w"` silently becomes 1 hour instead of failing.
 - **Where:** `src/auth/jwt.ts:277-298`
 - **Fix:** Throw a `DatrixAuthError` (config error) from the constructor when the string
   doesn't match `/^(\d+)([smhd])$/`.
 
-### 3.6 (Low) `role` column is a free string
+### 3.6 [DONE] (Low) `role` column is a free string
 - **Problem:** The auth schema's `role` field accepts any string; nothing ties it to
   `config.roles`.
 - **Where:** `src/api.ts:182-186`
@@ -204,9 +207,9 @@ Decisions already made (do not re-discuss during fix sessions):
 
 ---
 
-## Session 4 — Authenticated user resolution (decision D1)
+## Session 4 — Authenticated user resolution (decision D1) [DONE]
 
-### 4.1 `ctx.user` must carry the populated user record
+### 4.1 [DONE] `ctx.user` must carry the populated user record
 - **Problem:** `AuthUser.id` is the authentication record id, while FK columns
   (`authorId` etc.) reference the **user** table — permission functions comparing
   `ctx.user.id === record.authorId` are silently wrong. Additionally the JWT path fills
@@ -228,9 +231,9 @@ Decisions already made (do not re-discuss during fix sessions):
 
 ---
 
-## Session 5 — Default permission hardening (decision D2)
+## Session 5 — Default permission hardening (decision D2) [DONE]
 
-### 5.1 Undefined permission means fully open — including anonymous writes
+### 5.1 [DONE] Undefined permission means fully open — including anonymous writes
 - **Problem:** `evaluatePermissionValue(undefined) → true`. With auth enabled but no
   `schema.permission` and no `defaultPermission`, anonymous clients can
   create/update/delete everything.
@@ -244,9 +247,9 @@ Decisions already made (do not re-discuss during fix sessions):
 
 ---
 
-## Session 6 — Routing & config wiring
+## Session 6 — Routing & config wiring [DONE]
 
-### 6.1 `defaultPageSize` / `maxPageSize` / `maxPopulateDepth` config is silently ignored
+### 6.1 [DONE] `defaultPageSize` / `maxPageSize` / `maxPopulateDepth` config is silently ignored
 - **Problem:** `buildRequestContext` calls `parseQuery(queryParams)` with no options, so
   the parser always uses its own defaults (25/100/5); `handleGet` also hardcodes
   `pageSize ?? 25`. The three `ApiConfig` options do nothing.
@@ -257,7 +260,7 @@ Decisions already made (do not re-discuss during fix sessions):
   maxPopulateDepth }` to `parseQuery`. In `handleGet`, use the configured
   `defaultPageSize` instead of the literal 25.
 
-### 6.2 Non-numeric id is treated as a list request
+### 6.2 [DONE] Non-numeric id is treated as a list request
 - **Problem:** `extractIdFromPath` returns `null` for `/api/user/abc` (so GET returns the
   whole list instead of 404) and `parseInt` accepts partial numbers: `/api/user/12abc`
   → id 12. Extra segments (`/api/user/1/whatever`) are silently ignored.
@@ -266,7 +269,7 @@ Decisions already made (do not re-discuss during fix sessions):
   throw `handlerError.recordNotFound` (404). If a third segment exists (and the route is
   not the upload route), throw 404 as well.
 
-### 6.3 `isAuthPath` guesses a single prefix from the endpoint list
+### 6.3 [DONE] `isAuthPath` guesses a single prefix from the endpoint list
 - **Problem:** The auth prefix is derived from the first segment of whichever endpoint
   happens to be defined first. Custom endpoints with mixed prefixes (e.g.
   `login: "/session/login"`, `register: "/users/register"`) make some auth routes fall
@@ -277,7 +280,7 @@ Decisions already made (do not re-discuss during fix sessions):
   prefix match as an additional fallback so unknown `/auth/x` paths still get the auth
   handler's 404 instead of a confusing "schema not found".
 
-### 6.4 `excludeSchemas` compares model names against table names
+### 6.4 [DONE] `excludeSchemas` compares model names against table names
 - **Problem:** The getter appends `"_datrix"`, `"_datrix_migrations"` (table names) and
   the check uses `ctx.schema.name` (model name). User-supplied entries only work if they
   happen to be model names; the docs say "schemas".
@@ -285,14 +288,14 @@ Decisions already made (do not re-discuss during fix sessions):
 - **Fix:** Check both: `excludeSchemas.includes(ctx.schema.name) ||
   excludeSchemas.includes(ctx.schema.tableName)`. Document that entries may be either.
 
-### 6.5 Prefix mismatch returns 500 "Invalid API prefix"
+### 6.5 [DONE] Prefix mismatch returns 500 "Invalid API prefix"
 - **Problem:** A request outside the API prefix produces an internal-error (500) response
   with a message aimed at the developer, not a 404.
 - **Where:** `src/api.ts:316-320`
 - **Fix:** Return a 404 `DatrixApiError` (e.g. code `ROUTE_NOT_FOUND`) instead of
   `internalError`.
 
-### 6.6 Malformed JSON body is silently swallowed
+### 6.6 [DONE] Malformed JSON body is silently swallowed
 - **Problem:** `request.json()` failures set `body = null`; the user later gets a generic
   "Invalid request body" with no hint the JSON didn't parse.
 - **Where:** `src/middleware/context.ts:136-147`
@@ -301,9 +304,9 @@ Decisions already made (do not re-discuss during fix sessions):
 
 ---
 
-## Session 7 — Field-permission depth
+## Session 7 — Field-permission depth [DONE]
 
-### 7.1 Populated relation records bypass the target schema's field permissions
+### 7.1 [DONE] Populated relation records bypass the target schema's field permissions
 - **Problem:** `filterFieldsForRead` only evaluates the top-level schema's fields. A
   populated relation (e.g. `populate=author`) returns the target record wholesale —
   read-restricted fields of the related schema (e.g. `user.email`) leak.
@@ -314,7 +317,7 @@ Decisions already made (do not re-discuss during fix sessions):
   and recursively filter each populated record. Recursion depth is naturally bounded by
   the populate depth limit.
 
-### 7.2 Nested relation create/update payloads bypass field write permissions
+### 7.2 [DONE] Nested relation create/update payloads bypass field write permissions
 - **Problem:** `checkFieldsForWrite` iterates only top-level body keys. A body like
   `{ posts: { create: [{ secretField: 1 }] } }` writes to the related schema without its
   field-level write permissions being checked.
@@ -325,74 +328,74 @@ Decisions already made (do not re-discuss during fix sessions):
 
 ---
 
-## Session 8 — Cleanups & minor fixes
+## Session 8 — Cleanups & minor fixes [DONE]
 
-### 8.1 `ContextBuildError` is dead code
+### 8.1 [DONE] `ContextBuildError` is dead code
 - **Where:** `src/middleware/context.ts:60-68`; exported at `src/middleware/index.ts:7`
 - **Fix:** Parsers throw `ParserError` directly; the wrapper is never constructed.
   Remove the class and its export.
 
-### 8.2 `src/helper/types.ts` is an unused legacy file
+### 8.2 [DONE] `src/helper/types.ts` is an unused legacy file
 - **Where:** `src/helper/types.ts` (whole file)
 - **Fix:** It duplicates `RequestContext`, `ContextBuilderOptions`, `HttpMethod` with
   shapes that conflict with `src/middleware/types.ts`, and nothing imports or re-exports
   it. Delete the file.
 
-### 8.3 `isSessionData` validates `userId` as string
+### 8.3 [DONE] `isSessionData` validates `userId` as string
 - **Where:** `src/auth/types.ts:262` (`typeof obj["userId"] === "string"` vs
   `SessionData.userId: number` at `:46`)
 - **Fix:** Check `typeof obj["userId"] === "number"`.
 
-### 8.4 `MemorySessionStore.get` has a pointless try/catch with a wrong error code
+### 8.4 [DONE] `MemorySessionStore.get` has a pointless try/catch with a wrong error code
 - **Where:** `src/auth/session.ts:208-221`
 - **Fix:** `Map.get` cannot throw; remove the try/catch (and its misleading
   `SESSION_CREATE_ERROR`).
 
-### 8.5 Duplicate, fragile cookie parsing
+### 8.5 [DONE] Duplicate, fragile cookie parsing
 - **Where:** `src/handler/utils.ts:72-78` (regex `sessionId=([^;]+)` also matches
   `mysessionId=`) and `src/auth/manager.ts:181-200` (split-based parser)
 - **Fix:** Keep one shared cookie parser (the split-based one, hardened to trim and to
   match the exact cookie name) and use it in both places.
 
-### 8.6 `serializeWhere` stringifies Dates unparseably
+### 8.6 [DONE] `serializeWhere` stringifies Dates unparseably
 - **Where:** `src/serializer/query.ts:124`, `:140`, `:146-147`
 - **Fix:** `String(date)` produces `"Fri Jul 12 2026 ..."` which no parser accepts.
   Serialize `Date` values with `.toISOString()` (in both the `$in/$nin` branch and the
   scalar branch).
 
-### 8.7 Dead parser options
+### 8.7 [DONE] Dead parser options
 - **Where:** `src/parser/query-parser.ts:28-34` (`allowedOperators`, `strictMode` in
   `DEFAULT_OPTIONS` are never consulted by any parser)
 - **Fix:** Remove them from the options type/defaults (or implement them — removal
   preferred until a real use case exists).
 
-### 8.8 Auth handler is rebuilt on every request
+### 8.8 [DONE] Auth handler is rebuilt on every request
 - **Where:** `src/api.ts:363-383`
 - **Fix:** `createUnifiedAuthHandler` is pure configuration; build it lazily once and
   cache it on the plugin instance (invalidate only if prefix/config could change — it
   cannot after init).
 
-### 8.9 `getTableName` fallback duplicates (and mismatches) core pluralization
+### 8.9 [DONE] `getTableName` fallback duplicates (and mismatches) core pluralization
 - **Where:** `src/api.ts:88-91`
 - **Fix:** The registry always sets `tableName` (see core contract §6); the
   `${schemaName.toLowerCase()}s` fallback can disagree with core's pluralizer. Drop the
   fallback and treat a missing schema as an error.
 
-### 8.10 Register/login duplicate the login-response + cookie block
+### 8.10 [DONE] Register/login duplicate the login-response + cookie block
 - **Where:** `src/handler/auth-handler.ts:137-155` vs `:214-232`
 - **Fix:** Extract a `loginResponse(authUser, loginResult, status)` helper (also the
   natural home for the cookie fix in 3.3).
 
 ---
 
-## Session 9 — HTTP `QUERY` method support (feature, enabled by default)
+## Session 9 — HTTP `QUERY` method support (feature, enabled by default) [DONE]
 
 Decision: support the IETF `QUERY` HTTP method (safe method with a request body) as a
 first-class read endpoint, **enabled by default**. Frameworks that cannot export the
 method yet (Next.js App Router) are expected to gain support; until then the POST alias
 below is the portable path.
 
-### 9.1 Accept read queries with a JSON body
+### 9.1 [DONE] Accept read queries with a JSON body
 - **Problem:** Complex queries must be encoded in the bracket query-string syntax
   (`where[price][$gt]=100...`) — verbose, error-prone, subject to URL length limits, and
   unable to express populate-level `where`/`limit`/`orderBy` at all.
@@ -412,7 +415,7 @@ below is the portable path.
      support is ubiquitous.
   3. Response shape is identical to `GET` list responses (`{ data, meta }`).
 
-### 9.2 Implementation caveats (must all be handled)
+### 9.2 [DONE] Implementation caveats (must all be handled)
 1. **Body validation is NOT free:** the bracket parser enforced limits that core's query
    builder does not. The body query must be validated by a dedicated
    `validateQueryBody()` before reaching `datrix.findMany`:

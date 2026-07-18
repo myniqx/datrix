@@ -90,7 +90,3 @@ Migration operations map directly to native PostgreSQL DDL commands (`CREATE TAB
 - **`NUMERIC`/`BIGINT` values are coerced to JS `number`.** PostgreSQL drivers return `NUMERIC` (used when a number field sets `precision`) and `BIGINT` as strings to avoid precision loss. The adapter converts them back to `number` via `Number(v)` because the framework assumes JS numbers end-to-end. Values with more than 2^53 of integer precision (or more decimal digits than a float64 can hold) lose precision silently. If you need exact arbitrary-precision values, store them in a `string` field instead.
 - **Auto-increment IDs are not gap-free.** Counter increments are atomic but failed inserts do not reclaim IDs.
 - **`json_agg` on empty sets returns `null`**, not an empty array `[]`. The `ResultProcessor` handles this and normalizes the value to `[]`.
-
-## Testing
-
-This package has no tests of its own — it is exercised through `@datrix/adapter-postgres`, which wraps it with a `pg` driver and runs the full integration suite against a real PostgreSQL instance.

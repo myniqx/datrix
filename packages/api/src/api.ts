@@ -12,11 +12,16 @@ import type {
 	QueryContext,
 	SchemaDefinition,
 } from "@datrix/core";
-import { DefaultPermission, defineSchema } from "@datrix/core";
+import { DatrixError, DefaultPermission, defineSchema } from "@datrix/core";
 import { DEFAULT_API_AUTH_CONFIG } from "@datrix/core";
 import { AuthManager } from "./auth/manager";
 import { createUnifiedAuthHandler } from "./handler/auth-handler";
 import { handleCrudRequest } from "./handler/unified";
+import {
+	evaluatePermissionValue,
+	methodToAction,
+} from "./middleware/permission";
+import type { RequestContext } from "./middleware/types";
 import { handlerError } from "./errors/api-error";
 import { ApiConfig } from "./types";
 import { Datrix } from "@datrix/core";
@@ -37,7 +42,8 @@ interface RequestStore {
 
 export class ApiPlugin<TRole extends string = string>
 	extends BasePlugin<ApiConfig<TRole>>
-	implements IApiPlugin<TRole> {
+	implements IApiPlugin<TRole>
+{
 	readonly name = "api";
 	readonly version = "1.0.0";
 
@@ -467,7 +473,12 @@ export class ApiPlugin<TRole extends string = string>
 				this.apiConfig.upload &&
 				!["GET", "QUERY"].includes(request.method)
 			) {
-				return this.apiConfig.upload.handleRequest(request, datrix);
+				return this.handleUploadRoute(
+					request,
+					datrix,
+					this.apiConfig.upload,
+					segments,
+				);
 			}
 
 			return handleCrudRequest(request, datrix, this, {
@@ -477,6 +488,84 @@ export class ApiPlugin<TRole extends string = string>
 				maxPopulateDepth: this.apiConfig.maxPopulateDepth,
 			});
 		});
+	}
+
+	/**
+	 * Gate the dedicated upload endpoints (POST /upload, DELETE /upload/:id)
+	 * before delegating to the upload handler.
+	 *
+	 * The media schema's registered permission denies create/update over CRUD
+	 * (the upload pipeline is the only write path), so the upload endpoints
+	 * evaluate the *user-configured* permission instead: an explicit value
+	 * wins; with none, writes require an authenticated user (decision D2).
+	 */
+	private async handleUploadRoute(
+		request: Request,
+		datrix: Datrix,
+		upload: IUpload,
+		segments: string[],
+	): Promise<Response> {
+		try {
+			if (this.authConfig) {
+				const user = await this.resolveAuthUser(request);
+				this.setUser(user);
+
+				const method = request.method.toUpperCase();
+				// Only POST (create) and DELETE are real upload routes — anything
+				// else falls through to the upload handler's 405.
+				if (method === "POST" || method === "DELETE") {
+					const action = methodToAction(method);
+					const permissionValue = upload.getPermission?.()?.[action];
+
+					let allowed: boolean;
+					if (permissionValue === undefined) {
+						allowed = user !== null;
+					} else {
+						const idSegment = segments[1];
+						const id =
+							idSegment !== undefined && /^\d+$/.test(idSegment)
+								? parseInt(idSegment, 10)
+								: null;
+						const permissionCtx = {
+							user,
+							id,
+							action,
+							body: null,
+							datrix,
+							api: this,
+						} as unknown as RequestContext;
+						allowed = await evaluatePermissionValue(
+							permissionValue,
+							permissionCtx,
+						);
+					}
+
+					if (!allowed) {
+						return datrixErrorResponse(
+							user
+								? handlerError.permissionDenied(
+										"Schema scope permission denied",
+									)
+								: handlerError.unauthorized(),
+						);
+					}
+				}
+			}
+
+			return await upload.handleRequest(request, datrix);
+		} catch (error) {
+			if (error instanceof DatrixError) {
+				return datrixErrorResponse(error);
+			}
+			const message =
+				error instanceof Error ? error.message : "Internal server error";
+			return datrixErrorResponse(
+				handlerError.internalError(
+					message,
+					error instanceof Error ? error : undefined,
+				),
+			);
+		}
 	}
 
 	/**
