@@ -56,6 +56,8 @@ const updated = await datrix.update('user', 1, { name: 'Alice Smith' })
 const updated = await datrix.updateMany('user', { role: 'editor' }, { role: 'user' })
 ```
 
+`updateMany` requires a `where` clause, just like `deleteMany` — this prevents accidentally updating every row. To intentionally update the whole table, pass an empty condition explicitly: `datrix.updateMany('user', {}, { role: 'user' })`.
+
 ## Delete
 
 ```typescript

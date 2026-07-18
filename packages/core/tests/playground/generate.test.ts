@@ -30,6 +30,7 @@ type DatrixAction =
 	| "createMany"
 	| "findMany"
 	| "count"
+	| "countMany"
 	| "update"
 	| "updateMany"
 	| "delete"
@@ -384,6 +385,58 @@ describe("Read", () => {
 			id: "read-count",
 			label: "Count records",
 			action: "count",
+			model: "user",
+			query,
+			output,
+		});
+	});
+
+	it("find with distinct", async () => {
+		const query = {
+			select: ["isActive"] as unknown,
+			distinct: true,
+		};
+		const output = await datrix.findMany("user", query as never);
+
+		collect("read", {
+			id: "read-distinct",
+			label: "Distinct values",
+			action: "findMany",
+			model: "user",
+			query,
+			output,
+		});
+	});
+
+	it("find with groupBy and having", async () => {
+		const query = {
+			select: ["isActive"] as unknown,
+			groupBy: ["isActive"],
+			having: { isActive: true },
+		};
+		const output = await datrix.findMany("user", query as never);
+
+		collect("read", {
+			id: "read-groupby-having",
+			label: "Group by with having",
+			action: "findMany",
+			model: "user",
+			query,
+			output,
+		});
+	});
+
+	it("count grouped by field (countMany)", async () => {
+		const query = {
+			where: { age: { $gte: 25 } },
+			groupBy: ["isActive"],
+		};
+		const output = await datrix.countMany("user", query);
+
+		collect("read", {
+			id: "read-count-many",
+			label: "Count grouped by field",
+			action: "countMany",
 			model: "user",
 			query,
 			output,

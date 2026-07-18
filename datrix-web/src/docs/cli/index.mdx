@@ -25,7 +25,10 @@ datrix migrate
 datrix migrate --dry-run   # preview plan without applying
 datrix migrate --status    # show pending change counts only
 datrix migrate --verbose   # show field/index details in the plan
+datrix migrate --yes       # skip the confirmation prompt (New in 0.2.0)
 ```
+
+`--yes` is required for non-interactive environments (CI): without a TTY and without `--yes`, `migrate` fails immediately instead of hanging on the confirmation prompt. Ambiguous changes still require a TTY to resolve interactively, or `session.resolveAmbiguous()` in code.
 
 ### What happens
 
@@ -71,6 +74,49 @@ export default defineConfig(() => ({
 
 ---
 
+## datrix generate config \<db\>
+
+**New in 0.2.0.** Generates a `datrix.config.ts` template wired up for the chosen adapter. Runs before any config file is loaded, so it works even in a fresh project.
+
+```bash
+datrix generate config postgres
+datrix generate config mongodb --output ./config/datrix.config.ts
+datrix generate config mysql --force   # overwrite an existing file
+```
+
+| Value | Adapter |
+| --- | --- |
+| `postgres` | `@datrix/adapter-postgres` |
+| `postgres-core` | `@datrix/adapter-postgres-core` |
+| `mysql` | `@datrix/adapter-mysql` |
+| `json` | `@datrix/adapter-json` |
+| `mongodb` | `@datrix/adapter-mongodb` |
+
+Output: `datrix.config.ts` in the current directory (or the path given by `--output`). Fails if the file already exists unless `--force` is passed.
+
+```typescript
+import { createPostgresAdapter } from '@datrix/adapter-postgres';
+import { defineConfig } from '@datrix/core';
+
+// Import your schemas here
+// import { userSchema } from './schemas/user.schema';
+
+export default defineConfig(() => ({
+  adapter: createPostgresAdapter({
+    host: process.env.DB_HOST ?? 'localhost',
+    port: Number(process.env.DB_PORT) || 5432,
+    database: process.env.DB_NAME ?? 'myapp',
+    user: process.env.DB_USER ?? 'postgres',
+    password: process.env.DB_PASSWORD ?? 'password',
+  }),
+  schemas: [
+    // Add your schemas here
+  ],
+}));
+```
+
+---
+
 ## datrix generate schema \<Name\>
 
 Generates a `defineSchema` template file.
@@ -78,6 +124,7 @@ Generates a `defineSchema` template file.
 ```bash
 datrix generate schema User
 datrix generate schema BlogPost --output ./src/schemas
+datrix generate schema User --force   # overwrite an existing file
 ```
 
 Output: `schemas/user.schema.ts` (or the path specified by `--output`)
@@ -121,6 +168,8 @@ After editing, run `datrix migrate` to apply the new table.
 ## datrix generate types
 
 Generates TypeScript types from all registered schemas into a single file. For each schema it produces a `Base` interface, `Relation`/`RelationUpdate` interfaces for nested types, and `Create`/`Update` input types — ready to import across your codebase.
+
+**New in 0.2.0:** does not require a live database connection — schema definitions are read directly from your config file, so it runs safely in CI or offline local development.
 
 ```bash
 datrix generate types
@@ -300,13 +349,19 @@ Imports data from a previously exported zip file. **Drops all existing data** an
 
 ```bash
 datrix import ./backups/prod-2024-01-15.zip
-datrix import ./backups/prod-2024-01-15.zip --agree   # skip confirmation prompt
+datrix import ./backups/prod-2024-01-15.zip --agree             # skip all confirmation prompts
+datrix import ./backups/prod-2024-01-15.zip --agree drop-db     # only skip the "drop all data" prompt
+datrix import ./backups/prod-2024-01-15.zip --agree missing-files  # only skip the "continue without missing files" prompt
 ```
 
 | Option | Description |
 | --- | --- |
-| `--agree` | Skip the "drop all data" confirmation prompt |
+| `--agree` | Skip **all** confirmation prompts |
+| `--agree drop-db` | Skip only the "drop all data" prompt — a missing-files prompt (with `--with-files`) still asks |
+| `--agree missing-files` | Skip only the "continue without the missing file(s)" prompt — the drop-data prompt still asks |
 | `--verbose` | Detailed output |
+
+**New in 0.2.0:** `--agree` now accepts scoped values. Previously, passing any string (e.g. `--agree missing-files`) was coerced to full consent, which could silently skip the "drop all data" confirmation too — this is now fixed to only cover its named scope.
 
 ### What happens
 
@@ -337,8 +392,12 @@ datrix import ./prod-snapshot.zip --config ./config/local.config.ts --agree
 | --- | --- |
 | `--config <path>` | Path to config file (default: `./datrix.config.ts`) |
 | `--verbose` | Detailed output |
-| `--help` | Show help |
+| `--help`, `-h` | Show help |
+| `--version`, `-v` | Print the installed CLI version (New in 0.2.0) |
 
 ```bash
 datrix migrate --config ./config/datrix.config.ts --verbose
+datrix --version
 ```
+
+**New in 0.2.0:** an unrecognized single-dash option (e.g. `-x`) now exits with an error instead of being silently ignored.

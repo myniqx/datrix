@@ -1,7 +1,8 @@
-export const DATRIX_VERSION = "v0.1";
+export const DATRIX_VERSION = "v0.2.0";
 export const DATRIX_GITHUB_REPO = "myniqx/datrix";
 export const DATRIX_GITHUB_URL = `https://github.com/${DATRIX_GITHUB_REPO}`;
 export const DATRIX_NPM_INSTALL = "npm install @datrix/core";
+export const MYNIQX_URL = "https://myniqx.dev";
 
 export const DATRIX_PACKAGES = [
 	{
@@ -15,6 +16,12 @@ export const DATRIX_PACKAGES = [
 		description:
 			"PostgreSQL adapter with full query translation and relation support.",
 		npm: "https://www.npmjs.com/package/@datrix/adapter-postgres",
+	},
+	{
+		name: "@datrix/adapter-postgres-core",
+		description:
+			"Driver-agnostic PostgreSQL adapter — bring your own driver (pg, postgres.js, Neon, ...).",
+		npm: "https://www.npmjs.com/package/@datrix/adapter-postgres-core",
 	},
 	{
 		name: "@datrix/adapter-mysql",
@@ -37,6 +44,12 @@ export const DATRIX_PACKAGES = [
 		description:
 			"HTTP layer with REST endpoints, JWT/session auth, and query parsing.",
 		npm: "https://www.npmjs.com/package/@datrix/api",
+	},
+	{
+		name: "@datrix/api-upload",
+		description:
+			"File uploads for @datrix/api — local/S3 storage, image variants, and format conversion.",
+		npm: "https://www.npmjs.com/package/@datrix/api-upload",
 	},
 	{
 		name: "@datrix/cli",

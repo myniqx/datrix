@@ -85,11 +85,13 @@ All migration operations map directly to native PostgreSQL DDL (`CREATE TABLE`, 
 | Datrix type | PostgreSQL column |
 | --- | --- |
 | `string` | `TEXT` (or `VARCHAR(n)` when `maxLength` is set) |
-| `number` | `DOUBLE PRECISION` (or `INTEGER` for foreign keys) |
+| `number` | `DOUBLE PRECISION` (or `INTEGER` when `integer: true`, or for foreign keys) |
 | `boolean` | `BOOLEAN` |
 | `date` | `TIMESTAMP WITH TIME ZONE` |
 | `json` | `JSONB` |
 | `array` | `JSONB` |
-| `enum` | `VARCHAR` |
+| `enum` | `VARCHAR` with a `CHECK` constraint enforcing the allowed values at the DB level |
 | `file` | `TEXT` |
 | `relation` | `INTEGER` (foreign key) |
+
+**New in 0.2.0:** `{ type: "number", integer: true }` now maps to `INTEGER` instead of always producing `DOUBLE PRECISION`. `enum` fields now get a DB-level `CHECK` constraint — previously only the executor validated enum values.

@@ -7,6 +7,7 @@ import remarkFrontmatter from "remark-frontmatter";
 import remarkMdxFrontmatter from "remark-mdx-frontmatter";
 import remarkGfm from "remark-gfm";
 import remarkTocExport from "./src/lib/remark-toc-export";
+import remarkExternalLinks from "./src/lib/remark-external-links";
 import rehypeSlug from "rehype-slug";
 import { llmsPlugin } from "./src/lib/vite-plugin-llms";
 import { buildTypesMarkdown } from "./src/components/docs/build-types-markdown";
@@ -20,6 +21,7 @@ export default defineConfig({
 				remarkFrontmatter,
 				remarkMdxFrontmatter,
 				remarkTocExport,
+				remarkExternalLinks,
 			],
 			rehypePlugins: [rehypeSlug],
 		}),

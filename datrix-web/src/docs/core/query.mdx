@@ -192,6 +192,8 @@ await datrix.findMany("post", {
 
 > `where` and `orderBy` on a populated relation only make sense for **hasMany** and **manyToMany** — a `belongsTo` or `hasOne` relation always returns a single record.
 
+> `limit`/`offset` on a **hasMany**/**manyToMany** populate apply per parent record — `populate: { comments: { limit: 5 } }` returns up to 5 comments for *each* post, not 5 total across the whole result set.
+
 ---
 
 ## orderBy
@@ -229,6 +231,27 @@ await datrix.findMany("user", {
 	offset: 20,
 });
 ```
+
+---
+
+## distinct, groupBy, having
+
+```typescript
+// Deduplicate — requires an explicit select
+await datrix.findMany("user", {
+	select: ["role"],
+	distinct: true,
+});
+
+// Group by a scalar field, filter groups with having
+await datrix.findMany("user", {
+	select: ["role"],
+	groupBy: ["role"],
+	having: { role: { $ne: "guest" } },
+});
+```
+
+`groupBy` only accepts scalar fields — relation fields cannot be grouped on. `having` can only reference fields already present in `groupBy`. For grouped counts, use `datrix.countMany` instead of `findMany` — see [countMany](/docs/core/interfaces#countmany).
 
 ---
 

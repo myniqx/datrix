@@ -19,6 +19,8 @@ order: 1
 | `POST`   | `/api/:schema`     | Create a record     |
 | `PATCH`  | `/api/:schema/:id` | Update a record     |
 | `DELETE` | `/api/:schema/:id` | Delete a record     |
+| `QUERY`  | `/api/:schema`     | List records with a JSON query body — see below (New in 0.2.0) |
+| `POST`   | `/api/:schema/query` | Alias for `QUERY`, for runtimes that don't support the method (New in 0.2.0) |
 
 ---
 
@@ -113,6 +115,38 @@ Nested populate:
 ```http
 GET /api/posts?populate[author][populate][company]=true
 ```
+
+---
+
+## Complex queries via QUERY / POST alias
+
+**New in 0.2.0.** For queries too complex to express in the bracket query-string syntax (deep populate options, long `where` clauses), send the query as a JSON body instead.
+
+```http
+QUERY /api/products
+Content-Type: application/json
+
+{
+	"where": { "price": { "$gte": 100 } },
+	"populate": { "category": true },
+	"orderBy": ["-price"],
+	"page": 1,
+	"pageSize": 10
+}
+```
+
+The body shape is the same `ParsedQuery` object the bracket syntax produces — no special encoding needed. The response is identical to a `GET` list response (`{ data, meta }`).
+
+Because some runtimes and proxies don't yet support the `QUERY` HTTP method, `POST /api/products/query` works identically as a portable alias:
+
+```http
+POST /api/products/query
+Content-Type: application/json
+
+{ "where": { "price": { "$gte": 100 } } }
+```
+
+A request cannot combine a query string (`?where[...]=`) with a body query — that returns `400`.
 
 ---
 

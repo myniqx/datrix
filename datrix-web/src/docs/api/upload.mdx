@@ -44,6 +44,8 @@ new ApiPlugin({
 
 `GET` requests fall through to normal CRUD — you get pagination, filtering, and populate for free.
 
+**New in 0.2.0:** `POST`/`DELETE` now go through the same permission check as CRUD (`checkSchemaPermission`, including the D2 default) against the media schema's `create`/`delete` permission — previously they were open to anyone. With no explicit `permission`, an authenticated user is required. Configure it via `permission` on `UploadOptions` (see [Configuration reference](#configuration-reference)).
+
 ### Upload a file
 
 ```http
@@ -164,7 +166,7 @@ new Upload({
 
 ## Media schema
 
-When upload is configured, `ApiPlugin` automatically registers a `media` schema with these fields:
+When upload is configured, `ApiPlugin` automatically registers a `media` schema with these fields. By default the schema's `create`/`update` permission is `false` (blocked over HTTP) — media records are only meant to be written through the upload pipeline, not plain CRUD. Pass `permission` in `UploadOptions` to override.
 
 | Field | Type | Description |
 | --- | --- | --- |

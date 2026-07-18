@@ -61,11 +61,12 @@ new MySQLAdapter({
 
 ## Populate strategies
 
-Three strategies are selected automatically based on query depth and complexity:
+Two strategies are selected automatically based on query depth and complexity:
 
 - **JSON Aggregation** — default for single-level relations. Uses `JSON_ARRAYAGG` and `JSON_OBJECT` in subqueries — offloads mapping to the database.
-- **LATERAL Joins** — used when populate options include `limit`, `offset`, `where`, or `orderBy`. Requires MySQL 8.0.14+ / MariaDB 10.3+.
-- **Batched IN Queries** — fallback for deep nesting (depth > 1) or high cardinality. Collects parent IDs and issues targeted `WHERE id IN (...)` queries, stitching results in Node.js memory.
+- **Batched IN Queries** — used for deep nesting (depth > 1), high cardinality, or populate options like `limit`, `offset`, `where`, `orderBy`. Collects parent IDs and issues targeted `WHERE id IN (...)` queries, stitching results in Node.js memory.
+
+`limit`/`offset` on a `hasMany`/`manyToMany` populate apply **per parent record**, not globally across the batch.
 
 ---
 

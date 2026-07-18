@@ -234,7 +234,9 @@ export const userSchema = defineSchema({
 	permission: {
 		create: ["admin"] as readonly Roles[],
 		read: true,
-		update: (ctx: PermissionContext) => ctx.user?.id === ctx.id,
+		// ctx.user.id is the authentication record's id — compare against
+		// ctx.user.user.id (the populated user record) to check "own profile"
+		update: (ctx: PermissionContext) => ctx.user?.user?.id === ctx.id,
 		delete: ["admin"] as readonly Roles[],
 	},
 });
@@ -333,63 +335,90 @@ Every before hook **must return** the (optionally modified) value — the return
 
 ```typescript
 import { defineSchema } from "@datrix/core"
-import type { DatrixEntry } from "@datrix/core"
+import type { DatrixEntry, QueryContext } from "@datrix/core"
+import type {
+  QueryInsertObject,
+  QueryUpdateObject,
+  QueryDeleteObject,
+  QuerySelectObject,
+} from "@datrix/core"
 
-type Post = DatrixEntry & { title: string; slug: string; status: string }
+type Post = DatrixEntry & { title: string; status: "draft" | "published" }
 
-export const postSchema = defineSchema({
+const postSchema = defineSchema({
   name: "post",
-  fields: { ... },
+  fields: {
+    title:  { type: "string", required: true },
+    status: { type: "enum", values: ["draft", "published"], required: true },
+  },
   hooks: {
     // --- write hooks ---
 
-    // Runs before INSERT. Returns modified data.
-    beforeCreate: async (data, ctx) => {
-      ctx.metadata.createdAt = Date.now()
-      return { ...data, slug: data.title?.toLowerCase().replace(/ /g, "-") }
+    // Runs before INSERT — can modify the query (e.g. inject default field values)
+    beforeCreate: (
+      query: QueryInsertObject<Post>,
+      ctx: QueryContext,
+    ): QueryInsertObject<Post> => {
+      return {
+        ...query,
+        data: query.data.map((d) => ({ ...d, status: d.status ?? "draft" })),
+      }
     },
 
-    // Runs after INSERT. Receives the full saved record.
-    afterCreate: async (record, ctx) => {
-      console.log("created in", Date.now() - (ctx.metadata.createdAt as number), "ms")
-      return record
+    // Runs after INSERT — receives all inserted records
+    afterCreate: (
+      records: readonly Post[],
+      ctx: QueryContext,
+    ): readonly Post[] => {
+      return records
     },
 
-    // Runs before UPDATE. Returns modified data.
-    beforeUpdate: async (data, ctx) => {
-      return data  // return as-is or modify
+    // Runs before UPDATE — must return the (possibly modified) query
+    beforeUpdate: (
+      query: QueryUpdateObject<Post>,
+      ctx: QueryContext,
+    ): QueryUpdateObject<Post> => {
+      return query
     },
 
-    // Runs after UPDATE. Receives the full updated record.
-    afterUpdate: async (record, ctx) => {
-      return record
+    afterUpdate: (
+      records: readonly Post[],
+      ctx: QueryContext,
+    ): readonly Post[] => records,
+
+    // Runs before DELETE — receives the full delete query, must return it
+    beforeDelete: (
+      query: QueryDeleteObject<Post>,
+      ctx: QueryContext,
+    ): QueryDeleteObject<Post> => {
+      return query
     },
 
-    // Runs before DELETE. Receives the id, must return the id to delete.
-    beforeDelete: async (id, ctx) => {
-      ctx.metadata.deletedId = id
-      return id  // return same id, or redirect to a different one
-    },
-
-    // Runs after DELETE. Receives the deleted id.
-    afterDelete: async (id, ctx) => {
-      console.log("deleted id", id)
-    },
+    // Runs after DELETE — receives the deleted records, return value is ignored
+    afterDelete: (
+      records: readonly Post[],
+      ctx: QueryContext,
+    ): void => {},
 
     // --- read hooks ---
 
-    // Runs before SELECT. Receives the full QuerySelectObject, must return it.
-    // Use this to inject additional WHERE conditions.
-    beforeFind: async (query, ctx) => {
+    // Runs before SELECT — can modify the query object
+    beforeFind: (
+      query: QuerySelectObject<Post>,
+      ctx: QueryContext,
+    ): QuerySelectObject<Post> => {
       return {
         ...query,
         where: { ...query.where, status: "published" },
       }
     },
 
-    // Runs after SELECT. Receives the result array, must return it.
-    afterFind: async (results, ctx) => {
-      return results.filter((r) => (r as Post).status !== "archived")
+    // Runs after SELECT — receives all matching rows, must return them
+    afterFind: (
+      records: readonly Post[],
+      ctx: QueryContext,
+    ): readonly Post[] => {
+      return records
     },
   },
 })
@@ -464,13 +493,6 @@ const getDatrix = defineConfig(() => ({
 		auto: false, // auto-run migrations on startup (default: false)
 		directory: "./migrations", // where migration files are stored (default: ./migrations)
 		modelName: "_datrix_migrations", // migration history table name
-	},
-
-	// Optional: development settings
-	dev: {
-		logging: false, // log every query to console
-		validateQueries: false, // extra query validation before execution
-		prettyErrors: false, // pretty-print errors with stack traces
 	},
 }));
 

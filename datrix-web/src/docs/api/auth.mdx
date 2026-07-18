@@ -173,6 +173,21 @@ defineSchema({
 | `["admin", "editor"]`    | Allowed for these roles only        |
 | `async (ctx) => boolean` | Dynamic — evaluated per request     |
 
+When a schema has no `permission` and `defaultPermission` doesn't cover the action: `read` is allowed for everyone, and `create`/`update`/`delete` require an authenticated user (an anonymous request is rejected, not allowed).
+
+### `ctx.user` shape
+
+`ctx.user` is the authentication record, not the user record — its `id` is the auth row's id, not the id your `authorId`/`userId` foreign keys point to. The populated user record is available at `ctx.user.user`:
+
+```typescript
+ctx.user satisfies {
+  id:    number          // authentication record id
+  email: string
+  role:  Role
+  user:  DatrixRecord     // the populated user record — compare FKs against ctx.user.user.id
+} | undefined
+```
+
 ### Dynamic permissions
 
 ```typescript
@@ -181,7 +196,7 @@ permission: {
     "admin",
     async (ctx) => {
       const record = await ctx.datrix.findById("post", ctx.id!)
-      return record?.authorId === ctx.user?.id
+      return record?.authorId === ctx.user?.user?.id
     },
   ] satisfies PermissionValue<Role>,
 }

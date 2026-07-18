@@ -77,3 +77,9 @@ Entire table data is loaded into memory during each operation. Performance degra
 - Not suitable for high concurrency — writes are serialized with file-level locking.
 - Every write rewrites the entire file — not suitable for large tables.
 - No true transaction isolation — only the lock prevents concurrent writes within the same process.
+
+---
+
+## Further reading
+
+[Convincing a File System to Behave Like a Database: Inside adapter-json](https://myniqx.dev/en/blog/convincing-a-file-system-to-behave-like-a-database-inside-adapter-json) — a deep dive into the design decisions behind this adapter (locking, transactions, atomic writes, and the trade-offs of treating JSON files as a database).

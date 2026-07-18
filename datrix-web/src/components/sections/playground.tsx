@@ -22,6 +22,7 @@ type DatrixAction =
 	| "createMany"
 	| "findMany"
 	| "count"
+	| "countMany"
 	| "update"
 	| "updateMany"
 	| "delete"
@@ -178,7 +179,7 @@ function CodeBlock({ scenario }: { scenario: Scenario }) {
 						{opts}
 					</>
 				)}
-				{(action === "findMany" || action === "count") && (
+				{(action === "findMany" || action === "count" || action === "countMany") && (
 					<>
 						{mod}
 						{query ? (

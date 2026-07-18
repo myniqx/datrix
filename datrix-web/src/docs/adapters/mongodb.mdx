@@ -63,6 +63,12 @@ FK columns needed for `belongsTo` relations (e.g. `authorId`) are automatically 
 
 ---
 
+## Aggregation
+
+`distinct`, `groupBy`, and `having` are supported via the aggregation pipeline (`$group`) — same semantics as the SQL adapters.
+
+---
+
 ## Migration
 
 Migration operations are split into three phases because MongoDB does not support DDL inside transactions:

@@ -403,9 +403,9 @@ export const TYPE_DEFINITIONS: Record<string, TypeDefinition> = {
 	AuthUser: {
 		group: "API",
 		skipDocs: true,
-		signature: `interface AuthUser {\n  readonly id:    number\n  readonly email: string\n  readonly role:  string\n}`,
+		signature: `interface AuthUser {\n  readonly id:    number  // authentication record id — NOT the user record's id\n  readonly email: string\n  readonly role:  string\n  readonly user:  DatrixRecord  // the populated user record\n}`,
 		description:
-			"Minimal shape of an authenticated user. Attached to QueryContext and PermissionContext during authenticated requests.",
+			"Shape of the authenticated user. Attached to QueryContext and PermissionContext during authenticated requests. id is the authentication record's id — compare foreign keys (authorId, userId, ...) against user.id, not the top-level id.",
 	},
 	AuthenticatedUser: {
 		group: "API",

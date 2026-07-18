@@ -41,6 +41,13 @@ export const FUNCTION_DEFINITIONS: Record<string, FunctionDefinition> = {
 		docsPath: "/docs/core/interfaces#count",
 	},
 
+	countMany: {
+		signature: `countMany<T extends DatrixEntry>(\n  model: string,\n  options: {\n    where?: WhereClause<T>\n    groupBy: string[]\n    having?: WhereClause<T>\n  },\n): Promise<(Record<string, unknown> & { count: number })[]>`,
+		description:
+			"Returns one count per distinct group. groupBy is required — countMany without a grouping is just count(). Always resolves to an array, never a bare number.",
+		docsPath: "/docs/core/interfaces#countmany",
+	},
+
 	create: {
 		signature: `create<T extends DatrixEntry, TInput extends FallbackInput>(\n  model: string,\n  data: TInput,\n  options?: RawCrudOptions<T>,\n): Promise<T>`,
 		description:

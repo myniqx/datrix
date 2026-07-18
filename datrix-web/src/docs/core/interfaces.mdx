@@ -48,11 +48,13 @@ Shorthand for `findOne` with `where: { id }`. Returns `null` if not found.
 ```typescript
 findMany<T extends DatrixEntry = DatrixRecord>(
   model: string,                // registered schema name
-  options?: RawFindManyOptions<T>, // where, select, populate, orderBy, limit, offset
+  options?: RawFindManyOptions<T>, // where, select, populate, orderBy, limit, offset, distinct, groupBy, having
 ): Promise<T[]>
 ```
 
 Returns all records matching the given options. Returns an empty array if none found.
+
+`distinct` deduplicates rows on the selected fields — requires an explicit `select` (a wildcard select would silently defeat deduplication via the unique `id` column). `groupBy` groups by scalar fields (relation fields cannot be grouped on); `having` filters groups after aggregation and can only reference fields present in `groupBy`.
 
 ---
 
@@ -66,6 +68,31 @@ count<T extends DatrixEntry = DatrixRecord>(
 ```
 
 Returns the number of records matching `where`.
+
+---
+
+### countMany
+
+```typescript
+countMany<T extends DatrixEntry = DatrixRecord>(
+  model: string,
+  options: {
+    where?:   WhereClause<T>
+    groupBy:  string[]        // required — countMany without a grouping is just count()
+    having?:  WhereClause<T>  // fields must be a subset of groupBy
+  },
+): Promise<(Record<string, unknown> & { count: number })[]>
+```
+
+Returns one entry per distinct group — each carrying that group's `groupBy` field values plus a `count`. No matches (or `having` filters every group out) resolve to `[]`, never a bare `0`. This is a different shape from `count()` on purpose: `count` always returns a single `number`, `countMany` always returns an array, so callers never have to guess.
+
+```typescript
+await datrix.countMany('user', {
+  where: { isActive: true },
+  groupBy: ['role'],
+})
+// → [{ role: 'admin', count: 2 }, { role: 'editor', count: 5 }]
+```
 
 ---
 

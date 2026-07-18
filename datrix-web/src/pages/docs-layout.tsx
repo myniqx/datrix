@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Outlet, Link, useParams } from "react-router";
+import { siGithub } from "simple-icons";
 import { DocsNavbar } from "@/components/layout/docs-navbar";
 import { buildDocNav, getDocModule } from "@/docs/use-doc-nav";
+import { DATRIX_GITHUB_REPO } from "@/data/constants";
 import type { TocItem } from "@/lib/remark-toc-export";
 
 const NAV_SECTIONS = buildDocNav();
@@ -26,6 +28,25 @@ function resolveSlug(param: string | undefined): string {
 	const indexMod = getDocModule(`${param}/index`);
 	return indexMod ? `${param}/index` : param;
 }
+
+// Flat, reading-order list of every navigable doc page (section index + items),
+// resolved to real content slugs (e.g. "adapters/index") via resolveSlug so
+// prev/next always points at a slug getDocModule can actually load.
+const FLAT_PAGES: { slug: string; title: string }[] = NAV_SECTIONS.flatMap(
+	(section) => {
+		const pages: { slug: string; title: string }[] = [];
+		if (section.slug !== null) {
+			const resolved = resolveSlug(section.slug);
+			if (getDocModule(resolved)) {
+				pages.push({ slug: resolved, title: section.title });
+			}
+		}
+		for (const item of section.items) {
+			pages.push({ slug: item.slug, title: item.title });
+		}
+		return pages;
+	},
+);
 
 export function useCurrentSlug(): string {
 	const { section, page } = useParams();
@@ -121,6 +142,63 @@ function DocsSidebar({ currentSlug }: { currentSlug: string }) {
 	);
 }
 
+// --- Page footer (edit link + prev/next) ---
+
+function PageNavFooter({ currentSlug }: { currentSlug: string }) {
+	const index = FLAT_PAGES.findIndex((p) => p.slug === currentSlug);
+	const prev = index > 0 ? FLAT_PAGES[index - 1] : null;
+	const next =
+		index >= 0 && index < FLAT_PAGES.length - 1 ? FLAT_PAGES[index + 1] : null;
+	const editUrl = `https://github.com/${DATRIX_GITHUB_REPO}/edit/main/datrix-web/src/docs/${currentSlug}.mdx`;
+
+	return (
+		<div className="mt-16 border-t border-border/40 pt-6">
+			<a
+				href={editUrl}
+				target="_blank"
+				rel="noopener noreferrer"
+				className="inline-flex items-center gap-1.5 text-sm text-foreground/50 transition-colors hover:text-foreground"
+			>
+				<svg role="img" viewBox="0 0 24 24" className="size-3.5 fill-current">
+					<path d={siGithub.path} />
+				</svg>
+				Edit this page on GitHub
+			</a>
+
+			{(prev || next) && (
+				<nav className="mt-6 flex items-stretch justify-between gap-4">
+					{prev ? (
+						<Link
+							to={`/docs/${prev.slug}`}
+							className="group flex flex-1 flex-col gap-1 rounded-lg border border-border/50 px-4 py-3 transition-colors hover:border-border hover:bg-muted/40"
+						>
+							<span className="text-xs text-foreground/40">← Previous</span>
+							<span className="text-sm font-medium text-foreground/80 group-hover:text-foreground">
+								{prev.title}
+							</span>
+						</Link>
+					) : (
+						<div className="flex-1" />
+					)}
+					{next ? (
+						<Link
+							to={`/docs/${next.slug}`}
+							className="group flex flex-1 flex-col items-end gap-1 rounded-lg border border-border/50 px-4 py-3 text-right transition-colors hover:border-border hover:bg-muted/40"
+						>
+							<span className="text-xs text-foreground/40">Next →</span>
+							<span className="text-sm font-medium text-foreground/80 group-hover:text-foreground">
+								{next.title}
+							</span>
+						</Link>
+					) : (
+						<div className="flex-1" />
+					)}
+				</nav>
+			)}
+		</div>
+	);
+}
+
 // --- TOC ---
 
 function DocsToc({ items }: { items: TocItem[] }) {
@@ -190,12 +268,15 @@ export default function DocsLayout() {
 	return (
 		<div className="min-h-screen">
 			<DocsNavbar />
-			<div className="flex w-full px-6 pt-14">
-				<DocsSidebar currentSlug={currentSlug} />
-				<main className="min-w-0 flex-1 px-8 py-8">
-					<Outlet />
-				</main>
-				<DocsToc items={toc} />
+			<div className="flex justify-center px-6 pt-14">
+				<div className="flex w-full max-w-300">
+					<DocsSidebar currentSlug={currentSlug} />
+					<main className="min-w-0 flex-1 px-8 py-8">
+						<Outlet />
+						<PageNavFooter currentSlug={currentSlug} />
+					</main>
+					<DocsToc items={toc} />
+				</div>
 			</div>
 		</div>
 	);
