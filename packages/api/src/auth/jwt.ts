@@ -28,6 +28,7 @@ import {
 	throwJwtInvalidIat,
 	throwJwtInvalidIssuer,
 	throwJwtInvalidAudience,
+	throwAuthConfigInvalid,
 } from "./error-helper";
 
 /**
@@ -219,7 +220,7 @@ export class JwtStrategy {
 		const algorithm = this.algorithm === "HS256" ? "sha256" : "sha512";
 		const hmac = createHmac(algorithm, this.secret);
 		hmac.update(data);
-		return this.encodeBase64Url(hmac.digest("base64"));
+		return hmac.digest("base64url");
 	}
 
 	/**
@@ -281,7 +282,10 @@ export class JwtStrategy {
 
 		const match = expiry.match(/^(\d+)([smhd])$/);
 		if (!match) {
-			return 3600; // default 1 hour
+			throwAuthConfigInvalid(
+				`Invalid JWT expiresIn value: "${expiry}". Use a number of seconds or a string matching /^\\d+[smhd]$/ (e.g. "1h", "7d").`,
+				"jwt.expiresIn",
+			);
 		}
 
 		const [, num, unit] = match as [string, string, TimeUnit];

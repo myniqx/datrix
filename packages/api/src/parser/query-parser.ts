@@ -29,8 +29,6 @@ const DEFAULT_OPTIONS: Required<ParserOptions> = {
 	maxPageSize: 100,
 	defaultPageSize: 25,
 	maxPopulateDepth: 5,
-	allowedOperators: [],
-	strictMode: false,
 };
 
 /**

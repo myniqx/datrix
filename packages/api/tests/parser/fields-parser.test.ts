@@ -7,10 +7,9 @@
 
 import { describe, it, expect } from "vitest";
 import { parseFields } from "../../src/parser/fields-parser";
-import { RawQueryParams } from "../../../types/src/api/parser";
-import { parserTestData } from "../../../types/src/test/fixtures";
-
-const expectSuccessData = (result: any) => result;
+import { RawQueryParams } from "../../../core/src/types/api/parser";
+import { parserTestData } from "../../../core/tests/test/fixtures";
+import { expectSuccessData } from "../../../core/tests/test/helpers";
 
 describe("FieldsParser - Happy Path", () => {
 	describe("Wildcard", () => {

@@ -11,6 +11,7 @@
  * separate from user business data in the 'user' table.
  */
 
+import { createHash, randomBytes } from "node:crypto";
 import type { Datrix } from "@datrix/core";
 import { DEFAULT_API_AUTH_CONFIG } from "@datrix/core";
 import { AuthManager } from "../auth/manager";
@@ -24,6 +25,21 @@ import { DatrixEntry } from "@datrix/core";
 import { AuthUser } from "@datrix/core";
 import { FallbackValue } from "@datrix/core";
 import { FallbackInput } from "@datrix/core";
+import { LoginResult } from "@datrix/core";
+
+/**
+ * Fixed-format credentials used to equalize the timing of the "account not
+ * found" and "wrong password" paths (PBKDF2 runs in both cases).
+ */
+const DUMMY_HASH = "0".repeat(128);
+const DUMMY_SALT = "0".repeat(64);
+
+/**
+ * Reset tokens are bearer credentials — only their SHA-256 digest is stored.
+ */
+function hashResetToken(token: string): string {
+	return createHash("sha256").update(token).digest("hex");
+}
 
 /**
  * Auth Handler Configuration
@@ -53,6 +69,49 @@ export function createAuthHandlers<
 	const userEmailField = authConfig.userSchema?.email ?? "email";
 	const defaultRole = authConfig.defaultRole;
 
+	function isSecureRequest(request: Request): boolean {
+		return new URL(request.url).protocol === "https:";
+	}
+
+	function sessionCookie(sessionId: string, request: Request): string {
+		const maxAge =
+			authConfig.session?.maxAge ?? DEFAULT_API_AUTH_CONFIG.session.maxAge;
+		const secure = isSecureRequest(request) ? "; Secure" : "";
+		return `sessionId=${sessionId}; HttpOnly; Path=/; Max-Age=${maxAge}; SameSite=Strict${secure}`;
+	}
+
+	function clearSessionCookie(request: Request): string {
+		const secure = isSecureRequest(request) ? "; Secure" : "";
+		return `sessionId=; HttpOnly; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Strict${secure}`;
+	}
+
+	function loginResponse(
+		authUser: AuthUser,
+		loginResult: LoginResult,
+		request: Request,
+		status: number,
+	): Response {
+		const responseBody = {
+			data: {
+				user: authUser,
+				token: loginResult.token,
+				sessionId: loginResult.sessionId,
+			},
+		};
+
+		if (loginResult.sessionId) {
+			return new Response(JSON.stringify(responseBody), {
+				status,
+				headers: {
+					"Content-Type": "application/json",
+					"Set-Cookie": sessionCookie(loginResult.sessionId, request),
+				},
+			});
+		}
+
+		return jsonResponse(responseBody, status);
+	}
+
 	/**
 	 * POST /auth/register - Register new user
 	 */
@@ -73,6 +132,13 @@ export function createAuthHandlers<
 				throw handlerError.invalidBody("Password is required");
 			}
 
+			// Raw mode skips the reserved-field check — strip auto-managed fields
+			// and the email field so the checked email cannot be overridden.
+			delete extraData["id"];
+			delete extraData["createdAt"];
+			delete extraData["updatedAt"];
+			delete extraData[userEmailField];
+
 			const existingAuth = await datrix.raw.findOne<AuthenticatedUser>(
 				authSchemaName,
 				{ email: email },
@@ -91,12 +157,7 @@ export function createAuthHandlers<
 
 			let user: DatrixEntry;
 			try {
-				const createdUser = await datrix.raw.create(userSchemaName, userData);
-
-				if (!createdUser) {
-					throw handlerError.internalError("Failed to create user record");
-				}
-				user = createdUser;
+				user = await datrix.raw.create(userSchemaName, userData);
 			} catch (error) {
 				if (error instanceof DatrixError) {
 					throw error;
@@ -114,16 +175,17 @@ export function createAuthHandlers<
 				role: defaultRole,
 			};
 
-			const authRecord = await datrix.raw.create<AuthenticatedUser>(
-				authSchemaName,
-				authData,
-			);
-
-			if (!authRecord) {
-				await datrix.raw.delete(userSchemaName, user.id);
-				throw handlerError.internalError(
-					"Failed to create authentication record",
+			let authRecord: AuthenticatedUser;
+			try {
+				authRecord = await datrix.raw.create<AuthenticatedUser>(
+					authSchemaName,
+					authData,
 				);
+			} catch (error) {
+				// Not transactional — roll back the user row so it isn't orphaned
+				// (e.g. unique-email race on the authentication table).
+				await datrix.raw.delete(userSchemaName, user.id);
+				throw error;
 			}
 
 			const authUser: AuthUser = {
@@ -134,25 +196,7 @@ export function createAuthHandlers<
 
 			const loginResult = await authManager.login(authUser);
 
-			const responseBody = {
-				data: {
-					user: authUser,
-					token: loginResult.token,
-					sessionId: loginResult.sessionId,
-				},
-			};
-
-			if (loginResult.sessionId) {
-				return new Response(JSON.stringify(responseBody), {
-					status: 201,
-					headers: {
-						"Content-Type": "application/json",
-						"Set-Cookie": `sessionId=${loginResult.sessionId}; HttpOnly; Path=/; Max-Age=86400; SameSite=Strict`,
-					},
-				});
-			}
-
-			return jsonResponse(responseBody, 201);
+			return loginResponse(authUser, loginResult, request, 201);
 		} catch (error) {
 			if (error instanceof DatrixError) {
 				return datrixErrorResponse(error);
@@ -190,6 +234,16 @@ export function createAuthHandlers<
 			);
 
 			if (!authRecord) {
+				// Burn the same PBKDF2 cost as the real verification path so the
+				// response time does not reveal whether the email exists.
+				await authManager.verifyPassword(password, DUMMY_HASH, DUMMY_SALT);
+				throw authError.invalidCredentials();
+			}
+
+			// Passwordless accounts (auto-synced, see D3) must activate via the
+			// reset-password flow — reject login explicitly.
+			if (!authRecord.password || !authRecord.passwordSalt) {
+				await authManager.verifyPassword(password, DUMMY_HASH, DUMMY_SALT);
 				throw authError.invalidCredentials();
 			}
 
@@ -211,25 +265,7 @@ export function createAuthHandlers<
 
 			const loginResult = await authManager.login(authUser);
 
-			const responseBody = {
-				data: {
-					user: authUser,
-					token: loginResult.token,
-					sessionId: loginResult.sessionId,
-				},
-			};
-
-			if (loginResult.sessionId) {
-				return new Response(JSON.stringify(responseBody), {
-					status: 200,
-					headers: {
-						"Content-Type": "application/json",
-						"Set-Cookie": `sessionId=${loginResult.sessionId}; HttpOnly; Path=/; Max-Age=86400; SameSite=Strict`,
-					},
-				});
-			}
-
-			return jsonResponse(responseBody);
+			return loginResponse(authUser, loginResult, request, 200);
 		} catch (error) {
 			if (error instanceof DatrixError) {
 				return datrixErrorResponse(error);
@@ -247,23 +283,23 @@ export function createAuthHandlers<
 
 	/**
 	 * POST /auth/logout - Logout user
+	 *
+	 * Always succeeds: session (if any) is deleted, the cookie is cleared.
+	 * JWT invalidation is client-side by design.
 	 */
 	async function logout(request: Request): Promise<Response> {
 		try {
 			const sessionId = extractSessionId(request);
 
-			if (!sessionId) {
-				throw handlerError.invalidBody("No session found");
+			if (sessionId && authManager.getSessionStrategy()) {
+				await authManager.logout(sessionId);
 			}
-
-			await authManager.logout(sessionId);
 
 			return new Response(JSON.stringify({ data: { success: true } }), {
 				status: 200,
 				headers: {
 					"Content-Type": "application/json",
-					"Set-Cookie":
-						"sessionId=; HttpOnly; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Strict",
+					"Set-Cookie": clearSessionCookie(request),
 				},
 			});
 		} catch (error) {
@@ -292,10 +328,11 @@ export function createAuthHandlers<
 				throw authError.invalidToken();
 			}
 
+			// Never return password, passwordSalt, resetToken, resetTokenExpiry.
 			const authenticatedUser = await datrix.raw.findById<AuthenticatedUser>(
 				authSchemaName,
 				authContext.user.id,
-				{ populate: { user: "*" } },
+				{ select: ["email", "role"], populate: { user: "*" } },
 			);
 
 			if (!authenticatedUser) {
@@ -346,7 +383,7 @@ export function createAuthHandlers<
 				{ email },
 				{
 					populate: true,
-					select: ["email", "role", "resetToken", "resetTokenExpiry"],
+					select: ["email", "role"],
 				},
 			);
 
@@ -354,11 +391,7 @@ export function createAuthHandlers<
 				return jsonResponse({ data: { success: true } });
 			}
 
-			const tokenBytes = new Uint8Array(32);
-			crypto.getRandomValues(tokenBytes);
-			const token = Array.from(tokenBytes)
-				.map((b) => b.toString(16).padStart(2, "0"))
-				.join("");
+			const token = randomBytes(32).toString("hex");
 
 			const expirySeconds =
 				authConfig.passwordReset?.tokenExpirySeconds ??
@@ -366,8 +399,9 @@ export function createAuthHandlers<
 
 			const expiry = new Date(Date.now() + expirySeconds * 1000);
 
+			// Only the digest is persisted; the raw token goes to the callback.
 			await datrix.raw.update(authSchemaName, authRecord.id, {
-				resetToken: token,
+				resetToken: hashResetToken(token),
 				resetTokenExpiry: expiry,
 			});
 
@@ -407,7 +441,7 @@ export function createAuthHandlers<
 
 			const authRecord = await datrix.raw.findOne<AuthenticatedUser>(
 				authSchemaName,
-				{ resetToken: token },
+				{ resetToken: hashResetToken(token) },
 			);
 
 			if (

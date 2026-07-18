@@ -6,10 +6,9 @@
 
 import { describe, it, expect } from "vitest";
 import { parseWhere } from "../../src/parser/where-parser";
-import { RawQueryParams } from "../../../types/src/api/parser";
-import { parserTestData } from "../../../types/src/test/fixtures";
-
-const expectSuccessData = (result: any) => result;
+import { RawQueryParams } from "../../../core/src/types/api/parser";
+import { parserTestData } from "../../../core/tests/test/fixtures";
+import { expectSuccessData } from "../../../core/tests/test/helpers";
 
 describe("WhereParser - Happy Path", () => {
 	describe("No where parameter", () => {

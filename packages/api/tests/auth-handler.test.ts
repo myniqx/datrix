@@ -396,15 +396,15 @@ describe("Auth Handler Tests", () => {
 			expect(logoutSetCookie).toContain("Max-Age=0");
 		});
 
-		it("should return 400 when no session provided", async () => {
+		it("should succeed and clear the cookie when no session provided", async () => {
 			const response = await handleRequest(
 				createRequest("/api/auth/logout", {
 					method: "POST",
 				}),
 			);
 
-			const error = await expectApiError(response, 400);
-			expect(error.code).toBe("INVALID_BODY");
+			expect(response.status).toBe(200);
+			expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
 		});
 	});
 

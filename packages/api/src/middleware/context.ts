@@ -7,15 +7,22 @@
 
 import type {
 	RequestContext,
+	RequestLimits,
 	HttpMethod,
 	ContextBuilderOptions,
 } from "./types";
 import type { Datrix } from "@datrix/core";
-import { ParserError } from "@datrix/core";
 import { methodToAction } from "./permission";
-import { parseQuery } from "../parser";
+import { parseQuery, validateQueryBody } from "../parser";
+import { handlerError } from "../errors/api-error";
 import { FallbackInput } from "@datrix/core";
+import { ParsedQuery, DatrixEntry } from "@datrix/core";
 import { AuthUser, IApiPlugin } from "@datrix/core";
+
+/**
+ * Sub-resource segment reserved for the POST /:model/query alias
+ */
+const QUERY_SEGMENT = "query";
 
 /**
  * Extract table name from URL path
@@ -26,45 +33,64 @@ function extractTableNameFromPath(
 	pathname: string,
 	prefix: string,
 ): string | null {
-	const segments = pathname.split("/").filter(Boolean);
-	const prefixSegments = prefix.split("/").filter(Boolean);
-	const pathSegments = segments.slice(prefixSegments.length);
+	const segments = pathSegmentsAfterPrefix(pathname, prefix);
 
-	if (pathSegments.length === 0) {
+	if (segments.length === 0) {
 		return null;
 	}
 
-	return pathSegments[0] ?? null;
+	return segments[0] ?? null;
+}
+
+function pathSegmentsAfterPrefix(pathname: string, prefix: string): string[] {
+	const segments = pathname.split("/").filter(Boolean);
+	const prefixSegments = prefix.split("/").filter(Boolean);
+	return segments.slice(prefixSegments.length);
 }
 
 /**
  * Extract record ID from URL path
- * /api/user/123 -> '123'
+ * /api/user/123 -> 123
  * /api/user -> null
+ * /api/user/query -> null (reserved sub-resource, QUERY alias)
+ * /api/user/abc -> 404
+ *
+ * @throws {DatrixApiError} 404 for non-numeric ids or extra path segments
  */
-function extractIdFromPath(pathname: string, prefix: string): number | null {
-	const segments = pathname.split("/").filter(Boolean);
-	const prefixSegments = prefix.split("/").filter(Boolean);
-	const pathSegments = segments.slice(prefixSegments.length);
-
-	if (pathSegments.length < 2) {
+function extractIdFromPath(
+	segments: string[],
+	isUploadRoute: boolean,
+): number | null {
+	if (segments.length < 2) {
 		return null;
 	}
-	const val = parseInt(pathSegments[1]!, 10);
-	return isNaN(val) ? null : val;
-}
 
-/**
- * Parser error wrapper for context building
- */
-export class ContextBuildError extends Error {
-	readonly parserError: ParserError;
+	const idSegment = segments[1]!;
 
-	constructor(parserError: ParserError) {
-		super(parserError.message);
-		this.name = "ContextBuildError";
-		this.parserError = parserError;
+	// The upload route manages its own sub-paths — extract a numeric id when
+	// present, but never 404 on extra or non-numeric segments.
+	if (isUploadRoute) {
+		return /^\d+$/.test(idSegment) && segments.length === 2
+			? parseInt(idSegment, 10)
+			: null;
 	}
+
+	if (idSegment === QUERY_SEGMENT) {
+		if (segments.length > 2) {
+			throw handlerError.recordNotFound(segments[0] ?? "", segments.join("/"));
+		}
+		return null;
+	}
+
+	if (!/^\d+$/.test(idSegment)) {
+		throw handlerError.recordNotFound(segments[0] ?? "", idSegment);
+	}
+
+	if (segments.length > 2) {
+		throw handlerError.recordNotFound(segments[0] ?? "", segments.join("/"));
+	}
+
+	return parseInt(idSegment, 10);
 }
 
 /**
@@ -79,7 +105,7 @@ export class ContextBuildError extends Error {
  *
  * ALL requests go through this function ONCE
  *
- * @throws {ContextBuildError} When query parsing fails
+ * @throws {ParserError | DatrixApiError} When parsing/validation fails
  */
 export async function buildRequestContext<TRole extends string = string>(
 	request: Request,
@@ -89,32 +115,49 @@ export async function buildRequestContext<TRole extends string = string>(
 ): Promise<RequestContext<TRole>> {
 	const apiPrefix = options.apiPrefix ?? "/api";
 	const url = new URL(request.url);
-	const method = request.method as HttpMethod;
+	const method = request.method.toUpperCase() as HttpMethod;
 	const authEnabled = api.isAuthEnabled();
 
+	// Effective limits: plugin config wins over parser defaults
+	const limits: RequestLimits = {
+		defaultPageSize: options.defaultPageSize ?? 25,
+		maxPageSize: options.maxPageSize ?? 100,
+		maxPopulateDepth: options.maxPopulateDepth ?? 5,
+	};
+
 	// 1. RESOLVE SCHEMA from URL
+	const segments = pathSegmentsAfterPrefix(url.pathname, apiPrefix);
 	const tableName = extractTableNameFromPath(url.pathname, apiPrefix);
-	const modelName =
-		tableName === "upload" && api.upload
-			? api.upload.getModelName()
-			: datrix.getSchemas().findModelByTableName(tableName);
+	const isUploadRoute = tableName === "upload" && api.upload !== undefined;
+	const modelName = isUploadRoute
+		? api.upload!.getModelName()
+		: datrix.getSchemas().findModelByTableName(tableName);
 	const schema = modelName ? (datrix.getSchema(modelName) ?? null) : null;
 
-	// 2. DERIVE ACTION from HTTP method
-	const action = methodToAction(method);
+	// 2. EXTRACT ID from URL (404 on malformed ids / extra segments)
+	const id = extractIdFromPath(segments, isUploadRoute);
 
-	// 3. EXTRACT ID from URL
-	const id = extractIdFromPath(url.pathname, apiPrefix);
+	// 3. DETECT QUERY REQUEST (QUERY method or POST /:model/query alias)
+	const isQueryAlias = segments[1] === QUERY_SEGMENT;
+	const isQueryRequest =
+		method === "QUERY" || (method === "POST" && isQueryAlias);
 
-	// 4. AUTHENTICATE (only if auth is enabled)
-	let user: AuthUser | null = null;
-	if (authEnabled && api.authManager) {
-		const authResult = await api.authManager.authenticate(request);
-		user = authResult?.user ?? null;
+	if (isQueryAlias && method !== "POST" && method !== "QUERY") {
+		throw handlerError.methodNotAllowed(method);
 	}
 
-	// 5. PARSE QUERY (from query string - works for all HTTP methods)
-	let query = null;
+	// 4. DERIVE ACTION from HTTP method (the POST alias is a read)
+	const action = isQueryRequest ? "read" : methodToAction(method);
+
+	// 5. AUTHENTICATE (only if auth is enabled) — resolves email/role and the
+	// populated user record from the DB (decision D1)
+	let user: AuthUser | null = null;
+	if (authEnabled) {
+		user = await api.resolveAuthUser(request);
+	}
+
+	// 6. PARSE QUERY (from query string - works for all HTTP methods)
+	let query: ParsedQuery<DatrixEntry> | null = null;
 	const queryParams: Record<string, string | string[]> = {};
 	url.searchParams.forEach((value, key) => {
 		const existing = queryParams[key];
@@ -130,29 +173,43 @@ export async function buildRequestContext<TRole extends string = string>(
 	});
 
 	if (Object.keys(queryParams).length > 0) {
-		query = parseQuery(queryParams);
+		query = parseQuery(queryParams, limits);
 	}
 
-	// 6. PARSE BODY (for POST/PATCH/PUT requests)
-	let body = null;
-	if (["POST", "PATCH", "PUT"].includes(method)) {
-		try {
-			const contentType = request.headers.get("content-type");
-			if (contentType?.includes("application/json")) {
+	// 7. PARSE BODY (POST/PATCH/PUT insert/update data, or the QUERY body)
+	let body: FallbackInput | null = null;
+	if (["POST", "PATCH", "PUT", "QUERY"].includes(method)) {
+		const contentType = request.headers.get("content-type");
+		if (contentType?.includes("application/json")) {
+			try {
 				body = (await request.json()) as FallbackInput;
+			} catch {
+				throw handlerError.invalidBody("Malformed JSON");
 			}
-		} catch {
-			// Invalid JSON, body stays null
 		}
 	}
 
-	// 7. EXTRACT HEADERS
+	if (isQueryRequest) {
+		// The body IS the query — never insert data. Reject the ambiguous case
+		// of both a query string and a body query instead of merging.
+		if (body !== null) {
+			if (query !== null) {
+				throw handlerError.invalidBody(
+					"Provide the query either in the query string or in the body, not both",
+				);
+			}
+			query = validateQueryBody(body, limits);
+		}
+		body = null;
+	}
+
+	// 8. EXTRACT HEADERS
 	const headers: Record<string, string> = {};
 	request.headers.forEach((value, key) => {
 		headers[key] = value;
 	});
 
-	// 8. BUILD UNIFIED CONTEXT
+	// 9. BUILD UNIFIED CONTEXT
 	return {
 		schema,
 		action,
@@ -167,5 +224,7 @@ export async function buildRequestContext<TRole extends string = string>(
 		datrix,
 		api,
 		authEnabled,
+		isQueryRequest,
+		limits,
 	};
 }

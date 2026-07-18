@@ -18,6 +18,7 @@ import { Datrix } from "@datrix/core";
 import { handleRequest } from "../src/helper";
 import {
 	createTestConfigWithAuth,
+	seedTestAuthUsers,
 	testJwtSecret,
 	testUsers,
 	TestRoles,
@@ -72,6 +73,9 @@ describe("Schema-Level Permission Tests", () => {
 			} catch {}
 			await adapter.createTable(schema);
 		}
+
+		// Seed user + auth records — tokens are verified against the DB (D1)
+		await seedTestAuthUsers(datrix);
 
 		// Create JWT strategy for generating test tokens
 		jwtStrategy = new JwtStrategy({

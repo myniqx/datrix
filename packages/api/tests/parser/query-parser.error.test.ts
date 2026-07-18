@@ -8,9 +8,12 @@
 
 import { describe, it, expect } from "vitest";
 import { parseQuery } from "../../src/parser/query-parser";
-import { RawQueryParams, ParserOptions } from "../../../types/src/api/parser";
-import { parserTestData } from "../../../types/src/test/fixtures";
-import { expectFailureError } from "../../../types/src/test/helpers";
+import {
+	RawQueryParams,
+	ParserOptions,
+} from "../../../core/src/types/api/parser";
+import { parserTestData } from "../../../core/tests/test/fixtures";
+import { expectFailureError } from "../../../core/tests/test/helpers";
 
 describe("QueryParser - Error Path", () => {
 	describe("Pagination errors", () => {

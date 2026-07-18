@@ -113,6 +113,14 @@ export function serializeQuery<T extends DatrixEntry = DatrixEntry>(
 }
 
 /**
+ * Serialize a scalar WHERE value.
+ * Dates use ISO 8601 — String(date) is not parseable on the way back.
+ */
+function serializeScalar(value: unknown): string {
+	return value instanceof Date ? value.toISOString() : String(value);
+}
+
+/**
  * Recursive helper to serialize where clause
  */
 function serializeWhere<T extends DatrixEntry>(
@@ -120,8 +128,8 @@ function serializeWhere<T extends DatrixEntry>(
 	prefix: string,
 	params: Record<string, string | string[]>,
 ) {
-	if (where === null || typeof where !== "object") {
-		params[prefix] = String(where);
+	if (where === null || typeof where !== "object" || where instanceof Date) {
+		params[prefix] = serializeScalar(where);
 		return;
 	}
 
@@ -137,13 +145,17 @@ function serializeWhere<T extends DatrixEntry>(
 			} else {
 				// Handle $in, $nin which take arrays of values
 				value.forEach((item, index) => {
-					params[`${newPrefix}[${index}]`] = String(item);
+					params[`${newPrefix}[${index}]`] = serializeScalar(item);
 				});
 			}
-		} else if (value !== null && typeof value === "object") {
-			serializeWhere(value, newPrefix, params);
+		} else if (
+			value !== null &&
+			typeof value === "object" &&
+			!(value instanceof Date)
+		) {
+			serializeWhere(value as WhereClause<T>, newPrefix, params);
 		} else {
-			params[newPrefix] = String(value);
+			params[newPrefix] = serializeScalar(value);
 		}
 	}
 }

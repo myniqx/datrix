@@ -15,3 +15,7 @@ export { parsePopulate } from "./populate-parser";
 
 // Export fields parser
 export { parseFields } from "./fields-parser";
+
+// Export query body validator (QUERY method / POST alias)
+export { validateQueryBody } from "./query-body";
+export type { QueryBodyOptions } from "./query-body";

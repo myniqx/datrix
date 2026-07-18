@@ -259,7 +259,7 @@ export function isSessionData(value: unknown): value is SessionData {
 		"expiresAt" in obj &&
 		"lastAccessedAt" in obj &&
 		typeof obj["id"] === "string" &&
-		typeof obj["userId"] === "string" &&
+		typeof obj["userId"] === "number" &&
 		typeof obj["role"] === "string" &&
 		obj["createdAt"] instanceof Date &&
 		obj["expiresAt"] instanceof Date &&
