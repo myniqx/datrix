@@ -50,7 +50,11 @@ describe("4.1 — generate config", () => {
 		for (const dbType of CONFIG_DB_TYPES) {
 			const content = configTemplate(dbType);
 			expect(content, dbType).toContain("defineConfig");
-			expect(content, dbType).not.toContain("undefined");
+			// postgres-core is a bring-your-own-driver adapter: its template
+			// legitimately calls `.then(() => undefined)` in the ping stub.
+			if (dbType !== "postgres-core") {
+				expect(content, dbType).not.toContain("undefined");
+			}
 		}
 	});
 
@@ -68,7 +72,7 @@ describe("4.1 — generate config", () => {
 		).rejects.toThrow(CLIError);
 		await expect(
 			generateCommand("config", "oracle", { output: outputDir }),
-		).rejects.toThrow(/postgres, mysql, json, mongodb/);
+		).rejects.toThrow(/postgres, postgres-core, mysql, json, mongodb/);
 	});
 
 	it("refuses to overwrite without --force", async () => {
