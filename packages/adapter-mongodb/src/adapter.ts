@@ -34,6 +34,7 @@ import { MongoDBImporter } from "./export-import/importer";
 import type { ExportWriter, ImportReader } from "@datrix/core";
 import type {
 	MongoDBConfig,
+	MongoCountResult,
 	MongoFindResult,
 	MongoTranslateResult,
 } from "./types";
@@ -45,6 +46,7 @@ import type {
 	AlterOperation,
 	ConnectionState,
 	DatabaseAdapter,
+	GroupCountData,
 	QueryMetadata,
 	QueryResult,
 	Transaction,
@@ -251,6 +253,11 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 			};
 		}
 
+		// distinct/groupBy require a $group stage — aggregation path
+		if (op.groupFields && op.groupFields.length > 0) {
+			return this.executeGroupedFind(op, client);
+		}
+
 		const collection = client.getCollection(op.collection);
 		const sessionOpts = client.sessionOptions();
 
@@ -267,6 +274,60 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 			`find:${op.collection}`,
 			() => cursor.toArray(),
 			{ filter: op.filter },
+		);
+
+		const metadata: QueryMetadata = {
+			rowCount: rows.length,
+			affectedRows: rows.length,
+		};
+
+		return { rows: rows as unknown as readonly TResult[], metadata };
+	}
+
+	/**
+	 * Execute a `distinct`/`groupBy` select as an aggregation pipeline:
+	 * $match → $group on the key fields → $replaceRoot (docs become the group
+	 * key) → optional $match (HAVING) → $sort/$skip/$limit → $project.
+	 * Semantics mirror the postgres adapter's SELECT DISTINCT / GROUP BY.
+	 */
+	private async executeGroupedFind<TResult extends DatrixEntry>(
+		op: MongoFindResult,
+		client: MongoClient<TResult>,
+	): Promise<QueryResult<TResult>> {
+		const collection = client.getCollection(op.collection);
+		const sessionOpts = client.sessionOptions();
+
+		const pipeline: Document[] = [];
+		if (Object.keys(op.filter).length > 0) {
+			pipeline.push({ $match: op.filter });
+		}
+
+		const groupId: Record<string, string> = {};
+		for (const field of op.groupFields!) {
+			groupId[field] = `$${field}`;
+		}
+		pipeline.push({ $group: { _id: groupId } });
+		pipeline.push({ $replaceRoot: { newRoot: "$_id" } });
+
+		if (op.having && Object.keys(op.having).length > 0) {
+			pipeline.push({ $match: op.having });
+		}
+		if (op.sort) pipeline.push({ $sort: op.sort });
+		if (op.skip !== undefined) pipeline.push({ $skip: op.skip });
+		if (op.limit !== undefined) pipeline.push({ $limit: op.limit });
+
+		if (op.resultFields) {
+			const projection: Record<string, number> = { _id: 0 };
+			for (const field of op.resultFields) {
+				projection[field] = 1;
+			}
+			pipeline.push({ $project: projection });
+		}
+
+		const rows = await client.execute(
+			`aggregate:${op.collection}`,
+			() => collection.aggregate(pipeline, sessionOpts).toArray(),
+			{ pipeline },
 		);
 
 		const metadata: QueryMetadata = {
@@ -409,20 +470,64 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 			{ filter: op.filter },
 		);
 
+		// Contract §3: delete must return the deleted rows. We already
+		// pre-fetched their ids above (needed for ON DELETE actions) — reuse
+		// them instead of returning an empty array.
+		const idRows = docsToDelete.map((doc) => ({ id: doc["id"] })) as TResult[];
+
 		const metadata: QueryMetadata = {
 			rowCount: result.deletedCount,
 			affectedRows: result.deletedCount,
 		};
 
-		return { rows: [] as unknown as readonly TResult[], metadata };
+		return { rows: idRows, metadata };
 	}
 
 	private async executeCountOp<TResult extends DatrixEntry>(
-		op: { readonly collection: string; readonly filter: Document },
+		op: MongoCountResult,
 		client: MongoClient<TResult>,
 	): Promise<QueryResult<TResult>> {
 		const collection = client.getCollection(op.collection);
 		const sessionOpts = client.sessionOptions();
+
+		// GROUP BY count: $group + $sum per group. Contract parity with the
+		// postgres/mysql adapters — grouped counts populate
+		// metadata.countMany (one entry per group), not metadata.count.
+		if (op.groupBy && op.groupBy.length > 0) {
+			const pipeline: Document[] = [];
+			if (Object.keys(op.filter).length > 0) {
+				pipeline.push({ $match: op.filter });
+			}
+
+			const groupId: Record<string, string> = {};
+			for (const field of op.groupBy) {
+				groupId[field] = `$${field}`;
+			}
+			pipeline.push({ $group: { _id: groupId, count: { $sum: 1 } } });
+			// Flatten so HAVING can match on plain group-field names.
+			pipeline.push({
+				$replaceRoot: {
+					newRoot: { $mergeObjects: ["$_id", { count: "$count" }] },
+				},
+			});
+			if (op.having && Object.keys(op.having).length > 0) {
+				pipeline.push({ $match: op.having });
+			}
+
+			const groups = await client.execute(
+				`aggregate:${op.collection}`,
+				() => collection.aggregate(pipeline, sessionOpts).toArray(),
+				{ pipeline },
+			);
+
+			const metadata: QueryMetadata = {
+				rowCount: 0,
+				affectedRows: 0,
+				countMany: groups as unknown as GroupCountData[],
+			};
+
+			return { rows: [] as unknown as readonly TResult[], metadata };
+		}
 
 		const count = await client.execute(
 			`countDocuments:${op.collection}`,
@@ -446,6 +551,30 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 		query: QuerySelectObject<TResult>,
 		client: MongoClient<TResult>,
 	): Promise<QueryResult<TResult>> {
+		// The populate strategies bypass the grouped-find aggregation path —
+		// never silently ignore these clauses (contract §4).
+		if (
+			query.distinct ||
+			(query.groupBy && query.groupBy.length > 0) ||
+			query.having
+		) {
+			throwQueryError({
+				adapter: "mongodb",
+				message:
+					"distinct/groupBy/having cannot be combined with populate in the mongodb adapter",
+			});
+		}
+
+		// MongoDB treats limit(0) as "no limit" (batched strategy) and the
+		// lookup strategy would push { $limit: 0 }, which is a server error —
+		// short-circuit the same way executeFindOp already does.
+		if (query.limit === 0) {
+			return {
+				rows: [] as unknown as readonly TResult[],
+				metadata: { rowCount: 0, affectedRows: 0 },
+			};
+		}
+
 		const populator = new MongoDBPopulator(
 			client,
 			this._schemas!,
@@ -765,6 +894,32 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 					{ $set: { key: newKey } },
 				);
 
+				// The `key` was just updated, but the JSON stored in `value` still
+				// contains the stale tableName from before the rename. Patch it so
+				// getTableSchema(to) doesn't return a schema pointing at `from`
+				// forever (which would make migration diffing see a phantom rename).
+				const renamedDoc = await metaCollection.findOne({ key: newKey });
+				if (renamedDoc) {
+					const renamedSchema = JSON.parse(
+						renamedDoc["value"] as string,
+					) as SchemaDefinition;
+					if (renamedSchema.tableName !== to) {
+						const patchedSchema: SchemaDefinition = {
+							...renamedSchema,
+							tableName: to,
+						};
+						await metaCollection.updateOne(
+							{ key: newKey },
+							{
+								$set: {
+									value: JSON.stringify(patchedSchema),
+									updatedAt: new Date(),
+								},
+							},
+						);
+					}
+				}
+
 				// Rename counter key
 				const oldCounterKey = `${COUNTER_KEY_PREFIX}${from}`;
 				const newCounterKey = `${COUNTER_KEY_PREFIX}${to}`;
@@ -772,6 +927,11 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 					{ key: oldCounterKey },
 					{ $set: { key: newCounterKey } },
 				);
+
+				// Other stored schemas may reference the renamed collection via
+				// `fields.*.references.table` — patch those too, otherwise they
+				// keep pointing at a collection name that no longer exists.
+				await this.patchStaleReferences(metaCollection, from, to);
 			}
 		} catch (error) {
 			if (error instanceof DatrixAdapterError) throw error;
@@ -784,10 +944,54 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 		}
 	}
 
+	/**
+	 * Scan every stored schema in `_datrix` and patch any FK
+	 * `fields.*.references.table` value that still points at the old
+	 * collection name after a rename, writing back only when changed.
+	 */
+	private async patchStaleReferences(
+		metaCollection: Collection<Document>,
+		from: string,
+		to: string,
+	): Promise<void> {
+		const docs = await metaCollection
+			.find({ key: { $regex: `^${DATRIX_META_KEY_PREFIX}` } })
+			.toArray();
+
+		for (const doc of docs) {
+			const schema = JSON.parse(doc["value"] as string) as SchemaDefinition;
+			let changed = false;
+
+			// The schema was just parsed from JSON, so it is a plain mutable
+			// object at runtime even though SchemaDefinition types it readonly.
+			for (const fieldDef of Object.values(schema.fields)) {
+				const numField = fieldDef as unknown as {
+					references?: { table?: string };
+				};
+				if (numField.references && numField.references.table === from) {
+					numField.references.table = to;
+					changed = true;
+				}
+			}
+
+			if (changed) {
+				await metaCollection.updateOne(
+					{ key: doc["key"] as string },
+					{
+						$set: {
+							value: JSON.stringify(schema),
+							updatedAt: new Date(),
+						},
+					},
+				);
+			}
+		}
+	}
+
 	async alterTable(
 		tableName: string,
 		operations: readonly AlterOperation[],
-		_session?: ClientSession,
+		session?: ClientSession,
 	): Promise<void> {
 		if (!this.db) {
 			throwNotConnected({ adapter: "mongodb" });
@@ -795,6 +999,11 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 
 		try {
 			const collection = this.db!.collection(tableName);
+			// updateMany/findOne/updateOne fully support sessions (unlike
+			// collection DDL, which MongoDB genuinely can't run in a
+			// transaction) — thread it through so a migration rollback also
+			// undoes the document rewrites below.
+			const sessionOpts = session ? { session } : {};
 
 			for (const op of operations) {
 				switch (op.type) {
@@ -804,11 +1013,16 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 						await collection.updateMany(
 							{},
 							{ $set: { [op.column]: defaultVal } },
+							sessionOpts,
 						);
 						break;
 					}
 					case "dropColumn": {
-						await collection.updateMany({}, { $unset: { [op.column]: "" } });
+						await collection.updateMany(
+							{},
+							{ $unset: { [op.column]: "" } },
+							sessionOpts,
+						);
 						break;
 					}
 					case "modifyColumn": {
@@ -818,7 +1032,11 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 						break;
 					}
 					case "renameColumn": {
-						await collection.updateMany({}, { $rename: { [op.from]: op.to } });
+						await collection.updateMany(
+							{},
+							{ $rename: { [op.from]: op.to } },
+							sessionOpts,
+						);
 						break;
 					}
 				}
@@ -826,7 +1044,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 
 			// Update schema in _datrix
 			if (tableName !== DATRIX_META_MODEL) {
-				await this.applyOperationsToMetaSchema(tableName, operations);
+				await this.applyOperationsToMetaSchema(tableName, operations, session);
 			}
 		} catch (error) {
 			if (error instanceof DatrixAdapterError) throw error;
@@ -1002,10 +1220,12 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 	private async applyOperationsToMetaSchema(
 		tableName: string,
 		operations: readonly AlterOperation[],
+		session?: ClientSession,
 	): Promise<void> {
 		const metaCollection = this.getMetaCollection();
 		const metaKey = `${DATRIX_META_KEY_PREFIX}${tableName}`;
-		const doc = await metaCollection.findOne({ key: metaKey });
+		const sessionOpts = session ? { session } : {};
+		const doc = await metaCollection.findOne({ key: metaKey }, sessionOpts);
 
 		if (!doc) {
 			throwMigrationError({
@@ -1081,6 +1301,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 		await metaCollection.updateOne(
 			{ key: metaKey },
 			{ $set: { value: updatedValue, updatedAt: new Date() } },
+			sessionOpts,
 		);
 	}
 }
@@ -1102,6 +1323,11 @@ class MongoDBTransaction implements Transaction {
 	private committed = false;
 	private rolledBack = false;
 	private aborted = false;
+	/**
+	 * createIndex/dropIndex queued here instead of running immediately — see
+	 * addIndex/dropIndex below for why.
+	 */
+	private pendingIndexOps: Array<() => Promise<void>> = [];
 
 	constructor(session: ClientSession, adapter: MongoDBAdapter, id: string) {
 		this.session = session;
@@ -1196,6 +1422,14 @@ class MongoDBTransaction implements Transaction {
 				cause: error instanceof Error ? error : undefined,
 			});
 		}
+
+		// Run queued createIndex/dropIndex now that the transaction session
+		// that held the collection lock is closed (see addIndex/dropIndex).
+		const ops = this.pendingIndexOps;
+		this.pendingIndexOps = [];
+		for (const op of ops) {
+			await op();
+		}
 	}
 
 	async rollback(): Promise<void> {
@@ -1211,6 +1445,9 @@ class MongoDBTransaction implements Transaction {
 				message: "Transaction already rolled back",
 			});
 		}
+
+		// A rolled-back transaction never applies its queued DDL.
+		this.pendingIndexOps = [];
 
 		try {
 			await this.session.abortTransaction();
@@ -1261,12 +1498,24 @@ class MongoDBTransaction implements Transaction {
 		return this.adapter.alterTable(tableName, operations, this.session);
 	}
 
+	/**
+	 * createIndex/dropIndex are not transaction-safe operations in MongoDB
+	 * either — same reason createTable/dropTable/renameTable run without the
+	 * session above. Unlike those, the runner interleaves index ops with
+	 * other in-tx operations (e.g. alterTable) on the same collection within
+	 * a single migration, so running createIndex immediately deadlocks: it
+	 * waits on the lock the still-open transaction holds, while that
+	 * transaction's commit is waiting for this call to return. Queue the op
+	 * instead and run it once commit() has closed the session.
+	 */
 	async addIndex(tableName: string, index: IndexDefinition): Promise<void> {
-		return this.adapter.addIndex(tableName, index, undefined, this.session);
+		this.pendingIndexOps.push(() => this.adapter.addIndex(tableName, index));
 	}
 
 	async dropIndex(tableName: string, indexName: string): Promise<void> {
-		return this.adapter.dropIndex(tableName, indexName, this.session);
+		this.pendingIndexOps.push(() =>
+			this.adapter.dropIndex(tableName, indexName),
+		);
 	}
 }
 

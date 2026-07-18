@@ -94,9 +94,8 @@ function validateSchemas(schemas: unknown): void {
 		throwConfigFieldType("schemas", "array", schemas);
 	}
 
-	if (schemas.length === 0) {
-		throwConfigEmpty("schemas");
-	}
+	// An empty array is valid: plugin schemas or internal-only setups
+	// (e.g. the _datrix meta table) work without user schemas
 
 	for (let i = 0; i < schemas.length; i++) {
 		const schema = schemas[i];

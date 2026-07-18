@@ -2,17 +2,15 @@
  * MySQL Aggregation Builder
  *
  * Generates JSON aggregation SQL for populate functionality.
- * Uses JSON_ARRAYAGG(), JSON_OBJECT() for MySQL 5.7+/8.0+.
+ * Uses JSON_ARRAYAGG(), JSON_OBJECT() for MySQL 8.0+.
  */
 
 import type {
 	QueryPopulate,
-	OrderByItem,
 	QueryPopulateOptions,
 	QuerySelect,
 } from "@datrix/core";
 import type { DatrixEntry, ISchemaRegistry, RelationField } from "@datrix/core";
-import type { MySQLQueryTranslator } from "../query-translator";
 import { escapeIdentifier } from "../helpers";
 import type { AggregationClause, PopulateFieldSelection } from "./types";
 import {
@@ -24,6 +22,7 @@ import {
 	throwJsonAggregationError,
 	DatrixAdapterError,
 } from "@datrix/core";
+import { resolveJunctionForeignKeys } from "./junction";
 
 /**
  * Aggregation Builder Class
@@ -31,10 +30,7 @@ import {
  * Generates SQL for JSON aggregation in SELECT clause.
  */
 export class AggregationBuilder {
-	constructor(
-		private translator: MySQLQueryTranslator,
-		private schemaRegistry: ISchemaRegistry,
-	) {}
+	constructor(private schemaRegistry: ISchemaRegistry) {}
 
 	/**
 	 * Build all aggregation clauses for a query
@@ -221,13 +217,20 @@ export class AggregationBuilder {
 		const foreignKeyEsc = escapeIdentifier(foreignKey);
 		const relationAlias = escapeIdentifier(relationName);
 
+		// Alias the target table to the relation name so a self-relation
+		// (target table === source table, e.g. department.children ->
+		// department) doesn't shadow the outer correlation: `WHERE
+		// targetTable.foreignKey = department.id` would otherwise resolve
+		// `department` to the subquery's own FROM instead of the outer row.
+		const targetAliasEsc = relationAlias;
+
 		// Build JSON_OBJECT for inner select
 		const jsonObject = this.buildJsonObjectForSubquery(
-			targetTableEsc,
+			targetAliasEsc,
 			fieldSelection,
 		);
 
-		const subquery = `( SELECT COALESCE(JSON_ARRAYAGG(${jsonObject}), JSON_ARRAY()) FROM ${targetTableEsc} WHERE ${targetTableEsc}.${foreignKeyEsc} = ${sourceTableEsc}.\`id\` ) AS ${relationAlias}`;
+		const subquery = `( SELECT COALESCE(JSON_ARRAYAGG(${jsonObject}), JSON_ARRAY()) FROM ${targetTableEsc} AS ${targetAliasEsc} WHERE ${targetAliasEsc}.${foreignKeyEsc} = ${sourceTableEsc}.\`id\` ) AS ${relationAlias}`;
 
 		return subquery;
 	}
@@ -265,23 +268,36 @@ export class AggregationBuilder {
 			throwSchemaNotFound({ adapter: "mysql", modelName: currentModelName });
 		}
 
-		const sourceFK = `${currentSchema.name}Id`;
-		const targetFK = `${relation.model}Id`;
+		// Junction FK column names come from the junction schema (handles
+		// self-referential source/target FK naming)
+		const { sourceFK, targetFK } = resolveJunctionForeignKeys(
+			junctionTable,
+			currentSchema.name,
+			relation.model,
+			this.schemaRegistry,
+		);
 
 		const sourceTableEsc = escapeIdentifier(sourceTable);
-		const targetTableEsc = escapeIdentifier(targetTable);
 		const junctionTableEsc = escapeIdentifier(junctionTable);
 		const sourceFKEsc = escapeIdentifier(sourceFK);
 		const targetFKEsc = escapeIdentifier(targetFK);
 		const relationAlias = escapeIdentifier(relationName);
 
+		// Alias the target table to the relation name (not its bare table
+		// name) so a self-relation (target table === source table, e.g.
+		// person.friends -> person) doesn't shadow the outer correlation:
+		// `WHERE junction.sourceFK = people.id` would otherwise resolve
+		// `people` to the subquery's own FROM instead of the outer row.
+		const targetAliasEsc = relationAlias;
+
 		// Build JSON_OBJECT for inner select
 		const jsonObject = this.buildJsonObjectForSubquery(
-			targetTableEsc,
+			targetAliasEsc,
 			fieldSelection,
 		);
 
-		const subquery = `( SELECT COALESCE(JSON_ARRAYAGG(${jsonObject}), JSON_ARRAY()) FROM ${targetTableEsc} INNER JOIN ${junctionTableEsc} ON ${targetTableEsc}.\`id\` = ${junctionTableEsc}.${targetFKEsc} WHERE ${junctionTableEsc}.${sourceFKEsc} = ${sourceTableEsc}.\`id\` ) AS ${relationAlias}`;
+		const targetTableEsc = escapeIdentifier(targetTable);
+		const subquery = `( SELECT COALESCE(JSON_ARRAYAGG(${jsonObject}), JSON_ARRAY()) FROM ${targetTableEsc} AS ${targetAliasEsc} INNER JOIN ${junctionTableEsc} ON ${targetAliasEsc}.\`id\` = ${junctionTableEsc}.${targetFKEsc} WHERE ${junctionTableEsc}.${sourceFKEsc} = ${sourceTableEsc}.\`id\` ) AS ${relationAlias}`;
 
 		return subquery;
 	}
@@ -303,191 +319,6 @@ export class AggregationBuilder {
 			.join(", ");
 
 		return `JSON_OBJECT(${jsonPairs})`;
-	}
-
-	/**
-	 * Build LATERAL subquery for complex populate options (MySQL 8.0.14+)
-	 */
-	buildLateralSubquery<T extends DatrixEntry>(
-		sourceTable: string,
-		relationName: string,
-		relation: RelationField,
-		options: QueryPopulateOptions<T>,
-	): string {
-		// Get target schema
-		const targetSchema = this.schemaRegistry.get(relation.model);
-		if (!targetSchema) {
-			throwTargetModelNotFound({
-				adapter: "mysql",
-				targetModel: relation.model,
-				relationName,
-				schemaName: sourceTable,
-			});
-		}
-
-		const targetTable = targetSchema.tableName ?? relation.model.toLowerCase();
-		const foreignKey = relation.foreignKey!;
-
-		const sourceTableEsc = escapeIdentifier(sourceTable);
-		const targetTableEsc = escapeIdentifier(targetTable);
-		const foreignKeyEsc = escapeIdentifier(foreignKey);
-		const relationAlias = escapeIdentifier(`${relationName}_data`);
-
-		// Build field selection
-		const fieldSelection = this.buildFieldSelection(
-			relationName,
-			relation,
-			options,
-		);
-
-		// Build JSON_OBJECT
-		const jsonObject = this.buildJsonObjectForSubquery(
-			targetTableEsc,
-			fieldSelection,
-		);
-
-		// Build WHERE clause
-		const whereConditions: string[] = [];
-
-		// FK condition
-		if (relation.kind === "belongsTo") {
-			whereConditions.push(
-				`${targetTableEsc}.\`id\` = ${sourceTableEsc}.${foreignKeyEsc}`,
-			);
-		} else {
-			whereConditions.push(
-				`${targetTableEsc}.${foreignKeyEsc} = ${sourceTableEsc}.\`id\``,
-			);
-		}
-
-		// Additional WHERE conditions from options
-		if (options.where) {
-			const whereResult = this.translator.translateWhere(options.where, 1);
-			whereConditions.push(`(${whereResult.sql})`);
-		}
-
-		const whereClause = whereConditions.join(" AND ");
-
-		// Build ORDER BY
-		let orderByClause = "";
-		if (options.orderBy && options.orderBy.length > 0) {
-			orderByClause = `ORDER BY ${this.buildOrderBy(options.orderBy as unknown as readonly OrderByItem<DatrixEntry>[])}`;
-		}
-
-		// Build LIMIT/OFFSET
-		let limitClause = "";
-		if (options.limit !== undefined) {
-			limitClause = `LIMIT ${options.limit}`;
-		}
-
-		let offsetClause = "";
-		if (options.offset !== undefined) {
-			offsetClause = `OFFSET ${options.offset}`;
-		}
-
-		// Determine aggregation type
-		const isArray =
-			relation.kind === "hasMany" || relation.kind === "manyToMany";
-		const aggregationFunc = isArray ? "JSON_ARRAYAGG" : "";
-
-		// Build subquery
-		let subquery: string;
-		if (isArray) {
-			subquery = `LEFT JOIN LATERAL ( SELECT ${aggregationFunc}(${jsonObject}) as data FROM ${targetTableEsc} WHERE ${whereClause} ${orderByClause} ${limitClause} ${offsetClause} ) ${relationAlias} ON TRUE`;
-		} else {
-			subquery = `LEFT JOIN LATERAL ( SELECT ${jsonObject} as data FROM ${targetTableEsc} WHERE ${whereClause} ${orderByClause} LIMIT 1 ) ${relationAlias} ON TRUE`;
-		}
-
-		return subquery.trim().replace(/\s+/g, " ");
-	}
-
-	/**
-	 * Build LATERAL subquery for manyToMany with options
-	 */
-	buildManyToManyLateralSubquery<T extends DatrixEntry>(
-		sourceTable: string,
-		relationName: string,
-		relation: RelationField,
-		options: QueryPopulateOptions<T>,
-	): string {
-		// Get schemas
-		const targetSchema = this.schemaRegistry.get(relation.model);
-		if (!targetSchema) {
-			throwTargetModelNotFound({
-				adapter: "mysql",
-				targetModel: relation.model,
-				relationName,
-				schemaName: sourceTable,
-			});
-		}
-
-		const targetTable = targetSchema.tableName ?? relation.model.toLowerCase();
-		const junctionTable = relation.through!;
-
-		const currentModelName =
-			this.schemaRegistry.findModelByTableName(sourceTable);
-		if (!currentModelName) {
-			throwModelNotFound({ adapter: "mysql", table: sourceTable });
-		}
-
-		const currentSchema = this.schemaRegistry.get(currentModelName);
-		if (!currentSchema) {
-			throwSchemaNotFound({ adapter: "mysql", modelName: currentModelName });
-		}
-
-		// Foreign keys
-		const sourceFK = `${currentSchema.name}Id`;
-		const targetFK = `${relation.model}Id`;
-
-		// Escape identifiers
-		const sourceTableEsc = escapeIdentifier(sourceTable);
-		const junctionTableEsc = escapeIdentifier(junctionTable);
-		const targetTableEsc = escapeIdentifier(targetTable);
-		const sourceFKEsc = escapeIdentifier(sourceFK);
-		const targetFKEsc = escapeIdentifier(targetFK);
-		const relationAlias = escapeIdentifier(`${relationName}_data`);
-
-		// Build field selection
-		const fieldSelection = this.buildFieldSelection(
-			relationName,
-			relation,
-			options,
-		);
-
-		// Build JSON_OBJECT
-		const jsonObject = this.buildJsonObjectForSubquery(
-			targetTableEsc,
-			fieldSelection,
-		);
-
-		// Build WHERE for target table
-		let targetWhereClause = "";
-		if (options.where) {
-			const whereResult = this.translator.translateWhere(options.where, 1);
-			targetWhereClause = `AND ${whereResult.sql}`;
-		}
-
-		// Build ORDER BY
-		let orderByClause = "";
-		if (options.orderBy && options.orderBy.length > 0) {
-			orderByClause = `ORDER BY ${this.buildOrderBy(options.orderBy as unknown as readonly OrderByItem<DatrixEntry>[])}`;
-		}
-
-		// Build LIMIT/OFFSET
-		let limitClause = "";
-		if (options.limit !== undefined) {
-			limitClause = `LIMIT ${options.limit}`;
-		}
-
-		let offsetClause = "";
-		if (options.offset !== undefined) {
-			offsetClause = `OFFSET ${options.offset}`;
-		}
-
-		// Build subquery with junction join
-		const subquery = `LEFT JOIN LATERAL ( SELECT JSON_ARRAYAGG(${jsonObject}) as data FROM ${targetTableEsc} INNER JOIN ${junctionTableEsc} ON ${targetTableEsc}.\`id\` = ${junctionTableEsc}.${targetFKEsc} WHERE ${junctionTableEsc}.${sourceFKEsc} = ${sourceTableEsc}.\`id\` ${targetWhereClause} ${orderByClause} ${limitClause} ${offsetClause} ) ${relationAlias} ON TRUE`;
-
-		return subquery.trim().replace(/\s+/g, " ");
 	}
 
 	/**
@@ -526,29 +357,6 @@ export class AggregationBuilder {
 			fields: fields as unknown as QuerySelect,
 			sql: fieldSQL,
 		};
-	}
-
-	/**
-	 * Build ORDER BY clause
-	 * Note: MySQL doesn't support NULLS FIRST/LAST natively
-	 */
-	private buildOrderBy<T extends DatrixEntry>(
-		orderBy: readonly OrderByItem<T>[],
-	): string {
-		return orderBy
-			.map((item) => {
-				const field = escapeIdentifier(item.field as string);
-				const direction = item.direction.toUpperCase();
-
-				if (item.nulls) {
-					// MySQL workaround for NULLS FIRST/LAST
-					const nullsFirst = item.nulls.toUpperCase() === "FIRST";
-					return `CASE WHEN ${field} IS NULL THEN ${nullsFirst ? 0 : 1} ELSE ${nullsFirst ? 1 : 0} END, ${field} ${direction}`;
-				}
-
-				return `${field} ${direction}`;
-			})
-			.join(", ");
 	}
 
 	/**

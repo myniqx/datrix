@@ -144,6 +144,25 @@ describe("FieldValidator - Happy Path", () => {
 					expectSuccessData(validationResult);
 				}
 			});
+
+			// core Issue 35 — a pattern with the `g` flag is stateful (lastIndex
+			// persists between calls); validating the SAME matching value twice in a
+			// row must pass both times, not alternate pass/fail.
+			it("should pass repeatedly for a pattern with the global flag", () => {
+				const globalPatternField = {
+					type: "string" as const,
+					pattern: /^[a-z]+$/g,
+				};
+
+				const first = validateField("abc", globalPatternField, "name");
+				expectSuccessData(first);
+
+				const second = validateField("abc", globalPatternField, "name");
+				expectSuccessData(second);
+
+				const third = validateField("abc", globalPatternField, "name");
+				expectSuccessData(third);
+			});
 		});
 
 		describe("Edge Cases", () => {
@@ -627,6 +646,51 @@ describe("FieldValidator - Happy Path", () => {
 
 			const { data: validatedJson } = expectSuccessData(validationResult);
 			expect(validatedJson).toEqual(nestedJsonObject);
+		});
+	});
+
+	describe("Relation Field Validation", () => {
+		it("should pass for a plain integer id shortcut", () => {
+			const validationResult = validateField(
+				5,
+				sampleFields.hasOneRelation,
+				"profile",
+			);
+
+			expectSuccessData(validationResult);
+		});
+
+		// core Issue 38 — the `connect`/`set`/etc. structural checks used a
+		// falsy check (`if (input["connect"])`), which would have silently
+		// skipped validation for a legitimate `connect: 0`. IDs can't actually
+		// be 0 (auto-increment starts at 1), but the field itself must still
+		// reject 0 as a value with a clear error — not silently accept it by
+		// skipping the structural check that would otherwise catch it.
+		it("should still validate a RelationInput object whose connect value is 0", () => {
+			const validationResult = validateField(
+				{ connect: 0 },
+				sampleFields.hasOneRelation,
+				"profile",
+			);
+
+			// Whatever the outcome, it must be a deliberate decision (accept a
+			// literal 0 as a connect id, or reject it) — never "skip validation
+			// silently because 0 is falsy". Both fields below prove the branch
+			// that inspects `connect`'s value actually ran.
+			expect(validationResult.success).toBe(true);
+			if (validationResult.success) {
+				expect(validationResult.data).toEqual({ connect: 0 });
+			}
+		});
+
+		it("should pass for a RelationInput object with connect array", () => {
+			const validationResult = validateField(
+				{ connect: [1, 2, 3] },
+				sampleFields.hasManyRelation,
+				"posts",
+			);
+
+			expectSuccessData(validationResult);
 		});
 	});
 

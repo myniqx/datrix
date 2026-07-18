@@ -7,17 +7,9 @@
 
 import { describe, it, expect } from "vitest";
 import { parsePopulate } from "../../src/parser/populate-parser";
-import { RawQueryParams } from "../../../types/src/api/parser";
-import { parserTestData } from "../../../types/src/test/fixtures";
-
-const expectFailureError = (result: () => any) => {
-	try {
-		const value = result();
-		return value;
-	} catch (error) {
-		return error;
-	}
-};
+import { RawQueryParams } from "../../../core/src/types/api/parser";
+import { parserTestData } from "../../../core/tests/test/fixtures";
+import { expectFailureError } from "../../../core/tests/test/helpers";
 
 describe("PopulateParser - Error Path", () => {
 	describe("Max depth exceeded", () => {

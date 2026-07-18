@@ -42,6 +42,8 @@ import {
 	handleSelect,
 	handleUpdate,
 } from "./query-handlers";
+import { isInTransactionContext } from "./tx-context";
+import { atomicWriteFile } from "./fs-utils";
 
 /**
  * JSON File Adapter
@@ -72,6 +74,26 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 	 * Prevents fallback to main cache or disk for dropped tables.
 	 */
 	private activeTransactionDeletedTables: Set<string> | null = null;
+
+	/**
+	 * Resolvers waiting for the current transaction to end (commit/rollback),
+	 * so `beginTransaction` can queue instead of throwing when one is already
+	 * active.
+	 */
+	private transactionEndWaiters: Array<() => void> = [];
+
+	/**
+	 * In-memory index over `_datrix`: modelName -> tableName and
+	 * tableName -> SchemaDefinition. Avoids a `fs.readdir` + full linear scan
+	 * of `_datrix.data` on every `getSchemaByModelName` call (previously
+	 * repeated per-row inside insert/delete loops — see issue.md Part 7).
+	 * Rebuilt lazily whenever `_datrix`'s cache entry mtime changes.
+	 */
+	private schemaIndex: {
+		mtime: number;
+		byModel: Map<string, string>;
+		byTable: Map<string, SchemaDefinition>;
+	} | null = null;
 
 	constructor(config: JsonAdapterConfig) {
 		this.config = config;
@@ -119,6 +141,10 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 	}
 
 	async disconnect(): Promise<void> {
+		if (this.activeTransactionCache) {
+			await this.rollbackTransaction();
+		}
+		this.cache.clear();
 		this.state = "disconnected";
 	}
 
@@ -141,25 +167,32 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 	 * Read table with cache support
 	 *
 	 * Cache lookup order:
-	 * 1. Check tombstone (if transaction active and table was dropped)
-	 * 2. Transaction cache (if active)
+	 * 1. Check tombstone (if transaction active AND this call is part of it)
+	 * 2. Transaction cache (if active AND this call is part of it)
 	 * 3. Main cache (with mtime validation)
 	 * 4. Disk
 	 *
-	 * When transaction is active, new reads are cached in transaction cache.
-	 * This ensures isolation - transaction sees its own writes.
+	 * Only calls originating from the active `JsonTransaction` (tracked via
+	 * `isInTransactionContext()`) see the transaction cache/tombstones. Plain
+	 * `executeQuery` calls made while a transaction is in progress always read
+	 * main cache/disk, so they never dirty-read uncommitted transaction state.
 	 */
 	private async readTable(tableName: string): Promise<JsonTableFile> {
 		const filePath = this.getTablePath(tableName);
+		const useTxCache = this.activeTransactionCache && isInTransactionContext();
 
 		// 1. Check tombstone first - table was dropped in this transaction
-		if (this.activeTransactionDeletedTables?.has(tableName)) {
-			throw new Error(`Table '${tableName}' does not exist`);
+		if (useTxCache && this.activeTransactionDeletedTables?.has(tableName)) {
+			throwMigrationError({
+				adapter: "json",
+				message: `Table '${tableName}' does not exist`,
+				table: tableName,
+			});
 		}
 
-		// 2. Check transaction cache (if transaction active)
-		if (this.activeTransactionCache) {
-			const txCached = this.activeTransactionCache.get(tableName);
+		// 2. Check transaction cache (if this call is part of the transaction)
+		if (useTxCache) {
+			const txCached = this.activeTransactionCache!.get(tableName);
 			if (txCached) {
 				return txCached.data;
 			}
@@ -172,11 +205,11 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 
 			const cached = this.cache.get(tableName);
 			if (cached && cached.mtime === mtime) {
-				// If transaction active, copy to tx cache for isolation
-				if (this.activeTransactionCache) {
+				// If this call is part of the transaction, copy to tx cache for isolation
+				if (useTxCache) {
 					// Deep copy to prevent mutation of main cache
 					const txData = JSON.parse(JSON.stringify(cached.data));
-					this.activeTransactionCache.set(tableName, { data: txData, mtime });
+					this.activeTransactionCache!.set(tableName, { data: txData, mtime });
 					return txData;
 				}
 				return cached.data;
@@ -187,8 +220,8 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 			const data: JsonTableFile = JSON.parse(content);
 
 			// Store in appropriate cache
-			if (this.activeTransactionCache) {
-				this.activeTransactionCache.set(tableName, { data, mtime });
+			if (useTxCache) {
+				this.activeTransactionCache!.set(tableName, { data, mtime });
 			} else {
 				this.cache.set(tableName, { data, mtime });
 			}
@@ -213,8 +246,8 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 	}
 
 	/**
-	 * Get schema directly from table file (cache-aware)
-	 * This is faster than going through Datrix registry and ensures consistency
+	 * Get schema directly from table file (cache-aware). Uses the in-memory
+	 * `_datrix` index (see `getSchemaIndex`) instead of a linear scan.
 	 *
 	 * @param tableName - Table name (e.g., "users")
 	 * @returns Schema definition or null if not found
@@ -223,16 +256,16 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		tableName: string,
 	): Promise<SchemaDefinition | null> {
 		try {
-			return await this.readTableSchema(tableName);
+			const index = await this.getSchemaIndex();
+			return index.byTable.get(tableName) ?? null;
 		} catch {
 			return null;
 		}
 	}
 
 	/**
-	 * Get schema by model name
-	 * Requires scanning all tables to find matching schema.name
-	 * Prefer getSchemaByTableName when table name is known (faster)
+	 * Get schema by model name. Uses the in-memory `_datrix` index (O(1) after
+	 * the first build) instead of `fs.readdir` + a full linear scan per call.
 	 *
 	 * @param modelName - Model name from schema (e.g., "User")
 	 * @returns Schema definition or null if not found
@@ -241,18 +274,54 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		modelName: string,
 	): Promise<SchemaDefinition | null> {
 		try {
-			const tablesResult = await this.getTables();
-
-			for (const tableName of tablesResult) {
-				const schema = await this.getSchemaByTableName(tableName);
-				if (schema?.name === modelName) {
-					return schema;
-				}
-			}
-			return null;
+			const index = await this.getSchemaIndex();
+			const tableName = index.byModel.get(modelName);
+			return tableName ? (index.byTable.get(tableName) ?? null) : null;
 		} catch {
 			return null;
 		}
+	}
+
+	/**
+	 * Build (or reuse, if `_datrix` hasn't changed) the modelName/tableName
+	 * schema index described on `schemaIndex`.
+	 */
+	private async getSchemaIndex(): Promise<{
+		mtime: number;
+		byModel: Map<string, string>;
+		byTable: Map<string, SchemaDefinition>;
+	}> {
+		const metaFile = await this.readTable(DATRIX_META_MODEL);
+		// readTable doesn't expose the mtime it used, so re-derive a cheap
+		// version marker from the meta file's own `updatedAt` — it's bumped on
+		// every _datrix write (upsertSchemaMeta/dropTable/renameTable/alterTable).
+		const version = Date.parse(metaFile.meta.updatedAt) || 0;
+
+		if (this.schemaIndex && this.schemaIndex.mtime === version) {
+			return this.schemaIndex;
+		}
+
+		const byModel = new Map<string, string>();
+		const byTable = new Map<string, SchemaDefinition>();
+
+		for (const r of metaFile.data) {
+			const record = r as Record<string, unknown>;
+			const key = record["key"];
+			if (typeof key !== "string" || !key.startsWith(DATRIX_META_KEY_PREFIX)) {
+				continue;
+			}
+			const tableName = key.slice(DATRIX_META_KEY_PREFIX.length);
+			try {
+				const schema = JSON.parse(record["value"] as string) as SchemaDefinition;
+				byTable.set(tableName, schema);
+				byModel.set(schema.name, tableName);
+			} catch {
+				// Corrupt schema entry — skip it, don't fail the whole index build
+			}
+		}
+
+		this.schemaIndex = { mtime: version, byModel, byTable };
+		return this.schemaIndex;
 	}
 
 	/**
@@ -279,7 +348,11 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 			(r) => (r as Record<string, unknown>)["key"] === metaKey,
 		);
 		if (!row) {
-			throw new Error(`Schema for '${tableName}' not found in _datrix`);
+			throwMigrationError({
+				adapter: "json",
+				message: `Schema for '${tableName}' not found in _datrix`,
+				table: tableName,
+			});
 		}
 		return JSON.parse(
 			(row as Record<string, unknown>)["value"] as string,
@@ -324,7 +397,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 			this.activeTransactionModifiedTables!.add(DATRIX_META_MODEL);
 		} else {
 			const filePath = this.getTablePath(DATRIX_META_MODEL);
-			await fs.writeFile(filePath, JSON.stringify(metaFile, null, 2), "utf-8");
+			await atomicWriteFile(filePath, JSON.stringify(metaFile, null, 2));
 			await this.updateCache(DATRIX_META_MODEL, metaFile);
 		}
 	}
@@ -407,6 +480,15 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 	 */
 	private invalidateCache(tableName: string): void {
 		this.cache.delete(tableName);
+	}
+
+	/**
+	 * Drop the entire in-memory cache. Used by the importer after swapping in
+	 * a full staging-directory import — table files on disk have all changed
+	 * out from under any per-table cache entries.
+	 */
+	clearCache(): void {
+		this.cache.clear();
 	}
 
 	/**
@@ -527,11 +609,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		} else {
 			// Normal mode: write to disk and update cache
 			const filePath = this.getTablePath(tableName);
-			await fs.writeFile(
-				filePath,
-				JSON.stringify(initialContent, null, 2),
-				"utf-8",
-			);
+			await atomicWriteFile(filePath, JSON.stringify(initialContent, null, 2));
 			await this.updateCache(tableName, initialContent);
 		}
 
@@ -605,7 +683,18 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		} else {
 			// Normal mode: delete from disk
 			const filePath = this.getTablePath(tableName);
-			await fs.unlink(filePath);
+			try {
+				await fs.unlink(filePath);
+			} catch (err) {
+				if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+					throwMigrationError({
+						adapter: "json",
+						message: `Failed to delete table '${tableName}': ${err instanceof Error ? err.message : String(err)}`,
+						table: tableName,
+						cause: err instanceof Error ? err : new Error(String(err)),
+					});
+				}
+			}
 			this.invalidateCache(tableName);
 		}
 
@@ -627,11 +716,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 				this.activeTransactionModifiedTables!.add(DATRIX_META_MODEL);
 			} else {
 				const filePath = this.getTablePath(DATRIX_META_MODEL);
-				await fs.writeFile(
-					filePath,
-					JSON.stringify(metaFile, null, 2),
-					"utf-8",
-				);
+				await atomicWriteFile(filePath, JSON.stringify(metaFile, null, 2));
 				await this.updateCache(DATRIX_META_MODEL, metaFile);
 			}
 		}
@@ -694,10 +779,15 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 			try {
 				tableData = await this.readTable(query.table);
 			} catch (err) {
-				if (lockAcquired) await this.lock.release();
+				const message =
+					err instanceof Error && err.name === "SyntaxError"
+						? `Table file '${query.table}.json' is corrupted: ${err.message}`
+						: err instanceof Error && (err as NodeJS.ErrnoException).code === "ENOENT"
+							? `Table '${query.table}' not found`
+							: `Failed to read table '${query.table}': ${err instanceof Error ? err.message : String(err)}`;
 				throwQueryError({
 					adapter: "json",
-					message: `Table '${query.table}' not found`,
+					message,
 					query: query as QueryObject,
 					cause: err instanceof Error ? err : new Error(String(err)),
 				});
@@ -708,6 +798,18 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 				tableData!.data = [];
 			}
 
+			// Copy-at-boundary for write ops: mutate a copy, not the cache's own
+			// table object. The copy is only swapped into the cache after a
+			// successful disk write (see issue.md Part 2) — a failed write
+			// leaves the cache exactly as it was.
+			const isWriteOp = ["insert", "update", "delete"].includes(query.type);
+			const workingTableData = isWriteOp
+				? ({
+						meta: { ...tableData!.meta },
+						data: tableData!.data.map((row) => ({ ...row })),
+					} as JsonTableFile<Record<string, unknown>>)
+				: tableData!;
+
 			// Load schema from _datrix for this table (transaction-aware)
 			let tableSchema: SchemaDefinition | undefined;
 			try {
@@ -716,20 +818,13 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 				// Schema not found in _datrix — proceed without it
 			}
 
-			const runner = new JsonQueryRunner(tableData!, this, tableSchema);
+			const runner = new JsonQueryRunner(workingTableData, this, tableSchema);
 
-			let handlerResult: Awaited<ReturnType<typeof handleSelect>>;
+			let handlerResult: Awaited<ReturnType<typeof handleSelect>> | undefined;
 
 			switch (query.type) {
 				case "count":
 					handlerResult = await handleCount({ runner, query });
-					if (handlerResult.earlyReturn) {
-						if (lockAcquired) await this.lock.release();
-						return {
-							rows: [] as TResult[],
-							metadata: handlerResult.metadata,
-						};
-					}
 					break;
 				case "select":
 					handlerResult = await handleSelect({ runner, query, adapter: this });
@@ -750,41 +845,51 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 					break;
 			}
 
+			if (handlerResult!.earlyReturn) {
+				return {
+					rows: [] as TResult[],
+					metadata: handlerResult!.metadata,
+				};
+			}
+
 			const rows = handlerResult!.rows as TResult[];
 			const metadata = handlerResult!.metadata;
 			const shouldWrite = handlerResult!.shouldWrite;
 
 			// Handle write
 			if (shouldWrite) {
+				workingTableData.meta.updatedAt = new Date().toISOString();
+
 				if (skipWrite) {
-					// Transaction mode: track modified table, don't write to disk
-					if (this.activeTransactionModifiedTables) {
+					// Transaction mode: commit the mutated copy into the tx cache
+					// (not the disk) — the transaction will write on commit.
+					if (this.activeTransactionCache && this.activeTransactionModifiedTables) {
+						this.activeTransactionCache.set(query.table, {
+							data: workingTableData,
+							mtime: Date.now(),
+						});
 						this.activeTransactionModifiedTables.add(query.table);
 					}
 				} else {
-					// Normal mode: write to disk immediately
-					tableData!.meta.updatedAt = new Date().toISOString();
+					// Normal mode: write the mutated copy to disk, then swap it
+					// into the cache — a failed write never touches the cache.
 					const filePath = this.getTablePath(query.table);
-					await fs.writeFile(
+					await atomicWriteFile(
 						filePath,
-						JSON.stringify(tableData, null, 2),
-						"utf-8",
+						JSON.stringify(workingTableData, null, 2),
 					);
-					await this.updateCache(query.table, tableData!);
+					await this.updateCache(query.table, workingTableData);
 				}
 			}
 
 			metadata.rowCount = rows.length;
 
-			if (lockAcquired) await this.lock.release();
-
 			return {
 				rows: rows as TResult[],
 				metadata,
 			};
-		} catch (error) {
+		} finally {
 			if (lockAcquired) await this.lock.release();
-			throw error;
 		}
 	}
 
@@ -799,22 +904,64 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 	}
 
 	/**
+	 * Wait for the currently active transaction (if any) to commit/rollback,
+	 * up to `lockTimeout`. Throws if the timeout elapses first.
+	 */
+	private async waitForCurrentTransaction(): Promise<void> {
+		if (!this.activeTransactionCache) return;
+
+		const timeout = this.config.lockTimeout ?? 5000;
+
+		await new Promise<void>((resolve, reject) => {
+			const timer = setTimeout(() => {
+				const idx = this.transactionEndWaiters.indexOf(onEnd);
+				if (idx >= 0) this.transactionEndWaiters.splice(idx, 1);
+				reject(
+					new DatrixAdapterError(
+						"Timed out waiting for the active transaction to end",
+						{
+							adapter: "json",
+							code: "ADAPTER_TRANSACTION_ERROR",
+							operation: "transaction",
+						},
+					),
+				);
+			}, timeout);
+
+			const onEnd = (): void => {
+				clearTimeout(timer);
+				resolve();
+			};
+
+			this.transactionEndWaiters.push(onEnd);
+		});
+
+		// The slot may have been re-claimed by another waiter between the
+		// notification and our wake-up — keep waiting until it's actually free.
+		await this.waitForCurrentTransaction();
+	}
+
+	private notifyTransactionEnded(): void {
+		const waiters = this.transactionEndWaiters;
+		this.transactionEndWaiters = [];
+		for (const waiter of waiters) waiter();
+	}
+
+	/**
 	 * Begin a new transaction
 	 *
 	 * Acquires lock and creates isolated transaction cache.
 	 * All reads/writes within transaction use txCache.
+	 *
+	 * If another transaction is already active, waits for it to end
+	 * (commit/rollback) instead of throwing, up to `lockTimeout`.
 	 */
 	async beginTransaction(): Promise<Transaction> {
 		if (!this.isConnected()) {
 			throwNotConnected({ adapter: "json" });
 		}
 
-		if (this.activeTransactionCache) {
-			throwTransactionError({
-				adapter: "json",
-				message: "A transaction is already active",
-			});
-		}
+		await this.waitForCurrentTransaction();
 
 		try {
 			// Acquire lock for entire transaction duration
@@ -885,11 +1032,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 					// Write to disk
 					entry.data.meta.updatedAt = new Date().toISOString();
 					const filePath = this.getTablePath(tableName);
-					await fs.writeFile(
-						filePath,
-						JSON.stringify(entry.data, null, 2),
-						"utf-8",
-					);
+					await atomicWriteFile(filePath, JSON.stringify(entry.data, null, 2));
 
 					// Update mtime and merge to main cache
 					const stat = await fs.stat(filePath);
@@ -903,6 +1046,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 			this.activeTransactionModifiedTables = null;
 			this.activeTransactionDeletedTables = null;
 			await this.lock.release();
+			this.notifyTransactionEnded();
 		}
 	}
 
@@ -916,6 +1060,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		this.activeTransactionModifiedTables = null;
 		this.activeTransactionDeletedTables = null;
 		await this.lock.release();
+		this.notifyTransactionEnded();
 	}
 
 	async alterTable(
@@ -991,7 +1136,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		} else {
 			// Normal mode: write to disk
 			const filePath = this.getTablePath(tableName);
-			await fs.writeFile(filePath, JSON.stringify(json, null, 2), "utf-8");
+			await atomicWriteFile(filePath, JSON.stringify(json, null, 2));
 			await this.updateCache(tableName, json);
 		}
 
@@ -1077,22 +1222,51 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 			// Normal mode: rename file on disk
 			const fromPath = this.getTablePath(from);
 			const toPath = this.getTablePath(to);
-			await fs.writeFile(toPath, JSON.stringify(json, null, 2), "utf-8");
+			await atomicWriteFile(toPath, JSON.stringify(json, null, 2));
 			await fs.unlink(fromPath);
 			this.invalidateCache(from);
 			await this.updateCache(to, json);
 		}
 
-		// Update key in _datrix
+		// Update key + schema content in _datrix, and fix up any FK references
+		// in OTHER schemas that pointed at the renamed table.
 		if (from !== DATRIX_META_MODEL && to !== DATRIX_META_MODEL) {
 			const oldKey = `${DATRIX_META_KEY_PREFIX}${from}`;
 			const newKey = `${DATRIX_META_KEY_PREFIX}${to}`;
 			const metaFile = await this.readTable(DATRIX_META_MODEL);
-			const row = metaFile.data.find(
-				(r) => (r as Record<string, unknown>)["key"] === oldKey,
-			);
-			if (row) {
-				(row as Record<string, unknown>)["key"] = newKey;
+			let metaChanged = false;
+
+			for (const r of metaFile.data) {
+				const record = r as Record<string, unknown>;
+				const key = record["key"];
+				if (typeof key !== "string" || !key.startsWith(DATRIX_META_KEY_PREFIX)) {
+					continue;
+				}
+
+				let schema = JSON.parse(record["value"] as string) as SchemaDefinition;
+				let schemaChanged = false;
+
+				if (key === oldKey) {
+					record["key"] = newKey;
+					schema = { ...schema, tableName: to };
+					schemaChanged = true;
+				}
+
+				for (const field of Object.values(schema.fields)) {
+					const ref = (field as { references?: { table: string } }).references;
+					if (ref?.table === from) {
+						(ref as { table: string }).table = to;
+						schemaChanged = true;
+					}
+				}
+
+				if (schemaChanged) {
+					record["value"] = JSON.stringify(schema);
+					metaChanged = true;
+				}
+			}
+
+			if (metaChanged) {
 				metaFile.meta.updatedAt = new Date().toISOString();
 
 				if (skipWrite) {
@@ -1103,11 +1277,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 					this.activeTransactionModifiedTables!.add(DATRIX_META_MODEL);
 				} else {
 					const metaPath = this.getTablePath(DATRIX_META_MODEL);
-					await fs.writeFile(
-						metaPath,
-						JSON.stringify(metaFile, null, 2),
-						"utf-8",
-					);
+					await atomicWriteFile(metaPath, JSON.stringify(metaFile, null, 2));
 					await this.updateCache(DATRIX_META_MODEL, metaFile);
 				}
 			}
@@ -1149,7 +1319,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 		const files = await fs.readdir(this.config.root);
 		const tables = files
 			.filter((f) => f.endsWith(".json"))
-			.map((f) => f.replace(".json", ""));
+			.map((f) => f.slice(0, -".json".length));
 		return tables;
 	}
 

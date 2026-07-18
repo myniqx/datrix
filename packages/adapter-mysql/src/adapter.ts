@@ -15,7 +15,7 @@ import { createPool } from "mysql2/promise";
 
 import { MySQLQueryTranslator } from "./query-translator";
 import { MySQLPopulator } from "./populate";
-import { MySQLClient } from "./mysql-client";
+import { MySQLClient, mysqlCodeToAdapterCode } from "./mysql-client";
 import { MySQLExporter } from "./export-import/exporter";
 import { MySQLImporter } from "./export-import/importer";
 import { ExportWriter, ImportReader } from "@datrix/core";
@@ -27,6 +27,7 @@ import {
 	AlterOperation,
 	ConnectionState,
 	DatabaseAdapter,
+	GroupCountData,
 	QueryMetadata,
 	QueryResult,
 	Transaction,
@@ -51,7 +52,12 @@ import {
 	SchemaDefinition,
 } from "@datrix/core";
 import { DATRIX_META_MODEL, DATRIX_META_KEY_PREFIX } from "@datrix/core";
-import { escapeIdentifier, escapeValue } from "./helpers";
+import {
+	escapeIdentifier,
+	escapeValue,
+	mapReferentialAction,
+	clampGeneratedIdentifier,
+} from "./helpers";
 
 /**
  * MySQL adapter implementation
@@ -76,6 +82,10 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 
 	getTranslator(): MySQLQueryTranslator {
 		return this._translator!;
+	}
+
+	getSchemaRegistry(): ISchemaRegistry {
+		return this._schemas!;
 	}
 
 	/**
@@ -104,6 +114,10 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 				connectTimeout: this.config.connectTimeout ?? 10000,
 				charset: this.config.charset ?? "utf8mb4",
 				timezone: this.config.timezone ?? "local",
+				// DECIMAL columns come back as JS numbers, not strings.
+				// Values beyond 2^53 lose precision — acceptable, core assumes
+				// JS numbers everywhere.
+				decimalNumbers: true,
 			};
 
 			// Add SSL config if provided
@@ -212,7 +226,8 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 				);
 				const joinClause =
 					whereResult.joins.length > 0 ? ` ${whereResult.joins.join(" ")}` : "";
-				const idSelectSQL = `SELECT ${escapedTable}.\`id\` FROM ${escapedTable}${joinClause} WHERE ${whereResult.sql}`;
+				// DISTINCT: relation-WHERE joins (hasMany/manyToMany) multiply rows
+				const idSelectSQL = `SELECT DISTINCT ${escapedTable}.\`id\` FROM ${escapedTable}${joinClause} WHERE ${whereResult.sql}`;
 				const [idRows] = await client.execute(
 					idSelectSQL,
 					whereResult.params as unknown[],
@@ -251,6 +266,35 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 				rows = [];
 			} else if (query.type === "count") {
 				const countRows = result as RowDataPacket[];
+
+				if (query.groupBy && query.groupBy.length > 0) {
+					// Group fields go through the same TINYINT(1)/JSON/date
+					// conversion as any other row — MySQL has no boolean type, so
+					// without this an `isActive` group column would still come
+					// back as 0/1 instead of false/true.
+					const convertedRows = this.convertMySQLTypes(
+						countRows as unknown as readonly DatrixEntry[],
+						query.table,
+					);
+					const countMany: GroupCountData[] = convertedRows.map((row) => {
+						const { count, ...groupFields } = row as unknown as Record<
+							string,
+							unknown
+						>;
+						return {
+							...groupFields,
+							count:
+								typeof count === "string" ? parseInt(count, 10) : (count as number),
+						};
+					});
+					const metadata: QueryMetadata = {
+						rowCount: 0,
+						affectedRows: 0,
+						countMany,
+					};
+					return { rows: [] as unknown as readonly TResult[], metadata };
+				}
+
 				const countValue = countRows[0]?.["count"];
 				const count =
 					typeof countValue === "string"
@@ -341,10 +385,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 		};
 
 		// Map specific MySQL error codes to Datrix error codes
-		let datrixCode = "ADAPTER_QUERY_ERROR";
-		if (mysqlError.errno === 1062 || mysqlError.code === "ER_DUP_ENTRY") {
-			datrixCode = "ADAPTER_UNIQUE_CONSTRAINT";
-		}
+		const datrixCode = mysqlCodeToAdapterCode(mysqlError.code);
 
 		return new DatrixAdapterError(`Query execution failed: ${message}`, {
 			adapter: "mysql",
@@ -414,7 +455,15 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 
 		try {
 			const connection = await this.pool!.getConnection();
-			await connection.beginTransaction();
+
+			try {
+				await connection.beginTransaction();
+			} catch (error) {
+				// Release the acquired connection before rethrowing — otherwise
+				// every failed BEGIN leaks a pooled connection
+				connection.release();
+				throw error;
+			}
 
 			const transaction = new MySQLTransaction(
 				connection,
@@ -460,7 +509,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 
 		try {
 			const columns: string[] = [];
-			const foreignKeyConstraints: string[] = [];
+			const tableConstraints: string[] = [];
 
 			for (const [fieldName, field] of Object.entries(schema.fields)) {
 				if (field.type === "relation") continue;
@@ -472,18 +521,27 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 					const refTable = escapeIdentifier(field.references.table);
 					const refCol = escapeIdentifier(field.references.column ?? "id");
 					const onDelete = field.references.onDelete
-						? ` ON DELETE ${field.references.onDelete === "setNull" ? "SET NULL" : field.references.onDelete.toUpperCase()}`
+						? ` ON DELETE ${mapReferentialAction(field.references.onDelete)}`
 						: "";
 					const onUpdate = field.references.onUpdate
-						? ` ON UPDATE ${field.references.onUpdate.toUpperCase()}`
+						? ` ON UPDATE ${mapReferentialAction(field.references.onUpdate)}`
 						: "";
-					foreignKeyConstraints.push(
+					tableConstraints.push(
 						`FOREIGN KEY (${col}) REFERENCES ${refTable} (${refCol})${onDelete}${onUpdate}`,
 					);
 				}
+
+				const enumCheck = this.buildEnumCheckConstraint(
+					schema.tableName!,
+					fieldName,
+					field,
+				);
+				if (enumCheck) {
+					tableConstraints.push(enumCheck);
+				}
 			}
 
-			const allDefs = [...columns, ...foreignKeyConstraints];
+			const allDefs = [...columns, ...tableConstraints];
 			const tableName = escapeIdentifier(schema.tableName!);
 			const sql = `CREATE TABLE ${tableName} (\n  ${allDefs.join(",\n  ")}\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`;
 
@@ -594,6 +652,49 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 					`UPDATE ${escapedMetaTable} SET \`key\` = ? WHERE \`key\` = ?`,
 					[newKey, oldKey],
 				);
+
+				// Sync the stored schema JSONs: the renamed table's own
+				// `tableName` plus every FK reference pointing at the old name —
+				// otherwise migration diffing sees a phantom rename forever
+				const [metaRows] = await client.execute(
+					`SELECT \`key\`, \`value\` FROM ${escapedMetaTable} WHERE \`key\` LIKE ?`,
+					[`${DATRIX_META_KEY_PREFIX}%`],
+				);
+				for (const metaRow of metaRows as RowDataPacket[]) {
+					const rawValue = metaRow["value"];
+					const storedSchema = (
+						typeof rawValue === "string" ? JSON.parse(rawValue) : rawValue
+					) as SchemaDefinition & { tableName?: string };
+					let changed = false;
+
+					if (metaRow["key"] === newKey && storedSchema.tableName !== to) {
+						storedSchema.tableName = to;
+						changed = true;
+					}
+
+					const fields = storedSchema.fields as Record<
+						string,
+						FieldDefinition & {
+							references?: { table: string } & Record<string, unknown>;
+						}
+					>;
+					for (const [name, field] of Object.entries(fields)) {
+						if (field.references && field.references.table === from) {
+							fields[name] = {
+								...field,
+								references: { ...field.references, table: to },
+							};
+							changed = true;
+						}
+					}
+
+					if (changed) {
+						await client.execute(
+							`UPDATE ${escapedMetaTable} SET \`value\` = ?, \`updatedAt\` = NOW() WHERE \`key\` = ?`,
+							[JSON.stringify(storedSchema), metaRow["key"]],
+						);
+					}
+				}
 			}
 		} catch (error) {
 			if (error instanceof DatrixAdapterError) throw error;
@@ -625,7 +726,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			const escapedTable = escapeIdentifier(tableName);
 
 			for (const op of operations) {
-				let sql = "";
+				const statements: string[] = [];
 
 				switch (op.type) {
 					case "addColumn": {
@@ -633,7 +734,20 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 							op.column,
 							op.definition,
 						);
-						sql = `ALTER TABLE ${escapedTable} ADD COLUMN ${columnDef}`;
+						statements.push(
+							`ALTER TABLE ${escapedTable} ADD COLUMN ${columnDef}`,
+						);
+
+						const enumCheck = this.buildEnumCheckConstraint(
+							tableName,
+							op.column,
+							op.definition,
+						);
+						if (enumCheck) {
+							statements.push(
+								`ALTER TABLE ${escapedTable} ADD ${enumCheck}`,
+							);
+						}
 						break;
 					}
 
@@ -653,26 +767,40 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 						}
 
 						const columnName = escapeIdentifier(op.column);
-						sql = `ALTER TABLE ${escapedTable} DROP COLUMN ${columnName}`;
+						statements.push(
+							`ALTER TABLE ${escapedTable} DROP COLUMN ${columnName}`,
+						);
 						break;
 					}
 
 					case "modifyColumn": {
-						const columnName = escapeIdentifier(op.column);
-						const mysqlType = getMySQLTypeWithModifiers(op.newDefinition);
-						sql = `ALTER TABLE ${escapedTable} MODIFY COLUMN ${columnName} ${mysqlType}`;
+						// MySQL's MODIFY replaces the ENTIRE column definition, so
+						// the full definition (NOT NULL, DEFAULT) must be rebuilt.
+						// UNIQUE is excluded: an inline UNIQUE in MODIFY would add a
+						// brand-new index on every migration run; unique changes must
+						// arrive as explicit index operations.
+						const columnDef = this.buildColumnDefinition(
+							op.column,
+							op.newDefinition,
+							{ includeUnique: false },
+						);
+						statements.push(
+							`ALTER TABLE ${escapedTable} MODIFY COLUMN ${columnDef}`,
+						);
 						break;
 					}
 
 					case "renameColumn": {
 						const fromColumn = escapeIdentifier(op.from);
 						const toColumn = escapeIdentifier(op.to);
-						sql = `ALTER TABLE ${escapedTable} RENAME COLUMN ${fromColumn} TO ${toColumn}`;
+						statements.push(
+							`ALTER TABLE ${escapedTable} RENAME COLUMN ${fromColumn} TO ${toColumn}`,
+						);
 						break;
 					}
 				}
 
-				if (sql) {
+				for (const sql of statements) {
 					await client.execute(sql);
 				}
 			}
@@ -728,13 +856,30 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 					const field = schema.fields[fieldName];
 					if (field && field.type === "relation") {
 						const relationField = field as { foreignKey?: string };
-						return relationField.foreignKey || fieldName;
+						return { name: relationField.foreignKey || fieldName, field: undefined };
 					}
+					return { name: fieldName, field };
 				}
-				return fieldName;
+				return { name: fieldName, field: undefined };
 			});
 
-			const fields = mappedFields.map((f) => escapeIdentifier(f)).join(", ");
+			// MySQL forbids indexing a TEXT/BLOB column without a key length —
+			// this applies to any index, not just UNIQUE ones. A string field
+			// with no explicit maxLength maps to TEXT (see
+			// getMySQLTypeWithModifiers), so cap the index at
+			// defaultUniqueVarcharLength instead of failing at DDL time.
+			const defaultUniqueLength = this.config.defaultUniqueVarcharLength ?? 255;
+			const fields = mappedFields
+				.map(({ name, field }) => {
+					const escaped = escapeIdentifier(name);
+					const needsKeyLength =
+						field?.type === "string" &&
+						!("maxLength" in field && field.maxLength);
+					return needsKeyLength
+						? `${escaped}(${defaultUniqueLength})`
+						: escaped;
+				})
+				.join(", ");
 			const unique = index.unique ? "UNIQUE " : "";
 			const using = index.type ? ` USING ${index.type.toUpperCase()}` : "";
 			const sql = `CREATE ${unique}INDEX ${escapedIndexName} ON ${escapedTable} (${fields})${using}`;
@@ -810,6 +955,38 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 	}
 
 	/**
+	 * Tables managed by datrix: internal `_datrix*` tables plus every table
+	 * that has a schema entry in the `_datrix` meta table. Export/import must
+	 * only touch these — datrix runs as a plugin in shared databases, and
+	 * foreign (host application) tables are out of bounds.
+	 */
+	async getManagedTables(): Promise<readonly string[]> {
+		const allTables = await this.getTables();
+		const managed = new Set(
+			allTables.filter((t) => t.startsWith(DATRIX_META_MODEL)),
+		);
+
+		if (allTables.includes(DATRIX_META_MODEL)) {
+			const client = this.createClient(this.pool!, "getManagedTables");
+			const [rows] = (await client.execute(
+				`SELECT \`key\` FROM ${escapeIdentifier(DATRIX_META_MODEL)} WHERE \`key\` LIKE ?`,
+				[`${DATRIX_META_KEY_PREFIX}%`],
+			)) as [RowDataPacket[], unknown];
+
+			for (const row of rows) {
+				const name = (row["key"] as string).slice(
+					DATRIX_META_KEY_PREFIX.length,
+				);
+				if (allTables.includes(name)) {
+					managed.add(name);
+				}
+			}
+		}
+
+		return [...managed];
+	}
+
+	/**
 	 * Get table schema (introspection)
 	 */
 	async getTableSchema(tableName: string): Promise<SchemaDefinition | null> {
@@ -833,7 +1010,11 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 				return null;
 			}
 
-			return JSON.parse(rows[0]!["value"] as string) as SchemaDefinition;
+			// mysql2 auto-parses JSON-typed columns — value may already be an object
+			const rawValue = rows[0]!["value"];
+			return (
+				typeof rawValue === "string" ? JSON.parse(rawValue) : rawValue
+			) as SchemaDefinition;
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			throwIntrospectionError({
@@ -909,8 +1090,10 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			});
 		}
 
-		const schema = JSON.parse(
-			(rows as RowDataPacket[])[0]!["value"] as string,
+		// mysql2 auto-parses JSON-typed columns — value may already be an object
+		const rawMetaValue = (rows as RowDataPacket[])[0]!["value"];
+		const schema = (
+			typeof rawMetaValue === "string" ? JSON.parse(rawMetaValue) : rawMetaValue
 		) as SchemaDefinition;
 		const fields = { ...schema.fields };
 
@@ -1012,12 +1195,18 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 		// Collect fields that need conversion
 		const booleanFields: string[] = [];
 		const jsonFields: string[] = [];
+		const dateFields: string[] = [];
+		const numberFields: string[] = [];
 		const relationFields: Array<{ name: string; model: string }> = [];
 		for (const [fieldName, field] of Object.entries(schema.fields)) {
 			if (field.type === "boolean") {
 				booleanFields.push(fieldName);
 			} else if (field.type === "json" || field.type === "array") {
 				jsonFields.push(fieldName);
+			} else if (field.type === "date") {
+				dateFields.push(fieldName);
+			} else if (field.type === "number") {
+				numberFields.push(fieldName);
 			} else if (field.type === "relation") {
 				const rel = field as { model?: string };
 				if (rel.model) {
@@ -1040,6 +1229,29 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 						(row as Record<string, unknown>)[field] = JSON.parse(value);
 					} catch {
 						// keep original string if not valid JSON
+					}
+				}
+			}
+			// Dates inside JSON_OBJECT/JSON_ARRAYAGG populate results arrive as
+			// strings ("2026-01-01 12:00:00.000000", server session time) —
+			// convert them back to Date objects per the adapter contract
+			for (const field of dateFields) {
+				const value = (row as Record<string, unknown>)[field];
+				if (typeof value === "string") {
+					const parsed = new Date(value);
+					if (!isNaN(parsed.getTime())) {
+						(row as Record<string, unknown>)[field] = parsed;
+					}
+				}
+			}
+			// DECIMAL values serialized through JSON aggregation may come back
+			// as strings on some server versions
+			for (const field of numberFields) {
+				const value = (row as Record<string, unknown>)[field];
+				if (typeof value === "string" && value !== "") {
+					const parsed = Number(value);
+					if (!Number.isNaN(parsed)) {
+						(row as Record<string, unknown>)[field] = parsed;
 					}
 				}
 			}
@@ -1075,6 +1287,7 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 	private buildColumnDefinition(
 		fieldName: string,
 		field: FieldDefinition,
+		options?: { includeUnique?: boolean },
 	): string {
 		const columnName = escapeIdentifier(fieldName);
 
@@ -1084,15 +1297,71 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			return `${columnName} INT AUTO_INCREMENT PRIMARY KEY`;
 		}
 
-		const mysqlType = getMySQLTypeWithModifiers(field);
+		const mysqlType = getMySQLTypeWithModifiers(
+			field,
+			this.config.defaultUniqueVarcharLength,
+		);
+		const hasUnique = "unique" in field && field.unique === true;
+		// Function defaults cannot be expressed in DDL — core applies them at runtime
+		const hasDefault =
+			field.default !== undefined && typeof field.default !== "function";
+
+		// MySQL forbids DEFAULT literals on TEXT columns (error 1101) — require
+		// an explicit maxLength instead of silently changing the storage type.
+		// UNIQUE on TEXT (error 1170) is handled by getMySQLTypeWithModifiers,
+		// which already falls back to VARCHAR(defaultUniqueVarcharLength).
+		if (mysqlType === "TEXT" && hasDefault) {
+			throwMigrationError({
+				adapter: "mysql",
+				message: `Field '${fieldName}': MySQL does not support DEFAULT on TEXT columns. Set 'maxLength' on the field so it maps to VARCHAR.`,
+			});
+		}
+
 		const nullable = field.required ? " NOT NULL" : "";
-		const defaultValue =
-			field.default !== undefined
-				? ` DEFAULT ${escapeValue(field.default)}`
-				: "";
-		const unique = "unique" in field && field.unique ? " UNIQUE" : "";
+
+		let defaultValue = "";
+		if (hasDefault) {
+			const rendered = escapeValue(field.default);
+			// Object/array defaults render as expressions (JSON_ARRAY/CAST) and
+			// need MySQL's parenthesized expression-default syntax (8.0.13+)
+			const isExpression =
+				typeof field.default === "object" &&
+				field.default !== null &&
+				!(field.default instanceof Date);
+			defaultValue = isExpression
+				? ` DEFAULT (${rendered})`
+				: ` DEFAULT ${rendered}`;
+		}
+
+		const unique =
+			(options?.includeUnique ?? true) && hasUnique ? " UNIQUE" : "";
 
 		return `${columnName} ${mysqlType}${nullable}${defaultValue}${unique}`;
+	}
+
+	/**
+	 * Build a CHECK constraint for enum fields (VARCHAR + CHECK instead of
+	 * native ENUM — enum value changes then never require a table rebuild).
+	 * Returns undefined for non-enum fields.
+	 */
+	private buildEnumCheckConstraint(
+		tableName: string,
+		fieldName: string,
+		field: FieldDefinition,
+	): string | undefined {
+		if (field.type !== "enum") {
+			return undefined;
+		}
+		const values = (field as { values?: readonly unknown[] }).values;
+		if (!values || values.length === 0) {
+			return undefined;
+		}
+
+		const constraintName = clampGeneratedIdentifier(
+			`chk_${tableName}_${fieldName}_enum`,
+		);
+		const list = values.map((v) => escapeValue(v)).join(", ");
+		return `CONSTRAINT ${escapeIdentifier(constraintName)} CHECK (${escapeIdentifier(fieldName)} IN (${list}))`;
 	}
 }
 
@@ -1109,11 +1378,29 @@ class MySQLTransaction implements Transaction {
 	private committed = false;
 	private rolledBack = false;
 	private aborted = false;
+	private released = false;
+	/**
+	 * MySQL DDL statements perform an implicit COMMIT of the open transaction.
+	 * Once any SchemaOperations method ran, a later rollback() is only partial
+	 * — everything before the last DDL statement is already committed.
+	 */
+	private ddlExecuted = false;
 
 	constructor(connection: PoolConnection, adapter: MySQLAdapter, id: string) {
 		this.connection = connection;
 		this.adapter = adapter;
 		this.id = id;
+	}
+
+	/**
+	 * Release the pooled connection exactly once
+	 */
+	private releaseConnection(): void {
+		if (this.released) {
+			return;
+		}
+		this.released = true;
+		this.connection.release();
 	}
 
 	/**
@@ -1207,14 +1494,18 @@ class MySQLTransaction implements Transaction {
 		try {
 			await this.connection.commit();
 			this.committed = true;
-			this.connection.release();
 		} catch (error) {
+			this.aborted = true;
 			const message = error instanceof Error ? error.message : String(error);
 			throwTransactionError({
 				adapter: "mysql",
 				message: `Failed to commit transaction: ${message}`,
 				cause: error instanceof Error ? error : undefined,
 			});
+		} finally {
+			// Release exactly once on both success and failure — a leaked
+			// connection here exhausts the pool
+			this.releaseConnection();
 		}
 	}
 
@@ -1239,13 +1530,26 @@ class MySQLTransaction implements Transaction {
 		try {
 			await this.connection.rollback();
 			this.rolledBack = true;
-			this.connection.release();
 		} catch (error) {
+			this.aborted = true;
 			const message = error instanceof Error ? error.message : String(error);
 			throwTransactionError({
 				adapter: "mysql",
 				message: `Failed to rollback transaction: ${message}`,
 				cause: error instanceof Error ? error : undefined,
+			});
+		} finally {
+			this.releaseConnection();
+		}
+
+		// Honest failure semantics: the ROLLBACK itself succeeded, but DDL
+		// statements in this transaction were already implicitly committed by
+		// MySQL — the caller must know the rollback is partial
+		if (this.ddlExecuted) {
+			throwTransactionError({
+				adapter: "mysql",
+				message:
+					"Rollback is partial: DDL statements executed in this transaction were implicitly committed by MySQL and cannot be rolled back. The database may be left half-migrated.",
 			});
 		}
 	}
@@ -1256,7 +1560,9 @@ class MySQLTransaction implements Transaction {
 	async savepoint(name: string): Promise<void> {
 		try {
 			const escapedName = escapeIdentifier(name);
-			await this.connection.execute(`SAVEPOINT ${escapedName}`);
+			// query(), not execute(): SAVEPOINT is not allowed in MySQL's
+			// prepared-statement protocol (ER_UNSUPPORTED_PS)
+			await this.connection.query(`SAVEPOINT ${escapedName}`);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			throwTransactionError({
@@ -1273,7 +1579,7 @@ class MySQLTransaction implements Transaction {
 	async rollbackTo(name: string): Promise<void> {
 		try {
 			const escapedName = escapeIdentifier(name);
-			await this.connection.execute(`ROLLBACK TO SAVEPOINT ${escapedName}`);
+			await this.connection.query(`ROLLBACK TO SAVEPOINT ${escapedName}`);
 			this.aborted = false;
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
@@ -1291,7 +1597,7 @@ class MySQLTransaction implements Transaction {
 	async release(name: string): Promise<void> {
 		try {
 			const escapedName = escapeIdentifier(name);
-			await this.connection.execute(`RELEASE SAVEPOINT ${escapedName}`);
+			await this.connection.query(`RELEASE SAVEPOINT ${escapedName}`);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			throwTransactionError({
@@ -1303,14 +1609,17 @@ class MySQLTransaction implements Transaction {
 	}
 
 	async createTable(schema: SchemaDefinition): Promise<void> {
+		this.ddlExecuted = true;
 		return this.adapter.createTable(schema, this.connection);
 	}
 
 	async dropTable(tableName: string): Promise<void> {
+		this.ddlExecuted = true;
 		return this.adapter.dropTable(tableName, this.connection);
 	}
 
 	async renameTable(from: string, to: string): Promise<void> {
+		this.ddlExecuted = true;
 		return this.adapter.renameTable(from, to, this.connection);
 	}
 
@@ -1318,14 +1627,20 @@ class MySQLTransaction implements Transaction {
 		tableName: string,
 		operations: readonly AlterOperation[],
 	): Promise<void> {
+		this.ddlExecuted = true;
 		return this.adapter.alterTable(tableName, operations, this.connection);
 	}
 
 	async addIndex(tableName: string, index: IndexDefinition): Promise<void> {
-		return this.adapter.addIndex(tableName, index, undefined, this.connection);
+		this.ddlExecuted = true;
+		const registry = this.adapter.getSchemaRegistry();
+		const modelName = registry.findModelByTableName(tableName);
+		const schema = modelName ? registry.get(modelName) : undefined;
+		return this.adapter.addIndex(tableName, index, schema, this.connection);
 	}
 
 	async dropIndex(tableName: string, indexName: string): Promise<void> {
+		this.ddlExecuted = true;
 		return this.adapter.dropIndex(tableName, indexName, this.connection);
 	}
 }

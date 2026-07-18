@@ -1,6 +1,6 @@
 {
 	"name": "@datrix/api-upload",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"description": "File upload extension for Datrix API plugin",
 	"author": "Datrix Contributors",
 	"license": "MIT",
@@ -48,17 +48,16 @@
 		"clean": "rm -rf dist"
 	},
 	"peerDependencies": {
-		"@datrix/core": "^0.1.2",
-		"@datrix/api": "^0.1.2"
+		"@datrix/core": "workspace:^",
+		"@datrix/api": "workspace:^"
 	},
 	"dependencies": {
-		"sharp": "^0.34.5"
+		"sharp": "^0.35.3"
 	},
 	"devDependencies": {
 		"@datrix/core": "workspace:*",
 		"@datrix/api": "workspace:*",
-		"@types/sharp": "^0.32.0",
 		"tsup": "^8.5.1",
-		"typescript": "^5.3.3"
+		"typescript": "^5.7.3"
 	}
 }

@@ -354,9 +354,16 @@ ${indentStr}  params: ${JSON.stringify(op.params ?? [])}
 ${indentStr}}`;
 
 					case "dataTransfer":
+						// The execute closure cannot be serialized — emit a stub that
+						// fails loudly instead of a silently non-executable operation
 						return `${indentStr}{
+${indentStr}  // TODO: dataTransfer cannot be serialized to a migration file.
+${indentStr}  // Replace this stub with equivalent 'raw' SQL operations.
 ${indentStr}  type: 'dataTransfer',
-${indentStr}  description: '${op.description}'
+${indentStr}  description: '${op.description}',
+${indentStr}  execute: () => {
+${indentStr}    throw new Error("Non-executable dataTransfer stub in generated migration file: ${op.description}. Replace it with equivalent 'raw' SQL operations.");
+${indentStr}  }
 ${indentStr}}`;
 				}
 			})

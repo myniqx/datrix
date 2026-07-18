@@ -62,7 +62,7 @@ async function handleGet(ctx: RequestContext): Promise<Response> {
 		return jsonResponse({ data });
 	} else {
 		const page = ctx.query?.page ?? 1;
-		const pageSize = ctx.query?.pageSize ?? 25;
+		const pageSize = ctx.query?.pageSize ?? ctx.limits.defaultPageSize;
 		const limit = pageSize;
 		const offset = (page - 1) * pageSize;
 
@@ -258,7 +258,12 @@ export async function handleCrudRequest<TRole extends string = string>(
 			throw handlerError.modelNotSpecified();
 		}
 
-		if (api.excludeSchemas.includes(ctx.schema.name)) {
+		// Entries may be model names or table names
+		const tableName = ctx.schema.tableName;
+		if (
+			api.excludeSchemas.includes(ctx.schema.name) ||
+			(tableName !== undefined && api.excludeSchemas.includes(tableName))
+		) {
 			throw handlerError.schemaNotFound(ctx.url.pathname);
 		}
 
@@ -277,6 +282,12 @@ export async function handleCrudRequest<TRole extends string = string>(
 		}
 
 		api.setUser(ctx.user);
+
+		// QUERY method and the POST /:model/query alias are reads with a body
+		// query — same response shape as GET list requests.
+		if (ctx.isQueryRequest) {
+			return await handleGet(ctx);
+		}
 
 		switch (ctx.method) {
 			case "GET":

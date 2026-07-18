@@ -1,4 +1,4 @@
-import { DatrixEntry } from "../core/schema";
+import { DatrixEntry, DatrixRecord } from "../core/schema";
 
 export interface AuthenticatedUser<
 	TRoles extends string = string,
@@ -15,11 +15,16 @@ export interface AuthenticatedUser<
 
 /**
  * Minimal user shape expected by IAuthManager.
+ *
+ * `id` is the authentication record's own id. FK columns (authorId etc.)
+ * reference the user table — compare them against `user.id`, not `id`.
  */
 export interface AuthUser {
 	readonly id: number;
 	readonly email: string;
 	readonly role: string;
+	/** Populated user record from the user schema (set by the API plugin). */
+	readonly user?: DatrixRecord;
 }
 
 /**

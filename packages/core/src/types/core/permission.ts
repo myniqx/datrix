@@ -128,7 +128,12 @@ export interface FieldPermission<
 /**
  * Default permission configuration for API
  *
- * Applied to all schemas that don't have explicit permissions
+ * Applied to all schemas that don't have explicit permissions.
+ *
+ * When neither the schema permission nor this default defines a value for an
+ * action, the built-in default applies: `read` is allowed for everyone, while
+ * `create`/`update`/`delete` require an authenticated user. Explicit
+ * permissions always win.
  *
  * @template TRoles - Union type of valid role names
  */

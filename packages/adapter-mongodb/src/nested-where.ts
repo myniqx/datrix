@@ -22,17 +22,7 @@ import type {
 	SchemaDefinition,
 } from "@datrix/core";
 import type { MongoClient } from "./mongo-client";
-
-/**
- * A relation filter extracted from WHERE clause.
- * Instead of being applied directly to the filter (which doesn't work
- * in MongoDB for cross-collection relations), these are resolved
- * into ID lists via lookup queries.
- */
-export interface RelationFilter {
-	readonly relationName: string;
-	readonly conditions: Filter<Document>;
-}
+import { resolveJunctionForeignKeys } from "./populate/junction";
 
 /**
  * Resolve relation-based WHERE conditions into concrete ID filters.
@@ -55,6 +45,12 @@ export async function resolveNestedWhere<TResult extends DatrixEntry>(
 	if (!schema) return filter;
 
 	const resolvedFilter: Record<string, unknown> = {};
+	// Relation-derived "id" constraints are collected here instead of being
+	// assigned directly to resolvedFilter["id"], which would silently
+	// overwrite (or be overwritten by) a plain `id` condition on the same
+	// filter object. They are combined via `$and` at the end so no condition
+	// is ever dropped.
+	const andConditions: Filter<Document>[] = [];
 
 	for (const [key, value] of Object.entries(filter)) {
 		// Handle logical operators recursively
@@ -89,19 +85,30 @@ export async function resolveNestedWhere<TResult extends DatrixEntry>(
 			// Determine which field to filter on based on relation kind
 			if (relation.kind === "belongsTo") {
 				// FK is on source table → filter source by FK in matched target IDs
-				resolvedFilter[relation.foreignKey!] = { $in: matchedIds };
+				andConditions.push({
+					[relation.foreignKey!]: { $in: matchedIds },
+				} as Filter<Document>);
 			} else if (relation.kind === "hasOne" || relation.kind === "hasMany") {
 				// FK is on target table → matched IDs are source IDs
-				resolvedFilter["id"] = mergeIdFilter(resolvedFilter["id"], matchedIds);
+				andConditions.push({ id: { $in: matchedIds } } as Filter<Document>);
 			} else if (relation.kind === "manyToMany") {
 				// Junction table → matched IDs are source IDs
-				resolvedFilter["id"] = mergeIdFilter(resolvedFilter["id"], matchedIds);
+				andConditions.push({ id: { $in: matchedIds } } as Filter<Document>);
 			}
 			continue;
 		}
 
 		// Regular field — keep as-is
 		resolvedFilter[key] = value;
+	}
+
+	if (andConditions.length > 0) {
+		const existingAnd = resolvedFilter["$and"] as
+			| Filter<Document>[]
+			| undefined;
+		resolvedFilter["$and"] = existingAnd
+			? [...existingAnd, ...andConditions]
+			: andConditions;
 	}
 
 	return resolvedFilter as Filter<Document>;
@@ -181,6 +188,7 @@ async function resolveRelationIds<TResult extends DatrixEntry>(
 			relation.model,
 			resolvedConditions,
 			client,
+			schemaRegistry,
 		);
 	}
 
@@ -227,9 +235,14 @@ async function resolveManyToMany<TResult extends DatrixEntry>(
 	targetModelName: string,
 	conditions: Filter<Document>,
 	client: MongoClient<TResult>,
+	schemaRegistry: ISchemaRegistry,
 ): Promise<readonly number[]> {
-	const sourceFK = `${sourceModelName}Id`;
-	const targetFK = `${targetModelName}Id`;
+	const { sourceFK, targetFK } = resolveJunctionForeignKeys(
+		junctionCollection,
+		sourceModelName,
+		targetModelName,
+		schemaRegistry,
+	);
 
 	// Step 1: find matching target IDs
 	const targetCol = client.getCollection(targetCollection);
@@ -299,27 +312,4 @@ function isNestedCondition(value: unknown): boolean {
 	// If all keys start with $, it's field-level comparison operators ($eq, $gt, etc.)
 	const allOperators = keys.every((k) => k.startsWith("$"));
 	return !allOperators;
-}
-
-/**
- * Merge an $in ID filter when multiple relations resolve to the same "id" field.
- * Uses intersection so both conditions must be satisfied.
- */
-function mergeIdFilter(
-	existing: unknown,
-	newIds: readonly number[],
-): Record<string, unknown> {
-	if (!existing) {
-		return { $in: newIds };
-	}
-
-	// Intersect with existing $in
-	const existingIn = (existing as { $in?: number[] }).$in;
-	if (existingIn) {
-		const newSet = new Set(newIds);
-		const intersection = existingIn.filter((id) => newSet.has(id));
-		return { $in: intersection };
-	}
-
-	return { $in: newIds };
 }

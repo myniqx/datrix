@@ -1,15 +1,25 @@
 import path from "node:path";
 import fsSync from "node:fs";
-import * as readline from "readline";
 import type { DatabaseAdapter } from "@datrix/core";
 import type { IApiPlugin } from "@datrix/core";
 import type { IDatrix } from "@datrix/core";
 import { logger, spinner, red, yellow } from "../utils/logger";
+import { confirm } from "../utils/prompt";
 import { ZipImportReader } from "../export-import/zip-reader";
 import { FileImporter } from "../export-import/file-importer";
 import { FileExporter } from "../export-import/file-exporter";
 
 export type AgreeOption = boolean | "drop-db" | "missing-files";
+
+/**
+ * Exported for testing: scoped agree values must only cover their own scope.
+ */
+export function hasAgreed(
+	agree: AgreeOption | undefined,
+	scope: "drop-db" | "missing-files",
+): boolean {
+	return agree === true || agree === scope;
+}
 
 export interface ImportCommandOptions {
 	readonly agree?: AgreeOption | undefined;
@@ -18,27 +28,6 @@ export interface ImportCommandOptions {
 	readonly onlyFiles?: boolean | undefined;
 	readonly resume?: string | undefined;
 	readonly datrix?: IDatrix;
-}
-
-function hasAgreed(
-	agree: AgreeOption | undefined,
-	scope: "drop-db" | "missing-files",
-): boolean {
-	return agree === true || agree === scope;
-}
-
-async function confirm(question: string): Promise<boolean> {
-	const rl = readline.createInterface({
-		input: process.stdin,
-		output: process.stdout,
-	});
-
-	return new Promise((resolve) => {
-		rl.question(question, (answer) => {
-			rl.close();
-			resolve(answer.trim().toLowerCase() === "y");
-		});
-	});
 }
 
 export async function importCommand(
@@ -79,7 +68,7 @@ async function importDataOnly(
 
 		if (!confirmed) {
 			logger.info("Import cancelled.");
-			process.exit(0);
+			return;
 		}
 	}
 
@@ -117,6 +106,12 @@ async function importWithFiles(
 	const isResume = Boolean(options.resume);
 	const resumeDir = options.resume ? path.resolve(options.resume) : null;
 	const activeDir = resumeDir ?? importDir;
+
+	if (resumeDir && resumeDir !== importDir) {
+		logger.warn(
+			`--resume was given; the positional path '${importDir}' is ignored (resuming in: ${resumeDir})`,
+		);
+	}
 
 	const fileImporter = new FileImporter(activeDir, upload, datrix);
 
@@ -165,7 +160,7 @@ async function importWithFiles(
 
 				if (!confirmed) {
 					logger.info("Import cancelled.");
-					process.exit(0);
+					return;
 				}
 			}
 
@@ -194,7 +189,7 @@ async function importWithFiles(
 
 		const exportExporter = new FileExporter(activeDir, upload);
 		const exportEntries = await exportExporter.readLedger();
-		await fileImporter.buildLedger(exportEntries);
+		await fileImporter.buildLedger(exportEntries, options.verbose ?? false);
 
 		// Step 5: Check for missing files and warn
 		const { missing, total } = await fileImporter.checkMissingFiles();
@@ -223,7 +218,7 @@ async function importWithFiles(
 
 				if (!confirmed) {
 					logger.info("Import cancelled.");
-					process.exit(0);
+					return;
 				}
 			}
 		}
@@ -243,7 +238,7 @@ async function importWithFiles(
 
 	try {
 		const result = await fileImporter.uploadPending((done, total) => {
-			spinner.start(`${done} / ${total} files`);
+			spinner.update(`${done} / ${total} files`);
 		}, options.verbose);
 
 		spinner.succeed(

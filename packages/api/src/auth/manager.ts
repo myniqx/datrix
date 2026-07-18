@@ -11,6 +11,7 @@ import { JwtStrategy } from "./jwt";
 import { SessionStrategy } from "./session";
 import { AuthConfig } from "./types";
 import { throwSessionNotConfigured } from "./error-helper";
+import { extractSessionId as extractSessionIdFromRequest } from "../handler/utils";
 import {
 	AuthContext,
 	AuthUser,
@@ -179,24 +180,7 @@ export class AuthManager<
 	 * Extract session ID from request cookies
 	 */
 	private extractSessionId(request: Request): string | null {
-		const cookieHeader = request.headers.get("cookie");
-		if (!cookieHeader) {
-			return null;
-		}
-
-		// Parse cookies
-		const cookies = cookieHeader.split(";").reduce(
-			(acc, cookie) => {
-				const [key, value] = cookie.trim().split("=");
-				if (key && value) {
-					acc[key] = value;
-				}
-				return acc;
-			},
-			{} as Record<string, string>,
-		);
-
-		return cookies["sessionId"] ?? null;
+		return extractSessionIdFromRequest(request);
 	}
 
 	/**

@@ -1,4 +1,4 @@
-import { DatrixEntry } from "@datrix/core";
+import { DatrixEntry, GroupCountData, WhereClause } from "@datrix/core";
 import {
 	QueryCountObject,
 	QueryInsertObject,
@@ -14,6 +14,10 @@ import {
 	applySelectRecursive,
 	checkForeignKeyConstraints,
 	checkUniqueConstraints,
+	createPendingUniqueValues,
+	defaultSelectFromSchema,
+	hydrateDatesFromStorage,
+	normalizeDatesForStorage,
 } from "./table-utils";
 import type { JsonAdapter } from "./adapter";
 import type { ExecuteQueryOptions } from "./types";
@@ -26,6 +30,7 @@ export type QueryHandlerResult<T extends DatrixEntry> = {
 		affectedRows: number;
 		insertIds?: number[];
 		count?: number;
+		countMany?: GroupCountData[];
 	};
 	shouldWrite: boolean;
 	earlyReturn?: boolean;
@@ -41,12 +46,42 @@ export async function handleSelect<T extends DatrixEntry>(ctx: {
 	let rows: T[];
 
 	if (query.populate) {
-		rows = await runner.filterAndSort(query);
+		const filtered = await runner.filterAndSort(query);
+		// Copy-at-boundary: populate() writes relation fields ONTO the rows it's
+		// given. Without this copy those writes land on the cache's own row
+		// objects, and the next write on this table would persist populated
+		// data to disk (see issue.md Part 2). Hydrate dates back to `Date`
+		// objects at the same boundary (storage is ISO strings, see Part 1).
+		rows = filtered.map((r) => hydrateDatesFromStorage(runner.tableSchema, { ...r }));
 		const populator = new JsonPopulator(adapter);
 		rows = await populator.populate(rows, query);
-		rows = applySelectRecursive<T>(rows, query.select, query.populate) as T[];
+		// select: undefined means "all non-hidden scalar columns" (core issue 2.2,
+		// post-write refetch) — don't fall through to "keep every field".
+		const effectiveSelect = query.select ?? defaultSelectFromSchema(runner.tableSchema);
+		rows = applySelectRecursive<T>(rows, effectiveSelect, query.populate) as T[];
+	} else if (query.groupBy && query.groupBy.length > 0) {
+		const filtered = await runner.filterAndSort(query);
+		const groups = await groupRows(
+			filtered as unknown as Record<string, unknown>[],
+			query.groupBy,
+			query.having,
+			runner,
+		);
+		// select is validated to be a subset of groupBy (see builder.ts), so
+		// dropping `count` and keeping the group field values is exactly the
+		// projected shape the caller asked for.
+		rows = groups.map(
+			({ count: _count, ...fields }) => fields,
+		) as unknown as T[];
 	} else {
 		rows = (await runner.run(query)) as T[];
+		// run() only copies rows when it actually projects/dedupes (`select` or
+		// `distinct` present); a bare select with neither still returns
+		// cache-owned row references — copy so callers can't mutate the cache.
+		if (!query.select && !query.distinct) {
+			rows = rows.map((r) => ({ ...r })) as T[];
+		}
+		rows = rows.map((r) => hydrateDatesFromStorage(runner.tableSchema, r)) as T[];
 	}
 
 	return {
@@ -56,16 +91,73 @@ export async function handleSelect<T extends DatrixEntry>(ctx: {
 	};
 }
 
+/**
+ * Collapse rows into one entry per distinct `groupBy` combination, with a
+ * `count` of matching records, then apply `having` as a post-aggregation
+ * filter. Shared by `handleCount` (returns the count too) and `handleSelect`
+ * (drops `count`, keeps just the distinct group field values).
+ */
+async function groupRows(
+	rows: readonly Record<string, unknown>[],
+	groupBy: readonly string[],
+	having: WhereClause<DatrixEntry> | undefined,
+	runner: JsonQueryRunner,
+): Promise<GroupCountData[]> {
+	const groups = new Map<string, GroupCountData>();
+
+	for (const row of rows) {
+		const key = JSON.stringify(groupBy.map((field) => row[field]));
+		const existing = groups.get(key);
+		if (existing) {
+			existing.count++;
+			continue;
+		}
+		const groupValues: Record<string, unknown> = {};
+		for (const field of groupBy) {
+			groupValues[field] = row[field];
+		}
+		groups.set(key, { ...groupValues, count: 1 });
+	}
+
+	let result = [...groups.values()];
+
+	if (having) {
+		const matches = await Promise.all(
+			result.map((group) => runner.matchWhere(group, having)),
+		);
+		result = result.filter((_, i) => matches[i]);
+	}
+
+	return result;
+}
+
 export async function handleCount<T extends DatrixEntry>(ctx: {
 	runner: JsonQueryRunner;
 	query: QueryCountObject<T>;
 }): Promise<QueryHandlerResult<T>> {
 	const { runner, query } = ctx;
+
 	const rows = (await runner.run(query)) as T[];
+
+	if (!query.groupBy || query.groupBy.length === 0) {
+		return {
+			rows: [] as T[],
+			metadata: { rowCount: 0, affectedRows: 0, count: rows.length },
+			shouldWrite: false,
+			earlyReturn: true,
+		};
+	}
+
+	const countMany = await groupRows(
+		rows as unknown as Record<string, unknown>[],
+		query.groupBy,
+		query.having,
+		runner,
+	);
 
 	return {
 		rows: [] as T[],
-		metadata: { rowCount: 0, affectedRows: 0, count: rows.length },
+		metadata: { rowCount: 0, affectedRows: 0, countMany },
 		shouldWrite: false,
 		earlyReturn: true,
 	};
@@ -92,17 +184,26 @@ export async function handleInsert<T extends DatrixEntry>(ctx: {
 	const isJunctionTable =
 		(tableSchema as unknown as { _isJunctionTable?: boolean })
 			?._isJunctionTable === true;
+	const pendingUnique = createPendingUniqueValues();
 
 	for (const item of query.data) {
 		const newItem = { ...item };
 
 		if (isJunctionTable) {
-			const alreadyExists = tableData.data.some((row) =>
+			// Upsert semantics: a duplicate junction row (e.g. re-linking a
+			// relation that's already connected) doesn't insert a new row, but
+			// still contributes an id — otherwise `insertedIds` comes back
+			// shorter than `query.data` and breaks core's positional
+			// query.data[i] <-> rows[i] id mapping (see issue.md Part 8).
+			const existingRow = tableData.data.find((row) =>
 				Object.keys(newItem).every(
 					(key) => key === "id" || row[key] === newItem[key],
 				),
 			);
-			if (alreadyExists) continue;
+			if (existingRow) {
+				insertedIds.push(existingRow["id"] as number);
+				continue;
+			}
 		}
 
 		if (!newItem["id"]) {
@@ -116,8 +217,15 @@ export async function handleInsert<T extends DatrixEntry>(ctx: {
 		}
 
 		applyDefaultValues(tableSchema, newItem);
+		normalizeDatesForStorage(tableSchema, newItem);
 		await checkForeignKeyConstraints(tableSchema, newItem, adapter);
-		checkUniqueConstraints(tableData, tableSchema, newItem);
+		checkUniqueConstraints(
+			tableData,
+			tableSchema,
+			newItem,
+			undefined,
+			pendingUnique,
+		);
 		tableData.data.push(newItem);
 		insertedIds.push(newItem["id"] as number);
 	}
@@ -160,19 +268,24 @@ export async function handleUpdate<T extends DatrixEntry>(ctx: {
 	};
 	const rowsToUpdate = await runner.filterAndSort(updateQuery);
 
+	const updateData: Record<string, unknown> = { ...query.data };
+	normalizeDatesForStorage(tableSchema, updateData);
+
+	const pendingUnique = createPendingUniqueValues();
 	for (const row of rowsToUpdate) {
-		const updatedData = { ...row, ...query.data };
+		const updatedData = { ...row, ...updateData };
 		await checkForeignKeyConstraints(tableSchema, updatedData, adapter);
 		checkUniqueConstraints(
 			tableData,
 			tableSchema,
 			updatedData,
 			row["id"] as number,
+			pendingUnique,
 		);
 	}
 
 	for (const row of rowsToUpdate) {
-		Object.assign(row, query.data);
+		Object.assign(row, updateData);
 	}
 
 	const updatedIds = rowsToUpdate.map((r) => r["id"] as number);

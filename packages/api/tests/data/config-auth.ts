@@ -100,3 +100,40 @@ export const testUsers: Record<TestRoles, TestUser> = {
 	user: { id: 3, email: "user@test.com", role: "user" },
 	guest: { id: 4, email: "guest@test.com", role: "guest" },
 };
+
+/**
+ * Seed user + authentication records for the fixture users.
+ *
+ * Tokens are verified against the authentication table (decision D1), so a
+ * JWT minted for a test user must reference a real auth record. Records are
+ * inserted in fixture order on fresh tables so each auth record id matches
+ * the fixture id used to sign the token.
+ */
+export async function seedTestAuthUsers(datrix: {
+	raw: {
+		create: (
+			model: string,
+			data: Record<string, unknown>,
+		) => Promise<{ id: number }>;
+	};
+}): Promise<void> {
+	for (const role of roles) {
+		const user = testUsers[role];
+		const userRow = await datrix.raw.create("user", {
+			email: user.email,
+			name: `${role} test user`,
+		});
+		const authRow = await datrix.raw.create("authentication", {
+			user: userRow.id,
+			email: user.email,
+			password: "",
+			passwordSalt: "",
+			role: user.role,
+		});
+		if (authRow.id !== user.id) {
+			throw new Error(
+				`Seeded auth record id ${authRow.id} does not match fixture id ${user.id} for role '${role}'. Seed on fresh tables.`,
+			);
+		}
+	}
+}

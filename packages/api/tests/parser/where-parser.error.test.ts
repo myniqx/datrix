@@ -7,19 +7,12 @@
 
 import { describe, it, expect } from "vitest";
 import { parseWhere } from "../../src/parser/where-parser";
-import { RawQueryParams } from "../../../types/src/api/parser";
-import { parserTestData } from "../../../types/src/test/fixtures";
-
-const expectSuccessData = (result: any) => result;
-
-const expectFailureError = (result: () => any) => {
-	try {
-		const value = result();
-		return value;
-	} catch (error) {
-		return error;
-	}
-};
+import { RawQueryParams } from "../../../core/src/types/api/parser";
+import { parserTestData } from "../../../core/tests/test/fixtures";
+import {
+	expectSuccessData,
+	expectFailureError,
+} from "../../../core/tests/test/helpers";
 
 describe("WhereParser - Error Path", () => {
 	describe("Security: SQL Injection", () => {

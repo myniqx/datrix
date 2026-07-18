@@ -80,7 +80,6 @@ export interface ValidationContext {
  */
 export interface ValidatorOptions {
 	readonly strict?: boolean; // Fail on unknown fields
-	readonly coerce?: boolean; // Try to coerce types (e.g., "123" -> 123)
 	readonly stripUnknown?: boolean; // Remove unknown fields
 	readonly abortEarly?: boolean; // Stop on first error
 }

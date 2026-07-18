@@ -96,6 +96,7 @@ export async function resolveRelationCUD<T extends DatrixEntry>(
 	schema: SchemaDefinition,
 	runner: QueryRunner,
 	schemaRegistry: ISchemaRegistry,
+	isRawMode: boolean,
 ): Promise<Record<string, ResolvedRelationOps>> {
 	const resolved: Record<string, ResolvedRelationOps> = {};
 
@@ -149,7 +150,7 @@ export async function resolveRelationCUD<T extends DatrixEntry>(
 						{
 							partial: false,
 							isCreate: true,
-							isRawMode: true,
+							isRawMode,
 						},
 					),
 				);
@@ -177,7 +178,7 @@ export async function resolveRelationCUD<T extends DatrixEntry>(
 					{
 						partial: false,
 						isCreate: true,
-						isRawMode: true,
+						isRawMode,
 					},
 				);
 				const createResult = await runner.executeQuery<DatrixEntry>({
@@ -194,6 +195,7 @@ export async function resolveRelationCUD<T extends DatrixEntry>(
 						relSchema,
 						runner,
 						schemaRegistry,
+						isRawMode,
 					);
 					await processRelations(
 						nestedResolved,
@@ -225,7 +227,7 @@ export async function resolveRelationCUD<T extends DatrixEntry>(
 					{
 						partial: true,
 						isCreate: false,
-						isRawMode: true,
+						isRawMode,
 					},
 				);
 				const updateResult = await runner.executeQuery<DatrixEntry>({
@@ -235,15 +237,18 @@ export async function resolveRelationCUD<T extends DatrixEntry>(
 					where: where as WhereClause<DatrixEntry>,
 				});
 
-				// Recursively resolve nested relations
+				// Resolve nested relations ONCE, then link per updated row.
+				// Same contract as bulk insert: one shared nested-relation set is
+				// applied to every matched row — no N-query create loops in core.
 				if (nestedRelations) {
+					const nestedResolved = await resolveRelationCUD(
+						nestedRelations,
+						relSchema,
+						runner,
+						schemaRegistry,
+						isRawMode,
+					);
 					for (const updated of updateResult.rows) {
-						const nestedResolved = await resolveRelationCUD(
-							nestedRelations,
-							relSchema,
-							runner,
-							schemaRegistry,
-						);
 						await processRelations(
 							nestedResolved,
 							updated.id,
@@ -434,8 +439,12 @@ async function processRelation<T extends DatrixEntry>({
 	// manyToMany → Junction table operations
 	if (relation.kind === "manyToMany") {
 		const junctionTable = relation.through!;
-		const sourceFK = `${parentModel}Id`;
-		const targetFK = `${relation.model}Id`;
+		const { sourceFK, targetFK } = resolveJunctionForeignKeys(
+			junctionTable,
+			parentModel,
+			relation.model,
+			schemaRegistry,
+		);
 
 		// Connect → INSERT INTO junction table (skip existing)
 		if (ops.connect.length > 0) {
@@ -503,4 +512,52 @@ async function processRelation<T extends DatrixEntry>({
 			}
 		}
 	}
+}
+
+/**
+ * Resolve junction-table FK column names from the junction schema.
+ *
+ * Reads the belongsTo relation fields the registry created on the junction
+ * schema instead of recomputing `${model}Id` string templates. This is what
+ * makes self-referential manyToMany work: its junction FKs are
+ * `source${Model}Id` / `target${Model}Id` and cannot be derived from the
+ * model name alone. For self-relations the source field is always registered
+ * first, so insertion order disambiguates the two.
+ *
+ * Falls back to the `${model}Id` convention for custom `through` tables
+ * that have no registered schema.
+ */
+function resolveJunctionForeignKeys(
+	junctionTable: string,
+	parentModel: string,
+	targetModel: string,
+	schemaRegistry: ISchemaRegistry,
+): { sourceFK: string; targetFK: string } {
+	const junctionSchema = schemaRegistry.get(junctionTable);
+	if (junctionSchema) {
+		const belongsToFields: {
+			model: string;
+			foreignKey?: string | undefined;
+		}[] = [];
+		for (const field of Object.values(junctionSchema.fields)) {
+			if (field.type === "relation" && field.kind === "belongsTo") {
+				belongsToFields.push(field);
+			}
+		}
+
+		const source =
+			parentModel === targetModel
+				? belongsToFields[0]
+				: belongsToFields.find((f) => f.model === parentModel);
+		const target =
+			parentModel === targetModel
+				? belongsToFields[1]
+				: belongsToFields.find((f) => f.model === targetModel);
+
+		if (source?.foreignKey && target?.foreignKey) {
+			return { sourceFK: source.foreignKey, targetFK: target.foreignKey };
+		}
+	}
+
+	return { sourceFK: `${parentModel}Id`, targetFK: `${targetModel}Id` };
 }

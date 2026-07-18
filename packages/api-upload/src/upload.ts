@@ -7,7 +7,8 @@
 
 import type { Datrix } from "@datrix/core";
 import type { IUpload } from "@datrix/core";
-import type { SchemaDefinition } from "@datrix/core";
+import type { SchemaDefinition, SchemaPermission } from "@datrix/core";
+import { DatrixError } from "@datrix/core";
 import { createMediaSchema } from "./schema";
 import { handleUploadRequest } from "./handler";
 import type { UploadOptions } from "./types";
@@ -18,6 +19,14 @@ export class Upload<TResolutions extends string = string> implements IUpload {
 	readonly provider: UploadOptions<TResolutions>["provider"];
 
 	constructor(options: UploadOptions<TResolutions>) {
+		const quality = options.quality;
+		if (quality !== undefined && (quality < 1 || quality > 100)) {
+			throw new DatrixError(
+				`Upload quality must be between 1 and 100, got ${quality}`,
+				{ code: "INVALID_UPLOAD_CONFIG", operation: "upload:config" },
+			);
+		}
+
 		this.options = options;
 		this.provider = options.provider;
 	}
@@ -26,17 +35,18 @@ export class Upload<TResolutions extends string = string> implements IUpload {
 		return this.options.modelName ?? "media";
 	}
 
+	getPermission(): SchemaPermission | undefined {
+		return this.options.permission;
+	}
+
 	getSchemas(): SchemaDefinition[] {
-		const mediaSchema = createMediaSchema(
-			this.options,
-			this.options.permission,
-		);
-		return [mediaSchema];
+		return [createMediaSchema(this.getModelName(), this.options.permission)];
 	}
 
 	async handleRequest(request: Request, datrix: Datrix): Promise<Response> {
 		return handleUploadRequest(request, {
 			datrix,
+			modelName: this.getModelName(),
 			uploadOptions: this.options,
 			injectUrls: (data) => this.injectUrls(data),
 		});
@@ -50,50 +60,53 @@ export class Upload<TResolutions extends string = string> implements IUpload {
 		return this.options.provider.getUrl(key);
 	}
 
-	private async traverse(node: unknown): Promise<unknown> {
+	/**
+	 * Recursively inject `url` into media-shaped objects (`key` + `mimeType` +
+	 * numeric `size` — the media record signature; variant entries match it
+	 * too). Non-plain objects (Date, class instances) pass through untouched,
+	 * and unchanged subtrees keep their original reference.
+	 */
+	private traverse(node: unknown): unknown {
 		if (Array.isArray(node)) {
-			const results: unknown[] = [];
-			for (const item of node) {
-				results.push(await this.traverse(item));
-			}
-			return results;
+			let changed = false;
+			const results = node.map((item) => {
+				const result = this.traverse(item);
+				if (result !== item) changed = true;
+				return result;
+			});
+			return changed ? results : node;
 		}
 
-		if (node !== null && typeof node === "object") {
-			const obj = node as Record<string, unknown>;
-			const result: Record<string, unknown> = {};
-
-			for (const [k, v] of Object.entries(obj)) {
-				result[k] = await this.traverse(v);
-			}
-
-			// Inject url if this looks like a media object (has key, no url)
-			if (typeof result["key"] === "string" && result["url"] === undefined) {
-				result["url"] = this.options.provider.getUrl(result["key"]);
-			}
-
-			// Inject urls into variants
-			if (
-				result["variants"] !== null &&
-				typeof result["variants"] === "object"
-			) {
-				const variants = result["variants"] as Record<string, unknown>;
-				for (const [name, variant] of Object.entries(variants)) {
-					if (variant !== null && typeof variant === "object") {
-						const v = variant as Record<string, unknown>;
-						if (typeof v["key"] === "string" && v["url"] === undefined) {
-							variants[name] = {
-								...v,
-								url: this.options.provider.getUrl(v["key"]),
-							};
-						}
-					}
-				}
-			}
-
-			return result;
+		if (!isPlainObject(node)) {
+			return node;
 		}
 
-		return node;
+		let changed = false;
+		const result: Record<string, unknown> = {};
+		for (const [k, v] of Object.entries(node)) {
+			const traversed = this.traverse(v);
+			if (traversed !== v) changed = true;
+			result[k] = traversed;
+		}
+
+		if (
+			typeof result["key"] === "string" &&
+			typeof result["mimeType"] === "string" &&
+			typeof result["size"] === "number" &&
+			result["url"] === undefined
+		) {
+			result["url"] = this.options.provider.getUrl(result["key"]);
+			changed = true;
+		}
+
+		return changed ? result : node;
 	}
+}
+
+function isPlainObject(node: unknown): node is Record<string, unknown> {
+	if (node === null || typeof node !== "object") {
+		return false;
+	}
+	const proto = Object.getPrototypeOf(node);
+	return proto === Object.prototype || proto === null;
 }

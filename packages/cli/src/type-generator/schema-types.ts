@@ -16,6 +16,7 @@ import {
 	type SchemaDefinition,
 } from "@datrix/core";
 import { toPascalCase } from "../utils/templates";
+import { logger } from "../utils/logger";
 import {
 	scalarFieldToTypeString,
 	isScalarField,
@@ -190,6 +191,14 @@ function generateHeader(): string {
 		"  RelationHasMany,",
 		"  RelationManyToMany,",
 		'} from "@datrix/core";',
+		"",
+		"export type JsonValue =",
+		"  | string",
+		"  | number",
+		"  | boolean",
+		"  | null",
+		"  | JsonValue[]",
+		"  | { [key: string]: JsonValue };",
 	].join("\n");
 }
 
@@ -203,5 +212,22 @@ export function generateTypesFile(
 	const userSchemas = schemas.filter((s) => !isInternalSchema(s));
 	const schemaBlocks = userSchemas.map(generateSchemaTypes);
 
-	return [header, "", ...schemaBlocks].join("\n\n") + "\n";
+	// Relations may point at models that are not registered (or were filtered
+	// out as internal) — emit unknown stubs so the output always compiles.
+	const generatedNames = new Set(userSchemas.map((s) => toPascalCase(s.name)));
+	const dangling = [...collectRelationTargets(userSchemas)]
+		.filter((target) => !generatedNames.has(target))
+		.sort();
+
+	const stubs: string[] = [];
+	for (const target of dangling) {
+		logger.warn(
+			`Relation target '${target}' is not registered — emitting 'type ${target} = unknown' so the generated file compiles.`,
+		);
+		stubs.push(
+			`export type ${target} = unknown; // relation target not registered`,
+		);
+	}
+
+	return [header, "", ...schemaBlocks, ...stubs].join("\n\n") + "\n";
 }

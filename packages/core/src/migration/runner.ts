@@ -195,6 +195,7 @@ export class ForgeMigrationRunner implements MigrationRunner {
 				} catch (error) {
 					const executionTime = Date.now() - startTime;
 					const err = error instanceof Error ? error : new Error(String(error));
+					await this.recordSafe(migration, executionTime, "failed", err);
 					return { migration, status: "failed", executionTime, error: err };
 				}
 			} catch (error) {
@@ -205,24 +206,22 @@ export class ForgeMigrationRunner implements MigrationRunner {
 				return { migration, status: "failed", executionTime, error: err };
 			}
 
-			// Phase 3: dropTable operations (after successful commit)
+			// Phase 3: dropTable operations (after successful commit).
+			// Drop failures after successful commit are warnings, not failures —
+			// data is already safely migrated. Keep going so one failed drop
+			// doesn't leave more leftovers than necessary.
+			const warnings: string[] = [];
 			for (const operation of postOps) {
 				try {
 					await this.executeOperationDirect(operation);
 				} catch (error) {
-					// Drop failures after successful commit are warnings, not failures.
-					// Data is already safely migrated — leftover tables can be cleaned manually.
-					const executionTime = Date.now() - startTime;
-					const warnings = [
+					warnings.push(
 						`Post-commit dropTable failed: ${(error as Error).message}`,
-					];
-					await this.recordSafe(migration, executionTime, "completed");
-					return { migration, status: "completed", executionTime, warnings };
+					);
 				}
 			}
 
 			const executionTime = Date.now() - startTime;
-			const warnings: string[] = [];
 			try {
 				await this.history.record(migration, executionTime, "completed");
 			} catch (error) {
@@ -267,9 +266,10 @@ export class ForgeMigrationRunner implements MigrationRunner {
 		for (const op of operations) {
 			if (op.type === "createTable") {
 				preOps.push(op);
-			} else if (op.type === "dropTable" || op.type === "renameTable") {
+			} else if (op.type === "dropTable") {
 				postOps.push(op);
 			} else {
+				// renameTable stays in-tx: later tx ops may target the new name
 				txOps.push(op);
 			}
 		}
@@ -381,6 +381,14 @@ export class ForgeMigrationRunner implements MigrationRunner {
 				return;
 
 			case "dataTransfer":
+				if (typeof operation.execute !== "function") {
+					throw new MigrationSystemError(
+						`dataTransfer operation is not executable: '${operation.description}'. ` +
+							`Generated migration files cannot carry dataTransfer closures — ` +
+							`replace the stub with equivalent 'raw' SQL operations.`,
+						"MIGRATION_ERROR",
+					);
+				}
 				return await operation.execute(tx);
 		}
 	}

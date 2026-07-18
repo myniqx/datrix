@@ -177,7 +177,9 @@ export async function seedPosts(
 	datrix: Datrix,
 	seed: SeedResult,
 ): Promise<DatrixEntry[]> {
-	const posts = await datrix.createMany("post", [
+	// Bulk insert shares one relation set across all items, so posts with
+	// per-item tags must be created individually
+	const postInputs = [
 		{
 			title: "Getting Started with TypeScript",
 			content: "TypeScript is a typed superset of JavaScript...",
@@ -211,7 +213,12 @@ export async function seedPosts(
 			author: seed.users[0].id,
 			category: seed.categories[1].id,
 		},
-	]);
+	];
+
+	const posts: DatrixEntry[] = [];
+	for (const input of postInputs) {
+		posts.push(await datrix.create("post", input));
+	}
 
 	return posts;
 }

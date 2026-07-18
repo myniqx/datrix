@@ -13,10 +13,11 @@ import type {
 	ResultSetHeader,
 	RowDataPacket,
 } from "mysql2/promise";
+import type { ExecuteValues } from "mysql2";
 import { AdapterErrorCode, DatrixAdapterError } from "@datrix/core";
 import { QueryObject } from "@datrix/core";
 
-const IS_DEBUG = process.env["NODE_ENV"] !== "production" && false;
+const IS_DEBUG = process.env["DATRIX_DEBUG"] === "1";
 
 const MYSQL_CODE_MAP: Record<string, string> = {
 	ER_DUP_ENTRY: "ADAPTER_UNIQUE_CONSTRAINT",
@@ -24,7 +25,7 @@ const MYSQL_CODE_MAP: Record<string, string> = {
 	ER_ROW_IS_REFERENCED_2: "ADAPTER_FOREIGN_KEY_CONSTRAINT",
 };
 
-function mysqlCodeToAdapterCode(mysqlCode: string | undefined): string {
+export function mysqlCodeToAdapterCode(mysqlCode: string | undefined): string {
 	if (mysqlCode && mysqlCode in MYSQL_CODE_MAP) {
 		return MYSQL_CODE_MAP[mysqlCode]!;
 	}
@@ -78,7 +79,10 @@ export class MySQLClient {
 		}
 
 		try {
-			const result = await this.runner[method](sql, params as unknown[]);
+			const result =
+				method === "execute"
+					? await this.runner.execute(sql, params as ExecuteValues[])
+					: await this.runner.query(sql, params as ExecuteValues[]);
 			return result as MySQLExecuteResult;
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);

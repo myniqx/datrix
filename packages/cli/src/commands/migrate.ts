@@ -21,24 +21,7 @@ import {
 	red,
 	cyan,
 } from "../utils/logger";
-import * as readline from "readline";
-
-/**
- * Ask user a question via CLI
- */
-async function askQuestion(question: string): Promise<string> {
-	const rl = readline.createInterface({
-		input: process.stdin,
-		output: process.stdout,
-	});
-
-	return new Promise((resolve) => {
-		rl.question(question, (answer) => {
-			rl.close();
-			resolve(answer.trim());
-		});
-	});
-}
+import { ask, isInteractive } from "../utils/prompt";
 
 /**
  * Display migration plan
@@ -107,6 +90,14 @@ async function resolveAmbiguousChanges(
 		return;
 	}
 
+	if (!isInteractive()) {
+		throw new CLIError(
+			"Ambiguous schema changes require interactive resolution, but stdin is not a TTY. " +
+				"Run 'datrix migrate' in an interactive terminal, or adjust the schemas so the changes are unambiguous.",
+			"EXECUTION_ERROR",
+		);
+	}
+
 	logger.log("");
 	logger.log(yellow("Ambiguous changes detected:"));
 	logger.log(
@@ -132,13 +123,32 @@ async function resolveAmbiguousChanges(
 		logger.log("");
 
 		const validRange = `1-${change.possibleActions.length}`;
-		const answer = await askQuestion(`Choose option (${validRange}): `);
-		const choice = parseInt(answer, 10);
+		const maxAttempts = 3;
+		let choice = NaN;
 
-		if (isNaN(choice) || choice < 1 || choice > change.possibleActions.length) {
-			throw new CLIError(
-				`Invalid choice '${answer}'. Expected a number between ${validRange}.`,
-				"EXECUTION_ERROR",
+		for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+			const answer = await ask(`Choose option (${validRange}): `);
+			choice = parseInt(answer, 10);
+
+			if (
+				!isNaN(choice) &&
+				choice >= 1 &&
+				choice <= change.possibleActions.length
+			) {
+				break;
+			}
+
+			if (attempt === maxAttempts) {
+				throw new CLIError(
+					`Invalid choice '${answer}'. Expected a number between ${validRange}.`,
+					"EXECUTION_ERROR",
+				);
+			}
+
+			logger.log(
+				yellow(
+					`  Invalid choice '${answer}'. Expected a number between ${validRange}.`,
+				),
 			);
 		}
 
@@ -175,11 +185,21 @@ async function runPendingMigrations(
 		return;
 	}
 
-	const confirm = await askQuestion("Apply these migrations? (y/N): ");
-	if (confirm.toLowerCase() !== "y") {
-		logger.log("");
-		logger.info("Migration cancelled");
-		return;
+	if (!options.yes) {
+		if (!isInteractive()) {
+			throw new CLIError(
+				"Cannot ask for confirmation: stdin is not a TTY. " +
+					"Use --yes to apply migrations non-interactively.",
+				"EXECUTION_ERROR",
+			);
+		}
+
+		const confirm = await ask("Apply these migrations? (y/N): ");
+		if (confirm.toLowerCase() !== "y") {
+			logger.log("");
+			logger.info("Migration cancelled");
+			return;
+		}
 	}
 
 	spinner.start("Applying migrations...");

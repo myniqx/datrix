@@ -16,6 +16,7 @@ import type { DatabaseAdapter } from "../adapter";
 import { QueryObject } from "./query-builder";
 import { QueryContext } from "./query-context";
 import { DatrixConfig } from "./config";
+import type { IDatrix } from "./interfaces";
 
 export type { SchemaDefinition } from "./schema";
 
@@ -26,6 +27,8 @@ export interface PluginContext {
 	readonly adapter: DatabaseAdapter;
 	readonly schemas: ISchemaRegistry;
 	readonly config: DatrixConfig;
+	/** The owning Datrix instance. Available from init() onward. */
+	readonly datrix: IDatrix;
 }
 
 /**

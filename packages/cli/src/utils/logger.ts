@@ -87,9 +87,11 @@ export class Spinner {
 	private message: string = "";
 
 	/**
-	 * Start spinner with message
+	 * Start spinner with message. Stops any previous interval first so
+	 * repeated start() calls never leak timers.
 	 */
 	start(message: string): void {
+		this.stop();
 		this.message = message;
 		this.currentFrame = 0;
 
@@ -100,6 +102,13 @@ export class Spinner {
 			}
 			this.currentFrame = (this.currentFrame + 1) % this.frames.length;
 		}, 80);
+	}
+
+	/**
+	 * Update the message of a running spinner without touching the interval
+	 */
+	update(message: string): void {
+		this.message = message;
 	}
 
 	/**

@@ -1,6 +1,6 @@
 {
 	"name": "@datrix/cli",
-	"version": "0.1.1",
+	"version": "0.2.0",
 	"description": "Command-line tools for Datrix framework",
 	"author": "Datrix Contributors",
 	"license": "MIT",
@@ -51,19 +51,19 @@
 		"clean": "rm -rf dist"
 	},
 	"peerDependencies": {
-		"@datrix/core": "^0.1.2"
+		"@datrix/core": "workspace:^"
 	},
 	"dependencies": {
-		"adm-zip": "^0.5.16",
+		"adm-zip": "^0.6.0",
 		"archiver": "^7.0.1"
 	},
 	"devDependencies": {
 		"@datrix/core": "workspace:*",
 		"@types/adm-zip": "^0.5.8",
 		"@types/archiver": "^7.0.0",
-		"@types/node": "^20.11.17",
-		"jiti": "^2.6.1",
-		"tsup": "^8.0.2",
-		"typescript": "^5.3.3"
+		"@types/node": "^22.20.1",
+		"jiti": "^2.7.0",
+		"tsup": "^8.5.1",
+		"typescript": "^5.7.3"
 	}
 }

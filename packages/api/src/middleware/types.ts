@@ -13,8 +13,11 @@ import { FallbackInput } from "@datrix/core";
 
 /**
  * HTTP Methods
+ *
+ * QUERY is the IETF safe-method-with-body for complex reads;
+ * POST /:model/query is the portable alias for runtimes that drop it.
  */
-export type HttpMethod = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
+export type HttpMethod = "GET" | "POST" | "PATCH" | "PUT" | "DELETE" | "QUERY";
 
 /**
  * Request Context
@@ -88,6 +91,26 @@ export interface RequestContext<TRole extends string = string> {
 	 * Whether authentication is enabled
 	 */
 	readonly authEnabled: boolean;
+
+	/**
+	 * True for QUERY requests and the POST /:model/query alias.
+	 * The validated body query is exposed via `query`; `body` stays null.
+	 */
+	readonly isQueryRequest: boolean;
+
+	/**
+	 * Effective pagination/populate limits (plugin config or defaults)
+	 */
+	readonly limits: RequestLimits;
+}
+
+/**
+ * Effective request limits resolved from the plugin config
+ */
+export interface RequestLimits {
+	readonly defaultPageSize: number;
+	readonly maxPageSize: number;
+	readonly maxPopulateDepth: number;
 }
 
 /**
@@ -95,4 +118,7 @@ export interface RequestContext<TRole extends string = string> {
  */
 export interface ContextBuilderOptions {
 	readonly apiPrefix?: string;
+	readonly defaultPageSize?: number | undefined;
+	readonly maxPageSize?: number | undefined;
+	readonly maxPopulateDepth?: number | undefined;
 }

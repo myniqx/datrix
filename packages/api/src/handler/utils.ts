@@ -67,12 +67,31 @@ export function parserErrorResponse(error: ParserError): Response {
 }
 
 /**
+ * Parse a Cookie header into a name → value map.
+ * Shared by all cookie consumers — exact-name lookups only.
+ */
+export function parseCookies(
+	cookieHeader: string | null,
+): Record<string, string> {
+	const cookies: Record<string, string> = {};
+	if (!cookieHeader) return cookies;
+
+	for (const part of cookieHeader.split(";")) {
+		const eqIndex = part.indexOf("=");
+		if (eqIndex === -1) continue;
+		const key = part.slice(0, eqIndex).trim();
+		const value = part.slice(eqIndex + 1).trim();
+		if (key) {
+			cookies[key] = value;
+		}
+	}
+
+	return cookies;
+}
+
+/**
  * Extract session ID from request cookies
  */
 export function extractSessionId(request: Request): string | null {
-	const cookieHeader = request.headers.get("cookie");
-	if (!cookieHeader) return null;
-
-	const match = cookieHeader.match(/sessionId=([^;]+)/);
-	return match ? match[1]! : null;
+	return parseCookies(request.headers.get("cookie"))["sessionId"] ?? null;
 }

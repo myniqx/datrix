@@ -49,6 +49,57 @@ function isValidIndexType(
 }
 
 /**
+ * JSON-stable serialization for structural comparison.
+ * RegExp values become their string form, functions are dropped —
+ * mirroring what JSON serialization did to the DB-side schema.
+ */
+function stableSerialize(value: unknown): string {
+	const json = JSON.stringify(value, (_key, val: unknown) => {
+		if (val instanceof RegExp) return String(val);
+		if (typeof val === "function") return undefined;
+		return val;
+	});
+	return json ?? "undefined";
+}
+
+/**
+ * Compare `default` by value. Function defaults cannot be diffed
+ * (JSON serialization drops them on the DB side) — never a modification.
+ */
+function isDefaultModified(oldDefault: unknown, newDefault: unknown): boolean {
+	if (typeof oldDefault === "function" || typeof newDefault === "function") {
+		return false;
+	}
+	return stableSerialize(oldDefault) !== stableSerialize(newDefault);
+}
+
+/**
+ * Normalize a pattern for comparison. Returns:
+ * - undefined: pattern absent
+ * - string: comparable pattern source
+ * - null: incomparable (a RegExp degraded to `{}` by JSON serialization)
+ */
+function normalizePattern(pattern: unknown): string | null | undefined {
+	if (pattern === undefined || pattern === null) return undefined;
+	if (pattern instanceof RegExp) return String(pattern);
+	if (typeof pattern === "string") return pattern;
+	return null;
+}
+
+/**
+ * Compare `pattern` by normalized string form. If either side is
+ * incomparable (lost through JSON serialization), treat as unchanged —
+ * pattern only affects validation, never DDL, so a spurious diff here
+ * would loop endless migrations.
+ */
+function isPatternModified(oldPattern: unknown, newPattern: unknown): boolean {
+	const oldNorm = normalizePattern(oldPattern);
+	const newNorm = normalizePattern(newPattern);
+	if (oldNorm === null || newNorm === null) return false;
+	return oldNorm !== newNorm;
+}
+
+/**
  * Schema differ implementation
  */
 export class ForgeSchemaDiffer implements SchemaDiffer {
@@ -736,8 +787,9 @@ export class ForgeSchemaDiffer implements SchemaDiffer {
 			return true;
 		}
 
-		// Check required change
-		if (oldField.required !== newField.required) {
+		// Check required change (absent counts as false — the DB side reports
+		// an explicit false where the schema simply omits it)
+		if ((oldField.required ?? false) !== (newField.required ?? false)) {
 			return true;
 		}
 
@@ -750,12 +802,14 @@ export class ForgeSchemaDiffer implements SchemaDiffer {
 			"unique" in newField
 				? (newField as { unique?: boolean }).unique
 				: undefined;
-		if (oldUnique !== newUnique) {
+		if ((oldUnique ?? false) !== (newUnique ?? false)) {
 			return true;
 		}
 
-		// Check default value change
-		if (oldField.default !== newField.default) {
+		// Check default value change — by value, not reference. The old side
+		// has been through JSON serialization, so function defaults are gone;
+		// they cannot be diffed and never count as a modification.
+		if (isDefaultModified(oldField.default, newField.default)) {
 			return true;
 		}
 
@@ -769,7 +823,7 @@ export class ForgeSchemaDiffer implements SchemaDiffer {
 				if (
 					oldField.maxLength !== newField.maxLength ||
 					oldField.minLength !== newField.minLength ||
-					oldField.pattern !== newField.pattern
+					isPatternModified(oldField.pattern, newField.pattern)
 				) {
 					return true;
 				}
@@ -791,7 +845,7 @@ export class ForgeSchemaDiffer implements SchemaDiffer {
 					return true;
 				}
 				if (
-					oldField.items !== newField.items ||
+					stableSerialize(oldField.items) !== stableSerialize(newField.items) ||
 					oldField.minItems !== newField.minItems ||
 					oldField.maxItems !== newField.maxItems ||
 					("unique" in oldField &&

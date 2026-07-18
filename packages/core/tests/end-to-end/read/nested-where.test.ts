@@ -207,6 +207,20 @@ describe("Nested Where", () => {
 
 			expect(results).toHaveLength(2); // Alice (eng 100k) and Bob (sales 50k)
 		});
+
+		// core Issue 7 — a belongsTo relation accepts the same primitive id
+		// shortcut in WHERE that it accepts on write (`category: 5`), not just
+		// the nested-object form (`category: { id: 5 }` / `{ name: "..." }`)
+		it("should filter by a raw id shortcut on a belongsTo relation", async () => {
+			const results = await datrix.findMany("user", {
+				where: { organization: orgs.acme },
+			});
+
+			expect(results).toHaveLength(2); // Alice and Bob
+			for (const user of results) {
+				expect(["Alice", "Bob"]).toContain(user.name);
+			}
+		});
 	});
 
 	// ==========================================================================
@@ -421,6 +435,20 @@ describe("Nested Where", () => {
 			});
 
 			expect(results).toHaveLength(0);
+		});
+
+		// core Issue 8 — unlike belongsTo/hasOne, a hasMany/manyToMany relation
+		// in WHERE must NOT accept a raw primitive id shortcut (ambiguous: does
+		// `roles: 2` mean "has role 2" or something else across many rows?).
+		// The query builder rejects it with a clear error pointing at the
+		// supported `{ roles: { id: 2 } }` form, instead of silently coercing
+		// or passing the raw value through to the adapter.
+		it("should reject a raw id shortcut on a manyToMany relation", async () => {
+			await expect(
+				datrix.findMany("user", {
+					where: { roles: roles.admin } as never,
+				}),
+			).rejects.toThrow();
 		});
 
 		it("should filter posts by tag name", async () => {

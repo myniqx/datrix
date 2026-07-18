@@ -41,6 +41,20 @@ The plugin automatically registers a `media` schema and exposes `/api/upload` en
 
 `GET` requests fall through to the standard CRUD handler — filtering, pagination, and populate work out of the box.
 
+Notes:
+
+- One file per request — multiple `file` entries in the form data are rejected with `400`.
+- `PATCH`/`PUT` are not supported: media records are immutable over HTTP. Re-upload and delete instead.
+- `DELETE` removes the database record first, then deletes storage objects best-effort — a failed storage delete is logged, never blocks the request.
+
+## Permissions
+
+When auth is enabled on `ApiPlugin`, the upload endpoints are gated **before** the handler runs:
+
+- `POST /api/upload` evaluates `permission.create`, `DELETE /api/upload/:id` evaluates `permission.delete` (from `UploadOptions.permission`).
+- With no explicit value, writes require an authenticated user; `read` stays open (the API-wide default).
+- Direct CRUD writes to the media model (`POST`/`PATCH /api/media`) are **denied by default** — the upload pipeline is the only write path. Override via `permission.create` / `permission.update` only if you know what you are doing (records written this way bypass storage handling).
+
 ## Storage providers
 
 ### Local
@@ -67,8 +81,10 @@ new S3StorageProvider({
   region:          "us-east-1",
   accessKeyId:     "...",
   secretAccessKey: "...",
-  endpoint:        "https://...",  // optional — custom endpoint for R2 / MinIO
-  pathPrefix:      "uploads/",     // optional key prefix
+  endpoint:        "abc.r2.cloudflarestorage.com", // optional — custom host for R2 / MinIO (no protocol)
+  pathPrefix:      "uploads",      // optional key prefix
+  sessionToken:    "...",          // optional — STS temporary credentials
+  forcePathStyle:  true,           // optional — path-style addressing (MinIO / localstack)
 })
 ```
 
@@ -134,6 +150,9 @@ new Upload({
   allowedMimeTypes: ["image/*", "application/pdf"], // wildcards supported
 })
 ```
+
+- Oversized requests are rejected from the `Content-Length` header (`413`) before the body is buffered. A hard streaming limit should still be enforced at the server/proxy level.
+- Files declared with an `image/*` MIME type are verified against their actual content (via sharp) — e.g. HTML uploaded as `image/png` is rejected with `400`. Non-image MIME types are stored as declared; serve local uploads with `X-Content-Type-Options: nosniff`.
 
 ## Media schema
 

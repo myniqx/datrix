@@ -555,5 +555,49 @@ describe("Populate", () => {
 			expect(favCat.parent).toBeDefined();
 			expect(favCat.parent.name).toBe("Parent of Favorite");
 		});
+
+		// core Issue 34 / Adapter Issue 8 — hasOne's hidden FK (on the TARGET
+		// table, here category.userId) is unique at the DB level, which
+		// guarantees at most one owner per target AT ANY POINT IN TIME — it does
+		// not forbid re-pointing a target to a new owner (same as a real SQL
+		// UNIQUE column: nothing stops an UPDATE from changing who holds the
+		// value, only two rows holding it AT ONCE). The executor's hasOne
+		// connect first clears whoever currently holds the target, then links
+		// the new owner, so re-claiming an already-claimed target never
+		// produces a uniqueness violation — it silently (and correctly) steals
+		// the link. This test locks in that hand-off: the first owner's link
+		// must actually be cleared, not just overwritten in appearance while
+		// stale data lingers.
+		it("hands off favoriteCategory to a second user, clearing the first user's link", async () => {
+			const sharedCategory = await datrix.create("category", {
+				name: "Shared Favorite Category",
+				slug: "shared-favorite-category",
+			});
+
+			const firstUser = await datrix.create("user", {
+				email: "hasone-hando-1@test.com",
+				name: "HasOne Handoff First",
+				favoriteCategory: sharedCategory.id,
+			});
+
+			await datrix.create("user", {
+				email: "hasone-handoff-2@test.com",
+				name: "HasOne Handoff Second",
+				favoriteCategory: sharedCategory.id,
+			});
+
+			const firstUserAfter = await datrix.findById("user", firstUser.id, {
+				populate: { favoriteCategory: true },
+			});
+			expect(firstUserAfter!.favoriteCategory).toBeNull();
+
+			const secondUserAfter = await datrix.findMany("user", {
+				where: { email: "hasone-handoff-2@test.com" },
+				populate: { favoriteCategory: true },
+			});
+			expect(
+				(secondUserAfter[0]!.favoriteCategory as { id: number }).id,
+			).toBe(sharedCategory.id);
+		});
 	});
 });

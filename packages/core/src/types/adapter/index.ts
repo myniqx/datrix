@@ -54,6 +54,12 @@ export interface ImportReader {
 export { DatrixAdapterError };
 
 /**
+ * One entry of a grouped COUNT result — the group's field values plus a
+ * `count` of matching records.
+ */
+export type GroupCountData = Record<string, unknown> & { count: number };
+
+/**
  * Query result metadata
  */
 export interface QueryMetadata {
@@ -61,6 +67,11 @@ export interface QueryMetadata {
 	readonly affectedRows?: number;
 	readonly insertIds?: readonly number[];
 	readonly count?: number;
+	/**
+	 * Grouped count results — set instead of `count` when the COUNT query
+	 * has `groupBy`. One entry per distinct group.
+	 */
+	readonly countMany?: readonly GroupCountData[];
 }
 
 /**

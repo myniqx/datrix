@@ -5,8 +5,9 @@
  * and auto-increment counter management.
  */
 
-import type { Collection, Document } from "mongodb";
+import type { Collection, Db, Document } from "mongodb";
 import { throwQueryError } from "@datrix/core";
+import { DATRIX_META_MODEL, DATRIX_META_KEY_PREFIX } from "@datrix/core";
 import { COUNTER_KEY_PREFIX } from "./types";
 
 const VALID_IDENTIFIER_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
@@ -25,6 +26,25 @@ export function validateIdentifier(identifier: string): void {
 			message: `Invalid identifier '${identifier}': must start with letter or underscore, contain only alphanumeric characters and underscores`,
 		});
 	}
+}
+
+/**
+ * List the datrix-managed collections: every collection that has a schema
+ * meta entry in `_datrix` (key `_schema_<tableName>`). Collections without a
+ * meta entry belong to the host application and must never be touched by
+ * export/import. Returns an empty list when `_datrix` doesn't exist yet.
+ */
+export async function getManagedCollections(db: Db): Promise<string[]> {
+	const docs = await db
+		.collection(DATRIX_META_MODEL)
+		.find(
+			{ key: { $regex: `^${DATRIX_META_KEY_PREFIX}` } },
+			{ projection: { key: 1, _id: 0 } },
+		)
+		.toArray();
+	return docs.map((doc) =>
+		String(doc["key"]).slice(DATRIX_META_KEY_PREFIX.length),
+	);
 }
 
 /**
@@ -66,24 +86,45 @@ export async function getNextIds(
 	count: number,
 ): Promise<number> {
 	const counterKey = `${COUNTER_KEY_PREFIX}${collectionName}`;
+	const MAX_ATTEMPTS = 3;
 
-	const result = await metaCollection.findOneAndUpdate(
-		{ key: counterKey },
-		{ $inc: { value: count } },
-		{
-			upsert: true,
-			returnDocument: "after",
-		},
-	);
+	for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+		try {
+			const result = await metaCollection.findOneAndUpdate(
+				{ key: counterKey },
+				{ $inc: { value: count } },
+				{
+					upsert: true,
+					returnDocument: "after",
+				},
+			);
 
-	if (!result) {
-		throwQueryError({
-			adapter: "mongodb",
-			message: `Failed to generate auto-increment ID for collection '${collectionName}'`,
-		});
+			if (!result) {
+				throwQueryError({
+					adapter: "mongodb",
+					message: `Failed to generate auto-increment ID for collection '${collectionName}'`,
+				});
+			}
+
+			const lastId = result!["value"] as number;
+			// Return the first ID in the reserved range
+			return lastId - count + 1;
+		} catch (error) {
+			// The upsert on a missing counter doc is not atomic across concurrent
+			// callers: two first-ever inserts can both attempt the upsert, and
+			// the loser gets an E11000 on the unique `key` index. The doc exists
+			// now, so retrying takes the $inc path instead of upserting again.
+			const mongoError = error as { code?: number };
+			if (mongoError.code === 11000 && attempt < MAX_ATTEMPTS) {
+				continue;
+			}
+			throw error;
+		}
 	}
 
-	const lastId = result!["value"] as number;
-	// Return the first ID in the reserved range
-	return lastId - count + 1;
+	// Unreachable: the loop always returns or throws.
+	throwQueryError({
+		adapter: "mongodb",
+		message: `Failed to generate auto-increment ID for collection '${collectionName}' after ${MAX_ATTEMPTS} attempts`,
+	});
 }

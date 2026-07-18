@@ -14,8 +14,10 @@ import type {
 	QueryOrderBy,
 	OrderByItem,
 	OrderDirection,
+	FallbackOrderByItem,
 } from "../types/core/query-builder";
-import type { DatrixEntry } from "../types/core/schema";
+import type { DatrixEntry, SchemaDefinition } from "../types/core/schema";
+import { throwInvalidField, throwInvalidValue } from "./error-helper";
 
 /**
  * Check if input is already normalized (array of OrderByItem)
@@ -118,6 +120,77 @@ export function normalizeOrderBy<T extends DatrixEntry>(
 		}) as QueryOrderBy<T>;
 	}
 
-	// Unknown format, return as-is (will fail validation later if invalid)
+	// Unknown format, return as-is (validateOrderBy will reject it)
 	return input as QueryOrderBy<T>;
+}
+
+/**
+ * Validate a normalized orderBy against the schema
+ *
+ * Field names are SQL identifiers that adapters cannot parameterize,
+ * so every field must be whitelisted against the schema here.
+ *
+ * @param orderBy - Normalized orderBy (output of normalizeOrderBy)
+ * @param schema - Schema definition to validate fields against
+ * @throws {DatrixQueryBuilderError} If an item is malformed or references
+ *   an unknown/relation field
+ */
+export function validateOrderBy<T extends DatrixEntry>(
+	orderBy: QueryOrderBy<T> | undefined,
+	schema: SchemaDefinition,
+): void {
+	if (orderBy === undefined) {
+		return;
+	}
+
+	if (!Array.isArray(orderBy)) {
+		throwInvalidValue(
+			"orderBy",
+			"orderBy",
+			orderBy,
+			"array of { field, direction } items",
+		);
+	}
+
+	for (const item of orderBy) {
+		if (
+			typeof item !== "object" ||
+			item === null ||
+			typeof (item as FallbackOrderByItem).field !== "string"
+		) {
+			throwInvalidValue(
+				"orderBy",
+				"orderBy",
+				item,
+				"{ field, direction } object",
+			);
+		}
+
+		const { field, direction, nulls } = item as FallbackOrderByItem;
+		const fieldDef = schema.fields[field];
+
+		if (!fieldDef) {
+			const availableFields = Object.keys(schema.fields).filter(
+				(name) => schema.fields[name]?.type !== "relation",
+			);
+			throwInvalidField("orderBy", field, availableFields);
+		}
+
+		if (fieldDef.type === "relation") {
+			throwInvalidValue(
+				"orderBy",
+				field,
+				"relation field",
+				"a scalar field — ordering by a relation is not supported",
+			);
+		}
+
+		if (direction !== "asc" && direction !== "desc") {
+			throwInvalidValue("orderBy", field, direction, '"asc" | "desc"');
+		}
+
+		if (nulls !== undefined && nulls !== "first" && nulls !== "last") {
+			throwInvalidValue("orderBy", field, nulls, '"first" | "last"');
+		}
+	}
 }

@@ -1,6 +1,8 @@
 import type { Db } from "mongodb";
 import type { ExportWriter } from "@datrix/core";
+import { DATRIX_META_MODEL } from "@datrix/core";
 import type { MongoDBAdapter } from "../adapter";
+import { getManagedCollections } from "../helpers";
 
 const CHUNK_SIZE = 1000;
 
@@ -16,7 +18,13 @@ export class MongoDBExporter {
 			exportedAt: new Date().toISOString(),
 		});
 
-		const tables = await this.adapter.getTables();
+		// Only datrix-managed collections are exported. datrix may share the
+		// database with a host application — foreign collections are none of
+		// our business (and may not even have an `id` to paginate on).
+		const tables = new Set<string>([
+			DATRIX_META_MODEL,
+			...(await getManagedCollections(this.db)),
+		]);
 
 		for (const tableName of tables) {
 			const schema = await this.adapter.getTableSchema(tableName);
@@ -37,26 +45,25 @@ export class MongoDBExporter {
 		writer: ExportWriter,
 	): Promise<void> {
 		const collection = this.db.collection(tableName);
-		let skip = 0;
 
-		while (true) {
-			const docs = await collection
-				.find({}, { projection: { _id: 0 } })
-				.sort({ id: 1 })
-				.skip(skip)
-				.limit(CHUNK_SIZE)
-				.toArray();
+		// Single sorted cursor with a chunk accumulator — skip/limit pagination
+		// is O(n²) and unstable under concurrent writes. `_datrix` docs have no
+		// `id`, so they sort by their unique `key` instead.
+		const sortField = tableName === DATRIX_META_MODEL ? "key" : "id";
+		const cursor = collection
+			.find({}, { projection: { _id: 0 } })
+			.sort({ [sortField]: 1 });
 
-			if (docs.length === 0) {
-				break;
+		let chunk: Record<string, unknown>[] = [];
+		for await (const doc of cursor) {
+			chunk.push(doc as Record<string, unknown>);
+			if (chunk.length >= CHUNK_SIZE) {
+				await writer.writeChunk(tableName, chunk);
+				chunk = [];
 			}
-
-			await writer.writeChunk(tableName, docs as Record<string, unknown>[]);
-			skip += docs.length;
-
-			if (docs.length < CHUNK_SIZE) {
-				break;
-			}
+		}
+		if (chunk.length > 0) {
+			await writer.writeChunk(tableName, chunk);
 		}
 	}
 }

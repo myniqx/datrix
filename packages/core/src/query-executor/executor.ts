@@ -31,7 +31,7 @@ import {
 	throwSchemaNotFoundError,
 	throwUnsupportedQueryType,
 } from "./error-helper";
-import { DatabaseAdapter, QueryRunner } from "../types/adapter";
+import { DatabaseAdapter, QueryRunner, GroupCountData } from "../types/adapter";
 
 /**
  * Executor execution options
@@ -136,12 +136,21 @@ export class QueryExecutor {
 
 	/**
 	 * Execute COUNT query
+	 *
+	 * Plain count (no `groupBy`) resolves to a scalar via `metadata.count`.
+	 * Grouped count (`groupBy` set) resolves to one row per distinct group,
+	 * via `metadata.countMany` — the adapter never touches `rows` for COUNT.
+	 *
+	 * After-hooks are skipped: count resolves to a scalar or a plain row
+	 * array, while result-transform hooks (onAfterQuery / schema after
+	 * hooks) are typed for entry rows. Before-hooks still run so plugins can
+	 * restrict the query.
 	 */
 	async executeCount<T extends DatrixEntry>(
 		query: QueryCountObject<T>,
 		schema: SchemaDefinition,
 		options: ExecutorOptions,
-	): Promise<number> {
+	): Promise<number | GroupCountData[]> {
 		return this.withLifecycle(
 			options.action ?? "count",
 			schema,
@@ -149,8 +158,12 @@ export class QueryExecutor {
 			query,
 			async (mq) => {
 				const result = await this.getAdapter().executeQuery<T>(mq);
+				if (mq.groupBy && mq.groupBy.length > 0) {
+					return [...(result.metadata.countMany ?? [])];
+				}
 				return result.metadata.count ?? 0;
 			},
+			true,
 		);
 	}
 
@@ -195,8 +208,10 @@ export class QueryExecutor {
 						});
 						prefetchedRows = selectResult.rows;
 					}
-					// TODO: do we need transaction here?
 					// 3. Execute DELETE (junction cleanup handled by DB via ON DELETE CASCADE)
+					// The prefetch above runs inside the transaction by design: all
+					// returning-reads (INSERT/UPDATE refetch, DELETE prefetch) share
+					// the same in-transaction read-consistency rule.
 					const deleteQueryResult = await runner.executeQuery<T>(mq);
 					deleteResult = deleteQueryResult.rows;
 
@@ -217,7 +232,9 @@ export class QueryExecutor {
 	/**
 	 * Execute INSERT with validation and relations
 	 *
-	 * Transaction flow: onBefore → validate → BEGIN → INSERT + relations → COMMIT → SELECT → onAfter
+	 * Transaction flow: onBefore → validate → BEGIN → INSERT + relations + SELECT → COMMIT → onAfter
+	 * Returning-reads run inside the transaction (same rule as DELETE's prefetch)
+	 * so they observe the exact state the write produced.
 	 */
 	async executeInsert<T extends DatrixEntry>(
 		query: QueryInsertObject<T>,
@@ -249,6 +266,7 @@ export class QueryExecutor {
 					await this.beginTransaction(adapter);
 
 				let insertedIds: readonly T[];
+				let returningRows: readonly T[] | undefined;
 
 				try {
 					// 3. Execute INSERT query (bulk)
@@ -270,6 +288,7 @@ export class QueryExecutor {
 							schema,
 							runner,
 							this.schemas,
+							noDispatcher,
 						);
 						for (const recordId of insertedIds) {
 							await processRelations(
@@ -283,33 +302,33 @@ export class QueryExecutor {
 						}
 					}
 
-					// 5. Commit transaction
+					// 5. Fetch full records inside the transaction (if returning enabled)
+					if (!options.noReturning) {
+						const selectQuery: QuerySelectObject<T> = {
+							type: "select",
+							table: insertQuery.table,
+							select:
+								insertQuery.select ??
+								this.schemas.getCachedSelectFields<T>(schema.name),
+							where: {
+								id: { $in: insertedIds.map((r) => r.id) },
+							} as unknown as WhereClause<T>,
+							...(insertQuery.populate !== undefined && {
+								populate: insertQuery.populate,
+							}),
+						};
+						const selectResult = await runner.executeQuery<T>(selectQuery);
+						returningRows = selectResult.rows;
+					}
+
+					// 6. Commit transaction
 					await commit();
 				} catch (error) {
 					await rollback();
 					throw error;
 				}
 
-				// 6. Fetch full records (if returning enabled)
-				if (options.noReturning) {
-					return insertedIds;
-				}
-
-				const selectQuery: QuerySelectObject<T> = {
-					type: "select",
-					table: insertQuery.table,
-					select: insertQuery.select!,
-					where: {
-						id: { $in: insertedIds.map((r) => r.id) },
-					} as unknown as WhereClause<T>,
-					...(insertQuery.populate !== undefined && {
-						populate: insertQuery.populate,
-					}),
-				};
-
-				return this.executeSelect<T>(selectQuery, schema, {
-					noDispatcher: true,
-				});
+				return returningRows ?? insertedIds;
 			},
 		);
 	}
@@ -317,7 +336,9 @@ export class QueryExecutor {
 	/**
 	 * Execute UPDATE with validation and relations
 	 *
-	 * Transaction flow: onBefore → validate → BEGIN → UPDATE + relations → COMMIT → SELECT → onAfter
+	 * Transaction flow: onBefore → validate → BEGIN → UPDATE + relations + SELECT → COMMIT → onAfter
+	 * Returning-reads run inside the transaction (same rule as DELETE's prefetch)
+	 * so they observe the exact state the write produced.
 	 */
 	async executeUpdate<T extends DatrixEntry>(
 		query: QueryUpdateObject<T>,
@@ -352,6 +373,7 @@ export class QueryExecutor {
 					await this.beginTransaction(adapter);
 
 				let recordIds: readonly T[];
+				let returningRows: readonly T[] | undefined;
 
 				try {
 					// 3. Execute UPDATE query (scalars only)
@@ -376,6 +398,7 @@ export class QueryExecutor {
 							schema,
 							runner,
 							this.schemas,
+							noDispatcher,
 						);
 						for (const recordId of recordIds) {
 							await processRelations(
@@ -389,34 +412,34 @@ export class QueryExecutor {
 						}
 					}
 
-					// 5. Commit transaction
+					// 5. Fetch full records inside the transaction (if returning enabled)
+					// Use updated record IDs for select (not original where, which may no longer match)
+					if (!options.noReturning) {
+						const selectQuery: QuerySelectObject<T> = {
+							type: "select",
+							table: updateQuery.table,
+							select:
+								updateQuery.select ??
+								this.schemas.getCachedSelectFields<T>(schema.name),
+							where: {
+								id: { $in: recordIds.map((r) => r.id) },
+							} as unknown as WhereClause<T>,
+							...(updateQuery.populate !== undefined && {
+								populate: updateQuery.populate,
+							}),
+						};
+						const selectResult = await runner.executeQuery<T>(selectQuery);
+						returningRows = selectResult.rows;
+					}
+
+					// 6. Commit transaction
 					await commit();
 				} catch (error) {
 					await rollback();
 					throw error;
 				}
 
-				// 6. Fetch full records (if returning enabled)
-				if (options.noReturning) {
-					return recordIds;
-				}
-
-				// Use updated record IDs for select (not original where, which may no longer match)
-				const selectQuery: QuerySelectObject<T> = {
-					type: "select",
-					table: updateQuery.table,
-					select: updateQuery.select!,
-					where: {
-						id: { $in: recordIds.map((r) => r.id) },
-					} as unknown as WhereClause<T>,
-					...(updateQuery.populate !== undefined && {
-						populate: updateQuery.populate,
-					}),
-				};
-
-				return this.executeSelect<T>(selectQuery, schema, {
-					noDispatcher: true,
-				});
+				return returningRows ?? recordIds;
 			},
 		);
 	}
@@ -432,6 +455,7 @@ export class QueryExecutor {
 		noDispatcher: boolean,
 		query: TQuery,
 		handler: (modifiedQuery: TQuery) => Promise<TResult>,
+		skipAfterHooks = false,
 	): Promise<TResult> {
 		const dispatcher = this.getDispatcher();
 
@@ -448,6 +472,10 @@ export class QueryExecutor {
 		)) as TQuery;
 
 		const result = await handler(modifiedQuery);
+
+		if (skipAfterHooks) {
+			return result;
+		}
 
 		return dispatcher.dispatchAfterQuery(
 			result as DatrixEntry,

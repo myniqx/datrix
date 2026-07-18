@@ -16,17 +16,20 @@ import type {
 	OrderByClause,
 } from "../types/core/query-builder";
 
-import { normalizeWhere } from "./where";
+import { normalizeWhere, isLogicalOperator } from "./where";
 import { normalizePopulateArray } from "./populate";
 import { normalizeSelect } from "./select";
 import { processData } from "./data";
-import { normalizeOrderBy } from "./orderby";
+import { normalizeOrderBy, validateOrderBy } from "./orderby";
 import {
 	throwSchemaNotFound,
 	throwInvalidQueryType,
 	throwMissingTable,
 	throwMissingData,
 	throwDeleteWithoutWhere,
+	throwUpdateWithoutWhere,
+	throwInvalidField,
+	throwInvalidValue,
 } from "./error-helper";
 import type {
 	DatrixEntry,
@@ -94,6 +97,7 @@ export class DatrixQueryBuilder<
 	private readonly _modelName: string;
 	private readonly _schema: SchemaDefinition;
 	private readonly _registry: ISchemaRegistry;
+	private readonly _initialType: TType;
 
 	/**
 	 * Constructor for the query builder
@@ -129,6 +133,7 @@ export class DatrixQueryBuilder<
 		}
 
 		this._schema = schema;
+		this._initialType = type;
 		this.query = {
 			table: schema.tableName!,
 			type,
@@ -306,6 +311,9 @@ export class DatrixQueryBuilder<
 	 * Group by fields
 	 */
 	groupBy(fields: readonly string[]): this {
+		if (!Array.isArray(fields)) {
+			throwInvalidValue("groupBy", "groupBy", fields, "an array of field names");
+		}
 		this.query.groupBy = [...(this.query.groupBy || []), ...fields];
 		return this;
 	}
@@ -341,10 +349,26 @@ export class DatrixQueryBuilder<
 			this._schema,
 			this._registry,
 		);
+		// distinct without an explicit select would fall back to the wildcard
+		// field list, which always includes `id` — since `id` is unique per
+		// row, that silently makes `distinct` a no-op instead of erroring
+		if (
+			this.query.distinct === true &&
+			(this.query.select === undefined || this.query.select.length === 0)
+		) {
+			throwInvalidValue(
+				"select",
+				"distinct",
+				undefined,
+				"an explicit select — distinct requires select so the wildcard's unique `id` field can't silently defeat deduplication",
+			);
+		}
+
 		const normalizedSelect = normalizeSelect(
 			this.query.select,
 			this._schema,
 			this._registry,
+			this.query.groupBy !== undefined || this.query.distinct === true,
 		);
 		const normalizedPopulate = normalizePopulateArray(
 			this.query.populate,
@@ -352,12 +376,64 @@ export class DatrixQueryBuilder<
 			this._registry,
 		);
 		const normalizedOrderBy = normalizeOrderBy(this.query.orderBy);
+		validateOrderBy(normalizedOrderBy, this._schema);
+
+		// groupBy fields are SQL identifiers — whitelist them against the schema
+		if (this.query.groupBy !== undefined) {
+			for (const field of this.query.groupBy) {
+				const fieldDef = this._schema.fields[field];
+				if (!fieldDef) {
+					const availableFields = Object.keys(this._schema.fields).filter(
+						(name) => this._schema.fields[name]?.type !== "relation",
+					);
+					throwInvalidField("groupBy", field, availableFields);
+				}
+				if (fieldDef.type === "relation") {
+					throwInvalidValue(
+						"groupBy",
+						field,
+						"relation field",
+						"a scalar field — grouping by a relation is not supported",
+					);
+				}
+			}
+
+			// SELECT with GROUP BY can only project grouped columns — SQL has no
+			// defined row to read an ungrouped column from once rows collapse
+			// into groups (same reasoning as the having check below)
+			if (type === "select") {
+				const groupByFields = new Set(this.query.groupBy);
+				for (const field of normalizedSelect) {
+					if (!groupByFields.has(field as string)) {
+						throwInvalidField("select", field as string, [
+							...groupByFields,
+						]);
+					}
+				}
+			}
+		}
+
+		// having goes through the same validate/normalize pipeline as where
+		const normalizedHaving =
+			this.query.having !== undefined
+				? normalizeWhere([this.query.having], this._schema, this._registry)
+				: undefined;
+
+		// having can only reference grouped fields — SQL has no defined row to
+		// read an ungrouped column from once rows are collapsed into groups
+		if (normalizedHaving !== undefined) {
+			const groupByFields = new Set(this.query.groupBy ?? []);
+			for (const field of collectWhereFields(normalizedHaving)) {
+				if (!groupByFields.has(field)) {
+					throwInvalidField("having", field, [...groupByFields]);
+				}
+			}
+		}
 
 		// Spread helpers for reuse
-		const selectSpread =
-			normalizedSelect !== undefined
-				? { select: normalizedSelect }
-				: { select: undefined };
+		// normalizeSelect always returns a concrete field list (wildcard-expanded
+		// when the user never called .select()), never undefined
+		const selectSpread = { select: normalizedSelect };
 		const populateSpread =
 			normalizedPopulate !== undefined ? { populate: normalizedPopulate } : {};
 		const whereSpread =
@@ -382,8 +458,8 @@ export class DatrixQueryBuilder<
 					...(this.query.groupBy !== undefined && {
 						groupBy: this.query.groupBy as readonly string[],
 					}),
-					...(this.query.having !== undefined && {
-						having: this.query.having,
+					...(normalizedHaving !== undefined && {
+						having: normalizedHaving,
 					}),
 				} as QueryObjectForType<TSchema, TType>;
 			}
@@ -396,8 +472,8 @@ export class DatrixQueryBuilder<
 					...(this.query.groupBy !== undefined && {
 						groupBy: this.query.groupBy as readonly string[],
 					}),
-					...(this.query.having !== undefined && {
-						having: this.query.having,
+					...(normalizedHaving !== undefined && {
+						having: normalizedHaving,
 					}),
 				} as QueryObjectForType<TSchema, TType>;
 			}
@@ -413,7 +489,24 @@ export class DatrixQueryBuilder<
 				const dataArray = processedItems.map(
 					(p) => p.data,
 				) as readonly Partial<TSchema>[];
+
+				// Bulk insert shares ONE relation set (taken from the first item)
+				// across all inserted records. Differing per-item relations would be
+				// silently ignored — reject them instead.
 				const relations = processedItems[0]?.relations;
+				const firstRelationsKey = JSON.stringify(relations ?? null);
+				for (let i = 1; i < processedItems.length; i++) {
+					const itemRelations = processedItems[i]?.relations;
+					if (JSON.stringify(itemRelations ?? null) !== firstRelationsKey) {
+						throwInvalidValue(
+							"data",
+							`items[${i}]`,
+							itemRelations ?? "no relations",
+							"the same relation operations as the first item — bulk insert applies the first item's relations to every record; use single create calls for per-item relations",
+						);
+					}
+				}
+
 				return {
 					type: "insert" as const,
 					table,
@@ -428,6 +521,12 @@ export class DatrixQueryBuilder<
 				if (this.query.data === undefined) {
 					throwMissingData("update");
 				}
+				// Same guard as DELETE: a missing WHERE must never silently
+				// update the whole table. Use .where({}) for an intentional
+				// full-table update.
+				if (normalizedWhere === undefined) {
+					throwUpdateWithoutWhere();
+				}
 				const processedData = processData<TSchema>(
 					this.query.data,
 					this._schema,
@@ -436,7 +535,7 @@ export class DatrixQueryBuilder<
 				return {
 					type,
 					table,
-					...whereSpread,
+					where: normalizedWhere,
 					data: processedData.data,
 					...(processedData.relations !== undefined && {
 						relations: processedData.relations,
@@ -477,6 +576,9 @@ export class DatrixQueryBuilder<
 		// Deep clone the query state to avoid shared references
 		cloned.query = {
 			...this.query,
+			...(this.query.select !== undefined && {
+				select: deepClone(this.query.select),
+			}),
 			...(this.query.where !== undefined && {
 				where: deepClone(this.query.where),
 			}),
@@ -507,7 +609,10 @@ export class DatrixQueryBuilder<
 	 * Reset builder to initial state
 	 */
 	reset(): this {
-		this.query = {};
+		this.query = {
+			table: this._schema.tableName!,
+			type: this._initialType,
+		};
 		return this;
 	}
 }
@@ -604,4 +709,28 @@ export function countFrom<TSchema extends DatrixEntry>(
 		schemaRegistry,
 		"count",
 	);
+}
+
+/**
+ * Collect the top-level field names referenced by a WHERE/HAVING clause,
+ * recursing through $and/$or/$not so a field nested in a logical operator
+ * is still caught by the groupBy-subset check.
+ */
+function collectWhereFields(where: WhereClause<DatrixEntry>): string[] {
+	const fields: string[] = [];
+
+	for (const [key, value] of Object.entries(where)) {
+		if (isLogicalOperator(key)) {
+			const clauses = (
+				key === "$not" ? [value] : (value as unknown[])
+			) as WhereClause<DatrixEntry>[];
+			for (const clause of clauses) {
+				fields.push(...collectWhereFields(clause));
+			}
+			continue;
+		}
+		fields.push(key);
+	}
+
+	return fields;
 }

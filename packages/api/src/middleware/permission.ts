@@ -136,7 +136,13 @@ export async function checkSchemaPermission<TRoles extends string>(
 		permissionValue = defaultPermission[action];
 	}
 
-	const allowed = await evaluatePermissionValue(permissionValue, ctx);
+	// Default (D2): with no explicit permission, `read` is open to everyone;
+	// create/update/delete require an authenticated user.
+	// Field-level semantics (undefined = allow) are unchanged.
+	const allowed =
+		permissionValue === undefined
+			? action === "read" || ctx.user !== null
+			: await evaluatePermissionValue(permissionValue, ctx);
 
 	return {
 		allowed,
@@ -178,22 +184,71 @@ export async function filterFieldsForRead<
 			| FieldPermission<TRoles>
 			| undefined;
 
-		// No permission defined = allow
-		if (!fieldPermission || fieldPermission.read === undefined) {
-			(filtered as Record<string, unknown>)[fieldName] = fieldValue;
-			continue;
+		// Evaluate permission (no permission defined = allow)
+		if (fieldPermission && fieldPermission.read !== undefined) {
+			const allowed = await evaluatePermissionValue(fieldPermission.read, ctx);
+			if (!allowed) {
+				deniedFields.push(fieldName);
+				continue;
+			}
 		}
 
-		// Evaluate permission
-		const allowed = await evaluatePermissionValue(fieldPermission.read, ctx);
-		if (allowed) {
-			(filtered as Record<string, unknown>)[fieldName] = fieldValue;
-		} else {
-			deniedFields.push(fieldName);
-		}
+		// Populated relations carry records of the target schema — apply the
+		// target schema's own field permissions recursively. Depth is bounded
+		// by the populate depth limit.
+		(filtered as Record<string, unknown>)[fieldName] =
+			await filterPopulatedValue(fieldDef, fieldValue, ctx);
 	}
 
 	return { data: filtered, deniedFields };
+}
+
+/**
+ * Recursively filter a populated relation value with the target schema's
+ * field-level read permissions. Non-relation fields and unpopulated values
+ * (ids, null) pass through unchanged.
+ */
+async function filterPopulatedValue(
+	fieldDef: SchemaDefinition["fields"][string],
+	value: unknown,
+	ctx: RequestContext,
+): Promise<unknown> {
+	if (fieldDef.type !== "relation" || value === null || value === undefined) {
+		return value;
+	}
+
+	const targetSchema = ctx.datrix.getSchema(fieldDef.model);
+	if (!targetSchema) {
+		return value;
+	}
+
+	if (Array.isArray(value)) {
+		const filtered: unknown[] = [];
+		for (const item of value) {
+			if (item !== null && typeof item === "object") {
+				const { data } = await filterFieldsForRead(
+					targetSchema,
+					item as DatrixEntry,
+					ctx,
+				);
+				filtered.push(data);
+			} else {
+				filtered.push(item);
+			}
+		}
+		return filtered;
+	}
+
+	if (typeof value === "object") {
+		const { data } = await filterFieldsForRead(
+			targetSchema,
+			value as DatrixEntry,
+			ctx,
+		);
+		return data;
+	}
+
+	return value;
 }
 
 /**
@@ -207,32 +262,12 @@ export async function checkFieldsForWrite<TRoles extends string>(
 	schema: SchemaDefinition<TRoles>,
 	ctx: RequestContext,
 ): Promise<FieldPermissionCheckResult> {
-	const deniedFields: string[] = [];
-	const input = ctx.body ?? {};
-
-	for (const fieldName of Object.keys(input)) {
-		const fieldDef = schema.fields[fieldName];
-
-		// If field not in schema, skip (validator will handle)
-		if (!fieldDef) {
-			continue;
-		}
-
-		const fieldPermission = fieldDef.permission as
-			| FieldPermission<TRoles>
-			| undefined;
-
-		// No permission defined = allow
-		if (!fieldPermission || fieldPermission.write === undefined) {
-			continue;
-		}
-
-		// Evaluate permission
-		const allowed = await evaluatePermissionValue(fieldPermission.write, ctx);
-		if (!allowed) {
-			deniedFields.push(fieldName);
-		}
-	}
+	const deniedFields = await collectDeniedWriteFields(
+		schema,
+		(ctx.body ?? {}) as Record<string, unknown>,
+		ctx,
+		"",
+	);
 
 	return {
 		allowed: deniedFields.length === 0,
@@ -241,11 +276,100 @@ export async function checkFieldsForWrite<TRoles extends string>(
 }
 
 /**
+ * Collect write-denied fields for an input object, recursing into nested
+ * relation create/update payloads so related schemas' field permissions
+ * apply too. Denied nested fields are reported with a dotted path
+ * (e.g. "posts.secretField").
+ */
+async function collectDeniedWriteFields(
+	schema: SchemaDefinition,
+	input: Record<string, unknown>,
+	ctx: RequestContext,
+	prefix: string,
+): Promise<string[]> {
+	const deniedFields: string[] = [];
+
+	for (const [fieldName, value] of Object.entries(input)) {
+		const fieldDef = schema.fields[fieldName];
+
+		// If field not in schema, skip (validator will handle)
+		if (!fieldDef) {
+			continue;
+		}
+
+		const fieldPermission = fieldDef.permission as FieldPermission | undefined;
+
+		// Evaluate this field's own write permission (undefined = allow)
+		if (fieldPermission && fieldPermission.write !== undefined) {
+			const allowed = await evaluatePermissionValue(fieldPermission.write, ctx);
+			if (!allowed) {
+				deniedFields.push(`${prefix}${fieldName}`);
+				continue;
+			}
+		}
+
+		// Recurse into nested relation create/update payloads
+		if (
+			fieldDef.type === "relation" &&
+			value !== null &&
+			typeof value === "object" &&
+			!Array.isArray(value)
+		) {
+			const targetSchema = ctx.datrix.getSchema(fieldDef.model);
+			if (!targetSchema) {
+				continue;
+			}
+
+			const relationInput = value as {
+				create?: Record<string, unknown> | Record<string, unknown>[];
+				update?:
+					| { data?: Record<string, unknown> }
+					| { data?: Record<string, unknown> }[];
+			};
+
+			const nestedPayloads: Record<string, unknown>[] = [];
+
+			const createOps = relationInput.create;
+			if (createOps) {
+				nestedPayloads.push(
+					...(Array.isArray(createOps) ? createOps : [createOps]),
+				);
+			}
+
+			const updateOps = relationInput.update;
+			if (updateOps) {
+				for (const op of Array.isArray(updateOps) ? updateOps : [updateOps]) {
+					if (op && typeof op === "object" && op.data) {
+						nestedPayloads.push(op.data);
+					}
+				}
+			}
+
+			for (const payload of nestedPayloads) {
+				if (payload && typeof payload === "object") {
+					deniedFields.push(
+						...(await collectDeniedWriteFields(
+							targetSchema,
+							payload,
+							ctx,
+							`${prefix}${fieldName}.`,
+						)),
+					);
+				}
+			}
+		}
+	}
+
+	return deniedFields;
+}
+
+/**
  * Map HTTP method to permission action
  */
 export function methodToAction(method: string): PermissionAction {
 	switch (method.toUpperCase()) {
 		case "GET":
+		case "QUERY":
 			return "read";
 		case "POST":
 			return "create";

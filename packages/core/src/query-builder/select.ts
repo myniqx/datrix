@@ -51,6 +51,14 @@ export function normalizeSelect<T extends DatrixEntry>(
 	selects: SelectClause<T>[] | undefined,
 	schema: SchemaDefinition,
 	registry: ISchemaRegistry,
+	/**
+	 * Skip auto-adding id/createdAt/updatedAt. Set when the query has
+	 * `groupBy` or `distinct`: those reserved fields aren't part of any
+	 * grouping (no defined row to read them from once rows collapse into
+	 * groups), and `id` is always unique so it would make `distinct` a
+	 * no-op.
+	 */
+	skipReservedFields = false,
 ): QuerySelect<T> {
 	// If no selects provided, return cached fields for "*"
 	if (!selects || selects.length === 0) {
@@ -105,10 +113,13 @@ export function normalizeSelect<T extends DatrixEntry>(
 		return registry.getCachedSelectFields<T>(schema.name);
 	}
 
-	// 4. Add reserved fields
-	allFields.add("id" as keyof T);
-	allFields.add("createdAt" as keyof T);
-	allFields.add("updatedAt" as keyof T);
+	// 4. Add reserved fields (skipped for grouped queries — see
+	// skipReservedFields doc above)
+	if (!skipReservedFields) {
+		allFields.add("id" as keyof T);
+		allFields.add("createdAt" as keyof T);
+		allFields.add("updatedAt" as keyof T);
+	}
 
 	return Array.from(allFields) as QuerySelect<T>;
 }

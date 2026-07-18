@@ -6,7 +6,7 @@
  */
 
 import { JsonAdapter } from "../../../adapter-json/src/index";
-import { PostgresAdapter } from "../../../adapter-postgres/src/index";
+import { createPostgresAdapter } from "../../../adapter-postgres/src/index";
 import { MySQLAdapter } from "../../../adapter-mysql/src/index";
 import { MongoDBAdapter } from "../../../adapter-mongodb/src/index";
 import { createTestDatabase as createPostgresTestDatabase } from "../../../adapter-postgres/src/test-utils";
@@ -71,7 +71,7 @@ export async function getAdapter(
 
 			// Parse connection config from env
 			const host = process.env["POSTGRES_HOST"] ?? "localhost";
-			const port = parseInt(process.env["POSTGRES_PORT"] ?? "5432", 10);
+			const port = parseInt(process.env["POSTGRES_PORT"] ?? "5433", 10);
 			const user = process.env["POSTGRES_USER"] ?? "datrix_test";
 			const password = process.env["POSTGRES_PASSWORD"] ?? "datrix_test";
 
@@ -85,7 +85,7 @@ export async function getAdapter(
 				});
 			}
 
-			return new PostgresAdapter({
+			return createPostgresAdapter({
 				host,
 				port,
 				database: dbName,
@@ -187,5 +187,5 @@ export function getAdapterType(): AdapterType {
 	) {
 		return adapterEnv;
 	}
-	return "json"; // Default
+	return "mongodb"; // Default
 }

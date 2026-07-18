@@ -7,10 +7,9 @@
 
 import { describe, it, expect } from "vitest";
 import { parsePopulate } from "../../src/parser/populate-parser";
-import { RawQueryParams } from "../../../types/src/api/parser";
-import { parserTestData } from "../../../types/src/test/fixtures";
-
-const expectSuccessData = (result: any) => result;
+import { RawQueryParams } from "../../../core/src/types/api/parser";
+import { parserTestData } from "../../../core/tests/test/fixtures";
+import { expectSuccessData } from "../../../core/tests/test/helpers";
 
 describe("PopulateParser - Happy Path", () => {
 	describe("No populate parameter", () => {

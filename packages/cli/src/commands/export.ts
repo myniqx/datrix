@@ -53,6 +53,7 @@ async function exportDataOnly(
 		spinner.succeed(`Export completed: ${outputPath}`);
 	} catch (error) {
 		spinner.fail("Export failed");
+		await writer.cleanup().catch(() => {});
 		throw error;
 	}
 }
@@ -66,13 +67,31 @@ async function exportWithFiles(
 	const api = options.datrix?.getPlugin<IApiPlugin>("api");
 	const upload = api?.upload!;
 
-	// Determine output directory
-	const baseDir = options.output
-		? path.resolve(options.output)
+	// Determine output directory. With --include-files, --output is a
+	// directory — a .zip suffix would create a directory literally named
+	// "backup.zip", so strip it with a warning.
+	let outputOption = options.output;
+	if (outputOption && outputOption.toLowerCase().endsWith(".zip")) {
+		const stripped = outputOption.slice(0, -4);
+		logger.warn(
+			`--include-files exports to a directory; stripping the .zip suffix and using: ${stripped}`,
+		);
+		outputOption = stripped;
+	}
+
+	const baseDir = outputOption
+		? path.resolve(outputOption)
 		: path.resolve(process.cwd(), `export_${timestamp}`);
 
 	const isResume = Boolean(options.resume);
 	const outputDir = options.resume ? path.resolve(options.resume) : baseDir;
+
+	if (isResume && options.output) {
+		logger.warn(
+			`--resume was given; --output '${options.output}' is ignored (resuming in: ${outputDir})`,
+		);
+	}
+
 	const zipPath = path.join(outputDir, "export.zip");
 
 	const fileExporter = new FileExporter(
@@ -81,7 +100,13 @@ async function exportWithFiles(
 		options.packFilesChunkSize,
 	);
 	const mediaModel = upload.getModelName();
-	const mediaTableName = datrix.getSchema(mediaModel)!.tableName!;
+	const mediaTableName = datrix.getSchema(mediaModel)?.tableName;
+
+	if (!mediaTableName) {
+		throw new Error(
+			`Upload media model '${mediaModel}' is not registered in this Datrix config.`,
+		);
+	}
 
 	if (isResume) {
 		const exists = await fileExporter.ledgerExists();
@@ -112,6 +137,7 @@ async function exportWithFiles(
 			spinner.succeed("Database export completed");
 		} catch (error) {
 			spinner.fail("Database export failed");
+			await writer.cleanup().catch(() => {});
 			throw error;
 		}
 	}
@@ -130,7 +156,7 @@ async function exportWithFiles(
 
 	try {
 		const result = await fileExporter.downloadPending((done, total) => {
-			spinner.start(`${done} / ${total} files`);
+			spinner.update(`${done} / ${total} files`);
 		}, options.packFiles);
 		if (!result.stopped) {
 			spinner.succeed(`Files exported: ${outputDir}`);

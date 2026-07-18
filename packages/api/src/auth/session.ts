@@ -13,7 +13,6 @@ import {
 	throwSessionNotFound,
 	throwSessionExpired,
 } from "./error-helper";
-import { DatrixAuthError } from "@datrix/core";
 
 /**
  * Session Strategy
@@ -206,18 +205,7 @@ export class MemorySessionStore implements SessionStore {
 	}
 
 	async get(sessionId: string): Promise<SessionData | undefined> {
-		try {
-			const key = this.getKey(sessionId);
-			const session = this.sessions.get(key);
-
-			return session;
-		} catch (error) {
-			throw new DatrixAuthError("Failed to get session from store", {
-				code: "SESSION_CREATE_ERROR",
-				strategy: "session",
-				cause: error instanceof Error ? error : undefined,
-			});
-		}
+		return this.sessions.get(this.getKey(sessionId));
 	}
 
 	async set(sessionId: string, data: SessionData): Promise<void> {

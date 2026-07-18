@@ -63,22 +63,19 @@ export class LocalStorageProvider implements StorageProvider {
 		}
 	}
 
+	/**
+	 * Delete is idempotent — a missing file is treated as already deleted.
+	 */
 	async delete(key: string): Promise<void> {
+		const fullPath = await this.resolveContainedPath(key);
 		const fs = await import("fs/promises");
-		const path = await import("path");
-
-		const fullPath = path.join(this.basePath, key);
-
-		try {
-			await fs.access(fullPath);
-		} catch (error) {
-			const cause = error instanceof Error ? error : undefined;
-			throw new UploadError("File not found", cause);
-		}
 
 		try {
 			await fs.unlink(fullPath);
 		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+				return;
+			}
 			const cause = error instanceof Error ? error : undefined;
 			throw new UploadError(
 				"Failed to delete file from local filesystem",
@@ -88,19 +85,42 @@ export class LocalStorageProvider implements StorageProvider {
 	}
 
 	getUrl(key: string): string {
+		this.assertSafeKey(key);
 		return this.buildUrl(key);
 	}
 
 	async exists(key: string): Promise<boolean> {
 		try {
+			const fullPath = await this.resolveContainedPath(key);
 			const fs = await import("fs/promises");
-			const path = await import("path");
-			const fullPath = path.join(this.basePath, key);
 			await fs.access(fullPath);
 			return true;
 		} catch {
 			return false;
 		}
+	}
+
+	/**
+	 * Keys must be relative paths that stay inside basePath — reject
+	 * traversal segments and absolute paths before touching the filesystem.
+	 */
+	private assertSafeKey(key: string): void {
+		const isAbsolute = key.startsWith("/") || /^[A-Za-z]:/.test(key);
+		const hasTraversal = key.split(/[/\\]/).some((segment) => segment === "..");
+		if (key === "" || isAbsolute || hasTraversal) {
+			throw new UploadError(`Invalid storage key: ${key}`);
+		}
+	}
+
+	private async resolveContainedPath(key: string): Promise<string> {
+		this.assertSafeKey(key);
+		const path = await import("path");
+		const base = path.resolve(this.basePath);
+		const fullPath = path.resolve(base, key);
+		if (!fullPath.startsWith(base + path.sep)) {
+			throw new UploadError(`Invalid storage key: ${key}`);
+		}
+		return fullPath;
 	}
 
 	private buildUrl(key: string): string {

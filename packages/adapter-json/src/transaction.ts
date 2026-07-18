@@ -22,6 +22,7 @@ import {
 import { QueryObject } from "@datrix/core";
 import { DatrixEntry, IndexDefinition, SchemaDefinition } from "@datrix/core";
 import type { JsonAdapter } from "./adapter";
+import { runInTransactionContext } from "./tx-context";
 
 /**
  * JSON Transaction
@@ -66,10 +67,12 @@ export class JsonTransaction implements Transaction {
 	): Promise<QueryResult<TResult>> {
 		this.assertActive();
 
-		return this.adapter.executeQueryWithOptions<TResult>(query, {
-			skipLock: true,
-			skipWrite: true,
-		});
+		return runInTransactionContext(() =>
+			this.adapter.executeQueryWithOptions<TResult>(query, {
+				skipLock: true,
+				skipWrite: true,
+			}),
+		);
 	}
 
 	/**
@@ -91,7 +94,9 @@ export class JsonTransaction implements Transaction {
 	 */
 	async createTable(schema: SchemaDefinition): Promise<void> {
 		this.assertActive();
-		return this.adapter.createTableWithOptions(schema, { skipWrite: true });
+		return runInTransactionContext(() =>
+			this.adapter.createTableWithOptions(schema, { skipWrite: true }),
+		);
 	}
 
 	/**
@@ -99,7 +104,9 @@ export class JsonTransaction implements Transaction {
 	 */
 	async dropTable(tableName: string): Promise<void> {
 		this.assertActive();
-		return this.adapter.dropTableWithOptions(tableName, { skipWrite: true });
+		return runInTransactionContext(() =>
+			this.adapter.dropTableWithOptions(tableName, { skipWrite: true }),
+		);
 	}
 
 	/**
@@ -107,7 +114,9 @@ export class JsonTransaction implements Transaction {
 	 */
 	async renameTable(from: string, to: string): Promise<void> {
 		this.assertActive();
-		return this.adapter.renameTableWithOptions(from, to, { skipWrite: true });
+		return runInTransactionContext(() =>
+			this.adapter.renameTableWithOptions(from, to, { skipWrite: true }),
+		);
 	}
 
 	/**
@@ -118,9 +127,11 @@ export class JsonTransaction implements Transaction {
 		operations: readonly AlterOperation[],
 	): Promise<void> {
 		this.assertActive();
-		return this.adapter.alterTableWithOptions(tableName, operations, {
-			skipWrite: true,
-		});
+		return runInTransactionContext(() =>
+			this.adapter.alterTableWithOptions(tableName, operations, {
+				skipWrite: true,
+			}),
+		);
 	}
 
 	/**
@@ -128,9 +139,11 @@ export class JsonTransaction implements Transaction {
 	 */
 	async addIndex(tableName: string, index: IndexDefinition): Promise<void> {
 		this.assertActive();
-		return this.adapter.addIndexWithOptions(tableName, index, {
-			skipWrite: true,
-		});
+		return runInTransactionContext(() =>
+			this.adapter.addIndexWithOptions(tableName, index, {
+				skipWrite: true,
+			}),
+		);
 	}
 
 	/**
@@ -138,9 +151,11 @@ export class JsonTransaction implements Transaction {
 	 */
 	async dropIndex(tableName: string, indexName: string): Promise<void> {
 		this.assertActive();
-		return this.adapter.dropIndexWithOptions(tableName, indexName, {
-			skipWrite: true,
-		});
+		return runInTransactionContext(() =>
+			this.adapter.dropIndexWithOptions(tableName, indexName, {
+				skipWrite: true,
+			}),
+		);
 	}
 
 	/**

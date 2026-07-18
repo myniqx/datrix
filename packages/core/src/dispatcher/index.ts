@@ -66,10 +66,10 @@ export class Dispatcher {
 					}
 				}
 			} catch (error) {
-				console.error(
-					`[Dispatcher] Error in plugin '${plugin.name}' onCreateQueryContext:`,
-					error,
-				);
+				// Fail closed: context enrichers are often security-related
+				// (auth/RBAC/tenant) — proceeding with an unenriched context
+				// would silently drop their restrictions.
+				throwHookPluginError(plugin.name, "onCreateQueryContext", error);
 			}
 		}
 
@@ -173,7 +173,10 @@ export class Dispatcher {
 					currentResult = await plugin.onAfterQuery(currentResult, context);
 				}
 			} catch (error) {
-				warnAfterHookError("afterFind", error);
+				warnAfterHookError("onAfterQuery", error, {
+					pluginName: plugin.name,
+					action: context.action,
+				});
 			}
 		}
 

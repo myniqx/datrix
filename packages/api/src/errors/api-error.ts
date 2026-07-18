@@ -72,6 +72,15 @@ export const handlerError = {
 		});
 	},
 
+	routeNotFound(path: string): DatrixApiError {
+		return new DatrixApiError(`Route not found: ${path}`, {
+			code: "ROUTE_NOT_FOUND",
+			status: 404,
+			context: { path },
+			suggestion: "Check the request path against the configured API prefix.",
+		});
+	},
+
 	modelNotSpecified(): DatrixApiError {
 		return new DatrixApiError("Model not specified in the request URL", {
 			code: "MODEL_NOT_SPECIFIED",

@@ -80,13 +80,15 @@ app.all("*", async (req, res) => {
 
 For every registered schema:
 
-| Method   | Path               | Description                              |
-| -------- | ------------------ | ---------------------------------------- |
-| `GET`    | `/api/:schema`     | List records — pagination, filtering, sorting, populate |
-| `GET`    | `/api/:schema/:id` | Get a single record                      |
-| `POST`   | `/api/:schema`     | Create a record                          |
-| `PATCH`  | `/api/:schema/:id` | Update a record                          |
-| `DELETE` | `/api/:schema/:id` | Delete a record                          |
+| Method   | Path                 | Description                              |
+| -------- | -------------------- | ---------------------------------------- |
+| `GET`    | `/api/:schema`       | List records — pagination, filtering, sorting, populate |
+| `GET`    | `/api/:schema/:id`   | Get a single record                      |
+| `QUERY`  | `/api/:schema`       | List records with a JSON body query (see below) |
+| `POST`   | `/api/:schema/query` | Portable alias for `QUERY`               |
+| `POST`   | `/api/:schema`       | Create a record                          |
+| `PATCH`  | `/api/:schema/:id`   | Update a record                          |
+| `DELETE` | `/api/:schema/:id`   | Delete a record                          |
 
 The `:schema` segment matches the schema's table name (e.g. schema `"product"` → `/api/products`).
 
@@ -106,6 +108,37 @@ const qs = queryToParams({
 
 fetch(`/api/products?${qs}`)
 ```
+
+### Body queries (`QUERY` method)
+
+Complex queries don't fit comfortably in a query string. The IETF `QUERY`
+method (a safe method with a request body) is supported as a first-class read
+endpoint — the body is a `ParsedQuery` object, sent as plain JSON. No
+serialization step and no `queryToParams` needed; values arrive natively typed
+(dates as ISO strings — they are coerced by field type):
+
+```http
+QUERY /api/products
+Content-Type: application/json
+
+{
+  "where":    { "price": { "$gt": 100 }, "status": "active" },
+  "populate": { "category": { "select": ["name"] } },
+  "orderBy":  [{ "field": "createdAt", "direction": "desc" }],
+  "page":     1,
+  "pageSize": 20
+}
+```
+
+The response shape is identical to `GET` list responses (`{ data, meta }`),
+and the same `read` permissions apply.
+
+Some runtimes and proxies drop unknown HTTP methods (e.g. Next.js App Router
+cannot export a `QUERY` handler yet) — use the alias `POST /api/:schema/query`
+with the same body; it maps to the exact same handler.
+
+Providing both a query string and a body query in one request is rejected
+with 400 (ambiguous) rather than merged.
 
 ## Authentication
 
@@ -179,6 +212,15 @@ defineSchema({
 ```
 
 Permission values: `true` (public), `false` (blocked), role array, async function, or a mixed array (OR logic). Field-level `read`/`write` permissions are also supported per field.
+
+When neither the schema permission nor `defaultPermission` defines a value for
+an action, the built-in default applies: `read` is allowed for everyone, while
+`create`/`update`/`delete` require an authenticated user. Explicit permissions
+always win.
+
+`ctx.user.id` in permission functions is the authentication record's id; the
+populated user record is available as `ctx.user.user`. FK comparisons against
+user-table columns (e.g. `record.authorId`) must use `ctx.user.user.id`.
 
 ## File uploads
 

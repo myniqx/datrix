@@ -55,6 +55,15 @@ export interface MongoFindResult {
 	readonly sort?: Sort;
 	readonly skip?: number;
 	readonly limit?: number;
+	/**
+	 * $group key fields — set when the query uses `distinct` or `groupBy`.
+	 * Presence switches execution from find() to an aggregation pipeline.
+	 */
+	readonly groupFields?: readonly string[];
+	/** Fields of the final result rows (subset of groupFields). */
+	readonly resultFields?: readonly string[];
+	/** Translated HAVING filter, applied after grouping. */
+	readonly having?: Filter<Document>;
 }
 
 export interface MongoInsertResult {
@@ -80,6 +89,13 @@ export interface MongoCountResult {
 	readonly operation: "countDocuments";
 	readonly collection: string;
 	readonly filter: Filter<Document>;
+	/**
+	 * GROUP BY fields — presence switches execution from countDocuments()
+	 * to an aggregation pipeline ($group + $sum).
+	 */
+	readonly groupBy?: readonly string[];
+	/** Translated HAVING filter, applied after grouping. */
+	readonly having?: Filter<Document>;
 }
 
 /**

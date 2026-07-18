@@ -140,6 +140,119 @@ describe("Core - Schema Registry - Happy Path", () => {
 		});
 	});
 
+	describe("Relation FK processing", () => {
+		it("should keep the FK field on self-referential hasMany relations", () => {
+			const categorySchema: SchemaDefinition = {
+				name: "Category",
+				fields: {
+					title: { type: "string" },
+					children: { type: "relation", model: "Category", kind: "hasMany" },
+				},
+			};
+
+			schemaRegistry.register(categorySchema);
+			schemaRegistry.finalizeRegistry();
+
+			const schema = schemaRegistry.get("Category");
+			const fkField = schema?.fields["CategoryId"] as any;
+			expect(fkField).toBeDefined();
+			expect(fkField.type).toBe("number");
+			expect(fkField.references.table).toBe("categories");
+		});
+
+		it("should mark hasOne FK as unique", () => {
+			const userSchema: SchemaDefinition = {
+				name: "User",
+				fields: {
+					profile: { type: "relation", model: "Profile", kind: "hasOne" },
+				},
+			};
+			const profileSchema: SchemaDefinition = {
+				name: "Profile",
+				fields: { bio: { type: "string" } },
+			};
+
+			schemaRegistry.registerMany([userSchema, profileSchema]);
+			schemaRegistry.finalizeRegistry();
+
+			const fkField = schemaRegistry.get("Profile")?.fields["UserId"] as any;
+			expect(fkField).toBeDefined();
+			expect(fkField.unique).toBe(true);
+
+			// hasMany FK stays non-unique
+			const catSchema: SchemaDefinition = {
+				name: "Author",
+				fields: {
+					posts: { type: "relation", model: "Post", kind: "hasMany" },
+				},
+			};
+			const postSchema: SchemaDefinition = {
+				name: "Post",
+				fields: { title: { type: "string" } },
+			};
+			schemaRegistry.registerMany([catSchema, postSchema]);
+			schemaRegistry.finalizeRegistry();
+
+			const hasManyFk = schemaRegistry.get("Post")?.fields["AuthorId"] as any;
+			expect(hasManyFk.unique).toBeUndefined();
+		});
+
+		it("should use custom tableName in junction FK references", () => {
+			const userSchema: SchemaDefinition = {
+				name: "User",
+				tableName: "app_users",
+				fields: {
+					tags: { type: "relation", model: "Tag", kind: "manyToMany" },
+				},
+			};
+			const tagSchema: SchemaDefinition = {
+				name: "Tag",
+				fields: { label: { type: "string" } },
+			};
+
+			schemaRegistry.registerMany([userSchema, tagSchema]);
+			schemaRegistry.finalizeRegistry();
+
+			const junction = schemaRegistry.get("Tag_User");
+			expect(junction).toBeDefined();
+			const sourceFk = junction?.fields["UserId"] as any;
+			const targetFk = junction?.fields["TagId"] as any;
+			expect(sourceFk.references.table).toBe("app_users");
+			expect(targetFk.references.table).toBe("tags");
+		});
+	});
+
+	describe("Table name lookup", () => {
+		it("should resolve models and junction tables by table name", () => {
+			const userSchema: SchemaDefinition = {
+				name: "User",
+				tableName: "app_users",
+				fields: {
+					tags: { type: "relation", model: "Tag", kind: "manyToMany" },
+				},
+			};
+			const tagSchema: SchemaDefinition = {
+				name: "Tag",
+				fields: { label: { type: "string" } },
+			};
+
+			schemaRegistry.registerMany([userSchema, tagSchema]);
+			schemaRegistry.finalizeRegistry();
+
+			expect(schemaRegistry.findModelByTableName("app_users")).toBe("User");
+			expect(schemaRegistry.findModelByTableName("tags")).toBe("Tag");
+			expect(schemaRegistry.findModelByTableName("Tag_User")).toBe("Tag_User");
+			expect(schemaRegistry.findModelByTableName("missing")).toBeNull();
+
+			// Index is invalidated when a new schema is registered
+			schemaRegistry.register({
+				name: "Extra",
+				fields: { sid: { type: "string" } },
+			});
+			expect(schemaRegistry.findModelByTableName("extras")).toBe("Extra");
+		});
+	});
+
 	describe("JSON Import/Export", () => {
 		it("should export and import schemas correctly", () => {
 			const userSchema: SchemaDefinition = {
@@ -156,6 +269,39 @@ describe("Core - Schema Registry - Happy Path", () => {
 			const newSchemaRegistry = new SchemaRegistry();
 			newSchemaRegistry.fromJSON(exportedJson);
 			expect(newSchemaRegistry.has("User")).toBe(true);
+		});
+
+		it("should round-trip manyToMany schemas without changing junction tables", () => {
+			const userSchema: SchemaDefinition = {
+				name: "User",
+				fields: {
+					tags: { type: "relation", model: "Tag", kind: "manyToMany" },
+				},
+			};
+			const tagSchema: SchemaDefinition = {
+				name: "Tag",
+				fields: { label: { type: "string" } },
+			};
+
+			schemaRegistry.registerMany([userSchema, tagSchema]);
+			schemaRegistry.finalizeRegistry();
+
+			const exportedJson = schemaRegistry.toJSON();
+			// Junction schemas are derivable — they are not exported
+			expect(exportedJson["Tag_User"]).toBeUndefined();
+
+			const newSchemaRegistry = new SchemaRegistry();
+			newSchemaRegistry.fromJSON(exportedJson);
+			newSchemaRegistry.finalizeRegistry();
+
+			// Junction is recreated identically, without timestamps
+			const junction = newSchemaRegistry.get("Tag_User");
+			expect(junction).toBeDefined();
+			expect(junction?.fields["createdAt"]).toBeUndefined();
+			expect(junction?.fields["updatedAt"]).toBeUndefined();
+			expect(junction?.fields).toEqual(
+				schemaRegistry.get("Tag_User")?.fields,
+			);
 		});
 	});
 });

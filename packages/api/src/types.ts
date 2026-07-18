@@ -71,6 +71,11 @@ export interface ApiConfig<TRole extends string = string> extends Record<
 	 * When undefined, authentication is disabled.
 	 *
 	 * Contains: roles, defaultRole, defaultPermission, jwt/session config
+	 *
+	 * Default permission behavior: when neither `schema.permission` nor
+	 * `defaultPermission` defines a value for an action, `read` is allowed
+	 * for everyone and `create`/`update`/`delete` require an authenticated
+	 * user. Explicit permissions always win.
 	 */
 	readonly auth?: AuthConfig<TRole>;
 
