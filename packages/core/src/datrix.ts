@@ -169,6 +169,7 @@ export class Datrix implements IDatrix {
 					adapter: this.adapter!,
 					schemas: this._schemas,
 					config: this.config,
+					datrix: this,
 				};
 
 				await this.pluginRegistry.initAll(pluginContext);

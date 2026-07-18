@@ -34,7 +34,9 @@ export interface IApiPlugin<
 	readonly upload?: IUpload | undefined;
 
 	/**
-	 * Currently authenticated user (null if not authenticated)
+	 * Currently authenticated user for the active request
+	 * (null if not authenticated). Request-scoped: backed by
+	 * AsyncLocalStorage, never shared between concurrent requests.
 	 */
 	readonly user: AuthUser | null;
 
@@ -72,6 +74,13 @@ export interface IApiPlugin<
 	 * Set the authenticated user for the current request
 	 */
 	setUser(user: AuthUser | null): void;
+
+	/**
+	 * Resolve the authenticated user for a request: verify the token/session,
+	 * then load the auth record from the DB (email/role) with the populated
+	 * user relation. Returns null when the request is not authenticated.
+	 */
+	resolveAuthUser(request: Request): Promise<AuthUser | null>;
 
 	/**
 	 * Get the auth manager instance

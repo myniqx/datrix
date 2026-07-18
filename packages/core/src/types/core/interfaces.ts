@@ -50,19 +50,16 @@ export interface RawCountManyOptions<T extends DatrixEntry = DatrixRecord> {
 	having?: WhereClause<T> | undefined;
 }
 
-export interface RawFindManyOptions<
-	T extends DatrixEntry = DatrixRecord,
-> extends RawCrudOptions<T>, RawCountOptions<T> {
+export interface RawFindManyOptions<T extends DatrixEntry = DatrixRecord>
+	extends RawCrudOptions<T>, RawCountOptions<T> {
 	orderBy?: OrderByClause<T> | undefined;
 	limit?: number | undefined;
 	offset?: number | undefined;
 	where?: WhereClause<T> | undefined;
-	
+
 	/** Deduplicate rows (SELECT DISTINCT). */
 	distinct?: boolean | undefined;
 }
-
-
 
 /**
  * Scalar primitive accepted in untyped CRUD input.

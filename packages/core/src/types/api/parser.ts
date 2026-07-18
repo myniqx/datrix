@@ -43,8 +43,6 @@ export interface ParserOptions {
 	readonly maxPageSize?: number; // Default: 100
 	readonly defaultPageSize?: number; // Default: 25
 	readonly maxPopulateDepth?: number; // Default: 5
-	readonly allowedOperators?: readonly string[]; // Default: all
-	readonly strictMode?: boolean; // Fail on unknown fields
 }
 
 // Re-export parser error types from errors module
