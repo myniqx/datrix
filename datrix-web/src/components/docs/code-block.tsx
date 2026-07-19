@@ -547,6 +547,16 @@ function tokenizeBash(code: string): BashToken[] {
 		let isFirstWord = true;
 
 		while (i < trimmed.length) {
+			// Trailing comment: # preceded by whitespace (or line start)
+			if (
+				trimmed[i] === "#" &&
+				(i === 0 || trimmed[i - 1] === " " || trimmed[i - 1] === "\t")
+			) {
+				result.push({ value: trimmed.slice(i), kind: "comment" });
+				i = trimmed.length;
+				break;
+			}
+
 			// String literal
 			if (trimmed[i] === '"' || trimmed[i] === "'") {
 				const quote = trimmed[i]!;
@@ -628,7 +638,7 @@ function BashLine({
 	return (
 		<div className="group flex items-center gap-2 min-w-0">
 			<span className="select-none shrink-0" style={{ color: "#52525b" }}>
-				{isEmpty ? " " : "$"}
+				{isEmpty || isComment ? " " : "$"}
 			</span>
 			<span className="flex-1 min-w-0">
 				{tokens.map((t, i) => (

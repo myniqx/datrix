@@ -4,6 +4,7 @@ import "./app/globals.css";
 import "@fontsource-variable/inter";
 import "highlight.js/styles/github-dark.min.css";
 import "@fontsource-variable/jetbrains-mono";
+import "@fontsource-variable/space-grotesk";
 
 const SITE_URL = "https://datrix.dev";
 const OG_IMAGE = `${SITE_URL}/og.png`;
