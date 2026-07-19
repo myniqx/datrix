@@ -4,6 +4,9 @@ description: Defining and registering schemas in Datrix.
 order: 2
 ---
 
+import { StepList, Step } from "@/components/docs/step-list";
+import { FlowChain, FlowStep } from "@/components/docs/flow-chain";
+
 # Schema
 
 Schemas are plain TypeScript objects that describe your data models. Datrix uses them to
@@ -387,9 +390,13 @@ hooks: {
 
 Schema hooks run after all plugin query hooks:
 
-```
-onBeforeQuery (plugins) → before* (schema) → [query runs] → onAfterQuery (plugins) → after* (schema)
-```
+<FlowChain>
+	<FlowStep>onBeforeQuery (plugins)</FlowStep>
+	<FlowStep>before* (schema)</FlowStep>
+	<FlowStep>[query runs]</FlowStep>
+	<FlowStep>onAfterQuery (plugins)</FlowStep>
+	<FlowStep>after* (schema)</FlowStep>
+</FlowChain>
 
 ---
 
@@ -397,14 +404,33 @@ onBeforeQuery (plugins) → before* (schema) → [query runs] → onAfterQuery (
 
 When you call `getDatrix()` for the first time, Datrix runs the following sequence:
 
-1. **Register internal metadata schema** — `_datrix` table for internal bookkeeping
-2. **Register user schemas** — all schemas from your config
-3. **Register plugin schemas** — plugins can contribute their own schemas (e.g. soft-delete adds `deletedAt`)
-4. **Apply schema extensions** — plugins can add/remove/modify fields on existing schemas
-5. **Register migration schema** — `_datrix_migration` table for migration history
-6. **Finalize registry** — processes all relations (adds FK columns, creates junction tables), sorts schemas by dependency order
-7. **Initialize plugins** — plugins receive the final schema state
-8. **Dispatch schema load event** — plugins can react to the finalized schema registry
+<StepList>
+	<Step title="Register internal metadata schema">
+		_datrix table for internal bookkeeping
+	</Step>
+	<Step title="Register user schemas">
+		All schemas from your config
+	</Step>
+	<Step title="Register plugin schemas">
+		Plugins can contribute their own schemas (e.g. soft-delete adds deletedAt)
+	</Step>
+	<Step title="Apply schema extensions">
+		Plugins can add/remove/modify fields on existing schemas
+	</Step>
+	<Step title="Register migration schema">
+		_datrix_migration table for migration history
+	</Step>
+	<Step title="Finalize registry">
+		Processes all relations (adds FK columns, creates junction tables), sorts
+		schemas by dependency order
+	</Step>
+	<Step title="Initialize plugins">
+		Plugins receive the final schema state
+	</Step>
+	<Step title="Dispatch schema load event">
+		Plugins can react to the finalized schema registry
+	</Step>
+</StepList>
 
 This order means:
 - Plugins can extend user schemas before relations are processed

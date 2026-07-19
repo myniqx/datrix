@@ -4,6 +4,15 @@ description: Database adapters for Datrix.
 order: 3
 ---
 
+import { FeatureGrid, FeatureCard } from "@/components/docs/feature-grid";
+import {
+  DatabaseIcon,
+  PlugIcon,
+  ServerIcon,
+  BracesIcon,
+  FileJsonIcon,
+} from "lucide-react";
+
 # Adapters
 
 Adapters translate Datrix's database-agnostic `QueryObject` into database-specific
@@ -11,10 +20,35 @@ queries. Pass an adapter instance to `adapter` in `defineConfig()`.
 
 ---
 
-| Adapter | Description |
-| --- | --- |
-| [PostgreSQL](/docs/adapters/postgres) | Production-ready. Full SQL support including transactions and migrations. Uses `pg` under the hood. |
-| [PostgreSQL (core)](/docs/adapters/postgres-core) | Driver-agnostic variant of the PostgreSQL adapter — no `pg` dependency. Bring your own driver (`pg`, `postgres.js`, Neon serverless, etc.) by implementing `PostgresCoreConfig`. Useful for serverless/edge environments. |
-| [MySQL](/docs/adapters/mysql) | Production-ready. Works with MySQL 8+ and MariaDB 10.5+. |
-| [MongoDB](/docs/adapters/mongodb) | Requires a replica set for transactions. |
-| [JSON](/docs/adapters/json) | File-based. For development and testing only. |
+<FeatureGrid>
+	<FeatureCard
+		icon={DatabaseIcon}
+		title="PostgreSQL"
+		href="/docs/adapters/postgres"
+	>
+		Production-ready. Full SQL support including transactions and
+		migrations. Uses pg under the hood.
+	</FeatureCard>
+	<FeatureCard
+		icon={PlugIcon}
+		title="PostgreSQL (core)"
+		href="/docs/adapters/postgres-core"
+	>
+		Driver-agnostic variant — no pg dependency. Bring your own driver (pg,
+		postgres.js, Neon serverless, etc.). Useful for serverless/edge
+		environments.
+	</FeatureCard>
+	<FeatureCard icon={ServerIcon} title="MySQL" href="/docs/adapters/mysql">
+		Production-ready. Works with MySQL 8+ and MariaDB 10.5+.
+	</FeatureCard>
+	<FeatureCard
+		icon={BracesIcon}
+		title="MongoDB"
+		href="/docs/adapters/mongodb"
+	>
+		Requires a replica set for transactions.
+	</FeatureCard>
+	<FeatureCard icon={FileJsonIcon} title="JSON" href="/docs/adapters/json">
+		File-based. For development and testing only.
+	</FeatureCard>
+</FeatureGrid>

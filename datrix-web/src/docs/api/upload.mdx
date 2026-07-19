@@ -4,6 +4,14 @@ description: File uploads, storage providers, format conversion, and image varia
 order: 3
 ---
 
+import { FeatureGrid, FeatureCard } from "@/components/docs/feature-grid";
+import {
+  UploadIcon,
+  Trash2Icon,
+  SearchIcon,
+  FileSearchIcon,
+} from "lucide-react";
+
 # Upload
 
 File upload support lives in a separate package so `sharp` is only loaded when you need it.
@@ -35,14 +43,24 @@ new ApiPlugin({
 
 ## Endpoints
 
-| Method | Path | Description |
-| --- | --- | --- |
-| `POST` | `/api/upload` | Upload a file (`multipart/form-data`) |
-| `DELETE` | `/api/upload/:id` | Delete a file and its variants |
-| `GET` | `/api/upload` | List media records (pagination, filtering, populate) |
-| `GET` | `/api/upload/:id` | Get a single media record |
+<FeatureGrid>
+	<FeatureCard icon={UploadIcon} title="POST /api/upload" compact>
+		Upload a file (multipart/form-data).
+	</FeatureCard>
+	<FeatureCard icon={Trash2Icon} title="DELETE /api/upload/:id" compact>
+		Delete a file and its variants.
+	</FeatureCard>
+	<FeatureCard icon={SearchIcon} title="GET /api/upload" compact>
+		List media records (pagination, filtering, populate).
+	</FeatureCard>
+	<FeatureCard icon={FileSearchIcon} title="GET /api/upload/:id" compact>
+		Get a single media record.
+	</FeatureCard>
+</FeatureGrid>
 
 `GET` requests fall through to normal CRUD — you get pagination, filtering, and populate for free.
+
+Media records are immutable over HTTP once created — there is no `PATCH` endpoint. To change a file, delete it and upload a new one; this keeps storage and the media record from drifting apart.
 
 **New in 0.2.0:** `POST`/`DELETE` now go through the same permission check as CRUD (`checkSchemaPermission`, including the D2 default) against the media schema's `create`/`delete` permission — previously they were open to anyone. With no explicit `permission`, an authenticated user is required. Configure it via `permission` on `UploadOptions` (see [Configuration reference](#configuration-reference)).
 
@@ -161,6 +179,8 @@ new Upload({
 ```
 
 `allowedMimeTypes` supports wildcards (`image/*`) and exact types (`image/png`).
+
+For `image/*` types, the declared MIME type is verified against the actual file content (via `sharp`) — a mismatched file is rejected rather than stored under a false type. Non-image types are not content-verified; the declared type is trusted as-is, so avoid serving them inline from a public bucket without `Content-Disposition: attachment` / `X-Content-Type-Options: nosniff`.
 
 ---
 

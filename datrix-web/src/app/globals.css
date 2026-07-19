@@ -13,7 +13,8 @@
 
 html {
 	scroll-behavior: smooth;
-	scroll-padding-top: 3.5rem; /* docs navbar height (h-14) */
+	scroll-padding-top: 3.5rem;
+	/* docs navbar height (h-14) */
 }
 
 :root {
@@ -52,41 +53,69 @@ html {
 }
 
 .dark {
-	/* rgb değerleri ile — rengi anlamak için buraya bak */
-	--background: rgb(10, 11, 30); /* #0a0b1e - çok koyu lacivert */
-	--foreground: rgb(226, 232, 240); /* #e2e8f0 - açık gri */
-	--card: rgb(18, 20, 48); /* #121430 - card arka planı */
-	--card-foreground: rgb(226, 232, 240);
-	--popover: rgb(18, 20, 48);
-	--popover-foreground: rgb(226, 232, 240);
-	--primary: rgb(99, 102, 241); /* #6366f1 - indigo */
-	--primary-foreground: rgb(255, 255, 255);
-	--secondary: rgb(30, 32, 70); /* #1e2046 - koyu mavi */
-	--secondary-foreground: rgb(226, 232, 240);
-	--muted: rgb(25, 27, 58); /* #19193a */
-	--muted-foreground: rgb(100, 116, 139); /* #64748b - soluk gri */
-	--accent: rgb(139, 92, 246); /* #8b5cf6 - mor vurgu */
-	--accent-foreground: rgb(255, 255, 255);
-	--destructive: rgb(239, 68, 68); /* #ef4444 - kırmızı */
-	--border: rgb(40, 44, 90); /* #282c5a - card border */
-	--input: rgb(30, 32, 70);
-	--ring: rgb(99, 102, 241);
-	--chart-1: rgb(99, 102, 241);
-	--chart-2: rgb(139, 92, 246);
-	--chart-3: rgb(168, 85, 247);
-	--chart-4: rgb(192, 132, 252);
-	--chart-5: rgb(216, 180, 254);
-	--sidebar: rgb(14, 15, 38);
-	--sidebar-foreground: rgb(226, 232, 240);
-	--sidebar-primary: rgb(99, 102, 241);
-	--sidebar-primary-foreground: rgb(255, 255, 255);
-	--sidebar-accent: rgb(25, 27, 58);
-	--sidebar-accent-foreground: rgb(226, 232, 240);
-	--sidebar-border: rgb(40, 44, 90);
-	--sidebar-ring: rgb(99, 102, 241);
+	/* "Digital Core" palette — see design.md */
+	--background: #131315;
+	--foreground: #e5e1e4;
+	/* on-background */
+	--card: #201f22;
+	/* surface-container */
+	--card-foreground: #e5e1e4;
+	/* on-surface */
+	--popover: #2a2a2c;
+	/* surface-container-high */
+	--popover-foreground: #e5e1e4;
+	/* on-surface */
+	--primary: #d2bbff;
+	--primary-foreground: #3f008e;
+	/* on-primary */
+	--secondary: #2a2a2c;
+	/* surface-container-high */
+	--secondary-foreground: #e5e1e4;
+	/* on-surface */
+	--muted: #1c1b1d;
+	/* surface-container-low */
+	--muted-foreground: #958da1;
+	/* outline */
+	--accent: #4cd7f6;
+	/* secondary (cyber cyan) */
+	--accent-foreground: #003640;
+	/* on-secondary */
+	--destructive: #ffb4ab;
+	/* error */
+	--border: #4a4455;
+	/* outline-variant */
+	--input: #2a2a2c;
+	--ring: #d2bbff;
+	--chart-1: #d2bbff;
+	/* primary */
+	--chart-2: #4cd7f6;
+	/* secondary */
+	--chart-3: #ffafd3;
+	/* tertiary */
+	--chart-4: #7c3aed;
+	/* primary-container */
+	--chart-5: #03b5d3;
+	/* secondary-container */
+	--sidebar: #0e0e10;
+	/* surface-container-lowest */
+	--sidebar-foreground: #e5e1e4;
+	--sidebar-primary: #d2bbff;
+	--sidebar-primary-foreground: #3f008e;
+	--sidebar-accent: #1c1b1d;
+	--sidebar-accent-foreground: #e5e1e4;
+	--sidebar-border: #4a4455;
+	--sidebar-ring: #d2bbff;
 
-	/* Card gradient border */
-	--card-border-gradient: linear-gradient(227deg, rgb(21, 20, 58) 18%, rgb(68, 80, 172) 49%, rgb(21, 20, 58) 78%);
+	/* Badge / version pill (docs-navbar) — primary-container family */
+	--badge-foreground: #ede0ff;
+	/* on-primary-container */
+	--badge-border: #5a00c6;
+	/* on-primary-fixed-variant */
+	--badge-background: #25005a;
+	/* on-primary-fixed */
+
+	/* Card gradient border — conic so the shine position is unaffected by card aspect ratio */
+	--card-border-gradient: conic-gradient(from 140deg at 50% 50%, #1c1b1d, #d2bbff, #1c1b1d);
 }
 
 @theme inline {
@@ -124,6 +153,9 @@ html {
 	--color-card: var(--card);
 	--color-foreground: var(--foreground);
 	--color-background: var(--background);
+	--color-badge-foreground: var(--badge-foreground);
+	--color-badge-border: var(--badge-border);
+	--color-badge-background: var(--badge-background);
 	--radius-sm: calc(var(--radius) * 0.6);
 	--radius-md: calc(var(--radius) * 0.8);
 	--radius-lg: var(--radius);
@@ -131,6 +163,26 @@ html {
 	--radius-2xl: calc(var(--radius) * 1.8);
 	--radius-3xl: calc(var(--radius) * 2.2);
 	--radius-4xl: calc(var(--radius) * 2.6);
+}
+
+.prose {
+	--tw-prose-body: #ccc3d8; /* on-surface-variant */
+	--tw-prose-headings: var(--foreground); /* on-background */
+	--tw-prose-lead: #ccc3d8; /* on-surface-variant */
+	--tw-prose-links: var(--primary);
+	--tw-prose-bold: var(--foreground); /* on-background */
+	--tw-prose-counters: #958da1; /* outline */
+	--tw-prose-bullets: #4a4455; /* outline-variant */
+	--tw-prose-hr: var(--border);
+	--tw-prose-quotes: var(--foreground); /* on-surface */
+	--tw-prose-quote-borders: var(--primary);
+	--tw-prose-captions: #958da1; /* outline */
+	--tw-prose-kbd: var(--foreground); /* on-surface */
+	--tw-prose-code: var(--accent); /* secondary (cyber cyan) */
+	--tw-prose-pre-code: #ccc3d8; /* on-surface-variant */
+	--tw-prose-pre-bg: #0e0e10; /* surface-container-lowest */
+	--tw-prose-th-borders: var(--border);
+	--tw-prose-td-borders: var(--border);
 }
 
 .prose :where(h1, h2, h3, h4):not(:where([class~="not-prose"] *)) {
@@ -142,15 +194,18 @@ html {
 	width: 4px;
 	height: 4px;
 }
+
 ::-webkit-scrollbar-track {
 	background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
-	background: rgb(99 102 241 / 0.25);
+	background: color-mix(in oklab, var(--primary) 25%, transparent);
 	border-radius: 9999px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
-	background: rgb(99 102 241 / 0.5);
+	background: color-mix(in oklab, var(--primary) 50%, transparent);
 }
 
 @layer base {
@@ -158,17 +213,20 @@ html {
 		@apply border-border outline-ring/50;
 		box-sizing: border-box;
 	}
+
 	html {
 		max-width: 100vw;
 		overflow-x: hidden;
 		scroll-behavior: smooth;
 		@apply font-sans;
 	}
+
 	body {
 		@apply bg-background text-foreground;
 		-webkit-font-smoothing: antialiased;
 		-moz-osx-font-smoothing: grayscale;
 	}
+
 	a {
 		color: inherit;
 		text-decoration: none;
@@ -177,6 +235,6 @@ html {
 	/* Custom scrollbar — Firefox */
 	* {
 		scrollbar-width: thin;
-		scrollbar-color: rgb(99 102 241 / 0.25) transparent;
+		scrollbar-color: color-mix(in oklab, var(--primary) 25%, transparent) transparent;
 	}
 }

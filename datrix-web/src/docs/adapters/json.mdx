@@ -4,6 +4,10 @@ description: File-based JSON adapter for development and testing.
 order: 4
 ---
 
+import { ExternalLink } from "@/components/docs/external-link";
+import { AsideSlot } from "@/components/docs/aside-slot";
+import { RelatedBlogLink } from "@/components/docs/related-blog-link";
+
 # JSON Adapter
 
 A file-based adapter that stores each table as a JSON file on disk. Intended for
@@ -82,4 +86,18 @@ Entire table data is loaded into memory during each operation. Performance degra
 
 ## Further reading
 
-[Convincing a File System to Behave Like a Database: Inside adapter-json](https://myniqx.dev/en/blog/convincing-a-file-system-to-behave-like-a-database-inside-adapter-json) — a deep dive into the design decisions behind this adapter (locking, transactions, atomic writes, and the trade-offs of treating JSON files as a database).
+<ExternalLink
+	href="https://myniqx.dev/en/blog/convincing-a-file-system-to-behave-like-a-database-inside-adapter-json"
+	title="Convincing a File System to Behave Like a Database: Inside adapter-json"
+>
+	A deep dive into the design decisions behind this adapter (locking,
+	transactions, atomic writes, and the trade-offs of treating JSON files as a
+	database).
+</ExternalLink>
+
+<AsideSlot>
+	<RelatedBlogLink
+		href="https://myniqx.dev/en/blog/convincing-a-file-system-to-behave-like-a-database-inside-adapter-json"
+		title="Convincing a File System to Behave Like a Database: Inside adapter-json"
+	/>
+</AsideSlot>

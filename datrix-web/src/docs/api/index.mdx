@@ -4,6 +4,19 @@ description: HTTP REST API plugin for Datrix.
 order: 4
 ---
 
+import { FeatureGrid, FeatureCard } from "@/components/docs/feature-grid";
+import {
+  LayersIcon,
+  ShieldIcon,
+  UploadIcon,
+  SearchIcon,
+  FileSearchIcon,
+  PlusIcon,
+  PencilIcon,
+  Trash2Icon,
+  SlidersHorizontalIcon,
+} from "lucide-react";
+
 # API
 
 `@datrix/api` turns any Datrix instance into a fully-featured REST API. Drop it in as a plugin — it auto-generates CRUD routes for every schema, handles authentication, and optionally manages file uploads.
@@ -40,17 +53,34 @@ export default defineConfig(() => ({
 
 ## What gets generated
 
-For every schema registered with Datrix, `ApiPlugin` generates the following routes:
+For every schema registered with Datrix, `ApiPlugin` generates the following routes. The `:schema` segment matches the schema's table name (e.g. schema `"product"` → `/api/products`).
 
-| Method   | Path               | Description                                                |
-| -------- | ------------------ | ---------------------------------------------------------- |
-| `GET`    | `/api/:schema`     | List records with pagination, filtering, sorting, populate |
-| `GET`    | `/api/:schema/:id` | Get a single record                                        |
-| `POST`   | `/api/:schema`     | Create a record                                            |
-| `PATCH`  | `/api/:schema/:id` | Update a record                                            |
-| `DELETE` | `/api/:schema/:id` | Delete a record                                            |
-
-The `:schema` segment matches the schema's table name (e.g. schema `"product"` → `/api/products`).
+<FeatureGrid>
+	<FeatureCard icon={SearchIcon} title="GET /api/:schema" compact>
+		List records with pagination, filtering, sorting, populate.
+	</FeatureCard>
+	<FeatureCard icon={FileSearchIcon} title="GET /api/:schema/:id" compact>
+		Get a single record.
+	</FeatureCard>
+	<FeatureCard icon={PlusIcon} title="POST /api/:schema" compact>
+		Create a record.
+	</FeatureCard>
+	<FeatureCard icon={PencilIcon} title="PATCH /api/:schema/:id" compact>
+		Update a record.
+	</FeatureCard>
+	<FeatureCard icon={Trash2Icon} title="DELETE /api/:schema/:id" compact>
+		Delete a record.
+	</FeatureCard>
+	<FeatureCard
+		icon={SlidersHorizontalIcon}
+		title="QUERY /api/:schema"
+		href="/docs/api/crud#complex-queries-via-query--post-alias"
+		compact
+	>
+		List records with a JSON query body (New in 0.2.0). POST
+		/api/:schema/query works identically as a portable alias.
+	</FeatureCard>
+</FeatureGrid>
 
 ---
 
@@ -150,8 +180,14 @@ The same `toWebRequest` / `sendWebResponse` pair works for Fastify, Koa, and raw
 
 ## Features
 
-| Feature                                          | Page                       |
-| ------------------------------------------------ | -------------------------- |
-| CRUD, filtering, pagination, sorting, populate   | [CRUD](/docs/api/crud)     |
-| JWT & session authentication, roles, permissions | [Auth](/docs/api/auth)     |
-| File uploads, storage providers, image variants  | [Upload](/docs/api/upload) |
+<FeatureGrid>
+	<FeatureCard icon={LayersIcon} title="CRUD" href="/docs/api/crud">
+		Filtering, pagination, sorting, populate.
+	</FeatureCard>
+	<FeatureCard icon={ShieldIcon} title="Auth" href="/docs/api/auth">
+		JWT & session authentication, roles, permissions.
+	</FeatureCard>
+	<FeatureCard icon={UploadIcon} title="Upload" href="/docs/api/upload">
+		File uploads, storage providers, image variants.
+	</FeatureCard>
+</FeatureGrid>

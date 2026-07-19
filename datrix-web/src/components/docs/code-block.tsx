@@ -697,13 +697,15 @@ const HTTP_METHODS = new Set([
 	"DELETE",
 	"HEAD",
 	"OPTIONS",
+	"QUERY",
 ]);
 
 function HttpBlock({ code }: { code: string }): React.ReactElement {
 	const lines = code.trimEnd().split("\n");
 	const rendered: React.ReactElement[] = [];
 
-	for (let i = 0; i < lines.length; i++) {
+	let i = 0;
+	for (; i < lines.length; i++) {
 		const line = lines[i]!;
 
 		// Request line: METHOD /path HTTP/1.1
@@ -735,13 +737,45 @@ function HttpBlock({ code }: { code: string }): React.ReactElement {
 			continue;
 		}
 
-		// Empty line or body
-		rendered.push(
-			<span key={i} style={{ color: CODE_COLORS.plain }}>
-				{line}
-				{"\n"}
-			</span>,
-		);
+		// Blank line separating headers from body
+		if (line.trim() === "") {
+			rendered.push(<span key={i}>{"\n"}</span>);
+			i++;
+			break;
+		}
+
+		// Body reached without a blank-line separator (e.g. no headers) — fall through
+		break;
+	}
+
+	// Remaining lines are the body — try to render as JSON, fall back to plain
+	const bodyLines = lines.slice(i);
+	if (bodyLines.length > 0) {
+		const bodyText = bodyLines.join("\n");
+		let parsedBody: unknown;
+		let isValidJson = true;
+		try {
+			parsedBody = JSON.parse(bodyText);
+		} catch {
+			isValidJson = false;
+		}
+
+		if (isValidJson) {
+			rendered.push(
+				<span key="body">
+					<JsonToken value={parsedBody} />
+				</span>,
+			);
+		} else {
+			for (const [j, line] of bodyLines.entries()) {
+				rendered.push(
+					<span key={`body-${j}`} style={{ color: CODE_COLORS.plain }}>
+						{line}
+						{j < bodyLines.length - 1 ? "\n" : ""}
+					</span>,
+				);
+			}
+		}
 	}
 
 	return (

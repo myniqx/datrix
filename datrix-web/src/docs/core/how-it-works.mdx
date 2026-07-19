@@ -4,13 +4,17 @@ description: The internal pipeline — from API call to database and back.
 order: 4
 ---
 
+import { FlowChain, FlowStep } from "@/components/docs/flow-chain";
+
 # How It Works
 
 Every operation in Datrix passes through three layers in sequence:
 
-```
-QueryBuilder  →  Executor  →  Adapter
-```
+<FlowChain>
+	<FlowStep>QueryBuilder</FlowStep>
+	<FlowStep>Executor</FlowStep>
+	<FlowStep>Adapter</FlowStep>
+</FlowChain>
 
 Understanding this pipeline makes it easier to know where errors come from,
 what gets validated and when, and how plugins interact with queries.
@@ -55,37 +59,41 @@ the builder and the adapter.
 
 **For SELECT and COUNT**, execution is straightforward:
 
-```
-onBeforeQuery hooks → adapter.executeQuery → onAfterQuery hooks
-```
+<FlowChain>
+	<FlowStep>onBeforeQuery hooks</FlowStep>
+	<FlowStep>adapter.executeQuery</FlowStep>
+	<FlowStep>onAfterQuery hooks</FlowStep>
+</FlowChain>
 
 **For INSERT**, the flow is:
 
-```
-onBeforeQuery hooks
-  → validate data (type, required, min/max/pattern/enum)
-  → inject timestamps (createdAt, updatedAt)
-  → BEGIN transaction
-    → INSERT rows
-    → process relations (connect/disconnect/set)
-  → COMMIT
-  → SELECT inserted records (separate query)
-→ onAfterQuery hooks
-```
+<FlowChain indent="manual">
+	<FlowStep level={0}>onBeforeQuery hooks</FlowStep>
+	<FlowStep level={1}>
+		validate data (type, required, min/max/pattern/enum)
+	</FlowStep>
+	<FlowStep level={1}>inject timestamps (createdAt, updatedAt)</FlowStep>
+	<FlowStep level={1}>BEGIN transaction</FlowStep>
+	<FlowStep level={2}>INSERT rows</FlowStep>
+	<FlowStep level={2}>process relations (connect/disconnect/set)</FlowStep>
+	<FlowStep level={1}>COMMIT</FlowStep>
+	<FlowStep level={1}>SELECT inserted records (separate query)</FlowStep>
+	<FlowStep level={0}>onAfterQuery hooks</FlowStep>
+</FlowChain>
 
 **For UPDATE**, same as INSERT but partial validation (all fields optional):
 
-```
-onBeforeQuery hooks
-  → validate data (partial)
-  → inject updatedAt
-  → BEGIN transaction
-    → UPDATE rows
-    → process relations
-  → COMMIT
-  → SELECT updated records by their IDs
-→ onAfterQuery hooks
-```
+<FlowChain indent="manual">
+	<FlowStep level={0}>onBeforeQuery hooks</FlowStep>
+	<FlowStep level={1}>validate data (partial)</FlowStep>
+	<FlowStep level={1}>inject updatedAt</FlowStep>
+	<FlowStep level={1}>BEGIN transaction</FlowStep>
+	<FlowStep level={2}>UPDATE rows</FlowStep>
+	<FlowStep level={2}>process relations</FlowStep>
+	<FlowStep level={1}>COMMIT</FlowStep>
+	<FlowStep level={1}>SELECT updated records by their IDs</FlowStep>
+	<FlowStep level={0}>onAfterQuery hooks</FlowStep>
+</FlowChain>
 
 Note: after UPDATE, the re-fetch uses the IDs returned by the UPDATE statement —
 not the original `where` clause. This ensures you always get the current state
@@ -93,14 +101,14 @@ of the records you actually modified.
 
 **For DELETE**:
 
-```
-onBeforeQuery hooks
-  → BEGIN transaction
-    → SELECT rows (if populate/select was requested)
-    → DELETE rows
-  → COMMIT
-→ onAfterQuery hooks
-```
+<FlowChain indent="manual">
+	<FlowStep level={0}>onBeforeQuery hooks</FlowStep>
+	<FlowStep level={1}>BEGIN transaction</FlowStep>
+	<FlowStep level={2}>SELECT rows (if populate/select was requested)</FlowStep>
+	<FlowStep level={2}>DELETE rows</FlowStep>
+	<FlowStep level={1}>COMMIT</FlowStep>
+	<FlowStep level={0}>onAfterQuery hooks</FlowStep>
+</FlowChain>
 
 The pre-fetch before DELETE is what allows `delete` to return the deleted
 record with populated relations.

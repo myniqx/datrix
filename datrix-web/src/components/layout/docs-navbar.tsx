@@ -26,14 +26,7 @@ export function DocsNavbar() {
 						>
 							docs
 						</Link>
-						<span
-							className="text-xs font-medium px-1.5 py-0.5 rounded-full border"
-							style={{
-								color: "#a78bfa",
-								borderColor: "#4c1d95",
-								backgroundColor: "#1e1b2e",
-							}}
-						>
+						<span className="text-xs font-medium px-1.5 py-0.5 rounded-full border text-badge-foreground border-badge-border bg-badge-background">
 							{DATRIX_VERSION}
 						</span>
 					</div>

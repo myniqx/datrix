@@ -4,6 +4,9 @@ description: Extending Datrix with plugins.
 order: 5
 ---
 
+import { FeatureGrid, FeatureCard } from "@/components/docs/feature-grid";
+import { PuzzleIcon } from "lucide-react";
+
 # Plugins
 
 Plugins extend Datrix's core functionality. They can add new schemas, extend existing ones, intercept queries, and integrate with external services.
@@ -12,9 +15,16 @@ Plugins extend Datrix's core functionality. They can add new schemas, extend exi
 
 ## Official plugins
 
-| Plugin  | Package      | Description                                                             |
-| ------- | ------------ | ----------------------------------------------------------------------- |
-| **API** | `@datrix/api` | REST API layer with automatic CRUD routes and optional JWT/session auth |
+<FeatureGrid>
+	<FeatureCard
+		icon={PuzzleIcon}
+		title="API — @datrix/api"
+		href="/docs/api"
+		wide
+	>
+		REST API layer with automatic CRUD routes and optional JWT/session auth.
+	</FeatureCard>
+</FeatureGrid>
 
 ---
 

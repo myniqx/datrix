@@ -2,9 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { Outlet, Link, useParams } from "react-router";
 import { siGithub } from "simple-icons";
 import { DocsNavbar } from "@/components/layout/docs-navbar";
+import { DocsFooter } from "@/components/layout/docs-footer";
 import { buildDocNav, getDocModule } from "@/docs/use-doc-nav";
 import { DATRIX_GITHUB_REPO } from "@/data/constants";
 import type { TocItem } from "@/lib/remark-toc-export";
+import { SidebarList, SidebarListItem } from "@/components/docs/sidebar-list";
 
 const NAV_SECTIONS = buildDocNav();
 
@@ -74,13 +76,11 @@ function SidebarLink({
 	return (
 		<Link
 			to={`/docs/${slug}`}
-			className={`group flex items-center gap-2 rounded-md transition-colors ${
-				isSection ? "text-sm font-medium py-1.5 px-2" : "text-sm py-1 px-2"
-			} ${
-				isHighlighted
+			className={`group flex items-center gap-2 rounded-md font-heading transition-colors ${isSection ? "text-sm font-medium py-1.5 px-2" : "text-sm py-1 px-2"
+				} ${isHighlighted
 					? "text-foreground"
-					: "text-foreground/55 hover:text-foreground"
-			}`}
+					: "text-foreground/75 hover:text-foreground"
+				}`}
 		>
 			{isActive && !isSection && (
 				<span className="w-1 h-1 rounded-full bg-primary shrink-0" />
@@ -121,9 +121,8 @@ function DocsSidebar({ currentSlug }: { currentSlug: string }) {
 							))}
 						{section.items.length > 0 && (
 							<nav
-								className={`flex flex-col border-l mt-0.5 ml-3 pl-3 ${
-									sectionActive ? "border-border/60" : "border-border/25"
-								}`}
+								className={`flex flex-col border-l mt-0.5 ml-2 pl-2 ${sectionActive ? "border-border/60" : "border-border/25"
+									}`}
 							>
 								{section.items.map((item) => (
 									<SidebarLink
@@ -230,30 +229,24 @@ function DocsToc({ items }: { items: TocItem[] }) {
 	}, [items]);
 
 	const visible = items.filter((item) => item.depth === 2 || item.depth === 3);
-	if (visible.length === 0) return null;
 
 	return (
 		<aside className="hidden xl:block w-52 shrink-0 sticky top-14 self-start h-[calc(100vh-3.5rem)] overflow-y-auto pt-8 pl-6">
-			<p className="text-[11px] font-semibold uppercase tracking-widest text-foreground/30 mb-3">
-				On this page
-			</p>
-			<nav className="flex flex-col border-l border-border/25">
-				{visible.map((item) => (
-					<a
-						key={item.id}
-						href={`#${item.id}`}
-						className={`text-sm py-1 transition-colors border-l -ml-px ${
-							item.depth === 3 ? "pl-5" : "pl-3"
-						} ${
-							activeId === item.id
-								? "text-foreground border-primary"
-								: "text-foreground/50 border-transparent hover:text-foreground/80 hover:border-border"
-						}`}
-					>
-						{item.text}
-					</a>
-				))}
-			</nav>
+			{visible.length > 0 && (
+				<SidebarList label="On this page">
+					{visible.map((item) => (
+						<SidebarListItem
+							key={item.id}
+							href={`#${item.id}`}
+							active={activeId === item.id}
+							indent={item.depth === 3}
+						>
+							{item.text}
+						</SidebarListItem>
+					))}
+				</SidebarList>
+			)}
+			<div id="docs-toc-aside" className={visible.length > 0 ? "mt-6" : undefined} />
 		</aside>
 	);
 }
@@ -266,9 +259,9 @@ export default function DocsLayout() {
 	const toc = mod?.toc ?? [];
 
 	return (
-		<div className="min-h-screen">
+		<div className="flex min-h-screen flex-col">
 			<DocsNavbar />
-			<div className="flex justify-center px-6 pt-14">
+			<div className="flex flex-1 justify-center px-6 pt-14">
 				<div className="flex w-full max-w-300">
 					<DocsSidebar currentSlug={currentSlug} />
 					<main className="min-w-0 flex-1 px-8 py-8">
@@ -278,6 +271,7 @@ export default function DocsLayout() {
 					<DocsToc items={toc} />
 				</div>
 			</div>
+			<DocsFooter />
 		</div>
 	);
 }

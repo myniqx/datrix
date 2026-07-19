@@ -4,6 +4,8 @@ description: Command-line tools for Datrix.
 order: 6
 ---
 
+import { StepList, Step } from "@/components/docs/step-list";
+
 # CLI
 
 ```bash
@@ -32,13 +34,20 @@ datrix migrate --yes       # skip the confirmation prompt (New in 0.2.0)
 
 ### What happens
 
-1. Loads your `datrix.config.ts` and connects to the database
-2. Diffs each schema against the live table structure
-3. If there are pending changes, prints the migration plan:
-   - **green `+`** — tables/columns to create
-   - **red `-`** — tables/columns to drop
-   - **yellow `~`** — tables/columns to alter
-4. Prompts for confirmation, then applies
+<StepList>
+	<Step title="Load config">
+		Loads datrix.config.ts and connects to the database
+	</Step>
+	<Step title="Diff schemas">
+		Diffs each schema against the live table structure
+	</Step>
+	<Step title="Print plan">
+		Color-coded: + create, - drop, ~ alter (if there are pending changes)
+	</Step>
+	<Step title="Apply">
+		Prompts for confirmation, then applies
+	</Step>
+</StepList>
 
 ### Ambiguous changes
 
@@ -365,12 +374,18 @@ datrix import ./backups/prod-2024-01-15.zip --agree missing-files  # only skip t
 
 ### What happens
 
-1. Prompts for confirmation (skipped with `--agree`)
-2. Drops all existing tables
-3. Recreates tables from the exported schema definitions — without FK constraints
-4. Inserts all rows chunk by chunk
-5. Adds FK constraints via `ALTER TABLE`
-6. Resets auto-increment sequences to continue from the last imported ID
+<StepList>
+	<Step title="Confirm">Prompts for confirmation (skipped with --agree)</Step>
+	<Step title="Drop tables">Drops all existing tables</Step>
+	<Step title="Recreate tables">
+		From the exported schema definitions — without FK constraints
+	</Step>
+	<Step title="Insert rows">Inserts all rows chunk by chunk</Step>
+	<Step title="Add FK constraints">Via ALTER TABLE</Step>
+	<Step title="Reset sequences">
+		Resets auto-increment sequences to continue from the last imported ID
+	</Step>
+</StepList>
 
 ### Use cases
 

@@ -4,6 +4,16 @@ description: REST endpoints, filtering, pagination, sorting, and populate.
 order: 1
 ---
 
+import { FeatureGrid, FeatureCard } from "@/components/docs/feature-grid";
+import {
+  SearchIcon,
+  FileSearchIcon,
+  PlusIcon,
+  PencilIcon,
+  Trash2Icon,
+  SlidersHorizontalIcon,
+} from "lucide-react";
+
 # CRUD
 
 `ApiPlugin` auto-generates REST endpoints for every schema. All query parameters are parsed server-side — no manual SQL, no query builders on the backend.
@@ -12,15 +22,32 @@ order: 1
 
 ## Endpoints
 
-| Method   | Path               | Description         |
-| -------- | ------------------ | ------------------- |
-| `GET`    | `/api/:schema`     | List records        |
-| `GET`    | `/api/:schema/:id` | Get a single record |
-| `POST`   | `/api/:schema`     | Create a record     |
-| `PATCH`  | `/api/:schema/:id` | Update a record     |
-| `DELETE` | `/api/:schema/:id` | Delete a record     |
-| `QUERY`  | `/api/:schema`     | List records with a JSON query body — see below (New in 0.2.0) |
-| `POST`   | `/api/:schema/query` | Alias for `QUERY`, for runtimes that don't support the method (New in 0.2.0) |
+<FeatureGrid>
+	<FeatureCard icon={SearchIcon} title="GET /api/:schema" compact>
+		List records.
+	</FeatureCard>
+	<FeatureCard icon={FileSearchIcon} title="GET /api/:schema/:id" compact>
+		Get a single record.
+	</FeatureCard>
+	<FeatureCard icon={PlusIcon} title="POST /api/:schema" compact>
+		Create a record.
+	</FeatureCard>
+	<FeatureCard icon={PencilIcon} title="PATCH /api/:schema/:id" compact>
+		Update a record.
+	</FeatureCard>
+	<FeatureCard icon={Trash2Icon} title="DELETE /api/:schema/:id" compact>
+		Delete a record.
+	</FeatureCard>
+	<FeatureCard
+		icon={SlidersHorizontalIcon}
+		title="QUERY /api/:schema"
+		href="#complex-queries-via-query--post-alias"
+		compact
+	>
+		List records with a JSON query body (New in 0.2.0). POST
+		/api/:schema/query works identically as a portable alias.
+	</FeatureCard>
+</FeatureGrid>
 
 ---
 
@@ -36,7 +63,7 @@ Response:
 
 ```json
 {
-  "data": [...],
+  "data": [{ "id": 11, "name": "Widget" }, { "id": 12, "name": "Gadget" }],
   "meta": {
     "page": 2,
     "pageSize": 10,

@@ -4,6 +4,9 @@ description: How to build a Datrix plugin.
 order: 1
 ---
 
+import { StepList, Step } from "@/components/docs/step-list";
+import { FlowChain, FlowStep } from "@/components/docs/flow-chain";
+
 # Writing Plugins
 
 A plugin is a class that implements the `DatrixPlugin` interface. Datrix provides a `BasePlugin` abstract class that covers the optional hooks with no-op defaults, so you only need to implement what you need.
@@ -55,11 +58,23 @@ export default defineConfig(() => ({
 
 When `defineConfig` starts up, plugins are processed in this order:
 
-1. `init(context)` — called once with adapter, schemas, and config
-2. `getSchemas()` — plugin schemas registered into the registry
-3. `extendSchemas(ctx)` — field/index extensions applied to existing schemas
-4. Registry finalized (relations resolved, junction tables created)
-5. `onSchemaLoad(schemas)` — called after registry is fully ready
+<StepList>
+	<Step title="init(context)">
+		Called once with adapter, schemas, and config
+	</Step>
+	<Step title="getSchemas()">
+		Plugin schemas registered into the registry
+	</Step>
+	<Step title="extendSchemas(ctx)">
+		Field/index extensions applied to existing schemas
+	</Step>
+	<Step title="Finalize registry">
+		Relations resolved, junction tables created
+	</Step>
+	<Step title="onSchemaLoad(schemas)">
+		Called after registry is fully ready
+	</Step>
+</StepList>
 
 `destroy()` is called on `datrix.shutdown()`.
 
@@ -131,9 +146,12 @@ override async onSchemaLoad(schemas: ISchemaRegistry): Promise<void> {
 
 Query hooks are called for every non-raw operation, in this order per query:
 
-```
-onCreateQueryContext  →  onBeforeQuery  →  [query runs]  →  onAfterQuery
-```
+<FlowChain>
+	<FlowStep>onCreateQueryContext</FlowStep>
+	<FlowStep>onBeforeQuery</FlowStep>
+	<FlowStep>[query runs]</FlowStep>
+	<FlowStep>onAfterQuery</FlowStep>
+</FlowChain>
 
 All hooks run **serially** across plugins in registration order. Hooks are **skipped** for `datrix.raw.*` calls.
 

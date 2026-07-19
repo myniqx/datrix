@@ -4,6 +4,20 @@ description: Schema, query, migration and validation.
 order: 2
 ---
 
+import { FeatureGrid, FeatureCard } from "@/components/docs/feature-grid";
+import { ExternalLink } from "@/components/docs/external-link";
+import { AsideSlot } from "@/components/docs/aside-slot";
+import { RelatedBlogLink } from "@/components/docs/related-blog-link";
+import {
+  RocketIcon,
+  LayersIcon,
+  PlugIcon,
+  SearchIcon,
+  GitBranchIcon,
+  WorkflowIcon,
+  TypeIcon,
+} from "lucide-react";
+
 # Core
 
 The core package is the heart of Datrix. It handles schema definition, query
@@ -12,18 +26,59 @@ all without being tied to a specific database engine.
 
 ---
 
-| Page | Description |
-| --- | --- |
-| [Setup](/docs/core/setup) | Entry point functions — `defineSchema` and `defineConfig`. |
-| [Schema](/docs/core/schema) | Define schemas with typed fields, indexes, hooks, and permissions. |
-| [Interfaces](/docs/core/interfaces) | Full method reference for the Datrix instance — CRUD, schema access, lifecycle. |
-| [Query](/docs/core/query) | Filter, select, populate, sort, and paginate records. |
-| [Relations](/docs/core/relations) | Write relation fields in create and update operations. |
-| [How It Works](/docs/core/how-it-works) | The internal pipeline — QueryBuilder, Executor, Adapter, and plugin hooks. |
-| [Types](/docs/core/types) | TypeScript type reference for all core interfaces and types. |
+<FeatureGrid>
+	<FeatureCard icon={RocketIcon} title="Setup" href="/docs/core/setup">
+		Entry point functions — defineSchema and defineConfig.
+	</FeatureCard>
+	<FeatureCard icon={LayersIcon} title="Schema" href="/docs/core/schema">
+		Define schemas with typed fields, indexes, hooks, and permissions.
+	</FeatureCard>
+	<FeatureCard
+		icon={PlugIcon}
+		title="Interfaces"
+		href="/docs/core/interfaces"
+	>
+		Full method reference for the Datrix instance — CRUD, schema access,
+		lifecycle.
+	</FeatureCard>
+	<FeatureCard icon={SearchIcon} title="Query" href="/docs/core/query">
+		Filter, select, populate, sort, and paginate records.
+	</FeatureCard>
+	<FeatureCard
+		icon={GitBranchIcon}
+		title="Relations"
+		href="/docs/core/relations"
+	>
+		Write relation fields in create and update operations.
+	</FeatureCard>
+	<FeatureCard
+		icon={WorkflowIcon}
+		title="How It Works"
+		href="/docs/core/how-it-works"
+	>
+		The internal pipeline — QueryBuilder, Executor, Adapter, and plugin
+		hooks.
+	</FeatureCard>
+	<FeatureCard icon={TypeIcon} title="Types" href="/docs/core/types">
+		TypeScript type reference for all core interfaces and types.
+	</FeatureCard>
+</FeatureGrid>
 
 ---
 
 ## Further reading
 
-[Inside Datrix: A Line-by-Line Read of a TypeScript ORM's Core Layer](https://myniqx.dev/en/blog/inside-datrix-a-line-by-line-read-of-a-typescript-orms-core-layer) — a walkthrough of the core package's internals: the query builder, executor, validation layer, and how they fit together.
+<ExternalLink
+	href="https://myniqx.dev/en/blog/inside-datrix-a-line-by-line-read-of-a-typescript-orms-core-layer"
+	title="Inside Datrix: A Line-by-Line Read of a TypeScript ORM's Core Layer"
+>
+	A walkthrough of the core package's internals: the query builder, executor,
+	validation layer, and how they fit together.
+</ExternalLink>
+
+<AsideSlot>
+	<RelatedBlogLink
+		href="https://myniqx.dev/en/blog/inside-datrix-a-line-by-line-read-of-a-typescript-orms-core-layer"
+		title="Inside Datrix: A Line-by-Line Read of a TypeScript ORM's Core Layer"
+	/>
+</AsideSlot>
