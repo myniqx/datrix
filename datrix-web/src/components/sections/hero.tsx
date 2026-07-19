@@ -21,7 +21,7 @@ export function Hero() {
 			</div>
 
 			{/* Content — desktop: left grid column, 4K: capped with padding */}
-			<div className="relative z-10 flex min-h-screen items-center ml-12 justify-center lg:min-h-0 lg:justify-start">
+			<div className="relative z-10 flex min-h-screen items-center justify-center lg:min-h-0 lg:ml-36 lg:justify-start">
 				<div className="flex w-full max-w-2xl flex-col items-center gap-6 px-8 text-center lg:items-start lg:py-0 lg:text-left">
 					<Badge variant="outline">{DATRIX_VERSION}</Badge>
 
