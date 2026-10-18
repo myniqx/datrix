@@ -187,4 +187,30 @@ export interface IDatrix extends IRawCrud {
 	 * triggering onBeforeQuery/onAfterQuery plugin hooks.
 	 */
 	readonly raw: IRawCrud;
+
+	/**
+	 * Run CRUD operations atomically. Commits when `fn` resolves, rolls back
+	 * when it throws (or when any operation inside it failed).
+	 */
+	transaction<R>(
+		fn: (tx: DatrixTransaction) => Promise<R>,
+		options?: TransactionOptions,
+	): Promise<R>;
+}
+
+export type AfterCommitCallback = () => void | Promise<void>;
+
+export interface TransactionOptions {
+	/** Receives errors thrown by afterCommit callbacks (the data is already committed). */
+	onAfterCommitError?: (error: unknown) => void | Promise<void>;
+}
+
+export interface DatrixTransaction extends IRawCrud {
+	readonly raw: IRawCrud;
+
+	/** Runs after a successful commit; discarded on rollback. */
+	afterCommit(callback: AfterCommitCallback): void;
+
+	/** Rolls the transaction back; `transaction()` rejects with DatrixTransactionRollbackError. */
+	rollback(): never;
 }

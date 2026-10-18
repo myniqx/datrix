@@ -32,13 +32,21 @@ import {
 /**
  * Create a new query context
  */
-function createQueryContext(action: QueryAction, datrix: Datrix): QueryContext {
+function createQueryContext(
+	action: QueryAction,
+	datrix: Datrix,
+	scope: QueryScope,
+): QueryContext {
 	return {
 		action,
 		datrix,
+		crud: scope.crud,
 		metadata: {},
+		afterCommit: scope.afterCommit,
 	};
 }
+
+export type QueryScope = Pick<QueryContext, "crud" | "afterCommit">;
 
 /**
  * Dispatcher for plugin hooks
@@ -54,8 +62,11 @@ export class Dispatcher {
 	 *
 	 * This allows plugins to enrich the context before query execution.
 	 */
-	async buildQueryContext(action: QueryAction): Promise<QueryContext> {
-		let context = createQueryContext(action, this.datrix);
+	async buildQueryContext(
+		action: QueryAction,
+		scope: QueryScope,
+	): Promise<QueryContext> {
+		let context = createQueryContext(action, this.datrix, scope);
 
 		for (const plugin of this.registry.getAll()) {
 			try {
@@ -95,6 +106,25 @@ export class Dispatcher {
 	}
 
 	/**
+	 * Dispatch onAfterCommitError to all plugins. Never throws — the data is
+	 * already committed at this point.
+	 */
+	async dispatchAfterCommitError(error: unknown): Promise<void> {
+		for (const plugin of this.registry.getAll()) {
+			try {
+				if (plugin.onAfterCommitError) {
+					await plugin.onAfterCommitError(error);
+				}
+			} catch (hookError) {
+				console.error(
+					`[Dispatcher] Error in plugin '${plugin.name}' onAfterCommitError:`,
+					hookError,
+				);
+			}
+		}
+	}
+
+	/**
 	 * Execute full query lifecycle:
 	 * 1. Create context + shared hookCtx (metadata shared between before/after)
 	 * 2. onBeforeQuery plugin hooks + schema before hook
@@ -108,9 +138,10 @@ export class Dispatcher {
 		action: QueryAction,
 		schema: SchemaDefinition,
 		query: QueryObject<TResult>,
+		scope: QueryScope,
 		executor: (query: QueryObject<TResult>) => Promise<R>,
 	): Promise<R> {
-		const context = await this.buildQueryContext(action);
+		const context = await this.buildQueryContext(action, scope);
 		const modifiedQuery = await this.dispatchBeforeQuery(
 			query,
 			schema,

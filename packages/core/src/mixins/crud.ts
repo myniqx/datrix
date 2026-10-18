@@ -5,7 +5,8 @@
  * This class encapsulates all data manipulation logic.
  */
 
-import { DatabaseAdapter, GroupCountData } from "../types/adapter";
+import { GroupCountData } from "../types/adapter";
+import { Session } from "../session";
 import {
 	ISchemaRegistry,
 	DatrixEntry,
@@ -42,14 +43,15 @@ export class CrudOperations implements IRawCrud {
 
 	constructor(
 		private readonly schemas: ISchemaRegistry,
-		readonly getAdapter: () => DatabaseAdapter,
+		session: Session,
 		private readonly getDispatcher: (() => Dispatcher) | null = null,
 	) {
 		// QueryExecutor handles validation, timestamps, and recursive relations
 		this.executor = new QueryExecutor(
 			schemas,
-			getAdapter,
+			session,
 			getDispatcher || (() => ({}) as Dispatcher), // Dummy dispatcher if null
+			this,
 		);
 	}
 

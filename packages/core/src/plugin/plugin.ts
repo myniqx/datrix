@@ -116,6 +116,15 @@ export abstract class BasePlugin<
 	}
 
 	/**
+	 * Hook called when an afterCommit callback throws (data is already committed)
+	 *
+	 * Default implementation does nothing
+	 */
+	async onAfterCommitError(_error: unknown): Promise<void> {
+		// Default: no-op
+	}
+
+	/**
 	 * Validate plugin options
 	 *
 	 * Helper method for subclasses to implement options validation

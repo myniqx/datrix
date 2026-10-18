@@ -31,7 +31,9 @@ import {
 	throwSchemaNotFoundError,
 	throwUnsupportedQueryType,
 } from "./error-helper";
-import { DatabaseAdapter, QueryRunner, GroupCountData } from "../types/adapter";
+import { GroupCountData } from "../types/adapter";
+import { AfterCommitCallback, IRawCrud } from "../types/core/interfaces";
+import { Session } from "../session";
 
 /**
  * Executor execution options
@@ -54,8 +56,9 @@ export interface ExecutorOptions {
 export class QueryExecutor {
 	constructor(
 		private readonly schemas: ISchemaRegistry,
-		private readonly getAdapter: () => DatabaseAdapter,
+		private readonly session: Session,
 		private readonly getDispatcher: () => Dispatcher,
+		private readonly scopeCrud: IRawCrud,
 	) {}
 
 	/**
@@ -80,6 +83,13 @@ export class QueryExecutor {
 	async execute<T extends DatrixEntry, R>(
 		query: QueryObject<T>,
 		options: ExecutorOptions = {},
+	): Promise<R> {
+		return this.session.run(() => this.dispatch<T, R>(query, options));
+	}
+
+	private async dispatch<T extends DatrixEntry, R>(
+		query: QueryObject<T>,
+		options: ExecutorOptions,
 	): Promise<R> {
 		const schema = this.getSchema(query.table);
 
@@ -128,7 +138,7 @@ export class QueryExecutor {
 			options.noDispatcher ?? false,
 			query,
 			async (mq) => {
-				const result = await this.getAdapter().executeQuery<T>(mq);
+				const result = await this.session.runner.executeQuery<T>(mq);
 				return result.rows as T[];
 			},
 		);
@@ -157,7 +167,7 @@ export class QueryExecutor {
 			options.noDispatcher ?? false,
 			query,
 			async (mq) => {
-				const result = await this.getAdapter().executeQuery<T>(mq);
+				const result = await this.session.runner.executeQuery<T>(mq);
 				if (mq.groupBy && mq.groupBy.length > 0) {
 					return [...(result.metadata.countMany ?? [])];
 				}
@@ -182,17 +192,9 @@ export class QueryExecutor {
 			schema,
 			options.noDispatcher ?? false,
 			query,
-			async (mq) => {
-				// 1. Begin transaction
-				const adapter = this.getAdapter();
-				const { runner, commit, rollback } =
-					await this.beginTransaction(adapter);
-
-				let deleteResult: readonly T[];
-				let returningResult: readonly T[];
-
-				try {
-					// 2. Pre-fetch rows if caller needs select/populate results
+			async (mq) =>
+				this.session.write(async (runner) => {
+					// 1. Pre-fetch rows if caller needs select/populate results
 					const needsReturnSelect =
 						!options.noReturning && (mq.select || mq.populate);
 
@@ -208,24 +210,14 @@ export class QueryExecutor {
 						});
 						prefetchedRows = selectResult.rows;
 					}
-					// 3. Execute DELETE (junction cleanup handled by DB via ON DELETE CASCADE)
+					// 2. Execute DELETE (junction cleanup handled by DB via ON DELETE CASCADE)
 					// The prefetch above runs inside the transaction by design: all
 					// returning-reads (INSERT/UPDATE refetch, DELETE prefetch) share
 					// the same in-transaction read-consistency rule.
 					const deleteQueryResult = await runner.executeQuery<T>(mq);
-					deleteResult = deleteQueryResult.rows;
 
-					// 4. Commit transaction
-					await commit();
-
-					returningResult = needsReturnSelect ? prefetchedRows! : deleteResult;
-				} catch (error) {
-					await rollback();
-					throw error;
-				}
-
-				return returningResult;
-			},
+					return needsReturnSelect ? prefetchedRows! : deleteQueryResult.rows;
+				}),
 		);
 	}
 
@@ -260,16 +252,8 @@ export class QueryExecutor {
 					}),
 				);
 
-				// 2. Begin transaction
-				const adapter = this.getAdapter();
-				const { runner, commit, rollback } =
-					await this.beginTransaction(adapter);
-
-				let insertedIds: readonly T[];
-				let returningRows: readonly T[] | undefined;
-
-				try {
-					// 3. Execute INSERT query (bulk)
+				return this.session.write(async (runner) => {
+					// 2. Execute INSERT query (bulk)
 					const queryWithValidatedData: QueryInsertObject<T> = {
 						type: "insert",
 						table: insertQuery.table,
@@ -279,9 +263,9 @@ export class QueryExecutor {
 					const insertResult = await runner.executeQuery<T>(
 						queryWithValidatedData,
 					);
-					insertedIds = insertResult.rows;
+					const insertedIds = insertResult.rows;
 
-					// 4. Process relations (if any) - resolve CUD once, then link per record
+					// 3. Process relations (if any) - resolve CUD once, then link per record
 					if (insertQuery.relations) {
 						const resolvedOps = await resolveRelationCUD(
 							insertQuery.relations,
@@ -302,33 +286,26 @@ export class QueryExecutor {
 						}
 					}
 
-					// 5. Fetch full records inside the transaction (if returning enabled)
-					if (!options.noReturning) {
-						const selectQuery: QuerySelectObject<T> = {
-							type: "select",
-							table: insertQuery.table,
-							select:
-								insertQuery.select ??
-								this.schemas.getCachedSelectFields<T>(schema.name),
-							where: {
-								id: { $in: insertedIds.map((r) => r.id) },
-							} as unknown as WhereClause<T>,
-							...(insertQuery.populate !== undefined && {
-								populate: insertQuery.populate,
-							}),
-						};
-						const selectResult = await runner.executeQuery<T>(selectQuery);
-						returningRows = selectResult.rows;
+					// 4. Fetch full records inside the transaction (if returning enabled)
+					if (options.noReturning) {
+						return insertedIds;
 					}
-
-					// 6. Commit transaction
-					await commit();
-				} catch (error) {
-					await rollback();
-					throw error;
-				}
-
-				return returningRows ?? insertedIds;
+					const selectQuery: QuerySelectObject<T> = {
+						type: "select",
+						table: insertQuery.table,
+						select:
+							insertQuery.select ??
+							this.schemas.getCachedSelectFields<T>(schema.name),
+						where: {
+							id: { $in: insertedIds.map((r) => r.id) },
+						} as unknown as WhereClause<T>,
+						...(insertQuery.populate !== undefined && {
+							populate: insertQuery.populate,
+						}),
+					};
+					const selectResult = await runner.executeQuery<T>(selectQuery);
+					return selectResult.rows;
+				});
 			},
 		);
 	}
@@ -367,16 +344,8 @@ export class QueryExecutor {
 					},
 				);
 
-				// 2. Begin transaction
-				const adapter = this.getAdapter();
-				const { runner, commit, rollback } =
-					await this.beginTransaction(adapter);
-
-				let recordIds: readonly T[];
-				let returningRows: readonly T[] | undefined;
-
-				try {
-					// 3. Execute UPDATE query (scalars only)
+				return this.session.write(async (runner) => {
+					// 2. Execute UPDATE query (scalars only)
 					const queryWithValidatedData: QueryUpdateObject<T> = {
 						type: "update",
 						table: updateQuery.table,
@@ -389,9 +358,9 @@ export class QueryExecutor {
 					const updateResult = await runner.executeQuery<T>(
 						queryWithValidatedData,
 					);
-					recordIds = updateResult.rows;
+					const recordIds = updateResult.rows;
 
-					// 4. Process relations (if any) - resolve CUD ONCE, then link per parent
+					// 3. Process relations (if any) - resolve CUD ONCE, then link per parent
 					if (updateQuery.relations) {
 						const resolvedOps = await resolveRelationCUD(
 							updateQuery.relations,
@@ -412,34 +381,27 @@ export class QueryExecutor {
 						}
 					}
 
-					// 5. Fetch full records inside the transaction (if returning enabled)
+					// 4. Fetch full records inside the transaction (if returning enabled)
 					// Use updated record IDs for select (not original where, which may no longer match)
-					if (!options.noReturning) {
-						const selectQuery: QuerySelectObject<T> = {
-							type: "select",
-							table: updateQuery.table,
-							select:
-								updateQuery.select ??
-								this.schemas.getCachedSelectFields<T>(schema.name),
-							where: {
-								id: { $in: recordIds.map((r) => r.id) },
-							} as unknown as WhereClause<T>,
-							...(updateQuery.populate !== undefined && {
-								populate: updateQuery.populate,
-							}),
-						};
-						const selectResult = await runner.executeQuery<T>(selectQuery);
-						returningRows = selectResult.rows;
+					if (options.noReturning) {
+						return recordIds;
 					}
-
-					// 6. Commit transaction
-					await commit();
-				} catch (error) {
-					await rollback();
-					throw error;
-				}
-
-				return returningRows ?? recordIds;
+					const selectQuery: QuerySelectObject<T> = {
+						type: "select",
+						table: updateQuery.table,
+						select:
+							updateQuery.select ??
+							this.schemas.getCachedSelectFields<T>(schema.name),
+						where: {
+							id: { $in: recordIds.map((r) => r.id) },
+						} as unknown as WhereClause<T>,
+						...(updateQuery.populate !== undefined && {
+							populate: updateQuery.populate,
+						}),
+					};
+					const selectResult = await runner.executeQuery<T>(selectQuery);
+					return selectResult.rows;
+				});
 			},
 		);
 	}
@@ -463,7 +425,13 @@ export class QueryExecutor {
 			return handler(query);
 		}
 
-		const context = await dispatcher.buildQueryContext(action);
+		const pendingAfterCommit: AfterCommitCallback[] = [];
+		const context = await dispatcher.buildQueryContext(action, {
+			crud: this.scopeCrud,
+			afterCommit: (callback) => {
+				pendingAfterCommit.push(callback);
+			},
+		});
 
 		const modifiedQuery = (await dispatcher.dispatchBeforeQuery(
 			query as QueryObject,
@@ -473,35 +441,17 @@ export class QueryExecutor {
 
 		const result = await handler(modifiedQuery);
 
-		if (skipAfterHooks) {
-			return result;
-		}
+		const output = skipAfterHooks
+			? result
+			: ((await dispatcher.dispatchAfterQuery(
+					result as DatrixEntry,
+					schema,
+					context,
+				)) as TResult);
 
-		return dispatcher.dispatchAfterQuery(
-			result as DatrixEntry,
-			schema,
-			context,
-		) as Promise<TResult>;
-	}
+		await this.session.afterCommit(pendingAfterCommit);
 
-	/**
-	 * Begin transaction and return runner, commit, rollback helpers.
-	 */
-	private async beginTransaction(adapter: DatabaseAdapter): Promise<{
-		runner: QueryRunner;
-		commit: () => Promise<void>;
-		rollback: () => Promise<void>;
-	}> {
-		const tx = await adapter.beginTransaction();
-		return {
-			runner: tx,
-			commit: async () => {
-				await tx.commit();
-			},
-			rollback: async () => {
-				await tx.rollback();
-			},
-		};
+		return output;
 	}
 
 	/**

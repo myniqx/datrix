@@ -61,6 +61,7 @@ export interface DatrixPlugin<TOptions = Record<string, unknown>> {
 		result: TResult,
 		context: QueryContext,
 	): Promise<TResult>;
+	onAfterCommitError?(error: unknown): Promise<void>;
 }
 
 /**

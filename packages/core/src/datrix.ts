@@ -20,6 +20,8 @@ import {
 } from "./types/core/plugin";
 import { WhereClause } from "./types/core/query-builder";
 import { CrudOperations } from "./mixins/crud";
+import { TransactionCrud } from "./mixins/transaction";
+import { AdapterSession, TransactionSession } from "./session";
 import { SchemaExtensionContextImpl } from "./plugin/schema-extension-context";
 import { Dispatcher, createDispatcher } from "./dispatcher";
 import { PluginRegistry } from "./types/core/plugin";
@@ -31,6 +33,8 @@ import {
 	RawFindManyOptions,
 	RawCountManyOptions,
 	FallbackInput,
+	DatrixTransaction,
+	TransactionOptions,
 } from "./types/core";
 import { DatrixError } from "./types/errors";
 import {
@@ -152,14 +156,18 @@ export class Datrix implements IDatrix {
 			}
 
 			// Initialize mixins
+			const session = new AdapterSession(
+				() => this.adapter!,
+				(error) => this.reportAfterCommitError(error),
+			);
 			this._crud = new CrudOperations(
 				this._schemas,
-				() => this.adapter!,
+				session,
 				() => this.dispatcher!,
 			);
 			this._rawCrud = new CrudOperations(
 				this._schemas,
-				() => this.adapter!,
+				session,
 				null, // No dispatcher = raw mode (bypasses plugin hooks)
 			);
 
@@ -462,6 +470,66 @@ export class Datrix implements IDatrix {
 		return this._crud.deleteMany(model, where, options);
 	}
 
+	/**
+	 * Run CRUD operations atomically
+	 *
+	 * Commits when `fn` resolves and rolls back when it throws. An operation
+	 * that fails inside `fn` aborts the transaction even if the error is
+	 * caught. Nested transactions are not supported (`tx` has no `transaction`).
+	 *
+	 * @example
+	 * ```ts
+	 * const order = await datrix.transaction(async (tx) => {
+	 *   const order = await tx.create('order', { total: 100 });
+	 *   await tx.update('stock', stockId, { amount: 9 });
+	 *   tx.afterCommit(() => mailer.send(order));
+	 *   return order;
+	 * });
+	 * ```
+	 */
+	async transaction<R>(
+		fn: (tx: DatrixTransaction) => Promise<R>,
+		options: TransactionOptions = {},
+	): Promise<R> {
+		this.ensureInitialized();
+
+		const tx = await this.adapter!.beginTransaction();
+		const session = new TransactionSession(tx, async (error) => {
+			await this.reportAfterCommitError(error);
+			if (options.onAfterCommitError) {
+				try {
+					await options.onAfterCommitError(error);
+				} catch (handlerError) {
+					console.error(
+						"[Datrix] onAfterCommitError handler failed:",
+						handlerError,
+					);
+				}
+			}
+		});
+
+		let result: R;
+		try {
+			result = await fn(
+				new TransactionCrud(this._schemas, session, () => this.dispatcher!),
+			);
+			session.throwIfFailed();
+			session.close();
+			await tx.commit();
+		} catch (error) {
+			session.close();
+			try {
+				await tx.rollback();
+			} catch {
+				// Rollback failure must not mask the original error
+			}
+			throw error;
+		}
+
+		await session.flushAfterCommit();
+		return result;
+	}
+
 	get schema(): SchemaRegistry {
 		this.ensureInitialized();
 		return this._schemas;
@@ -489,6 +557,11 @@ export class Datrix implements IDatrix {
 		this.dispatcher = null;
 		this._schemas = new SchemaRegistry();
 		this.initialized = false;
+	}
+
+	private async reportAfterCommitError(error: unknown): Promise<void> {
+		console.error("[Datrix] afterCommit callback failed:", error);
+		await this.dispatcher?.dispatchAfterCommitError(error);
 	}
 
 	private ensureInitialized(): void {

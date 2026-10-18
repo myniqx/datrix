@@ -1,4 +1,4 @@
-import { IDatrix } from "./interfaces";
+import { AfterCommitCallback, IDatrix, IRawCrud } from "./interfaces";
 import { AuthUser } from "../api";
 
 /**
@@ -20,7 +20,12 @@ export type QueryAction =
  */
 export interface QueryContext {
 	readonly action: QueryAction;
+	/** Global instance — queries through it run outside the current transaction. */
 	readonly datrix: IDatrix;
+	/** CRUD bound to the current session; joins the caller's transaction if any. */
+	readonly crud: IRawCrud;
 	readonly metadata: Record<string, unknown>;
+	/** Deferred until the surrounding transaction commits; dropped on rollback. */
+	afterCommit(callback: AfterCommitCallback): void;
 	user?: AuthUser | undefined;
 }
