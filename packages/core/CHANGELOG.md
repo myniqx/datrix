@@ -1,5 +1,15 @@
 # @datrix/core
 
+## 0.2.1
+
+### Patch Changes
+
+- Added `datrix.transaction(fn, options?)` for running CRUD operations atomically: commits when `fn` resolves, rolls back when it throws. Works on every adapter through the existing `Transaction` contract; nested transactions are not supported.
+- Added `tx.rollback()` for intentional rollback (`transaction()` rejects with `DatrixTransactionRollbackError`); a failed operation aborts the transaction even if its error is caught (`TRANSACTION_ABORTED`), and using `tx` after it finished throws `TRANSACTION_CLOSED`.
+- Added `tx.afterCommit()` / `context.afterCommit()` to defer side effects until commit (dropped on rollback). Callback errors are logged and forwarded to the new `onAfterCommitError` plugin hook and the `onAfterCommitError` transaction option; they never fail the committed operation.
+- Added `context.crud` to `QueryContext`: CRUD bound to the current session, so queries from hooks join the caller's transaction (`context.datrix` still runs outside it).
+- Executor now runs on an internal session (`AdapterSession` / `TransactionSession`) instead of the adapter directly; standalone writes keep their per-operation transaction.
+
 ## 0.2.0
 
 ### Minor Changes
