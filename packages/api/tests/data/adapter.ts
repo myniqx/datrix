@@ -187,5 +187,5 @@ export function getAdapterType(): AdapterType {
 	) {
 		return adapterEnv;
 	}
-	return "mongodb"; // Default
+	return "json"; // Default
 }

@@ -718,11 +718,13 @@ describe("Schema-Level Permission Tests", () => {
 
 	describe("Product Schema (update with owner function)", () => {
 		let productId: number;
+		let categoryId: number;
+		let supplierId: number;
 		const userId = testUsers.user.id;
 
 		beforeAll(async () => {
 			// Create category and supplier first
-			await handleRequest(
+			const categoryResponse = await handleRequest(
 				datrix,
 				createRequest("/api/categories", {
 					method: "POST",
@@ -730,8 +732,10 @@ describe("Schema-Level Permission Tests", () => {
 					body: { name: "Product Category" },
 				}),
 			);
+			categoryId = (await expectApiSingle<DatrixEntry>(categoryResponse, 201))
+				.id!;
 
-			await handleRequest(
+			const supplierResponse = await handleRequest(
 				datrix,
 				createRequest("/api/suppliers", {
 					method: "POST",
@@ -743,6 +747,8 @@ describe("Schema-Level Permission Tests", () => {
 					},
 				}),
 			);
+			supplierId = (await expectApiSingle<DatrixEntry>(supplierResponse, 201))
+				.id!;
 
 			const response = await handleRequest(
 				datrix,
@@ -753,8 +759,8 @@ describe("Schema-Level Permission Tests", () => {
 						name: "Test Product",
 						price: 99.99,
 						stock: 10,
-						category: 1,
-						supplier: 1,
+						category: categoryId,
+						supplier: supplierId,
 						sku: "TEST-001",
 						createdBy: userId.toString(),
 					},
@@ -775,8 +781,8 @@ describe("Schema-Level Permission Tests", () => {
 						name: "Test Product2",
 						price: 99.99,
 						stock: 10,
-						category: 1,
-						supplier: 1,
+						category: categoryId,
+						supplier: supplierId,
 						sku: "TEST-002",
 						createdBy: userId.toString(),
 					},
