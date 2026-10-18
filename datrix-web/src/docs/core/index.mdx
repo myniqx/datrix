@@ -16,6 +16,7 @@ import {
   GitBranchIcon,
   WorkflowIcon,
   TypeIcon,
+  ArrowLeftRightIcon,
 } from "lucide-react";
 
 # Core
@@ -50,6 +51,14 @@ all without being tied to a specific database engine.
 		href="/docs/core/relations"
 	>
 		Write relation fields in create and update operations.
+	</FeatureCard>
+	<FeatureCard
+		icon={ArrowLeftRightIcon}
+		title="Transactions"
+		href="/docs/core/transactions"
+	>
+		Run operations atomically with commit, rollback, and afterCommit
+		callbacks.
 	</FeatureCard>
 	<FeatureCard
 		icon={WorkflowIcon}

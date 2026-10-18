@@ -164,6 +164,7 @@ Plugins can intercept every query at two points:
 | `onBeforeQuery` | query object | error re-thrown, query aborted |
 | `onAfterQuery` | result | error logged, result returned as-is |
 | `onCreateQueryContext` | context object | error logged, context used as-is |
+| `onAfterCommitError` | — | error logged |
 
 `onBeforeQuery` errors are intentionally re-thrown — if a plugin rejects a query
 (e.g. a permission check fails), the operation stops.
@@ -177,10 +178,14 @@ A plugin also receives a `QueryContext` on every hook call:
 {
   action: "create",        // findOne | findMany | count | create | update | delete
   schema: SchemaDefinition,
-  datrix: Datrix,            // full Datrix instance for internal queries
+  datrix: Datrix,            // full Datrix instance — queries run outside the current transaction
+  crud: IRawCrud,            // CRUD bound to the current session — joins the caller's transaction
+  afterCommit(cb),           // run cb after commit; dropped on rollback
   metadata: {}             // arbitrary data plugins can attach
 }
 ```
+
+See [Transactions](/docs/core/transactions) for how `crud` and `afterCommit` behave inside `datrix.transaction`.
 
 ---
 

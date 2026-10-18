@@ -45,11 +45,29 @@ export const TYPE_DEFINITIONS: Record<string, TypeDefinition> = {
 	},
 	IDatrix: {
 		group: "Core",
-		signature: `interface IDatrix extends IRawCrud {\n  // CRUD (with plugin hooks) — same as IRawCrud methods\n  findOne(model, where, options?):          Promise<T | null>\n  findById(model, id, options?):            Promise<T | null>\n  findMany(model, options?):               Promise<T[]>\n  count(model, where?):                    Promise<number>\n  create(model, data, options?):           Promise<T>\n  createMany(model, data[], options?):     Promise<T[]>\n  update(model, id, data, options?):       Promise<T>\n  updateMany(model, where, data, options?): Promise<T[]>\n  delete(model, id, options?):             Promise<T>\n  deleteMany(model, where, options?):      Promise<T[]>\n\n  // Raw CRUD (bypasses plugin hooks)\n  readonly raw: IRawCrud\n\n  // Schema access\n  getSchemas():              ISchemaRegistry\n  getSchema(name):           SchemaDefinition | undefined\n  hasSchema(name):           boolean\n  getAllSchemas():            readonly SchemaDefinition[]\n\n  // Plugin access\n  getPlugins():              readonly DatrixPlugin[]\n  getPlugin(name):           DatrixPlugin | null\n  hasPlugin(name):           boolean\n\n  // Lifecycle\n  isInitialized():           boolean\n  getConfig():               DatrixConfig\n  getAdapter<T>():           T\n  shutdown():                Promise<void>\n}`,
+		signature: `interface IDatrix extends IRawCrud {\n  // CRUD (with plugin hooks) — same as IRawCrud methods\n  findOne(model, where, options?):          Promise<T | null>\n  findById(model, id, options?):            Promise<T | null>\n  findMany(model, options?):               Promise<T[]>\n  count(model, where?):                    Promise<number>\n  create(model, data, options?):           Promise<T>\n  createMany(model, data[], options?):     Promise<T[]>\n  update(model, id, data, options?):       Promise<T>\n  updateMany(model, where, data, options?): Promise<T[]>\n  delete(model, id, options?):             Promise<T>\n  deleteMany(model, where, options?):      Promise<T[]>\n\n  // Raw CRUD (bypasses plugin hooks)\n  readonly raw: IRawCrud\n\n  // Transactions\n  transaction<R>(fn, options?):  Promise<R>\n\n  // Schema access\n  getSchemas():              ISchemaRegistry\n  getSchema(name):           SchemaDefinition | undefined\n  hasSchema(name):           boolean\n  getAllSchemas():            readonly SchemaDefinition[]\n\n  // Plugin access\n  getPlugins():              readonly DatrixPlugin[]\n  getPlugin(name):           DatrixPlugin | null\n  hasPlugin(name):           boolean\n\n  // Lifecycle\n  isInitialized():           boolean\n  getConfig():               DatrixConfig\n  getAdapter<T>():           T\n  shutdown():                Promise<void>\n}`,
 		description:
 			"Main Datrix instance interface. Returned by the function created with defineConfig(). All CRUD methods run through plugin hooks — use .raw for direct database access without hooks.",
 	},
 
+	DatrixTransaction: {
+		group: "Core",
+		signature: `interface DatrixTransaction extends IRawCrud {\n  readonly raw: IRawCrud\n  afterCommit(callback: AfterCommitCallback): void\n  rollback(): never\n}`,
+		description:
+			"Transaction handle passed to the datrix.transaction() callback. Exposes the same CRUD methods with plugin hooks; raw skips hooks but still runs inside the transaction. rollback() throws DatrixTransactionRollbackError.",
+	},
+	TransactionOptions: {
+		group: "Core",
+		signature: `interface TransactionOptions {\n  onAfterCommitError?: (error: unknown) => void | Promise<void>\n}`,
+		description:
+			"Options for datrix.transaction(). onAfterCommitError is called when an afterCommit callback throws; the transaction still resolves normally.",
+	},
+	AfterCommitCallback: {
+		group: "Core",
+		signature: `type AfterCommitCallback = () => void | Promise<void>`,
+		description:
+			"Side effect deferred until the transaction commits. Callbacks run sequentially in registration order and are discarded on rollback.",
+	},
 	RawCrudOptions: {
 		group: "Core",
 		signature: `interface RawCrudOptions<T> {\n  select?:      SelectClause<T>\n  populate?:    PopulateClause<T>\n  noReturning?: boolean\n}`,
@@ -241,7 +259,7 @@ export const TYPE_DEFINITIONS: Record<string, TypeDefinition> = {
 	// ─── Plugin ───────────────────────────────────────────────────────────────────
 	DatrixPlugin: {
 		group: "Plugin",
-		signature: `interface DatrixPlugin<TOptions = Record<string, unknown>> {\n  readonly name:    string\n  readonly version: string\n  readonly options: TOptions\n  init(context: PluginContext):                          Promise<void>\n  destroy():                                            Promise<void>\n  getSchemas?():                                        Promise<SchemaDefinition[]>\n  extendSchemas?(ctx: SchemaExtensionContext):           Promise<SchemaExtension[]>\n  onBeforeQuery?<T>(query: QueryObject<T>, ctx: QueryContext): Promise<QueryObject<T>>\n  onAfterQuery?<T>(result: T, ctx: QueryContext):        Promise<T>\n}`,
+		signature: `interface DatrixPlugin<TOptions = Record<string, unknown>> {\n  readonly name:    string\n  readonly version: string\n  readonly options: TOptions\n  init(context: PluginContext):                          Promise<void>\n  destroy():                                            Promise<void>\n  getSchemas?():                                        Promise<SchemaDefinition[]>\n  extendSchemas?(ctx: SchemaExtensionContext):           Promise<SchemaExtension[]>\n  onBeforeQuery?<T>(query: QueryObject<T>, ctx: QueryContext): Promise<QueryObject<T>>\n  onAfterQuery?<T>(result: T, ctx: QueryContext):        Promise<T>\n  onAfterCommitError?(error: unknown):                   Promise<void>\n}`,
 		description: "Interface all Datrix plugins must implement.",
 	},
 	PluginContext: {
@@ -252,9 +270,9 @@ export const TYPE_DEFINITIONS: Record<string, TypeDefinition> = {
 	},
 	QueryContext: {
 		group: "Plugin",
-		signature: `interface QueryContext {\n  readonly action:   QueryAction\n  readonly datrix:    IDatrix\n  readonly metadata: Record<string, unknown>\n  user?:             AuthUser\n}`,
+		signature: `interface QueryContext {\n  readonly action:   QueryAction\n  readonly datrix:    IDatrix\n  readonly crud:      IRawCrud\n  readonly metadata: Record<string, unknown>\n  afterCommit(callback: AfterCommitCallback): void\n  user?:             AuthUser\n}`,
 		description:
-			"Context passed to plugin hooks and schema lifecycle hooks. Gives access to the current action, the Datrix instance, shared metadata, and the authenticated user.",
+			"Context passed to plugin hooks and schema lifecycle hooks. Gives access to the current action, the Datrix instance, shared metadata, and the authenticated user. crud is bound to the current session and joins the caller's transaction; datrix queries run outside it. afterCommit defers a callback until commit.",
 	},
 	SchemaExtensionContext: {
 		group: "Plugin",

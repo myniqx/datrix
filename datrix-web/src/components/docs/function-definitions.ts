@@ -89,6 +89,15 @@ export const FUNCTION_DEFINITIONS: Record<string, FunctionDefinition> = {
 		docsPath: "/docs/core/interfaces#deletemany",
 	},
 
+	// ─── Transactions ──────────────────────────────────────────────────────────
+
+	transaction: {
+		signature: `transaction<R>(\n  fn: (tx: DatrixTransaction) => Promise<R>,\n  options?: TransactionOptions,\n): Promise<R>`,
+		description:
+			"Runs fn inside a database transaction. Commits when fn resolves, rolls back and rethrows when it throws.",
+		docsPath: "/docs/core/interfaces#transaction",
+	},
+
 	// ─── Schema access ─────────────────────────────────────────────────────────
 
 	getSchemas: {

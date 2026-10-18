@@ -1,7 +1,7 @@
 ---
 title: Interfaces
 description: Full method signatures and option types for the Datrix instance.
-order: 5
+order: 6
 ---
 
 # Interfaces
@@ -343,6 +343,26 @@ shutdown(): Promise<void>
 
 Destroys all plugins, closes the database connection, and resets the instance.
 After shutdown, `datrix` must be re-initialized before use.
+
+---
+
+## Transactions
+
+### transaction
+
+```typescript
+transaction<R>(
+  fn: (tx: DatrixTransaction) => Promise<R>,
+  options?: TransactionOptions,
+): Promise<R>
+```
+
+Runs `fn` inside a database transaction. Commits when `fn` resolves and returns
+its value; rolls back and rethrows when `fn` throws. `tx` exposes the same CRUD
+methods as the instance, plus `tx.raw`, `tx.afterCommit` and `tx.rollback`.
+
+See [Transactions](/docs/core/transactions) for rollback semantics, hooks and
+`afterCommit`.
 
 ---
 

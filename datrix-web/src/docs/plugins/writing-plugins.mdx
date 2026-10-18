@@ -211,6 +211,18 @@ override async onAfterQuery<T extends DatrixEntry>(
 }
 ```
 
+### onAfterCommitError
+
+Called when an `afterCommit` callback throws. The data is already committed, so the error cannot affect the operation — use this hook to report it. It is called on every plugin.
+
+```typescript
+override async onAfterCommitError(error: unknown): Promise<void> {
+  console.error("afterCommit callback failed", error)
+}
+```
+
+Inside query hooks, use `context.crud` for extra queries so they join the current transaction, and `context.afterCommit(callback)` to defer side effects until commit. `context.datrix` queries run outside the transaction. See [Transactions](/docs/core/transactions).
+
 ---
 
 ## Full example: audit log plugin

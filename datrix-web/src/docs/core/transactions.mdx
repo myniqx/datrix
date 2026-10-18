@@ -1,0 +1,226 @@
+---
+title: Transactions
+description: Run multiple operations atomically with datrix.transaction.
+order: 5
+---
+
+import { FlowChain, FlowStep } from "@/components/docs/flow-chain";
+
+# Transactions
+
+`datrix.transaction` runs a group of operations atomically. If everything
+succeeds the changes are committed together; if anything fails they are all
+rolled back.
+
+```typescript
+const order = await datrix.transaction(async (tx) => {
+  const order = await tx.create("order", { total: 100 });
+  await tx.update("stock", stockId, { amount: 9 });
+  tx.afterCommit(() => mailer.send(order));
+  return order;
+});
+```
+
+Transactions work on every adapter — no adapter-specific configuration is needed.
+
+---
+
+## Signature
+
+```typescript
+transaction<R>(
+  fn: (tx: DatrixTransaction) => Promise<R>,
+  options?: TransactionOptions,
+): Promise<R>
+```
+
+```typescript
+interface TransactionOptions {
+  onAfterCommitError?: (error: unknown) => void | Promise<void>
+}
+
+type AfterCommitCallback = () => void | Promise<void>
+
+interface DatrixTransaction extends IRawCrud {
+  readonly raw: IRawCrud
+  afterCommit(callback: AfterCommitCallback): void
+  rollback(): never
+}
+```
+
+`tx` exposes the same CRUD methods as the Datrix instance — `findOne`, `findById`,
+`findMany`, `count`, `countMany`, `create`, `createMany`, `update`, `updateMany`,
+`delete`, `deleteMany` — see [Interfaces](/docs/core/interfaces#crud-methods) for
+their signatures.
+
+| Member | Description |
+| --- | --- |
+| `tx.raw` | Same operations, but plugin and schema hooks are skipped. Still runs inside the transaction. |
+| `tx.afterCommit(callback)` | Register a callback to run after a successful commit. |
+| `tx.rollback()` | Roll back intentionally. |
+
+---
+
+## Commit and rollback
+
+The transaction is **committed** when `fn` resolves, and `transaction()` returns
+the value `fn` returned.
+
+The transaction is **rolled back** when `fn` throws. The error is rethrown
+unchanged.
+
+```typescript
+try {
+  await datrix.transaction(async (tx) => {
+    await tx.create("order", { total: 100 });
+    throw new Error("payment failed");
+  });
+} catch (error) {
+  // the order was not created — error is the original "payment failed" error
+}
+```
+
+Reads inside the transaction see its own uncommitted writes:
+
+```typescript
+await datrix.transaction(async (tx) => {
+  await tx.create("order", { total: 100 });
+  const count = await tx.count("order"); // includes the order created above
+});
+```
+
+---
+
+## Intentional rollback
+
+Call `tx.rollback()` to abort from inside `fn`. It throws a
+`DatrixTransactionRollbackError` (code `TRANSACTION_ROLLBACK`) and
+`transaction()` rejects with it.
+
+```typescript
+import { DatrixTransactionRollbackError } from "@datrix/core"
+
+try {
+  await datrix.transaction(async (tx) => {
+    const stock = await tx.findById("stock", stockId);
+    if (!stock || stock.amount < 1) tx.rollback();
+    await tx.update("stock", stockId, { amount: stock.amount - 1 });
+  });
+} catch (error) {
+  if (error instanceof DatrixTransactionRollbackError) {
+    // rolled back on purpose
+  }
+}
+```
+
+Catching the error inside `fn` does not cancel the rollback — the transaction is
+still rolled back at the end.
+
+---
+
+## Failed operations abort the transaction
+
+If any operation inside the transaction fails (validation error, database error,
+...), the transaction is aborted — even if you catch the error inside `fn`.
+Later operations on `tx` throw a `DatrixError` with code `TRANSACTION_ABORTED`,
+and the transaction is rolled back at the end. If `fn` completes without
+throwing, `transaction()` rejects with the original failure.
+
+```typescript
+await datrix.transaction(async (tx) => {
+  try {
+    await tx.create("order", { total: "not a number" }); // validation error
+  } catch {
+    // swallowed — but the transaction is already aborted
+  }
+  await tx.create("order", { total: 100 }); // throws TRANSACTION_ABORTED
+});
+```
+
+Using `tx` after the transaction has finished throws a `DatrixError` with code
+`TRANSACTION_CLOSED`.
+
+| Code | When |
+| --- | --- |
+| `TRANSACTION_ROLLBACK` | `tx.rollback()` was called |
+| `TRANSACTION_ABORTED` | An operation failed earlier in the same transaction |
+| `TRANSACTION_CLOSED` | `tx` was used after the transaction finished |
+
+> Nested transactions are not supported — `tx` has no `transaction` method.
+
+---
+
+## Hooks inside a transaction
+
+Plugin hooks and schema lifecycle hooks run normally for `tx.*` operations.
+They are skipped for `tx.raw.*`, the same way `datrix.raw` skips them outside a
+transaction.
+
+To run extra queries from inside a hook, use `context.crud` — it is bound to the
+current session and joins the caller's transaction. `context.datrix` is the
+global instance, so queries through it run **outside** the transaction.
+
+```typescript
+hooks: {
+  afterCreate: async (records, ctx) => {
+    for (const record of records) {
+      // joins the transaction — rolled back together with the create
+      await ctx.crud.create("auditLog", { action: "create", recordId: record.id });
+    }
+    return records;
+  },
+}
+```
+
+---
+
+## afterCommit
+
+Side effects such as emails, webhooks, or cache invalidation cannot be rolled
+back. Register them with `afterCommit` so they only run once the data is
+committed.
+
+```typescript
+await datrix.transaction(async (tx) => {
+  const order = await tx.create("order", { total: 100 });
+  tx.afterCommit(() => mailer.send(order));
+  tx.afterCommit(() => cache.invalidate("orders"));
+});
+```
+
+<FlowChain>
+	<FlowStep>fn resolves</FlowStep>
+	<FlowStep>COMMIT</FlowStep>
+	<FlowStep>afterCommit callbacks</FlowStep>
+</FlowChain>
+
+- Callbacks registered with `tx.afterCommit` and with `context.afterCommit` in
+  hooks share one queue. They run sequentially, in registration order.
+- On rollback the queue is discarded and no callback runs.
+- Outside a transaction, `context.afterCommit` callbacks run right after that
+  single operation commits.
+
+### Callback errors
+
+The data is already committed when callbacks run, so a failing callback does not
+fail the transaction. If a callback throws:
+
+- The remaining callbacks still run.
+- The error is logged with `console.error`.
+- The error is passed to the `onAfterCommitError` hook of every plugin and to the
+  `onAfterCommitError` option of that `transaction()` call.
+- `transaction()` still resolves normally.
+
+```typescript
+await datrix.transaction(
+  async (tx) => {
+    const order = await tx.create("order", { total: 100 });
+    tx.afterCommit(() => mailer.send(order));
+    return order;
+  },
+  { onAfterCommitError: (error) => logger.error(error) },
+);
+```
+
+See [Writing Plugins](/docs/plugins/writing-plugins#onaftercommiterror) for the
+plugin hook.

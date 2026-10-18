@@ -386,6 +386,24 @@ hooks: {
 }
 ```
 
+### Queries and side effects inside hooks
+
+`ctx.crud` runs CRUD operations bound to the current session — if the operation is part of a [transaction](/docs/core/transactions), they join it. `ctx.datrix` is the global instance, so queries through it run outside the transaction.
+
+`ctx.afterCommit(callback)` defers a side effect until the data is committed. The callback is dropped if the transaction rolls back, and runs right after the operation commits when there is no surrounding transaction:
+
+```typescript
+hooks: {
+  afterCreate: async (records, ctx) => {
+    for (const record of records) {
+      await ctx.crud.create("auditLog", { recordId: record.id })
+      ctx.afterCommit(() => mailer.send(record))
+    }
+    return records
+  },
+}
+```
+
 ### Execution order
 
 Schema hooks run after all plugin query hooks:
