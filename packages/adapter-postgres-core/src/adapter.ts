@@ -225,16 +225,22 @@ export class PostgresCoreAdapter implements DatabaseAdapter<PostgresCoreConfig> 
 				return { rows: [] as TResult[], metadata };
 			}
 
-			// insert, update, delete — rows contain {id} from RETURNING id
-			const ids = result.rows.map((r) => {
+			// insert, update, delete, upsert — rows contain {id} from RETURNING id
+			const toId = (r: unknown): number => {
 				const row = r as { id: string | number };
 				return typeof row.id === "string" ? parseInt(row.id, 10) : row.id;
-			});
+			};
+			const ids = result.rows.map(toId);
 			const idRows = ids.map((id) => ({ id })) as TResult[];
 			const metadata: QueryMetadata = {
 				rowCount: ids.length,
 				affectedRows: ids.length,
 				...(query.type === "insert" && { insertIds: ids }),
+				...(query.type === "upsert" && {
+					insertIds: result.rows
+						.filter((r) => (r as { __inserted: boolean }).__inserted)
+						.map(toId),
+				}),
 			};
 
 			return { rows: idRows, metadata };

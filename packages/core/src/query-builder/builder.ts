@@ -14,6 +14,7 @@ import type {
 	OrderByItem,
 	OrderDirection,
 	OrderByClause,
+	QueryRelations,
 } from "../types/core/query-builder";
 
 import { normalizeWhere, isLogicalOperator } from "./where";
@@ -31,10 +32,11 @@ import {
 	throwInvalidField,
 	throwInvalidValue,
 } from "./error-helper";
-import type {
-	DatrixEntry,
-	ISchemaRegistry as ISchemaRegistry,
-	SchemaDefinition,
+import {
+	RESERVED_FIELDS,
+	type DatrixEntry,
+	type ISchemaRegistry,
+	type SchemaDefinition,
 } from "../types/core/schema";
 
 /**
@@ -84,6 +86,8 @@ interface MutableQueryState<T extends DatrixEntry> {
 	distinct?: boolean;
 	groupBy?: string[];
 	having?: WhereClause<T>;
+	conflictOn?: readonly string[];
+	updateFields?: readonly string[];
 }
 
 /**
@@ -300,6 +304,21 @@ export class DatrixQueryBuilder<
 	}
 
 	/**
+	 * Set the UPSERT conflict target and the fields overwritten on conflict
+	 * (omitted: every field the rows set; `[]`: leave existing rows untouched).
+	 */
+	onConflict(
+		conflictOn: readonly string[],
+		update?: readonly string[],
+	): this {
+		this.query.conflictOn = conflictOn;
+		if (update !== undefined) {
+			this.query.updateFields = update;
+		}
+		return this;
+	}
+
+	/**
 	 * Set DISTINCT
 	 */
 	distinct(enabled = true): this {
@@ -479,38 +498,27 @@ export class DatrixQueryBuilder<
 			}
 
 			case "insert": {
-				const dataItems = this.query.dataItems ?? [];
-				if (dataItems.length === 0) {
-					throwMissingData("insert");
-				}
-				const processedItems = dataItems.map((item) =>
-					processData<TSchema>(item, this._schema, this._registry),
-				);
-				const dataArray = processedItems.map(
-					(p) => p.data,
-				) as readonly Partial<TSchema>[];
-
-				// Bulk insert shares ONE relation set (taken from the first item)
-				// across all inserted records. Differing per-item relations would be
-				// silently ignored — reject them instead.
-				const relations = processedItems[0]?.relations;
-				const firstRelationsKey = JSON.stringify(relations ?? null);
-				for (let i = 1; i < processedItems.length; i++) {
-					const itemRelations = processedItems[i]?.relations;
-					if (JSON.stringify(itemRelations ?? null) !== firstRelationsKey) {
-						throwInvalidValue(
-							"data",
-							`items[${i}]`,
-							itemRelations ?? "no relations",
-							"the same relation operations as the first item — bulk insert applies the first item's relations to every record; use single create calls for per-item relations",
-						);
-					}
-				}
-
+				const { data, relations } = this.processDataItems("insert");
 				return {
 					type: "insert" as const,
 					table,
-					data: dataArray,
+					data,
+					...(relations !== undefined && { relations }),
+					...selectSpread,
+					...populateSpread,
+				} as unknown as QueryObjectForType<TSchema, TType>;
+			}
+
+			case "upsert": {
+				const { data, relations } = this.processDataItems("upsert");
+				const conflictOn = this.resolveConflictOn(data);
+				const update = this.resolveUpsertUpdate(data, conflictOn);
+				return {
+					type: "upsert" as const,
+					table,
+					data,
+					conflictOn,
+					update,
 					...(relations !== undefined && { relations }),
 					...selectSpread,
 					...populateSpread,
@@ -563,6 +571,163 @@ export class DatrixQueryBuilder<
 		}
 	}
 
+	private processDataItems(queryType: "insert" | "upsert"): {
+		data: readonly Partial<TSchema>[];
+		relations: QueryRelations<TSchema> | undefined;
+	} {
+		const dataItems = this.query.dataItems ?? [];
+		if (dataItems.length === 0) {
+			throwMissingData(queryType);
+		}
+		const processedItems = dataItems.map((item) =>
+			processData<TSchema>(item, this._schema, this._registry),
+		);
+
+		// Bulk writes share ONE relation set (taken from the first item)
+		// across all records. Differing per-item relations would be
+		// silently ignored — reject them instead.
+		const relations = processedItems[0]?.relations;
+		const firstRelationsKey = JSON.stringify(relations ?? null);
+		for (let i = 1; i < processedItems.length; i++) {
+			const itemRelations = processedItems[i]?.relations;
+			if (JSON.stringify(itemRelations ?? null) !== firstRelationsKey) {
+				throwInvalidValue(
+					"data",
+					`items[${i}]`,
+					itemRelations ?? "no relations",
+					`the same relation operations as the first item — bulk ${queryType} applies the first item's relations to every record; use single calls for per-item relations`,
+				);
+			}
+		}
+
+		return { data: processedItems.map((p) => p.data), relations };
+	}
+
+	private resolveConflictOn(
+		rows: readonly Partial<TSchema>[],
+	): readonly string[] {
+		const conflictOn = (this.query.conflictOn ?? []).map((field) =>
+			this.resolveColumn("conflictOn", field),
+		);
+		if (conflictOn.length === 0) {
+			throwInvalidValue(
+				"conflictOn",
+				"conflictOn",
+				this.query.conflictOn,
+				"a non-empty array of field names",
+			);
+		}
+
+		const conflictSet = new Set(conflictOn);
+		const singleField =
+			conflictOn.length === 1 ? this._schema.fields[conflictOn[0]!] : undefined;
+		const isUniqueTarget =
+			(conflictOn.length === 1 &&
+				(conflictOn[0] === "id" ||
+					(singleField !== undefined &&
+						"unique" in singleField &&
+						singleField.unique === true))) ||
+			(this._schema.indexes ?? []).some(
+				(index) =>
+					index.unique === true &&
+					index.fields.length === conflictSet.size &&
+					index.fields.every((field) => conflictSet.has(field)),
+			);
+		if (!isUniqueTarget) {
+			throwInvalidValue(
+				"conflictOn",
+				conflictOn.join(", "),
+				conflictOn,
+				"a field with `unique: true`, or exactly the fields of a unique index",
+			);
+		}
+
+		// Adapters disagree on rows that conflict with each other inside one
+		// statement (Postgres errors, MySQL/Mongo apply the last one).
+		const seenKeys = new Set<string>();
+		rows.forEach((row, i) => {
+			const values = conflictOn.map((field) => row[field as keyof TSchema]);
+			if (values.some((value) => value === undefined || value === null)) {
+				throwInvalidValue(
+					"data",
+					`items[${i}]`,
+					row,
+					`a value for every conflictOn field (${conflictOn.join(", ")})`,
+				);
+			}
+			const key = JSON.stringify(values);
+			if (seenKeys.has(key)) {
+				throwInvalidValue(
+					"data",
+					`items[${i}]`,
+					values,
+					"conflictOn values that are unique within the batch",
+				);
+			}
+			seenKeys.add(key);
+		});
+
+		return conflictOn;
+	}
+
+	private resolveUpsertUpdate(
+		rows: readonly Partial<TSchema>[],
+		conflictOn: readonly string[],
+	): readonly string[] {
+		const rowKeys = rows.map((row) => new Set(Object.keys(row)));
+		const presentInEveryRow = (column: string): boolean =>
+			rowKeys.every((keys) => keys.has(column));
+
+		if (this.query.updateFields === undefined) {
+			const conflictSet = new Set(conflictOn);
+			return [...(rowKeys[0] ?? [])].filter(
+				(column) =>
+					!(RESERVED_FIELDS as readonly string[]).includes(column) &&
+					!conflictSet.has(column) &&
+					presentInEveryRow(column),
+			);
+		}
+
+		return this.query.updateFields.map((field) => {
+			if ((RESERVED_FIELDS as readonly string[]).includes(field)) {
+				throwInvalidValue(
+					"update",
+					field,
+					field,
+					"a non-reserved field — id/createdAt are never overwritten and updatedAt is managed automatically",
+				);
+			}
+			const column = this.resolveColumn("update", field);
+			if (!presentInEveryRow(column)) {
+				throwInvalidValue(
+					"update",
+					field,
+					undefined,
+					"a field set in every row — otherwise the conflict update would overwrite it with an empty value",
+				);
+			}
+			return column;
+		});
+	}
+
+	/** Maps a scalar field (or belongsTo relation, to its FK column) to its column name. */
+	private resolveColumn(
+		component: "conflictOn" | "update",
+		field: string,
+	): string {
+		const fieldDef = this._schema.fields[field];
+		if (fieldDef?.type === "relation" && fieldDef.kind === "belongsTo") {
+			return fieldDef.foreignKey!;
+		}
+		if (!fieldDef || fieldDef.type === "relation") {
+			const availableFields = Object.keys(this._schema.fields).filter(
+				(name) => this._schema.fields[name]?.type !== "relation",
+			);
+			throwInvalidField(component, field, availableFields);
+		}
+		return field;
+	}
+
 	/**
 	 * Clone builder (for reusability)
 	 */
@@ -599,6 +764,12 @@ export class DatrixQueryBuilder<
 			}),
 			...(this.query.having !== undefined && {
 				having: deepClone(this.query.having),
+			}),
+			...(this.query.conflictOn !== undefined && {
+				conflictOn: [...this.query.conflictOn],
+			}),
+			...(this.query.updateFields !== undefined && {
+				updateFields: [...this.query.updateFields],
 			}),
 		};
 
@@ -675,6 +846,25 @@ export function insertInto<TSchema extends DatrixEntry>(
 		builder.pushData(item);
 	}
 	return builder;
+}
+
+export function upsertInto<TSchema extends DatrixEntry>(
+	modelName: string,
+	data: Partial<TSchema> | readonly Partial<TSchema>[],
+	conflictOn: readonly string[],
+	update: readonly string[] | undefined,
+	schemaRegistry: ISchemaRegistry,
+): DatrixQueryBuilder<TSchema, "upsert"> {
+	const builder = new DatrixQueryBuilder<TSchema, "upsert">(
+		modelName,
+		schemaRegistry,
+		"upsert",
+	);
+	const items = Array.isArray(data) ? data : [data];
+	for (const item of items) {
+		builder.pushData(item);
+	}
+	return builder.onConflict(conflictOn, update);
 }
 
 export function updateTable<TSchema extends DatrixEntry>(

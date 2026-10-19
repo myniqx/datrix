@@ -237,16 +237,18 @@ export function throwUpdateWithoutWhere(): never {
 /**
  * Throw missing data error for INSERT/UPDATE queries
  */
-export function throwMissingData(queryType: "insert" | "update"): never {
+export function throwMissingData(
+	queryType: "insert" | "update" | "upsert",
+): never {
 	throw new DatrixQueryBuilderError(
 		`${queryType.toUpperCase()} query requires data`,
 		{
 			code: "MISSING_DATA",
 			component: "builder",
 			suggestion:
-				queryType === "insert"
-					? "Provide at least one data item to insert"
-					: "Provide data object with fields to update",
+				queryType === "update"
+					? "Provide data object with fields to update"
+					: `Provide at least one data item to ${queryType}`,
 		},
 	);
 }

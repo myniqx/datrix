@@ -10,6 +10,7 @@ export {
 	selectFrom,
 	insertInto,
 	updateTable,
+	upsertInto,
 	deleteFrom,
 	countFrom,
 	DatrixQueryBuilder,

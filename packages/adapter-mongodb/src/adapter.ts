@@ -17,6 +17,7 @@ import type {
 	ClientSession,
 	Collection,
 	Document,
+	AnyBulkWriteOperation,
 } from "mongodb";
 import { MongoClient as NativeMongoClientClass } from "mongodb";
 
@@ -37,6 +38,7 @@ import type {
 	MongoCountResult,
 	MongoFindResult,
 	MongoTranslateResult,
+	MongoUpsertResult,
 } from "./types";
 import { COUNTER_KEY_PREFIX } from "./types";
 import { getNextIds } from "./helpers";
@@ -223,6 +225,8 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 					);
 				case "insertMany":
 					return this.executeInsertOp<TResult>(resolved, client);
+				case "upsertMany":
+					return this.executeUpsertOp<TResult>(resolved, client);
 				case "updateMany":
 					return this.executeUpdateOp<TResult>(resolved, client);
 				case "deleteMany":
@@ -389,6 +393,110 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 		};
 
 		return { rows: idRows, metadata };
+	}
+
+	/**
+	 * Every row gets an id up front because upserted documents are created by
+	 * the server; ids of matched rows are left unused (like a SQL sequence).
+	 */
+	private async executeUpsertOp<TResult extends DatrixEntry>(
+		op: MongoUpsertResult,
+		client: MongoClient<TResult>,
+	): Promise<QueryResult<TResult>> {
+		await validateFkReferences(
+			op.collection,
+			op.documents as readonly Record<string, unknown>[],
+			client,
+			this._schemas!,
+		);
+
+		const docsWithDefaults = this.applyDefaults(
+			op.collection,
+			op.documents,
+			this._schemas!,
+		);
+		const firstId = await getNextIds(
+			this.getMetaCollection(),
+			op.collection,
+			docsWithDefaults.length,
+		);
+
+		const updateFields = new Set(op.update);
+		const conflictFields = new Set(op.conflictOn);
+		const filters: Document[] = [];
+		const operations: AnyBulkWriteOperation<Document>[] = docsWithDefaults.map(
+			(doc, index) => {
+				const filter: Document = {};
+				const $set: Document = {};
+				const $setOnInsert: Document = { id: firstId + index };
+				for (const [key, value] of Object.entries(doc)) {
+					if (conflictFields.has(key)) filter[key] = value;
+					else if (updateFields.has(key)) $set[key] = value;
+					else $setOnInsert[key] = value;
+				}
+				filters.push(filter);
+				return {
+					updateOne: {
+						filter,
+						update:
+							Object.keys($set).length > 0
+								? { $set, $setOnInsert }
+								: { $setOnInsert },
+						upsert: true,
+					},
+				};
+			},
+		);
+
+		const collection = client.getCollection(op.collection);
+		const sessionOpts = client.sessionOptions();
+
+		const result = await client.execute(
+			`bulkWrite:${op.collection}:upsert`,
+			() => collection.bulkWrite(operations, { ...sessionOpts, ordered: true }),
+			{ count: operations.length },
+		);
+
+		const insertedIndexes = new Set(
+			Object.keys(result.upsertedIds).map(Number),
+		);
+		const matchedFilters = filters.filter(
+			(_, index) => !insertedIndexes.has(index),
+		);
+		const projection: Document = { _id: 0, id: 1 };
+		for (const column of op.conflictOn) projection[column] = 1;
+		const matchedDocs =
+			matchedFilters.length > 0
+				? await client.execute(`find:${op.collection}:postUpsert`, () =>
+						collection
+							.find({ $or: matchedFilters }, { ...sessionOpts, projection })
+							.toArray(),
+					)
+				: [];
+
+		const conflictKey = (doc: Document): string =>
+			JSON.stringify(
+				op.conflictOn.map((c) =>
+					doc[c] instanceof Date ? (doc[c] as Date).getTime() : doc[c],
+				),
+			);
+		const matchedIds = new Map(
+			matchedDocs.map((doc) => [conflictKey(doc), doc["id"] as number]),
+		);
+
+		const insertIds: number[] = [];
+		const ids = filters.map((filter, index) => {
+			if (insertedIndexes.has(index)) {
+				insertIds.push(firstId + index);
+				return firstId + index;
+			}
+			return matchedIds.get(conflictKey(filter))!;
+		});
+
+		return {
+			rows: ids.map((id) => ({ id })) as TResult[],
+			metadata: { rowCount: ids.length, affectedRows: ids.length, insertIds },
+		};
 	}
 
 	private async executeUpdateOp<TResult extends DatrixEntry>(

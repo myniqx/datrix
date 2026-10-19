@@ -32,6 +32,7 @@ import {
 	RawCrudOptions,
 	RawFindManyOptions,
 	RawCountManyOptions,
+	RawUpsertOptions,
 	FallbackInput,
 	DatrixTransaction,
 	TransactionOptions,
@@ -450,6 +451,26 @@ export class Datrix implements IDatrix {
 	): Promise<T[]> {
 		this.ensureInitialized();
 		return this._crud.updateMany<T, TInput>(model, where, data, options);
+	}
+
+	async upsert<
+		T extends DatrixEntry = DatrixRecord,
+		TInput extends FallbackInput = FallbackInput,
+	>(model: string, data: TInput, options: RawUpsertOptions<T>): Promise<T> {
+		this.ensureInitialized();
+		return this._crud.upsert<T, TInput>(model, data, options);
+	}
+
+	async upsertMany<
+		T extends DatrixEntry = DatrixRecord,
+		TInput extends FallbackInput = FallbackInput,
+	>(
+		model: string,
+		data: TInput[],
+		options: RawUpsertOptions<T>,
+	): Promise<T[]> {
+		this.ensureInitialized();
+		return this._crud.upsertMany<T, TInput>(model, data, options);
 	}
 
 	async delete<T extends DatrixEntry = DatrixRecord>(

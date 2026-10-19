@@ -172,7 +172,7 @@ new ApiPlugin<Role>({
 
 JWT and session can be active simultaneously. Responses include both a token and a `sessionId` cookie.
 
-A `user` schema with an `email` field must exist before enabling auth. The plugin creates an `authentication` table automatically.
+A `user` schema with an `email` field must exist before enabling auth. The plugin creates an `authentication` table automatically. Authentication records are created for users inserted through `create`, `createMany`, `upsert` and `upsertMany` (not for upserted rows that matched an existing user), and the authentication email is synced when a user's `email` changes.
 
 ### Auth endpoints
 

@@ -19,7 +19,9 @@ export type QueryBuilderComponent =
 	| "orderBy"
 	| "groupBy"
 	| "having"
-	| "pagination";
+	| "pagination"
+	| "conflictOn"
+	| "update";
 
 /**
  * Query builder error codes

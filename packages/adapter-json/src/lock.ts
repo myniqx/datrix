@@ -15,6 +15,8 @@ export class SimpleLock {
 	private staleTimeout: number; // How long a lock is valid
 	private token: string | null = null;
 	private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+	private queue: Promise<void> = Promise.resolve();
+	private leaveTurn: (() => void) | null = null;
 
 	constructor(
 		root: string,
@@ -28,6 +30,38 @@ export class SimpleLock {
 
 	async acquire(): Promise<void> {
 		const start = Date.now();
+
+		let leave!: () => void;
+		const turn = new Promise<void>((resolve) => {
+			leave = resolve;
+		});
+		const previous = this.queue;
+		this.queue = previous.then(() => turn);
+
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		const timedOut = await Promise.race([
+			previous.then(() => false),
+			new Promise<boolean>((resolve) => {
+				timer = setTimeout(() => resolve(true), this.lockTimeout);
+			}),
+		]);
+		clearTimeout(timer);
+
+		if (timedOut) {
+			void previous.then(leave);
+			throwLockTimeout({ adapter: "json", lockTimeout: this.lockTimeout });
+		}
+
+		try {
+			await this.acquireFile(start);
+		} catch (error) {
+			leave();
+			throw error;
+		}
+		this.leaveTurn = leave;
+	}
+
+	private async acquireFile(start: number): Promise<void> {
 		const token = crypto.randomUUID();
 
 		while (true) {
@@ -78,10 +112,11 @@ export class SimpleLock {
 
 		const myToken = this.token;
 		this.token = null;
-
-		if (!myToken) return;
+		const leave = this.leaveTurn;
+		this.leaveTurn = null;
 
 		try {
+			if (!myToken) return;
 			const current = await this.readLockContent();
 			// Only unlink if we still own the lock — otherwise another process
 			// acquired it after ours was considered stale, and deleting it here
@@ -94,6 +129,8 @@ export class SimpleLock {
 			if (error.code !== "ENOENT") {
 				// warning?
 			}
+		} finally {
+			leave?.();
 		}
 	}
 
@@ -146,11 +183,19 @@ export class SimpleLock {
 		}
 	}
 
+	// "wx" creates the file before its content is written, so an empty or
+	// unreadable lock is only stale once it has not changed for staleTimeout.
 	private async checkStale(): Promise<boolean> {
 		const content = await this.readLockContent();
-		if (!content || typeof content.timestamp !== "number") return true; // corrupt lock
+		if (content && typeof content.timestamp === "number") {
+			return Date.now() - content.timestamp > this.staleTimeout;
+		}
 
-		const age = Date.now() - content.timestamp;
-		return age > this.staleTimeout;
+		try {
+			const stat = await fs.stat(this.lockPath);
+			return Date.now() - stat.mtimeMs > this.staleTimeout;
+		} catch {
+			return false;
+		}
 	}
 }

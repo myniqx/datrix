@@ -1,5 +1,11 @@
 # @datrix/adapter-mysql
 
+## 0.2.1
+
+### Patch Changes
+
+- Implemented the `upsert` query type with `INSERT ... ON DUPLICATE KEY UPDATE` (requires `@datrix/core` 0.2.2). MySQL matches on any unique key of the table, not only the `conflictOn` target.
+
 ## 0.2.0
 
 ### Minor Changes

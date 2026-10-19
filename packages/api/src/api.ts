@@ -257,19 +257,24 @@ export class ApiPlugin<TRole extends string = string>
 
 		const userTable = this.getTableName(this.userSchemaName);
 
-		// User insert → store the full data array in metadata (bulk-safe)
-		if (query.type === "insert" && query.table === userTable) {
+		if (query.table !== userTable) {
+			return query;
+		}
+
+		const emailField = this.userSchemaEmailField;
+
+		// User insert/upsert → store the full data array in metadata (bulk-safe)
+		if (query.type === "insert" || query.type === "upsert") {
 			context.metadata["api:createAuth"] = true;
 			context.metadata["api:userData"] = query.data;
 		}
 
 		// User email update → flag only; affected ids come from the result rows
-		if (query.type === "update" && query.table === userTable) {
-			const data = query.data;
-			const emailField = this.userSchemaEmailField;
-			if (data && emailField in data) {
-				context.metadata["api:syncEmail"] = true;
-			}
+		if (
+			(query.type === "update" && query.data && emailField in query.data) ||
+			(query.type === "upsert" && query.update.includes(emailField))
+		) {
+			context.metadata["api:syncEmail"] = true;
 		}
 
 		return query;
@@ -283,47 +288,64 @@ export class ApiPlugin<TRole extends string = string>
 			return result;
 		}
 
+		// Internal queries use datrix.raw on purpose: context.crud would re-run plugin and schema hooks.
+		const rows = (Array.isArray(result) ? result : [result]) as Record<
+			string,
+			unknown
+		>[];
+		const emailField = this.userSchemaEmailField;
+		const createdIds = context.createdIds ?? new Set<number>();
+
 		// User created → create one authentication record per inserted row
 		if (context.metadata["api:createAuth"]) {
-			const rows = (Array.isArray(result) ? result : [result]) as Record<
-				string,
-				unknown
-			>[];
 			const inputs = (context.metadata["api:userData"] ?? []) as Record<
 				string,
 				unknown
 			>[];
 
-			for (let i = 0; i < rows.length; i++) {
-				const row = rows[i];
-				const userId = row?.["id"];
-				if (typeof userId !== "number") {
-					continue;
-				}
-				await this.createAuthenticationRecord(userId, row!, inputs[i] ?? {});
+			let createdRows = rows.filter(
+				(row) =>
+					typeof row?.["id"] === "number" &&
+					createdIds.has(row["id"] as number),
+			);
+
+			// select/noReturning can leave the email out of the result rows
+			if (createdRows.some((row) => typeof row[emailField] !== "string")) {
+				createdRows = (await this.datrix.raw.findMany(this.userSchemaName, {
+					where: { id: { $in: [...createdIds] } },
+					select: ["id", emailField],
+				})) as unknown as Record<string, unknown>[];
+			}
+
+			for (const row of createdRows) {
+				const input = inputs.find(
+					(item) => item[emailField] === row[emailField],
+				);
+				await this.createAuthenticationRecord(
+					row["id"] as number,
+					row,
+					input ?? {},
+				);
 			}
 		}
 
-		// User email updated → sync authentication email for all affected rows
+		// User email updated → sync authentication email for every non-inserted row
 		if (context.metadata["api:syncEmail"]) {
-			const emailField = this.userSchemaEmailField;
-			const rows = (Array.isArray(result) ? result : [result]) as Record<
-				string,
-				unknown
-			>[];
-			const ids = rows
-				.map((row) => row?.["id"])
-				.filter((id): id is number => typeof id === "number");
-
-			if (ids.length > 0) {
-				const newEmail = rows[0]?.[emailField];
-				if (typeof newEmail === "string") {
-					await this.datrix.raw.updateMany(
-						this.authSchemaName,
-						{ user: { id: { $in: ids } } },
-						{ email: newEmail },
-					);
+			for (const row of rows) {
+				const userId = row?.["id"];
+				const email = row?.[emailField];
+				if (
+					typeof userId !== "number" ||
+					createdIds.has(userId) ||
+					typeof email !== "string"
+				) {
+					continue;
 				}
+				await this.datrix.raw.updateMany(
+					this.authSchemaName,
+					{ user: { id: { $eq: userId } } },
+					{ email },
+				);
 			}
 		}
 

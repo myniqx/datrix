@@ -4,13 +4,15 @@ type BeforeHookName =
 	| "beforeCreate"
 	| "beforeUpdate"
 	| "beforeDelete"
-	| "beforeFind";
+	| "beforeFind"
+	| "beforeUpsert";
 
 type AfterHookName =
 	| "afterCreate"
 	| "afterUpdate"
 	| "afterDelete"
-	| "afterFind";
+	| "afterFind"
+	| "afterUpsert";
 
 /**
  * Thrown when a before hook returns undefined or null instead of data.

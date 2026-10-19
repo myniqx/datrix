@@ -75,7 +75,7 @@ All migration operations map directly to native PostgreSQL DDL (`CREATE TABLE`, 
 ## Known limitations
 
 - No partial or expression indexes. Only simple field indexes with an optional unique constraint.
-- `upsert` / `upsertMany` use `INSERT ... ON CONFLICT (conflictOn) DO UPDATE`, so only the `conflictOn` target is matched.
+- **New in 0.2.1:** `upsert` / `upsertMany` use `INSERT ... ON CONFLICT (conflictOn) DO UPDATE`, so only the `conflictOn` target is matched.
 - Auto-increment IDs are not gap-free. Failed inserts do not reclaim IDs.
 - `json_agg` on empty sets returns `null`, not `[]`. The adapter normalizes this to `[]` automatically.
 

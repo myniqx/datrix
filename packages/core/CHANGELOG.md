@@ -1,5 +1,16 @@
 # @datrix/core
 
+## 0.2.2
+
+### Patch Changes
+
+- Added `upsert(model, data, { conflictOn, update? })` and `upsertMany(...)` on `datrix`, `datrix.raw` and `tx`: inserts rows, or updates the row matching `conflictOn` with the incoming values. `update` limits the overwritten fields; `update: []` leaves matched rows (and their relations) untouched.
+- `conflictOn` must be a `unique: true` field or exactly the fields of a unique index; every row must set it, rows may not conflict with each other in one batch, and `update` fields must be set in every row (query builder errors otherwise). Rows are validated as creates.
+- Added `beforeUpsert` / `afterUpsert` schema hooks (`afterUpsert` receives the records split into `created` / `updated`); create/update hooks do not fire for upserts.
+- Adapter contract: new `upsert` QueryObject type; adapters return one `{ id }` per row and the inserted ids in `metadata.insertIds`.
+- Added `QueryContext.createdIds`: the ids of the records inserted by a create or upsert, set before plugin `onAfterQuery` and schema after-hooks run (`undefined` in before-hooks and for find/count/update/delete). `afterUpsert`'s `created` / `updated` split is derived from it.
+- README: added the Transactions section.
+
 ## 0.2.1
 
 ### Patch Changes

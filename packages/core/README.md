@@ -87,6 +87,33 @@ const deleted2 = await datrix.deleteMany("post", { status: "archived" })
 
 Every record automatically includes `id`, `createdAt`, and `updatedAt` — these cannot be defined manually.
 
+### Upsert
+
+`upsert` / `upsertMany` insert each row, or update the existing record when it matches on `conflictOn` — a `unique` field, `id`, or the fields of a unique index. A matched record is updated with the row's own incoming values.
+
+```typescript
+const product = await datrix.upsert(
+  "product",
+  { sku: "A-1", name: "Mug", price: 12 },
+  { conflictOn: ["sku"] },
+)
+
+const products = await datrix.upsertMany(
+  "product",
+  [{ sku: "A-1", price: 10 }, { sku: "B-2", price: 20 }],
+  { conflictOn: ["sku"], update: ["price"] },
+)
+
+// Insert if not exists — matched records are left untouched
+await datrix.upsertMany("product", rows, { conflictOn: ["sku"], update: [] })
+```
+
+- `update` lists the fields overwritten on conflict. Omitted: every field set in all rows (except `id`, `createdAt`, `updatedAt` and the conflict fields). `[]`: matched records are not touched.
+- `updatedAt` is refreshed on conflict when `update` is non-empty; `createdAt` is never overwritten.
+- Rows are validated as creates, even if they end up updating. Relations follow the bulk `createMany` rules (the first row's relations apply to every record).
+- Rejected: a non-unique `conflictOn`, a row missing a `conflictOn` value, duplicate `conflictOn` values within one batch, `update` fields not set in every row.
+- `beforeUpsert` / `afterUpsert` fire instead of the create/update hooks. MySQL/MariaDB match on any unique key of the table, not only `conflictOn`.
+
 ### raw
 
 Use `datrix.raw` to bypass plugin hooks (`onBeforeQuery` / `onAfterQuery`). Method signatures are identical — the only difference is that schema lifecycle hooks and plugin hooks do not fire.
@@ -94,6 +121,44 @@ Use `datrix.raw` to bypass plugin hooks (`onBeforeQuery` / `onAfterQuery`). Meth
 ```typescript
 await datrix.raw.create("post", { title: "Silent insert" })
 ```
+
+## Transactions
+
+`datrix.transaction` runs a group of operations atomically. It commits when the callback resolves and rolls back when it throws — the error is rethrown unchanged. Works on every adapter; nested transactions are not supported.
+
+```typescript
+const order = await datrix.transaction(async (tx) => {
+  const order = await tx.create("order", { total: 100 })
+  await tx.update("stock", stockId, { amount: 9 })
+
+  // Runs only after a successful commit, dropped on rollback
+  tx.afterCommit(() => mailer.send(order))
+
+  return order
+})
+```
+
+`tx` has the same CRUD methods as `datrix`, plus:
+
+| Member                     | Description                                                              |
+| -------------------------- | ------------------------------------------------------------------------ |
+| `tx.raw`                   | CRUD without hooks, still inside the transaction                         |
+| `tx.afterCommit(callback)` | Defer side effects (emails, webhooks, cache) until commit                |
+| `tx.rollback()`            | Roll back on purpose — `transaction()` rejects with `DatrixTransactionRollbackError` |
+
+- A failed operation aborts the transaction even if its error is caught; later calls throw `TRANSACTION_ABORTED` and the transaction rolls back.
+- Using `tx` after the transaction finished throws `TRANSACTION_CLOSED`.
+- `afterCommit` callback errors never fail the transaction. They are logged and passed to the plugin `onAfterCommitError` hook and the `onAfterCommitError` option:
+
+```typescript
+await datrix.transaction(fn, { onAfterCommitError: (error) => logger.error(error) })
+```
+
+`ctx.createdIds` holds the ids of the records inserted by the current create or upsert, set before after-hooks and `onAfterQuery` run — use it to tell inserted rows from updated ones.
+
+Inside hooks, use `ctx.crud` to run queries that join the caller's transaction, and `ctx.afterCommit` to defer side effects. `ctx.datrix` is the global instance and runs **outside** the transaction.
+
+Inside the callback, use only `tx` (and `ctx.crud` in hooks). Writes through the global `datrix` do not join the transaction: on JSON they wait for the transaction itself and fail with a lock timeout; on Postgres they block if they touch rows the transaction has locked, and otherwise commit independently even if the transaction rolls back.
 
 ## Field types
 
@@ -200,6 +265,8 @@ defineSchema({
     afterCreate: async (record, ctx) => {
       return record
     },
+    beforeUpsert: async (query, ctx) => query,
+    afterUpsert: async (records, ctx, { created, updated }) => records,
     beforeFind: async (query, ctx) => {
       return { ...query, where: { ...query.where, status: "published" } }
     },

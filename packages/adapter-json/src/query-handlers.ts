@@ -5,6 +5,7 @@ import {
 	QueryObject,
 	QuerySelectObject,
 	QueryUpdateObject,
+	QueryUpsertObject,
 } from "@datrix/core";
 import { JsonQueryRunner } from "./runner";
 import { JsonPopulator } from "./populate";
@@ -237,6 +238,89 @@ export async function handleInsert<T extends DatrixEntry>(ctx: {
 		metadata: {
 			rowCount: insertedIds.length,
 			affectedRows: insertedIds.length,
+			insertIds: insertedIds,
+		},
+		shouldWrite: true,
+	};
+}
+
+export async function handleUpsert<T extends DatrixEntry>(ctx: {
+	runner: JsonQueryRunner;
+	query: QueryUpsertObject<T>;
+}): Promise<QueryHandlerResult<T>> {
+	const { runner, query } = ctx;
+	const tableData = runner.tableData;
+	const tableSchema = runner.tableSchema;
+	const adapter = runner.adapterRef;
+
+	if (!query.data || !Array.isArray(query.data)) {
+		throwQueryMissingData({
+			queryType: "upsert",
+			table: query.table,
+			adapter: "json",
+		});
+	}
+
+	const ids: number[] = [];
+	const insertedIds: number[] = [];
+	const pendingUnique = createPendingUniqueValues();
+
+	for (const item of query.data) {
+		const newItem: Record<string, unknown> = { ...item };
+		normalizeDatesForStorage(tableSchema, newItem);
+
+		const existingRow = tableData.data.find((row) =>
+			query.conflictOn.every((column) => row[column] === newItem[column]),
+		);
+
+		if (existingRow) {
+			const updateData: Record<string, unknown> = {};
+			for (const column of query.update) {
+				updateData[column] = newItem[column];
+			}
+			const updatedRow = { ...existingRow, ...updateData };
+			await checkForeignKeyConstraints(tableSchema, updatedRow, adapter);
+			checkUniqueConstraints(
+				tableData,
+				tableSchema,
+				updatedRow,
+				existingRow["id"] as number,
+				pendingUnique,
+			);
+			Object.assign(existingRow, updateData);
+			ids.push(existingRow["id"] as number);
+			continue;
+		}
+
+		if (!newItem["id"]) {
+			tableData.meta.lastInsertId = (tableData.meta.lastInsertId ?? 0) + 1;
+			newItem["id"] = tableData.meta.lastInsertId;
+		} else {
+			const manualId = Number(newItem["id"]);
+			if (!isNaN(manualId) && manualId > (tableData.meta.lastInsertId ?? 0)) {
+				tableData.meta.lastInsertId = manualId;
+			}
+		}
+
+		applyDefaultValues(tableSchema, newItem);
+		await checkForeignKeyConstraints(tableSchema, newItem, adapter);
+		checkUniqueConstraints(
+			tableData,
+			tableSchema,
+			newItem,
+			undefined,
+			pendingUnique,
+		);
+		tableData.data.push(newItem);
+		ids.push(newItem["id"] as number);
+		insertedIds.push(newItem["id"] as number);
+	}
+
+	return {
+		rows: ids.map((id) => ({ id })) as T[],
+		metadata: {
+			rowCount: ids.length,
+			affectedRows: ids.length,
 			insertIds: insertedIds,
 		},
 		shouldWrite: true,

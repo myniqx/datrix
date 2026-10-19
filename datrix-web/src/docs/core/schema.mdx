@@ -377,9 +377,11 @@ const postSchema = defineSchema({
 
 ### Upsert hooks
 
-`upsert` and `upsertMany` fire only `beforeUpsert` / `afterUpsert`. `beforeCreate`, `afterCreate`, `beforeUpdate` and `afterUpdate` do **not** run, even for rows that end up inserted or updated — repeat logic such as slug generation in `beforeUpsert` if you need it there.
+**New in 0.2.2.** `upsert` and `upsertMany` fire only `beforeUpsert` / `afterUpsert`. `beforeCreate`, `afterCreate`, `beforeUpdate` and `afterUpdate` do **not** run, even for rows that end up inserted or updated — repeat logic such as slug generation in `beforeUpsert` if you need it there.
 
 `afterUpsert` receives all returned records plus `{ created, updated }`: the records that were inserted and the ones that matched an existing row.
+
+**New in 0.2.2:** `ctx.createdIds` is also set before after-hooks run on create and upsert: the ids of the records the query inserted. `afterUpsert`'s `{ created, updated }` split is derived from it, and plugins can use it in `onAfterQuery` — see [Writing Plugins](/docs/plugins/writing-plugins#onafterquery).
 
 ### Error behaviour
 

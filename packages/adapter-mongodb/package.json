@@ -1,6 +1,6 @@
 {
 	"name": "@datrix/adapter-mongodb",
-	"version": "0.2.0",
+	"version": "0.2.1",
 	"description": "MongoDB adapter for Datrix framework",
 	"author": "Datrix Contributors",
 	"license": "MIT",

@@ -13,7 +13,9 @@ export type QueryAction =
 	| "update"
 	| "updateMany"
 	| "delete"
-	| "deleteMany";
+	| "deleteMany"
+	| "upsert"
+	| "upsertMany";
 
 /**
  * Query context passed to plugin and schema lifecycle hooks
@@ -28,4 +30,6 @@ export interface QueryContext {
 	/** Deferred until the surrounding transaction commits; dropped on rollback. */
 	afterCommit(callback: AfterCommitCallback): void;
 	user?: AuthUser | undefined;
+	/** Set before after-hooks run on create and upsert: ids of the records this query inserted. */
+	createdIds?: ReadonlySet<number> | undefined;
 }

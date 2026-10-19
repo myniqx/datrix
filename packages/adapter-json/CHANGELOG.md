@@ -1,5 +1,13 @@
 # @datrix/adapter-json
 
+## 0.2.1
+
+### Patch Changes
+
+- Implemented the `upsert` query type (requires `@datrix/core` 0.2.2).
+- The lock-timeout error now hints to use the `tx` argument when the global `datrix` is called from inside `datrix.transaction()`.
+- Fixed concurrent writers both acquiring the lock: an empty or unreadable lock file (still being written by its holder) is no longer treated as stale until it has not changed for `staleTimeout`, and acquirers within one process now queue so only one competes for the lock file.
+
 ## 0.2.0
 
 ### Minor Changes

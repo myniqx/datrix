@@ -45,7 +45,8 @@ export type MongoTranslateResult =
 	| MongoInsertResult
 	| MongoUpdateResult
 	| MongoDeleteResult
-	| MongoCountResult;
+	| MongoCountResult
+	| MongoUpsertResult;
 
 export interface MongoFindResult {
 	readonly operation: "find";
@@ -70,6 +71,14 @@ export interface MongoInsertResult {
 	readonly operation: "insertMany";
 	readonly collection: string;
 	readonly documents: readonly Document[];
+}
+
+export interface MongoUpsertResult {
+	readonly operation: "upsertMany";
+	readonly collection: string;
+	readonly documents: readonly Document[];
+	readonly conflictOn: readonly string[];
+	readonly update: readonly string[];
 }
 
 export interface MongoUpdateResult {

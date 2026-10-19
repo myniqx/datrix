@@ -1,5 +1,11 @@
 # @datrix/api
 
+## 0.2.1
+
+### Patch Changes
+
+- Authentication records are now created for users inserted through `upsert` / `upsertMany` (only for inserted rows, matched to the input row by email), and the authentication email is synced for non-inserted rows when the email changes (update, or upsert with the email field in `update`).
+
 ## 0.2.0
 
 ### Breaking / behavior changes

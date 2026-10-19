@@ -80,7 +80,7 @@ Entire table data is loaded into memory during each operation. Performance degra
 
 - Not suitable for high concurrency — writes are serialized with file-level locking.
 - Every write rewrites the entire file — not suitable for large tables.
-- `upsert` / `upsertMany` are implemented natively by the adapter and match on the `conflictOn` fields.
+- **New in 0.2.1:** `upsert` / `upsertMany` are implemented natively by the adapter and match on the `conflictOn` fields.
 - No true transaction isolation — only the lock prevents concurrent writes within the same process.
 
 ---

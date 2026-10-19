@@ -1,6 +1,6 @@
 {
 	"name": "@datrix/api",
-	"version": "0.2.0",
+	"version": "0.2.1",
 	"description": "HTTP request handling, query parsing, and response serialization for Datrix framework",
 	"author": "Datrix Contributors",
 	"license": "MIT",

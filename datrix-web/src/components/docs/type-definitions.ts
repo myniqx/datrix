@@ -276,9 +276,9 @@ export const TYPE_DEFINITIONS: Record<string, TypeDefinition> = {
 	},
 	QueryContext: {
 		group: "Plugin",
-		signature: `interface QueryContext {\n  readonly action:   QueryAction\n  readonly datrix:    IDatrix\n  readonly crud:      IRawCrud\n  readonly metadata: Record<string, unknown>\n  afterCommit(callback: AfterCommitCallback): void\n  user?:             AuthUser\n}`,
+		signature: `interface QueryContext {\n  readonly action:   QueryAction\n  readonly datrix:    IDatrix\n  readonly crud:      IRawCrud\n  readonly metadata: Record<string, unknown>\n  afterCommit(callback: AfterCommitCallback): void\n  createdIds?:       ReadonlySet<number>\n  user?:             AuthUser\n}`,
 		description:
-			"Context passed to plugin hooks and schema lifecycle hooks. Gives access to the current action, the Datrix instance, shared metadata, and the authenticated user. crud is bound to the current session and joins the caller's transaction; datrix queries run outside it. afterCommit defers a callback until commit.",
+			"Context passed to plugin hooks and schema lifecycle hooks. Gives access to the current action, the Datrix instance, shared metadata, and the authenticated user. crud is bound to the current session and joins the caller's transaction; datrix queries run outside it. afterCommit defers a callback until commit. createdIds is set before after-hooks run on create and upsert and holds the ids of the inserted records.",
 	},
 	SchemaExtensionContext: {
 		group: "Plugin",

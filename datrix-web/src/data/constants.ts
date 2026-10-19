@@ -1,4 +1,4 @@
-export const DATRIX_VERSION = "v0.2.0";
+export const DATRIX_VERSION = "v0.2.2";
 export const DATRIX_GITHUB_REPO = "myniqx/datrix";
 export const DATRIX_GITHUB_URL = `https://github.com/${DATRIX_GITHUB_REPO}`;
 export const DATRIX_NPM_INSTALL = "npm install @datrix/core";

@@ -11,6 +11,7 @@ import {
 	QueryInsertObject,
 	QueryUpdateObject,
 	QueryDeleteObject,
+	QueryUpsertObject,
 } from "../types/core/query-builder";
 import { PluginRegistry } from "../types/core/plugin";
 import { QueryAction, QueryContext } from "../types/core/query-context";
@@ -270,6 +271,19 @@ export class Dispatcher {
 		}
 
 		if (
+			(action === "upsert" || action === "upsertMany") &&
+			hooks.beforeUpsert &&
+			query.type === "upsert"
+		) {
+			const modified = await hooks.beforeUpsert(
+				query as QueryUpsertObject<TResult>,
+				context,
+			);
+			if (modified == null) throwHookInvalidReturn("beforeUpsert");
+			return modified as QueryObject<TResult>;
+		}
+
+		if (
 			(action === "findOne" || action === "findMany" || action === "count") &&
 			hooks.beforeFind &&
 			query.type === "select"
@@ -325,6 +339,19 @@ export class Dispatcher {
 				warnAfterHookError("afterDelete", error);
 			}
 			return result;
+		}
+
+		if ((action === "upsert" || action === "upsertMany") && hooks.afterUpsert) {
+			const records = rows as unknown as DatrixEntry[];
+			const createdIds = context.createdIds ?? new Set<number>();
+			try {
+				return (await hooks.afterUpsert(records, context, {
+					created: records.filter((r) => createdIds.has(r.id)),
+					updated: records.filter((r) => !createdIds.has(r.id)),
+				})) as unknown as TResult;
+			} catch (error) {
+				warnAfterHookError("afterUpsert", error);
+			}
 		}
 
 		if ((action === "findOne" || action === "findMany") && hooks.afterFind) {

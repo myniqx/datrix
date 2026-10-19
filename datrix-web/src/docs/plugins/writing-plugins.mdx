@@ -213,6 +213,23 @@ override async onAfterQuery<T extends DatrixEntry>(
 }
 ```
 
+**New in 0.2.2:** `context.createdIds` is set before `onAfterQuery` runs on create and upsert. It holds the ids of the records the query inserted — for `create`/`createMany` every returned record, for `upsert`/`upsertMany` only the new ones, the rest were updated. It is `undefined` in before-hooks and for find, count, update and delete.
+
+```typescript
+override async onAfterQuery<T extends DatrixEntry>(
+  result: T,
+  context: QueryContext,
+): Promise<T> {
+  if (context.action === "upsertMany" && context.createdIds) {
+    const rows = result as unknown as DatrixEntry[]
+    const inserted = rows.filter((row) => context.createdIds!.has(row.id))
+    const matched = rows.filter((row) => !context.createdIds!.has(row.id))
+    // inserted rows are new, matched rows were updated
+  }
+  return result
+}
+```
+
 ### onAfterCommitError
 
 Called when an `afterCommit` callback throws. The data is already committed, so the error cannot affect the operation — use this hook to report it. It is called on every plugin.

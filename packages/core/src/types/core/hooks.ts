@@ -8,8 +8,15 @@ import type {
 	QueryUpdateObject,
 	QueryDeleteObject,
 	QuerySelectObject,
+	QueryUpsertObject,
 } from "./query-builder";
 import type { QueryContext } from "./query-context";
+
+/** `records` of an upsert split by whether the row was inserted or matched. */
+export interface UpsertHookResult<T extends DatrixEntry = DatrixEntry> {
+	readonly created: T[];
+	readonly updated: T[];
+}
 
 /**
  * Lifecycle hooks for a schema.
@@ -47,6 +54,16 @@ export interface LifecycleHooks<T extends DatrixEntry = DatrixEntry> {
 		records: T[],
 		ctx: QueryContext,
 	) => Promise<void> | void;
+
+	readonly beforeUpsert?: (
+		query: QueryUpsertObject<T>,
+		ctx: QueryContext,
+	) => Promise<QueryUpsertObject<T>> | QueryUpsertObject<T>;
+	readonly afterUpsert?: (
+		records: T[],
+		ctx: QueryContext,
+		result: UpsertHookResult<T>,
+	) => Promise<T[]> | T[];
 
 	// --- read hooks ---
 	readonly beforeFind?: (

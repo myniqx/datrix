@@ -15,6 +15,7 @@ import type {
 	QueryDeleteObject,
 	QuerySelect,
 	QuerySelectObject,
+	QueryUpsertObject,
 } from "@datrix/core";
 import type { QueryTranslator } from "@datrix/core";
 import { DatrixAdapterError, throwQueryError } from "@datrix/core";
@@ -276,6 +277,9 @@ export class PostgresQueryTranslator implements QueryTranslator {
 				case "insert":
 					sql = this.translateInsert(query);
 					break;
+				case "upsert":
+					sql = this.translateUpsert(query);
+					break;
 				case "update":
 					sql = this.translateUpdate(query);
 					break;
@@ -533,6 +537,37 @@ export class PostgresQueryTranslator implements QueryTranslator {
 	private translateInsert<T extends DatrixEntry>(
 		query: QueryInsertObject<T>,
 	): string {
+		return `${this.buildInsertValues(query)} RETURNING id`;
+	}
+
+	/**
+	 * Translate UPSERT query
+	 *
+	 * An empty `update` still needs a (no-op) DO UPDATE: DO NOTHING returns no
+	 * row for matched records, and core needs every id back.
+	 */
+	private translateUpsert<T extends DatrixEntry>(
+		query: QueryUpsertObject<T>,
+	): string {
+		const conflictColumns = query.conflictOn.map((c) => this.escapeIdentifier(c));
+		const updateColumns =
+			query.update.length > 0 ? query.update : [query.conflictOn[0]!];
+		const sets = updateColumns.map((c) => {
+			const column = this.escapeIdentifier(c);
+			return `${column} = EXCLUDED.${column}`;
+		});
+
+		return [
+			this.buildInsertValues(query),
+			`ON CONFLICT (${conflictColumns.join(", ")})`,
+			`DO UPDATE SET ${sets.join(", ")}`,
+			`RETURNING id, (xmax = 0) AS "__inserted"`,
+		].join(" ");
+	}
+
+	private buildInsertValues<T extends DatrixEntry>(
+		query: QueryInsertObject<T> | QueryUpsertObject<T>,
+	): string {
 		const dataArray = Array.isArray(query.data) ? query.data : [query.data];
 
 		if (dataArray.length === 0 || !dataArray[0]) {
@@ -576,7 +611,6 @@ export class PostgresQueryTranslator implements QueryTranslator {
 		parts.push(`INSERT INTO ${this.escapeIdentifier(query.table)}`);
 		parts.push(`(${columns.join(", ")})`);
 		parts.push(`VALUES ${valueRows.join(", ")}`);
-		parts.push(`RETURNING id`);
 
 		return parts.join(" ");
 	}

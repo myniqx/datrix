@@ -19,6 +19,7 @@ import {
 	RawCrudOptions,
 	RawFindManyOptions,
 	RawCountManyOptions,
+	RawUpsertOptions,
 	FallbackInput,
 } from "../types/core";
 import {
@@ -26,6 +27,7 @@ import {
 	countFrom,
 	insertInto,
 	updateTable,
+	upsertInto,
 	deleteFrom,
 } from "../query-builder";
 import { QueryExecutor } from "../query-executor/executor";
@@ -454,6 +456,71 @@ export class CrudOperations implements IRawCrud {
 		});
 
 		return result;
+	}
+
+	/**
+	 * Insert a record, or update the existing one matching `conflictOn`
+	 *
+	 * @example
+	 * ```ts
+	 * const user = await crud.upsert('User',
+	 *   { email: 'john@example.com', name: 'John' },
+	 *   { conflictOn: ['email'] }
+	 * );
+	 * ```
+	 */
+	async upsert<
+		T extends DatrixEntry = DatrixRecord,
+		TInput extends FallbackInput = FallbackInput,
+	>(model: string, data: TInput, options: RawUpsertOptions<T>): Promise<T> {
+		const result = await this.upsertMany<T, TInput>(model, [data], {
+			...options,
+			action: "upsert",
+		});
+
+		return result[0]!;
+	}
+
+	/**
+	 * Insert records, updating the existing ones matching `conflictOn`
+	 *
+	 * @example
+	 * ```ts
+	 * const products = await crud.upsertMany('Product',
+	 *   [{ sku: 'A-1', price: 10 }, { sku: 'B-2', price: 20 }],
+	 *   { conflictOn: ['sku'], update: ['price'] }
+	 * );
+	 * ```
+	 */
+	async upsertMany<
+		T extends DatrixEntry = DatrixRecord,
+		TInput extends FallbackInput = FallbackInput,
+	>(
+		model: string,
+		data: TInput[],
+		options: RawUpsertOptions<T>,
+	): Promise<T[]> {
+		const builder = upsertInto<T>(
+			model,
+			data as unknown as Partial<T>[],
+			options.conflictOn,
+			options.update,
+			this.schemas,
+		);
+
+		if (options.select) {
+			builder.select(options.select);
+		}
+		if (options.populate) {
+			builder.populate(options.populate);
+		}
+
+		const query = builder.build();
+
+		return this.executor.execute<T, T[]>(query, {
+			noDispatcher: this.getDispatcher === null,
+			action: options.action ?? "upsertMany",
+		});
 	}
 
 	/**

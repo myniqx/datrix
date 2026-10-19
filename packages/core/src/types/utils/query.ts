@@ -28,6 +28,8 @@ const VALID_QUERY_KEYS = new Set([
 	"meta",
 	"__meta__",
 	"relations",
+	"conflictOn",
+	"update",
 ]);
 
 /**

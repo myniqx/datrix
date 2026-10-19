@@ -11,6 +11,7 @@ import type {
 	ComparisonOperators,
 	OrderByItem,
 	QueryInsertObject,
+	QueryUpsertObject,
 	QueryUpdateObject,
 	QueryDeleteObject,
 	QuerySelect,
@@ -218,6 +219,9 @@ export class MySQLQueryTranslator implements QueryTranslator {
 					break;
 				case "insert":
 					sql = this.translateInsert(query);
+					break;
+				case "upsert":
+					sql = this.translateUpsert(query);
 					break;
 				case "update":
 					sql = this.translateUpdate(query);
@@ -494,8 +498,28 @@ export class MySQLQueryTranslator implements QueryTranslator {
 	/**
 	 * Translate INSERT query with bulk support
 	 */
+	/**
+	 * Translate UPSERT query
+	 *
+	 * VALUES() instead of the 8.0.19+ row alias: MariaDB only supports VALUES().
+	 * An empty `update` uses a no-op assignment so matched rows stay untouched.
+	 */
+	private translateUpsert<T extends DatrixEntry>(
+		query: QueryUpsertObject<T>,
+	): string {
+		const sets =
+			query.update.length > 0
+				? query.update.map((c) => {
+						const column = escapeIdentifier(c);
+						return `${column} = VALUES(${column})`;
+					})
+				: ["`id` = `id`"];
+
+		return `${this.translateInsert(query)} ON DUPLICATE KEY UPDATE ${sets.join(", ")}`;
+	}
+
 	private translateInsert<T extends DatrixEntry>(
-		query: QueryInsertObject<T>,
+		query: QueryInsertObject<T> | QueryUpsertObject<T>,
 	): string {
 		const dataArray = Array.isArray(query.data) ? query.data : [query.data];
 

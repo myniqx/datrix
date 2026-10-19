@@ -85,7 +85,7 @@ If a migration fails during phase 2, collections created in phase 1 may remain a
 
 - Transaction rollback does not undo collection creation. If a migration fails after phase 1, the created collection remains.
 - No partial or expression indexes. Only simple field indexes with an optional unique constraint.
-- `upsert` / `upsertMany` run as a `bulkWrite` of `updateOne` operations with `upsert: true`, matched on the `conflictOn` fields.
+- **New in 0.2.1:** `upsert` / `upsertMany` run as a `bulkWrite` of `updateOne` operations with `upsert: true`, matched on the `conflictOn` fields.
 - Auto-increment IDs are not gap-free. Failed inserts do not reclaim IDs.
 - `limit(0)` returns empty. MongoDB treats `cursor.limit(0)` as unlimited — the adapter intercepts this and returns an empty result to match SQL adapter behavior.
 - No native foreign key constraints. Referential integrity is enforced manually by the adapter on insert and update.

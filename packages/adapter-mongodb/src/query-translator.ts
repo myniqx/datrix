@@ -15,6 +15,7 @@ import type {
 	QueryCountObject,
 	QueryInsertObject,
 	QueryUpdateObject,
+	QueryUpsertObject,
 	QueryDeleteObject,
 	QuerySelect,
 	QuerySelectObject,
@@ -27,6 +28,7 @@ import type {
 	MongoTranslateResult,
 	MongoFindResult,
 	MongoInsertResult,
+	MongoUpsertResult,
 	MongoUpdateResult,
 	MongoDeleteResult,
 	MongoCountResult,
@@ -57,6 +59,8 @@ export class MongoDBQueryTranslator {
 				return this.translateCount(query as QueryCountObject<T>);
 			case "insert":
 				return this.translateInsert(query as QueryInsertObject<T>);
+			case "upsert":
+				return this.translateUpsert(query as QueryUpsertObject<T>);
 			case "update":
 				return this.translateUpdate(query as QueryUpdateObject<T>);
 			case "delete":
@@ -320,6 +324,25 @@ export class MongoDBQueryTranslator {
 			operation: "insertMany",
 			collection: query.table,
 			documents,
+		};
+	}
+
+	/**
+	 * Translate UPSERT query → MongoDB bulk upsert operation
+	 */
+	private translateUpsert<T extends DatrixEntry>(
+		query: QueryUpsertObject<T>,
+	): MongoUpsertResult {
+		const { documents } = this.translateInsert(
+			query as unknown as QueryInsertObject<T>,
+		);
+
+		return {
+			operation: "upsertMany",
+			collection: query.table,
+			documents,
+			conflictOn: query.conflictOn,
+			update: query.update,
 		};
 	}
 

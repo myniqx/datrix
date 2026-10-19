@@ -229,6 +229,22 @@ async insert(query: QueryObject): Promise<Result<...>> {
 
 ---
 
+## Critical Rules for Plugin Development
+
+### Plugin-internal queries use `datrix.raw`
+
+Queries a plugin runs for its own bookkeeping inside a hook (`onBeforeQuery`,
+`onAfterQuery`, …) — e.g. the API plugin's authentication records — must go
+through `datrix.raw`. `context.crud` is the hooked CRUD instance (the executor's
+scope CRUD), so using it would re-run every plugin and schema hook for those
+internal queries. This is intentional even though `datrix.raw` runs outside a
+caller's `datrix.transaction()`; do not "fix" it by switching to `context.crud`.
+
+`context.crud` is meant for user code in schema hooks that wants its queries to
+go through the normal pipeline and join the caller's transaction.
+
+---
+
 ## Module Structure
 
 ```

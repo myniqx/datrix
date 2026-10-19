@@ -10,7 +10,7 @@ import { FlowChain, FlowStep } from "@/components/docs/flow-chain";
 
 `datrix.transaction` runs a group of operations atomically. If everything
 succeeds the changes are committed together; if anything fails they are all
-rolled back.
+rolled back. **New in 0.2.1.**
 
 ```typescript
 const order = await datrix.transaction(async (tx) => {

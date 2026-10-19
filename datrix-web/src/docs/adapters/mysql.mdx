@@ -81,7 +81,7 @@ Migration operations map to native SQL DDL (`CREATE TABLE`, `ALTER TABLE`, `CREA
 ## Known limitations
 
 - DDL operations in migrations cannot be rolled back on failure (see above).
-- `upsert` / `upsertMany` use `INSERT ... ON DUPLICATE KEY UPDATE`, which matches on **any** unique key of the table, not only `conflictOn`. A row that collides with a different unique key than the one you named updates that record instead of inserting.
+- **New in 0.2.1:** `upsert` / `upsertMany` use `INSERT ... ON DUPLICATE KEY UPDATE`, which matches on **any** unique key of the table, not only `conflictOn`. A row that collides with a different unique key than the one you named updates that record instead of inserting.
 - It is strongly recommended to run the server with strict mode enabled (`STRICT_ALL_TABLES` or `STRICT_TRANS_TABLES`). Without it, MySQL/MariaDB silently truncates data or coerces types instead of raising errors.
 
 ---

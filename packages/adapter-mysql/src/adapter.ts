@@ -21,7 +21,12 @@ import { MySQLImporter } from "./export-import/importer";
 import { ExportWriter, ImportReader } from "@datrix/core";
 import type { MySQLConfig, MySQLQueryObject } from "./types";
 import { getMySQLTypeWithModifiers, parseConnectionString } from "./types";
-import { QueryObject, QuerySelectObject } from "@datrix/core";
+import {
+	QueryObject,
+	QuerySelectObject,
+	QueryUpsertObject,
+	WhereClause,
+} from "@datrix/core";
 import { DatrixEntry } from "@datrix/core";
 import {
 	AlterOperation,
@@ -235,6 +240,13 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 				prefetchedIds = idRows as unknown as readonly TResult[];
 			}
 
+			// UPSERT: no RETURNING and insertId is meaningless for mixed batches,
+			// so ids are read back by conflict key before and after the write.
+			const existingIds =
+				query.type === "upsert"
+					? await this.selectIdsByConflictKey(query, client)
+					: undefined;
+
 			const mysqlQuery = query as MySQLQueryObject<DatrixEntry>;
 			const { sql, params } = this.getTranslator().translate(mysqlQuery);
 
@@ -243,7 +255,19 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			let affectedRows = 0;
 			let rows: readonly TResult[] = [];
 
-			if (query.type === "insert") {
+			if (query.type === "upsert") {
+				const ids = await this.selectIdsByConflictKey(query, client);
+				const existing = new Set(existingIds);
+				const metadata: QueryMetadata = {
+					rowCount: ids.length,
+					affectedRows: ids.length,
+					insertIds: ids.filter((id) => !existing.has(id)),
+				};
+				return {
+					rows: ids.map((id) => ({ id })) as unknown as readonly TResult[],
+					metadata,
+				};
+			} else if (query.type === "insert") {
 				const resultHeader = result as ResultSetHeader;
 				affectedRows = resultHeader.affectedRows ?? 0;
 
@@ -327,6 +351,31 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 			}
 			throw this.mapMySQLError(error, query);
 		}
+	}
+
+	private async selectIdsByConflictKey<TResult extends DatrixEntry>(
+		query: QueryUpsertObject<TResult>,
+		client: MySQLClient,
+	): Promise<number[]> {
+		const where = {
+			$or: query.data.map((row) => {
+				const key: Record<string, unknown> = {};
+				for (const column of query.conflictOn) {
+					key[column] = (row as Record<string, unknown>)[column];
+				}
+				return key;
+			}),
+		} as WhereClause<DatrixEntry>;
+		const whereResult = this.getTranslator().translateWhere(
+			where,
+			0,
+			query.table,
+		);
+		const [idRows] = await client.execute(
+			`SELECT \`id\` FROM ${escapeIdentifier(query.table)} WHERE ${whereResult.sql}`,
+			whereResult.params as unknown[],
+		);
+		return (idRows as RowDataPacket[]).map((r) => Number(r["id"]));
 	}
 
 	/**

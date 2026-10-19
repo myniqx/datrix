@@ -21,6 +21,7 @@ import {
 	QueryInsertObject,
 	QueryUpdateObject,
 	QueryDeleteObject,
+	QueryUpsertObject,
 	WhereClause,
 } from "../types/core/query-builder";
 import { QueryAction } from "../types/core/query-context";
@@ -118,6 +119,10 @@ export class QueryExecutor {
 			return this.executeUpdate<T>(query, schema, options) as R;
 		}
 
+		if (query.type === "upsert") {
+			return this.executeUpsert<T>(query, schema, options) as R;
+		}
+
 		throwUnsupportedQueryType((query as { type: string }).type);
 	}
 
@@ -173,7 +178,7 @@ export class QueryExecutor {
 				}
 				return result.metadata.count ?? 0;
 			},
-			true,
+			{ skipAfterHooks: true },
 		);
 	}
 
@@ -234,6 +239,7 @@ export class QueryExecutor {
 		options: ExecutorOptions,
 	): Promise<readonly T[]> {
 		const noDispatcher = options.noDispatcher ?? false;
+		let insertedIds: readonly T[] = [];
 
 		return this.withLifecycle(
 			options.action ?? "create",
@@ -263,7 +269,7 @@ export class QueryExecutor {
 					const insertResult = await runner.executeQuery<T>(
 						queryWithValidatedData,
 					);
-					const insertedIds = insertResult.rows;
+					insertedIds = insertResult.rows;
 
 					// 3. Process relations (if any) - resolve CUD once, then link per record
 					if (insertQuery.relations) {
@@ -307,6 +313,7 @@ export class QueryExecutor {
 					return selectResult.rows;
 				});
 			},
+			{ getCreatedIds: () => new Set(insertedIds.map((r) => r.id)) },
 		);
 	}
 
@@ -407,6 +414,112 @@ export class QueryExecutor {
 	}
 
 	/**
+	 * Execute UPSERT with validation and relations
+	 *
+	 * Transaction flow: onBefore → validate → BEGIN → UPSERT + relations + SELECT → COMMIT → onAfter
+	 * Rows are validated as creates (any of them may be inserted).
+	 */
+	async executeUpsert<T extends DatrixEntry>(
+		query: QueryUpsertObject<T>,
+		schema: SchemaDefinition,
+		options: ExecutorOptions,
+	): Promise<readonly T[]> {
+		const noDispatcher = options.noDispatcher ?? false;
+		let createdIds: ReadonlySet<number> = new Set();
+
+		return this.withLifecycle(
+			options.action ?? "upsertMany",
+			schema,
+			noDispatcher,
+			query,
+			async (mq) => {
+				const upsertQuery = mq as QueryUpsertObject<T>;
+
+				// 1. Validate each row as a create + add timestamps
+				const validatedItems = upsertQuery.data.map((item) =>
+					validateData<T, false>(item, upsertQuery.relations, schema, {
+						partial: false,
+						isCreate: true,
+						isRawMode: noDispatcher,
+					}),
+				);
+				const tracksUpdatedAt =
+					validatedItems[0] !== undefined && "updatedAt" in validatedItems[0];
+				const update =
+					upsertQuery.update.length > 0 &&
+					tracksUpdatedAt &&
+					!upsertQuery.update.includes("updatedAt")
+						? [...upsertQuery.update, "updatedAt"]
+						: upsertQuery.update;
+
+				return this.session.write(async (runner) => {
+					// 2. Execute UPSERT query (bulk)
+					const queryWithValidatedData: QueryUpsertObject<T> = {
+						type: "upsert",
+						table: upsertQuery.table,
+						data: validatedItems,
+						conflictOn: upsertQuery.conflictOn,
+						update,
+					};
+
+					const upsertResult = await runner.executeQuery<T>(
+						queryWithValidatedData,
+					);
+					const recordIds = upsertResult.rows;
+					createdIds = new Set(upsertResult.metadata.insertIds ?? []);
+
+					// 3. Process relations (if any) - resolve CUD once, then link per record.
+					// With an empty `update`, matched rows stay untouched (relations included).
+					const relationTargets =
+						update.length > 0
+							? recordIds
+							: recordIds.filter((r) => createdIds.has(r.id));
+					if (upsertQuery.relations && relationTargets.length > 0) {
+						const resolvedOps = await resolveRelationCUD(
+							upsertQuery.relations,
+							schema,
+							runner,
+							this.schemas,
+							noDispatcher,
+						);
+						for (const recordId of relationTargets) {
+							await processRelations(
+								resolvedOps,
+								recordId.id,
+								schema.name,
+								schema,
+								runner,
+								this.schemas,
+							);
+						}
+					}
+
+					// 4. Fetch full records inside the transaction (if returning enabled)
+					if (options.noReturning) {
+						return recordIds;
+					}
+					const selectQuery: QuerySelectObject<T> = {
+						type: "select",
+						table: upsertQuery.table,
+						select:
+							upsertQuery.select ??
+							this.schemas.getCachedSelectFields<T>(schema.name),
+						where: {
+							id: { $in: recordIds.map((r) => r.id) },
+						} as unknown as WhereClause<T>,
+						...(upsertQuery.populate !== undefined && {
+							populate: upsertQuery.populate,
+						}),
+					};
+					const selectResult = await runner.executeQuery<T>(selectQuery);
+					return selectResult.rows;
+				});
+			},
+			{ getCreatedIds: () => createdIds },
+		);
+	}
+
+	/**
 	 * Wraps a handler with dispatcher lifecycle: buildContext → onBefore → handler → onAfter.
 	 * If noDispatcher is true, skips all hooks and runs handler directly.
 	 * context.metadata is shared between before/after hooks for the same operation.
@@ -417,7 +530,10 @@ export class QueryExecutor {
 		noDispatcher: boolean,
 		query: TQuery,
 		handler: (modifiedQuery: TQuery) => Promise<TResult>,
-		skipAfterHooks = false,
+		hookOptions: {
+			skipAfterHooks?: boolean;
+			getCreatedIds?: () => ReadonlySet<number>;
+		} = {},
 	): Promise<TResult> {
 		const dispatcher = this.getDispatcher();
 
@@ -441,7 +557,11 @@ export class QueryExecutor {
 
 		const result = await handler(modifiedQuery);
 
-		const output = skipAfterHooks
+		if (hookOptions.getCreatedIds) {
+			context.createdIds = hookOptions.getCreatedIds();
+		}
+
+		const output = hookOptions.skipAfterHooks
 			? result
 			: ((await dispatcher.dispatchAfterQuery(
 					result as DatrixEntry,

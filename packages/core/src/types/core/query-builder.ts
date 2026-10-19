@@ -21,7 +21,13 @@ export type ScalarValue = string | number | boolean | Date;
 /**
  * Query operation types
  */
-export type QueryType = "select" | "insert" | "update" | "delete" | "count";
+export type QueryType =
+	| "select"
+	| "insert"
+	| "update"
+	| "delete"
+	| "count"
+	| "upsert";
 
 /**
  * Type-safe comparison operators
@@ -500,6 +506,26 @@ export interface QueryUpdateObject<T extends DatrixEntry> extends QueryBase {
 }
 
 /**
+ * UPSERT query - insert rows, or update the existing row when `conflictOn`
+ * matches. On conflict only the `update` columns are overwritten, each with the
+ * row's own incoming value; an empty `update` leaves the existing row untouched.
+ *
+ * Adapter contract: `rows` holds one `{ id }` per input row (inserted or
+ * matched), `metadata.insertIds` holds the ids that were inserted.
+ */
+export interface QueryUpsertObject<T extends DatrixEntry> extends QueryBase {
+	readonly type: "upsert";
+	readonly data: readonly Partial<T>[];
+	/** Column names of a unique field or unique index; every row has them set. */
+	readonly conflictOn: readonly string[];
+	/** Column names present in every row; never contains `id` or `createdAt`. */
+	readonly update: readonly string[];
+	readonly relations?: QueryRelations<T> | undefined;
+	readonly select?: QuerySelect<T> | undefined;
+	readonly populate?: QueryPopulate<T> | undefined;
+}
+
+/**
  * DELETE query - delete rows matching conditions
  * select/populate are used by executor to fetch records before deletion
  * where is required — use deleteAll() explicitly if you want to delete everything
@@ -526,7 +552,8 @@ export type QueryObject<T extends DatrixEntry = DatrixRecord> =
 	| QueryCountObject<T>
 	| QueryInsertObject<T>
 	| QueryUpdateObject<T>
-	| QueryDeleteObject<T>;
+	| QueryDeleteObject<T>
+	| QueryUpsertObject<T>;
 
 /**
  * Map QueryType to its corresponding QueryObject variant
@@ -544,4 +571,6 @@ export type QueryObjectForType<
 				? QueryUpdateObject<T>
 				: TType extends "delete"
 					? QueryDeleteObject<T>
-					: QueryObject<T>;
+					: TType extends "upsert"
+						? QueryUpsertObject<T>
+						: QueryObject<T>;

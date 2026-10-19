@@ -582,4 +582,76 @@ describe("Auth Handler Tests", () => {
 			expect(response.status).toBe(404);
 		});
 	});
+
+	// ============================================================
+	// USER WRITES OUTSIDE AUTH ROUTES
+	// ============================================================
+
+	describe("Authentication records for direct user writes", () => {
+		async function authEmails(userId: number): Promise<unknown[]> {
+			const rows = await datrix.raw.findMany<DatrixEntry & { email: string }>(
+				"authentication",
+				{ where: { user: { id: { $eq: userId } } } },
+			);
+			return rows.map((row) => row.email);
+		}
+
+		it("creates an authentication record for each created user", async () => {
+			const users = await datrix.createMany<DatrixEntry & { email: string }>(
+				"user",
+				[{ email: "direct-1@test.com" }, { email: "direct-2@test.com" }],
+			);
+
+			for (const user of users) {
+				expect(await authEmails(user.id)).toEqual([user.email]);
+			}
+		});
+
+		it("creates authentication records when the result omits the email", async () => {
+			const [selected] = await datrix.createMany("user", [
+				{ email: "no-email-select@test.com" },
+			], { select: ["id"] });
+			const [bare] = await datrix.createMany("user", [
+				{ email: "no-returning@test.com" },
+			], { noReturning: true });
+
+			expect(await authEmails(selected!.id)).toEqual([
+				"no-email-select@test.com",
+			]);
+			expect(await authEmails(bare!.id)).toEqual(["no-returning@test.com"]);
+		});
+
+		it("creates authentication records only for users inserted by upsert", async () => {
+			const existing = await datrix.create<DatrixEntry & { email: string }>(
+				"user",
+				{ email: "upsert-existing@test.com", name: "Before" },
+			);
+
+			const users = await datrix.upsertMany<
+				DatrixEntry & { email: string; name: string }
+			>(
+				"user",
+				[
+					{ email: "upsert-existing@test.com", name: "After" },
+					{ email: "upsert-new@test.com", name: "New" },
+				],
+				{ conflictOn: ["email"] },
+			);
+
+			const inserted = users.find((u) => u.email === "upsert-new@test.com")!;
+			expect(await authEmails(existing.id)).toEqual([existing.email]);
+			expect(await authEmails(inserted.id)).toEqual([inserted.email]);
+		});
+
+		it("syncs the authentication email when the user email is updated", async () => {
+			const user = await datrix.create<DatrixEntry & { email: string }>(
+				"user",
+				{ email: "rename-before@test.com" },
+			);
+
+			await datrix.update("user", user.id, { email: "rename-after@test.com" });
+
+			expect(await authEmails(user.id)).toEqual(["rename-after@test.com"]);
+		});
+	});
 });

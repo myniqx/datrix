@@ -33,6 +33,8 @@ type DatrixAction =
 	| "countMany"
 	| "update"
 	| "updateMany"
+	| "upsert"
+	| "upsertMany"
 	| "delete"
 	| "deleteMany";
 
@@ -43,7 +45,7 @@ interface PlaygroundScenario {
 	model: string;
 	/** findMany options: where, select, populate, limit, offset, orderBy */
 	query?: unknown;
-	/** data for create / createMany / update / updateMany */
+	/** data for create / createMany / update / updateMany / upsert / upsertMany */
 	data?: unknown;
 	/** id argument for update() and delete() */
 	idArg?: number;
@@ -53,7 +55,7 @@ interface PlaygroundScenario {
 }
 
 interface PlaygroundGroup {
-	id: "create" | "read" | "update" | "delete";
+	id: "create" | "read" | "update" | "upsert" | "delete";
 	label: string;
 	scenarios: PlaygroundScenario[];
 }
@@ -66,6 +68,7 @@ const groups: PlaygroundGroup[] = [
 	{ id: "create", label: "Create", scenarios: [] },
 	{ id: "read", label: "Read", scenarios: [] },
 	{ id: "update", label: "Update", scenarios: [] },
+	{ id: "upsert", label: "Upsert", scenarios: [] },
 	{ id: "delete", label: "Delete", scenarios: [] },
 ];
 
@@ -524,6 +527,127 @@ describe("Update", () => {
 				connect: { roles: { connect: [seed.roles[2]!.id] } },
 				disconnect: data,
 			},
+			options,
+			output,
+		});
+	});
+});
+
+// ============================================================================
+// UPSERT
+// ============================================================================
+
+describe("Upsert", () => {
+	it("upsert inserts a new record", async () => {
+		const data = { name: "Svelte", color: "#FF3E00" };
+		const options = { conflictOn: ["name"] };
+		const output = await datrix.upsert("tag", data, options);
+
+		collect("upsert", {
+			id: "upsert-insert",
+			label: "Insert when no match",
+			action: "upsert",
+			model: "tag",
+			data,
+			options,
+			output,
+		});
+	});
+
+	it("upsert updates the matching record", async () => {
+		const data = { name: "TypeScript", color: "#2F74C0" };
+		const options = { conflictOn: ["name"] };
+		const output = await datrix.upsert("tag", data, options);
+
+		collect("upsert", {
+			id: "upsert-update",
+			label: "Update when matched",
+			action: "upsert",
+			model: "tag",
+			data,
+			options,
+			output,
+		});
+	});
+
+	it("upsert many records", async () => {
+		const data = [
+			{ name: "React", color: "#149ECA" },
+			{ name: "Elixir", color: "#4B275F" },
+		];
+		const options = { conflictOn: ["name"] };
+		const output = await datrix.upsertMany("tag", data, options);
+
+		collect("upsert", {
+			id: "upsert-many",
+			label: "Upsert many records",
+			action: "upsertMany",
+			model: "tag",
+			data,
+			options,
+			output,
+		});
+	});
+
+	it("upsert only selected fields", async () => {
+		const data = {
+			title: "Intro to Datrix (2nd edition)",
+			content: "Datrix is a type-safe database framework.",
+			slug: "intro-to-datrix",
+			viewCount: 120,
+		};
+		const options = { conflictOn: ["slug"], update: ["viewCount"] };
+		const output = await datrix.upsert("post", data, options);
+
+		collect("upsert", {
+			id: "upsert-update-fields",
+			label: "Update selected fields",
+			action: "upsert",
+			model: "post",
+			data,
+			options,
+			output,
+		});
+	});
+
+	it("upsert many without touching existing records", async () => {
+		const data = [
+			{ name: "Docker", color: "#000000" },
+			{ name: "Zig", color: "#F7A41D" },
+		];
+		const options = { conflictOn: ["name"], update: [] };
+		const output = await datrix.upsertMany("tag", data, options);
+
+		collect("upsert", {
+			id: "upsert-insert-missing",
+			label: "Insert only missing",
+			action: "upsertMany",
+			model: "tag",
+			data,
+			options,
+			output,
+		});
+	});
+
+	it("upsert with relations", async () => {
+		const data = {
+			title: "Upserting with Datrix",
+			content: "Insert or update in a single call.",
+			slug: "upserting-with-datrix",
+			isPublished: true,
+			author: seed.users[0]!.id,
+			category: seed.categories[1]!.id,
+			tags: { connect: [seed.tags[1]!.id, seed.tags[2]!.id] },
+		};
+		const options = { conflictOn: ["slug"], populate: true };
+		const output = await datrix.upsert("post", data, options);
+
+		collect("upsert", {
+			id: "upsert-with-relation",
+			label: "Upsert with relations",
+			action: "upsert",
+			model: "post",
+			data,
 			options,
 			output,
 		});

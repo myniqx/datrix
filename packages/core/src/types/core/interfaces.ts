@@ -23,6 +23,14 @@ export interface RawCrudOptions<T extends DatrixEntry = DatrixRecord> {
 	action?: QueryAction;
 }
 
+export interface RawUpsertOptions<T extends DatrixEntry = DatrixRecord>
+	extends RawCrudOptions<T> {
+	/** A unique field, or the fields of a unique index. */
+	conflictOn: readonly string[];
+	/** Fields overwritten with the incoming value on conflict. Defaults to every field the rows set; `[]` leaves existing rows untouched. */
+	update?: readonly string[] | undefined;
+}
+
 export interface RawCountOptions<T extends DatrixEntry = DatrixRecord> {
 	/** Group results by these fields (must be non-relation schema fields). */
 	groupBy?: readonly string[] | undefined;
@@ -146,6 +154,22 @@ export interface IRawCrud {
 		where: WhereClause<T>,
 		data: TInput,
 		options?: RawCrudOptions<T>,
+	): Promise<T[]>;
+	upsert<
+		T extends DatrixEntry = DatrixRecord,
+		TInput extends FallbackInput = FallbackInput,
+	>(
+		model: string,
+		data: TInput,
+		options: RawUpsertOptions<T>,
+	): Promise<T>;
+	upsertMany<
+		T extends DatrixEntry = DatrixRecord,
+		TInput extends FallbackInput = FallbackInput,
+	>(
+		model: string,
+		data: TInput[],
+		options: RawUpsertOptions<T>,
 	): Promise<T[]>;
 	delete<T extends DatrixEntry = DatrixRecord>(
 		model: string,

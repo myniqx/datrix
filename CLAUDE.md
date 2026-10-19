@@ -75,6 +75,8 @@ Three layers with strict separation of responsibilities:
 
 Plugins extend `BasePlugin` and hook into schema lifecycles: `beforeCreate`, `afterCreate`, `beforeFind`, `afterFind`, `beforeDelete`, `afterDelete`. Query-level hooks: `onBeforeQuery`, `onAfterQuery`.
 
+Queries a plugin runs internally from its hooks must use `datrix.raw`, never `context.crud` (which re-runs plugin and schema hooks). See "Critical Rules for Plugin Development" in `packages/core/CLAUDE.md`.
+
 ## Code Conventions
 
 - **Strict TypeScript** — all strict checks enabled including `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`, `noUnusedLocals/Parameters`.

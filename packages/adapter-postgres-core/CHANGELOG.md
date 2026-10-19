@@ -1,5 +1,11 @@
 # @datrix/adapter-postgres
 
+## 0.2.1
+
+### Patch Changes
+
+- Implemented the `upsert` query type with `INSERT ... ON CONFLICT DO UPDATE` (requires `@datrix/core` 0.2.2).
+
 ## 0.2.0
 
 ### Minor Changes

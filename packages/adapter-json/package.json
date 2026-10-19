@@ -1,6 +1,6 @@
 {
 	"name": "@datrix/adapter-json",
-	"version": "0.2.0",
+	"version": "0.2.1",
 	"description": "JSON file adapter for Datrix framework",
 	"author": "Datrix Contributors",
 	"license": "MIT",

@@ -32,6 +32,7 @@ export {
 	type QueryInsertObject,
 	type QueryUpdateObject,
 	type QueryDeleteObject,
+	type QueryUpsertObject,
 	type QueryObject,
 	type QueryObjectForType,
 } from "./core/query-builder";

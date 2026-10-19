@@ -41,6 +41,7 @@ import {
 	handleInsert,
 	handleSelect,
 	handleUpdate,
+	handleUpsert,
 } from "./query-handlers";
 import { isInTransactionContext } from "./tx-context";
 import { atomicWriteFile } from "./fs-utils";
@@ -755,7 +756,9 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 			throwNotConnected({ adapter: "json" });
 		}
 
-		const isWriteOp = ["insert", "update", "delete"].includes(query.type);
+		const isWriteOp = ["insert", "update", "delete", "upsert"].includes(
+			query.type,
+		);
 		const needsLock = !skipLock && (isWriteOp || this.readLockEnabled);
 		let lockAcquired = false;
 
@@ -802,7 +805,9 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 			// table object. The copy is only swapped into the cache after a
 			// successful disk write (see issue.md Part 2) — a failed write
 			// leaves the cache exactly as it was.
-			const isWriteOp = ["insert", "update", "delete"].includes(query.type);
+			const isWriteOp = ["insert", "update", "delete", "upsert"].includes(
+				query.type,
+			);
 			const workingTableData = isWriteOp
 				? ({
 						meta: { ...tableData!.meta },
@@ -834,6 +839,9 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 					break;
 				case "update":
 					handlerResult = await handleUpdate({ runner, query });
+					break;
+				case "upsert":
+					handlerResult = await handleUpsert({ runner, query });
 					break;
 				case "delete":
 					handlerResult = await handleDelete({
@@ -918,7 +926,7 @@ export class JsonAdapter implements DatabaseAdapter<JsonAdapterConfig> {
 				if (idx >= 0) this.transactionEndWaiters.splice(idx, 1);
 				reject(
 					new DatrixAdapterError(
-						"Timed out waiting for the active transaction to end",
+						"Timed out waiting for the active transaction to end. If this was called from inside datrix.transaction(), use the tx argument instead of the global datrix instance",
 						{
 							adapter: "json",
 							code: "ADAPTER_TRANSACTION_ERROR",
