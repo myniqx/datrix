@@ -45,7 +45,7 @@ export const TYPE_DEFINITIONS: Record<string, TypeDefinition> = {
 	},
 	IDatrix: {
 		group: "Core",
-		signature: `interface IDatrix extends IRawCrud {\n  // CRUD (with plugin hooks) — same as IRawCrud methods\n  findOne(model, where, options?):          Promise<T | null>\n  findById(model, id, options?):            Promise<T | null>\n  findMany(model, options?):               Promise<T[]>\n  count(model, where?):                    Promise<number>\n  create(model, data, options?):           Promise<T>\n  createMany(model, data[], options?):     Promise<T[]>\n  update(model, id, data, options?):       Promise<T>\n  updateMany(model, where, data, options?): Promise<T[]>\n  delete(model, id, options?):             Promise<T>\n  deleteMany(model, where, options?):      Promise<T[]>\n\n  // Raw CRUD (bypasses plugin hooks)\n  readonly raw: IRawCrud\n\n  // Transactions\n  transaction<R>(fn, options?):  Promise<R>\n\n  // Schema access\n  getSchemas():              ISchemaRegistry\n  getSchema(name):           SchemaDefinition | undefined\n  hasSchema(name):           boolean\n  getAllSchemas():            readonly SchemaDefinition[]\n\n  // Plugin access\n  getPlugins():              readonly DatrixPlugin[]\n  getPlugin(name):           DatrixPlugin | null\n  hasPlugin(name):           boolean\n\n  // Lifecycle\n  isInitialized():           boolean\n  getConfig():               DatrixConfig\n  getAdapter<T>():           T\n  shutdown():                Promise<void>\n}`,
+		signature: `interface IDatrix extends IRawCrud {\n  // CRUD (with plugin hooks) — same as IRawCrud methods\n  findOne(model, where, options?):          Promise<T | null>\n  findById(model, id, options?):            Promise<T | null>\n  findMany(model, options?):               Promise<T[]>\n  count(model, where?):                    Promise<number>\n  create(model, data, options?):           Promise<T>\n  createMany(model, data[], options?):     Promise<T[]>\n  update(model, id, data, options?):       Promise<T>\n  updateMany(model, where, data, options?): Promise<T[]>\n  upsert(model, data, options):            Promise<T>\n  upsertMany(model, data[], options):      Promise<T[]>\n  delete(model, id, options?):             Promise<T>\n  deleteMany(model, where, options?):      Promise<T[]>\n\n  // Raw CRUD (bypasses plugin hooks)\n  readonly raw: IRawCrud\n\n  // Transactions\n  transaction<R>(fn, options?):  Promise<R>\n\n  // Schema access\n  getSchemas():              ISchemaRegistry\n  getSchema(name):           SchemaDefinition | undefined\n  hasSchema(name):           boolean\n  getAllSchemas():            readonly SchemaDefinition[]\n\n  // Plugin access\n  getPlugins():              readonly DatrixPlugin[]\n  getPlugin(name):           DatrixPlugin | null\n  hasPlugin(name):           boolean\n\n  // Lifecycle\n  isInitialized():           boolean\n  getConfig():               DatrixConfig\n  getAdapter<T>():           T\n  shutdown():                Promise<void>\n}`,
 		description:
 			"Main Datrix instance interface. Returned by the function created with defineConfig(). All CRUD methods run through plugin hooks — use .raw for direct database access without hooks.",
 	},
@@ -73,6 +73,12 @@ export const TYPE_DEFINITIONS: Record<string, TypeDefinition> = {
 		signature: `interface RawCrudOptions<T> {\n  select?:      SelectClause<T>\n  populate?:    PopulateClause<T>\n  noReturning?: boolean\n}`,
 		description:
 			"Options for single-record operations (findOne, findById, create, update, delete).",
+	},
+	RawUpsertOptions: {
+		group: "Core",
+		signature: `interface RawUpsertOptions<T> extends RawCrudOptions<T> {\n  conflictOn: readonly string[]\n  update?:    readonly string[]\n}`,
+		description:
+			"Options for upsert and upsertMany. conflictOn is a unique field or the fields of a unique index. update lists the fields overwritten on conflict — omitted means every field the rows set, [] leaves matched records untouched.",
 	},
 	RawFindManyOptions: {
 		group: "Core",
@@ -205,7 +211,7 @@ export const TYPE_DEFINITIONS: Record<string, TypeDefinition> = {
 	},
 	LifecycleHooks: {
 		group: "Schema",
-		signature: `interface LifecycleHooks<T extends DatrixEntry = DatrixEntry> {\n  beforeCreate?: (\n    query: QueryInsertObject<T>,\n    ctx: QueryContext,\n  ) => Promise<QueryInsertObject<T>> | QueryInsertObject<T>\n\n  afterCreate?: (\n    records: readonly T[],\n    ctx: QueryContext,\n  ) => Promise<readonly T[]> | readonly T[]\n\n  beforeUpdate?: (\n    query: QueryUpdateObject<T>,\n    ctx: QueryContext,\n  ) => Promise<QueryUpdateObject<T>> | QueryUpdateObject<T>\n\n  afterUpdate?: (\n    records: readonly T[],\n    ctx: QueryContext,\n  ) => Promise<readonly T[]> | readonly T[]\n\n  beforeDelete?: (\n    query: QueryDeleteObject<T>,\n    ctx: QueryContext,\n  ) => Promise<QueryDeleteObject<T>> | QueryDeleteObject<T>\n\n  afterDelete?: (\n    records: readonly T[],\n    ctx: QueryContext,\n  ) => Promise<void> | void\n\n  beforeFind?: (\n    query: QuerySelectObject<T>,\n    ctx: QueryContext,\n  ) => Promise<QuerySelectObject<T>> | QuerySelectObject<T>\n\n  afterFind?: (\n    records: readonly T[],\n    ctx: QueryContext,\n  ) => Promise<readonly T[]> | readonly T[]\n}`,
+		signature: `interface LifecycleHooks<T extends DatrixEntry = DatrixEntry> {\n  beforeCreate?: (\n    query: QueryInsertObject<T>,\n    ctx: QueryContext,\n  ) => Promise<QueryInsertObject<T>> | QueryInsertObject<T>\n\n  afterCreate?: (\n    records: readonly T[],\n    ctx: QueryContext,\n  ) => Promise<readonly T[]> | readonly T[]\n\n  beforeUpdate?: (\n    query: QueryUpdateObject<T>,\n    ctx: QueryContext,\n  ) => Promise<QueryUpdateObject<T>> | QueryUpdateObject<T>\n\n  afterUpdate?: (\n    records: readonly T[],\n    ctx: QueryContext,\n  ) => Promise<readonly T[]> | readonly T[]\n\n  beforeDelete?: (\n    query: QueryDeleteObject<T>,\n    ctx: QueryContext,\n  ) => Promise<QueryDeleteObject<T>> | QueryDeleteObject<T>\n\n  afterDelete?: (\n    records: readonly T[],\n    ctx: QueryContext,\n  ) => Promise<void> | void\n\n  beforeFind?: (\n    query: QuerySelectObject<T>,\n    ctx: QueryContext,\n  ) => Promise<QuerySelectObject<T>> | QuerySelectObject<T>\n\n  beforeUpsert?: (\n    query: QueryUpsertObject<T>,\n    ctx: QueryContext,\n  ) => Promise<QueryUpsertObject<T>> | QueryUpsertObject<T>\n\n  afterUpsert?: (\n    records: T[],\n    ctx: QueryContext,\n    result: UpsertHookResult<T>,\n  ) => Promise<T[]> | T[]\n\n  afterFind?: (\n    records: readonly T[],\n    ctx: QueryContext,\n  ) => Promise<readonly T[]> | readonly T[]\n}`,
 		description:
 			"Schema lifecycle hooks. Defined in the hooks field of SchemaDefinition. Before hooks receive the full query object and must return it. After hooks receive all affected records as an array. ctx.datrix gives access to the Datrix instance for additional queries.",
 	},
@@ -301,6 +307,20 @@ export const TYPE_DEFINITIONS: Record<string, TypeDefinition> = {
 			"Query object passed to beforeUpdate hooks. data contains the fields to update — modify it to change what gets written.",
 		skipDocs: true,
 	},
+	QueryUpsertObject: {
+		group: "Plugin",
+		signature: `interface QueryUpsertObject<T> {\n  type:        "upsert"\n  table:       string\n  data:        readonly Partial<T>[]\n  conflictOn:  readonly string[]\n  update:      readonly string[]\n  relations?:  QueryRelations<T>\n  select?:     SelectClause<T>\n  populate?:   PopulateClause<T>\n}`,
+		description:
+			"Query object passed to beforeUpsert hooks and to onBeforeQuery. conflictOn and update hold column names. Adapters return one { id } per row in data and the inserted ids in metadata.insertIds.",
+		skipDocs: true,
+	},
+	UpsertHookResult: {
+		group: "Plugin",
+		signature: `interface UpsertHookResult<T> {\n  readonly created: T[]\n  readonly updated: T[]\n}`,
+		description:
+			"Third argument of afterUpsert. Splits the returned records into the ones that were inserted and the ones that matched an existing row.",
+		skipDocs: true,
+	},
 	QueryDeleteObject: {
 		group: "Plugin",
 		signature: `interface QueryDeleteObject<T> {\n  type:   "delete"\n  table:  string\n  where?: WhereClause<T>\n}`,
@@ -318,7 +338,7 @@ export const TYPE_DEFINITIONS: Record<string, TypeDefinition> = {
 
 	QueryAction: {
 		group: "Plugin",
-		signature: `type QueryAction =\n  | "findOne"\n  | "findMany"\n  | "count"\n  | "create"\n  | "createMany"\n  | "update"\n  | "updateMany"\n  | "delete"\n  | "deleteMany"`,
+		signature: `type QueryAction =\n  | "findOne"\n  | "findMany"\n  | "count"\n  | "create"\n  | "createMany"\n  | "update"\n  | "updateMany"\n  | "delete"\n  | "deleteMany"\n  | "upsert"\n  | "upsertMany"`,
 		description:
 			"The CRUD operation being performed. Available in QueryContext inside plugin hooks.",
 		skipDocs: true,

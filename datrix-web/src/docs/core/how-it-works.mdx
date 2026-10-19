@@ -99,6 +99,25 @@ Note: after UPDATE, the re-fetch uses the IDs returned by the UPDATE statement â
 not the original `where` clause. This ensures you always get the current state
 of the records you actually modified.
 
+**For UPSERT**, rows are validated as creates, since any of them may be inserted:
+
+<FlowChain indent="manual">
+	<FlowStep level={0}>onBeforeQuery hooks</FlowStep>
+	<FlowStep level={1}>validate data (as create)</FlowStep>
+	<FlowStep level={1}>inject timestamps (updatedAt is also refreshed on conflict)</FlowStep>
+	<FlowStep level={1}>BEGIN transaction</FlowStep>
+	<FlowStep level={2}>UPSERT rows (insert, or update on conflictOn match)</FlowStep>
+	<FlowStep level={2}>process relations</FlowStep>
+	<FlowStep level={1}>COMMIT</FlowStep>
+	<FlowStep level={1}>SELECT upserted records by their IDs</FlowStep>
+	<FlowStep level={0}>onAfterQuery hooks</FlowStep>
+</FlowChain>
+
+The adapter returns one `{ id }` per input row and reports the inserted ids in
+`metadata.insertIds`; the Executor uses them to split `afterUpsert` records into
+`created` and `updated`. Relations are processed for every record, or only for
+newly inserted ones when `update` is `[]`.
+
 **For DELETE**:
 
 <FlowChain indent="manual">

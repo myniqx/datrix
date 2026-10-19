@@ -3,7 +3,7 @@ import path from "node:path";
 import type { Plugin } from "vite";
 
 const SITE_URL = "https://datrix.dev";
-const DOCS_DIR = path.resolve(__dirname, "../docs");
+const DOCS_DIR = path.resolve(import.meta.dirname, "../docs");
 
 function parseFrontmatter(content: string): {
 	title: string;
@@ -197,7 +197,7 @@ export function llmsPlugin(options?: {
 				...d,
 				markdown: overrides[d.slug] ?? d.markdown,
 			}));
-			const outDir = path.resolve(__dirname, "../../dist");
+			const outDir = path.resolve(import.meta.dirname, "../../dist");
 
 			fs.mkdirSync(outDir, { recursive: true });
 

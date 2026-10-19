@@ -461,8 +461,8 @@
             "id": 6,
             "name": "GraphQL",
             "color": "#E10098",
-            "createdAt": "2026-07-18T20:40:09.127Z",
-            "updatedAt": "2026-07-18T20:40:09.127Z"
+            "createdAt": "2026-10-19T04:21:21.737Z",
+            "updatedAt": "2026-10-19T04:21:21.737Z"
           }
         },
         {
@@ -485,15 +485,15 @@
               "id": 7,
               "name": "Rust",
               "color": "#CE422B",
-              "createdAt": "2026-07-18T20:40:09.130Z",
-              "updatedAt": "2026-07-18T20:40:09.130Z"
+              "createdAt": "2026-10-19T04:21:21.739Z",
+              "updatedAt": "2026-10-19T04:21:21.739Z"
             },
             {
               "id": 8,
               "name": "Go",
               "color": "#00ADD8",
-              "createdAt": "2026-07-18T20:40:09.130Z",
-              "updatedAt": "2026-07-18T20:40:09.130Z"
+              "createdAt": "2026-10-19T04:21:21.739Z",
+              "updatedAt": "2026-10-19T04:21:21.739Z"
             }
           ]
         },
@@ -520,16 +520,16 @@
             "slug": "intro-to-datrix",
             "isPublished": true,
             "viewCount": 0,
-            "createdAt": "2026-07-18T20:40:09.134Z",
-            "updatedAt": "2026-07-18T20:40:09.134Z",
+            "createdAt": "2026-10-19T04:21:21.739Z",
+            "updatedAt": "2026-10-19T04:21:21.739Z",
             "author": {
               "id": 1,
               "email": "admin@acme.com",
               "name": "Admin User",
               "age": 35,
               "isActive": true,
-              "createdAt": "2026-07-18T20:40:09.096Z",
-              "updatedAt": "2026-07-18T20:40:09.096Z"
+              "createdAt": "2026-10-19T04:21:21.725Z",
+              "updatedAt": "2026-10-19T04:21:21.725Z"
             },
             "category": {
               "id": 2,
@@ -537,8 +537,8 @@
               "slug": "programming",
               "description": "Programming tutorials",
               "isActive": true,
-              "createdAt": "2026-07-18T20:40:09.103Z",
-              "updatedAt": "2026-07-18T20:40:09.103Z"
+              "createdAt": "2026-10-19T04:21:21.728Z",
+              "updatedAt": "2026-10-19T04:21:21.728Z"
             },
             "tags": [],
             "comments": []
@@ -573,16 +573,16 @@
             "slug": "full-stack-typescript",
             "isPublished": true,
             "viewCount": 0,
-            "createdAt": "2026-07-18T20:40:09.139Z",
-            "updatedAt": "2026-07-18T20:40:09.139Z",
+            "createdAt": "2026-10-19T04:21:21.741Z",
+            "updatedAt": "2026-10-19T04:21:21.741Z",
             "author": {
               "id": 2,
               "email": "editor@acme.com",
               "name": "Editor User",
               "age": 28,
               "isActive": true,
-              "createdAt": "2026-07-18T20:40:09.096Z",
-              "updatedAt": "2026-07-18T20:40:09.096Z"
+              "createdAt": "2026-10-19T04:21:21.725Z",
+              "updatedAt": "2026-10-19T04:21:21.725Z"
             },
             "category": {
               "id": 2,
@@ -590,23 +590,23 @@
               "slug": "programming",
               "description": "Programming tutorials",
               "isActive": true,
-              "createdAt": "2026-07-18T20:40:09.103Z",
-              "updatedAt": "2026-07-18T20:40:09.103Z"
+              "createdAt": "2026-10-19T04:21:21.728Z",
+              "updatedAt": "2026-10-19T04:21:21.728Z"
             },
             "tags": [
               {
                 "id": 1,
                 "name": "JavaScript",
                 "color": "#F7DF1E",
-                "createdAt": "2026-07-18T20:40:09.107Z",
-                "updatedAt": "2026-07-18T20:40:09.107Z"
+                "createdAt": "2026-10-19T04:21:21.729Z",
+                "updatedAt": "2026-10-19T04:21:21.729Z"
               },
               {
                 "id": 2,
                 "name": "TypeScript",
                 "color": "#3178C6",
-                "createdAt": "2026-07-18T20:40:09.107Z",
-                "updatedAt": "2026-07-18T20:40:09.107Z"
+                "createdAt": "2026-10-19T04:21:21.729Z",
+                "updatedAt": "2026-10-19T04:21:21.729Z"
               }
             ],
             "comments": []
@@ -632,8 +632,8 @@
               "age": 35,
               "isActive": true,
               "metadata": null,
-              "createdAt": "2026-07-18T20:40:09.096Z",
-              "updatedAt": "2026-07-18T20:40:09.096Z"
+              "createdAt": "2026-10-19T04:21:21.725Z",
+              "updatedAt": "2026-10-19T04:21:21.725Z"
             },
             {
               "id": 2,
@@ -643,8 +643,8 @@
               "age": 28,
               "isActive": true,
               "metadata": null,
-              "createdAt": "2026-07-18T20:40:09.096Z",
-              "updatedAt": "2026-07-18T20:40:09.096Z"
+              "createdAt": "2026-10-19T04:21:21.725Z",
+              "updatedAt": "2026-10-19T04:21:21.725Z"
             },
             {
               "id": 3,
@@ -654,8 +654,8 @@
               "age": 25,
               "isActive": true,
               "metadata": null,
-              "createdAt": "2026-07-18T20:40:09.096Z",
-              "updatedAt": "2026-07-18T20:40:09.096Z"
+              "createdAt": "2026-10-19T04:21:21.726Z",
+              "updatedAt": "2026-10-19T04:21:21.726Z"
             },
             {
               "id": 4,
@@ -665,8 +665,8 @@
               "age": 40,
               "isActive": true,
               "metadata": null,
-              "createdAt": "2026-07-18T20:40:09.096Z",
-              "updatedAt": "2026-07-18T20:40:09.096Z"
+              "createdAt": "2026-10-19T04:21:21.726Z",
+              "updatedAt": "2026-10-19T04:21:21.726Z"
             },
             {
               "id": 5,
@@ -676,8 +676,8 @@
               "age": 30,
               "isActive": false,
               "metadata": null,
-              "createdAt": "2026-07-18T20:40:09.096Z",
-              "updatedAt": "2026-07-18T20:40:09.096Z"
+              "createdAt": "2026-10-19T04:21:21.726Z",
+              "updatedAt": "2026-10-19T04:21:21.726Z"
             }
           ]
         },
@@ -700,8 +700,8 @@
               "age": 35,
               "isActive": true,
               "metadata": null,
-              "createdAt": "2026-07-18T20:40:09.096Z",
-              "updatedAt": "2026-07-18T20:40:09.096Z"
+              "createdAt": "2026-10-19T04:21:21.725Z",
+              "updatedAt": "2026-10-19T04:21:21.725Z"
             },
             {
               "id": 2,
@@ -711,8 +711,8 @@
               "age": 28,
               "isActive": true,
               "metadata": null,
-              "createdAt": "2026-07-18T20:40:09.096Z",
-              "updatedAt": "2026-07-18T20:40:09.096Z"
+              "createdAt": "2026-10-19T04:21:21.725Z",
+              "updatedAt": "2026-10-19T04:21:21.725Z"
             },
             {
               "id": 3,
@@ -722,8 +722,8 @@
               "age": 25,
               "isActive": true,
               "metadata": null,
-              "createdAt": "2026-07-18T20:40:09.096Z",
-              "updatedAt": "2026-07-18T20:40:09.096Z"
+              "createdAt": "2026-10-19T04:21:21.726Z",
+              "updatedAt": "2026-10-19T04:21:21.726Z"
             },
             {
               "id": 4,
@@ -733,8 +733,8 @@
               "age": 40,
               "isActive": true,
               "metadata": null,
-              "createdAt": "2026-07-18T20:40:09.096Z",
-              "updatedAt": "2026-07-18T20:40:09.096Z"
+              "createdAt": "2026-10-19T04:21:21.726Z",
+              "updatedAt": "2026-10-19T04:21:21.726Z"
             }
           ]
         },
@@ -765,8 +765,8 @@
               "age": 30,
               "isActive": false,
               "metadata": null,
-              "createdAt": "2026-07-18T20:40:09.096Z",
-              "updatedAt": "2026-07-18T20:40:09.096Z"
+              "createdAt": "2026-10-19T04:21:21.726Z",
+              "updatedAt": "2026-10-19T04:21:21.726Z"
             },
             {
               "id": 1,
@@ -776,8 +776,8 @@
               "age": 35,
               "isActive": true,
               "metadata": null,
-              "createdAt": "2026-07-18T20:40:09.096Z",
-              "updatedAt": "2026-07-18T20:40:09.096Z"
+              "createdAt": "2026-10-19T04:21:21.725Z",
+              "updatedAt": "2026-10-19T04:21:21.725Z"
             },
             {
               "id": 4,
@@ -787,8 +787,8 @@
               "age": 40,
               "isActive": true,
               "metadata": null,
-              "createdAt": "2026-07-18T20:40:09.096Z",
-              "updatedAt": "2026-07-18T20:40:09.096Z"
+              "createdAt": "2026-10-19T04:21:21.726Z",
+              "updatedAt": "2026-10-19T04:21:21.726Z"
             }
           ]
         },
@@ -820,8 +820,8 @@
               "age": 35,
               "isActive": true,
               "metadata": null,
-              "createdAt": "2026-07-18T20:40:09.096Z",
-              "updatedAt": "2026-07-18T20:40:09.096Z"
+              "createdAt": "2026-10-19T04:21:21.725Z",
+              "updatedAt": "2026-10-19T04:21:21.725Z"
             },
             {
               "id": 2,
@@ -831,8 +831,8 @@
               "age": 28,
               "isActive": true,
               "metadata": null,
-              "createdAt": "2026-07-18T20:40:09.096Z",
-              "updatedAt": "2026-07-18T20:40:09.096Z"
+              "createdAt": "2026-10-19T04:21:21.725Z",
+              "updatedAt": "2026-10-19T04:21:21.725Z"
             },
             {
               "id": 3,
@@ -842,8 +842,8 @@
               "age": 25,
               "isActive": true,
               "metadata": null,
-              "createdAt": "2026-07-18T20:40:09.096Z",
-              "updatedAt": "2026-07-18T20:40:09.096Z"
+              "createdAt": "2026-10-19T04:21:21.726Z",
+              "updatedAt": "2026-10-19T04:21:21.726Z"
             },
             {
               "id": 4,
@@ -853,8 +853,8 @@
               "age": 40,
               "isActive": true,
               "metadata": null,
-              "createdAt": "2026-07-18T20:40:09.096Z",
-              "updatedAt": "2026-07-18T20:40:09.096Z"
+              "createdAt": "2026-10-19T04:21:21.726Z",
+              "updatedAt": "2026-10-19T04:21:21.726Z"
             }
           ]
         },
@@ -878,29 +878,29 @@
               "id": 1,
               "name": "Admin User",
               "email": "admin@acme.com",
-              "createdAt": "2026-07-18T20:40:09.096Z",
-              "updatedAt": "2026-07-18T20:40:09.096Z"
+              "createdAt": "2026-10-19T04:21:21.725Z",
+              "updatedAt": "2026-10-19T04:21:21.725Z"
             },
             {
               "id": 2,
               "name": "Editor User",
               "email": "editor@acme.com",
-              "createdAt": "2026-07-18T20:40:09.096Z",
-              "updatedAt": "2026-07-18T20:40:09.096Z"
+              "createdAt": "2026-10-19T04:21:21.725Z",
+              "updatedAt": "2026-10-19T04:21:21.725Z"
             },
             {
               "id": 3,
               "name": "Viewer User",
               "email": "viewer@acme.com",
-              "createdAt": "2026-07-18T20:40:09.096Z",
-              "updatedAt": "2026-07-18T20:40:09.096Z"
+              "createdAt": "2026-10-19T04:21:21.726Z",
+              "updatedAt": "2026-10-19T04:21:21.726Z"
             },
             {
               "id": 4,
               "name": "Tech Admin",
               "email": "admin@tech.com",
-              "createdAt": "2026-07-18T20:40:09.096Z",
-              "updatedAt": "2026-07-18T20:40:09.096Z"
+              "createdAt": "2026-10-19T04:21:21.726Z",
+              "updatedAt": "2026-10-19T04:21:21.726Z"
             }
           ]
         },
@@ -928,8 +928,8 @@
               "age": 35,
               "isActive": true,
               "metadata": null,
-              "createdAt": "2026-07-18T20:40:09.096Z",
-              "updatedAt": "2026-07-18T20:40:09.096Z"
+              "createdAt": "2026-10-19T04:21:21.725Z",
+              "updatedAt": "2026-10-19T04:21:21.725Z"
             },
             {
               "id": 2,
@@ -939,8 +939,8 @@
               "age": 28,
               "isActive": true,
               "metadata": null,
-              "createdAt": "2026-07-18T20:40:09.096Z",
-              "updatedAt": "2026-07-18T20:40:09.096Z"
+              "createdAt": "2026-10-19T04:21:21.725Z",
+              "updatedAt": "2026-10-19T04:21:21.725Z"
             }
           ]
         },
@@ -970,16 +970,16 @@
               "slug": "getting-started-typescript",
               "isPublished": true,
               "viewCount": 100,
-              "createdAt": "2026-07-18T20:40:09.110Z",
-              "updatedAt": "2026-07-18T20:40:09.110Z",
+              "createdAt": "2026-10-19T04:21:21.730Z",
+              "updatedAt": "2026-10-19T04:21:21.730Z",
               "author": {
                 "id": 1,
                 "email": "admin@acme.com",
                 "name": "Admin User",
                 "age": 35,
                 "isActive": true,
-                "createdAt": "2026-07-18T20:40:09.096Z",
-                "updatedAt": "2026-07-18T20:40:09.096Z"
+                "createdAt": "2026-10-19T04:21:21.725Z",
+                "updatedAt": "2026-10-19T04:21:21.725Z"
               },
               "category": {
                 "id": 2,
@@ -987,8 +987,8 @@
                 "slug": "programming",
                 "description": "Programming tutorials",
                 "isActive": true,
-                "createdAt": "2026-07-18T20:40:09.103Z",
-                "updatedAt": "2026-07-18T20:40:09.103Z"
+                "createdAt": "2026-10-19T04:21:21.728Z",
+                "updatedAt": "2026-10-19T04:21:21.728Z"
               }
             },
             {
@@ -998,16 +998,16 @@
               "slug": "docker-beginners",
               "isPublished": true,
               "viewCount": 50,
-              "createdAt": "2026-07-18T20:40:09.117Z",
-              "updatedAt": "2026-07-18T20:40:09.117Z",
+              "createdAt": "2026-10-19T04:21:21.732Z",
+              "updatedAt": "2026-10-19T04:21:21.732Z",
               "author": {
                 "id": 2,
                 "email": "editor@acme.com",
                 "name": "Editor User",
                 "age": 28,
                 "isActive": true,
-                "createdAt": "2026-07-18T20:40:09.096Z",
-                "updatedAt": "2026-07-18T20:40:09.096Z"
+                "createdAt": "2026-10-19T04:21:21.725Z",
+                "updatedAt": "2026-10-19T04:21:21.725Z"
               },
               "category": {
                 "id": 3,
@@ -1015,8 +1015,8 @@
                 "slug": "devops",
                 "description": "DevOps practices",
                 "isActive": true,
-                "createdAt": "2026-07-18T20:40:09.103Z",
-                "updatedAt": "2026-07-18T20:40:09.103Z"
+                "createdAt": "2026-10-19T04:21:21.728Z",
+                "updatedAt": "2026-10-19T04:21:21.728Z"
               }
             },
             {
@@ -1026,16 +1026,16 @@
               "slug": "intro-to-datrix",
               "isPublished": true,
               "viewCount": 0,
-              "createdAt": "2026-07-18T20:40:09.134Z",
-              "updatedAt": "2026-07-18T20:40:09.134Z",
+              "createdAt": "2026-10-19T04:21:21.739Z",
+              "updatedAt": "2026-10-19T04:21:21.739Z",
               "author": {
                 "id": 1,
                 "email": "admin@acme.com",
                 "name": "Admin User",
                 "age": 35,
                 "isActive": true,
-                "createdAt": "2026-07-18T20:40:09.096Z",
-                "updatedAt": "2026-07-18T20:40:09.096Z"
+                "createdAt": "2026-10-19T04:21:21.725Z",
+                "updatedAt": "2026-10-19T04:21:21.725Z"
               },
               "category": {
                 "id": 2,
@@ -1043,8 +1043,8 @@
                 "slug": "programming",
                 "description": "Programming tutorials",
                 "isActive": true,
-                "createdAt": "2026-07-18T20:40:09.103Z",
-                "updatedAt": "2026-07-18T20:40:09.103Z"
+                "createdAt": "2026-10-19T04:21:21.728Z",
+                "updatedAt": "2026-10-19T04:21:21.728Z"
               }
             },
             {
@@ -1054,16 +1054,16 @@
               "slug": "full-stack-typescript",
               "isPublished": true,
               "viewCount": 0,
-              "createdAt": "2026-07-18T20:40:09.139Z",
-              "updatedAt": "2026-07-18T20:40:09.139Z",
+              "createdAt": "2026-10-19T04:21:21.741Z",
+              "updatedAt": "2026-10-19T04:21:21.741Z",
               "author": {
                 "id": 2,
                 "email": "editor@acme.com",
                 "name": "Editor User",
                 "age": 28,
                 "isActive": true,
-                "createdAt": "2026-07-18T20:40:09.096Z",
-                "updatedAt": "2026-07-18T20:40:09.096Z"
+                "createdAt": "2026-10-19T04:21:21.725Z",
+                "updatedAt": "2026-10-19T04:21:21.725Z"
               },
               "category": {
                 "id": 2,
@@ -1071,8 +1071,8 @@
                 "slug": "programming",
                 "description": "Programming tutorials",
                 "isActive": true,
-                "createdAt": "2026-07-18T20:40:09.103Z",
-                "updatedAt": "2026-07-18T20:40:09.103Z"
+                "createdAt": "2026-10-19T04:21:21.728Z",
+                "updatedAt": "2026-10-19T04:21:21.728Z"
               }
             }
           ]
@@ -1109,21 +1109,21 @@
               "slug": "getting-started-typescript",
               "isPublished": true,
               "viewCount": 100,
-              "createdAt": "2026-07-18T20:40:09.110Z",
-              "updatedAt": "2026-07-18T20:40:09.110Z",
+              "createdAt": "2026-10-19T04:21:21.730Z",
+              "updatedAt": "2026-10-19T04:21:21.730Z",
               "author": {
                 "id": 1,
                 "name": "Admin User",
                 "email": "admin@acme.com",
-                "createdAt": "2026-07-18T20:40:09.096Z",
-                "updatedAt": "2026-07-18T20:40:09.096Z",
+                "createdAt": "2026-10-19T04:21:21.725Z",
+                "updatedAt": "2026-10-19T04:21:21.725Z",
                 "organization": {
                   "id": 1,
                   "name": "Acme Corp",
                   "country": "USA",
                   "isActive": true,
-                  "createdAt": "2026-07-18T20:40:09.081Z",
-                  "updatedAt": "2026-07-18T20:40:09.081Z"
+                  "createdAt": "2026-10-19T04:21:21.720Z",
+                  "updatedAt": "2026-10-19T04:21:21.720Z"
                 }
               }
             },
@@ -1134,21 +1134,21 @@
               "slug": "docker-beginners",
               "isPublished": true,
               "viewCount": 50,
-              "createdAt": "2026-07-18T20:40:09.117Z",
-              "updatedAt": "2026-07-18T20:40:09.117Z",
+              "createdAt": "2026-10-19T04:21:21.732Z",
+              "updatedAt": "2026-10-19T04:21:21.732Z",
               "author": {
                 "id": 2,
                 "name": "Editor User",
                 "email": "editor@acme.com",
-                "createdAt": "2026-07-18T20:40:09.096Z",
-                "updatedAt": "2026-07-18T20:40:09.096Z",
+                "createdAt": "2026-10-19T04:21:21.725Z",
+                "updatedAt": "2026-10-19T04:21:21.725Z",
                 "organization": {
                   "id": 1,
                   "name": "Acme Corp",
                   "country": "USA",
                   "isActive": true,
-                  "createdAt": "2026-07-18T20:40:09.081Z",
-                  "updatedAt": "2026-07-18T20:40:09.081Z"
+                  "createdAt": "2026-10-19T04:21:21.720Z",
+                  "updatedAt": "2026-10-19T04:21:21.720Z"
                 }
               }
             },
@@ -1159,21 +1159,21 @@
               "slug": "intro-to-datrix",
               "isPublished": true,
               "viewCount": 0,
-              "createdAt": "2026-07-18T20:40:09.134Z",
-              "updatedAt": "2026-07-18T20:40:09.134Z",
+              "createdAt": "2026-10-19T04:21:21.739Z",
+              "updatedAt": "2026-10-19T04:21:21.739Z",
               "author": {
                 "id": 1,
                 "name": "Admin User",
                 "email": "admin@acme.com",
-                "createdAt": "2026-07-18T20:40:09.096Z",
-                "updatedAt": "2026-07-18T20:40:09.096Z",
+                "createdAt": "2026-10-19T04:21:21.725Z",
+                "updatedAt": "2026-10-19T04:21:21.725Z",
                 "organization": {
                   "id": 1,
                   "name": "Acme Corp",
                   "country": "USA",
                   "isActive": true,
-                  "createdAt": "2026-07-18T20:40:09.081Z",
-                  "updatedAt": "2026-07-18T20:40:09.081Z"
+                  "createdAt": "2026-10-19T04:21:21.720Z",
+                  "updatedAt": "2026-10-19T04:21:21.720Z"
                 }
               }
             },
@@ -1184,21 +1184,21 @@
               "slug": "full-stack-typescript",
               "isPublished": true,
               "viewCount": 0,
-              "createdAt": "2026-07-18T20:40:09.139Z",
-              "updatedAt": "2026-07-18T20:40:09.139Z",
+              "createdAt": "2026-10-19T04:21:21.741Z",
+              "updatedAt": "2026-10-19T04:21:21.741Z",
               "author": {
                 "id": 2,
                 "name": "Editor User",
                 "email": "editor@acme.com",
-                "createdAt": "2026-07-18T20:40:09.096Z",
-                "updatedAt": "2026-07-18T20:40:09.096Z",
+                "createdAt": "2026-10-19T04:21:21.725Z",
+                "updatedAt": "2026-10-19T04:21:21.725Z",
                 "organization": {
                   "id": 1,
                   "name": "Acme Corp",
                   "country": "USA",
                   "isActive": true,
-                  "createdAt": "2026-07-18T20:40:09.081Z",
-                  "updatedAt": "2026-07-18T20:40:09.081Z"
+                  "createdAt": "2026-10-19T04:21:21.720Z",
+                  "updatedAt": "2026-10-19T04:21:21.720Z"
                 }
               }
             }
@@ -1227,8 +1227,8 @@
               "slug": "getting-started-typescript",
               "isPublished": true,
               "viewCount": 100,
-              "createdAt": "2026-07-18T20:40:09.110Z",
-              "updatedAt": "2026-07-18T20:40:09.110Z"
+              "createdAt": "2026-10-19T04:21:21.730Z",
+              "updatedAt": "2026-10-19T04:21:21.730Z"
             },
             {
               "id": 3,
@@ -1237,8 +1237,8 @@
               "slug": "draft-post",
               "isPublished": false,
               "viewCount": 0,
-              "createdAt": "2026-07-18T20:40:09.123Z",
-              "updatedAt": "2026-07-18T20:40:09.123Z"
+              "createdAt": "2026-10-19T04:21:21.734Z",
+              "updatedAt": "2026-10-19T04:21:21.734Z"
             },
             {
               "id": 4,
@@ -1247,8 +1247,8 @@
               "slug": "intro-to-datrix",
               "isPublished": true,
               "viewCount": 0,
-              "createdAt": "2026-07-18T20:40:09.134Z",
-              "updatedAt": "2026-07-18T20:40:09.134Z"
+              "createdAt": "2026-10-19T04:21:21.739Z",
+              "updatedAt": "2026-10-19T04:21:21.739Z"
             }
           ]
         },
@@ -1354,15 +1354,15 @@
             "name": "Viewer User",
             "age": 26,
             "isActive": true,
-            "createdAt": "2026-07-18T20:40:09.096Z",
-            "updatedAt": "2026-07-18T20:40:09.158Z",
+            "createdAt": "2026-10-19T04:21:21.726Z",
+            "updatedAt": "2026-10-19T04:21:21.749Z",
             "organization": {
               "id": 1,
               "name": "Acme Corp",
               "country": "USA",
               "isActive": true,
-              "createdAt": "2026-07-18T20:40:09.081Z",
-              "updatedAt": "2026-07-18T20:40:09.081Z"
+              "createdAt": "2026-10-19T04:21:21.720Z",
+              "updatedAt": "2026-10-19T04:21:21.720Z"
             },
             "department": null,
             "roles": [],
@@ -1392,16 +1392,16 @@
               "slug": "draft-post",
               "isPublished": false,
               "viewCount": 0,
-              "createdAt": "2026-07-18T20:40:09.123Z",
-              "updatedAt": "2026-07-18T20:40:09.163Z",
+              "createdAt": "2026-10-19T04:21:21.734Z",
+              "updatedAt": "2026-10-19T04:21:21.754Z",
               "author": {
                 "id": 1,
                 "email": "admin@acme.com",
                 "name": "Admin User",
                 "age": 35,
                 "isActive": true,
-                "createdAt": "2026-07-18T20:40:09.096Z",
-                "updatedAt": "2026-07-18T20:40:09.096Z"
+                "createdAt": "2026-10-19T04:21:21.725Z",
+                "updatedAt": "2026-10-19T04:21:21.725Z"
               },
               "category": {
                 "id": 2,
@@ -1409,8 +1409,8 @@
                 "slug": "programming",
                 "description": "Programming tutorials",
                 "isActive": true,
-                "createdAt": "2026-07-18T20:40:09.103Z",
-                "updatedAt": "2026-07-18T20:40:09.103Z"
+                "createdAt": "2026-10-19T04:21:21.728Z",
+                "updatedAt": "2026-10-19T04:21:21.728Z"
               },
               "tags": [],
               "comments": []
@@ -1440,23 +1440,23 @@
             "name": "Admin User",
             "age": 35,
             "isActive": true,
-            "createdAt": "2026-07-18T20:40:09.096Z",
-            "updatedAt": "2026-07-18T20:40:09.167Z",
+            "createdAt": "2026-10-19T04:21:21.725Z",
+            "updatedAt": "2026-10-19T04:21:21.755Z",
             "organization": {
               "id": 1,
               "name": "Acme Corp",
               "country": "USA",
               "isActive": true,
-              "createdAt": "2026-07-18T20:40:09.081Z",
-              "updatedAt": "2026-07-18T20:40:09.081Z"
+              "createdAt": "2026-10-19T04:21:21.720Z",
+              "updatedAt": "2026-10-19T04:21:21.720Z"
             },
             "department": {
               "id": 1,
               "name": "Engineering",
               "code": "ENG",
               "budget": 100000,
-              "createdAt": "2026-07-18T20:40:09.088Z",
-              "updatedAt": "2026-07-18T20:40:09.088Z"
+              "createdAt": "2026-10-19T04:21:21.723Z",
+              "updatedAt": "2026-10-19T04:21:21.723Z"
             },
             "roles": [
               {
@@ -1464,16 +1464,16 @@
                 "name": "Admin",
                 "description": "Full access",
                 "level": 100,
-                "createdAt": "2026-07-18T20:40:09.093Z",
-                "updatedAt": "2026-07-18T20:40:09.093Z"
+                "createdAt": "2026-10-19T04:21:21.725Z",
+                "updatedAt": "2026-10-19T04:21:21.725Z"
               },
               {
                 "id": 2,
                 "name": "Editor",
                 "description": "Can edit content",
                 "level": 50,
-                "createdAt": "2026-07-18T20:40:09.093Z",
-                "updatedAt": "2026-07-18T20:40:09.093Z"
+                "createdAt": "2026-10-19T04:21:21.725Z",
+                "updatedAt": "2026-10-19T04:21:21.725Z"
               }
             ],
             "favoriteCategory": null,
@@ -1485,8 +1485,8 @@
                 "slug": "getting-started-typescript",
                 "isPublished": true,
                 "viewCount": 100,
-                "createdAt": "2026-07-18T20:40:09.110Z",
-                "updatedAt": "2026-07-18T20:40:09.110Z"
+                "createdAt": "2026-10-19T04:21:21.730Z",
+                "updatedAt": "2026-10-19T04:21:21.730Z"
               },
               {
                 "id": 3,
@@ -1495,8 +1495,8 @@
                 "slug": "draft-post",
                 "isPublished": false,
                 "viewCount": 0,
-                "createdAt": "2026-07-18T20:40:09.123Z",
-                "updatedAt": "2026-07-18T20:40:09.163Z"
+                "createdAt": "2026-10-19T04:21:21.734Z",
+                "updatedAt": "2026-10-19T04:21:21.754Z"
               },
               {
                 "id": 4,
@@ -1505,8 +1505,8 @@
                 "slug": "intro-to-datrix",
                 "isPublished": true,
                 "viewCount": 0,
-                "createdAt": "2026-07-18T20:40:09.134Z",
-                "updatedAt": "2026-07-18T20:40:09.134Z"
+                "createdAt": "2026-10-19T04:21:21.739Z",
+                "updatedAt": "2026-10-19T04:21:21.739Z"
               }
             ]
           }
@@ -1542,23 +1542,23 @@
             "name": "Editor User",
             "age": 28,
             "isActive": true,
-            "createdAt": "2026-07-18T20:40:09.096Z",
-            "updatedAt": "2026-07-18T20:40:09.180Z",
+            "createdAt": "2026-10-19T04:21:21.725Z",
+            "updatedAt": "2026-10-19T04:21:21.757Z",
             "organization": {
               "id": 1,
               "name": "Acme Corp",
               "country": "USA",
               "isActive": true,
-              "createdAt": "2026-07-18T20:40:09.081Z",
-              "updatedAt": "2026-07-18T20:40:09.081Z"
+              "createdAt": "2026-10-19T04:21:21.720Z",
+              "updatedAt": "2026-10-19T04:21:21.720Z"
             },
             "department": {
               "id": 2,
               "name": "Marketing",
               "code": "MKT",
               "budget": 50000,
-              "createdAt": "2026-07-18T20:40:09.088Z",
-              "updatedAt": "2026-07-18T20:40:09.088Z"
+              "createdAt": "2026-10-19T04:21:21.723Z",
+              "updatedAt": "2026-10-19T04:21:21.723Z"
             },
             "roles": [],
             "favoriteCategory": null,
@@ -1570,8 +1570,8 @@
                 "slug": "docker-beginners",
                 "isPublished": true,
                 "viewCount": 50,
-                "createdAt": "2026-07-18T20:40:09.117Z",
-                "updatedAt": "2026-07-18T20:40:09.117Z"
+                "createdAt": "2026-10-19T04:21:21.732Z",
+                "updatedAt": "2026-10-19T04:21:21.732Z"
               },
               {
                 "id": 5,
@@ -1580,10 +1580,236 @@
                 "slug": "full-stack-typescript",
                 "isPublished": true,
                 "viewCount": 0,
-                "createdAt": "2026-07-18T20:40:09.139Z",
-                "updatedAt": "2026-07-18T20:40:09.139Z"
+                "createdAt": "2026-10-19T04:21:21.741Z",
+                "updatedAt": "2026-10-19T04:21:21.741Z"
               }
             ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "upsert",
+      "label": "Upsert",
+      "scenarios": [
+        {
+          "id": "upsert-insert",
+          "label": "Insert when no match",
+          "action": "upsert",
+          "model": "tag",
+          "data": {
+            "name": "Svelte",
+            "color": "#FF3E00"
+          },
+          "options": {
+            "conflictOn": [
+              "name"
+            ]
+          },
+          "output": {
+            "id": 9,
+            "name": "Svelte",
+            "color": "#FF3E00",
+            "createdAt": "2026-10-19T04:21:21.759Z",
+            "updatedAt": "2026-10-19T04:21:21.759Z"
+          }
+        },
+        {
+          "id": "upsert-update",
+          "label": "Update when matched",
+          "action": "upsert",
+          "model": "tag",
+          "data": {
+            "name": "TypeScript",
+            "color": "#2F74C0"
+          },
+          "options": {
+            "conflictOn": [
+              "name"
+            ]
+          },
+          "output": {
+            "id": 2,
+            "name": "TypeScript",
+            "color": "#2F74C0",
+            "createdAt": "2026-10-19T04:21:21.729Z",
+            "updatedAt": "2026-10-19T04:21:21.760Z"
+          }
+        },
+        {
+          "id": "upsert-many",
+          "label": "Upsert many records",
+          "action": "upsertMany",
+          "model": "tag",
+          "data": [
+            {
+              "name": "React",
+              "color": "#149ECA"
+            },
+            {
+              "name": "Elixir",
+              "color": "#4B275F"
+            }
+          ],
+          "options": {
+            "conflictOn": [
+              "name"
+            ]
+          },
+          "output": [
+            {
+              "id": 4,
+              "name": "React",
+              "color": "#149ECA",
+              "createdAt": "2026-10-19T04:21:21.729Z",
+              "updatedAt": "2026-10-19T04:21:21.760Z"
+            },
+            {
+              "id": 10,
+              "name": "Elixir",
+              "color": "#4B275F",
+              "createdAt": "2026-10-19T04:21:21.760Z",
+              "updatedAt": "2026-10-19T04:21:21.760Z"
+            }
+          ]
+        },
+        {
+          "id": "upsert-update-fields",
+          "label": "Update selected fields",
+          "action": "upsert",
+          "model": "post",
+          "data": {
+            "title": "Intro to Datrix (2nd edition)",
+            "content": "Datrix is a type-safe database framework.",
+            "slug": "intro-to-datrix",
+            "viewCount": 120
+          },
+          "options": {
+            "conflictOn": [
+              "slug"
+            ],
+            "update": [
+              "viewCount"
+            ]
+          },
+          "output": {
+            "id": 4,
+            "title": "Intro to Datrix",
+            "content": "Datrix is a type-safe database framework.",
+            "slug": "intro-to-datrix",
+            "isPublished": true,
+            "viewCount": 120,
+            "createdAt": "2026-10-19T04:21:21.739Z",
+            "updatedAt": "2026-10-19T04:21:21.761Z"
+          }
+        },
+        {
+          "id": "upsert-insert-missing",
+          "label": "Insert only missing",
+          "action": "upsertMany",
+          "model": "tag",
+          "data": [
+            {
+              "name": "Docker",
+              "color": "#000000"
+            },
+            {
+              "name": "Zig",
+              "color": "#F7A41D"
+            }
+          ],
+          "options": {
+            "conflictOn": [
+              "name"
+            ],
+            "update": []
+          },
+          "output": [
+            {
+              "id": 5,
+              "name": "Docker",
+              "color": "#2496ED",
+              "createdAt": "2026-10-19T04:21:21.729Z",
+              "updatedAt": "2026-10-19T04:21:21.729Z"
+            },
+            {
+              "id": 11,
+              "name": "Zig",
+              "color": "#F7A41D",
+              "createdAt": "2026-10-19T04:21:21.762Z",
+              "updatedAt": "2026-10-19T04:21:21.762Z"
+            }
+          ]
+        },
+        {
+          "id": "upsert-with-relation",
+          "label": "Upsert with relations",
+          "action": "upsert",
+          "model": "post",
+          "data": {
+            "title": "Upserting with Datrix",
+            "content": "Insert or update in a single call.",
+            "slug": "upserting-with-datrix",
+            "isPublished": true,
+            "author": 1,
+            "category": 2,
+            "tags": {
+              "connect": [
+                2,
+                3
+              ]
+            }
+          },
+          "options": {
+            "conflictOn": [
+              "slug"
+            ],
+            "populate": true
+          },
+          "output": {
+            "id": 6,
+            "title": "Upserting with Datrix",
+            "content": "Insert or update in a single call.",
+            "slug": "upserting-with-datrix",
+            "isPublished": true,
+            "viewCount": 0,
+            "createdAt": "2026-10-19T04:21:21.763Z",
+            "updatedAt": "2026-10-19T04:21:21.763Z",
+            "author": {
+              "id": 1,
+              "email": "admin@acme.com",
+              "name": "Admin User",
+              "age": 35,
+              "isActive": true,
+              "createdAt": "2026-10-19T04:21:21.725Z",
+              "updatedAt": "2026-10-19T04:21:21.755Z"
+            },
+            "category": {
+              "id": 2,
+              "name": "Programming",
+              "slug": "programming",
+              "description": "Programming tutorials",
+              "isActive": true,
+              "createdAt": "2026-10-19T04:21:21.728Z",
+              "updatedAt": "2026-10-19T04:21:21.728Z"
+            },
+            "tags": [
+              {
+                "id": 2,
+                "name": "TypeScript",
+                "color": "#2F74C0",
+                "createdAt": "2026-10-19T04:21:21.729Z",
+                "updatedAt": "2026-10-19T04:21:21.760Z"
+              },
+              {
+                "id": 3,
+                "name": "Node.js",
+                "color": "#339933",
+                "createdAt": "2026-10-19T04:21:21.729Z",
+                "updatedAt": "2026-10-19T04:21:21.729Z"
+              }
+            ],
+            "comments": []
           }
         }
       ]
@@ -1597,16 +1823,16 @@
           "label": "Delete a record",
           "action": "delete",
           "model": "tag",
-          "idArg": 9,
+          "idArg": 12,
           "options": {
             "populate": true
           },
           "output": {
-            "id": 9,
+            "id": 12,
             "name": "TempTag",
             "color": "#AAAAAA",
-            "createdAt": "2026-07-18T20:40:09.187Z",
-            "updatedAt": "2026-07-18T20:40:09.187Z"
+            "createdAt": "2026-10-19T04:21:21.764Z",
+            "updatedAt": "2026-10-19T04:21:21.764Z"
           }
         },
         {
@@ -1621,18 +1847,18 @@
           },
           "output": [
             {
-              "id": 10,
+              "id": 13,
               "name": "OldTag1",
               "color": "#111111",
-              "createdAt": "2026-07-18T20:40:09.194Z",
-              "updatedAt": "2026-07-18T20:40:09.194Z"
+              "createdAt": "2026-10-19T04:21:21.766Z",
+              "updatedAt": "2026-10-19T04:21:21.766Z"
             },
             {
-              "id": 11,
+              "id": 14,
               "name": "OldTag2",
               "color": "#222222",
-              "createdAt": "2026-07-18T20:40:09.194Z",
-              "updatedAt": "2026-07-18T20:40:09.194Z"
+              "createdAt": "2026-10-19T04:21:21.766Z",
+              "updatedAt": "2026-10-19T04:21:21.766Z"
             }
           ]
         }

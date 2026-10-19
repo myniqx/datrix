@@ -181,6 +181,69 @@ See [update](#update) for a full description of available options.
 
 ---
 
+### upsert
+
+```typescript
+upsert<T extends DatrixEntry = DatrixRecord, TInput extends FallbackInput = FallbackInput>(
+  model: string,           // registered schema name
+  data: TInput,            // field values to insert or apply
+  options: RawUpsertOptions<T>, // conflictOn, update, select, populate
+): Promise<T>
+```
+
+Inserts a record, or updates the existing one when it matches on `conflictOn`,
+and returns it. A matched record is updated with the row's own incoming values.
+Rows are validated as creates (required fields etc.), even if they end up
+updating. See [Relations](/docs/core/relations) for the accepted formats in the
+`data` argument.
+
+**Options:**
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `conflictOn` | `readonly string[]` | required | Conflict target: a field with `unique: true`, `id`, or exactly the fields of a unique index (`indexes: [{ fields: [...], unique: true }]`, order-insensitive). A `belongsTo` relation name maps to its foreign key column. |
+| `update` | `readonly string[]` | every field set in all rows | Fields overwritten on conflict. Omitted: every field set in all rows, except `id`, `createdAt`, `updatedAt` and the conflict fields. `[]` leaves matched records untouched (relations included) while new rows are still inserted. |
+| `select` | `SelectClause<T>` | `"*"` | Fields to return. |
+| `populate` | `PopulateClause<T>` | — | Relations to populate on the returned record. |
+| `noReturning` | `boolean` | `false` | Skip the post-upsert SELECT. Returns only the record IDs. |
+
+`updatedAt` is refreshed on conflict when `update` is non-empty; `createdAt` is
+never overwritten.
+
+The query builder rejects a non-unique `conflictOn`, a row without a value for
+a `conflictOn` field, two rows with the same `conflictOn` values in one batch,
+`update` fields that are not set in every row, and reserved fields (`id`,
+`createdAt`, `updatedAt`) in `update`.
+
+Schema [`beforeUpsert` / `afterUpsert`](/docs/core/schema#lifecycle-hooks) hooks
+fire for upserts; `beforeCreate`, `afterCreate`, `beforeUpdate` and `afterUpdate`
+do not.
+
+---
+
+### upsertMany
+
+```typescript
+upsertMany<T extends DatrixEntry = DatrixRecord, TInput extends FallbackInput = FallbackInput>(
+  model: string,           // registered schema name
+  data: TInput[],          // array of field values
+  options: RawUpsertOptions<T>, // conflictOn, update, select, populate
+): Promise<T[]>
+```
+
+Upserts multiple records in a single statement and returns them all.
+
+See [upsert](#upsert) for a full description of available options.
+
+Relations follow the same rule as [createMany](#createmany): the relation set of
+the first row is applied to every returned record. With `update: []` it is
+applied only to newly inserted records.
+
+On MySQL and MariaDB, a row conflicts with **any** unique key of the table, not
+only `conflictOn`.
+
+---
+
 ### delete
 
 ```typescript

@@ -1,4 +1,4 @@
-import { TYPE_DEFINITIONS } from "./type-definitions";
+import { TYPE_DEFINITIONS } from "./type-definitions.ts";
 
 export function buildTypesMarkdown(): string {
 	const entries = Object.entries(TYPE_DEFINITIONS).filter(

@@ -25,6 +25,8 @@ type DatrixAction =
 	| "countMany"
 	| "update"
 	| "updateMany"
+	| "upsert"
+	| "upsertMany"
 	| "delete"
 	| "deleteMany";
 
@@ -171,7 +173,10 @@ function CodeBlock({ scenario }: { scenario: Scenario }) {
 			<code>
 				{fn}
 				{op}
-				{(action === "create" || action === "createMany") && (
+				{(action === "create" ||
+					action === "createMany" ||
+					action === "upsert" ||
+					action === "upsertMany") && (
 					<>
 						{mod}
 						{sep}
@@ -306,6 +311,7 @@ const GROUP_COLORS: Record<string, string> = {
 	create: "data-[state=active]:text-chart-3 data-[state=active]:border-chart-3",
 	read: "data-[state=active]:text-primary data-[state=active]:border-primary",
 	update: "data-[state=active]:text-chart-2 data-[state=active]:border-chart-2",
+	upsert: "data-[state=active]:text-chart-4 data-[state=active]:border-chart-4",
 	delete:
 		"data-[state=active]:text-destructive data-[state=active]:border-destructive",
 };

@@ -50,7 +50,7 @@ interface DatrixTransaction extends IRawCrud {
 
 `tx` exposes the same CRUD methods as the Datrix instance — `findOne`, `findById`,
 `findMany`, `count`, `countMany`, `create`, `createMany`, `update`, `updateMany`,
-`delete`, `deleteMany` — see [Interfaces](/docs/core/interfaces#crud-methods) for
+`upsert`, `upsertMany`, `delete`, `deleteMany` — see [Interfaces](/docs/core/interfaces#crud-methods) for
 their signatures.
 
 | Member | Description |
@@ -147,6 +147,12 @@ Using `tx` after the transaction has finished throws a `DatrixError` with code
 | `TRANSACTION_CLOSED` | `tx` was used after the transaction finished |
 
 > Nested transactions are not supported — `tx` has no `transaction` method.
+
+> Inside `fn`, use only `tx` (and `ctx.crud` in hooks). Writes through the
+> global `datrix` do not join the transaction: on JSON they wait for the
+> transaction itself and fail with a lock timeout; on Postgres they block if
+> they touch rows the transaction has locked, and otherwise commit independently
+> even if the transaction rolls back.
 
 ---
 

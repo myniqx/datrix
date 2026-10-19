@@ -280,7 +280,9 @@ import type {
   QueryInsertObject,
   QueryUpdateObject,
   QueryDeleteObject,
+  QueryUpsertObject,
   QuerySelectObject,
+  UpsertHookResult,
 } from "@datrix/core"
 
 const postSchema = defineSchema({
@@ -337,6 +339,23 @@ const postSchema = defineSchema({
       // Runs after DELETE — receives the deleted records, return value is ignored
     },
 
+    beforeUpsert: (
+      query: QueryUpsertObject<Post>,
+      ctx: QueryContext,
+    ): QueryUpsertObject<Post> => {
+      // Runs before UPSERT — must return the (possibly modified) query
+      return query
+    },
+
+    afterUpsert: (
+      records: Post[],
+      ctx: QueryContext,
+      result: UpsertHookResult<Post>,
+    ): Post[] => {
+      // Runs after UPSERT — result.created / result.updated split the records
+      return records
+    },
+
     beforeFind: (
       query: QuerySelectObject<Post>,
       ctx: QueryContext,
@@ -355,6 +374,12 @@ const postSchema = defineSchema({
   },
 })
 ```
+
+### Upsert hooks
+
+`upsert` and `upsertMany` fire only `beforeUpsert` / `afterUpsert`. `beforeCreate`, `afterCreate`, `beforeUpdate` and `afterUpdate` do **not** run, even for rows that end up inserted or updated — repeat logic such as slug generation in `beforeUpsert` if you need it there.
+
+`afterUpsert` receives all returned records plus `{ created, updated }`: the records that were inserted and the ones that matched an existing row.
 
 ### Error behaviour
 

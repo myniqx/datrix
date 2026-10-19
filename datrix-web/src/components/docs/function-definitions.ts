@@ -76,6 +76,20 @@ export const FUNCTION_DEFINITIONS: Record<string, FunctionDefinition> = {
 		docsPath: "/docs/core/interfaces#updatemany",
 	},
 
+	upsert: {
+		signature: `upsert<T extends DatrixEntry, TInput extends FallbackInput>(\n  model: string,\n  data: TInput,\n  options: RawUpsertOptions<T>,\n): Promise<T>`,
+		description:
+			"Inserts a record, or updates the existing one when it matches on conflictOn, and returns it. Matched records are updated with the row's own incoming values.",
+		docsPath: "/docs/core/interfaces#upsert",
+	},
+
+	upsertMany: {
+		signature: `upsertMany<T extends DatrixEntry, TInput extends FallbackInput>(\n  model: string,\n  data: TInput[],\n  options: RawUpsertOptions<T>,\n): Promise<T[]>`,
+		description:
+			"Upserts multiple records in a single statement and returns them all. Rows must have unique conflictOn values within the batch.",
+		docsPath: "/docs/core/interfaces#upsertmany",
+	},
+
 	delete: {
 		signature: `delete<T extends DatrixEntry>(\n  model: string,\n  id: number,\n  options?: RawCrudOptions<T>,\n): Promise<T>`,
 		description:

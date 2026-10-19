@@ -192,6 +192,8 @@ override async onBeforeQuery<T extends DatrixEntry>(
 }
 ```
 
+Upserts reach `onBeforeQuery` as `query.type === "upsert"`, with `context.action` set to `"upsert"` or `"upsertMany"`.
+
 ### onAfterQuery
 
 Receives the result and must return it (modified or unchanged). Use it to strip sensitive fields, transform output, or trigger side effects.
@@ -289,7 +291,7 @@ export class AuditLogPlugin extends BasePlugin<AuditLogOptions> {
     if (tracked && !tracked.includes(schemaName)) return result
     if (schemaName === "auditLog") return result  // avoid infinite loop
 
-    const writeActions = ["create", "createMany", "update", "updateMany", "delete", "deleteMany"]
+    const writeActions = ["create", "createMany", "update", "updateMany", "upsert", "upsertMany", "delete", "deleteMany"]
     if (!writeActions.includes(context.action)) return result
 
     const ctx = this.getContext()
