@@ -102,7 +102,7 @@ function buildLlmsTxt(
 		"",
 		"> TypeScript-first database management framework. Integrate REST API query capabilities into your existing project.",
 		"",
-		`> Full docs: ${siteUrl}/docs`,
+		`> Full docs: ${siteUrl}/docs/`,
 		"",
 	];
 
@@ -127,7 +127,7 @@ function buildLlmsTxt(
 			const urlSlug = doc.slug.endsWith("/index")
 				? doc.slug.slice(0, -6)
 				: doc.slug;
-			const url = `${siteUrl}/docs/${urlSlug}`;
+			const url = `${siteUrl}/docs/${urlSlug}/`;
 			const desc = doc.description ? `: ${doc.description}` : "";
 			lines.push(`- [${doc.title}](${url})${desc}`);
 		}
@@ -197,7 +197,8 @@ export function llmsPlugin(options?: {
 				...d,
 				markdown: overrides[d.slug] ?? d.markdown,
 			}));
-			const outDir = path.resolve(import.meta.dirname, "../../dist");
+			// Must land in the deployed static root, next to the prerendered pages
+			const outDir = path.resolve(import.meta.dirname, "../../build/client");
 
 			fs.mkdirSync(outDir, { recursive: true });
 

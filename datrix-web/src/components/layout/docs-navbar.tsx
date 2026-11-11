@@ -21,7 +21,7 @@ export function DocsNavbar() {
 						</Link>
 						<span className="text-foreground/30">/</span>
 						<Link
-							to="/docs"
+							to="/docs/"
 							className="text-sm text-foreground/60 hover:text-foreground transition-colors"
 						>
 							docs

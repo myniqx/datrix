@@ -26,5 +26,10 @@ const DOC_SLUGS = getDocSlugs(join(import.meta.dirname, "src/docs"));
 export default {
 	ssr: false,
 	appDirectory: "src",
-	prerender: ["/", "/docs", ...DOC_SLUGS.map((s) => `/docs/${slugToPath(s)}`)],
+	prerender: [
+		"/",
+		"/404",
+		"/docs",
+		...DOC_SLUGS.map((s) => `/docs/${slugToPath(s)}`),
+	],
 } satisfies Config;

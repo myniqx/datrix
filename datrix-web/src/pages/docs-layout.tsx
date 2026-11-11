@@ -75,7 +75,7 @@ function SidebarLink({
 	const isHighlighted = isActive || (isSection && hasActiveChild);
 	return (
 		<Link
-			to={`/docs/${slug}`}
+			to={`/docs/${slug}/`}
 			className={`group flex items-center gap-2 rounded-md font-heading transition-colors ${isSection ? "text-sm font-medium py-1.5 px-2" : "text-sm py-1 px-2"
 				} ${isHighlighted
 					? "text-foreground"
@@ -168,7 +168,7 @@ function PageNavFooter({ currentSlug }: { currentSlug: string }) {
 				<nav className="mt-6 flex items-stretch justify-between gap-4">
 					{prev ? (
 						<Link
-							to={`/docs/${prev.slug}`}
+							to={`/docs/${prev.slug}/`}
 							className="group flex flex-1 flex-col gap-1 rounded-lg border border-border/50 px-4 py-3 transition-colors hover:border-border hover:bg-muted/40"
 						>
 							<span className="text-xs text-foreground/40">← Previous</span>
@@ -181,7 +181,7 @@ function PageNavFooter({ currentSlug }: { currentSlug: string }) {
 					)}
 					{next ? (
 						<Link
-							to={`/docs/${next.slug}`}
+							to={`/docs/${next.slug}/`}
 							className="group flex flex-1 flex-col items-end gap-1 rounded-lg border border-border/50 px-4 py-3 text-right transition-colors hover:border-border hover:bg-muted/40"
 						>
 							<span className="text-xs text-foreground/40">Next →</span>

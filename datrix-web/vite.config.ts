@@ -8,6 +8,7 @@ import remarkMdxFrontmatter from "remark-mdx-frontmatter";
 import remarkGfm from "remark-gfm";
 import remarkTocExport from "./src/lib/remark-toc-export.ts";
 import remarkExternalLinks from "./src/lib/remark-external-links.ts";
+import remarkTrailingSlash from "./src/lib/remark-trailing-slash.ts";
 import rehypeSlug from "rehype-slug";
 import { llmsPlugin } from "./src/lib/vite-plugin-llms.ts";
 import { buildTypesMarkdown } from "./src/components/docs/build-types-markdown.ts";
@@ -25,6 +26,7 @@ export default defineConfig({
 				remarkMdxFrontmatter,
 				remarkTocExport,
 				remarkExternalLinks,
+				remarkTrailingSlash,
 			],
 			rehypePlugins: [rehypeSlug],
 		}),

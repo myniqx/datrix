@@ -10,7 +10,7 @@ import { DATRIX_VERSION, DATRIX_GITHUB_URL } from "@/data/constants";
 const NAV_LINKS = [
 	{ label: "Showcase", href: "#showcase" },
 	{ label: "Features", href: "#features" },
-	{ label: "Docs", href: "/docs" },
+	{ label: "Docs", href: "/docs/" },
 ] as const;
 
 interface NavbarProps {
@@ -73,7 +73,7 @@ export function Navbar({ starCount }: NavbarProps) {
 						</Button>
 					</nav>
 					<Button asChild size="sm">
-						<a href="/docs">Get Started</a>
+						<a href="/docs/">Get Started</a>
 					</Button>
 				</div>
 

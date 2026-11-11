@@ -2,6 +2,7 @@ import type { ReactNode, ComponentType } from "react";
 import { Link } from "react-router";
 import { Card, CardContent } from "@/components/ui/card";
 import { TypescriptCodeBlock } from "@/components/docs/code-block";
+import { withTrailingSlash } from "@/lib/trailing-slash";
 
 interface FeatureCardProps {
 	icon: ComponentType<{ className?: string }>;
@@ -43,7 +44,7 @@ export function FeatureCard({
 			<div className={wide ? "sm:col-span-2" : undefined}>
 				{href ? (
 					<Link
-						to={href}
+						to={withTrailingSlash(href)}
 						className="block h-full transition-transform duration-200 ease-out hover:scale-[1.02]"
 					>
 						{content}
@@ -98,7 +99,7 @@ export function FeatureCard({
 		<div className={wide ? "sm:col-span-2" : undefined}>
 			{href ? (
 				<Link
-					to={href}
+					to={withTrailingSlash(href)}
 					className="block h-full transition-transform duration-200 ease-out hover:scale-[1.02]"
 				>
 					{content}

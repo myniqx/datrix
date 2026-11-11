@@ -14,4 +14,7 @@ export default [
 			id: "docs-page",
 		}),
 	]),
+	// Prerendered as /404 and copied to 404.html by scripts/postbuild.mjs so
+	// Cloudflare Pages returns a real 404 instead of a soft-404 200.
+	route("*", "pages/not-found.tsx"),
 ] satisfies RouteConfig;

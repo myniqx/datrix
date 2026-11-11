@@ -17,9 +17,12 @@ export const meta: MetaFunction = ({ params }) => {
 		: undefined;
 	const title = mod ? `${mod.frontmatter.title} — Datrix Docs` : "Datrix Docs";
 	const description = mod?.frontmatter.description ?? "Datrix documentation.";
+	// Trailing slash matches the URL Cloudflare Pages actually serves
+	// (`/docs/x` 308-redirects to `/docs/x/`); a canonical pointing at the
+	// redirecting form keeps Google from indexing either variant.
 	const path = slug
-		? `/docs/${slug.endsWith("/index") ? slug.slice(0, -6) : slug}`
-		: "/docs";
+		? `/docs/${slug.endsWith("/index") ? slug.slice(0, -6) : slug}/`
+		: "/docs/";
 	const url = `${SITE_URL}${path}`;
 
 	return [

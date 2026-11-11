@@ -54,7 +54,7 @@ export function NavbarMobile({ starCount }: NavbarMobileProps) {
 						Features
 					</a>
 					<a
-						href="/docs"
+						href="/docs/"
 						className="rounded-md px-2 py-2 text-sm text-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
 					>
 						Docs
@@ -82,7 +82,7 @@ export function NavbarMobile({ starCount }: NavbarMobileProps) {
 
 				<div className="mt-4 px-6">
 					<Button asChild className="w-full" size="sm">
-						<a href="/docs">Get Started</a>
+						<a href="/docs/">Get Started</a>
 					</Button>
 				</div>
 			</SheetContent>

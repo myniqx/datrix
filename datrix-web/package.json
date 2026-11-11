@@ -8,7 +8,7 @@
 	},
 	"scripts": {
 		"dev": "vite",
-		"build": "react-router build",
+		"build": "react-router build && node scripts/postbuild.mjs",
 		"preview": "vite preview",
 		"lint": "eslint"
 	},
