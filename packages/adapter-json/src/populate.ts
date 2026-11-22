@@ -18,7 +18,9 @@ import {
 	resolveForeignKey,
 	resolveJunctionForeignKeys,
 	resolveJunctionTableName,
+	normalizeStoredId,
 } from "./table-utils";
+import type { IdValue } from "@datrix/core";
 
 export class JsonPopulator {
 	constructor(private adapter: JsonAdapter) {}
@@ -260,16 +262,14 @@ export class JsonPopulator {
 
 				// Build mapping: sourceId -> targetIds[]
 				// Normalize all IDs to number for consistent comparison
-				const mapping = new Map<number, number[]>();
+				const mapping = new Map<IdValue, IdValue[]>();
 				for (const junction of relevantJunctions) {
 					const srcId = junction[sourceFK as keyof typeof junction];
 					const tgtId = junction[targetFK as keyof typeof junction];
 
 					// Normalize to number
-					const normalizedSrcId =
-						typeof srcId === "string" ? Number(srcId) : (srcId as number);
-					const normalizedTgtId =
-						typeof tgtId === "string" ? Number(tgtId) : (tgtId as number);
+					const normalizedSrcId = normalizeStoredId(srcId);
+					const normalizedTgtId = normalizeStoredId(tgtId);
 
 					const existing = mapping.get(normalizedSrcId) ?? [];
 					existing.push(normalizedTgtId);
@@ -277,7 +277,7 @@ export class JsonPopulator {
 				}
 
 				// Collect all unique target IDs
-				const allTargetIds = new Set<number>();
+				const allTargetIds = new Set<IdValue>();
 				for (const ids of mapping.values()) {
 					ids.forEach((id) => allTargetIds.add(id));
 				}
@@ -309,15 +309,13 @@ export class JsonPopulator {
 				// Map to result rows, applying limit/offset per-row
 				for (const row of result) {
 					const rowId = row["id"];
-					const normalizedRowId =
-						typeof rowId === "string" ? Number(rowId) : (rowId as number);
+					const normalizedRowId = normalizeStoredId(rowId);
 					const targetIds = mapping.get(normalizedRowId) ?? [];
 
 					// Filter to this row's related records (already where/order filtered above)
 					let relatedRecords = targetRecords.filter((r) => {
 						const rID = r["id"];
-						const normalizedRID =
-							typeof rID === "string" ? Number(rID) : (rID as number);
+						const normalizedRID = normalizeStoredId(rID);
 						return targetIds.includes(normalizedRID);
 					});
 

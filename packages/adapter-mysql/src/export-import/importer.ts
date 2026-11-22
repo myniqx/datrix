@@ -3,7 +3,7 @@ import type { ExecuteValues } from "mysql2";
 import type { ImportReader } from "@datrix/core";
 import type { SchemaDefinition } from "@datrix/core";
 import type { MySQLAdapter } from "../adapter";
-import { DATRIX_META_MODEL } from "@datrix/core";
+import { DATRIX_META_MODEL, getSchemaIdKind } from "@datrix/core";
 import {
 	escapeIdentifier,
 	mapReferentialAction,
@@ -80,6 +80,9 @@ export class MySQLImporter {
 			// 5. Reset AUTO_INCREMENT for all tables
 			const tables = await reader.getTables();
 			for (const tableName of tables) {
+				// uuid tables have no AUTO_INCREMENT — ids are core-generated
+				const schema = schemas.get(tableName);
+				if (schema && getSchemaIdKind(schema) === "uuid") continue;
 				await this.resetAutoIncrement(connection, tableName);
 			}
 		} finally {
@@ -146,7 +149,11 @@ export class MySQLImporter {
 		const escapedTable = escapeIdentifier(tableName);
 
 		for (const [fieldName, field] of Object.entries(schema.fields)) {
-			if (field.type !== "number" || !field.references) continue;
+			if (
+				(field.type !== "number" && field.type !== "uuid") ||
+				!field.references
+			)
+				continue;
 
 			const col = escapeIdentifier(fieldName);
 			const refTable = escapeIdentifier(field.references.table);

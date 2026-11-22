@@ -7,6 +7,7 @@
  * Checks that referenced IDs exist in the target collection.
  */
 
+import type { IdValue } from "@datrix/core";
 import type {
 	SchemaDefinition,
 	FieldDefinition,
@@ -60,7 +61,7 @@ export async function validateFkReferencesForUpdate<T extends DatrixEntry>(
 interface FkCheck {
 	readonly targetTable: string;
 	readonly fieldName: string;
-	readonly ids: Set<number>;
+	readonly ids: Set<IdValue>;
 }
 
 /**
@@ -81,7 +82,11 @@ function collectFkChecks(
 
 		for (const doc of documents) {
 			const value = doc[fieldName];
-			if (value == null || typeof value !== "number") continue;
+			if (
+				value == null ||
+				(typeof value !== "number" && typeof value !== "string")
+			)
+				continue;
 
 			if (!checksMap.has(key)) {
 				checksMap.set(key, { targetTable, fieldName, ids: new Set() });
@@ -118,7 +123,7 @@ async function runFkChecks<T extends DatrixEntry>(
 					.toArray(),
 		);
 
-		const existingIds = new Set(existingDocs.map((d) => d["id"] as number));
+		const existingIds = new Set(existingDocs.map((d) => d["id"] as IdValue));
 		const missingIds = idsArray.filter((id) => !existingIds.has(id));
 
 		if (missingIds.length > 0) {

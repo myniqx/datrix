@@ -15,6 +15,16 @@ import {
 	throwUniqueConstraintIndex,
 } from "@datrix/core";
 import { DATRIX_META_MODEL } from "@datrix/core";
+import type { IdValue } from "@datrix/core";
+
+/**
+ * Normalize a stored id for comparison: numeric strings become numbers
+ * (legacy int data), uuid strings are kept as-is.
+ */
+export function normalizeStoredId(value: unknown): IdValue {
+	if (typeof value === "string" && /^\d+$/.test(value)) return Number(value);
+	return value as IdValue;
+}
 
 /**
  * Fallback projection when `select` is undefined (core issue 2.2, post-write
@@ -412,7 +422,7 @@ async function findFkDependencies(
 		if (!schema?.fields) continue;
 
 		for (const [fieldName, fieldDef] of Object.entries(schema.fields)) {
-			if (fieldDef.type !== "number") continue;
+			if (fieldDef.type !== "number" && fieldDef.type !== "uuid") continue;
 
 			const numField = fieldDef as { references?: ForeignKeyReference };
 			const ref = numField.references;
@@ -435,7 +445,7 @@ async function findFkDependencies(
  */
 export async function applyOnDeleteActions(
 	targetTable: string,
-	idsToDelete: ReadonlyArray<number>,
+	idsToDelete: ReadonlyArray<IdValue>,
 	adapter: JsonAdapter,
 	queryOptions?: ExecuteQueryOptions,
 ): Promise<void> {
@@ -452,7 +462,7 @@ export async function applyOnDeleteActions(
 		if (!tableData) continue;
 
 		const hasReference = tableData.data.some((row) =>
-			idsToDelete.includes(row[dep.fieldName] as number),
+			idsToDelete.includes(row[dep.fieldName] as IdValue),
 		);
 
 		if (hasReference) {
@@ -495,8 +505,8 @@ export async function applyOnDeleteActions(
 		if (!tableData) continue;
 
 		const childIds = tableData.data
-			.filter((row) => idsToDelete.includes(row[dep.fieldName] as number))
-			.map((row) => row["id"] as number);
+			.filter((row) => idsToDelete.includes(row[dep.fieldName] as IdValue))
+			.map((row) => row["id"] as IdValue);
 
 		if (childIds.length === 0) continue;
 

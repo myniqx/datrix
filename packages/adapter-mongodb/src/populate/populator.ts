@@ -540,7 +540,8 @@ export class MongoDBPopulator<T extends DatrixEntry> {
 
 		const windowed = [...group];
 		if (!options.orderBy || options.orderBy.length === 0) {
-			windowed.sort((a, b) => (a.id as number) - (b.id as number));
+			// ids are integers or time-ordered uuid strings
+			windowed.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 		}
 
 		const end = options.limit !== undefined ? start + options.limit : undefined;

@@ -2,7 +2,7 @@ import type { ImportReader } from "@datrix/core";
 import type { SchemaDefinition } from "@datrix/core";
 import type { PostgresCoreAdapter } from "../adapter";
 import type { PgConnection, PgRunner } from "../driver";
-import { DATRIX_META_MODEL } from "@datrix/core";
+import { DATRIX_META_MODEL, getSchemaIdKind } from "@datrix/core";
 
 const CHUNK_SIZE = 1000;
 
@@ -69,6 +69,9 @@ export class PostgresImporter {
 		// archives is not engineered around).
 		const tables = await reader.getTables();
 		for (const tableName of tables) {
+			// uuid tables have no sequence — ids are core-generated
+			const schema = schemas.get(tableName);
+			if (schema && getSchemaIdKind(schema) === "uuid") continue;
 			await this.resetSequence(tableName);
 		}
 	}
@@ -133,7 +136,11 @@ export class PostgresImporter {
 		const escapedTable = translator.escapeIdentifier(tableName);
 
 		for (const [fieldName, field] of Object.entries(schema.fields)) {
-			if (field.type !== "number" || !field.references) continue;
+			if (
+				(field.type !== "number" && field.type !== "uuid") ||
+				!field.references
+			)
+				continue;
 
 			const col = translator.escapeIdentifier(fieldName);
 			const refTable = translator.escapeIdentifier(field.references.table);

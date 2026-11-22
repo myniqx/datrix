@@ -7,6 +7,7 @@
  * Mirrors the JSON adapter's applyOnDeleteActions logic.
  */
 
+import type { IdValue } from "@datrix/core";
 import type {
 	ForeignKeyReference,
 	DatrixEntry,
@@ -34,7 +35,7 @@ function findFkDependencies(
 		const tableName = schema.tableName ?? schema.name.toLowerCase();
 
 		for (const [fieldName, fieldDef] of Object.entries(schema.fields)) {
-			if (fieldDef.type !== "number") continue;
+			if (fieldDef.type !== "number" && fieldDef.type !== "uuid") continue;
 
 			const numField = fieldDef as { references?: ForeignKeyReference };
 			const ref = numField.references;
@@ -56,7 +57,7 @@ function findFkDependencies(
  */
 export async function applyOnDeleteActions<T extends DatrixEntry>(
 	targetTable: string,
-	idsToDelete: readonly number[],
+	idsToDelete: readonly IdValue[],
 	client: MongoClient<T>,
 	schemaRegistry: ISchemaRegistry,
 	visited: Set<string> = new Set(),
@@ -141,7 +142,7 @@ export async function applyOnDeleteActions<T extends DatrixEntry>(
 					.toArray(),
 		);
 
-		const childIds = childDocs.map((d) => d["id"] as number);
+		const childIds = childDocs.map((d) => d["id"] as IdValue);
 		if (childIds.length === 0) continue;
 
 		// Recursive: apply onDelete for children before deleting them, passing

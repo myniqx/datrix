@@ -150,6 +150,7 @@ const FIELD_TYPE_TO_MYSQL: Record<FieldType, MySQLDataType> = {
 	enum: "VARCHAR",
 	file: "TEXT",
 	relation: "INT",
+	uuid: "CHAR",
 };
 
 /**
@@ -174,6 +175,11 @@ export function getMySQLTypeWithModifiers(
 	// Foreign key columns must match the referenced column type (INT)
 	if (field.type === "number" && "references" in field && field.references) {
 		return "INT";
+	}
+
+	// uuid ids / foreign keys — canonical 36-char string
+	if (field.type === "uuid") {
+		return "CHAR(36)";
 	}
 
 	let mysqlType = getMySQLType(field.type);

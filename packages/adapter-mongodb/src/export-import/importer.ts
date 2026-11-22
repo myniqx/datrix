@@ -3,7 +3,7 @@ import type { ImportReader } from "@datrix/core";
 import type { SchemaDefinition } from "@datrix/core";
 import type { MongoDBAdapter } from "../adapter";
 import { COUNTER_KEY_PREFIX } from "../types";
-import { DATRIX_META_MODEL } from "@datrix/core";
+import { DATRIX_META_MODEL, getSchemaIdKind } from "@datrix/core";
 import { getManagedCollections } from "../helpers";
 
 const CHUNK_SIZE = 1000;
@@ -105,9 +105,11 @@ export class MongoDBImporter {
 
 		// Phase 4: reset counters from the imported data.
 		for (const tableName of importTables) {
-			if (tableName !== DATRIX_META_MODEL) {
-				await this.resetCounter(tableName);
-			}
+			if (tableName === DATRIX_META_MODEL) continue;
+			// uuid collections have no counter — ids are core-generated
+			const schema = schemas.get(tableName);
+			if (schema && getSchemaIdKind(schema) === "uuid") continue;
+			await this.resetCounter(tableName);
 		}
 	}
 

@@ -90,6 +90,7 @@ export const FIELD_TYPE_TO_POSTGRES: Record<FieldType, PostgresDataType> = {
 	enum: "VARCHAR",
 	file: "TEXT", // File path/URL stored as text
 	relation: "INTEGER", // Foreign key as integer
+	uuid: "UUID",
 };
 
 /**

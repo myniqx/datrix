@@ -1,4 +1,5 @@
 import { DatrixEntry, GroupCountData, WhereClause } from "@datrix/core";
+import type { IdValue } from "@datrix/core";
 import {
 	QueryCountObject,
 	QueryInsertObject,
@@ -29,7 +30,7 @@ export type QueryHandlerResult<T extends DatrixEntry> = {
 	metadata: {
 		rowCount: number;
 		affectedRows: number;
-		insertIds?: number[];
+		insertIds?: IdValue[];
 		count?: number;
 		countMany?: GroupCountData[];
 	};
@@ -181,7 +182,7 @@ export async function handleInsert<T extends DatrixEntry>(ctx: {
 		});
 	}
 
-	const insertedIds: number[] = [];
+	const insertedIds: IdValue[] = [];
 	const isJunctionTable =
 		(tableSchema as unknown as { _isJunctionTable?: boolean })
 			?._isJunctionTable === true;
@@ -202,7 +203,7 @@ export async function handleInsert<T extends DatrixEntry>(ctx: {
 				),
 			);
 			if (existingRow) {
-				insertedIds.push(existingRow["id"] as number);
+				insertedIds.push(existingRow["id"] as IdValue);
 				continue;
 			}
 		}
@@ -228,7 +229,7 @@ export async function handleInsert<T extends DatrixEntry>(ctx: {
 			pendingUnique,
 		);
 		tableData.data.push(newItem);
-		insertedIds.push(newItem["id"] as number);
+		insertedIds.push(newItem["id"] as IdValue);
 	}
 
 	const rows = insertedIds.map((id) => ({ id })) as T[];
@@ -261,8 +262,8 @@ export async function handleUpsert<T extends DatrixEntry>(ctx: {
 		});
 	}
 
-	const ids: number[] = [];
-	const insertedIds: number[] = [];
+	const ids: IdValue[] = [];
+	const insertedIds: IdValue[] = [];
 	const pendingUnique = createPendingUniqueValues();
 
 	for (const item of query.data) {
@@ -284,11 +285,11 @@ export async function handleUpsert<T extends DatrixEntry>(ctx: {
 				tableData,
 				tableSchema,
 				updatedRow,
-				existingRow["id"] as number,
+				existingRow["id"] as IdValue,
 				pendingUnique,
 			);
 			Object.assign(existingRow, updateData);
-			ids.push(existingRow["id"] as number);
+			ids.push(existingRow["id"] as IdValue);
 			continue;
 		}
 
@@ -312,8 +313,8 @@ export async function handleUpsert<T extends DatrixEntry>(ctx: {
 			pendingUnique,
 		);
 		tableData.data.push(newItem);
-		ids.push(newItem["id"] as number);
-		insertedIds.push(newItem["id"] as number);
+		ids.push(newItem["id"] as IdValue);
+		insertedIds.push(newItem["id"] as IdValue);
 	}
 
 	return {
@@ -363,7 +364,7 @@ export async function handleUpdate<T extends DatrixEntry>(ctx: {
 			tableData,
 			tableSchema,
 			updatedData,
-			row["id"] as number,
+			row["id"] as IdValue,
 			pendingUnique,
 		);
 	}
@@ -372,7 +373,7 @@ export async function handleUpdate<T extends DatrixEntry>(ctx: {
 		Object.assign(row, updateData);
 	}
 
-	const updatedIds = rowsToUpdate.map((r) => r["id"] as number);
+	const updatedIds = rowsToUpdate.map((r) => r["id"] as IdValue);
 	const rows = updatedIds.map((id) => ({ id })) as T[];
 
 	return {
@@ -398,7 +399,7 @@ export async function handleDelete<T extends DatrixEntry>(ctx: {
 		orderBy: undefined,
 	};
 	const rowsToDelete = await runner.filterAndSort(deleteQuery);
-	const idsToDelete = rowsToDelete.map((r) => r.id as number);
+	const idsToDelete = rowsToDelete.map((r) => r.id as IdValue);
 
 	// Apply ON DELETE actions (restrict/setNull/cascade) before deleting
 	// Pass queryOptions to avoid re-acquiring the already-held lock
@@ -406,9 +407,9 @@ export async function handleDelete<T extends DatrixEntry>(ctx: {
 
 	const idsSet = new Set(idsToDelete);
 	const originalLength = tableData.data.length;
-	tableData.data = tableData.data.filter((d) => !idsSet.has(d["id"] as number));
+	tableData.data = tableData.data.filter((d) => !idsSet.has(d["id"] as IdValue));
 
-	const deletedIds = rowsToDelete.map((r) => r["id"] as number);
+	const deletedIds = rowsToDelete.map((r) => r["id"] as IdValue);
 	const rows = deletedIds.map((id) => ({ id })) as T[];
 
 	return {

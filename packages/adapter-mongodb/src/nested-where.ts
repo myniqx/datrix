@@ -15,6 +15,7 @@
  * - Deep nesting: user.department.organization.country → chained lookups
  */
 
+import type { IdValue } from "@datrix/core";
 import type { Document, Filter } from "mongodb";
 import type {
 	DatrixEntry,
@@ -150,7 +151,7 @@ async function resolveRelationIds<TResult extends DatrixEntry>(
 	conditions: Filter<Document>,
 	client: MongoClient<TResult>,
 	schemaRegistry: ISchemaRegistry,
-): Promise<readonly number[]> {
+): Promise<readonly IdValue[]> {
 	const targetSchema = schemaRegistry.get(relation.model);
 	if (!targetSchema) return [];
 
@@ -203,7 +204,7 @@ async function fetchUniqueIds<TResult extends DatrixEntry>(
 	fieldKey: string,
 	conditions: Filter<Document>,
 	client: MongoClient<TResult>,
-): Promise<readonly number[]> {
+): Promise<readonly IdValue[]> {
 	const col = client.getCollection(collection);
 	const sessionOpts = client.sessionOptions();
 
@@ -216,9 +217,9 @@ async function fetchUniqueIds<TResult extends DatrixEntry>(
 			.toArray(),
 	);
 
-	const ids = new Set<number>();
+	const ids = new Set<IdValue>();
 	for (const doc of docs) {
-		const val = doc[fieldKey] as number | undefined;
+		const val = doc[fieldKey] as IdValue | undefined;
 		if (val != null) ids.add(val);
 	}
 	return [...ids];
@@ -236,7 +237,7 @@ async function resolveManyToMany<TResult extends DatrixEntry>(
 	conditions: Filter<Document>,
 	client: MongoClient<TResult>,
 	schemaRegistry: ISchemaRegistry,
-): Promise<readonly number[]> {
+): Promise<readonly IdValue[]> {
 	const { sourceFK, targetFK } = resolveJunctionForeignKeys(
 		junctionCollection,
 		sourceModelName,
@@ -259,7 +260,7 @@ async function resolveManyToMany<TResult extends DatrixEntry>(
 				.toArray(),
 	);
 
-	const targetIds = targetDocs.map((d) => d["id"] as number);
+	const targetIds = targetDocs.map((d) => d["id"] as IdValue);
 	if (targetIds.length === 0) return [];
 
 	// Step 2: find source IDs from junction
@@ -275,9 +276,9 @@ async function resolveManyToMany<TResult extends DatrixEntry>(
 				.toArray(),
 	);
 
-	const sourceIds = new Set<number>();
+	const sourceIds = new Set<IdValue>();
 	for (const doc of junctionDocs) {
-		const fk = doc[sourceFK] as number | undefined;
+		const fk = doc[sourceFK] as IdValue | undefined;
 		if (fk != null) sourceIds.add(fk);
 	}
 	return [...sourceIds];

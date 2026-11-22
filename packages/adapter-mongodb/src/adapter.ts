@@ -72,6 +72,8 @@ import type {
 	SchemaDefinition,
 } from "@datrix/core";
 import { DATRIX_META_MODEL, DATRIX_META_KEY_PREFIX } from "@datrix/core";
+import { getSchemaIdKind } from "@datrix/core";
+import type { IdValue } from "@datrix/core";
 
 /**
  * MongoDB adapter implementation
@@ -367,14 +369,25 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 		const metaCollection = this.getMetaCollection();
 		const docCount = docsWithDefaults.length;
 
-		// Get auto-increment IDs
-		const firstId = await getNextIds(metaCollection, op.collection, docCount);
-
-		// Assign IDs to documents
-		const docsWithIds = docsWithDefaults.map((doc, index) => ({
-			...doc,
-			id: firstId + index,
-		}));
+		// uuid collections: ids are core-generated and already in the documents.
+		// int collections: auto-increment ids from the _datrix counters.
+		const docsWithIds: Array<Record<string, unknown> & { id: IdValue }> =
+			this.isUuidCollection(op.collection)
+				? docsWithDefaults.map((doc) => ({
+						...doc,
+						id: (doc as Record<string, unknown>)["id"] as IdValue,
+					}))
+				: await (async () => {
+						const firstId = await getNextIds(
+							metaCollection,
+							op.collection,
+							docCount,
+						);
+						return docsWithDefaults.map((doc, index) => ({
+							...doc,
+							id: firstId + index,
+						}));
+					})();
 
 		const collection = client.getCollection(op.collection);
 		const sessionOpts = client.sessionOptions();
@@ -415,10 +428,19 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 			op.documents,
 			this._schemas!,
 		);
-		const firstId = await getNextIds(
-			this.getMetaCollection(),
-			op.collection,
-			docsWithDefaults.length,
+		// uuid: each document already carries its core-generated id
+		const uuid = this.isUuidCollection(op.collection);
+		const firstId = uuid
+			? 0
+			: await getNextIds(
+					this.getMetaCollection(),
+					op.collection,
+					docsWithDefaults.length,
+				);
+		const newId = (doc: Record<string, unknown>, index: number): IdValue =>
+			uuid ? (doc["id"] as IdValue) : firstId + index;
+		const newIds = docsWithDefaults.map((doc, index) =>
+			newId(doc as Record<string, unknown>, index),
 		);
 
 		const updateFields = new Set(op.update);
@@ -428,7 +450,7 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 			(doc, index) => {
 				const filter: Document = {};
 				const $set: Document = {};
-				const $setOnInsert: Document = { id: firstId + index };
+				const $setOnInsert: Document = { id: newIds[index] };
 				for (const [key, value] of Object.entries(doc)) {
 					if (conflictFields.has(key)) filter[key] = value;
 					else if (updateFields.has(key)) $set[key] = value;
@@ -481,14 +503,14 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 				),
 			);
 		const matchedIds = new Map(
-			matchedDocs.map((doc) => [conflictKey(doc), doc["id"] as number]),
+			matchedDocs.map((doc) => [conflictKey(doc), doc["id"] as IdValue]),
 		);
 
-		const insertIds: number[] = [];
+		const insertIds: IdValue[] = [];
 		const ids = filters.map((filter, index) => {
 			if (insertedIndexes.has(index)) {
-				insertIds.push(firstId + index);
-				return firstId + index;
+				insertIds.push(newIds[index]!);
+				return newIds[index]!;
 			}
 			return matchedIds.get(conflictKey(filter))!;
 		});
@@ -713,6 +735,15 @@ export class MongoDBAdapter implements DatabaseAdapter<MongoDBConfig> {
 	 * Apply schema default values to insert documents.
 	 * MongoDB has no DEFAULT constraint, so we inject defaults here.
 	 */
+	/**
+	 * Whether the collection's primary key is a core-generated uuid
+	 */
+	private isUuidCollection(collection: string): boolean {
+		const modelName = this._schemas?.findModelByTableName(collection);
+		const schema = modelName ? this._schemas!.get(modelName) : undefined;
+		return schema !== undefined && getSchemaIdKind(schema) === "uuid";
+	}
+
 	private applyDefaults(
 		collection: string,
 		documents: readonly Document[],

@@ -24,6 +24,7 @@ import {
 	resolveJunctionForeignKeys,
 	resolveJunctionTableName,
 	defaultSelectFromSchema,
+	normalizeStoredId,
 } from "./table-utils";
 
 export class JsonQueryRunner {
@@ -419,7 +420,7 @@ export class JsonQueryRunner {
 			const relatedRecords = (
 				targetTableData.data as Record<string, unknown>[]
 			).filter(
-				(r) => r[foreignKey] === sourceId || r[foreignKey] === Number(sourceId),
+				(r) => normalizeStoredId(r[foreignKey]) === normalizeStoredId(sourceId),
 			);
 
 			for (const related of relatedRecords) {
@@ -463,13 +464,12 @@ export class JsonQueryRunner {
 			const targetIds = (junctionTableData.data as Record<string, unknown>[])
 				.filter((row) => {
 					const rowSourceId = row[sourceFK];
-					return rowSourceId === sourceId || rowSourceId === Number(sourceId);
+					return (
+						normalizeStoredId(rowSourceId) === normalizeStoredId(sourceId)
+					);
 				})
-				.map((row) => {
-					const rawId = row[targetFK];
-					return typeof rawId === "string" ? Number(rawId) : (rawId as number);
-				})
-				.filter((id): id is number => id !== null && id !== undefined);
+				.map((row) => normalizeStoredId(row[targetFK]))
+				.filter((id) => id !== null && id !== undefined);
 
 			if (targetIds.length === 0) {
 				return false;
