@@ -9,6 +9,8 @@
  * this handler is invoked.
  */
 
+import type { DatrixId } from "@datrix/core";
+import { parseIdParam } from "@datrix/core";
 import type { Datrix, StorageProvider } from "@datrix/core";
 import type { UploadFile, MediaVariants } from "@datrix/core";
 import type { DatrixEntry } from "@datrix/core";
@@ -72,12 +74,16 @@ export async function handleUploadRequest(
 			if (idSegment === undefined) {
 				return datrixErrorResponse(handlerError.missingId("delete"));
 			}
-			if (!/^\d+$/.test(idSegment)) {
+			const id = parseIdParam(
+				idSegment,
+				options.datrix.getSchema(options.modelName),
+			);
+			if (id === undefined) {
 				return datrixErrorResponse(
 					handlerError.recordNotFound(options.modelName, idSegment),
 				);
 			}
-			return await handleDeleteMedia(parseInt(idSegment, 10), options);
+			return await handleDeleteMedia(id as DatrixId, options);
 		}
 
 		return datrixErrorResponse(handlerError.methodNotAllowed(method));
@@ -266,7 +272,7 @@ async function handleUpload(
  * orphaned file is recoverable, a record pointing at deleted storage is not.
  */
 async function handleDeleteMedia(
-	id: number,
+	id: DatrixId,
 	options: UploadHandlerOptions,
 ): Promise<Response> {
 	const { datrix, modelName, uploadOptions } = options;

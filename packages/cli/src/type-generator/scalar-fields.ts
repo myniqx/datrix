@@ -15,6 +15,8 @@ export function scalarFieldToTypeString(field: FieldDefinition): string {
 			return "string";
 		case "number":
 			return "number";
+		case "uuid":
+			return "string";
 		case "boolean":
 			return "boolean";
 		case "date":

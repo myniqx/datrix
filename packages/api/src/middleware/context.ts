@@ -18,6 +18,8 @@ import { handlerError } from "../errors/api-error";
 import { FallbackInput } from "@datrix/core";
 import { ParsedQuery, DatrixEntry } from "@datrix/core";
 import { AuthUser, IApiPlugin } from "@datrix/core";
+import { parseIdParam } from "@datrix/core";
+import type { DatrixId, SchemaDefinition } from "@datrix/core";
 
 /**
  * Sub-resource segment reserved for the POST /:model/query alias
@@ -50,29 +52,33 @@ function pathSegmentsAfterPrefix(pathname: string, prefix: string): string[] {
 
 /**
  * Extract record ID from URL path
- * /api/user/123 -> 123
+ * /api/user/123 -> 123 (int schemas)
+ * /api/user/0190a3f2-... -> "0190a3f2-..." (uuid schemas)
  * /api/user -> null
  * /api/user/query -> null (reserved sub-resource, QUERY alias)
  * /api/user/abc -> 404
  *
- * @throws {DatrixApiError} 404 for non-numeric ids or extra path segments
+ * The id format follows the schema's own id field — no config lookup.
+ *
+ * @throws {DatrixApiError} 404 for malformed ids or extra path segments
  */
 function extractIdFromPath(
 	segments: string[],
 	isUploadRoute: boolean,
-): number | null {
+	schema: SchemaDefinition | null,
+): DatrixId | null {
 	if (segments.length < 2) {
 		return null;
 	}
 
 	const idSegment = segments[1]!;
 
-	// The upload route manages its own sub-paths — extract a numeric id when
-	// present, but never 404 on extra or non-numeric segments.
+	// The upload route manages its own sub-paths — extract an id when
+	// present, but never 404 on extra or malformed segments.
 	if (isUploadRoute) {
-		return /^\d+$/.test(idSegment) && segments.length === 2
-			? parseInt(idSegment, 10)
-			: null;
+		const uploadId =
+			segments.length === 2 ? parseIdParam(idSegment, schema) : undefined;
+		return (uploadId as DatrixId | undefined) ?? null;
 	}
 
 	if (idSegment === QUERY_SEGMENT) {
@@ -82,7 +88,8 @@ function extractIdFromPath(
 		return null;
 	}
 
-	if (!/^\d+$/.test(idSegment)) {
+	const id = parseIdParam(idSegment, schema);
+	if (id === undefined) {
 		throw handlerError.recordNotFound(segments[0] ?? "", idSegment);
 	}
 
@@ -90,7 +97,7 @@ function extractIdFromPath(
 		throw handlerError.recordNotFound(segments[0] ?? "", segments.join("/"));
 	}
 
-	return parseInt(idSegment, 10);
+	return id as DatrixId;
 }
 
 /**
@@ -135,7 +142,7 @@ export async function buildRequestContext<TRole extends string = string>(
 	const schema = modelName ? (datrix.getSchema(modelName) ?? null) : null;
 
 	// 2. EXTRACT ID from URL (404 on malformed ids / extra segments)
-	const id = extractIdFromPath(segments, isUploadRoute);
+	const id = extractIdFromPath(segments, isUploadRoute, schema);
 
 	// 3. DETECT QUERY REQUEST (QUERY method or POST /:model/query alias)
 	const isQueryAlias = segments[1] === QUERY_SEGMENT;

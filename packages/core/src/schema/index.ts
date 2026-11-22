@@ -24,6 +24,7 @@ export {
 	normalizeUuid,
 	normalizeIntId,
 	normalizeIdValue,
+	parseIdParam,
 	getFieldIdKind,
 	getSchemaIdKind,
 	generateUuidV7,

@@ -6,6 +6,7 @@
  */
 
 import { AsyncLocalStorage } from "node:async_hooks";
+import type { DatrixId } from "@datrix/core";
 import { BasePlugin } from "@datrix/core";
 import type {
 	PluginContext,
@@ -13,6 +14,7 @@ import type {
 	SchemaDefinition,
 } from "@datrix/core";
 import { DatrixError, DefaultPermission, defineSchema } from "@datrix/core";
+import { parseIdParam } from "@datrix/core";
 import { DEFAULT_API_AUTH_CONFIG } from "@datrix/core";
 import { AuthManager } from "./auth/manager";
 import { createUnifiedAuthHandler } from "./handler/auth-handler";
@@ -294,7 +296,7 @@ export class ApiPlugin<TRole extends string = string>
 			unknown
 		>[];
 		const emailField = this.userSchemaEmailField;
-		const createdIds = context.createdIds ?? new Set<number>();
+		const createdIds = context.createdIds ?? new Set<DatrixId>();
 
 		// User created → create one authentication record per inserted row
 		if (context.metadata["api:createAuth"]) {
@@ -305,8 +307,7 @@ export class ApiPlugin<TRole extends string = string>
 
 			let createdRows = rows.filter(
 				(row) =>
-					typeof row?.["id"] === "number" &&
-					createdIds.has(row["id"] as number),
+					row?.["id"] != null && createdIds.has(row["id"] as DatrixId),
 			);
 
 			// select/noReturning can leave the email out of the result rows
@@ -322,7 +323,7 @@ export class ApiPlugin<TRole extends string = string>
 					(item) => item[emailField] === row[emailField],
 				);
 				await this.createAuthenticationRecord(
-					row["id"] as number,
+					row["id"] as DatrixId,
 					row,
 					input ?? {},
 				);
@@ -335,8 +336,8 @@ export class ApiPlugin<TRole extends string = string>
 				const userId = row?.["id"];
 				const email = row?.[emailField];
 				if (
-					typeof userId !== "number" ||
-					createdIds.has(userId) ||
+					userId == null ||
+					createdIds.has(userId as DatrixId) ||
 					typeof email !== "string"
 				) {
 					continue;
@@ -360,7 +361,7 @@ export class ApiPlugin<TRole extends string = string>
 	 * - Role always comes from defaultRole — never from client input.
 	 */
 	private async createAuthenticationRecord(
-		userId: number,
+		userId: DatrixId,
 		row: Record<string, unknown>,
 		input: Record<string, unknown>,
 	): Promise<void> {
@@ -545,8 +546,11 @@ export class ApiPlugin<TRole extends string = string>
 					} else {
 						const idSegment = segments[1];
 						const id =
-							idSegment !== undefined && /^\d+$/.test(idSegment)
-								? parseInt(idSegment, 10)
+							idSegment !== undefined
+								? (parseIdParam(
+										idSegment,
+										datrix.getSchema(upload.getModelName()),
+									) ?? null)
 								: null;
 						const permissionCtx = {
 							user,

@@ -6,6 +6,7 @@
  */
 
 import type {
+	DatrixId,
 	DefaultPermission,
 	AuthenticatedUser,
 	DatrixEntry,
@@ -13,10 +14,21 @@ import type {
 import type { PasswordConfig } from "./password";
 
 /**
+ * Whether a value is a user id (integer or uuid string — the id type is
+ * whatever the user schema uses)
+ */
+function isIdValue(value: unknown): boolean {
+	return (
+		(typeof value === "number" && Number.isInteger(value)) ||
+		(typeof value === "string" && value.length > 0)
+	);
+}
+
+/**
  * JWT payload (base)
  */
 export interface JwtPayload {
-	readonly userId: number;
+	readonly userId: DatrixId;
 	readonly role: string;
 	readonly iat: number;
 	readonly exp: number;
@@ -43,7 +55,7 @@ export interface SessionStore {
  */
 export interface SessionData {
 	readonly id: string;
-	readonly userId: number;
+	readonly userId: DatrixId;
 	readonly role: string;
 	readonly createdAt: Date;
 	readonly expiresAt: Date;
@@ -234,7 +246,7 @@ export function isJwtPayload(value: unknown): value is JwtPayload {
 		"role" in obj &&
 		"iat" in obj &&
 		"exp" in obj &&
-		typeof obj["userId"] === "number" &&
+		isIdValue(obj["userId"]) &&
 		typeof obj["role"] === "string" &&
 		typeof obj["iat"] === "number" &&
 		typeof obj["exp"] === "number"
@@ -259,7 +271,7 @@ export function isSessionData(value: unknown): value is SessionData {
 		"expiresAt" in obj &&
 		"lastAccessedAt" in obj &&
 		typeof obj["id"] === "string" &&
-		typeof obj["userId"] === "number" &&
+		isIdValue(obj["userId"]) &&
 		typeof obj["role"] === "string" &&
 		obj["createdAt"] instanceof Date &&
 		obj["expiresAt"] instanceof Date &&

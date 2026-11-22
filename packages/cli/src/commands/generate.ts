@@ -166,7 +166,9 @@ async function generateTypes(
 	logger.info(`Generating types for ${schemas.length} schemas`);
 	logger.info(`Output: ${outputPath}`);
 
-	const content = generateTypesFile(schemas);
+	const content = generateTypesFile(schemas, {
+		idType: datrix.getSchemas().getIdType(),
+	});
 	await writeFileSafe(outputPath, content, true);
 
 	logger.log("");

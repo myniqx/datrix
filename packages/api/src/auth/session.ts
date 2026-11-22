@@ -7,6 +7,7 @@
 
 import { randomBytes } from "node:crypto";
 import type { SessionConfig, SessionData, SessionStore } from "./types";
+import type { DatrixId } from "@datrix/core";
 import { DEFAULT_API_AUTH_CONFIG } from "@datrix/core";
 import {
 	throwSessionCreateError,
@@ -40,7 +41,7 @@ export class SessionStrategy {
 	 * Create a new session
 	 */
 	async create(
-		userId: number,
+		userId: DatrixId,
 		role: string,
 		data?: Record<string, unknown>,
 	): Promise<SessionData> {

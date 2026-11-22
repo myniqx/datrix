@@ -12,6 +12,7 @@ import {
 	isCanonicalUuid,
 	normalizeIdValue,
 	normalizeUuid,
+	parseIdParam,
 } from "../../src/schema/id";
 import { insertInto, selectFrom } from "../../src/query-builder/builder";
 import {
@@ -82,6 +83,19 @@ describe("id utilities", () => {
 		expect(normalizeIdValue("5.5", "number")).toBeUndefined();
 		expect(normalizeIdValue(UUID_A, "number")).toBeUndefined();
 		expect(normalizeIdValue(5, "uuid")).toBeUndefined();
+	});
+});
+
+describe("parseIdParam", () => {
+	it("parses path ids per schema id kind", () => {
+		const uuid = buildRegistry("uuid").get("post")!;
+		const int = buildRegistry("int").get("post")!;
+		expect(parseIdParam("12", int)).toBe(12);
+		expect(parseIdParam("12.0", int)).toBeUndefined();
+		expect(parseIdParam(UUID_A, int)).toBeUndefined();
+		expect(parseIdParam(UUID_A.toUpperCase(), uuid)).toBe(UUID_A);
+		expect(parseIdParam("12", uuid)).toBeUndefined();
+		expect(parseIdParam("7", null)).toBe(7);
 	});
 });
 

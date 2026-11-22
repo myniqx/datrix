@@ -4,6 +4,7 @@
  * Type definitions for middleware system
  */
 
+import type { DatrixId } from "@datrix/core";
 import type { ParsedQuery } from "@datrix/core";
 import type { SchemaDefinition } from "@datrix/core";
 import type { PermissionAction } from "@datrix/core";
@@ -40,7 +41,7 @@ export interface RequestContext<TRole extends string = string> {
 	/**
 	 * Record ID (for single record operations)
 	 */
-	readonly id: number | null;
+	readonly id: DatrixId | null;
 
 	/**
 	 * HTTP method

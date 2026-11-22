@@ -12,6 +12,7 @@
 
 import {
 	DATRIX_META_MODEL,
+	type IdType,
 	type RelationField,
 	type SchemaDefinition,
 } from "@datrix/core";
@@ -203,12 +204,38 @@ function generateHeader(): string {
 }
 
 /**
+ * Generate the DatrixRegister augmentation that switches `DatrixId` (and with
+ * it every id / relation id type in @datrix/core) to `string`.
+ *
+ * int mode emits nothing: `DatrixId` already defaults to `number`.
+ */
+function generateIdTypeRegister(idType: IdType): string[] {
+	if (idType !== "uuid") return [];
+	return [
+		[
+			'declare module "@datrix/core" {',
+			"  interface DatrixRegister {",
+			'    idType: "uuid";',
+			"  }",
+			"}",
+		].join("\n"),
+	];
+}
+
+export interface GenerateTypesOptions {
+	/** Primary key strategy from config (default: "int") */
+	readonly idType?: IdType;
+}
+
+/**
  * Generate the full TypeScript file content for all schemas
  */
 export function generateTypesFile(
 	schemas: readonly SchemaDefinition[],
+	options: GenerateTypesOptions = {},
 ): string {
 	const header = generateHeader();
+	const register = generateIdTypeRegister(options.idType ?? "int");
 	const userSchemas = schemas.filter((s) => !isInternalSchema(s));
 	const schemaBlocks = userSchemas.map(generateSchemaTypes);
 
@@ -229,5 +256,7 @@ export function generateTypesFile(
 		);
 	}
 
-	return [header, "", ...schemaBlocks, ...stubs].join("\n\n") + "\n";
+	return (
+		[header, ...register, "", ...schemaBlocks, ...stubs].join("\n\n") + "\n"
+	);
 }

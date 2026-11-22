@@ -74,6 +74,22 @@ export function normalizeIdValue(
 }
 
 /**
+ * Parse an id from a URL path segment / query param for `schema`.
+ *
+ * Stricter than `normalizeIdValue`: int ids must be plain digits ("5", not
+ * "5.0" or " 5"). Returns `undefined` when the segment is not a valid id —
+ * callers answer 404.
+ */
+export function parseIdParam(
+	segment: string,
+	schema: SchemaDefinition | null | undefined,
+): IdValue | undefined {
+	const kind = schema ? getSchemaIdKind(schema) : "number";
+	if (kind === "uuid") return normalizeUuid(segment);
+	return /^\d+$/.test(segment) ? parseInt(segment, 10) : undefined;
+}
+
+/**
  * Id kind of a field that stores ids (`id`, foreign keys, junction columns)
  */
 export function getFieldIdKind(field: FieldDefinition | undefined): IdKind {

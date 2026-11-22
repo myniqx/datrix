@@ -14,6 +14,7 @@ import type {
 	TimeUnit,
 	ExpiryString,
 } from "./types";
+import type { DatrixId } from "@datrix/core";
 import { DEFAULT_API_AUTH_CONFIG } from "@datrix/core";
 import { isJwtPayload } from "./types";
 import {
@@ -63,7 +64,7 @@ export class JwtStrategy {
 
 			const basePayload = payload as Record<string, unknown>;
 			const fullPayload: JwtPayload = {
-				userId: basePayload["userId"] as number,
+				userId: basePayload["userId"] as DatrixId,
 				role: basePayload["role"] as string,
 				iat: now,
 				exp,

@@ -183,3 +183,26 @@ describe("4.5 / 4.6 — scalar field types", () => {
 		expect(output).toContain(String.raw`"say \"hi\"" | "back\\slash"`);
 	});
 });
+
+describe("idType — DatrixRegister augmentation", () => {
+	const schema = {
+		name: "doc",
+		tableName: "docs",
+		fields: {
+			id: { type: "uuid", primary: true, required: true },
+			ownerId: { type: "uuid", references: { table: "users" } },
+		},
+	} as unknown as SchemaDefinition;
+
+	it("uuid mode registers idType and types uuid fields as string", () => {
+		const output = generateTypesFile([schema], { idType: "uuid" });
+		expect(output).toContain('declare module "@datrix/core" {');
+		expect(output).toContain('idType: "uuid";');
+		expect(output).toContain("ownerId?: string;");
+	});
+
+	it("int mode emits no augmentation", () => {
+		const output = generateTypesFile([schema]);
+		expect(output).not.toContain("declare module");
+	});
+});
