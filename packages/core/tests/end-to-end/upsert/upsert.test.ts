@@ -14,7 +14,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { BasePlugin, Datrix, defineConfig, defineSchema } from "@datrix/core";
 import type { DatrixEntry, PluginContext, QueryContext } from "@datrix/core";
 import fs from "node:fs/promises";
-import { getAdapter, getAdapterType, getTmpDir } from "../setup";
+import { getTestEnv, getTmpDir } from "../setup";
 
 interface UpProduct extends DatrixEntry {
 	sku: string;
@@ -138,9 +138,10 @@ describe("upsert / upsertMany", () => {
 			indexes: [{ fields: ["tenant", "slug"], unique: true }],
 		});
 
-		const adapter = await getAdapter(getAdapterType(), tmpDir);
+		const { adapter, idType } = await getTestEnv(tmpDir);
 		const getDatrix = defineConfig(() => ({
 			adapter,
+			idType,
 			schemas: [categorySchema, tagSchema, productSchema, slotSchema],
 			plugins: [new CreatedIdsPlugin({})],
 		}));

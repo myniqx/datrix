@@ -48,6 +48,10 @@ export default defineConfig({
 				"./packages/core/src/types/core/index.ts",
 			),
 			"@datrix/core": path.resolve(__dirname, "./packages/core/src"),
+			"@datrix/adapter-postgres-core": path.resolve(
+				__dirname,
+				"./packages/adapter-postgres-core/src",
+			),
 			"@datrix/adapter-postgres": path.resolve(
 				__dirname,
 				"./packages/adapter-postgres/src",

@@ -6,7 +6,7 @@
 
 import { describe, it, beforeAll, afterAll } from "vitest";
 import { createDatrixWithSchemas, getTmpDir } from "./setup/config";
-import { getAdapter, getAdapterType } from "./setup/adapter";
+import { getTestEnv } from "./setup/adapter";
 import {
 	baseUserSchema,
 	basePostSchema,
@@ -32,8 +32,7 @@ describe("Migration E2E - Fresh Start", () => {
 	let adapter: DatabaseAdapter;
 
 	beforeAll(async () => {
-		const adapterType = getAdapterType();
-		adapter = await getAdapter(adapterType, tmpDir);
+		({ adapter } = await getTestEnv(tmpDir));
 		await adapter.connect();
 		await dropAllTables(adapter);
 	});

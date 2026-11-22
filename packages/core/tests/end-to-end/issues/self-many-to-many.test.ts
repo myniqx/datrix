@@ -15,7 +15,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { Datrix, defineConfig, defineSchema } from "@datrix/core";
 import type { DatrixConfig } from "@datrix/core";
 import fs from "node:fs/promises";
-import { getAdapter, getAdapterType, getTmpDir, setupTables } from "../setup";
+import { getTestEnv, getTmpDir, setupTables } from "../setup";
 
 const personSchema = defineSchema({
 	name: "person",
@@ -46,10 +46,11 @@ describe("Self-referential manyToMany", () => {
 		await fs.rm(tmpDir, { recursive: true, force: true });
 		await fs.mkdir(tmpDir, { recursive: true });
 
-		const adapter = await getAdapter(getAdapterType(), tmpDir);
+		const { adapter, idType } = await getTestEnv(tmpDir);
 		const getDatrix = defineConfig(() => {
 			const config: DatrixConfig = {
 				adapter,
+				idType,
 				schemas: [personSchema],
 				plugins: [],
 			};

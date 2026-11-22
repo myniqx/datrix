@@ -1,5 +1,12 @@
 # @datrix/adapter-mongodb
 
+## 0.3.0
+
+### Minor Changes
+
+- **Node 22 required:** `engines.node` is now `>=22.0.0`.
+- Support for `idType: "uuid"` (requires `@datrix/core` 0.3.0): uuid collections skip id counters; foreign-key checks and `onDelete` follow uuid foreign keys; import skips counter resets for uuid tables.
+
 ## 0.2.1
 
 ### Patch Changes

@@ -21,6 +21,9 @@ import { expectApiSingle } from "../../core/tests/test/helpers";
 
 describe("Populate Integration Tests", () => {
 	let datrix: Datrix;
+	// Fixture ids (int or uuid depending on idType)
+	let catId: unknown;
+	let supId: unknown;
 	let getDatrix: () => Promise<Datrix>;
 	const tmpDir = getTmpDir("populate");
 	let testProductId: number;
@@ -51,19 +54,23 @@ describe("Populate Integration Tests", () => {
 		}
 
 		// Create fixture data for tests
-		await datrix.create("category", {
-			name: "Electronics",
-			description: "Electronic devices and gadgets",
-			isActive: true,
-		});
+		catId = (
+			await datrix.create("category", {
+				name: "Electronics",
+				description: "Electronic devices and gadgets",
+				isActive: true,
+			})
+		).id;
 
-		await datrix.create("supplier", {
-			name: "TechCorp Inc.",
-			email: "contact@techcorp.com",
-			country: "USA",
-			rating: 4.5,
-			isVerified: true,
-		});
+		supId = (
+			await datrix.create("supplier", {
+				name: "TechCorp Inc.",
+				email: "contact@techcorp.com",
+				country: "USA",
+				rating: 4.5,
+				isVerified: true,
+			})
+		).id;
 
 		// Create test product
 		const product = await datrix.create("product", {
@@ -71,8 +78,8 @@ describe("Populate Integration Tests", () => {
 			description: "7.1 Surround Sound Gaming Headset",
 			price: 89.99,
 			stock: 50,
-			category: 1,
-			supplier: 1,
+			category: catId,
+			supplier: supId,
 			sku: "GH-PRO-001",
 			isAvailable: true,
 		});
@@ -125,8 +132,8 @@ describe("Populate Integration Tests", () => {
 						description: "27-inch 4K monitor",
 						price: 399.99,
 						stock: 25,
-						category: 1,
-						supplier: 1,
+						category: catId,
+						supplier: supId,
 						sku: "MON-2024-001",
 						isAvailable: true,
 					},
@@ -145,12 +152,12 @@ describe("Populate Integration Tests", () => {
 			expect(data).toHaveProperty("category");
 			expect(data.category).toHaveProperty("id");
 			expect(data.category).toHaveProperty("name");
-			expect(data.category.id).toBe(1);
+			expect(data.category.id).toBe(catId);
 
 			expect(data).toHaveProperty("supplier");
 			expect(data.supplier).toHaveProperty("id");
 			expect(data.supplier).toHaveProperty("name");
-			expect(data.supplier.id).toBe(1);
+			expect(data.supplier.id).toBe(supId);
 		});
 	});
 
@@ -245,8 +252,8 @@ describe("Populate Integration Tests", () => {
 						description: "1080p HD webcam",
 						price: 59.99,
 						stock: 100,
-						category: 1,
-						supplier: 1,
+						category: catId,
+						supplier: supId,
 						sku: "WC-2024-001",
 						isAvailable: true,
 					},
@@ -463,8 +470,8 @@ describe("Populate Integration Tests", () => {
 						description: "Mechanical keyboard",
 						price: 129.99,
 						stock: 30,
-						category: { connect: { id: 1 } },
-						supplier: { connect: { id: 1 } },
+						category: { connect: { id: catId } },
+						supplier: { connect: { id: supId } },
 						sku: "KB-2024-001",
 						isAvailable: true,
 					},
@@ -480,7 +487,7 @@ describe("Populate Integration Tests", () => {
 			const data = await expectApiSingle(response, 201);
 
 			expect(data).toHaveProperty("category");
-			expect(data.category.id).toBe(1);
+			expect(data.category.id).toBe(catId);
 			expect(data.category).toHaveProperty("name");
 		});
 
@@ -494,8 +501,8 @@ describe("Populate Integration Tests", () => {
 					stock: 50,
 					sku: "MS-2024-001",
 					isAvailable: true,
-					category: { connect: { id: 1 } },
-					supplier: { connect: { id: 1 } },
+					category: { connect: { id: catId } },
+					supplier: { connect: { id: supId } },
 				},
 			});
 
@@ -509,7 +516,7 @@ describe("Populate Integration Tests", () => {
 				{
 					method: "PUT",
 					body: {
-						category: { connect: { id: 1 } },
+						category: { connect: { id: catId } },
 					},
 				},
 				{
@@ -523,7 +530,7 @@ describe("Populate Integration Tests", () => {
 			const updateData = await expectApiSingle(updateRes);
 
 			expect(updateData).toHaveProperty("category");
-			expect(updateData.category.id).toBe(1);
+			expect(updateData.category.id).toBe(catId);
 		});
 
 		it("should update product relation using disconnect", async () => {
@@ -534,8 +541,8 @@ describe("Populate Integration Tests", () => {
 					name: "Headset",
 					price: 79.99,
 					stock: 20,
-					category: 1,
-					supplier: { connect: { id: 1 } },
+					category: catId,
+					supplier: { connect: { id: supId } },
 					sku: "HS-2024-001",
 					isAvailable: true,
 				},
@@ -575,8 +582,8 @@ describe("Populate Integration Tests", () => {
 					name: "Speaker",
 					price: 199.99,
 					stock: 15,
-					category: 1,
-					supplier: { connect: { id: 1 } },
+					category: catId,
+					supplier: { connect: { id: supId } },
 					sku: "SP-2024-001",
 					isAvailable: true,
 				},

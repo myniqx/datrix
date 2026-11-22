@@ -15,7 +15,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { Datrix, defineConfig, defineSchema } from "@datrix/core";
 import type { DatrixEntry } from "@datrix/core";
 import fs from "node:fs/promises";
-import { getAdapter, getAdapterType, getTmpDir } from "../setup";
+import { getTestEnv, getTmpDir } from "../setup";
 import { isCanonicalUuid } from "../../../src/schema/id";
 
 // Without the DatrixRegister augmentation DatrixId types as number; at runtime
@@ -35,7 +35,6 @@ interface UTag extends DatrixEntry {
 interface UPost extends DatrixEntry {
 	title: string;
 	sku: string;
-	authorId?: Id | null;
 	author?: UAuthor | null;
 	tags?: UTag[];
 	comments?: UComment[];
@@ -43,7 +42,6 @@ interface UPost extends DatrixEntry {
 
 interface UComment extends DatrixEntry {
 	body: string;
-	postId?: Id | null;
 }
 
 describe("idType: uuid", () => {
@@ -94,7 +92,7 @@ describe("idType: uuid", () => {
 			},
 		});
 
-		const adapter = await getAdapter(getAdapterType(), tmpDir);
+		const { adapter } = await getTestEnv(tmpDir);
 		const getDatrix = defineConfig(() => ({
 			adapter,
 			idType: "uuid" as const,
@@ -164,7 +162,6 @@ describe("idType: uuid", () => {
 		);
 
 		expect(isCanonicalUuid(p.id)).toBe(true);
-		expect(p.authorId).toBe(a.id);
 		expect(p.author?.id).toBe(a.id);
 		expect(p.tags!.map((t) => t.id).sort()).toEqual(
 			tags.map((t) => t.id).sort(),
@@ -172,9 +169,14 @@ describe("idType: uuid", () => {
 		expect(p.comments).toHaveLength(2);
 		for (const c of p.comments!) {
 			expect(isCanonicalUuid(c.id)).toBe(true);
-			expect(c.postId).toBe(p.id);
 		}
+		expect(await datrix.count("uComment", { uPostId: p.id } as never)).toBe(2);
 
+		// author.posts is its own hasMany (FK uPost.uAuthorId), not the inverse
+		// of post.author
+		await datrix.update("uAuthor", a.id, {
+			posts: { connect: [p.id] },
+		} as never);
 		const withPosts = await datrix.findById<UAuthor>("uAuthor", a.id, {
 			populate: { posts: true },
 		});
@@ -305,11 +307,14 @@ describe("idType: uuid", () => {
 		} as never);
 
 		await datrix.delete("uAuthor", a.id);
-		const orphan = await datrix.findById<UPost>("uPost", p.id);
-		expect(orphan!.authorId ?? null).toBeNull();
+		const orphan = await datrix.findById<UPost>("uPost", p.id, {
+			populate: { author: true },
+		});
+		expect(orphan!.author ?? null).toBeNull();
+		expect(await datrix.count("uComment", { uPostId: p.id } as never)).toBe(1);
 
 		await datrix.delete("uPost", p.id);
-		expect(await datrix.count("uComment", { postId: p.id } as never)).toBe(0);
+		expect(await datrix.count("uComment", { uPostId: p.id } as never)).toBe(0);
 	});
 
 	it("internal _datrix table keeps integer ids", () => {

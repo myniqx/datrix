@@ -30,7 +30,7 @@ import type { PluginContext, SchemaDefinition } from "@datrix/core";
 import type { QueryContext } from "@datrix/core";
 import type { QueryObject } from "@datrix/core";
 import fs from "node:fs/promises";
-import { getAdapter, getAdapterType, getTmpDir } from "../setup";
+import { getTestEnv, getTmpDir } from "../setup";
 
 // ============================================================================
 // Shared schema type
@@ -65,11 +65,11 @@ async function createIsolatedDatrix(
 	schema: SchemaDefinition,
 	plugins: PluginContext["adapter"] extends never ? never : unknown[] = [],
 ): Promise<Datrix> {
-	const adapterType = getAdapterType();
-	const adapter = await getAdapter(adapterType, tmpDir);
+	const { adapter, idType } = await getTestEnv(tmpDir);
 
 	const getDatrix = defineConfig(() => ({
 		adapter,
+		idType,
 		schemas: [schema],
 		plugins: plugins as never[],
 	}));
@@ -598,12 +598,12 @@ describe("Lifecycle Hooks", () => {
 			tmpDir: string,
 			plugin: unknown,
 		): Promise<Datrix> {
-			const adapterType = getAdapterType();
-			const adapter = await getAdapter(adapterType, tmpDir);
+			const { adapter, idType } = await getTestEnv(tmpDir);
 			const schema = makeItemSchema();
 
 			const getDatrix = defineConfig(() => ({
 				adapter,
+				idType,
 				schemas: [schema as SchemaDefinition],
 				plugins: [plugin as never],
 			}));
@@ -725,8 +725,7 @@ describe("Lifecycle Hooks", () => {
 			});
 
 			// Schema beforeCreate appends "-schema" to whatever value is at that point
-			const adapterType = getAdapterType();
-			const adapter = await getAdapter(adapterType, tmpDir);
+			const { adapter, idType } = await getTestEnv(tmpDir);
 			const schema = defineSchema({
 				name: "hookItem",
 				fields: {
@@ -750,6 +749,7 @@ describe("Lifecycle Hooks", () => {
 
 			const getDatrix = defineConfig(() => ({
 				adapter,
+				idType,
 				schemas: [schema],
 				plugins: [plugin as never],
 			}));

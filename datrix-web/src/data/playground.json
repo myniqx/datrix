@@ -458,11 +458,11 @@
             "color": "#E10098"
           },
           "output": {
+            "id": 6,
             "name": "GraphQL",
             "color": "#E10098",
-            "createdAt": "2026-10-19T05:19:14.902Z",
-            "updatedAt": "2026-10-19T05:19:14.902Z",
-            "id": 6
+            "createdAt": {},
+            "updatedAt": {}
           }
         },
         {
@@ -482,18 +482,18 @@
           ],
           "output": [
             {
+              "id": 7,
               "name": "Rust",
               "color": "#CE422B",
-              "createdAt": "2026-10-19T05:19:14.919Z",
-              "updatedAt": "2026-10-19T05:19:14.919Z",
-              "id": 7
+              "createdAt": {},
+              "updatedAt": {}
             },
             {
+              "id": 8,
               "name": "Go",
               "color": "#00ADD8",
-              "createdAt": "2026-10-19T05:19:14.919Z",
-              "updatedAt": "2026-10-19T05:19:14.919Z",
-              "id": 8
+              "createdAt": {},
+              "updatedAt": {}
             }
           ]
         },
@@ -514,36 +514,36 @@
             "populate": true
           },
           "output": {
+            "id": 4,
             "title": "Intro to Datrix",
             "content": "Datrix is a type-safe database framework.",
             "slug": "intro-to-datrix",
             "isPublished": true,
-            "createdAt": "2026-10-19T05:19:14.936Z",
-            "updatedAt": "2026-10-19T05:19:14.936Z",
             "viewCount": 0,
-            "id": 4,
             "author": {
+              "id": 1,
               "email": "admin@acme.com",
               "name": "Admin User",
               "age": 35,
               "isActive": true,
-              "createdAt": "2026-10-19T05:19:14.714Z",
-              "updatedAt": "2026-10-19T05:19:14.714Z",
               "lastName": null,
               "metadata": null,
-              "id": 1
+              "createdAt": {},
+              "updatedAt": {}
             },
             "category": {
+              "id": 2,
               "name": "Programming",
               "slug": "programming",
               "description": "Programming tutorials",
               "isActive": true,
-              "createdAt": "2026-10-19T05:19:14.760Z",
-              "updatedAt": "2026-10-19T05:19:14.760Z",
-              "id": 2
+              "createdAt": {},
+              "updatedAt": {}
             },
             "tags": [],
-            "comments": []
+            "comments": [],
+            "createdAt": {},
+            "updatedAt": {}
           }
         },
         {
@@ -569,51 +569,51 @@
             "populate": true
           },
           "output": {
+            "id": 5,
             "title": "Full Stack with TypeScript",
             "content": "Building full stack apps with TypeScript.",
             "slug": "full-stack-typescript",
             "isPublished": true,
-            "createdAt": "2026-10-19T05:19:14.964Z",
-            "updatedAt": "2026-10-19T05:19:14.964Z",
             "viewCount": 0,
-            "id": 5,
             "author": {
+              "id": 2,
               "email": "editor@acme.com",
               "name": "Editor User",
               "age": 28,
               "isActive": true,
-              "createdAt": "2026-10-19T05:19:14.714Z",
-              "updatedAt": "2026-10-19T05:19:14.714Z",
               "lastName": null,
               "metadata": null,
-              "id": 2
+              "createdAt": {},
+              "updatedAt": {}
             },
             "category": {
+              "id": 2,
               "name": "Programming",
               "slug": "programming",
               "description": "Programming tutorials",
               "isActive": true,
-              "createdAt": "2026-10-19T05:19:14.760Z",
-              "updatedAt": "2026-10-19T05:19:14.760Z",
-              "id": 2
+              "createdAt": {},
+              "updatedAt": {}
             },
             "tags": [
               {
+                "id": 1,
                 "name": "JavaScript",
                 "color": "#F7DF1E",
-                "createdAt": "2026-10-19T05:19:14.779Z",
-                "updatedAt": "2026-10-19T05:19:14.779Z",
-                "id": 1
+                "createdAt": {},
+                "updatedAt": {}
               },
               {
+                "id": 2,
                 "name": "TypeScript",
                 "color": "#3178C6",
-                "createdAt": "2026-10-19T05:19:14.780Z",
-                "updatedAt": "2026-10-19T05:19:14.780Z",
-                "id": 2
+                "createdAt": {},
+                "updatedAt": {}
               }
             ],
-            "comments": []
+            "comments": [],
+            "createdAt": {},
+            "updatedAt": {}
           }
         }
       ]
@@ -629,59 +629,59 @@
           "model": "user",
           "output": [
             {
+              "id": 1,
               "email": "admin@acme.com",
               "name": "Admin User",
               "age": 35,
               "isActive": true,
-              "createdAt": "2026-10-19T05:19:14.714Z",
-              "updatedAt": "2026-10-19T05:19:14.714Z",
               "lastName": null,
               "metadata": null,
-              "id": 1
+              "createdAt": {},
+              "updatedAt": {}
             },
             {
+              "id": 2,
               "email": "editor@acme.com",
               "name": "Editor User",
               "age": 28,
               "isActive": true,
-              "createdAt": "2026-10-19T05:19:14.714Z",
-              "updatedAt": "2026-10-19T05:19:14.714Z",
               "lastName": null,
               "metadata": null,
-              "id": 2
+              "createdAt": {},
+              "updatedAt": {}
             },
             {
+              "id": 3,
               "email": "viewer@acme.com",
               "name": "Viewer User",
               "age": 25,
               "isActive": true,
-              "createdAt": "2026-10-19T05:19:14.715Z",
-              "updatedAt": "2026-10-19T05:19:14.715Z",
               "lastName": null,
               "metadata": null,
-              "id": 3
+              "createdAt": {},
+              "updatedAt": {}
             },
             {
+              "id": 4,
               "email": "admin@tech.com",
               "name": "Tech Admin",
               "age": 40,
               "isActive": true,
-              "createdAt": "2026-10-19T05:19:14.715Z",
-              "updatedAt": "2026-10-19T05:19:14.715Z",
               "lastName": null,
               "metadata": null,
-              "id": 4
+              "createdAt": {},
+              "updatedAt": {}
             },
             {
+              "id": 5,
               "email": "inactive@tech.com",
               "name": "Inactive User",
               "age": 30,
               "isActive": false,
-              "createdAt": "2026-10-19T05:19:14.715Z",
-              "updatedAt": "2026-10-19T05:19:14.715Z",
               "lastName": null,
               "metadata": null,
-              "id": 5
+              "createdAt": {},
+              "updatedAt": {}
             }
           ]
         },
@@ -697,48 +697,48 @@
           },
           "output": [
             {
+              "id": 1,
               "email": "admin@acme.com",
               "name": "Admin User",
               "age": 35,
               "isActive": true,
-              "createdAt": "2026-10-19T05:19:14.714Z",
-              "updatedAt": "2026-10-19T05:19:14.714Z",
               "lastName": null,
               "metadata": null,
-              "id": 1
+              "createdAt": {},
+              "updatedAt": {}
             },
             {
+              "id": 2,
               "email": "editor@acme.com",
               "name": "Editor User",
               "age": 28,
               "isActive": true,
-              "createdAt": "2026-10-19T05:19:14.714Z",
-              "updatedAt": "2026-10-19T05:19:14.714Z",
               "lastName": null,
               "metadata": null,
-              "id": 2
+              "createdAt": {},
+              "updatedAt": {}
             },
             {
+              "id": 3,
               "email": "viewer@acme.com",
               "name": "Viewer User",
               "age": 25,
               "isActive": true,
-              "createdAt": "2026-10-19T05:19:14.715Z",
-              "updatedAt": "2026-10-19T05:19:14.715Z",
               "lastName": null,
               "metadata": null,
-              "id": 3
+              "createdAt": {},
+              "updatedAt": {}
             },
             {
+              "id": 4,
               "email": "admin@tech.com",
               "name": "Tech Admin",
               "age": 40,
               "isActive": true,
-              "createdAt": "2026-10-19T05:19:14.715Z",
-              "updatedAt": "2026-10-19T05:19:14.715Z",
               "lastName": null,
               "metadata": null,
-              "id": 4
+              "createdAt": {},
+              "updatedAt": {}
             }
           ]
         },
@@ -762,37 +762,37 @@
           },
           "output": [
             {
+              "id": 5,
               "email": "inactive@tech.com",
               "name": "Inactive User",
               "age": 30,
               "isActive": false,
-              "createdAt": "2026-10-19T05:19:14.715Z",
-              "updatedAt": "2026-10-19T05:19:14.715Z",
               "lastName": null,
               "metadata": null,
-              "id": 5
+              "createdAt": {},
+              "updatedAt": {}
             },
             {
+              "id": 1,
               "email": "admin@acme.com",
               "name": "Admin User",
               "age": 35,
               "isActive": true,
-              "createdAt": "2026-10-19T05:19:14.714Z",
-              "updatedAt": "2026-10-19T05:19:14.714Z",
               "lastName": null,
               "metadata": null,
-              "id": 1
+              "createdAt": {},
+              "updatedAt": {}
             },
             {
+              "id": 4,
               "email": "admin@tech.com",
               "name": "Tech Admin",
               "age": 40,
               "isActive": true,
-              "createdAt": "2026-10-19T05:19:14.715Z",
-              "updatedAt": "2026-10-19T05:19:14.715Z",
               "lastName": null,
               "metadata": null,
-              "id": 4
+              "createdAt": {},
+              "updatedAt": {}
             }
           ]
         },
@@ -817,48 +817,48 @@
           },
           "output": [
             {
+              "id": 1,
               "email": "admin@acme.com",
               "name": "Admin User",
               "age": 35,
               "isActive": true,
-              "createdAt": "2026-10-19T05:19:14.714Z",
-              "updatedAt": "2026-10-19T05:19:14.714Z",
               "lastName": null,
               "metadata": null,
-              "id": 1
+              "createdAt": {},
+              "updatedAt": {}
             },
             {
+              "id": 2,
               "email": "editor@acme.com",
               "name": "Editor User",
               "age": 28,
               "isActive": true,
-              "createdAt": "2026-10-19T05:19:14.714Z",
-              "updatedAt": "2026-10-19T05:19:14.714Z",
               "lastName": null,
               "metadata": null,
-              "id": 2
+              "createdAt": {},
+              "updatedAt": {}
             },
             {
+              "id": 3,
               "email": "viewer@acme.com",
               "name": "Viewer User",
               "age": 25,
               "isActive": true,
-              "createdAt": "2026-10-19T05:19:14.715Z",
-              "updatedAt": "2026-10-19T05:19:14.715Z",
               "lastName": null,
               "metadata": null,
-              "id": 3
+              "createdAt": {},
+              "updatedAt": {}
             },
             {
+              "id": 4,
               "email": "admin@tech.com",
               "name": "Tech Admin",
               "age": 40,
               "isActive": true,
-              "createdAt": "2026-10-19T05:19:14.715Z",
-              "updatedAt": "2026-10-19T05:19:14.715Z",
               "lastName": null,
               "metadata": null,
-              "id": 4
+              "createdAt": {},
+              "updatedAt": {}
             }
           ]
         },
@@ -879,32 +879,32 @@
           },
           "output": [
             {
+              "id": 1,
               "email": "admin@acme.com",
               "name": "Admin User",
-              "createdAt": "2026-10-19T05:19:14.714Z",
-              "updatedAt": "2026-10-19T05:19:14.714Z",
-              "id": 1
+              "createdAt": {},
+              "updatedAt": {}
             },
             {
+              "id": 2,
               "email": "editor@acme.com",
               "name": "Editor User",
-              "createdAt": "2026-10-19T05:19:14.714Z",
-              "updatedAt": "2026-10-19T05:19:14.714Z",
-              "id": 2
+              "createdAt": {},
+              "updatedAt": {}
             },
             {
+              "id": 3,
               "email": "viewer@acme.com",
               "name": "Viewer User",
-              "createdAt": "2026-10-19T05:19:14.715Z",
-              "updatedAt": "2026-10-19T05:19:14.715Z",
-              "id": 3
+              "createdAt": {},
+              "updatedAt": {}
             },
             {
+              "id": 4,
               "email": "admin@tech.com",
               "name": "Tech Admin",
-              "createdAt": "2026-10-19T05:19:14.715Z",
-              "updatedAt": "2026-10-19T05:19:14.715Z",
-              "id": 4
+              "createdAt": {},
+              "updatedAt": {}
             }
           ]
         },
@@ -925,26 +925,26 @@
           },
           "output": [
             {
+              "id": 1,
               "email": "admin@acme.com",
               "name": "Admin User",
               "age": 35,
               "isActive": true,
-              "createdAt": "2026-10-19T05:19:14.714Z",
-              "updatedAt": "2026-10-19T05:19:14.714Z",
               "lastName": null,
               "metadata": null,
-              "id": 1
+              "createdAt": {},
+              "updatedAt": {}
             },
             {
+              "id": 2,
               "email": "editor@acme.com",
               "name": "Editor User",
               "age": 28,
               "isActive": true,
-              "createdAt": "2026-10-19T05:19:14.714Z",
-              "updatedAt": "2026-10-19T05:19:14.714Z",
               "lastName": null,
               "metadata": null,
-              "id": 2
+              "createdAt": {},
+              "updatedAt": {}
             }
           ]
         },
@@ -968,124 +968,124 @@
           },
           "output": [
             {
+              "id": 1,
               "title": "Getting Started with TypeScript",
               "content": "TypeScript is a typed superset of JavaScript...",
               "slug": "getting-started-typescript",
               "isPublished": true,
               "viewCount": 100,
-              "createdAt": "2026-10-19T05:19:14.798Z",
-              "updatedAt": "2026-10-19T05:19:14.798Z",
-              "id": 1,
               "author": {
+                "id": 1,
                 "email": "admin@acme.com",
                 "name": "Admin User",
                 "age": 35,
                 "isActive": true,
-                "createdAt": "2026-10-19T05:19:14.714Z",
-                "updatedAt": "2026-10-19T05:19:14.714Z",
                 "lastName": null,
                 "metadata": null,
-                "id": 1
+                "createdAt": {},
+                "updatedAt": {}
               },
               "category": {
+                "id": 2,
                 "name": "Programming",
                 "slug": "programming",
                 "description": "Programming tutorials",
                 "isActive": true,
-                "createdAt": "2026-10-19T05:19:14.760Z",
-                "updatedAt": "2026-10-19T05:19:14.760Z",
-                "id": 2
-              }
+                "createdAt": {},
+                "updatedAt": {}
+              },
+              "createdAt": {},
+              "updatedAt": {}
             },
             {
+              "id": 2,
               "title": "Docker for Beginners",
               "content": "Docker is a containerization platform...",
               "slug": "docker-beginners",
               "isPublished": true,
               "viewCount": 50,
-              "createdAt": "2026-10-19T05:19:14.844Z",
-              "updatedAt": "2026-10-19T05:19:14.844Z",
-              "id": 2,
               "author": {
+                "id": 2,
                 "email": "editor@acme.com",
                 "name": "Editor User",
                 "age": 28,
                 "isActive": true,
-                "createdAt": "2026-10-19T05:19:14.714Z",
-                "updatedAt": "2026-10-19T05:19:14.714Z",
                 "lastName": null,
                 "metadata": null,
-                "id": 2
+                "createdAt": {},
+                "updatedAt": {}
               },
               "category": {
+                "id": 3,
                 "name": "DevOps",
                 "slug": "devops",
                 "description": "DevOps practices",
                 "isActive": true,
-                "createdAt": "2026-10-19T05:19:14.760Z",
-                "updatedAt": "2026-10-19T05:19:14.760Z",
-                "id": 3
-              }
+                "createdAt": {},
+                "updatedAt": {}
+              },
+              "createdAt": {},
+              "updatedAt": {}
             },
             {
+              "id": 4,
               "title": "Intro to Datrix",
               "content": "Datrix is a type-safe database framework.",
               "slug": "intro-to-datrix",
               "isPublished": true,
-              "createdAt": "2026-10-19T05:19:14.936Z",
-              "updatedAt": "2026-10-19T05:19:14.936Z",
               "viewCount": 0,
-              "id": 4,
               "author": {
+                "id": 1,
                 "email": "admin@acme.com",
                 "name": "Admin User",
                 "age": 35,
                 "isActive": true,
-                "createdAt": "2026-10-19T05:19:14.714Z",
-                "updatedAt": "2026-10-19T05:19:14.714Z",
                 "lastName": null,
                 "metadata": null,
-                "id": 1
+                "createdAt": {},
+                "updatedAt": {}
               },
               "category": {
+                "id": 2,
                 "name": "Programming",
                 "slug": "programming",
                 "description": "Programming tutorials",
                 "isActive": true,
-                "createdAt": "2026-10-19T05:19:14.760Z",
-                "updatedAt": "2026-10-19T05:19:14.760Z",
-                "id": 2
-              }
+                "createdAt": {},
+                "updatedAt": {}
+              },
+              "createdAt": {},
+              "updatedAt": {}
             },
             {
+              "id": 5,
               "title": "Full Stack with TypeScript",
               "content": "Building full stack apps with TypeScript.",
               "slug": "full-stack-typescript",
               "isPublished": true,
-              "createdAt": "2026-10-19T05:19:14.964Z",
-              "updatedAt": "2026-10-19T05:19:14.964Z",
               "viewCount": 0,
-              "id": 5,
               "author": {
+                "id": 2,
                 "email": "editor@acme.com",
                 "name": "Editor User",
                 "age": 28,
                 "isActive": true,
-                "createdAt": "2026-10-19T05:19:14.714Z",
-                "updatedAt": "2026-10-19T05:19:14.714Z",
                 "lastName": null,
                 "metadata": null,
-                "id": 2
+                "createdAt": {},
+                "updatedAt": {}
               },
               "category": {
+                "id": 2,
                 "name": "Programming",
                 "slug": "programming",
                 "description": "Programming tutorials",
                 "isActive": true,
-                "createdAt": "2026-10-19T05:19:14.760Z",
-                "updatedAt": "2026-10-19T05:19:14.760Z",
-                "id": 2
-              }
+                "createdAt": {},
+                "updatedAt": {}
+              },
+              "createdAt": {},
+              "updatedAt": {}
             }
           ]
         },
@@ -1115,104 +1115,104 @@
           },
           "output": [
             {
+              "id": 1,
               "title": "Getting Started with TypeScript",
               "content": "TypeScript is a typed superset of JavaScript...",
               "slug": "getting-started-typescript",
               "isPublished": true,
               "viewCount": 100,
-              "createdAt": "2026-10-19T05:19:14.798Z",
-              "updatedAt": "2026-10-19T05:19:14.798Z",
-              "id": 1,
               "author": {
+                "id": 1,
                 "email": "admin@acme.com",
                 "name": "Admin User",
-                "createdAt": "2026-10-19T05:19:14.714Z",
-                "updatedAt": "2026-10-19T05:19:14.714Z",
-                "id": 1,
                 "organization": {
+                  "id": 1,
                   "name": "Acme Corp",
                   "country": "USA",
                   "isActive": true,
-                  "createdAt": "2026-10-19T05:19:14.622Z",
-                  "updatedAt": "2026-10-19T05:19:14.622Z",
-                  "id": 1
-                }
-              }
+                  "createdAt": {},
+                  "updatedAt": {}
+                },
+                "createdAt": {},
+                "updatedAt": {}
+              },
+              "createdAt": {},
+              "updatedAt": {}
             },
             {
+              "id": 2,
               "title": "Docker for Beginners",
               "content": "Docker is a containerization platform...",
               "slug": "docker-beginners",
               "isPublished": true,
               "viewCount": 50,
-              "createdAt": "2026-10-19T05:19:14.844Z",
-              "updatedAt": "2026-10-19T05:19:14.844Z",
-              "id": 2,
               "author": {
+                "id": 2,
                 "email": "editor@acme.com",
                 "name": "Editor User",
-                "createdAt": "2026-10-19T05:19:14.714Z",
-                "updatedAt": "2026-10-19T05:19:14.714Z",
-                "id": 2,
                 "organization": {
+                  "id": 1,
                   "name": "Acme Corp",
                   "country": "USA",
                   "isActive": true,
-                  "createdAt": "2026-10-19T05:19:14.622Z",
-                  "updatedAt": "2026-10-19T05:19:14.622Z",
-                  "id": 1
-                }
-              }
+                  "createdAt": {},
+                  "updatedAt": {}
+                },
+                "createdAt": {},
+                "updatedAt": {}
+              },
+              "createdAt": {},
+              "updatedAt": {}
             },
             {
+              "id": 4,
               "title": "Intro to Datrix",
               "content": "Datrix is a type-safe database framework.",
               "slug": "intro-to-datrix",
               "isPublished": true,
-              "createdAt": "2026-10-19T05:19:14.936Z",
-              "updatedAt": "2026-10-19T05:19:14.936Z",
               "viewCount": 0,
-              "id": 4,
               "author": {
+                "id": 1,
                 "email": "admin@acme.com",
                 "name": "Admin User",
-                "createdAt": "2026-10-19T05:19:14.714Z",
-                "updatedAt": "2026-10-19T05:19:14.714Z",
-                "id": 1,
                 "organization": {
+                  "id": 1,
                   "name": "Acme Corp",
                   "country": "USA",
                   "isActive": true,
-                  "createdAt": "2026-10-19T05:19:14.622Z",
-                  "updatedAt": "2026-10-19T05:19:14.622Z",
-                  "id": 1
-                }
-              }
+                  "createdAt": {},
+                  "updatedAt": {}
+                },
+                "createdAt": {},
+                "updatedAt": {}
+              },
+              "createdAt": {},
+              "updatedAt": {}
             },
             {
+              "id": 5,
               "title": "Full Stack with TypeScript",
               "content": "Building full stack apps with TypeScript.",
               "slug": "full-stack-typescript",
               "isPublished": true,
-              "createdAt": "2026-10-19T05:19:14.964Z",
-              "updatedAt": "2026-10-19T05:19:14.964Z",
               "viewCount": 0,
-              "id": 5,
               "author": {
+                "id": 2,
                 "email": "editor@acme.com",
                 "name": "Editor User",
-                "createdAt": "2026-10-19T05:19:14.714Z",
-                "updatedAt": "2026-10-19T05:19:14.714Z",
-                "id": 2,
                 "organization": {
+                  "id": 1,
                   "name": "Acme Corp",
                   "country": "USA",
                   "isActive": true,
-                  "createdAt": "2026-10-19T05:19:14.622Z",
-                  "updatedAt": "2026-10-19T05:19:14.622Z",
-                  "id": 1
-                }
-              }
+                  "createdAt": {},
+                  "updatedAt": {}
+                },
+                "createdAt": {},
+                "updatedAt": {}
+              },
+              "createdAt": {},
+              "updatedAt": {}
             }
           ]
         },
@@ -1233,34 +1233,34 @@
           },
           "output": [
             {
+              "id": 1,
               "title": "Getting Started with TypeScript",
               "content": "TypeScript is a typed superset of JavaScript...",
               "slug": "getting-started-typescript",
               "isPublished": true,
               "viewCount": 100,
-              "createdAt": "2026-10-19T05:19:14.798Z",
-              "updatedAt": "2026-10-19T05:19:14.798Z",
-              "id": 1
+              "createdAt": {},
+              "updatedAt": {}
             },
             {
+              "id": 3,
               "title": "Draft Post",
               "content": "This is a draft...",
               "slug": "draft-post",
               "isPublished": false,
               "viewCount": 0,
-              "createdAt": "2026-10-19T05:19:14.880Z",
-              "updatedAt": "2026-10-19T05:19:14.880Z",
-              "id": 3
+              "createdAt": {},
+              "updatedAt": {}
             },
             {
+              "id": 4,
               "title": "Intro to Datrix",
               "content": "Datrix is a type-safe database framework.",
               "slug": "intro-to-datrix",
               "isPublished": true,
-              "createdAt": "2026-10-19T05:19:14.936Z",
-              "updatedAt": "2026-10-19T05:19:14.936Z",
               "viewCount": 0,
-              "id": 4
+              "createdAt": {},
+              "updatedAt": {}
             }
           ]
         },
@@ -1333,12 +1333,12 @@
           },
           "output": [
             {
-              "isActive": true,
-              "count": 4
-            },
-            {
               "isActive": false,
               "count": 1
+            },
+            {
+              "isActive": true,
+              "count": 4
             }
           ]
         }
@@ -1361,27 +1361,27 @@
             "populate": true
           },
           "output": {
+            "id": 3,
             "email": "viewer@acme.com",
             "name": "Viewer User",
             "age": 26,
             "isActive": true,
-            "createdAt": "2026-10-19T05:19:14.715Z",
-            "updatedAt": "2026-10-19T05:19:15.013Z",
             "lastName": null,
             "metadata": null,
-            "id": 3,
             "organization": {
+              "id": 1,
               "name": "Acme Corp",
               "country": "USA",
               "isActive": true,
-              "createdAt": "2026-10-19T05:19:14.622Z",
-              "updatedAt": "2026-10-19T05:19:14.622Z",
-              "id": 1
+              "createdAt": {},
+              "updatedAt": {}
             },
             "department": null,
             "roles": [],
             "favoriteCategory": null,
-            "posts": []
+            "posts": [],
+            "createdAt": {},
+            "updatedAt": {}
           }
         },
         {
@@ -1400,36 +1400,36 @@
           },
           "output": [
             {
+              "id": 3,
               "title": "Draft Post",
               "content": "This is a draft...",
               "slug": "draft-post",
               "isPublished": false,
               "viewCount": 0,
-              "createdAt": "2026-10-19T05:19:14.880Z",
-              "updatedAt": "2026-10-19T05:19:15.023Z",
-              "id": 3,
               "author": {
+                "id": 1,
                 "email": "admin@acme.com",
                 "name": "Admin User",
                 "age": 35,
                 "isActive": true,
-                "createdAt": "2026-10-19T05:19:14.714Z",
-                "updatedAt": "2026-10-19T05:19:14.714Z",
                 "lastName": null,
                 "metadata": null,
-                "id": 1
+                "createdAt": {},
+                "updatedAt": {}
               },
               "category": {
+                "id": 2,
                 "name": "Programming",
                 "slug": "programming",
                 "description": "Programming tutorials",
                 "isActive": true,
-                "createdAt": "2026-10-19T05:19:14.760Z",
-                "updatedAt": "2026-10-19T05:19:14.760Z",
-                "id": 2
+                "createdAt": {},
+                "updatedAt": {}
               },
               "tags": [],
-              "comments": []
+              "comments": [],
+              "createdAt": {},
+              "updatedAt": {}
             }
           ]
         },
@@ -1451,82 +1451,82 @@
             "populate": true
           },
           "output": {
+            "id": 1,
             "email": "admin@acme.com",
             "name": "Admin User",
             "age": 35,
             "isActive": true,
-            "createdAt": "2026-10-19T05:19:14.714Z",
-            "updatedAt": "2026-10-19T05:19:15.032Z",
             "lastName": null,
             "metadata": null,
-            "id": 1,
             "organization": {
+              "id": 1,
               "name": "Acme Corp",
               "country": "USA",
               "isActive": true,
-              "createdAt": "2026-10-19T05:19:14.622Z",
-              "updatedAt": "2026-10-19T05:19:14.622Z",
-              "id": 1
+              "createdAt": {},
+              "updatedAt": {}
             },
             "department": {
+              "id": 1,
               "name": "Engineering",
               "code": "ENG",
               "budget": 100000,
-              "createdAt": "2026-10-19T05:19:14.662Z",
-              "updatedAt": "2026-10-19T05:19:14.662Z",
-              "id": 1
+              "createdAt": {},
+              "updatedAt": {}
             },
             "roles": [
               {
+                "id": 1,
                 "name": "Admin",
                 "description": "Full access",
                 "level": 100,
-                "createdAt": "2026-10-19T05:19:14.689Z",
-                "updatedAt": "2026-10-19T05:19:14.689Z",
-                "id": 1
+                "createdAt": {},
+                "updatedAt": {}
               },
               {
+                "id": 2,
                 "name": "Editor",
                 "description": "Can edit content",
                 "level": 50,
-                "createdAt": "2026-10-19T05:19:14.690Z",
-                "updatedAt": "2026-10-19T05:19:14.690Z",
-                "id": 2
+                "createdAt": {},
+                "updatedAt": {}
               }
             ],
             "favoriteCategory": null,
             "posts": [
               {
+                "id": 1,
                 "title": "Getting Started with TypeScript",
                 "content": "TypeScript is a typed superset of JavaScript...",
                 "slug": "getting-started-typescript",
                 "isPublished": true,
                 "viewCount": 100,
-                "createdAt": "2026-10-19T05:19:14.798Z",
-                "updatedAt": "2026-10-19T05:19:14.798Z",
-                "id": 1
+                "createdAt": {},
+                "updatedAt": {}
               },
               {
+                "id": 3,
                 "title": "Draft Post",
                 "content": "This is a draft...",
                 "slug": "draft-post",
                 "isPublished": false,
                 "viewCount": 0,
-                "createdAt": "2026-10-19T05:19:14.880Z",
-                "updatedAt": "2026-10-19T05:19:15.023Z",
-                "id": 3
+                "createdAt": {},
+                "updatedAt": {}
               },
               {
+                "id": 4,
                 "title": "Intro to Datrix",
                 "content": "Datrix is a type-safe database framework.",
                 "slug": "intro-to-datrix",
                 "isPublished": true,
-                "createdAt": "2026-10-19T05:19:14.936Z",
-                "updatedAt": "2026-10-19T05:19:14.936Z",
                 "viewCount": 0,
-                "id": 4
+                "createdAt": {},
+                "updatedAt": {}
               }
-            ]
+            ],
+            "createdAt": {},
+            "updatedAt": {}
           }
         },
         {
@@ -1555,55 +1555,55 @@
             "populate": true
           },
           "output": {
+            "id": 2,
             "email": "editor@acme.com",
             "name": "Editor User",
             "age": 28,
             "isActive": true,
-            "createdAt": "2026-10-19T05:19:14.714Z",
-            "updatedAt": "2026-10-19T05:19:15.071Z",
             "lastName": null,
             "metadata": null,
-            "id": 2,
             "organization": {
+              "id": 1,
               "name": "Acme Corp",
               "country": "USA",
               "isActive": true,
-              "createdAt": "2026-10-19T05:19:14.622Z",
-              "updatedAt": "2026-10-19T05:19:14.622Z",
-              "id": 1
+              "createdAt": {},
+              "updatedAt": {}
             },
             "department": {
+              "id": 2,
               "name": "Marketing",
               "code": "MKT",
               "budget": 50000,
-              "createdAt": "2026-10-19T05:19:14.663Z",
-              "updatedAt": "2026-10-19T05:19:14.663Z",
-              "id": 2
+              "createdAt": {},
+              "updatedAt": {}
             },
             "roles": [],
             "favoriteCategory": null,
             "posts": [
               {
+                "id": 2,
                 "title": "Docker for Beginners",
                 "content": "Docker is a containerization platform...",
                 "slug": "docker-beginners",
                 "isPublished": true,
                 "viewCount": 50,
-                "createdAt": "2026-10-19T05:19:14.844Z",
-                "updatedAt": "2026-10-19T05:19:14.844Z",
-                "id": 2
+                "createdAt": {},
+                "updatedAt": {}
               },
               {
+                "id": 5,
                 "title": "Full Stack with TypeScript",
                 "content": "Building full stack apps with TypeScript.",
                 "slug": "full-stack-typescript",
                 "isPublished": true,
-                "createdAt": "2026-10-19T05:19:14.964Z",
-                "updatedAt": "2026-10-19T05:19:14.964Z",
                 "viewCount": 0,
-                "id": 5
+                "createdAt": {},
+                "updatedAt": {}
               }
-            ]
+            ],
+            "createdAt": {},
+            "updatedAt": {}
           }
         }
       ]
@@ -1627,11 +1627,11 @@
             ]
           },
           "output": {
+            "id": 9,
             "name": "Svelte",
             "color": "#FF3E00",
-            "createdAt": "2026-10-19T05:19:15.084Z",
-            "id": 9,
-            "updatedAt": "2026-10-19T05:19:15.084Z"
+            "createdAt": {},
+            "updatedAt": {}
           }
         },
         {
@@ -1649,11 +1649,11 @@
             ]
           },
           "output": {
+            "id": 2,
             "name": "TypeScript",
             "color": "#2F74C0",
-            "createdAt": "2026-10-19T05:19:14.780Z",
-            "updatedAt": "2026-10-19T05:19:15.099Z",
-            "id": 2
+            "createdAt": {},
+            "updatedAt": {}
           }
         },
         {
@@ -1678,18 +1678,18 @@
           },
           "output": [
             {
+              "id": 4,
               "name": "React",
               "color": "#149ECA",
-              "createdAt": "2026-10-19T05:19:14.780Z",
-              "updatedAt": "2026-10-19T05:19:15.112Z",
-              "id": 4
+              "createdAt": {},
+              "updatedAt": {}
             },
             {
+              "id": 12,
               "name": "Elixir",
               "color": "#4B275F",
-              "createdAt": "2026-10-19T05:19:15.112Z",
-              "id": 12,
-              "updatedAt": "2026-10-19T05:19:15.112Z"
+              "createdAt": {},
+              "updatedAt": {}
             }
           ]
         },
@@ -1713,14 +1713,14 @@
             ]
           },
           "output": {
+            "id": 4,
             "title": "Intro to Datrix",
             "content": "Datrix is a type-safe database framework.",
             "slug": "intro-to-datrix",
             "isPublished": true,
-            "createdAt": "2026-10-19T05:19:14.936Z",
-            "updatedAt": "2026-10-19T05:19:15.128Z",
             "viewCount": 120,
-            "id": 4
+            "createdAt": {},
+            "updatedAt": {}
           }
         },
         {
@@ -1746,18 +1746,18 @@
           },
           "output": [
             {
+              "id": 5,
               "name": "Docker",
               "color": "#2496ED",
-              "createdAt": "2026-10-19T05:19:14.780Z",
-              "updatedAt": "2026-10-19T05:19:14.780Z",
-              "id": 5
+              "createdAt": {},
+              "updatedAt": {}
             },
             {
+              "id": 14,
               "name": "Zig",
               "color": "#F7A41D",
-              "createdAt": "2026-10-19T05:19:15.148Z",
-              "id": 14,
-              "updatedAt": "2026-10-19T05:19:15.148Z"
+              "createdAt": {},
+              "updatedAt": {}
             }
           ]
         },
@@ -1787,51 +1787,51 @@
             "populate": true
           },
           "output": {
+            "id": 7,
             "slug": "upserting-with-datrix",
             "content": "Insert or update in a single call.",
-            "createdAt": "2026-10-19T05:19:15.168Z",
-            "id": 7,
             "isPublished": true,
             "title": "Upserting with Datrix",
-            "updatedAt": "2026-10-19T05:19:15.168Z",
             "viewCount": 0,
             "author": {
+              "id": 1,
               "email": "admin@acme.com",
               "name": "Admin User",
               "age": 35,
               "isActive": true,
-              "createdAt": "2026-10-19T05:19:14.714Z",
-              "updatedAt": "2026-10-19T05:19:15.032Z",
               "lastName": null,
               "metadata": null,
-              "id": 1
+              "createdAt": {},
+              "updatedAt": {}
             },
             "category": {
+              "id": 2,
               "name": "Programming",
               "slug": "programming",
               "description": "Programming tutorials",
               "isActive": true,
-              "createdAt": "2026-10-19T05:19:14.760Z",
-              "updatedAt": "2026-10-19T05:19:14.760Z",
-              "id": 2
+              "createdAt": {},
+              "updatedAt": {}
             },
             "tags": [
               {
+                "id": 2,
                 "name": "TypeScript",
                 "color": "#2F74C0",
-                "createdAt": "2026-10-19T05:19:14.780Z",
-                "updatedAt": "2026-10-19T05:19:15.099Z",
-                "id": 2
+                "createdAt": {},
+                "updatedAt": {}
               },
               {
+                "id": 3,
                 "name": "Node.js",
                 "color": "#339933",
-                "createdAt": "2026-10-19T05:19:14.780Z",
-                "updatedAt": "2026-10-19T05:19:14.780Z",
-                "id": 3
+                "createdAt": {},
+                "updatedAt": {}
               }
             ],
-            "comments": []
+            "comments": [],
+            "createdAt": {},
+            "updatedAt": {}
           }
         }
       ]
@@ -1850,11 +1850,11 @@
             "populate": true
           },
           "output": {
+            "id": 15,
             "name": "TempTag",
             "color": "#AAAAAA",
-            "createdAt": "2026-10-19T05:19:15.214Z",
-            "updatedAt": "2026-10-19T05:19:15.214Z",
-            "id": 15
+            "createdAt": {},
+            "updatedAt": {}
           }
         },
         {
@@ -1869,18 +1869,18 @@
           },
           "output": [
             {
+              "id": 16,
               "name": "OldTag1",
               "color": "#111111",
-              "createdAt": "2026-10-19T05:19:15.248Z",
-              "updatedAt": "2026-10-19T05:19:15.248Z",
-              "id": 16
+              "createdAt": {},
+              "updatedAt": {}
             },
             {
+              "id": 17,
               "name": "OldTag2",
               "color": "#222222",
-              "createdAt": "2026-10-19T05:19:15.248Z",
-              "updatedAt": "2026-10-19T05:19:15.248Z",
-              "id": 17
+              "createdAt": {},
+              "updatedAt": {}
             }
           ]
         }

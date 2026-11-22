@@ -15,8 +15,15 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { Datrix } from "@datrix/core";
 import fs from "node:fs/promises";
-import { createTestConfig, getTmpDir, setupTables } from "../setup";
+import {
+	createTestConfig,
+	getTmpDir,
+	setupTables,
+	getMissingId,
+} from "../setup";
 import { expectDatrixErrorAsync } from "../../test/helpers";
+
+const MISSING_ID = getMissingId();
 
 describe("Delete Operations", () => {
 	let datrix: Datrix;
@@ -75,7 +82,7 @@ describe("Delete Operations", () => {
 
 		it("should throw error for non-existent id", async () => {
 			await expectDatrixErrorAsync(async () => {
-				await datrix.delete("organization", 99999);
+				await datrix.delete("organization", MISSING_ID);
 			}, "RECORD_NOT_FOUND");
 		});
 	});

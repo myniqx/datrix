@@ -720,7 +720,6 @@ describe("Schema-Level Permission Tests", () => {
 		let productId: number;
 		let categoryId: number;
 		let supplierId: number;
-		const userId = testUsers.user.id;
 
 		beforeAll(async () => {
 			// Create category and supplier first
@@ -762,7 +761,7 @@ describe("Schema-Level Permission Tests", () => {
 						category: categoryId,
 						supplier: supplierId,
 						sku: "TEST-001",
-						createdBy: userId.toString(),
+						createdBy: String(testUsers.user.id),
 					},
 				}),
 			);
@@ -784,7 +783,7 @@ describe("Schema-Level Permission Tests", () => {
 						category: categoryId,
 						supplier: supplierId,
 						sku: "TEST-002",
-						createdBy: userId.toString(),
+						createdBy: String(testUsers.user.id),
 					},
 				}),
 			);

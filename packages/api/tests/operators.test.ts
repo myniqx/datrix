@@ -22,6 +22,25 @@ describe("Query Operators Integration Tests", () => {
 	let getDatrix: () => Promise<Datrix>;
 	const tmpDir = getTmpDir("operators");
 
+	// Seeded ids by creation order (1-based), works for int and uuid ids
+	const catIds: unknown[] = [];
+	const supIds: unknown[] = [];
+	const cat = (n: number) => catIds[n - 1];
+	const sup = (n: number) => supIds[n - 1];
+
+	async function seed(resource: string, body: unknown): Promise<unknown> {
+		const response = await handleRequest(
+			datrix,
+			new Request(`http://localhost:3000/api/${resource}`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(body),
+			}),
+		);
+		const json = await response.json();
+		return json.data.id;
+	}
+
 	beforeAll(async () => {
 		// Clean up temporary directory
 		try {
@@ -65,88 +84,58 @@ describe("Query Operators Integration Tests", () => {
 	 */
 	async function seedTestData(): Promise<void> {
 		// Create categories
-		await handleRequest(
-			datrix,
-			new Request("http://localhost:3000/api/categories", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					name: "Electronics",
-					description: "Electronic devices",
-					isActive: true,
-				}),
+		catIds.push(
+			await seed("categories", {
+				name: "Electronics",
+				description: "Electronic devices",
+				isActive: true,
 			}),
 		);
 
-		await handleRequest(
-			datrix,
-			new Request("http://localhost:3000/api/categories", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					name: "Books",
-					description: "Books and literature",
-					isActive: true,
-				}),
+		catIds.push(
+			await seed("categories", {
+				name: "Books",
+				description: "Books and literature",
+				isActive: true,
 			}),
 		);
 
-		await handleRequest(
-			datrix,
-			new Request("http://localhost:3000/api/categories", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					name: "Clothing",
-					description: null,
-					isActive: false,
-				}),
+		catIds.push(
+			await seed("categories", {
+				name: "Clothing",
+				description: null,
+				isActive: false,
 			}),
 		);
 
 		// Create suppliers
-		await handleRequest(
-			datrix,
-			new Request("http://localhost:3000/api/suppliers", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					name: "TechCorp Inc.",
-					email: "contact@techcorp.com",
-					country: "USA",
-					rating: 4.5,
-					isVerified: true,
-				}),
+		supIds.push(
+			await seed("suppliers", {
+				name: "TechCorp Inc.",
+				email: "contact@techcorp.com",
+				country: "USA",
+				rating: 4.5,
+				isVerified: true,
 			}),
 		);
 
-		await handleRequest(
-			datrix,
-			new Request("http://localhost:3000/api/suppliers", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					name: "BookWorld Ltd.",
-					email: "info@bookworld.com",
-					country: "UK",
-					rating: 4.8,
-					isVerified: true,
-				}),
+		supIds.push(
+			await seed("suppliers", {
+				name: "BookWorld Ltd.",
+				email: "info@bookworld.com",
+				country: "UK",
+				rating: 4.8,
+				isVerified: true,
 			}),
 		);
 
-		await handleRequest(
-			datrix,
-			new Request("http://localhost:3000/api/suppliers", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					name: "Fashion House",
-					email: "sales@fashionhouse.com",
-					country: "France",
-					rating: 3.2,
-					isVerified: false,
-				}),
+		supIds.push(
+			await seed("suppliers", {
+				name: "Fashion House",
+				email: "sales@fashionhouse.com",
+				country: "France",
+				rating: 3.2,
+				isVerified: false,
 			}),
 		);
 
@@ -157,8 +146,8 @@ describe("Query Operators Integration Tests", () => {
 				description: "Ergonomic wireless mouse",
 				price: 29.99,
 				stock: 150,
-				category: 1,
-				supplier: 1,
+				category: cat(1),
+				supplier: sup(1),
 				sku: "WM-2024-001",
 				isAvailable: true,
 				tags: ["wireless", "computer", "accessories"],
@@ -168,8 +157,8 @@ describe("Query Operators Integration Tests", () => {
 				description: "RGB mechanical keyboard",
 				price: 120.0,
 				stock: 5,
-				category: 1,
-				supplier: 1,
+				category: cat(1),
+				supplier: sup(1),
 				sku: "KB-MECH-001",
 				isAvailable: true,
 				tags: ["gaming", "keyboard", "rgb"],
@@ -179,8 +168,8 @@ describe("Query Operators Integration Tests", () => {
 				description: "USB-C to USB-C cable 2m",
 				price: 15.0,
 				stock: 200,
-				category: 1,
-				supplier: 1,
+				category: cat(1),
+				supplier: sup(1),
 				sku: "CABLE-USBC-001",
 				isAvailable: true,
 				tags: ["cable", "usb", "accessories"],
@@ -190,8 +179,8 @@ describe("Query Operators Integration Tests", () => {
 				description: "Complete guide to TypeScript",
 				price: 45.0,
 				stock: 20,
-				category: 2,
-				supplier: 2,
+				category: cat(2),
+				supplier: sup(2),
 				sku: "BOOK-TS-001",
 				isAvailable: true,
 				tags: ["programming", "typescript", "book"],
@@ -201,8 +190,8 @@ describe("Query Operators Integration Tests", () => {
 				description: "Modern JavaScript programming",
 				price: 38.0,
 				stock: 15,
-				category: 2,
-				supplier: 2,
+				category: cat(2),
+				supplier: sup(2),
 				sku: "BOOK-JS-001",
 				isAvailable: false,
 				tags: ["programming", "javascript", "book"],
@@ -212,8 +201,8 @@ describe("Query Operators Integration Tests", () => {
 				description: null,
 				price: 19.99,
 				stock: 0,
-				category: 3,
-				supplier: 3,
+				category: cat(3),
+				supplier: sup(3),
 				sku: "CLOTH-TS-001",
 				isAvailable: false,
 				tags: [],
@@ -223,8 +212,8 @@ describe("Query Operators Integration Tests", () => {
 				description: "Noise-cancelling headphones",
 				price: 299.99,
 				stock: 8,
-				category: 1,
-				supplier: 1,
+				category: cat(1),
+				supplier: sup(1),
 				sku: "HP-PRO-001",
 				isAvailable: true,
 				tags: ["audio", "premium", "wireless"],
@@ -234,8 +223,8 @@ describe("Query Operators Integration Tests", () => {
 				description: "Product with numeric-looking name",
 				price: 9.99,
 				stock: 10,
-				category: 1,
-				supplier: 1,
+				category: cat(1),
+				supplier: sup(1),
 				sku: "NUM-NAME-001",
 				isAvailable: true,
 				tags: ["test"],
@@ -331,9 +320,11 @@ describe("Query Operators Integration Tests", () => {
 			});
 
 			it("should exclude specific category", async () => {
-				const results = await queryProducts({ category: { id: { $ne: 1 } } });
+				const results = await queryProducts({
+					category: { id: { $ne: cat(1) } },
+				});
 				expect(results.length).toBeGreaterThan(0);
-				expect(results.every((p) => p.category !== 1)).toBe(true);
+				expect(results.every((p) => p.category !== cat(1))).toBe(true);
 			});
 		});
 
@@ -569,9 +560,13 @@ describe("Query Operators Integration Tests", () => {
 			});
 
 			it.fails("should find products with categoryId in array", async () => {
-				const results = await queryProducts({ category: { $in: [1, 2] } });
+				const results = await queryProducts({
+					category: { $in: [cat(1), cat(2)] },
+				});
 				expect(results.length).toBeGreaterThan(0);
-				expect(results.every((p) => [1, 2].includes(p.category))).toBe(true);
+				expect(
+					results.every((p) => [cat(1), cat(2)].includes(p.category)),
+				).toBe(true);
 			});
 
 			it("should find products with name in array", async () => {
@@ -589,9 +584,9 @@ describe("Query Operators Integration Tests", () => {
 			});
 
 			it.fails("should handle single value in array", async () => {
-				const results = await queryProducts({ category: { $in: [1] } });
+				const results = await queryProducts({ category: { $in: [cat(1)] } });
 				expect(results.length).toBeGreaterThan(0);
-				expect(results.every((p) => p.category === 1)).toBe(true);
+				expect(results.every((p) => p.category === cat(1))).toBe(true);
 			});
 
 			it("should handle numeric-looking strings in $in array", async () => {
@@ -615,9 +610,11 @@ describe("Query Operators Integration Tests", () => {
 			});
 
 			it.fails("should exclude multiple categories", async () => {
-				const results = await queryProducts({ category: { $nin: [1, 3] } });
+				const results = await queryProducts({
+					category: { $nin: [cat(1), cat(3)] },
+				});
 				expect(results.length).toBeGreaterThan(0);
-				expect(results.every((p) => p.category === 2)).toBe(true);
+				expect(results.every((p) => p.category === cat(2))).toBe(true);
 			});
 
 			it("should exclude specific products by name", async () => {
@@ -696,14 +693,17 @@ describe("Query Operators Integration Tests", () => {
 			it("should combine multiple field conditions", async () => {
 				const results = await queryProducts(
 					{
-						$and: [{ category: { id: { $eq: 1 } } }, { stock: { $gt: 100 } }],
+						$and: [
+							{ category: { id: { $eq: cat(1) } } },
+							{ stock: { $gt: 100 } },
+						],
 					},
 					{ category: "*" },
 				);
 				expect(results.length).toBeGreaterThan(0);
-				expect(results.every((p) => p.category.id === 1 && p.stock > 100)).toBe(
-					true,
-				);
+				expect(
+					results.every((p) => p.category.id === cat(1) && p.stock > 100),
+				).toBe(true);
 			});
 
 			it("should return empty when conditions conflict", async () => {
@@ -726,16 +726,16 @@ describe("Query Operators Integration Tests", () => {
 			it("should combine different fields", async () => {
 				const results = await queryProducts(
 					{
-						$or: [{ category: 2 }, { stock: { $eq: 0 } }],
+						$or: [{ category: cat(2) }, { stock: { $eq: 0 } }],
 					},
 					{
 						category: "*",
 					},
 				);
 				expect(results.length).toBeGreaterThan(0);
-				expect(results.every((p) => p.category.id === 2 || p.stock === 0)).toBe(
-					true,
-				);
+				expect(
+					results.every((p) => p.category.id === cat(2) || p.stock === 0),
+				).toBe(true);
 			});
 
 			it("should handle multiple OR conditions", async () => {
@@ -753,10 +753,10 @@ describe("Query Operators Integration Tests", () => {
 		describe("$not - Logical NOT", () => {
 			it("should exclude products matching condition", async () => {
 				const results = await queryProducts({
-					$not: { category: 1 }, // $not takes single object, not array
+					$not: { category: cat(1) }, // $not takes single object, not array
 				});
 				expect(results.length).toBeGreaterThan(0); // Ensure not empty
-				expect(results.every((p) => p.category !== 1)).toBe(true);
+				expect(results.every((p) => p.category !== cat(1))).toBe(true);
 			});
 
 			it("should negate complex conditions", async () => {
@@ -802,8 +802,8 @@ describe("Query Operators Integration Tests", () => {
 							{ isAvailable: true },
 							{
 								$or: [
-									{ category: { id: { $eq: 1 } } },
-									{ category: { id: { $eq: 2 } } },
+									{ category: { id: { $eq: cat(1) } } },
+									{ category: { id: { $eq: cat(2) } } },
 								],
 							},
 						],
@@ -816,7 +816,7 @@ describe("Query Operators Integration Tests", () => {
 					results.every(
 						(p) =>
 							p.isAvailable === true &&
-							(p.category.id === 1 || p.category.id === 2),
+							(p.category.id === cat(1) || p.category.id === cat(2)),
 					),
 				).toBe(true);
 			});
@@ -826,7 +826,7 @@ describe("Query Operators Integration Tests", () => {
 					$or: [
 						{
 							$and: [
-								{ category: 1 },
+								{ category: cat(1) },
 								{
 									$or: [{ price: { $lt: 30 } }, { price: { $gt: 200 } }],
 								},
@@ -860,7 +860,7 @@ describe("Query Operators Integration Tests", () => {
 			const results = await queryProducts(
 				{
 					$and: [
-						{ category: { id: { $in: [1, 2] } } },
+						{ category: { id: { $in: [cat(1), cat(2)] } } },
 						{ price: { $lte: 50 } },
 					],
 				},
@@ -869,7 +869,9 @@ describe("Query Operators Integration Tests", () => {
 
 			expect(results.length).toBeGreaterThan(0);
 			expect(
-				results.every((p) => [1, 2].includes(p.category.id) && p.price <= 50),
+				results.every(
+					(p) => [cat(1), cat(2)].includes(p.category.id) && p.price <= 50,
+				),
 			).toBe(true);
 		});
 
@@ -901,7 +903,7 @@ describe("Query Operators Integration Tests", () => {
 				$and: [
 					{ price: { $gte: 15, $lte: 50 } },
 					{ name: { $notContains: "Premium" } },
-					{ category: { id: { $in: [1, 2] } } },
+					{ category: { id: { $in: [cat(1), cat(2)] } } },
 					{ description: { $notNull: true } },
 					{
 						$or: [{ stock: { $gte: 10 } }, { isAvailable: false }],

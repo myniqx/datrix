@@ -72,6 +72,16 @@ describe("id utilities", () => {
 		expect(a.slice(0, 13)).toBe("018bcfe5-6800");
 	});
 
+	it("stays monotonic within the same millisecond", () => {
+		// > 4096 ids in one ms also exercises the counter overflow
+		const ids = Array.from({ length: 6000 }, () =>
+			generateUuidV7(1_800_000_000_000),
+		);
+		expect(ids.every(isCanonicalUuid)).toBe(true);
+		expect([...ids].sort()).toEqual(ids);
+		expect(new Set(ids).size).toBe(ids.length);
+	});
+
 	it("normalizes uuid case and rejects non-uuids", () => {
 		expect(normalizeUuid(UUID_A.toUpperCase())).toBe(UUID_A);
 		expect(normalizeUuid("abc")).toBeUndefined();

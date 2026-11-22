@@ -1,5 +1,12 @@
 # @datrix/api-upload
 
+## 0.3.0
+
+### Minor Changes
+
+- **Node 22 required:** `engines.node` is now `>=22.0.0`.
+- Support for `idType: "uuid"` (requires `@datrix/core` 0.3.0 and `@datrix/api` 0.3.0): `DELETE /upload/:id` accepts uuid ids.
+
 ## 0.2.0
 
 ### Breaking / behavior changes

@@ -22,7 +22,10 @@ import {
 	setupTables,
 	seedBasicData,
 	type SeedResult,
+	getMissingId,
 } from "../setup";
+
+const MISSING_ID = getMissingId();
 
 describe("Basic Read", () => {
 	let datrix: Datrix;
@@ -61,7 +64,7 @@ describe("Basic Read", () => {
 		});
 
 		it("should return null for non-existent id", async () => {
-			const result = await datrix.findById("organization", 99999);
+			const result = await datrix.findById("organization", MISSING_ID);
 
 			expect(result).toBeNull();
 		});

@@ -3,7 +3,14 @@
  */
 
 export { createTestConfig, getTmpDir, setupTables } from "./config";
-export { getAdapter, getAdapterType, type AdapterType } from "./adapter";
+export {
+	getAdapter,
+	getMissingId,
+	getTestEnv,
+	getTestIdType,
+	type AdapterType,
+	type TestEnv,
+} from "./adapter";
 export {
 	testSchemas,
 	organizationSchema,

@@ -20,6 +20,11 @@ import fs from "node:fs/promises";
 
 describe("API CRUD Integration Tests", () => {
 	let datrix: Datrix;
+	// Fixture ids (int or uuid depending on idType)
+	let catId: unknown;
+	let supId: unknown;
+	let booksCatId: unknown;
+	let bookSupId: unknown;
 	let getDatrix: () => Promise<Datrix>;
 	const tmpDir = getTmpDir("crud_basic");
 
@@ -49,19 +54,23 @@ describe("API CRUD Integration Tests", () => {
 		}
 
 		// Create fixture data for tests
-		await datrix.create("category", {
-			name: "Electronics",
-			description: "Electronic devices and gadgets",
-			isActive: true,
-		});
+		catId = (
+			await datrix.create("category", {
+				name: "Electronics",
+				description: "Electronic devices and gadgets",
+				isActive: true,
+			})
+		).id;
 
-		await datrix.create("supplier", {
-			name: "TechCorp Inc.",
-			email: "contact@techcorp.com",
-			country: "USA",
-			rating: 4.5,
-			isVerified: true,
-		});
+		supId = (
+			await datrix.create("supplier", {
+				name: "TechCorp Inc.",
+				email: "contact@techcorp.com",
+				country: "USA",
+				rating: 4.5,
+				isVerified: true,
+			})
+		).id;
 	});
 
 	afterAll(async () => {
@@ -129,8 +138,8 @@ describe("API CRUD Integration Tests", () => {
 					description: "Ergonomic wireless mouse with 2.4GHz connectivity",
 					price: 29.99,
 					stock: 150,
-					category: 1,
-					supplier: 1,
+					category: catId,
+					supplier: supId,
 					sku: "WM-2024-001",
 					isAvailable: true,
 					tags: ["wireless", "computer", "accessories"],
@@ -198,8 +207,8 @@ describe("API CRUD Integration Tests", () => {
 						description: "Mechanical keyboard with RGB lighting",
 						price: 79.99,
 						stock: 50,
-						category: 1,
-						supplier: 1,
+						category: catId,
+						supplier: supId,
 						sku: "KB-2024-001",
 						isAvailable: true,
 					},
@@ -232,7 +241,7 @@ describe("API CRUD Integration Tests", () => {
 
 	describe("COMPLEX QUERY Operations", () => {
 		beforeAll(async () => {
-			await handleRequest(
+			const booksRes = await handleRequest(
 				datrix,
 				createRequest("/api/categories", {
 					method: "POST",
@@ -243,8 +252,9 @@ describe("API CRUD Integration Tests", () => {
 					},
 				}),
 			);
+			booksCatId = (await booksRes.json()).data.id;
 
-			await handleRequest(
+			const bookSupRes = await handleRequest(
 				datrix,
 				createRequest("/api/suppliers", {
 					method: "POST",
@@ -257,6 +267,7 @@ describe("API CRUD Integration Tests", () => {
 					},
 				}),
 			);
+			bookSupId = (await bookSupRes.json()).data.id;
 
 			const products = [
 				{
@@ -264,8 +275,8 @@ describe("API CRUD Integration Tests", () => {
 					description: "Complete guide to TypeScript",
 					price: 45.0,
 					stock: 20,
-					category: 3,
-					supplier: 2,
+					category: booksCatId,
+					supplier: bookSupId,
 					sku: "BOOK-TS-001",
 					isAvailable: true,
 					tags: ["programming", "typescript", "book"],
@@ -275,8 +286,8 @@ describe("API CRUD Integration Tests", () => {
 					description: "RGB mechanical keyboard",
 					price: 120.0,
 					stock: 5,
-					category: 1,
-					supplier: 1,
+					category: catId,
+					supplier: supId,
 					sku: "KB-MECH-001",
 					isAvailable: true,
 					tags: ["gaming", "keyboard", "rgb"],
@@ -286,8 +297,8 @@ describe("API CRUD Integration Tests", () => {
 					description: "USB-C to USB-C cable 2m",
 					price: 15.0,
 					stock: 200,
-					category: 1,
-					supplier: 1,
+					category: catId,
+					supplier: supId,
 					sku: "CABLE-USBC-001",
 					isAvailable: true,
 					tags: ["cable", "usb", "accessories"],
@@ -297,8 +308,8 @@ describe("API CRUD Integration Tests", () => {
 					description: "Modern JavaScript programming",
 					price: 38.0,
 					stock: 15,
-					category: 3,
-					supplier: 2,
+					category: booksCatId,
+					supplier: bookSupId,
 					sku: "BOOK-JS-001",
 					isAvailable: false,
 					tags: ["programming", "javascript", "book"],

@@ -1,5 +1,19 @@
 # @datrix/core
 
+## 0.3.0
+
+### Minor Changes
+
+- **Node 22 required:** `engines.node` is now `>=22.0.0`.
+- Added `idType: "int" | "uuid"` to `defineConfig` (default `"int"`). In uuid mode every user schema's `id`, foreign key and junction column is a `uuid`; core generates UUID v7 ids before insert (creates, upserts, junction links, migration data transfers), never the database. Internal `_datrix` schemas always keep integer ids. `int` mode produces byte-for-byte the previous schema definitions, so existing projects see no migration diff.
+- Added the `DatrixId` type and `DatrixRegister` module augmentation (emitted by `datrix generate types` in uuid mode); public APIs (`DatrixEntry.id`, relation refs, `findById`/`update`/`delete`, `QueryContext.createdIds`) use `DatrixId`.
+- Added the `uuid` field type (canonical lowercase UUID); relation id shortcuts accept integer or uuid ids. The query builder canonicalizes relation ids and `where` values per target schema id kind (numeric coercion for int, lowercase for uuid) and rejects ids of the wrong kind.
+- Added `parseIdParam(segment, schema)` for parsing path ids per schema id kind.
+- UUID v7 ids are monotonic within the same millisecond (RFC 9562 counter), so ordering by `id` follows insertion order.
+- Added the idType migration: switching `idType` on an existing database is detected from the stored schema snapshot and applied via `MigrationSession.applyIdTypeChange` (export → id/FK/junction rewrite in creation order → import). It is refused when combined with other schema changes.
+- **Schema defaults are now applied by the executor:** on create (`create`, `createMany`, nested relation creates, raw mode, and the insert path of `upsert`), fields the caller did not provide get their `default` **before** validation. Previously a `required` field with a `default` was rejected as missing, and defaults only existed as DB-level `DEFAULT`. Only `undefined` is filled — an explicit `null` is kept — and updates (including the conflict path of `upsert`) never re-apply defaults. Defaults are validated like any other value.
+- Function defaults (`default: () => value`) are now called once per row; previously they were silently dropped (adapters cannot express them in DDL). Object/array defaults are cloned per row.
+
 ## 0.2.2
 
 ### Patch Changes

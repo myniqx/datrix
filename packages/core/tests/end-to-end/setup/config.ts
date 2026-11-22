@@ -6,26 +6,30 @@
  */
 
 import { defineConfig, Datrix } from "@datrix/core";
-import type { DatrixConfig } from "@datrix/core";
+import type { DatrixConfig, IdType } from "@datrix/core";
 import path from "node:path";
-import { getAdapter, getAdapterType } from "./adapter";
+import { getTestEnv } from "./adapter";
 import { testSchemas } from "./schemas";
 
 /**
  * Create test configuration for core e2e tests
  *
  * @param tmpDir - Temporary directory for test data
+ * @param options - idType: pin the idType instead of the test env one
  * @returns Datrix factory function
  */
 export async function createTestConfig(
 	tmpDir: string,
+	options?: { idType?: IdType },
 ): Promise<() => Promise<Datrix>> {
-	const adapterType = getAdapterType();
-	const adapter = await getAdapter(adapterType, tmpDir);
+	const env = await getTestEnv(tmpDir);
+	const adapter = env.adapter;
+	const idType = options?.idType ?? env.idType;
 
 	return defineConfig(() => {
 		const config: DatrixConfig = {
 			adapter,
+			idType,
 			schemas: testSchemas,
 			plugins: [],
 		};

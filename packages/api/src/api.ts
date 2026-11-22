@@ -218,6 +218,8 @@ export class ApiPlugin<TRole extends string = string>
 				role: {
 					type: "string",
 					required: true,
+					// maxLength keeps it VARCHAR — MySQL rejects DEFAULT on TEXT
+					maxLength: 64,
 					default: this.authDefaultRole ?? "user",
 				},
 				resetToken: {

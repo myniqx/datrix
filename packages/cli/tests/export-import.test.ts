@@ -22,7 +22,11 @@ import type { DatrixConfig, DatrixEntry } from "@datrix/core";
 import { defineSchema } from "@datrix/core";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { getAdapter, type AdapterType } from "../../api/tests/data/adapter";
+import {
+	getAdapter,
+	getTestIdType,
+	type AdapterType,
+} from "../../api/tests/data/adapter";
 import { exportCommand } from "../src/commands/export";
 import { importCommand } from "../src/commands/import";
 
@@ -155,6 +159,26 @@ function getTmpDir(name: string): string {
 	return path.join(TEST_ROOT, name);
 }
 
+/**
+ * New ids must sort after existing ones: auto-increment continues, uuid v7
+ * is time-ordered.
+ */
+function expectIdAfter(id: unknown, previous: unknown): void {
+	if (typeof id === "number" && typeof previous === "number") {
+		expect(id).toBeGreaterThan(previous);
+	} else {
+		expect(String(id) > String(previous)).toBe(true);
+	}
+}
+
+function maxId<T>(ids: readonly T[]): T {
+	return [...ids].sort((a, b) =>
+		typeof a === "number" && typeof b === "number"
+			? a - b
+			: String(a).localeCompare(String(b)),
+	)[ids.length - 1]!;
+}
+
 async function initDatrix(
 	adapterType: AdapterType,
 	dirName: string,
@@ -168,6 +192,7 @@ async function initDatrix(
 	const getDatrix = defineConfig(() => {
 		const config: DatrixConfig = {
 			adapter,
+			idType: getTestIdType(),
 			schemas: exportImportSchemas,
 			plugins: [],
 		};
@@ -377,8 +402,8 @@ describe(`Export/Import (${FROM_ADAPTER} → ${TO_ADAPTER})`, () => {
 		postIds = postIds.filter((id) => id !== deletedPostId);
 
 		// Record the max IDs before export so we can verify auto-increment continues after import
-		lastAuthorIdBeforeExport = Math.max(...authorIds);
-		lastPostIdBeforeExport = Math.max(...postIds);
+		lastAuthorIdBeforeExport = maxId(authorIds);
+		lastPostIdBeforeExport = maxId(postIds);
 
 		// Record a known post→author FK pair for relation integrity assertion
 		knownPostId = postIds[0]!;
@@ -541,7 +566,9 @@ describe(`Export/Import (${FROM_ADAPTER} → ${TO_ADAPTER})`, () => {
 		expect(replies).toHaveLength(1);
 		const parent = replies[0]!.parent as Record<string, unknown> | null;
 		expect(parent).not.toBeNull();
-		expect(typeof parent!["id"]).toBe("number");
+		expect(typeof parent!["id"]).toBe(
+			getTestIdType() === "uuid" ? "string" : "number",
+		);
 	});
 
 	it("should preserve manyToMany post ↔ tag relations", async () => {
@@ -583,7 +610,7 @@ describe(`Export/Import (${FROM_ADAPTER} → ${TO_ADAPTER})`, () => {
 			name: "New Author After Import",
 			email: "new-after-import@test.com",
 		});
-		expect(newAuthor.id as number).toBeGreaterThan(lastAuthorIdBeforeExport);
+		expectIdAfter(newAuthor.id, lastAuthorIdBeforeExport);
 	});
 
 	it("should continue auto-increment from last post ID after import", async () => {
@@ -593,7 +620,7 @@ describe(`Export/Import (${FROM_ADAPTER} → ${TO_ADAPTER})`, () => {
 			content: "Written after import.",
 			isPublished: false,
 		});
-		expect(newPost.id as number).toBeGreaterThan(lastPostIdBeforeExport);
+		expectIdAfter(newPost.id, lastPostIdBeforeExport);
 	});
 
 	// ==========================================================================

@@ -23,8 +23,11 @@ import {
 	setupTables,
 	seedBasicData,
 	type SeedResult,
+	getMissingId,
 } from "../setup";
 import { expectDatrixErrorAsync } from "../../test/helpers";
+
+const MISSING_ID = getMissingId();
 
 describe("Update Operations", () => {
 	let datrix: Datrix;
@@ -114,7 +117,7 @@ describe("Update Operations", () => {
 
 		it("should throw error for non-existent id", async () => {
 			await expectDatrixErrorAsync(async () => {
-				await datrix.update("organization", 99999, {
+				await datrix.update("organization", MISSING_ID, {
 					name: "Should Fail",
 				});
 			}, "RECORD_NOT_FOUND");

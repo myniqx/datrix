@@ -8,7 +8,7 @@ import { defineConfig, Datrix } from "@datrix/core";
 import type { DatrixConfig } from "@datrix/core";
 import type { SchemaDefinition } from "@datrix/core";
 import path from "node:path";
-import { getAdapter, getAdapterType } from "./adapter";
+import { getTestEnv } from "./adapter";
 
 /**
  * Create test configuration with given schemas
@@ -22,15 +22,12 @@ export async function createTestConfig(
 	schemas: readonly SchemaDefinition[],
 	skipCreate = false,
 ): Promise<() => Promise<Datrix>> {
-	const adapterType = getAdapterType();
-	// skipCreate: true because DB is created once in beforeAll via getAdapter
-	const adapter = await getAdapter(adapterType, tmpDir, {
-		skipCreate,
-	});
+	const { adapter, idType } = await getTestEnv(tmpDir, { skipCreate });
 
 	return defineConfig(() => {
 		const config: DatrixConfig = {
 			adapter,
+			idType,
 			schemas: [...schemas],
 			plugins: [],
 			migration: {

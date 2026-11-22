@@ -1,5 +1,14 @@
 # @datrix/cli
 
+## 0.3.0
+
+### Minor Changes
+
+- **Node 22 required:** `engines.node` is now `>=22.0.0`.
+- Support for `idType: "uuid"` (requires `@datrix/core` 0.3.0): `generate types` emits the `DatrixRegister` augmentation in uuid mode and types uuid fields as `string`.
+- `datrix migrate` handles an `idType` switch: it refuses to combine it with other schema changes, writes a zip backup and an old → new id mapping file, then converts the database.
+- Fixed file import resolving record ids with `Number()`, which broke media relinking for uuid ids; ids are now parsed per schema id kind.
+
 ## 0.2.0
 
 ### Minor Changes

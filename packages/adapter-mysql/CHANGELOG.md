@@ -1,5 +1,13 @@
 # @datrix/adapter-mysql
 
+## 0.3.0
+
+### Minor Changes
+
+- **Node 22 required:** `engines.node` is now `>=22.0.0`.
+- Support for `idType: "uuid"` (requires `@datrix/core` 0.3.0): uuid ids and foreign keys map to `CHAR(36)`, inserted ids are read from the data instead of `insertId`, and import skips `AUTO_INCREMENT` resets for uuid tables.
+- Fixed object/array `default` values on JSON columns failing on MariaDB (`CAST(... AS JSON)` is MySQL-only); they now render as a parenthesized JSON string literal, which works on MySQL 8.0.13+ and MariaDB 10.2+.
+
 ## 0.2.1
 
 ### Patch Changes

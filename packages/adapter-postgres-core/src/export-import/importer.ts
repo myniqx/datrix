@@ -168,9 +168,11 @@ export class PostgresImporter {
 		const escapedTable = this.adapter
 			.getTranslator()
 			.escapeIdentifier(tableName);
+		// pg_get_serial_sequence parses its argument as an identifier: pass the
+		// quoted name, otherwise mixed-case tables are folded to lower case.
 		await this.runner.query(
 			`SELECT setval(pg_get_serial_sequence($1, 'id'), COALESCE((SELECT MAX(id) FROM ${escapedTable}), 0) + 1, false)`,
-			[tableName],
+			[escapedTable],
 		);
 	}
 }

@@ -3,7 +3,7 @@ import { ApiPlugin } from "../../src/api";
 import { testSchemas } from "./schemas";
 import path from "node:path";
 import { DatrixConfig } from "@datrix/core";
-import { getAdapter, getAdapterType } from "./adapter";
+import { getTestEnv } from "./adapter";
 
 /**
  * Test Configuration
@@ -17,12 +17,12 @@ import { getAdapter, getAdapterType } from "./adapter";
  * - ADAPTER=mysql npm test (MySQL database)
  */
 export async function createTestConfig(tmpDir: string) {
-	const adapterType = getAdapterType();
-	const adapter = await getAdapter(adapterType, tmpDir);
+	const { adapter, idType } = await getTestEnv(tmpDir);
 
 	return defineConfig(() => {
 		const config: DatrixConfig = {
 			adapter,
+			idType,
 
 			schemas: testSchemas,
 

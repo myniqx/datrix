@@ -7,6 +7,7 @@
 import type { Datrix } from "@datrix/core";
 import type { DatrixEntry } from "@datrix/core";
 import { expect } from "vitest";
+import { getTestIdType } from "./adapter";
 
 // ============================================================================
 // Types
@@ -322,7 +323,7 @@ export function expectAutoFields<T extends DatrixEntry>(obj: T): void {
 	expect(obj).toHaveProperty("id");
 	expect(obj).toHaveProperty("createdAt");
 	expect(obj).toHaveProperty("updatedAt");
-	expect(typeof obj.id).toBe("number");
+	expect(typeof obj.id).toBe(getTestIdType() === "uuid" ? "string" : "number");
 }
 
 /**

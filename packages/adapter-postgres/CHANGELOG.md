@@ -1,5 +1,14 @@
 # @datrix/adapter-postgres
 
+## 0.3.0
+
+### Minor Changes
+
+- **Node 22 required:** `engines.node` is now `>=22.0.0`.
+- Updated dependencies
+  - @datrix/adapter-postgres-core@0.3.0
+  - @datrix/core@0.3.0
+
 ## 0.2.0
 
 ### Patch Changes

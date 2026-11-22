@@ -36,6 +36,7 @@ import AdmZip from "adm-zip";
 import { ApiPlugin } from "@datrix/api";
 import { Upload, LocalStorageProvider } from "@datrix/api-upload";
 import { JsonAdapter } from "../../adapter-json/src/index";
+import { getTestIdType } from "../../api/tests/data/adapter";
 import type { DatrixConfig } from "@datrix/core";
 import { defineConfig } from "@datrix/core";
 import { IApiPlugin } from "@datrix/core";
@@ -138,6 +139,7 @@ async function createDatrixWithUpload(tmpDir: string): Promise<Datrix> {
 	const getDatrix = defineConfig(() => {
 		const config: DatrixConfig = {
 			adapter,
+			idType: getTestIdType(),
 			schemas: [],
 			plugins: [
 				new ApiPlugin({

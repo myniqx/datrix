@@ -24,6 +24,8 @@ import path from "node:path";
 import AdmZip from "adm-zip";
 import type { IUpload } from "@datrix/core";
 import type { IDatrix } from "@datrix/core";
+import type { DatrixId } from "@datrix/core";
+import { parseIdParam } from "@datrix/core";
 import { logger } from "../utils/logger";
 import type { LedgerEntry } from "./file-exporter";
 import { Ledger } from "./ledger";
@@ -219,10 +221,15 @@ export class FileImporter {
 		newKey: string,
 	): Promise<void> {
 		const modelName = this.upload.getModelName();
+		const schema = this.datrix.getSchemas().get(modelName);
+		// Ledger ids are strings; parse them per the model's idType
+		const toId = (raw: string): DatrixId | undefined =>
+			parseIdParam(raw, schema) as DatrixId | undefined;
 
 		if (entryId.includes("__")) {
 			const [rawId, variantName] = entryId.split("__") as [string, string];
-			const id = Number(rawId);
+			const id = toId(rawId);
+			if (id === undefined) return;
 			const record = await this.datrix.raw.findById(modelName, id);
 			if (!record) return;
 
@@ -235,7 +242,8 @@ export class FileImporter {
 			}
 			await this.datrix.raw.update(modelName, id, { variants });
 		} else {
-			const id = Number(entryId);
+			const id = toId(entryId);
+			if (id === undefined) return;
 			await this.datrix.raw.update(modelName, id, { key: newKey });
 		}
 

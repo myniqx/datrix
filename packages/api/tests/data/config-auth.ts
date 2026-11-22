@@ -2,7 +2,8 @@ import { defineConfig } from "@datrix/core";
 import { ApiPlugin } from "../../src/api";
 import { testSchemas } from "./schemas";
 import { DatrixConfig } from "@datrix/core";
-import { getAdapter, getAdapterType } from "./adapter";
+import type { DatrixId } from "@datrix/core";
+import { getTestEnv } from "./adapter";
 
 /**
  * Test Roles
@@ -31,12 +32,12 @@ export const testJwtSecret = "test-jwt-secret-key-for-unit-tests-32-chars-min";
  * - ADAPTER=mysql npm test (MySQL database)
  */
 export async function createTestConfigWithAuth(tmpDir: string) {
-	const adapterType = getAdapterType();
-	const adapter = await getAdapter(adapterType, tmpDir);
+	const { adapter, idType } = await getTestEnv(tmpDir);
 
 	return defineConfig(() => {
 		const config: DatrixConfig = {
 			adapter,
+			idType,
 
 			schemas: testSchemas,
 
@@ -89,7 +90,8 @@ export async function createTestConfigWithAuth(tmpDir: string) {
  * Used in tests to simulate authenticated requests
  */
 export interface TestUser {
-	readonly id: number;
+	/** Auth record id, filled in by seedTestAuthUsers (int or uuid) */
+	id: DatrixId;
 	readonly email: string;
 	readonly role: TestRoles;
 }
@@ -105,16 +107,16 @@ export const testUsers: Record<TestRoles, TestUser> = {
  * Seed user + authentication records for the fixture users.
  *
  * Tokens are verified against the authentication table (decision D1), so a
- * JWT minted for a test user must reference a real auth record. Records are
- * inserted in fixture order on fresh tables so each auth record id matches
- * the fixture id used to sign the token.
+ * JWT minted for a test user must reference a real auth record. The created
+ * auth record id is written back to `testUsers[role].id`, so tokens must be
+ * signed after seeding.
  */
 export async function seedTestAuthUsers(datrix: {
 	raw: {
 		create: (
 			model: string,
 			data: Record<string, unknown>,
-		) => Promise<{ id: number }>;
+		) => Promise<{ id: DatrixId }>;
 	};
 }): Promise<void> {
 	for (const role of roles) {
@@ -130,10 +132,6 @@ export async function seedTestAuthUsers(datrix: {
 			passwordSalt: "",
 			role: user.role,
 		});
-		if (authRow.id !== user.id) {
-			throw new Error(
-				`Seeded auth record id ${authRow.id} does not match fixture id ${user.id} for role '${role}'. Seed on fresh tables.`,
-			);
-		}
+		user.id = authRow.id;
 	}
 }

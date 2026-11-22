@@ -13,7 +13,14 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { Datrix } from "@datrix/core";
 import fs from "node:fs/promises";
-import { createTestConfig, getTmpDir, setupTables } from "../setup";
+import {
+	createTestConfig,
+	getTmpDir,
+	setupTables,
+	getMissingId,
+} from "../setup";
+
+const MISSING_ID = getMissingId();
 
 describe("Delete Validation", () => {
 	let datrix: Datrix;
@@ -56,21 +63,21 @@ describe("Delete Validation", () => {
 
 	describe("Record Not Found", () => {
 		it("should fail when deleting non-existent record by id", async () => {
-			await expect(datrix.delete("user", 99999)).rejects.toThrow();
+			await expect(datrix.delete("user", MISSING_ID)).rejects.toThrow();
 		});
 
 		it("should include record id in error message", async () => {
 			try {
-				await datrix.delete("user", 99999);
+				await datrix.delete("user", MISSING_ID);
 				expect.fail("Should have thrown");
 			} catch (error) {
-				expect((error as Error).message).toContain("99999");
+				expect((error as Error).message).toContain(String(MISSING_ID));
 			}
 		});
 
 		it("should include model name in error message", async () => {
 			try {
-				await datrix.delete("user", 99999);
+				await datrix.delete("user", MISSING_ID);
 				expect.fail("Should have thrown");
 			} catch (error) {
 				const message = (error as Error).message.toLowerCase();
@@ -222,7 +229,7 @@ describe("Delete Validation", () => {
 	describe("Error Message Quality", () => {
 		it("should provide actionable error for not found", async () => {
 			try {
-				await datrix.delete("user", 99999);
+				await datrix.delete("user", MISSING_ID);
 				expect.fail("Should have thrown");
 			} catch (error) {
 				const message = (error as Error).message;
@@ -233,7 +240,7 @@ describe("Delete Validation", () => {
 
 		it("should indicate delete operation in error", async () => {
 			try {
-				await datrix.delete("user", 99999);
+				await datrix.delete("user", MISSING_ID);
 				expect.fail("Should have thrown");
 			} catch (error) {
 				const message = (error as Error).message.toLowerCase();

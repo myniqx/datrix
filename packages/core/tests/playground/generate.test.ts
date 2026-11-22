@@ -92,7 +92,8 @@ beforeAll(async () => {
 	await fs.rm(tmpDir, { recursive: true, force: true });
 	await fs.mkdir(tmpDir, { recursive: true });
 
-	const getDatrix = await createTestConfig(tmpDir);
+	// Docs examples show integer ids; keep the output stable across ID_TYPE runs
+	const getDatrix = await createTestConfig(tmpDir, { idType: "int" });
 	datrix = await getDatrix();
 	await setupTables(datrix);
 
@@ -100,6 +101,34 @@ beforeAll(async () => {
 	const posts = await seedPosts(datrix, seed);
 	seed.posts = posts;
 });
+
+/**
+ * Make the generated docs data deterministic so re-running the suite does not
+ * churn playground.json: timestamps get a fixed value and record keys a fixed
+ * order (id first, timestamps last). The data itself is untouched.
+ */
+const DOCS_TIMESTAMP = "2026-01-01T00:00:00.000Z";
+const TIMESTAMP_KEYS = new Set(["createdAt", "updatedAt"]);
+
+function normalizeForDocs(value: unknown): unknown {
+	if (Array.isArray(value)) return value.map(normalizeForDocs);
+	if (value === null || typeof value !== "object") return value;
+
+	const entries = Object.entries(value as Record<string, unknown>);
+	const rank = (key: string): number =>
+		key === "id" ? 0 : TIMESTAMP_KEYS.has(key) ? 2 : 1;
+	// Stable sort: keys within the same rank keep their original order
+	entries.sort(([a], [b]) => rank(a) - rank(b));
+
+	return Object.fromEntries(
+		entries.map(([key, val]) => [
+			key,
+			TIMESTAMP_KEYS.has(key) && typeof val === "string"
+				? DOCS_TIMESTAMP
+				: normalizeForDocs(val),
+		]),
+	);
+}
 
 afterAll(async () => {
 	const outputPath = path.resolve(
@@ -121,7 +150,7 @@ afterAll(async () => {
 		),
 	}));
 
-	const output = { schemas, groups };
+	const output = { schemas, groups: normalizeForDocs(groups) };
 
 	await fs.mkdir(path.dirname(outputPath), { recursive: true });
 	await fs.writeFile(outputPath, JSON.stringify(output, null, 2), "utf-8");

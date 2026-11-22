@@ -26,13 +26,7 @@ import type {
 	PluginContext,
 } from "@datrix/core";
 import fs from "node:fs/promises";
-import {
-	createTestConfig,
-	getAdapter,
-	getAdapterType,
-	getTmpDir,
-	setupTables,
-} from "../setup";
+import { createTestConfig, getTestEnv, getTmpDir, setupTables } from "../setup";
 
 describe("datrix.transaction()", () => {
 	let datrix: Datrix;
@@ -338,9 +332,10 @@ describe("datrix.transaction() with hooks and plugins", () => {
 			},
 		});
 
-		const adapter = await getAdapter(getAdapterType(), tmpDir);
+		const { adapter, idType } = await getTestEnv(tmpDir);
 		const getDatrix = defineConfig(() => ({
 			adapter,
+			idType,
 			schemas: [itemSchema, auditSchema],
 			plugins: [new AfterCommitErrorPlugin({})],
 		}));

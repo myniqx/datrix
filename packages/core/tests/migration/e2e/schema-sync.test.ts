@@ -18,7 +18,7 @@
 
 import { describe, it, beforeAll, afterAll, expect } from "vitest";
 import { createDatrixWithSchemas, getTmpDir } from "./setup/config";
-import { getAdapter, getAdapterType } from "./setup/adapter";
+import { getTestEnv } from "./setup/adapter";
 import {
 	baseUserSchema,
 	basePostSchemaNoRelation,
@@ -41,8 +41,7 @@ describe("Migration E2E - Schema Sync", () => {
 	let adapter: DatabaseAdapter;
 
 	beforeAll(async () => {
-		const adapterType = getAdapterType();
-		adapter = await getAdapter(adapterType, tmpDir);
+		({ adapter } = await getTestEnv(tmpDir));
 		await adapter.connect();
 		await dropAllTables(adapter);
 	});
@@ -111,7 +110,10 @@ describe("Migration E2E - Schema Sync", () => {
 		});
 
 		// Verify v1 data with populate
-		const postsV1 = await datrix1.findMany("post", { populate: true });
+		const postsV1 = await datrix1.findMany("post", {
+			populate: true,
+			orderBy: [{ field: "id", direction: "asc" }],
+		});
 		expect(postsV1).toHaveLength(2);
 		expect(postsV1[0]!.author.id).toBe(user1.id);
 		expect(postsV1[0]!.category.id).toBe(cat1.id);
@@ -192,7 +194,10 @@ describe("Migration E2E - Schema Sync", () => {
 		await assertSchemaSync(datrix2, "tag");
 
 		// Verify v2 data preservation — author relation still works with renamed FK
-		const postsV2 = await datrix2.findMany("post", { populate: true });
+		const postsV2 = await datrix2.findMany("post", {
+			populate: true,
+			orderBy: [{ field: "id", direction: "asc" }],
+		});
 		expect(postsV2).toHaveLength(2);
 
 		const p1v2 = postsV2.find((p) => p.title === "Alice Tech Post");
@@ -280,7 +285,10 @@ describe("Migration E2E - Schema Sync", () => {
 		await assertSchemaSync(datrix3, "user");
 
 		// Verify v3 data preservation
-		const postsV3 = await datrix3.findMany("post", { populate: true });
+		const postsV3 = await datrix3.findMany("post", {
+			populate: true,
+			orderBy: [{ field: "id", direction: "asc" }],
+		});
 		expect(postsV3).toHaveLength(2);
 
 		const p1v3 = postsV3.find((p) => p.title === "Alice Tech Post");

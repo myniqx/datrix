@@ -56,6 +56,7 @@ function fakeUpload(overrides: Partial<Record<string, unknown>> = {}): IUpload {
 
 function fakeDatrix(): IDatrix {
 	return {
+		getSchemas: () => ({ get: () => undefined }),
 		raw: {
 			update: vi.fn().mockResolvedValue({}),
 			findById: vi.fn().mockResolvedValue(null),

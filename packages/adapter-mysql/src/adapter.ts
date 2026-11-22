@@ -1400,16 +1400,16 @@ export class MySQLAdapter implements DatabaseAdapter<MySQLConfig> {
 
 		let defaultValue = "";
 		if (hasDefault) {
-			const rendered = escapeValue(field.default);
-			// Object/array defaults render as expressions (JSON_ARRAY/CAST) and
-			// need MySQL's parenthesized expression-default syntax (8.0.13+)
-			const isExpression =
+			// Object/array defaults use the parenthesized expression-default
+			// syntax (MySQL 8.0.13+, MariaDB 10.2+) around a plain JSON string
+			// literal — MariaDB has no `CAST(... AS JSON)`.
+			const isJsonValue =
 				typeof field.default === "object" &&
 				field.default !== null &&
 				!(field.default instanceof Date);
-			defaultValue = isExpression
-				? ` DEFAULT (${rendered})`
-				: ` DEFAULT ${rendered}`;
+			defaultValue = isJsonValue
+				? ` DEFAULT (${escapeValue(JSON.stringify(field.default))})`
+				: ` DEFAULT ${escapeValue(field.default)}`;
 		}
 
 		const unique =

@@ -4,7 +4,8 @@
  * Handles:
  * 1. Reserved field checks
  * 2. Timestamp injection (before validation)
- * 3. Schema validation (min/max/regex/type/required)
+ * 3. Schema default injection for creates (before validation)
+ * 4. Schema validation (min/max/regex/type/required)
  */
 
 import {
@@ -12,6 +13,7 @@ import {
 	SchemaDefinition,
 	RESERVED_FIELDS,
 } from "../types/core/schema";
+import { getDefaultValue } from "../schema/inference";
 import { validatePartial, validateSchema } from "../validator";
 import { throwReservedFieldError } from "./error-helper";
 import { QueryRelations } from "../types/core/query-builder";
@@ -139,12 +141,57 @@ function addTimestamps<T extends DatrixEntry>(
 }
 
 /**
+ * Concrete value for one row: function defaults are called per row (adapters
+ * cannot express them in DDL), object/array defaults are cloned so rows never
+ * share — and mutate — the schema's default value.
+ */
+function resolveDefault(defaultValue: unknown): unknown {
+	if (typeof defaultValue === "function") {
+		return (defaultValue as () => unknown)();
+	}
+	return typeof defaultValue === "object" && defaultValue !== null
+		? structuredClone(defaultValue)
+		: defaultValue;
+}
+
+/**
+ * Fill schema defaults for fields the caller did not provide (creates only)
+ *
+ * Runs before validation so a `required` field with a `default` passes and
+ * the default itself is validated. Only `undefined` is filled — an explicit
+ * `null` is the caller's choice and is left for the validator to judge.
+ * Relation and reserved fields are never defaulted.
+ */
+function applyDefaults<T extends DatrixEntry>(
+	data: Partial<T> | undefined,
+	schema: SchemaDefinition,
+): Partial<T> | undefined {
+	let result: Record<string, unknown> | undefined;
+	for (const [fieldName, field] of Object.entries(schema.fields)) {
+		if (
+			field.type === "relation" ||
+			(RESERVED_FIELDS as readonly string[]).includes(fieldName)
+		) {
+			continue;
+		}
+		const defaultValue = getDefaultValue(field);
+		if (defaultValue === undefined) continue;
+		const current = (result ?? data) as Record<string, unknown> | undefined;
+		if (current?.[fieldName] !== undefined) continue;
+		result ??= { ...(data ?? {}) };
+		result[fieldName] = resolveDefault(defaultValue);
+	}
+	return (result ?? data) as Partial<T> | undefined;
+}
+
+/**
  * Validate data against schema with timestamp handling
  *
  * **Flow:**
  * 1. Check reserved fields (only in normal mode)
  * 2. Add timestamps BEFORE validation (so required fields pass)
- * 3. Schema validation (min/max/regex/type/required)
+ * 3. Fill schema defaults for missing fields (creates only)
+ * 4. Schema validation (min/max/regex/type/required)
  *
  * @param data - Data to validate
  * @param schema - Schema definition
@@ -190,11 +237,17 @@ export function validateData<
 		? data
 		: addTimestamps(data, { isCreate, isRawMode });
 
-	// 2b. Assign core-generated ids (uuid schemas only) for creates
+	// 2b. Fill schema defaults BEFORE validation (creates only — an update
+	// must never reset fields the caller left out)
+	const withDefaults = isCreate
+		? applyDefaults(withTimestamps, schema)
+		: withTimestamps;
+
+	// 2c. Assign core-generated ids (uuid schemas only) for creates
 	const dataWithTimestamps =
-		isCreate && withTimestamps !== undefined
-			? assignIds([withTimestamps as Record<string, unknown>], schema)[0]
-			: withTimestamps;
+		isCreate && withDefaults !== undefined
+			? assignIds([withDefaults as Record<string, unknown>], schema)[0]
+			: withDefaults;
 
 	// 3. Schema validation (with timestamps already present).
 	// With strict: true and stripUnknown: false the validator is check-only

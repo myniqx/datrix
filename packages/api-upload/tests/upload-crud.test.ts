@@ -17,6 +17,7 @@ import {
 } from "../../core/tests/test/helpers";
 import type { MediaEntry } from "@datrix/core";
 import { createUploadTestConfig } from "./data/config";
+import { getMissingId } from "../../api/tests/data/adapter";
 import {
 	createCheckerboardPng,
 	createImageFormData,
@@ -145,7 +146,7 @@ describe("Upload CRUD / Routing Tests", () => {
 
 		it("should return 404 for a non-existent id", async () => {
 			const response = await handleRequest(
-				createGetRequest("/api/upload/99999"),
+				createGetRequest(`/api/upload/${getMissingId()}`),
 			);
 			await expectApiError(response, 404);
 		});

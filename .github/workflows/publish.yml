@@ -30,11 +30,12 @@ jobs:
         run: pnpm build
 
       # Publish order matters: @datrix/core is a peer/dev dependency of every
-      # other package, so it must be published first.
+      # other package, so it must be published first. adapter-postgres-core
+      # likewise goes before adapter-postgres, which depends on it.
       - name: Publish changed packages
         run: |
           set -e
-          PACKAGES="core adapter-json adapter-mongodb adapter-mysql adapter-postgres adapter-postgres-core api api-upload cli"
+          PACKAGES="core adapter-json adapter-mongodb adapter-mysql adapter-postgres-core adapter-postgres api api-upload cli"
 
           for dir in $PACKAGES; do
             pkg_path="packages/$dir/package.json"

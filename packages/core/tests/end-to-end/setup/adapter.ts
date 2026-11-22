@@ -7,6 +7,9 @@
 
 export {
 	getAdapter,
-	getAdapterType,
+	getMissingId,
+	getTestEnv,
+	getTestIdType,
 	type AdapterType,
+	type TestEnv,
 } from "../../../../api/tests/data/adapter";

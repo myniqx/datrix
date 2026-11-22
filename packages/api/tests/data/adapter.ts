@@ -13,12 +13,28 @@ import { createTestDatabase as createPostgresTestDatabase } from "../../../adapt
 import { createTestDatabase as createMySQLTestDatabase } from "../../../adapter-mysql/src/test-utils";
 import { createTestDatabase as createMongoDBTestDatabase } from "../../../adapter-mongodb/src/test-utils";
 import { createHash } from "node:crypto";
-import { DatabaseAdapter } from "@datrix/core";
+import type { DatabaseAdapter, DatrixId, IdType } from "@datrix/core";
 
 /**
  * Supported adapter types for testing
  */
 export type AdapterType = "json" | "postgres" | "mysql" | "mariadb" | "mongodb";
+
+/**
+ * Defaults used when the env vars are not set.
+ * Edit these to switch every test (e.g. from the VS Code Vitest extension).
+ */
+const DEFAULT_ADAPTER: AdapterType = "json";
+const DEFAULT_ID_TYPE: IdType = "int";
+
+/**
+ * Adapter instance + idType every test runs with
+ */
+export interface TestEnv {
+	readonly adapter: DatabaseAdapter;
+	readonly adapterType: AdapterType;
+	readonly idType: IdType;
+}
 
 /**
  * Generate a safe database name from root path
@@ -158,17 +174,60 @@ export async function getAdapter(
 	}
 }
 
+const ADAPTER_TYPES: readonly AdapterType[] = [
+	"json",
+	"postgres",
+	"mysql",
+	"mariadb",
+	"mongodb",
+];
+const ID_TYPES: readonly IdType[] = ["int", "uuid"];
+
+function envValue<T extends string>(
+	name: string,
+	allowed: readonly T[],
+	fallback: T,
+): T {
+	const value = process.env[name]?.toLowerCase() as T | undefined;
+	return value !== undefined && allowed.includes(value) ? value : fallback;
+}
+
 /**
- * Get current adapter type from environment
- * Defaults to 'json' for fast tests
+ * idType tests run with (`ID_TYPE` env, else DEFAULT_ID_TYPE).
+ * For tests that build their own adapter.
+ */
+export function getTestIdType(): IdType {
+	return envValue("ID_TYPE", ID_TYPES, DEFAULT_ID_TYPE);
+}
+
+/**
+ * A well-formed id that matches no record, for "not found" tests.
+ * Typed as DatrixId (number without the uuid augmentation).
+ */
+export function getMissingId(): DatrixId {
+	return (
+		getTestIdType() === "uuid" ? "00000000-0000-7000-8000-000000000000" : 99999
+	) as DatrixId;
+}
+
+/**
+ * Create the test adapter and resolve the idType tests run with
+ *
+ * Reads `ADAPTER` and `ID_TYPE` env vars, falling back to
+ * DEFAULT_ADAPTER / DEFAULT_ID_TYPE above.
+ *
+ * @param root - Data directory (JSON) or unique identifier for the DB name
+ * @param options - skipCreate: reuse an existing database
  *
  * @example
- * // Run tests with different adapters
- * // npm test                    → json (default)
- * // ADAPTER=postgres npm test   → postgres
- * // ADAPTER=mysql npm test      → mysql
- * // ADAPTER=mariadb npm test   → mariadb (uses MySQLAdapter on port 3307)
- * // ADAPTER=mongodb npm test   → mongodb
+ * const { adapter, idType } = await getTestEnv(tmpDir);
+ * defineConfig(() => ({ adapter, idType, schemas, plugins: [] }));
+ *
+ * // npm test                              → defaults
+ * // ADAPTER=postgres npm test             → postgres
+ * // ADAPTER=mysql ID_TYPE=uuid npm test   → mysql with uuid ids
+ * // ADAPTER=mariadb npm test              → mariadb (MySQLAdapter on port 3307)
+ * // ADAPTER=mongodb npm test              → mongodb
  *
  * // Docker commands for test databases:
  * // docker run -d --name mysql-test -e MYSQL_ROOT_PASSWORD=datrix -e MYSQL_USER=datrix -e MYSQL_PASSWORD=datrix -e MYSQL_DATABASE=datrix -p 3306:3306 mysql:8.0
@@ -176,16 +235,14 @@ export async function getAdapter(
  * // docker run -d --name postgres-test -e POSTGRES_USER=datrix_test -e POSTGRES_PASSWORD=datrix_test -e POSTGRES_DB=datrix_test -p 5432:5432 postgres:16
  * // docker run -d --name mongodb-test -p 27017:27017 mongo:7
  */
-export function getAdapterType(): AdapterType {
-	const adapterEnv = process.env["ADAPTER"]?.toLowerCase();
-	if (
-		adapterEnv === "postgres" ||
-		adapterEnv === "mysql" ||
-		adapterEnv === "mariadb" ||
-		adapterEnv === "mongodb" ||
-		adapterEnv === "json"
-	) {
-		return adapterEnv;
-	}
-	return "json"; // Default
+export async function getTestEnv(
+	root: string,
+	options?: { skipCreate?: boolean },
+): Promise<TestEnv> {
+	const adapterType = envValue("ADAPTER", ADAPTER_TYPES, DEFAULT_ADAPTER);
+	return {
+		adapter: await getAdapter(adapterType, root, options),
+		adapterType,
+		idType: getTestIdType(),
+	};
 }

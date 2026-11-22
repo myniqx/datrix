@@ -21,7 +21,7 @@ import type {
 	SchemaDefinition,
 } from "@datrix/core";
 import { getTmpDir } from "./setup/config";
-import { getAdapter, getAdapterType } from "./setup/adapter";
+import { getTestEnv } from "./setup/adapter";
 import { dropAllTables } from "./setup/helpers";
 import { isCanonicalUuid } from "../../../src/schema/id";
 
@@ -67,7 +67,8 @@ const postSchema = defineSchema({
 const schemas = [authorSchema, tagSchema, postSchema];
 
 /**
- * In-memory backup, JSON round-tripped like the CLI zip
+ * In-memory backup, JSON round-tripped like the CLI zip (dates revived
+ * per schema, as the CLI's CSV decoder does)
  */
 function createMemoryBackup(): {
 	writer: ExportWriter;
@@ -103,8 +104,22 @@ function createMemoryBackup(): {
 			return [...chunks.keys()];
 		},
 		async *readChunks(tableName) {
+			// Like the CLI reader: revive date fields from the exported schema
+			const schema = schemaList.find(
+				(s) => (s.tableName ?? s.name) === tableName,
+			);
+			const dateFields = Object.entries(schema?.fields ?? {})
+				.filter(([, field]) => field.type === "date")
+				.map(([name]) => name);
 			for (const chunk of chunks.get(tableName) ?? []) {
-				yield JSON.parse(chunk) as Record<string, unknown>[];
+				const rows = JSON.parse(chunk) as Record<string, unknown>[];
+				for (const row of rows) {
+					for (const name of dateFields) {
+						const value = row[name];
+						if (typeof value === "string") row[name] = new Date(value);
+					}
+				}
+				yield rows;
 			}
 		},
 	});
@@ -122,7 +137,7 @@ describe("Migration E2E - idType switch", () => {
 		list: readonly SchemaDefinition[] = schemas,
 	): Promise<Datrix> {
 		if (current) await current.shutdown();
-		const instanceAdapter = await getAdapter(getAdapterType(), tmpDir, {
+		const { adapter: instanceAdapter } = await getTestEnv(tmpDir, {
 			skipCreate: true,
 		});
 		const factory = defineConfig(() => ({
@@ -174,7 +189,7 @@ describe("Migration E2E - idType switch", () => {
 	}
 
 	beforeAll(async () => {
-		adapter = await getAdapter(getAdapterType(), tmpDir);
+		({ adapter } = await getTestEnv(tmpDir));
 		await adapter.connect();
 		await dropAllTables(adapter);
 	});
@@ -270,8 +285,6 @@ describe("Migration E2E - idType switch", () => {
 			},
 		});
 		const uuidDb = await boot("uuid", [authorSchema, changedTag, postSchema]);
-		await expect(uuidDb.beginMigrate()).rejects.toThrow(
-			/other schema change/,
-		);
+		await expect(uuidDb.beginMigrate()).rejects.toThrow(/other schema change/);
 	});
 });

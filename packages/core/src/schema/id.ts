@@ -123,11 +123,20 @@ export function assignIds<R extends Record<string, unknown>>(
 	);
 }
 
+// Monotonic state (RFC 9562 §6.2 method 1): the 12-bit rand_a field is a
+// counter within the same millisecond, so ids generated in one ms still sort
+// in generation order. When the counter runs out the next millisecond is
+// borrowed; `runStartMs..lastMs` is the window that continues the current run.
+let runStartMs = -1;
+let lastMs = -1;
+let counter = 0;
+
 /**
- * Generate a UUID v7 (RFC 9562): 48-bit unix ms timestamp + random bits.
+ * Generate a UUID v7 (RFC 9562): 48-bit unix ms timestamp, 12-bit counter,
+ * 62 random bits.
  *
- * Time-ordered, so `orderBy id` keeps creation order like auto-increment ids,
- * and inserts stay index-friendly.
+ * Time-ordered and monotonic within the process, so `orderBy id` keeps
+ * creation order like auto-increment ids, and inserts stay index-friendly.
  *
  * @param timestamp - Unix time in milliseconds (default: now). Passing a
  *   record's `createdAt` keeps the order when converting existing data.
@@ -136,7 +145,21 @@ export function generateUuidV7(timestamp: number = Date.now()): string {
 	const bytes = new Uint8Array(16);
 	randomFillSync(bytes);
 
-	const ms = Math.max(0, Math.floor(timestamp));
+	let ms = Math.max(0, Math.floor(timestamp));
+	if (ms >= runStartMs && ms <= lastMs) {
+		ms = lastMs;
+		counter++;
+		if (counter > 0xfff) {
+			// Counter exhausted: borrow the next millisecond
+			ms = ++lastMs;
+			counter = 0;
+		}
+	} else {
+		runStartMs = ms;
+		lastMs = ms;
+		// Random start in the lower half leaves room to increment
+		counter = ((bytes[6]! << 8) | bytes[7]!) & 0x7ff;
+	}
 	// 48-bit big-endian timestamp (split to stay within safe integer math)
 	const high = Math.floor(ms / 2 ** 16);
 	const low = ms % 2 ** 16;
@@ -147,8 +170,9 @@ export function generateUuidV7(timestamp: number = Date.now()): string {
 	bytes[4] = (low >>> 8) & 0xff;
 	bytes[5] = low & 0xff;
 
-	// version 7
-	bytes[6] = (bytes[6]! & 0x0f) | 0x70;
+	// version 7 + 12-bit counter
+	bytes[6] = 0x70 | ((counter >>> 8) & 0x0f);
+	bytes[7] = counter & 0xff;
 	// variant 10xx
 	bytes[8] = (bytes[8]! & 0x3f) | 0x80;
 

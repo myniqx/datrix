@@ -253,14 +253,21 @@ export async function dropAllTables(adapter: DatabaseAdapter): Promise<void> {
 		}
 	}
 
-	const tablesResult = await adapter.getTables();
-
-	for (const tableName of tablesResult) {
-		try {
-			await adapter.dropTable(tableName);
-		} catch {
-			// Ignore errors (e.g. if table is locked)
+	// Disabling FK checks does not allow DROP of a referenced table on
+	// Postgres, so retry in passes until everything is gone (referencing
+	// tables drop first, unblocking the rest) or a pass makes no progress.
+	let remaining = await adapter.getTables();
+	while (remaining.length > 0) {
+		for (const tableName of remaining) {
+			try {
+				await adapter.dropTable(tableName);
+			} catch {
+				// Still referenced (or locked) — retried next pass
+			}
 		}
+		const left = await adapter.getTables();
+		if (left.length >= remaining.length) break;
+		remaining = left;
 	}
 
 	for (const sql of enableFK) {

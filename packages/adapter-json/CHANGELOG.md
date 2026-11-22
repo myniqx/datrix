@@ -1,5 +1,12 @@
 # @datrix/adapter-json
 
+## 0.3.0
+
+### Minor Changes
+
+- **Node 22 required:** `engines.node` is now `>=22.0.0`.
+- Support for `idType: "uuid"` (requires `@datrix/core` 0.3.0): stored ids are compared without forcing numbers, uuid tables skip the auto-increment counter, and `onDelete` follows uuid foreign keys.
+
 ## 0.2.1
 
 ### Patch Changes

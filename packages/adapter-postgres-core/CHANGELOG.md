@@ -1,5 +1,13 @@
 # @datrix/adapter-postgres
 
+## 0.3.0
+
+### Minor Changes
+
+- **Node 22 required:** `engines.node` is now `>=22.0.0`.
+- Support for `idType: "uuid"` (requires `@datrix/core` 0.3.0): uuid ids and foreign keys map to `UUID`, uuid ids are kept from `RETURNING`, and import skips sequence resets for uuid tables.
+- Fixed import failing on tables with mixed-case names (e.g. junction tables): the sequence reset now passes a quoted identifier to `pg_get_serial_sequence`.
+
 ## 0.2.1
 
 ### Patch Changes

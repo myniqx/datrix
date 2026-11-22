@@ -16,7 +16,14 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { Datrix } from "@datrix/core";
 import fs from "node:fs/promises";
-import { createTestConfig, getTmpDir, setupTables } from "../setup";
+import {
+	createTestConfig,
+	getTmpDir,
+	setupTables,
+	getMissingId,
+} from "../setup";
+
+const MISSING_ID = getMissingId();
 
 describe("Update Validation", () => {
 	let datrix: Datrix;
@@ -219,7 +226,7 @@ describe("Update Validation", () => {
 		it("should fail when updating belongsTo to non-existent", async () => {
 			await expect(
 				datrix.update("user", userId, {
-					organization: 99999,
+					organization: MISSING_ID,
 				}),
 			).rejects.toThrow();
 		});
@@ -227,7 +234,7 @@ describe("Update Validation", () => {
 		it("should fail when connecting manyToMany to non-existent", async () => {
 			await expect(
 				datrix.update("user", userId, {
-					roles: { connect: [99999] },
+					roles: { connect: [MISSING_ID] },
 				}),
 			).rejects.toThrow();
 		});
@@ -265,7 +272,7 @@ describe("Update Validation", () => {
 	describe("Record Not Found", () => {
 		it("should fail when updating non-existent record", async () => {
 			await expect(
-				datrix.update("user", 99999, {
+				datrix.update("user", MISSING_ID, {
 					name: "Ghost",
 				}),
 			).rejects.toThrow();
@@ -273,10 +280,10 @@ describe("Update Validation", () => {
 
 		it("should include record id in error", async () => {
 			try {
-				await datrix.update("user", 99999, { name: "Ghost" });
+				await datrix.update("user", MISSING_ID, { name: "Ghost" });
 				expect.fail("Should have thrown");
 			} catch (error) {
-				expect((error as Error).message).toContain("99999");
+				expect((error as Error).message).toContain(String(MISSING_ID));
 			}
 		});
 	});
@@ -368,7 +375,7 @@ describe("Update Validation", () => {
 
 		it("should indicate it's an update operation", async () => {
 			try {
-				await datrix.update("user", 99999, { name: "Ghost" });
+				await datrix.update("user", MISSING_ID, { name: "Ghost" });
 				expect.fail("Should have thrown");
 			} catch (error) {
 				const message = (error as Error).message.toLowerCase();

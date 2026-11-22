@@ -10,6 +10,7 @@ import { defineConfig } from "@datrix/core";
 import { ApiPlugin } from "@datrix/api";
 import { Upload, LocalStorageProvider } from "@datrix/api-upload";
 import { JsonAdapter } from "../../../adapter-json/src/index";
+import { getTestIdType } from "../../../api/tests/data/adapter";
 import type { DatrixConfig } from "@datrix/core";
 
 /** Resolution names used across upload tests */
@@ -69,6 +70,7 @@ export async function createUploadTestConfig(
 	return defineConfig(() => {
 		const config: DatrixConfig = {
 			adapter: adapter as unknown as DatrixConfig["adapter"],
+			idType: getTestIdType(),
 			schemas: [],
 			plugins: [
 				new ApiPlugin({

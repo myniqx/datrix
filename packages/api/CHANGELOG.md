@@ -1,5 +1,13 @@
 # @datrix/api
 
+## 0.3.0
+
+### Minor Changes
+
+- **Node 22 required:** `engines.node` is now `>=22.0.0`.
+- Support for `idType: "uuid"` (requires `@datrix/core` 0.3.0): route ids follow the schema's id type (malformed ids return 404); authentication record creation, email sync, JWT and session guards accept uuid user ids.
+- The authentication schema's `role` field now has `maxLength: 64`, so it maps to `VARCHAR(64)`. Auth could not be migrated on MySQL/MariaDB before (MySQL rejects `DEFAULT` on `TEXT` columns). On PostgreSQL this shows up once as a column type change (`TEXT` → `VARCHAR(64)`) in the next migration; role names longer than 64 characters are rejected.
+
 ## 0.2.1
 
 ### Patch Changes

@@ -17,7 +17,7 @@
 
 import { describe, it, beforeAll, afterAll, expect } from "vitest";
 import { createDatrixWithSchemas, getTmpDir } from "./setup/config";
-import { getAdapter, getAdapterType } from "./setup/adapter";
+import { getTestEnv } from "./setup/adapter";
 import {
 	baseUserSchema,
 	basePostSchema,
@@ -55,8 +55,7 @@ describe("Migration E2E - Relation Changes", () => {
 	let adapter: DatabaseAdapter;
 
 	beforeAll(async () => {
-		const adapterType = getAdapterType();
-		adapter = await getAdapter(adapterType, tmpDir);
+		({ adapter } = await getTestEnv(tmpDir));
 		await adapter.connect();
 		await dropAllTables(adapter);
 	});
@@ -174,10 +173,13 @@ describe("Migration E2E - Relation Changes", () => {
 				await applyMigration(s1);
 
 				// Insert data to make it more realistic
-				await datrix1.create("user", { email: "test@test.com", name: "Test" });
+				const user = await datrix1.create("user", {
+					email: "test@test.com",
+					name: "Test",
+				});
 				await datrix1.create("post", {
 					title: "Test Post",
-					author: { set: 1 },
+					author: { set: user.id },
 				});
 
 				await datrix1.shutdown();
@@ -287,10 +289,13 @@ describe("Migration E2E - Relation Changes", () => {
 				await applyMigration(s1);
 
 				// Insert data
-				await datrix1.create("user", { email: "test@test.com", name: "Test" });
+				const user = await datrix1.create("user", {
+					email: "test@test.com",
+					name: "Test",
+				});
 				await datrix1.create("post", {
 					title: "Test Post",
-					author: { set: 1 },
+					author: { set: user.id },
 				});
 
 				await datrix1.shutdown();
@@ -1054,16 +1059,16 @@ describe("Migration E2E - Relation Changes", () => {
 				await applyMigration(s1);
 
 				// Add some data
-				await datrix1.create("tag", { name: "JavaScript" });
-				await datrix1.create("tag", { name: "TypeScript" });
+				const tag1 = await datrix1.create("tag", { name: "JavaScript" });
+				const tag2 = await datrix1.create("tag", { name: "TypeScript" });
 				const post = await datrix1.create("post", { title: "Test Post" });
 				await datrix1.create("post_tag", {
 					post: { set: post.id },
-					tag: { set: 1 },
+					tag: { set: tag1.id },
 				});
 				await datrix1.create("post_tag", {
 					post: { set: post.id },
-					tag: { set: 2 },
+					tag: { set: tag2.id },
 				});
 
 				await datrix1.shutdown();
@@ -1207,8 +1212,14 @@ describe("Migration E2E - Relation Changes", () => {
 				await applyMigration(s1);
 
 				// Insert data
-				await datrix1.create("category", { name: "Tech", slug: "tech" });
-				await datrix1.create("post", { title: "Post1", category: { set: 1 } });
+				const tech = await datrix1.create("category", {
+					name: "Tech",
+					slug: "tech",
+				});
+				await datrix1.create("post", {
+					title: "Post1",
+					category: { set: tech.id },
+				});
 
 				await datrix1.shutdown();
 
@@ -1262,16 +1273,16 @@ describe("Migration E2E - Relation Changes", () => {
 				await applyMigration(s1);
 
 				// Insert data with multiple tags
-				await datrix1.create("tag", { name: "JS" });
-				await datrix1.create("tag", { name: "TS" });
+				const tag1 = await datrix1.create("tag", { name: "JS" });
+				const tag2 = await datrix1.create("tag", { name: "TS" });
 				const post = await datrix1.create("post", { title: "Post1" });
 				await datrix1.create("post_tag", {
 					post: { set: post.id },
-					tag: { set: 1 },
+					tag: { set: tag1.id },
 				});
 				await datrix1.create("post_tag", {
 					post: { set: post.id },
-					tag: { set: 2 },
+					tag: { set: tag2.id },
 				});
 
 				await datrix1.shutdown();
