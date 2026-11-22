@@ -8,6 +8,7 @@
 import type {
 	FieldDefinition,
 	FileField,
+	IdType,
 	FileFieldOptions,
 	DatrixEntry,
 	ISchemaRegistry,
@@ -55,6 +56,10 @@ export interface SchemaRegistryConfig {
 	readonly strict: boolean | undefined;
 	readonly allowOverwrite: boolean | undefined;
 	readonly validateRelations: boolean | undefined;
+	/**
+	 * Primary key strategy for non-internal schemas (default: "int")
+	 */
+	readonly idType?: IdType | undefined;
 }
 
 /**
@@ -73,7 +78,8 @@ interface RegistryCache {
  */
 export class SchemaRegistry implements ISchemaRegistry {
 	private readonly schemas: Map<string, SchemaDefinition> = new Map();
-	private readonly config: Required<SchemaRegistryConfig>;
+	private readonly config: Required<Omit<SchemaRegistryConfig, "idType">>;
+	private idType: IdType;
 	private locked = false;
 	private cache: RegistryCache = {
 		relatedSchemas: new Map(),
@@ -89,6 +95,72 @@ export class SchemaRegistry implements ISchemaRegistry {
 			allowOverwrite: config?.allowOverwrite ?? false,
 			validateRelations: config?.validateRelations ?? true,
 		};
+		this.idType = config?.idType ?? "int";
+	}
+
+	/**
+	 * Primary key strategy applied to non-internal schemas
+	 */
+	getIdType(): IdType {
+		return this.idType;
+	}
+
+	/**
+	 * Set the primary key strategy. Must be called before any non-internal
+	 * schema is registered — ids, foreign keys and junction columns are
+	 * derived from it at registration time.
+	 */
+	setIdType(idType: IdType): void {
+		if (idType === this.idType) return;
+		if (this.locked) {
+			throw new SchemaRegistryError("Registry is locked", {
+				code: "REGISTRY_LOCKED",
+			});
+		}
+		const hasUserSchemas = Array.from(this.schemas.values()).some(
+			(s) => !s._isInternal,
+		);
+		if (hasUserSchemas) {
+			throw new SchemaRegistryError(
+				"idType must be set before schemas are registered",
+				{ code: "ID_TYPE_AFTER_REGISTER" },
+			);
+		}
+		this.idType = idType;
+	}
+
+	/**
+	 * Primary key field definition for a schema
+	 */
+	private buildIdField(
+		schema: SchemaDefinition,
+		required: boolean,
+	): FieldDefinition {
+		if (this.idType === "uuid" && !schema._isInternal) {
+			return {
+				type: "uuid",
+				primary: true,
+				required,
+			};
+		}
+		return {
+			type: "number",
+			primary: true,
+			autoIncrement: true,
+			required,
+		} as FieldDefinition;
+	}
+
+	/**
+	 * Base (type-only) definition of a column that stores ids of `target`.
+	 * Follows the target's primary key type so FK and PK columns always match.
+	 */
+	private foreignKeyType(
+		target: SchemaDefinition,
+	): { type: "uuid" } | { type: "number" } {
+		return target.fields["id"]?.type === "uuid"
+			? { type: "uuid" }
+			: { type: "number" };
 	}
 
 	/**
@@ -175,12 +247,7 @@ export class SchemaRegistry implements ISchemaRegistry {
 				};
 
 		const enhancedFields = {
-			id: {
-				type: "number" as const,
-				primary: true,
-				autoIncrement: true,
-				required: true,
-			},
+			id: this.buildIdField(schema, true),
 			...transformedFields,
 			...timestampFields,
 		};
@@ -661,7 +728,7 @@ export class SchemaRegistry implements ISchemaRegistry {
 						const isRequired = relation.required ?? false;
 						const defaultOnDelete = isRequired ? "cascade" : "setNull";
 						enhancedFields[foreignKey] = {
-							type: "number",
+							...this.foreignKeyType(targetSchema),
 							required: isRequired,
 							hidden: true,
 							references: {
@@ -715,7 +782,7 @@ export class SchemaRegistry implements ISchemaRegistry {
 						const sourceTableName =
 							schema.tableName ?? pluralize(schemaName.toLowerCase());
 						targetFields[foreignKey] = {
-							type: "number",
+							...this.foreignKeyType(schema),
 							required: false,
 							hidden: true,
 							// hasOne: at most one child row may point at a parent —
@@ -795,11 +862,23 @@ export class SchemaRegistry implements ISchemaRegistry {
 		const sourceFk = `${sourceFieldName}Id`;
 		const targetFk = `${targetFieldName}Id`;
 
+		const sourceSchema = this.schemas.get(schemaName);
+		const targetSchema = this.schemas.get(relation.model);
+		const sourceFkType = sourceSchema
+			? this.foreignKeyType(sourceSchema)
+			: { type: "number" as const };
+		const targetFkType = targetSchema
+			? this.foreignKeyType(targetSchema)
+			: { type: "number" as const };
+
 		const junctionSchema: SchemaDefinition = {
 			name: junctionTableName,
 			tableName: junctionTableName,
 			fields: {
-				id: { type: "number", required: false, autoIncrement: true },
+				id:
+					this.idType === "uuid"
+						? { type: "uuid", primary: true, required: false }
+						: { type: "number", required: false, autoIncrement: true },
 				[sourceFieldName]: {
 					type: "relation",
 					kind: "belongsTo",
@@ -815,7 +894,7 @@ export class SchemaRegistry implements ISchemaRegistry {
 					required: true,
 				} as RelationField,
 				[sourceFk]: {
-					type: "number",
+					...sourceFkType,
 					required: true,
 					hidden: true,
 					references: {
@@ -825,7 +904,7 @@ export class SchemaRegistry implements ISchemaRegistry {
 					},
 				},
 				[targetFk]: {
-					type: "number",
+					...targetFkType,
 					required: true,
 					hidden: true,
 					references: {

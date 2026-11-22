@@ -31,6 +31,7 @@ import { ForgeSchemaDiffer } from "./differ";
 import { ForgeMigrationGenerator } from "./generator";
 import { ForgeMigrationHistory } from "./history";
 import { ForgeMigrationRunner } from "./runner";
+import { assignIds } from "../schema/id";
 
 /**
  * Ambiguous change types
@@ -1389,7 +1390,7 @@ export class MigrationSession {
 						await runner.executeQuery({
 							type: "insert",
 							table: junctionTable,
-							data: junctionRows,
+							data: assignIds(junctionRows, createOp.schema),
 						});
 					},
 				};

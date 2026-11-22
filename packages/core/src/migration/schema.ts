@@ -25,6 +25,7 @@ export function getMigrationSchema(
 ) {
 	return defineSchema({
 		name: modelName,
+		_isInternal: true,
 
 		fields: {
 			name: {
@@ -98,6 +99,7 @@ export function getDatrixMetaSchema() {
 	return defineSchema({
 		name: DATRIX_META_MODEL,
 		tableName: DATRIX_META_MODEL,
+		_isInternal: true,
 
 		fields: {
 			key: {

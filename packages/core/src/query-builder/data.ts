@@ -27,6 +27,8 @@ import type {
 } from "../types/core/query-builder";
 import { throwInvalidField, throwInvalidValue } from "./error-helper";
 import { normalizeWhere } from "./where";
+import type { IdValue } from "../types/core/entry";
+import { type IdKind, getSchemaIdKind, normalizeIdValue } from "../schema/id";
 
 /**
  * Maximum depth for nested create/update operations
@@ -68,45 +70,44 @@ function isRelationInputObject(value: unknown): boolean {
 }
 
 /**
- * Extract IDs from various formats and convert to number array
+ * Extract IDs from various formats and normalize them to the canonical id
+ * value of the target schema (number for int ids, lowercase string for uuid)
  *
- * IDs are numeric end-to-end (auto-increment PK policy): anything that
- * does not resolve to a valid integer id throws instead of silently
- * producing NaN/0.
+ * Accepts: id, `{ id }` object, or an array of those. Numeric strings are
+ * coerced for int ids; uuid strings are case-normalized. Rejects everything
+ * else (no NaN/0 fallbacks).
  *
- * @param value - Input value (number, {id}, array of numbers/objects)
- * @param fieldName - Relation field name (for error messages)
- * @returns Array of numbers
- * @throws {DatrixQueryBuilderError} If any item is not a usable numeric id
+ * @param value - Input value (id, {id}, array of ids/objects)
+ * @param fieldName - Field name for error messages
+ * @param kind - Id kind of the target schema
+ * @returns Array of canonical ids
  *
  * @example
  * ```ts
- * extractIds(5, 'tags')                          // [5]
- * extractIds([1, 2, 3], 'tags')                  // [1, 2, 3]
- * extractIds([{id: 1}, {id: 2}], 'tags')         // [1, 2]
- * extractIds({id: 5}, 'tags')                    // [5]
- * extractIds("abc", 'tags')                      // throws
+ * extractIds(5, 'tags', 'number')                  // [5]
+ * extractIds([{id: 1}, {id: 2}], 'tags', 'number') // [1, 2]
+ * extractIds("abc", 'tags', 'number')              // throws
+ * extractIds("0190A3F2-...", 'tags', 'uuid')       // ["0190a3f2-..."]
  * ```
  */
-function extractIds(value: unknown, fieldName: string): number[] {
-	const toId = (item: unknown): number => {
-		if (typeof item === "number") {
-			if (!Number.isInteger(item)) {
-				throwInvalidValue("data", fieldName, item, "integer id");
+function extractIds(
+	value: unknown,
+	fieldName: string,
+	kind: IdKind,
+): IdValue[] {
+	const expected = kind === "uuid" ? "uuid id" : "integer id";
+	const toId = (item: unknown): IdValue => {
+		if (typeof item === "number" || typeof item === "string") {
+			const id = normalizeIdValue(item, kind);
+			if (id === undefined) {
+				throwInvalidValue("data", fieldName, item, expected);
 			}
-			return item;
-		}
-		if (typeof item === "string") {
-			const num = Number(item);
-			if (item.trim() === "" || Number.isNaN(num) || !Number.isInteger(num)) {
-				throwInvalidValue("data", fieldName, item, "numeric id");
-			}
-			return num;
+			return id;
 		}
 		if (typeof item === "object" && item !== null && "id" in item) {
 			return toId((item as { id: unknown }).id);
 		}
-		throwInvalidValue("data", fieldName, item, "numeric id or { id } object");
+		throwInvalidValue("data", fieldName, item, `${expected} or { id } object`);
 	};
 
 	if (Array.isArray(value)) {
@@ -229,6 +230,10 @@ export function processData<T extends DatrixEntry>(
 		// Relation field
 		if (field.type === "relation") {
 			rawRelations[key] = value;
+		} else if (field.type === "uuid") {
+			// UUID column (id / foreign key) — canonicalize case; invalid values
+			// are left as-is for the executor's validator to reject
+			scalars[key] = normalizeIdValue(value, "uuid") ?? value;
 		} else {
 			// Scalar field
 			scalars[key] = value;
@@ -249,6 +254,10 @@ export function processData<T extends DatrixEntry>(
 
 	for (const [key, value] of Object.entries(rawRelations)) {
 		const field = schema.fields[key] as RelationField;
+		const relatedSchema = registry.get(field.model);
+		const idKind: IdKind = relatedSchema
+			? getSchemaIdKind(relatedSchema)
+			: "number";
 
 		// Normalize relation shortcuts to NormalizedRelationOperations
 		let normalized: NormalizedRelationOperations<T>;
@@ -273,14 +282,14 @@ export function processData<T extends DatrixEntry>(
 		}
 		// Case 1: Direct ID shortcut (category: 5)
 		else if (typeof value === "number" || typeof value === "string") {
-			normalized = { set: extractIds(value, key) };
+			normalized = { set: extractIds(value, key, idKind) };
 		}
 		// Case 2: Array shortcut (tags: [1, 2, 3] or [{id: 1}, {id: 2}])
 		else if (Array.isArray(value)) {
 			const isRawIdArray =
 				value.length === 0 || !isRelationInputObject(value[0]);
 			if (isRawIdArray) {
-				normalized = { set: extractIds(value, key) };
+				normalized = { set: extractIds(value, key, idKind) };
 			} else {
 				// Array of RelationInput objects is ambiguous — reject explicitly
 				// instead of silently dropping the operations
@@ -292,20 +301,20 @@ export function processData<T extends DatrixEntry>(
 				);
 			}
 		}
-		// Case 3: RelationInput object - normalize each operation to number arrays
+		// Case 3: RelationInput object - normalize each operation to id arrays
 		else if (typeof value === "object") {
 			const relInput = value as AnyRelationInputObject;
 			normalized = {};
 
-			// Normalize connect to number array
+			// Normalize connect to id array
 			if (relInput.connect !== undefined) {
 				normalized = {
 					...normalized,
-					connect: extractIds(relInput.connect, key),
+					connect: extractIds(relInput.connect, key, idKind),
 				};
 			}
 
-			// Normalize disconnect to number array
+			// Normalize disconnect to id array
 			// Special case: disconnect: true for hasOne/belongsTo means "clear this relation"
 			if (relInput.disconnect !== undefined) {
 				if (relInput.disconnect === true) {
@@ -317,21 +326,24 @@ export function processData<T extends DatrixEntry>(
 				} else {
 					normalized = {
 						...normalized,
-						disconnect: extractIds(relInput.disconnect, key),
+						disconnect: extractIds(relInput.disconnect, key, idKind),
 					};
 				}
 			}
 
-			// Normalize set to number array
+			// Normalize set to id array
 			if (relInput.set !== undefined) {
-				normalized = { ...normalized, set: extractIds(relInput.set, key) };
+				normalized = {
+					...normalized,
+					set: extractIds(relInput.set, key, idKind),
+				};
 			}
 
-			// Normalize delete to number array
+			// Normalize delete to id array
 			if (relInput.delete !== undefined) {
 				normalized = {
 					...normalized,
-					delete: extractIds(relInput.delete, key),
+					delete: extractIds(relInput.delete, key, idKind),
 				};
 			}
 
@@ -465,7 +477,7 @@ export function processData<T extends DatrixEntry>(
 		// hasOne FK is on TARGET table, not on owner - cannot inline into owner's scalars
 		if (field.kind === "belongsTo") {
 			const foreignKey = field.foreignKey!;
-			let inlinedId: number | null | undefined = undefined;
+			let inlinedId: IdValue | null | undefined = undefined;
 
 			if (normalized.connect) {
 				const ids = normalized.connect;

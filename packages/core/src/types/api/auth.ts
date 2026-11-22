@@ -1,4 +1,4 @@
-import { DatrixEntry, DatrixRecord } from "../core/schema";
+import { DatrixEntry, DatrixId, DatrixRecord } from "../core/schema";
 
 export interface AuthenticatedUser<
 	TRoles extends string = string,
@@ -20,7 +20,7 @@ export interface AuthenticatedUser<
  * reference the user table — compare them against `user.id`, not `id`.
  */
 export interface AuthUser {
-	readonly id: number;
+	readonly id: DatrixId;
 	readonly email: string;
 	readonly role: string;
 	/** Populated user record from the user schema (set by the API plugin). */

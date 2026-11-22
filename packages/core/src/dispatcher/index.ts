@@ -21,6 +21,7 @@ import {
 	SchemaDefinition,
 	LifecycleHooks,
 } from "../types/core/schema";
+import type { DatrixId } from "../types/core/entry";
 import type { Datrix } from "../datrix";
 import { validateQueryObject } from "../types/utils/query";
 import { SchemaRegistry } from "../schema";
@@ -343,7 +344,7 @@ export class Dispatcher {
 
 		if ((action === "upsert" || action === "upsertMany") && hooks.afterUpsert) {
 			const records = rows as unknown as DatrixEntry[];
-			const createdIds = context.createdIds ?? new Set<number>();
+			const createdIds = context.createdIds ?? new Set<DatrixId>();
 			try {
 				return (await hooks.afterUpsert(records, context, {
 					created: records.filter((r) => createdIds.has(r.id)),

@@ -35,6 +35,7 @@ import {
 import { GroupCountData } from "../types/adapter";
 import { AfterCommitCallback, IRawCrud } from "../types/core/interfaces";
 import { Session } from "../session";
+import type { DatrixId, IdValue } from "../types/core/entry";
 
 /**
  * Executor execution options
@@ -425,7 +426,7 @@ export class QueryExecutor {
 		options: ExecutorOptions,
 	): Promise<readonly T[]> {
 		const noDispatcher = options.noDispatcher ?? false;
-		let createdIds: ReadonlySet<number> = new Set();
+		let createdIds: ReadonlySet<IdValue> = new Set();
 
 		return this.withLifecycle(
 			options.action ?? "upsertMany",
@@ -532,7 +533,7 @@ export class QueryExecutor {
 		handler: (modifiedQuery: TQuery) => Promise<TResult>,
 		hookOptions: {
 			skipAfterHooks?: boolean;
-			getCreatedIds?: () => ReadonlySet<number>;
+			getCreatedIds?: () => ReadonlySet<IdValue>;
 		} = {},
 	): Promise<TResult> {
 		const dispatcher = this.getDispatcher();
@@ -558,7 +559,8 @@ export class QueryExecutor {
 		const result = await handler(modifiedQuery);
 
 		if (hookOptions.getCreatedIds) {
-			context.createdIds = hookOptions.getCreatedIds();
+			// IdValue at runtime; DatrixId is the project-resolved public view of it
+			context.createdIds = hookOptions.getCreatedIds() as ReadonlySet<DatrixId>;
 		}
 
 		const output = hookOptions.skipAfterHooks

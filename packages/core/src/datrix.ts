@@ -26,7 +26,7 @@ import { SchemaExtensionContextImpl } from "./plugin/schema-extension-context";
 import { Dispatcher, createDispatcher } from "./dispatcher";
 import { PluginRegistry } from "./types/core/plugin";
 import { SchemaRegistry } from "./schema";
-import { DatrixEntry, DatrixRecord } from "./types/core/schema";
+import { DatrixEntry, DatrixId, DatrixRecord } from "./types/core/schema";
 import {
 	IDatrix,
 	RawCrudOptions,
@@ -102,6 +102,9 @@ export class Datrix implements IDatrix {
 
 			// Create dispatcher
 			this.dispatcher = createDispatcher(this.pluginRegistry, this);
+
+			// Primary key strategy must be known before any schema is registered
+			this._schemas.setIdType(config.idType ?? "int");
 
 			// 1. Register internal _datrix metadata schema
 			const datrixMetaSchema = getDatrixMetaSchema();
@@ -380,7 +383,7 @@ export class Datrix implements IDatrix {
 
 	async findById<T extends DatrixEntry = DatrixRecord>(
 		model: string,
-		id: number,
+		id: DatrixId,
 		options?: RawCrudOptions<T>,
 	): Promise<T | null> {
 		this.ensureInitialized();
@@ -432,7 +435,7 @@ export class Datrix implements IDatrix {
 		TInput extends FallbackInput = FallbackInput,
 	>(
 		model: string,
-		id: number,
+		id: DatrixId,
 		data: TInput,
 		options?: RawCrudOptions<T>,
 	): Promise<T> {
@@ -475,7 +478,7 @@ export class Datrix implements IDatrix {
 
 	async delete<T extends DatrixEntry = DatrixRecord>(
 		model: string,
-		id: number,
+		id: DatrixId,
 		options?: RawCrudOptions<T>,
 	): Promise<T> {
 		this.ensureInitialized();

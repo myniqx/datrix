@@ -60,6 +60,15 @@ export function validateConfig(config: unknown): DatrixConfig {
 		}
 	}
 
+	// 5. Validate idType (optional)
+	if ("idType" in config && config["idType"] !== undefined) {
+		if (config["idType"] !== "int" && config["idType"] !== "uuid") {
+			errors.push(
+				`Config.idType must be "int" or "uuid", got ${JSON.stringify(config["idType"])}`,
+			);
+		}
+	}
+
 	// 6. Validate migration config (optional)
 	if ("migration" in config && config["migration"] !== undefined) {
 		try {

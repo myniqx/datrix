@@ -16,7 +16,8 @@ import {
 	WhereClause,
 } from "../types/core/query-builder";
 import { validateData } from "./validation";
-import { DatrixEntry, DatrixRecord } from "../types/core/entry";
+import { assignIds } from "../schema/id";
+import { DatrixEntry, DatrixRecord, IdValue } from "../types/core/entry";
 import { SchemaDefinition } from "../types";
 import { QueryRunner } from "../types/adapter";
 import { ISchemaRegistry } from "../types/core/schema";
@@ -29,10 +30,10 @@ import { ISchemaRegistry } from "../types/core/schema";
  * Only ID-based operations remain for per-parent linking.
  */
 interface ResolvedRelationOps {
-	connect: number[];
-	disconnect: number[];
-	set: number[] | undefined;
-	deleteIds: number[];
+	connect: IdValue[];
+	disconnect: IdValue[];
+	set: IdValue[] | undefined;
+	deleteIds: IdValue[];
 }
 
 /**
@@ -50,7 +51,7 @@ interface ResolvedRelationOps {
  */
 export async function processRelations<T extends DatrixEntry>(
 	resolvedRelations: Record<string, ResolvedRelationOps>,
-	parentId: number,
+	parentId: IdValue,
 	parentModel: string,
 	schema: SchemaDefinition,
 	runner: QueryRunner,
@@ -292,7 +293,7 @@ async function processRelation<T extends DatrixEntry>({
 	runner,
 	schemaRegistry,
 }: {
-	parentId: number;
+	parentId: IdValue;
 	parentModel: string;
 	fieldName: string;
 	ops: ResolvedRelationOps;
@@ -439,6 +440,7 @@ async function processRelation<T extends DatrixEntry>({
 	// manyToMany → Junction table operations
 	if (relation.kind === "manyToMany") {
 		const junctionTable = relation.through!;
+		const junctionSchema = schemaRegistry.get(junctionTable);
 		const { sourceFK, targetFK } = resolveJunctionForeignKeys(
 			junctionTable,
 			parentModel,
@@ -458,7 +460,7 @@ async function processRelation<T extends DatrixEntry>({
 				},
 			});
 			const existingIds = new Set(
-				existing.rows.map((r) => r[targetFK as keyof DatrixEntry] as number),
+				existing.rows.map((r) => r[targetFK as keyof DatrixEntry] as IdValue),
 			);
 			const newIds = ops.connect.filter((id) => !existingIds.has(id));
 
@@ -470,7 +472,7 @@ async function processRelation<T extends DatrixEntry>({
 				await runner.executeQuery({
 					table: junctionTable,
 					type: "insert",
-					data: rows,
+					data: junctionSchema ? assignIds(rows, junctionSchema) : rows,
 				});
 			}
 		}
@@ -507,7 +509,7 @@ async function processRelation<T extends DatrixEntry>({
 				await runner.executeQuery<DatrixEntry>({
 					table: junctionTable,
 					type: "insert",
-					data: rows,
+					data: junctionSchema ? assignIds(rows, junctionSchema) : rows,
 				});
 			}
 		}

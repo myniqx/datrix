@@ -16,3 +16,15 @@ export {
 	getRequiredFields,
 	getOptionalFields,
 } from "./inference";
+
+// Export id utilities (int/uuid primary key strategies)
+export {
+	type IdKind,
+	isCanonicalUuid,
+	normalizeUuid,
+	normalizeIntId,
+	normalizeIdValue,
+	getFieldIdKind,
+	getSchemaIdKind,
+	generateUuidV7,
+} from "./id";

@@ -10,6 +10,7 @@ import { Session } from "../session";
 import {
 	ISchemaRegistry,
 	DatrixEntry,
+	DatrixId,
 	DatrixRecord,
 } from "../types/core/schema";
 import { WhereClause } from "../types/core/query-builder";
@@ -129,7 +130,7 @@ export class CrudOperations implements IRawCrud {
 	 */
 	async findById<T extends DatrixEntry = DatrixRecord>(
 		model: string,
-		id: number,
+		id: DatrixId,
 		options?: RawCrudOptions<T>,
 	): Promise<T | null> {
 		return this.findOne<T>(model, { id } as WhereClause<T>, options);
@@ -378,7 +379,7 @@ export class CrudOperations implements IRawCrud {
 		TInput extends FallbackInput = FallbackInput,
 	>(
 		model: string,
-		id: number,
+		id: DatrixId,
 		data: TInput,
 		options?: RawCrudOptions<T>,
 	): Promise<T> {
@@ -537,7 +538,7 @@ export class CrudOperations implements IRawCrud {
 	 */
 	async delete<T extends DatrixEntry = DatrixRecord>(
 		model: string,
-		id: number,
+		id: DatrixId,
 		options?: RawCrudOptions<T>,
 	): Promise<T> {
 		const result = await this.deleteMany<T>(model, { id } as WhereClause<T>, {

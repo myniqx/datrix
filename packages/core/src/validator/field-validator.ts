@@ -20,6 +20,7 @@ import type {
 } from "../types/core/schema";
 import { createValidationError, formatErrorMessage } from "./errors";
 import { FieldValidationResult } from "../types/core/validator";
+import { isCanonicalUuid } from "../schema/id";
 
 /**
  * Type guards
@@ -122,6 +123,8 @@ export function validateField<T = unknown>(
 			return validateJSON(value, fieldName) as FieldValidationResult<T>;
 		case "relation":
 			return validateRelation(value, fieldName) as FieldValidationResult<T>;
+		case "uuid":
+			return validateUuid(value, fieldName) as FieldValidationResult<T>;
 		default:
 			return { success: true, data: value as T };
 	}
@@ -562,6 +565,43 @@ function validateJSON(
 }
 
 /**
+ * Canonical id value: integer (int ids) or lowercase uuid string (uuid ids)
+ */
+function isIdValue(value: unknown): boolean {
+	return (
+		(typeof value === "number" && Number.isInteger(value)) ||
+		isCanonicalUuid(value)
+	);
+}
+
+/**
+ * Validate uuid field (id / foreign key columns in uuid mode)
+ * Expects the canonical lowercase form — the query builder normalizes input.
+ */
+function validateUuid(
+	value: unknown,
+	fieldName: string,
+): FieldValidationResult<string> {
+	if (!isCanonicalUuid(value)) {
+		return {
+			success: false,
+			error: [
+				createValidationError(
+					fieldName,
+					"TYPE_MISMATCH",
+					formatErrorMessage("TYPE_MISMATCH", fieldName, {
+						expected: "uuid",
+						actual: typeof value,
+					}),
+					{ value },
+				),
+			],
+		};
+	}
+	return { success: true, data: value };
+}
+
+/**
  * Validate relation field
  * Supports both shortcut (ID) and RelationInput object
  */
@@ -569,36 +609,24 @@ function validateRelation(
 	value: unknown,
 	fieldName: string,
 ): FieldValidationResult<unknown> {
-	// 1. Shortcut: numeric ID (number-only ID policy)
-	if (typeof value === "number") {
-		if (!Number.isInteger(value)) {
+	// 1. Shortcut: a single id. The query builder already normalized ids to
+	// the target schema's kind (integer or canonical uuid) — only the shape
+	// is checked here.
+	if (typeof value === "number" || typeof value === "string") {
+		if (!isIdValue(value)) {
 			return {
 				success: false,
 				error: [
 					createValidationError(
 						fieldName,
 						"INVALID_FORMAT",
-						`Relation field '${fieldName}' must be a numeric integer ID`,
+						`Relation field '${fieldName}' must be an integer or uuid ID`,
 						{ value },
 					),
 				],
 			};
 		}
 		return { success: true, data: value };
-	}
-
-	if (typeof value === "string") {
-		return {
-			success: false,
-			error: [
-				createValidationError(
-					fieldName,
-					"INVALID_FORMAT",
-					`Relation field '${fieldName}' must be a numeric ID (IDs are number-only)`,
-					{ value },
-				),
-			],
-		};
 	}
 
 	// 2. RelationInput object: { connect, disconnect, set, create, update, delete }
@@ -633,37 +661,37 @@ function validateRelation(
 		if (input["connect"]) {
 			const connect = input["connect"];
 			if (Array.isArray(connect)) {
-				if (!connect.every((item) => typeof item === "number")) {
+				if (!connect.every(isIdValue)) {
 					return {
 						success: false,
 						error: [
 							createValidationError(
 								fieldName,
 								"INVALID_FORMAT",
-								"connect must be a number or array of numbers",
+								"connect must be an id or array of ids",
 							),
 						],
 					};
 				}
-			} else if (typeof connect !== "number") {
+			} else if (!isIdValue(connect)) {
 				return {
 					success: false,
 					error: [
 						createValidationError(
 							fieldName,
 							"INVALID_FORMAT",
-							"connect must be a number or array of numbers",
+							"connect must be an id or array of ids",
 						),
 					],
 				};
 			}
 		}
 
-		// If 'set' is provided, it must be an array of numbers
+		// If 'set' is provided, it must be an array of ids
 		if (input["set"]) {
 			if (
 				!Array.isArray(input["set"]) ||
-				!(input["set"] as unknown[]).every((item) => typeof item === "number")
+				!(input["set"] as unknown[]).every(isIdValue)
 			) {
 				return {
 					success: false,
@@ -671,7 +699,7 @@ function validateRelation(
 						createValidationError(
 							fieldName,
 							"INVALID_FORMAT",
-							"set must be an array of numbers",
+							"set must be an array of ids",
 						),
 					],
 				};

@@ -15,6 +15,7 @@ import {
 import { validatePartial, validateSchema } from "../validator";
 import { throwReservedFieldError } from "./error-helper";
 import { QueryRelations } from "../types/core/query-builder";
+import { assignIds } from "../schema/id";
 
 /**
  * Validation options
@@ -185,9 +186,15 @@ export function validateData<
 	checkReservedFields(data, isRawMode);
 
 	// 2. Add timestamps BEFORE validation (so required fields like createdAt pass)
-	const dataWithTimestamps = schema._isJunctionTable
+	const withTimestamps = schema._isJunctionTable
 		? data
 		: addTimestamps(data, { isCreate, isRawMode });
+
+	// 2b. Assign core-generated ids (uuid schemas only) for creates
+	const dataWithTimestamps =
+		isCreate && withTimestamps !== undefined
+			? assignIds([withTimestamps as Record<string, unknown>], schema)[0]
+			: withTimestamps;
 
 	// 3. Schema validation (with timestamps already present).
 	// With strict: true and stripUnknown: false the validator is check-only

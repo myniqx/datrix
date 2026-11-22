@@ -11,6 +11,7 @@ import {
 	DatrixCrudError,
 	DatrixError,
 } from "../types/errors";
+import type { IdValue } from "../types/core/entry";
 
 /**
  * Options for throwing CRUD errors
@@ -178,7 +179,7 @@ export function throwReservedFieldError(field: string, model: string): never {
 export function throwRecordNotFound(
 	operation: "update" | "delete",
 	model: string,
-	id: number,
+	id: IdValue,
 ): never {
 	throwCrudError({
 		operation,
@@ -210,7 +211,7 @@ export function throwRelationTargetNotFound(
 	parentModel: string,
 	relationField: string,
 	targetModel: string,
-	missingIds: readonly number[],
+	missingIds: readonly IdValue[],
 ): never {
 	const idsStr =
 		missingIds.length === 1

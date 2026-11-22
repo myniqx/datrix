@@ -1,5 +1,6 @@
 import { AfterCommitCallback, IDatrix, IRawCrud } from "./interfaces";
 import { AuthUser } from "../api";
+import type { DatrixId } from "./entry";
 
 /**
  * Query operation type
@@ -31,5 +32,5 @@ export interface QueryContext {
 	afterCommit(callback: AfterCommitCallback): void;
 	user?: AuthUser | undefined;
 	/** Set before after-hooks run on create and upsert: ids of the records this query inserted. */
-	createdIds?: ReadonlySet<number> | undefined;
+	createdIds?: ReadonlySet<DatrixId> | undefined;
 }

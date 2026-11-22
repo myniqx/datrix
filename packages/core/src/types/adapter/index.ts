@@ -16,6 +16,7 @@ import {
 	SchemaDefinition,
 } from "../core/schema";
 import { DatrixAdapterError } from "../errors/adapter";
+import type { IdValue } from "../core/entry";
 
 /**
  * Export data metadata
@@ -65,7 +66,7 @@ export type GroupCountData = Record<string, unknown> & { count: number };
 export interface QueryMetadata {
 	readonly rowCount?: number;
 	readonly affectedRows?: number;
-	readonly insertIds?: readonly number[];
+	readonly insertIds?: readonly IdValue[];
 	readonly count?: number;
 	/**
 	 * Grouped count results — set instead of `count` when the COUNT query

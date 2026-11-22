@@ -6,6 +6,7 @@
  */
 
 import { DatrixEntry, DatrixRecord, RelationInput } from "./schema";
+import type { IdValue } from "./entry";
 
 /**
  * Primitive values that can be used in queries
@@ -364,7 +365,7 @@ export type NormalizedNestedData<T extends DatrixEntry> = {
  * Normalized relation operations for QueryObject (output format)
  *
  * This is what processData() produces - fully normalized and type-safe:
- * - connect/disconnect/set/delete: number[] (normalized from flexible input)
+ * - connect/disconnect/set/delete: IdValue[] (normalized from flexible input)
  * - create: NormalizedNestedData<R> or array (recursive normalization)
  * - update: { where, data, relations } or array (recursive normalization)
  *
@@ -395,10 +396,10 @@ export type NormalizedNestedData<T extends DatrixEntry> = {
  * ```
  */
 export type NormalizedRelationOperations<R extends DatrixEntry> = {
-	readonly connect?: readonly number[];
-	readonly disconnect?: readonly number[];
-	readonly set?: readonly number[];
-	readonly delete?: readonly number[];
+	readonly connect?: readonly IdValue[];
+	readonly disconnect?: readonly IdValue[];
+	readonly set?: readonly IdValue[];
+	readonly delete?: readonly IdValue[];
 	readonly create?: readonly NormalizedNestedData<R>[];
 	readonly update?: readonly NormalizedRelationUpdate<R>[];
 };

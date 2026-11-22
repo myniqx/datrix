@@ -24,6 +24,7 @@ import {
 	throwInvalidField,
 	throwCoercionFailed,
 } from "./error-helper";
+import { isCanonicalUuid, normalizeUuid } from "../schema/id";
 
 /**
  * All supported comparison operators
@@ -131,6 +132,8 @@ function isCorrectType(value: unknown, fieldType: FieldType): boolean {
 			return typeof value === "string";
 		case "number":
 			return typeof value === "number" && !Number.isNaN(value);
+		case "uuid":
+			return isCanonicalUuid(value);
 		case "boolean":
 			return typeof value === "boolean";
 		case "date":
@@ -170,6 +173,14 @@ function coerceString(
 				throwCoercionFailed(fieldName, value, "number");
 			}
 			return num;
+		}
+
+		case "uuid": {
+			const uuid = normalizeUuid(value);
+			if (uuid === undefined) {
+				throwCoercionFailed(fieldName, value, "uuid");
+			}
+			return uuid;
 		}
 
 		case "boolean": {
@@ -631,7 +642,12 @@ function normalizeWhereClause<T extends DatrixEntry>(
 
 				// Primitive value shortcut: { category: 2 } → { categoryId: { $eq: 2 } }
 				if (typeof value === "string" || typeof value === "number") {
-					const coercedValue = coerceValue(value, { type: "number" }, key);
+					// Coerce against the id column type (int or uuid)
+					const fkDef: FieldDefinition = schema.fields[foreignKey] ??
+						registry.get(relationField.model)?.fields["id"] ?? {
+							type: "number",
+						};
+					const coercedValue = coerceValue(value, fkDef, key);
 					normalized[foreignKey] = { $eq: coercedValue };
 					continue;
 				}

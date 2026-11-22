@@ -22,3 +22,15 @@ export * from "./types/errors";
 export * from "./types/utils";
 export * from "./plugin/plugin";
 export * from "./migration";
+
+// ID utilities (int/uuid primary key strategies) — shared by core and adapters
+export {
+	type IdKind,
+	isCanonicalUuid,
+	normalizeUuid,
+	normalizeIntId,
+	normalizeIdValue,
+	getFieldIdKind,
+	getSchemaIdKind,
+	generateUuidV7,
+} from "./schema/id";

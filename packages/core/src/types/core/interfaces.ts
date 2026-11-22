@@ -9,6 +9,7 @@ import {
 import {
 	AnyRelationInput,
 	DatrixEntry,
+	DatrixId,
 	DatrixRecord,
 	ISchemaRegistry,
 } from "./schema";
@@ -106,7 +107,7 @@ export interface IRawCrud {
 	): Promise<T | null>;
 	findById<T extends DatrixEntry = DatrixRecord>(
 		model: string,
-		id: number,
+		id: DatrixId,
 		options?: RawCrudOptions<T>,
 	): Promise<T | null>;
 	findMany<T extends DatrixEntry = DatrixRecord>(
@@ -142,7 +143,7 @@ export interface IRawCrud {
 		TInput extends FallbackInput = FallbackInput,
 	>(
 		model: string,
-		id: number,
+		id: DatrixId,
 		data: TInput,
 		options?: RawCrudOptions<T>,
 	): Promise<T>;
@@ -173,7 +174,7 @@ export interface IRawCrud {
 	): Promise<T[]>;
 	delete<T extends DatrixEntry = DatrixRecord>(
 		model: string,
-		id: number,
+		id: DatrixId,
 		options?: RawCrudOptions<T>,
 	): Promise<T>;
 	deleteMany<T extends DatrixEntry = DatrixRecord>(
