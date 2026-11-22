@@ -156,7 +156,8 @@ export class ForgeMigrationHistory implements MigrationHistory {
 			);
 
 			const records: MigrationHistoryRecord[] = entries.map((entry) => ({
-				id: entry.id,
+				// internal schema: always an integer id, whatever the idType
+				id: Number(entry.id),
 				name: entry.name,
 				version: entry.version,
 				appliedAt: entry.appliedAt,
@@ -197,7 +198,8 @@ export class ForgeMigrationHistory implements MigrationHistory {
 			}
 
 			const record: MigrationHistoryRecord = {
-				id: entry.id,
+				// internal schema: always an integer id, whatever the idType
+				id: Number(entry.id),
 				name: entry.name,
 				version: entry.version,
 				appliedAt: entry.appliedAt,

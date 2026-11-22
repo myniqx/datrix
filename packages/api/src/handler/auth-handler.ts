@@ -12,7 +12,7 @@
  */
 
 import { createHash, randomBytes } from "node:crypto";
-import type { Datrix } from "@datrix/core";
+import type { Datrix, SelectClause } from "@datrix/core";
 import { DEFAULT_API_AUTH_CONFIG } from "@datrix/core";
 import { AuthManager } from "../auth/manager";
 import type { AuthConfig } from "../auth/types";
@@ -383,7 +383,11 @@ export function createAuthHandlers<
 				{ email },
 				{
 					populate: true,
-					select: ["email", "role"],
+					// field lists are filtered to scalar keys, which stays deferred
+					// while TRole/TUser are open generics
+					select: ["email", "role"] as unknown as SelectClause<
+						AuthenticatedUser<TRole, TUser>
+					>,
 				},
 			);
 

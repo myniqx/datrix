@@ -184,20 +184,62 @@ export type FallbackWhereClause = {
  * Typed WHERE clause for specific model types.
  */
 type TypedWhereClause<T extends DatrixEntry> = Writable<{
-	[K in keyof T]?: T[K] extends RelationInput<infer R extends DatrixEntry>
-		? WhereClause<R>
-		: NonNullable<T[K]> extends DatrixEntry
-			? WhereClause<NonNullable<T[K]>>
-			: NonNullable<T[K]> extends DatrixEntry[]
-				? WhereClause<NonNullable<T[K]>[number]>
-				: NonNullable<T[K]> extends ScalarValue
-					? NonNullable<T[K]> | ComparisonOperators<NonNullable<T[K]>>
-					: never;
+	// Scalars (and scalar arrays) are resolved BEFORE the relation check:
+	// RelationInput accepts id shortcuts (`DatrixId`), so a plain number
+	// (int mode) or string (uuid mode) field would otherwise be taken for a
+	// relation and require a nested WHERE.
+	[K in keyof T]?: [NonNullable<T[K]>] extends [ScalarValue]
+		? NonNullable<T[K]> | ComparisonOperators<NonNullable<T[K]>>
+		: [NonNullable<T[K]>] extends [readonly ScalarValue[]]
+			? never
+			: T[K] extends RelationInput<infer R extends DatrixEntry>
+				? WhereClause<R>
+				: NonNullable<T[K]> extends DatrixEntry
+					? WhereClause<NonNullable<T[K]>>
+					: NonNullable<T[K]> extends DatrixEntry[]
+						? WhereClause<NonNullable<T[K]>[number]>
+						: never;
 }> &
 	LogicalOperators<T>;
 
 export type WhereClause<T extends DatrixEntry = DatrixRecord> =
 	DatrixRecord extends T ? FallbackWhereClause : TypedWhereClause<T>;
+
+/**
+ * Related entity of a field value: `Author | null` → Author, `Post[]` → Post,
+ * scalars (and scalar arrays / json) → never.
+ */
+export type RelatedEntity<V> = [NonNullable<V>] extends [ScalarValue]
+	? never
+	: NonNullable<V> extends DatrixEntry
+		? NonNullable<V>
+		: NonNullable<V> extends readonly (infer E)[]
+			? E extends DatrixEntry
+				? E
+				: never
+			: never;
+
+/** Relation field names of T (fields that hold an entity or entity array) */
+export type RelationFieldKeys<T> = {
+	[K in keyof T]-?: [RelatedEntity<T[K]>] extends [never] ? never : K;
+}[keyof T] &
+	string;
+
+/**
+ * Non-relation field names of T (incl. id/createdAt/updatedAt) — what
+ * select, orderBy, groupBy and upsert field lists accept.
+ */
+// Filtered per key (not `Exclude<keyof T, RelationFieldKeys<T>>`): in generic
+// code only the members whose type is still open stay deferred, so literal
+// keys of known scalar fields remain assignable.
+export type ScalarFieldKeys<T> = {
+	[K in keyof T]-?: [RelatedEntity<T[K]>] extends [never] ? K : never;
+}[keyof T] &
+	string;
+
+/** A list of scalar field names (any string for untyped queries) */
+export type ScalarFieldList<T extends DatrixEntry = DatrixRecord> =
+	DatrixRecord extends T ? readonly string[] : readonly ScalarFieldKeys<T>[];
 
 /**
  * SELECT clause (fields to select) - Input format from user
@@ -208,9 +250,9 @@ export type WhereClause<T extends DatrixEntry = DatrixRecord> =
  * - Wildcard: '*' (all fields)
  */
 export type SelectClause<T extends DatrixEntry = DatrixRecord> =
-	| (DatrixRecord extends T ? readonly string[] : readonly (keyof T)[])
+	| ScalarFieldList<T>
 	| "*"
-	| (DatrixRecord extends T ? string : keyof T);
+	| (DatrixRecord extends T ? string : ScalarFieldKeys<T>);
 
 /**
  * Populate clause (relations to include)
@@ -221,7 +263,7 @@ export type PopulateOptions<T extends DatrixEntry> = {
 	readonly populate?: PopulateClause<T> | undefined; // Nested populate
 	readonly limit?: number | undefined;
 	readonly offset?: number | undefined;
-	readonly orderBy?: QueryOrderBy | undefined;
+	readonly orderBy?: OrderByClause<T> | undefined;
 };
 
 /**
@@ -233,22 +275,30 @@ export type PopulateOptions<T extends DatrixEntry> = {
  * - Object notation: { relation1: true, relation2: { select: [...] } }
  * - false: No populate (explicit opt-out)
  */
-type TypedPopulateValue<T> =
-	NonNullable<T> extends DatrixEntry
-		? PopulateOptions<NonNullable<T>> | "*" | boolean
-		: NonNullable<T> extends DatrixEntry[]
-			? PopulateOptions<NonNullable<T>[number]> | "*" | boolean
-			: PopulateOptions<DatrixRecord> | "*" | boolean;
-
 type TypedPopulateClause<T extends DatrixEntry> = {
-	readonly [K in keyof T]?: TypedPopulateValue<T[K]>;
+	readonly [K in RelationFieldKeys<T>]?:
+		| PopulateOptions<RelatedEntity<T[K]>>
+		| "*"
+		| boolean;
 };
+
+/**
+ * Dot-notation populate paths. The first two segments are checked against
+ * the relation graph; deeper segments are only checked at runtime (a fully
+ * expanded path union explodes on wide, cyclic schemas).
+ */
+type PopulatePath<T> = {
+	[K in RelationFieldKeys<T>]:
+		| K
+		| `${K}.${RelationFieldKeys<RelatedEntity<T[K]>>}`
+		| `${K}.${RelationFieldKeys<RelatedEntity<T[K]>>}.${string}`;
+}[RelationFieldKeys<T>];
 
 export type PopulateClause<T extends DatrixEntry = DatrixRecord> =
 	| boolean
 	| "*"
 	| "true"
-	| (DatrixRecord extends T ? readonly string[] : readonly (keyof T)[])
+	| (DatrixRecord extends T ? readonly string[] : readonly PopulatePath<T>[])
 	| (DatrixRecord extends T
 			? Record<string, PopulateOptions<DatrixRecord> | "*" | boolean>
 			: TypedPopulateClause<T>);
@@ -262,7 +312,7 @@ export type OrderDirection = "asc" | "desc";
  * Order by item (typed — field constrained to model keys)
  */
 export type OrderByItem<T extends DatrixEntry> = {
-	readonly field: keyof T;
+	readonly field: ScalarFieldKeys<T>;
 	readonly direction: OrderDirection;
 	readonly nulls?: "first" | "last";
 };
@@ -309,8 +359,8 @@ export type OrderByClause<T extends DatrixEntry = DatrixRecord> =
 				| readonly string[]
 		:
 				| QueryOrderBy<T>
-				| Partial<Record<keyof T, OrderDirection>>
-				| readonly (keyof T | `-${string & keyof T}`)[];
+				| Partial<Record<ScalarFieldKeys<T>, OrderDirection>>
+				| readonly (ScalarFieldKeys<T> | `-${ScalarFieldKeys<T>}`)[];
 
 /**
  * QuerySelect - Normalized form of SelectClause (always array, never '*')
@@ -340,10 +390,9 @@ export type QueryPopulateOptions<T extends DatrixEntry> = {
  * QueryPopulateOptions of the related entity type.
  */
 export type QueryPopulate<T extends DatrixEntry = DatrixRecord> = {
-	readonly [K in keyof T]?: T[K] extends RelationInput<
-		infer R extends DatrixEntry
-	>
-		? QueryPopulateOptions<R>
+	// homomorphic over keyof T so Object.entries() keeps typed values
+	readonly [K in keyof T]?: K extends RelationFieldKeys<T>
+		? QueryPopulateOptions<RelatedEntity<T[K]>>
 		: never;
 };
 
@@ -441,7 +490,10 @@ export interface NormalizedRelationUpdate<
  * ```
  */
 export type QueryRelations<T extends DatrixEntry> = {
-	readonly [K in keyof T]?: T[K] extends RelationInput<
+	// scalar guard first: see TypedWhereClause
+	readonly [K in keyof T]?: [NonNullable<T[K]>] extends [ScalarValue]
+		? never
+		: T[K] extends RelationInput<
 		infer R extends DatrixEntry
 	>
 		? NormalizedRelationOperations<R>

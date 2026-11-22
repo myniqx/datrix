@@ -91,10 +91,10 @@ export class CrudOperations implements IRawCrud {
 	 * });
 	 * ```
 	 */
-	async findOne<T extends DatrixEntry = DatrixEntry>(
+	async findOne<T extends DatrixEntry = DatrixRecord>(
 		model: string,
-		where: WhereClause<T>,
-		options?: RawCrudOptions<T>,
+		where: NoInfer<WhereClause<T>>,
+		options?: NoInfer<RawCrudOptions<T>>,
 	): Promise<T | null> {
 		const builder = selectFrom<T>(model, this.schemas).where(where).limit(1);
 
@@ -131,7 +131,7 @@ export class CrudOperations implements IRawCrud {
 	async findById<T extends DatrixEntry = DatrixRecord>(
 		model: string,
 		id: DatrixId,
-		options?: RawCrudOptions<T>,
+		options?: NoInfer<RawCrudOptions<T>>,
 	): Promise<T | null> {
 		return this.findOne<T>(model, { id } as WhereClause<T>, options);
 	}
@@ -167,7 +167,7 @@ export class CrudOperations implements IRawCrud {
 	 */
 	async findMany<T extends DatrixEntry = DatrixRecord>(
 		model: string,
-		options?: RawFindManyOptions<T>,
+		options?: NoInfer<RawFindManyOptions<T>>,
 	): Promise<T[]> {
 		const builder = selectFrom<T>(model, this.schemas);
 
@@ -231,7 +231,7 @@ export class CrudOperations implements IRawCrud {
 	 */
 	async count<T extends DatrixEntry = DatrixRecord>(
 		model: string,
-		where?: WhereClause<T>,
+		where?: NoInfer<WhereClause<T>>,
 	): Promise<number> {
 		const builder = countFrom<T>(model, this.schemas);
 
@@ -308,7 +308,7 @@ export class CrudOperations implements IRawCrud {
 	async create<
 		T extends DatrixEntry = DatrixRecord,
 		TInput extends FallbackInput = FallbackInput,
-	>(model: string, data: TInput, options?: RawCrudOptions<T>): Promise<T> {
+	>(model: string, data: TInput, options?: NoInfer<RawCrudOptions<T>>): Promise<T> {
 		const result = await this.createMany<T, TInput>(model, [data], {
 			...options,
 			action: "create", // pass this to avoid "createMany" action in dispatcher for single record creation
@@ -335,7 +335,7 @@ export class CrudOperations implements IRawCrud {
 	async createMany<
 		T extends DatrixEntry = DatrixRecord,
 		TInput extends FallbackInput = FallbackInput,
-	>(model: string, data: TInput[], options?: RawCrudOptions<T>): Promise<T[]> {
+	>(model: string, data: TInput[], options?: NoInfer<RawCrudOptions<T>>): Promise<T[]> {
 		const builder = insertInto<T>(
 			model,
 			data as unknown as Partial<T>[],
@@ -381,9 +381,9 @@ export class CrudOperations implements IRawCrud {
 		model: string,
 		id: DatrixId,
 		data: TInput,
-		options?: RawCrudOptions<T>,
+		options?: NoInfer<RawCrudOptions<T>>,
 	): Promise<T> {
-		const result = await this.updateMany(
+		const result = await this.updateMany<T, TInput>(
 			model,
 			{ id } as WhereClause<T>,
 			data,
@@ -430,9 +430,9 @@ export class CrudOperations implements IRawCrud {
 		TInput extends FallbackInput = FallbackInput,
 	>(
 		model: string,
-		where: WhereClause<T>,
+		where: NoInfer<WhereClause<T>>,
 		data: TInput,
-		options?: RawCrudOptions<T>,
+		options?: NoInfer<RawCrudOptions<T>>,
 	): Promise<T[]> {
 		const builder = updateTable<T>(
 			model,
@@ -473,7 +473,7 @@ export class CrudOperations implements IRawCrud {
 	async upsert<
 		T extends DatrixEntry = DatrixRecord,
 		TInput extends FallbackInput = FallbackInput,
-	>(model: string, data: TInput, options: RawUpsertOptions<T>): Promise<T> {
+	>(model: string, data: TInput, options: NoInfer<RawUpsertOptions<T>>): Promise<T> {
 		const result = await this.upsertMany<T, TInput>(model, [data], {
 			...options,
 			action: "upsert",
@@ -499,7 +499,7 @@ export class CrudOperations implements IRawCrud {
 	>(
 		model: string,
 		data: TInput[],
-		options: RawUpsertOptions<T>,
+		options: NoInfer<RawUpsertOptions<T>>,
 	): Promise<T[]> {
 		const builder = upsertInto<T>(
 			model,
@@ -539,7 +539,7 @@ export class CrudOperations implements IRawCrud {
 	async delete<T extends DatrixEntry = DatrixRecord>(
 		model: string,
 		id: DatrixId,
-		options?: RawCrudOptions<T>,
+		options?: NoInfer<RawCrudOptions<T>>,
 	): Promise<T> {
 		const result = await this.deleteMany<T>(model, { id } as WhereClause<T>, {
 			...options,
@@ -576,8 +576,8 @@ export class CrudOperations implements IRawCrud {
 	 */
 	async deleteMany<T extends DatrixEntry = DatrixRecord>(
 		model: string,
-		where: WhereClause<T>,
-		options?: RawCrudOptions<T>,
+		where: NoInfer<WhereClause<T>>,
+		options?: NoInfer<RawCrudOptions<T>>,
 	): Promise<T[]> {
 		const queryBuilder = deleteFrom<T>(model, this.schemas).where(where);
 

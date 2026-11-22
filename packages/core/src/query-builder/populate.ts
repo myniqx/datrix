@@ -327,7 +327,7 @@ function normalizePopulateDotNotation<T extends DatrixEntry>(
 		}
 	}
 
-	return result;
+	return result as PopulateClause<T>;
 }
 
 /**
@@ -438,5 +438,5 @@ export function mergePopulateClauses<T extends DatrixEntry>(
 		}
 	}
 
-	return merged as QueryPopulate<T>;
+	return merged as unknown as QueryPopulate<T>;
 }

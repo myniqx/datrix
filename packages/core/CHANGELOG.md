@@ -1,5 +1,15 @@
 # @datrix/core
 
+## 0.3.1
+
+### Patch Changes
+
+- **WHERE typing:** scalar fields whose type equals `DatrixId` (string fields in uuid mode, number fields in int mode) were taken for relations and required a nested WHERE. Scalars are now resolved before the relation check.
+- **Untyped results:** calls without a generic that pass a WHERE or options (`datrix.findOne("post", { slug })`) inferred `T` from that argument and returned `DatrixEntry`, so fields were not accessible. WHERE/options parameters are now `NoInfer`, and untyped calls return `DatrixRecord` on `datrix` and `datrix.raw` alike.
+- **Typed field lists now match what the query builder accepts:** `select`, `orderBy`, `groupBy` and upsert `conflictOn` / `update` take scalar fields only (relations were accepted by the types and rejected at runtime); `populate` takes relation fields only. Populate dot notation (`"posts.comments"`) now type-checks, with the first two segments checked against the relation graph; `orderBy` inside populate accepts every `OrderByClause` form and is checked against the related model.
+- Added the `ScalarFieldKeys`, `RelationFieldKeys`, `RelatedEntity` and `ScalarFieldList` helper types.
+- Type-tests (`packages/core/type-tests`, `pnpm type-test`) compile queries against generated-style models in both id modes, typed and untyped.
+
 ## 0.3.0
 
 ### Minor Changes

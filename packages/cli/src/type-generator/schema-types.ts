@@ -4,7 +4,7 @@
  * For each schema, generates:
  *   - UserBase extends DatrixEntry    (scalar fields only)
  *   - UserRelation                   (read-mode nested types)
- *   - UserRelationUpdate             (write-mode Relation<T> types)
+ *   - UserRelationUpdate             (write-mode Relation<T> types, type alias)
  *   - type User = UserBase & UserRelation
  *   - type CreateUserInput = Omit<UserBase, keyof DatrixEntry> & UserRelationUpdate
  *   - type UpdateUserInput = Partial<Omit<UserBase, keyof DatrixEntry>> & UserRelationUpdate
@@ -94,19 +94,22 @@ function generateRelationWrite(schema: SchemaDefinition, name: string): string {
 		([, field]) => field.type === "relation",
 	) as [string, RelationField][];
 
+	// A type alias, not an interface: interfaces get no implicit index
+	// signature, so `CreateXInput` would not satisfy the `FallbackInput`
+	// constraint of `create<X, CreateXInput>()` / `update<X, UpdateXInput>()`.
 	if (relationEntries.length === 0) {
-		return `export interface ${name}RelationUpdate {}`;
+		return `export type ${name}RelationUpdate = {};`;
 	}
 
 	const lines: string[] = [];
-	lines.push(`export interface ${name}RelationUpdate {`);
+	lines.push(`export type ${name}RelationUpdate = {`);
 
 	for (const [fieldName, field] of relationEntries) {
 		const typeStr = relationWriteType(field);
 		lines.push(`  ${fieldName}?: ${typeStr};`);
 	}
 
-	lines.push("}");
+	lines.push("};");
 	return lines.join("\n");
 }
 

@@ -1,10 +1,11 @@
-import { DatabaseAdapter } from "../adapter";
+import { DatabaseAdapter, GroupCountData } from "../adapter";
 import { DevConfig, DatrixConfig, MigrationConfig } from "./config";
 import {
 	PopulateClause,
 	SelectClause,
 	WhereClause,
 	OrderByClause,
+	ScalarFieldList,
 } from "./query-builder";
 import {
 	AnyRelationInput,
@@ -27,14 +28,14 @@ export interface RawCrudOptions<T extends DatrixEntry = DatrixRecord> {
 export interface RawUpsertOptions<T extends DatrixEntry = DatrixRecord>
 	extends RawCrudOptions<T> {
 	/** A unique field, or the fields of a unique index. */
-	conflictOn: readonly string[];
+	conflictOn: ScalarFieldList<T>;
 	/** Fields overwritten with the incoming value on conflict. Defaults to every field the rows set; `[]` leaves existing rows untouched. */
-	update?: readonly string[] | undefined;
+	update?: ScalarFieldList<T> | undefined;
 }
 
 export interface RawCountOptions<T extends DatrixEntry = DatrixRecord> {
 	/** Group results by these fields (must be non-relation schema fields). */
-	groupBy?: readonly string[] | undefined;
+	groupBy?: ScalarFieldList<T> | undefined;
 	/** Filter groups after aggregation. Only meaningful together with `groupBy`. */
 	having?: WhereClause<T> | undefined;
 }
@@ -54,7 +55,7 @@ export interface RawCountOptions<T extends DatrixEntry = DatrixRecord> {
  */
 export interface RawCountManyOptions<T extends DatrixEntry = DatrixRecord> {
 	where?: WhereClause<T> | undefined;
-	groupBy: readonly string[];
+	groupBy: ScalarFieldList<T>;
 	/** Filter groups after aggregation; fields must be a subset of `groupBy`. */
 	having?: WhereClause<T> | undefined;
 }
@@ -102,33 +103,33 @@ export type FallbackInput = {
 export interface IRawCrud {
 	findOne<T extends DatrixEntry = DatrixRecord>(
 		model: string,
-		where: WhereClause<T>,
-		options?: RawCrudOptions<T>,
+		where: NoInfer<WhereClause<T>>,
+		options?: NoInfer<RawCrudOptions<T>>,
 	): Promise<T | null>;
 	findById<T extends DatrixEntry = DatrixRecord>(
 		model: string,
 		id: DatrixId,
-		options?: RawCrudOptions<T>,
+		options?: NoInfer<RawCrudOptions<T>>,
 	): Promise<T | null>;
 	findMany<T extends DatrixEntry = DatrixRecord>(
 		model: string,
-		options?: RawFindManyOptions<T>,
+		options?: NoInfer<RawFindManyOptions<T>>,
 	): Promise<T[]>;
 	count<T extends DatrixEntry = DatrixRecord>(
 		model: string,
-		where?: WhereClause<T>,
+		where?: NoInfer<WhereClause<T>>,
 	): Promise<number>;
 	countMany<T extends DatrixEntry = DatrixRecord>(
 		model: string,
 		options: RawCountManyOptions<T>,
-	): Promise<(Record<string, unknown> & { count: number })[]>;
+	): Promise<GroupCountData[]>;
 	create<
 		T extends DatrixEntry = DatrixRecord,
 		TInput extends FallbackInput = FallbackInput,
 	>(
 		model: string,
 		data: TInput,
-		options?: RawCrudOptions<T>,
+		options?: NoInfer<RawCrudOptions<T>>,
 	): Promise<T>;
 	createMany<
 		T extends DatrixEntry = DatrixRecord,
@@ -136,7 +137,7 @@ export interface IRawCrud {
 	>(
 		model: string,
 		data: TInput[],
-		options?: RawCrudOptions<T>,
+		options?: NoInfer<RawCrudOptions<T>>,
 	): Promise<T[]>;
 	update<
 		T extends DatrixEntry = DatrixRecord,
@@ -145,16 +146,16 @@ export interface IRawCrud {
 		model: string,
 		id: DatrixId,
 		data: TInput,
-		options?: RawCrudOptions<T>,
+		options?: NoInfer<RawCrudOptions<T>>,
 	): Promise<T>;
 	updateMany<
 		T extends DatrixEntry = DatrixRecord,
 		TInput extends FallbackInput = FallbackInput,
 	>(
 		model: string,
-		where: WhereClause<T>,
+		where: NoInfer<WhereClause<T>>,
 		data: TInput,
-		options?: RawCrudOptions<T>,
+		options?: NoInfer<RawCrudOptions<T>>,
 	): Promise<T[]>;
 	upsert<
 		T extends DatrixEntry = DatrixRecord,
@@ -162,7 +163,7 @@ export interface IRawCrud {
 	>(
 		model: string,
 		data: TInput,
-		options: RawUpsertOptions<T>,
+		options: NoInfer<RawUpsertOptions<T>>,
 	): Promise<T>;
 	upsertMany<
 		T extends DatrixEntry = DatrixRecord,
@@ -170,17 +171,17 @@ export interface IRawCrud {
 	>(
 		model: string,
 		data: TInput[],
-		options: RawUpsertOptions<T>,
+		options: NoInfer<RawUpsertOptions<T>>,
 	): Promise<T[]>;
 	delete<T extends DatrixEntry = DatrixRecord>(
 		model: string,
 		id: DatrixId,
-		options?: RawCrudOptions<T>,
+		options?: NoInfer<RawCrudOptions<T>>,
 	): Promise<T>;
 	deleteMany<T extends DatrixEntry = DatrixRecord>(
 		model: string,
-		where: WhereClause<T>,
-		options?: RawCrudOptions<T>,
+		where: NoInfer<WhereClause<T>>,
+		options?: NoInfer<RawCrudOptions<T>>,
 	): Promise<T[]>;
 }
 

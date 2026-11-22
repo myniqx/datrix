@@ -1,6 +1,6 @@
 {
 	"name": "@datrix/core",
-	"version": "0.3.0",
+	"version": "0.3.1",
 	"description": "Core functionality for Datrix framework - schema, validation, query building, migration",
 	"author": "Datrix Contributors",
 	"license": "MIT",
@@ -45,8 +45,9 @@
 	"scripts": {
 		"build": "tsup",
 		"dev": "tsup --watch",
-		"type-check": "tsc --noEmit",
-		"clean": "rm -rf dist"
+		"type-check": "tsc --noEmit && pnpm type-test",
+		"clean": "rm -rf dist",
+		"type-test": "tsc -p type-tests/tsconfig.int.json && tsc -p type-tests/tsconfig.uuid.json"
 	},
 	"devDependencies": {
 		"tsup": "^8.5.1",

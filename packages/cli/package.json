@@ -1,6 +1,6 @@
 {
 	"name": "@datrix/cli",
-	"version": "0.3.0",
+	"version": "0.3.1",
 	"description": "Command-line tools for Datrix framework",
 	"author": "Datrix Contributors",
 	"license": "MIT",

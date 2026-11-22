@@ -15,6 +15,7 @@ import type {
 	OrderByItem,
 	OrderDirection,
 	FallbackOrderByItem,
+	ScalarFieldKeys,
 } from "../types/core/query-builder";
 import type { DatrixEntry, SchemaDefinition } from "../types/core/schema";
 import { throwInvalidField, throwInvalidValue } from "./error-helper";
@@ -96,7 +97,7 @@ export function normalizeOrderBy<T extends DatrixEntry>(
 		const result: OrderByItem<T>[] = [];
 		for (const [field, direction] of Object.entries(input)) {
 			result.push({
-				field: field as keyof T,
+				field: field as ScalarFieldKeys<T>,
 				direction: direction as OrderDirection,
 			});
 		}
@@ -109,12 +110,12 @@ export function normalizeOrderBy<T extends DatrixEntry>(
 			const str = item as string;
 			if (str.startsWith("-")) {
 				return {
-					field: str.slice(1) as keyof T,
+					field: str.slice(1) as ScalarFieldKeys<T>,
 					direction: "desc" as OrderDirection,
 				};
 			}
 			return {
-				field: str as keyof T,
+				field: str as ScalarFieldKeys<T>,
 				direction: "asc" as OrderDirection,
 			};
 		}) as QueryOrderBy<T>;

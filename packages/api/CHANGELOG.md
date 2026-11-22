@@ -1,5 +1,11 @@
 # @datrix/api
 
+## 0.3.1
+
+### Patch Changes
+
+- Internal type adjustment for the stricter `select` typing of `@datrix/core` 0.3.1; no behavior change.
+
 ## 0.3.0
 
 ### Minor Changes

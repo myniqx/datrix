@@ -12,7 +12,7 @@ import {
 	DEFAULT_MIGRATION_CONFIG,
 	DEFAULT_DEV_CONFIG,
 } from "./types/core/config";
-import { DatabaseAdapter } from "./types/adapter";
+import { DatabaseAdapter, GroupCountData } from "./types/adapter";
 import {
 	DatrixPlugin,
 	PluginContext,
@@ -382,8 +382,8 @@ export class Datrix implements IDatrix {
 
 	async findOne<T extends DatrixEntry = DatrixRecord>(
 		model: string,
-		where: WhereClause<T>,
-		options?: RawCrudOptions<T>,
+		where: NoInfer<WhereClause<T>>,
+		options?: NoInfer<RawCrudOptions<T>>,
 	): Promise<T | null> {
 		this.ensureInitialized();
 		return this._crud.findOne<T>(model, where, options);
@@ -392,7 +392,7 @@ export class Datrix implements IDatrix {
 	async findById<T extends DatrixEntry = DatrixRecord>(
 		model: string,
 		id: DatrixId,
-		options?: RawCrudOptions<T>,
+		options?: NoInfer<RawCrudOptions<T>>,
 	): Promise<T | null> {
 		this.ensureInitialized();
 		return this._crud.findById<T>(model, id, options);
@@ -400,7 +400,7 @@ export class Datrix implements IDatrix {
 
 	async findMany<T extends DatrixEntry = DatrixRecord>(
 		model: string,
-		options?: RawFindManyOptions<T>,
+		options?: NoInfer<RawFindManyOptions<T>>,
 	): Promise<T[]> {
 		this.ensureInitialized();
 		return this._crud.findMany<T>(model, options);
@@ -408,24 +408,24 @@ export class Datrix implements IDatrix {
 
 	async count<T extends DatrixEntry = DatrixRecord>(
 		model: string,
-		where?: WhereClause<T>,
+		where?: NoInfer<WhereClause<T>>,
 	): Promise<number> {
 		this.ensureInitialized();
-		return this._crud.count(model, where);
+		return this._crud.count<T>(model, where);
 	}
 
 	async countMany<T extends DatrixEntry = DatrixRecord>(
 		model: string,
 		options: RawCountManyOptions<T>,
-	): Promise<(Record<string, unknown> & { count: number })[]> {
+	): Promise<GroupCountData[]> {
 		this.ensureInitialized();
-		return this._crud.countMany(model, options);
+		return this._crud.countMany<T>(model, options);
 	}
 
 	async create<
 		T extends DatrixEntry = DatrixRecord,
 		TInput extends FallbackInput = FallbackInput,
-	>(model: string, data: TInput, options?: RawCrudOptions<T>): Promise<T> {
+	>(model: string, data: TInput, options?: NoInfer<RawCrudOptions<T>>): Promise<T> {
 		this.ensureInitialized();
 		return this._crud.create<T, TInput>(model, data, options);
 	}
@@ -433,7 +433,7 @@ export class Datrix implements IDatrix {
 	async createMany<
 		T extends DatrixEntry = DatrixRecord,
 		TInput extends FallbackInput = FallbackInput,
-	>(model: string, data: TInput[], options?: RawCrudOptions<T>): Promise<T[]> {
+	>(model: string, data: TInput[], options?: NoInfer<RawCrudOptions<T>>): Promise<T[]> {
 		this.ensureInitialized();
 		return this._crud.createMany<T, TInput>(model, data, options);
 	}
@@ -445,7 +445,7 @@ export class Datrix implements IDatrix {
 		model: string,
 		id: DatrixId,
 		data: TInput,
-		options?: RawCrudOptions<T>,
+		options?: NoInfer<RawCrudOptions<T>>,
 	): Promise<T> {
 		this.ensureInitialized();
 		return this._crud.update<T, TInput>(model, id, data, options);
@@ -456,9 +456,9 @@ export class Datrix implements IDatrix {
 		TInput extends FallbackInput = FallbackInput,
 	>(
 		model: string,
-		where: WhereClause<T>,
+		where: NoInfer<WhereClause<T>>,
 		data: TInput,
-		options?: RawCrudOptions<T>,
+		options?: NoInfer<RawCrudOptions<T>>,
 	): Promise<T[]> {
 		this.ensureInitialized();
 		return this._crud.updateMany<T, TInput>(model, where, data, options);
@@ -467,7 +467,7 @@ export class Datrix implements IDatrix {
 	async upsert<
 		T extends DatrixEntry = DatrixRecord,
 		TInput extends FallbackInput = FallbackInput,
-	>(model: string, data: TInput, options: RawUpsertOptions<T>): Promise<T> {
+	>(model: string, data: TInput, options: NoInfer<RawUpsertOptions<T>>): Promise<T> {
 		this.ensureInitialized();
 		return this._crud.upsert<T, TInput>(model, data, options);
 	}
@@ -478,7 +478,7 @@ export class Datrix implements IDatrix {
 	>(
 		model: string,
 		data: TInput[],
-		options: RawUpsertOptions<T>,
+		options: NoInfer<RawUpsertOptions<T>>,
 	): Promise<T[]> {
 		this.ensureInitialized();
 		return this._crud.upsertMany<T, TInput>(model, data, options);
@@ -487,19 +487,19 @@ export class Datrix implements IDatrix {
 	async delete<T extends DatrixEntry = DatrixRecord>(
 		model: string,
 		id: DatrixId,
-		options?: RawCrudOptions<T>,
+		options?: NoInfer<RawCrudOptions<T>>,
 	): Promise<T> {
 		this.ensureInitialized();
-		return this._crud.delete(model, id, options);
+		return this._crud.delete<T>(model, id, options);
 	}
 
 	async deleteMany<T extends DatrixEntry = DatrixRecord>(
 		model: string,
-		where: WhereClause<T>,
-		options?: RawCrudOptions<T>,
+		where: NoInfer<WhereClause<T>>,
+		options?: NoInfer<RawCrudOptions<T>>,
 	): Promise<T[]> {
 		this.ensureInitialized();
-		return this._crud.deleteMany(model, where, options);
+		return this._crud.deleteMany<T>(model, where, options);
 	}
 
 	/**

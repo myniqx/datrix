@@ -1,5 +1,11 @@
 # @datrix/api-upload
 
+## 0.3.1
+
+### Patch Changes
+
+- Released alongside `@datrix/core` 0.3.1 (type fixes); no changes in this package.
+
 ## 0.3.0
 
 ### Minor Changes

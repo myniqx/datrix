@@ -1,5 +1,11 @@
 # @datrix/cli
 
+## 0.3.1
+
+### Patch Changes
+
+- `datrix generate types` emits `XRelationUpdate` as a type alias instead of an interface. Interfaces have no implicit index signature, so `CreateXInput` / `UpdateXInput` did not satisfy the input constraint of `create<X, CreateXInput>()` / `update<X, UpdateXInput>()`. Regenerate your types after upgrading.
+
 ## 0.3.0
 
 ### Minor Changes

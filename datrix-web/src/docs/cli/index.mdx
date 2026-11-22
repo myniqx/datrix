@@ -219,7 +219,7 @@ After editing, run `datrix migrate` to apply the new table.
 
 ## datrix generate types
 
-Generates TypeScript types from all registered schemas into a single file. For each schema it produces a `Base` interface, `Relation`/`RelationUpdate` interfaces for nested types, and `Create`/`Update` input types — ready to import across your codebase.
+Generates TypeScript types from all registered schemas into a single file. For each schema it produces a `Base` interface, a `Relation` interface and a `RelationUpdate` type for nested types, and `Create`/`Update` input types — ready to import across your codebase.
 
 **New in 0.2.0:** does not require a live database connection — schema definitions are read directly from your config file, so it runs safely in CI or offline local development.
 
@@ -262,7 +262,7 @@ export interface UserRelation {
   posts?: PostBase[]
 }
 
-export interface UserRelationUpdate {
+export type UserRelationUpdate = {
   posts?: RelationHasMany<PostBase>
 }
 
@@ -285,7 +285,7 @@ export interface PostRelation {
   author?: UserBase
 }
 
-export interface PostRelationUpdate {
+export type PostRelationUpdate = {
   author?: RelationBelongsTo<UserBase>
 }
 

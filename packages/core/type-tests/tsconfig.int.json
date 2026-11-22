@@ -1,0 +1,13 @@
+{
+	"extends": "../../../tsconfig.json",
+	"compilerOptions": {
+		"noEmit": true,
+		"baseUrl": ".",
+		"noUnusedLocals": false,
+		"rootDir": "..",
+		"paths": {
+			"@datrix/core": ["../src/index.ts"]
+		}
+	},
+	"include": ["shared/**/*.ts", "int/**/*.ts"]
+}

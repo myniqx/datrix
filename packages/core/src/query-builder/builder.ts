@@ -15,6 +15,7 @@ import type {
 	OrderDirection,
 	OrderByClause,
 	QueryRelations,
+	ScalarFieldKeys,
 } from "../types/core/query-builder";
 
 import { normalizeWhere, isLogicalOperator } from "./where";
@@ -221,7 +222,7 @@ export class DatrixQueryBuilder<
 		if (typeof fieldOrClause === "string" && !Array.isArray(fieldOrClause)) {
 			const normalized = normalizeOrderBy(this.query.orderBy);
 			const newItem: OrderByItem<TSchema> = {
-				field: fieldOrClause as keyof TSchema,
+				field: fieldOrClause as ScalarFieldKeys<TSchema>,
 				direction,
 			};
 			this.query.orderBy = [

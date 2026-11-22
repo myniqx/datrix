@@ -1,0 +1,153 @@
+---
+title: Release Notes
+description: What changed in each Datrix release.
+order: 7
+---
+
+# Release Notes
+
+All `@datrix/*` packages are released together and, since 0.3.0, share one version number. Install matching versions; each package requires `@datrix/core` of the same minor version or newer.
+
+## 0.3.1
+
+_2026-11-22_
+
+A typing release: no runtime behavior changes. Queries that compiled but failed at runtime are now type errors.
+
+### Upgrading
+
+- Run `datrix generate types` again. Typed `create` / `update` calls with the generated input types (`create<Post, CreatePostInput>(...)`) failed to compile before (see cli below).
+- Fix the new type errors. Each one marks a query that already threw at runtime, such as a relation in `select` or a scalar field in `populate`.
+
+### core
+
+- **Fixed: scalar fields typed as relations in WHERE.** A field whose type matched the id type (a `string` field in uuid mode, a `number` field in int mode) was taken for a relation and required a nested WHERE: `where: { email: "a@x.io" }` failed in uuid mode, and `where: { views: 5 }` failed in int mode.
+- **Fixed: untyped calls lost their result type.** Without a generic, a call that passed a WHERE or options inferred its model type from that argument, so `(await datrix.findOne("post", { slug })).title` did not compile. Untyped calls now always return `DatrixRecord`, on `datrix` and on `datrix.raw`.
+- **Typed field lists match what the [query builder](/docs/core/query) accepts.**
+
+With a model type (`findMany<Post>(...)`):
+
+| Option | Accepts |
+| --- | --- |
+| `select`, `orderBy`, `groupBy`, upsert `conflictOn` / `update` | scalar fields only (including `id`, `createdAt`, `updatedAt`) |
+| `populate` | relation fields only |
+| `populate` dot notation (`"posts.comments"`) | now type-checks; the first two segments are checked against the relations |
+| `orderBy` inside populate options | every `orderBy` form, checked against the related model |
+
+```ts
+datrix.findMany<Post>("post", {
+  select: ["title", "views"],              // ✅
+  populate: ["author", "comments.post"],   // ✅
+  orderBy: ["-views"],                     // ✅
+});
+
+datrix.findMany<Post>("post", { select: ["author"] });   // ❌ relations are populated
+datrix.findMany<Post>("post", { populate: ["title"] });  // ❌ not a relation
+```
+
+Untyped calls (no generic) keep accepting any field name.
+
+- New helper types: `ScalarFieldKeys<T>`, `RelationFieldKeys<T>`, `RelatedEntity<V>` and `ScalarFieldList<T>`.
+
+### cli
+
+- `datrix generate types` emits `XRelationUpdate` as a `type` instead of an `interface`, so `CreateXInput` / `UpdateXInput` work as the input type of [`create` / `update`](/docs/cli#datrix-generate-types).
+
+## 0.3.0
+
+_2026-11-22_
+
+### Upgrading
+
+- **Node.js 22 or later is required** by every package (`engines.node >= 22`).
+- Existing projects keep integer ids. `idType` defaults to `"int"`, which produces the same schema as 0.2, so no migration diff appears.
+- On PostgreSQL the next `datrix migrate` changes the auth `role` column from `TEXT` to `VARCHAR(64)`. This happens once (see api below).
+
+### uuid ids
+
+- New [`idType: "int" | "uuid"`](/docs/getting-started/configuration#idtype-optional) config option. In uuid mode every user schema's `id`, foreign keys and junction columns are uuids. Core generates UUID v7 ids before insert, never the database. Internal `_datrix` schemas always keep integer ids.
+- UUID v7 ids are monotonic within the same millisecond, so ordering by `id` follows insertion order.
+- New `DatrixId` type: `number`, or `string` once `datrix generate types` emits the `DatrixRegister` augmentation in uuid mode. `DatrixEntry.id`, relation references, `findById` / `update` / `delete` and `QueryContext.createdIds` use it.
+- New `uuid` field type (canonical lowercase). Relation id shortcuts accept integer or uuid ids; the query builder canonicalizes them per target schema and rejects ids of the wrong kind.
+- New `parseIdParam(segment, schema)` helper for parsing ids from URL segments.
+- **Switching `idType` on an existing database** is a dedicated migration: export, rewrite of ids, foreign keys and junction rows, then import. `datrix migrate` writes a zip backup and an old → new id mapping file first, and it refuses to combine the switch with other schema changes. See [Changing idType](/docs/cli#changing-idtype).
+
+### core
+
+- **Schema defaults are applied before validation.** On create (`create`, `createMany`, nested relation creates, raw mode, and the insert path of `upsert`), fields you did not provide get their `default`. Before this release a `required` field with a `default` was rejected as missing.
+  - Only `undefined` is filled: an explicit `null` is kept.
+  - Updates, including the conflict path of `upsert`, never re-apply defaults.
+  - Defaults are validated like any other value.
+- Function defaults (`default: () => value`) are called once per row; before, they were silently dropped. Object and array defaults are cloned per row.
+
+### Adapters
+
+All adapters support uuid ids:
+
+| Adapter | uuid ids map to |
+| --- | --- |
+| PostgreSQL | `UUID` (kept from `RETURNING`) |
+| MySQL / MariaDB | `CHAR(36)` (read from the data instead of `insertId`) |
+| MongoDB | string (no id counters) |
+| JSON | string (no auto-increment counter) |
+
+- Import skips the sequence, auto-increment or counter reset for uuid tables.
+- **mysql:** fixed object and array `default` values on JSON columns failing on MariaDB. They render as a JSON string literal, which works on MySQL 8.0.13+ and MariaDB 10.2+.
+- **postgres:** fixed import failing on tables with mixed-case names, such as junction tables.
+
+### api
+
+- Route ids follow the schema's id type; malformed ids return 404. Authentication, email sync, and the JWT and session guards accept uuid user ids.
+- The auth `role` field has `maxLength: 64` and maps to `VARCHAR(64)`. Before this, auth could not be migrated on MySQL or MariaDB, because they reject `DEFAULT` on `TEXT` columns. Role names longer than 64 characters are rejected.
+- **api-upload:** `DELETE /upload/:id` accepts uuid ids.
+
+### cli
+
+- `generate types` emits the `DatrixRegister` augmentation in uuid mode and types uuid fields as `string`.
+- Fixed file import resolving record ids with `Number()`, which broke media relinking for uuid ids.
+
+## 0.2.2
+
+_2026-10-19 — `@datrix/core` 0.2.2, adapters and api 0.2.1_
+
+- **Upsert:** `upsert(model, data, { conflictOn, update? })` and `upsertMany(...)` on `datrix`, `datrix.raw` and `tx`. `conflictOn` must be a unique field or the fields of a unique index; `update` limits the overwritten fields. Each adapter implements it natively (PostgreSQL `ON CONFLICT`, MySQL `ON DUPLICATE KEY UPDATE`, MongoDB `bulkWrite`).
+- New `beforeUpsert` / `afterUpsert` schema hooks; `afterUpsert` receives the records split into `created` / `updated`.
+- New `QueryContext.createdIds`: the ids a create or upsert inserted, set before after-hooks run.
+- api: authentication records are created for upserted users.
+
+## 0.2.1
+
+_2026-10-18_
+
+- **Transactions:** `datrix.transaction(fn, options?)` commits when `fn` resolves and rolls back when it throws. `tx.rollback()` rolls back on purpose, and `tx.afterCommit()` defers side effects until commit. See [Transactions](/docs/core/transactions).
+- New `context.crud` in hooks: queries made from a hook join the caller's transaction.
+
+## 0.2.0
+
+_2026-07-18_
+
+A hardening release across every package.
+
+- **core:** the query builder validates `orderBy`, `groupBy` and `having`, rejects `UPDATE` without a WHERE, and stops coercing bad ids to `NaN` or `0`. New `countMany`, `groupBy`, `having` and `distinct` query API. Fixes for self-referential relations, migration diff false positives and validator edge cases.
+- **Adapters:** fixes for `$icontains` and LIKE escaping, COUNT with relation joins, and connection leaks in transactions. Per-relation `limit` / `offset` in populate. Export and import are scoped to tables Datrix manages, and import is atomic.
+- **api (breaking):**
+  - JWT signatures are standard `base64url`, so previously issued tokens are invalidated.
+  - `create` / `update` / `delete` require an authenticated user by default.
+  - New `QUERY` method (`POST /api/:schema/query`) takes a JSON query body.
+  - Security fixes: no password hash in `/auth/me`, no mass assignment on register, per-request identity isolation.
+- **api-upload (breaking):** uploads require authentication and permission checks; image types are verified against the file content.
+- **cli:** new `datrix generate config`, offline `generate types`, and `--version` / `--yes` / `--force` flags. Fixes for CSV and zip data integrity.
+- Internal dependencies use `workspace:^`.
+
+## 0.1.2
+
+_2026-04-12_
+
+- api: password reset flow (`POST /auth/forgot-password`, `POST /auth/reset-password`, `passwordReset.onForgotPassword`); `AuthConfig` takes a `TUser` generic for typed user population.
+- core: optional scalar fields no longer resolve to `never` in typed WHERE clauses.
+
+## 0.1.1 — Initial release
+
+_2026-04-07_
+
+First public release of the `@datrix/*` packages: core, the PostgreSQL, MySQL, MongoDB and JSON adapters, api, api-upload and cli.
