@@ -36,7 +36,7 @@ Every schema automatically gets these fields — you cannot define them manually
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `id` | `number` | Auto-incremented primary key |
+| `id` | `number` \| `string` | Primary key — auto-incremented integer, or UUID v7 string with [`idType: "uuid"`](/docs/getting-started/configuration#idtype-optional) |
 | `createdAt` | `date` | Set on record creation |
 | `updatedAt` | `date` | Updated on every write |
 

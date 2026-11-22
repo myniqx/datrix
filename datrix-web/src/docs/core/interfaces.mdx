@@ -9,6 +9,10 @@ order: 6
 All methods are available directly on the `datrix` instance and identically on
 `datrix.crud`. Use `datrix.raw` to bypass plugin hooks — signatures are the same.
 
+`DatrixId` is `number` by default and `string` when the project uses
+[`idType: "uuid"`](/docs/getting-started/configuration#idtype-optional) and the
+generated types register it (`datrix generate types`).
+
 ---
 
 ## CRUD Methods
@@ -34,7 +38,7 @@ Returns the first record matching `where`, or `null` if none found.
 ```typescript
 findById<T extends DatrixEntry = DatrixRecord>(
   model: string,           // registered schema name
-  id: number,              // record ID
+  id: DatrixId,            // record ID
   options?: RawCrudOptions<T>, // select, populate
 ): Promise<T | null>
 ```
@@ -145,7 +149,7 @@ a new record (`create`) must be the same for every item — otherwise use
 ```typescript
 update<T extends DatrixEntry = DatrixRecord, TInput extends FallbackInput = FallbackInput>(
   model: string,           // registered schema name
-  id: number,              // record ID to update
+  id: DatrixId,            // record ID to update
   data: TInput,            // fields to update (partial)
   options?: RawCrudOptions<T>, // select, populate on returned record
 ): Promise<T>
@@ -251,7 +255,7 @@ only `conflictOn`.
 ```typescript
 delete<T extends DatrixEntry = DatrixRecord>(
   model: string,           // registered schema name
-  id: number,              // record ID to delete
+  id: DatrixId,            // record ID to delete
   options?: RawCrudOptions<T>, // select, populate on returned record
 ): Promise<T>
 ```

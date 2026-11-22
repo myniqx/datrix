@@ -24,12 +24,26 @@ Runs pending database migrations based on your current schema definitions.
 datrix migrate
 datrix migrate --dry-run   # Preview what would be applied without executing
 datrix migrate --status    # Show current migration status
+datrix migrate --yes       # Skip the confirmation prompt
 ```
 
 | Option | Description |
 |---|---|
 | `--dry-run` | Show what would be done without applying changes |
 | `--status` | Display pending and applied migrations |
+| `--yes` | Apply without asking (required when stdin is not a TTY) |
+
+#### Changing `idType`
+
+When `idType` in the config differs from the database (`int` ↔ `uuid`), `migrate` runs a dedicated conversion instead of a regular migration:
+
+1. Asks for confirmation (`--yes` skips, `--dry-run` only prints the plan).
+2. Exports the database to `datrix-idtype-backup_<timestamp>.zip` in the current directory.
+3. Rewrites every id, foreign key and junction row — int → uuid: UUID v7 from `createdAt`; uuid → int: sequential by `createdAt`. Creation order is preserved.
+4. Drops, recreates and re-imports the managed tables.
+5. Writes the old → new id mapping to `datrix-idtype-mapping_<timestamp>.json`.
+
+It stops if other schema changes are pending — apply them with the old `idType` first. Ids stored outside Datrix (json fields, external systems) are not updated; use the mapping file. Dangling foreign keys are set to `null`, junction rows with a missing side are dropped. On failure, restore with `datrix import <backup.zip>`. Auto-migrate on startup never converts ids.
 
 ---
 
@@ -60,6 +74,8 @@ datrix generate types --output ./src/types/datrix.ts
 | Option | Description |
 |---|---|
 | `--output <path>` | Output file path (default: `./types/datrix.ts`) |
+
+With `idType: "uuid"` the file also contains a `declare module "@datrix/core" { interface DatrixRegister { idType: "uuid" } }` block, so `DatrixId` and every id in the generated types become `string`.
 
 ---
 

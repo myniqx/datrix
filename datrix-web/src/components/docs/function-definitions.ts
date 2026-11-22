@@ -21,7 +21,7 @@ export const FUNCTION_DEFINITIONS: Record<string, FunctionDefinition> = {
 	},
 
 	findById: {
-		signature: `findById<T extends DatrixEntry>(\n  model: string,\n  id: number,\n  options?: RawCrudOptions<T>,\n): Promise<T | null>`,
+		signature: `findById<T extends DatrixEntry>(\n  model: string,\n  id: DatrixId,\n  options?: RawCrudOptions<T>,\n): Promise<T | null>`,
 		description:
 			"Shorthand for findOne with where: { id }. Returns null if not found.",
 		docsPath: "/docs/core/interfaces#findbyid",
@@ -63,7 +63,7 @@ export const FUNCTION_DEFINITIONS: Record<string, FunctionDefinition> = {
 	},
 
 	update: {
-		signature: `update<T extends DatrixEntry, TInput extends FallbackInput>(\n  model: string,\n  id: number,\n  data: TInput,\n  options?: RawCrudOptions<T>,\n): Promise<T>`,
+		signature: `update<T extends DatrixEntry, TInput extends FallbackInput>(\n  model: string,\n  id: DatrixId,\n  data: TInput,\n  options?: RawCrudOptions<T>,\n): Promise<T>`,
 		description:
 			"Updates a single record by ID and returns it. Throws RECORD_NOT_FOUND if the ID does not exist.",
 		docsPath: "/docs/core/interfaces#update",
@@ -91,7 +91,7 @@ export const FUNCTION_DEFINITIONS: Record<string, FunctionDefinition> = {
 	},
 
 	delete: {
-		signature: `delete<T extends DatrixEntry>(\n  model: string,\n  id: number,\n  options?: RawCrudOptions<T>,\n): Promise<T>`,
+		signature: `delete<T extends DatrixEntry>(\n  model: string,\n  id: DatrixId,\n  options?: RawCrudOptions<T>,\n): Promise<T>`,
 		description:
 			"Deletes a single record by ID and returns it. Throws RECORD_NOT_FOUND if the ID does not exist.",
 		docsPath: "/docs/core/interfaces#delete",

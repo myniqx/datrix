@@ -93,15 +93,23 @@ override async getSchemas(): Promise<SchemaDefinition[]> {
       name: "audit_log",
       fields: {
         action:     { type: "string", required: true },
-        recordId:   { type: "number", required: true },
+        recordId:   { type: "string", required: true },
         schemaName: { type: "string", required: true },
-        userId:     { type: "number" },
+        userId:     { type: "string" },
         diff:       { type: "json" },
       },
     }),
   ]
 }
 ```
+
+Plugins run under both [`idType`](/docs/getting-started/configuration#idtype-optional)
+modes, so don't hard-code `type: "number"` for columns that hold record ids:
+
+- **Points at a known schema** → use a `relation` field. The foreign key column
+  follows that schema's id type automatically.
+- **Points at any schema** (like `recordId` above) → use `type: "string"` and
+  store `String(id)`; it holds integer and uuid ids alike.
 
 ### extendSchemas
 
@@ -277,8 +285,8 @@ export class AuditLogPlugin extends BasePlugin<AuditLogOptions> {
         fields: {
           action:     { type: "string", required: true },
           schemaName: { type: "string", required: true },
-          recordId:   { type: "number" },
-          userId:     { type: "number" },
+          recordId:   { type: "string" },  // String(id) — works for int and uuid ids
+          userId:     { type: "string" },
           diff:       { type: "json" },
         },
       }),
@@ -313,18 +321,20 @@ export class AuditLogPlugin extends BasePlugin<AuditLogOptions> {
 
     const ctx = this.getContext()
     const rows = Array.isArray(result) ? result : [result]
+    const userId = (context.user as { id?: unknown } | undefined)?.id
 
     for (const row of rows) {
-      await ctx.adapter.executeQuery({
-        type: "insert",
-        table: "audit_logs",
-        data: [{
-          action:     context.action,
-          schemaName,
-          recordId:   (row as DatrixEntry).id ?? null,
-          userId:     (context.user as { id?: number } | undefined)?.id ?? null,
-          diff:       context.metadata.auditData ?? null,
-        }],
+      const recordId = (row as DatrixEntry).id
+      if (recordId == null) continue
+
+      // datrix.raw: skips hooks (no infinite loop) and still assigns the id
+      // (core-generated with idType "uuid") — never write via ctx.adapter
+      await ctx.datrix.raw.create("auditLog", {
+        action:     context.action,
+        schemaName,
+        recordId:   String(recordId),
+        userId:     userId == null ? null : String(userId),
+        diff:       context.metadata.auditData ?? null,
       })
     }
 

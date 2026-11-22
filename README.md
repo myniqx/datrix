@@ -15,6 +15,7 @@ Datrix gives you:
 - **Optional REST API** — add `@datrix/api` as a plugin to auto-generate CRUD routes, JWT/session auth, and RBAC permissions
 - **File uploads** — add `@datrix/api-upload` for storage-agnostic file handling with image conversion and variants
 - **Migrations** — schema diff engine that detects changes and generates DDL — run via CLI or programmatically
+- **Integer or UUID ids** — `idType: "int" | "uuid"` applies to every adapter alike, with a built-in migration to switch existing data
 
 ---
 

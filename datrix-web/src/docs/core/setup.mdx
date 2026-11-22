@@ -488,6 +488,9 @@ const getDatrix = defineConfig(() => ({
 	// Optional: plugin list
 	plugins: [],
 
+	// Optional: primary key strategy — "int" (default) or "uuid"
+	idType: "int",
+
 	// Optional: migration settings
 	migration: {
 		auto: false, // auto-run migrations on startup (default: false)

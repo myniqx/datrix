@@ -92,6 +92,8 @@ For every registered schema:
 
 The `:schema` segment matches the schema's table name (e.g. schema `"product"` → `/api/products`).
 
+The `:id` segment follows the schema's id type — an integer by default, a UUID (any case) with `idType: "uuid"`. An id that does not match returns `404`.
+
 ### Filtering, sorting, pagination
 
 Pass query parameters as a serialized `ParsedQuery` object. Use `queryToParams` to build them:

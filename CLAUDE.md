@@ -68,7 +68,7 @@ Three layers with strict separation of responsibilities:
 ### Schema System
 
 - `defineSchema()` and `defineConfig()` are the public API entry points in `@datrix/core`.
-- Reserved auto-managed fields: `id` (auto-increment PK), `createdAt`, `updatedAt` — cannot be set manually.
+- Reserved auto-managed fields: `id` (auto-increment PK, or core-generated UUID v7 with `idType: "uuid"`), `createdAt`, `updatedAt` — cannot be set manually.
 - Relations: `belongsTo`, `hasOne`, `hasMany`, `manyToMany` — FK and junction tables are handled automatically.
 
 ### Plugin System

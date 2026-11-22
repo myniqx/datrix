@@ -10,6 +10,11 @@ When writing records with `create`, `createMany`, `update`, or `updateMany`,
 relation fields accept several input formats. Datrix normalizes all of them
 internally before hitting the database.
 
+Examples use integer ids. With [`idType: "uuid"`](/docs/getting-started/configuration#idtype-optional)
+every format works the same way — pass uuid strings instead
+(`author: "0190a3f2-7b1c-7d2e-8f3a-1b2c3d4e5f60"`, `tags: { connect: [uuid1, uuid2] }`).
+Uuids are accepted in any case; a number where a uuid is expected throws.
+
 ---
 
 ## Shortcut formats
@@ -19,7 +24,7 @@ shortcuts that are normalized automatically.
 
 ### ID shortcut
 
-Pass a single number to set a relation to that record.
+Pass a single id to set a relation to that record.
 
 ```typescript
 // Set author to the record with id 5
