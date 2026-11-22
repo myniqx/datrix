@@ -13,6 +13,11 @@
 // Public API
 export { MigrationSession, createMigrationSession } from "./session";
 export type {
+	IdTypeChange,
+	IdMapping,
+	IdTypeMigrationResult,
+} from "./id-type";
+export type {
 	AmbiguousChange,
 	AmbiguousAction,
 	AmbiguousChangeType,

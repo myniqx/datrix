@@ -208,6 +208,14 @@ export class Datrix implements IDatrix {
 					);
 				}
 
+				if (session.idTypeChange) {
+					const { from, to } = session.idTypeChange;
+					throw new DatrixError(
+						`Auto-migration aborted: idType change detected (${from} → ${to}). Run "datrix migrate" to convert existing ids.`,
+						{ code: "INIT_FAILED" },
+					);
+				}
+
 				if (session.hasChanges()) {
 					await session.apply();
 				}

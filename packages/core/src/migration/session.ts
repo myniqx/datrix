@@ -11,7 +11,12 @@
  * - Preview and apply migrations
  */
 
-import { DatabaseAdapter, QueryRunner } from "../types/adapter";
+import {
+	DatabaseAdapter,
+	ExportWriter,
+	ImportReader,
+	QueryRunner,
+} from "../types/adapter";
 import {
 	SchemaDefinition,
 	FieldDefinition,
@@ -32,6 +37,13 @@ import { ForgeMigrationGenerator } from "./generator";
 import { ForgeMigrationHistory } from "./history";
 import { ForgeMigrationRunner } from "./runner";
 import { assignIds } from "../schema/id";
+import {
+	IdTypeChange,
+	IdTypeMigrationResult,
+	createIdTypeTransform,
+	detectStoredIdType,
+	isIdTypeOnlyDiff,
+} from "./id-type";
 
 /**
  * Ambiguous change types
@@ -116,6 +128,7 @@ export class MigrationSession {
 	private databaseSchemas: Map<string, SchemaDefinition> = new Map();
 	private differences: SchemaDiff[] = [];
 	private _ambiguous: AmbiguousChange[] = [];
+	private _idTypeChange: IdTypeChange | null = null;
 	private initialized = false;
 
 	constructor(datrix: IDatrix) {
@@ -177,6 +190,25 @@ export class MigrationSession {
 			const comparison = this.differ.compare(oldSchemas, newSchemas);
 
 			this.differences = [...comparison.differences];
+
+			// idType switch (int ↔ uuid) is a full data rewrite, handled
+			// separately from regular schema changes
+			const storedIdType = detectStoredIdType(this.databaseSchemas);
+			const configIdType = registry.getIdType();
+			if (storedIdType !== null && storedIdType !== configIdType) {
+				const others = this.differences.filter((d) => !isIdTypeOnlyDiff(d));
+				if (others.length > 0) {
+					throw new MigrationSystemError(
+						`idType changed (${storedIdType} → ${configIdType}) together with ${others.length} other schema change(s). ` +
+							`Apply the other schema changes with idType "${storedIdType}" first, then switch idType in a separate migration.`,
+						"MIGRATION_ERROR",
+					);
+				}
+				this._idTypeChange = { from: storedIdType, to: configIdType };
+				this.differences = [];
+				this.initialized = true;
+				return;
+			}
 
 			// Detect ambiguous changes
 			this.detectAmbiguousChanges();
@@ -1202,7 +1234,57 @@ export class MigrationSession {
 	 * Check if there are any changes to apply
 	 */
 	hasChanges(): boolean {
-		return this.differences.length > 0;
+		return this.differences.length > 0 || this._idTypeChange !== null;
+	}
+
+	/**
+	 * Pending idType switch (int ↔ uuid), or null.
+	 *
+	 * When set, the session has no regular schema changes: apply it with
+	 * `applyIdTypeChange()` instead of `apply()`.
+	 */
+	get idTypeChange(): IdTypeChange | null {
+		return this._idTypeChange;
+	}
+
+	/**
+	 * Convert every id, foreign key and junction row to the configured idType.
+	 *
+	 * Flow: export the whole database to `io.backup` (the caller keeps it as a
+	 * restorable backup) → read it back through `io.openBackup()` → rewrite ids
+	 * in creation order → import with the current schemas (drops and recreates
+	 * the managed tables).
+	 *
+	 * @returns old → new id mapping per table, for external references
+	 */
+	async applyIdTypeChange(io: {
+		readonly backup: ExportWriter;
+		readonly openBackup: () => ImportReader;
+	}): Promise<IdTypeMigrationResult> {
+		const change = this._idTypeChange;
+		if (!change) {
+			throw new MigrationSystemError(
+				"No pending idType change",
+				"MIGRATION_ERROR",
+			);
+		}
+
+		await this.adapter.exportData(io.backup);
+
+		const targets = new Map<string, SchemaDefinition>();
+		for (const schema of this.currentSchemas.values()) {
+			targets.set(schema.tableName ?? schema.name, schema);
+		}
+
+		const { reader, result } = await createIdTypeTransform(
+			io.openBackup(),
+			targets,
+			change,
+		);
+		await this.adapter.importData(reader);
+
+		this._idTypeChange = null;
+		return result();
 	}
 
 	/**
@@ -1231,6 +1313,13 @@ export class MigrationSession {
 	 * Apply migrations
 	 */
 	async apply(): Promise<readonly MigrationExecutionResult[]> {
+		if (this._idTypeChange) {
+			throw new MigrationSystemError(
+				`Pending idType change (${this._idTypeChange.from} → ${this._idTypeChange.to}) must be applied with applyIdTypeChange()`,
+				"MIGRATION_ERROR",
+			);
+		}
+
 		if (this.hasUnresolvedAmbiguous()) {
 			throw new MigrationSystemError(
 				"Cannot apply migrations with unresolved ambiguous changes",
